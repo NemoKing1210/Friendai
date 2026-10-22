@@ -71,5 +71,15 @@
   "friedai.voice.hud.transcribing": "Распознаю…",
   "friedai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
   "friedai.voice.error.no_mic": "Микрофон недоступен",
-  "friedai.voice.error.failed": "Не удалось распознать речь"
+  "friedai.voice.error.failed": "Не удалось распознать речь",
+
+  "friedai.voice.chat_line": "[🎤 %s] %s",
+  "friedai.voice.need_companion": "Сначала призови компаньона: /friedai summon",
+  "friedai.voice.error.model_corrupt": "Файл модели повреждён, попробуй ещё раз.",
+  "friedai.config.voice.download": "Скачать модель",
+  "friedai.config.voice.status.installed": "Установлена",
+  "friedai.config.voice.status.missing": "Не скачана",
+  "friedai.config.voice.downloading": "Скачивание… %s%%",
+  "friedai.config.voice.test": "Тестовая запись (3 с)",
+  "friedai.config.voice.test_result": "Распознано: %s"
 }

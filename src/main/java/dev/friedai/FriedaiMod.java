@@ -6,6 +6,7 @@ import dev.friedai.core.FriedaiServerState;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.net.FriedaiNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -37,6 +38,7 @@ public class FriedaiMod implements ModInitializer {
                 CompanionManager.get(level.getServer()).unregister(companion);
             }
         });
+        FriedaiNetworking.register();
         ChatRouter.register();
         ServerLifecycleEvents.SERVER_STARTING.register(FriedaiServerState::get);
         ServerLifecycleEvents.SERVER_STOPPED.register(FriedaiServerState::close);

@@ -71,5 +71,15 @@
   "friedai.voice.hud.transcribing": "Transcribing…",
   "friedai.voice.error.no_model": "Speech model not downloaded — Settings → Voice",
   "friedai.voice.error.no_mic": "Microphone unavailable",
-  "friedai.voice.error.failed": "Speech recognition failed"
+  "friedai.voice.error.failed": "Speech recognition failed",
+
+  "friedai.voice.chat_line": "[🎤 %s] %s",
+  "friedai.voice.need_companion": "Summon your companion first: /friedai summon",
+  "friedai.voice.error.model_corrupt": "The model file is corrupted, try again.",
+  "friedai.config.voice.download": "Download model",
+  "friedai.config.voice.status.installed": "Installed",
+  "friedai.config.voice.status.missing": "Not downloaded",
+  "friedai.config.voice.downloading": "Downloading… %s%%",
+  "friedai.config.voice.test": "Test recording (3 s)",
+  "friedai.config.voice.test_result": "Recognized: %s"
 }

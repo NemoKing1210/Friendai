@@ -12,7 +12,8 @@
 			"dev.friedai.test.ItemTaskTests",
 			"dev.friedai.test.MineBlocksTests",
 			"dev.friedai.test.ToolTests",
-			"dev.friedai.test.BrainServiceTests"
+			"dev.friedai.test.BrainServiceTests",
+			"dev.friedai.test.VoiceTests"
 		]
 	},
 	"depends": {

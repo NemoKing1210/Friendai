@@ -1,3 +1,3 @@
-[20:08:01] [Test worker/WARN]: LLM request failed: dev.friedai.llm.model.LlmException: bad key
-[20:08:01] [Test worker/WARN]: LLM request failed: java.lang.IllegalStateException: no response queued
-[20:08:01] [Test worker/WARN]: Config C:\Users\nemok\AppData\Local\Temp\junit-1002955206923924257\friedai-server.json is broken (java.io.EOFException: End of input at line 1 column 6 path $.oops); using defaults, old file kept as C:\Users\nemok\AppData\Local\Temp\junit-1002955206923924257\friedai-server.json.bak
+[20:11:02] [Test worker/WARN]: LLM request failed: dev.friedai.llm.model.LlmException: bad key
+[20:11:02] [Test worker/WARN]: LLM request failed: java.lang.IllegalStateException: no response queued
+[20:11:02] [Test worker/WARN]: Config C:\Users\nemok\AppData\Local\Temp\junit-11523799395134582020\friedai-server.json is broken (java.io.EOFException: End of input at line 1 column 6 path $.oops); using defaults, old file kept as C:\Users\nemok\AppData\Local\Temp\junit-11523799395134582020\friedai-server.json.bak

@@ -6,7 +6,14 @@ import dev.friedai.config.ClientConfig;
 import dev.friedai.config.ConfigStore;
 import dev.friedai.config.SecretResolver;
 import dev.friedai.config.ServerConfig;
+import dev.friedai.client.voice.MicCapture;
+import dev.friedai.client.voice.SpeechToText;
+import dev.friedai.client.voice.VoiceRuntime;
 import dev.friedai.core.Components;
+import dev.friedai.text.UserMessage;
+import dev.friedai.voice.PcmConverter;
+import dev.friedai.voice.WhisperModel;
+import java.util.concurrent.CompletableFuture;
 import dev.friedai.core.FriedaiServerState;
 import dev.friedai.llm.LlmClient;
 import dev.friedai.llm.http.HttpTransport;
@@ -70,7 +77,7 @@ public final class FriedaiConfigScreen {
                     .option(LabelOption.create(tr("friedai.config.server_only")))
                     .build());
         }
-        builder.category(voiceCategory(client));
+        builder.category(voiceCategory(parent, client));
 
         ServerConfig savedServer = server;
         builder.save(() -> {
@@ -223,22 +230,98 @@ public final class FriedaiConfigScreen {
                 .build();
     }
 
-    private static ConfigCategory voiceCategory(ClientConfig client) {
+    private static ConfigCategory voiceCategory(Screen parent, ClientConfig client) {
         var v = client.voice;
+        String defaultDevice = tr("friedai.config.voice.device.default").getString();
+        List<String> devices = new ArrayList<>();
+        devices.add(defaultDevice);
+        try {
+            devices.addAll(MicCapture.devices());
+        } catch (RuntimeException e) {
+            // no audio system: only the default entry is offered
+        }
+        Option<String> modelOpt = Option.<String>createBuilder()
+                .name(tr("friedai.config.voice.model"))
+                .binding("base", () -> v.whisperModel, x -> v.whisperModel = x)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(WHISPER_MODELS).allowAnyValue(false))
+                .build();
+        Option<String> languageOpt = Option.<String>createBuilder()
+                .name(tr("friedai.config.voice.language"))
+                .binding("auto", () -> v.language, x -> v.language = x.isBlank() ? "auto" : x.strip())
+                .controller(StringControllerBuilder::create)
+                .build();
+        Option<String> deviceOpt = Option.<String>createBuilder()
+                .name(tr("friedai.config.voice.device"))
+                .binding(defaultDevice, () -> v.inputDevice == null ? defaultDevice : v.inputDevice,
+                        x -> v.inputDevice = x.equals(defaultDevice) ? null : x)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(devices).allowAnyValue(false))
+                .build();
+
+        boolean installed = VoiceRuntime.manager().isInstalled(WhisperModel.byId(v.whisperModel).spec());
+        LabelOption status = LabelOption.create(tr(installed
+                ? "friedai.config.voice.status.installed" : "friedai.config.voice.status.missing"));
+        ButtonOption download = ButtonOption.createBuilder()
+                .name(tr("friedai.config.voice.download"))
+                .action((screen, button) -> {
+                    WhisperModel model = WhisperModel.byId(modelOpt.pendingValue());
+                    int[] lastStep = {-1};
+                    VoiceRuntime.manager().download(model.spec(), fraction -> {
+                        int percent = (int) (fraction * 100);
+                        if (percent / 10 != lastStep[0]) {
+                            lastStep[0] = percent / 10;
+                            Minecraft.getInstance().execute(() ->
+                                    toast(Component.translatable("friedai.config.voice.downloading", percent)));
+                        }
+                    }).whenComplete((path, error) -> Minecraft.getInstance().execute(() -> {
+                        if (error != null) {
+                            toast(Components.of(ErrorMessages.forUser(error)));
+                        } else {
+                            VoiceRuntime.invalidate();
+                            toast(tr("friedai.config.voice.status.installed"));
+                            Minecraft.getInstance().setScreenAndShow(create(parent));
+                        }
+                    }));
+                })
+                .build();
+        ButtonOption test = ButtonOption.createBuilder()
+                .name(tr("friedai.config.voice.test"))
+                .action((screen, button) -> testRecording(v.inputDevice, v.language))
+                .build();
+
         return ConfigCategory.createBuilder()
                 .name(tr("friedai.config.category.voice"))
                 .option(booleanOption("friedai.config.voice.enabled", true, () -> v.enabled, x -> v.enabled = x))
-                .option(Option.<String>createBuilder()
-                        .name(tr("friedai.config.voice.model"))
-                        .binding("base", () -> v.whisperModel, x -> v.whisperModel = x)
-                        .controller(o -> DropdownStringControllerBuilder.create(o).values(WHISPER_MODELS).allowAnyValue(false))
-                        .build())
-                .option(Option.<String>createBuilder()
-                        .name(tr("friedai.config.voice.language"))
-                        .binding("auto", () -> v.language, x -> v.language = x.isBlank() ? "auto" : x.strip())
-                        .controller(StringControllerBuilder::create)
-                        .build())
+                .option(modelOpt)
+                .option(status)
+                .option(download)
+                .option(languageOpt)
+                .option(deviceOpt)
+                .option(test)
                 .build();
+    }
+
+    /** Records three seconds from the microphone and shows what was recognized. */
+    private static void testRecording(String device, String language) {
+        SpeechToText stt = VoiceRuntime.stt();
+        if (!stt.isReady()) {
+            toast(Components.of(UserMessage.of("friedai.voice.error.no_model")));
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            MicCapture mic = new MicCapture();
+            try {
+                mic.start(device, 5);
+                Thread.sleep(3_000);
+            } catch (Exception e) {
+                Minecraft.getInstance().execute(() -> toast(Components.of(UserMessage.of("friedai.voice.error.no_mic"))));
+                return;
+            }
+            byte[] pcm = mic.stop();
+            stt.transcribe(PcmConverter.toFloat(pcm), language).whenComplete((text, error) -> Minecraft.getInstance().execute(() ->
+                    toast(error != null
+                            ? Components.of(UserMessage.of("friedai.voice.error.failed"))
+                            : Component.translatable("friedai.config.voice.test_result", text))));
+        });
     }
 
     private static Option<Boolean> booleanOption(
