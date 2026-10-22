@@ -51,7 +51,7 @@ dependencies {
 
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-	testImplementation "com.google.code.gson:gson:2.11.0"
+	testImplementation "com.google.code.gson:gson:2.14.0"
 }
 
 test {
