@@ -5,9 +5,11 @@ import com.google.gson.JsonParser;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.llm.model.ToolCall;
+import dev.friedai.llm.model.ToolSpec;
 import dev.friedai.tool.ToolExecutor;
 import dev.friedai.tool.ToolResult;
 import dev.friedai.tool.builtin.FriedaiTools;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
@@ -91,6 +93,14 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_blocks", "{\"block\":\"oak_log\",\"count\":500}");
         h.assertTrue(r.error(), "count over the maximum must be rejected");
+        h.succeed();
+    }
+
+    @GameTest
+    public void registryExposesToolsInGroupOrder(GameTestHelper h) {
+        List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
+        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "pickup_items",
+                "give_items", "get_inventory", "look_around", "stop")), "names were " + names);
         h.succeed();
     }
 }
