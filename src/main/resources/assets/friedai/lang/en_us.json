@@ -8,5 +8,15 @@
   "friedai.config.test.ok_tools": "Connected: tool calling works",
   "friedai.config.test.ok_text": "Connected, but the model replied with text instead of calling the tool",
 
-  "friedai.error.config.profile_missing": "Profile '%s' not found"
+  "friedai.error.config.profile_missing": "Profile '%s' not found",
+
+  "friedai.error.llm.auth": "Can't connect to the provider: invalid API key.",
+  "friedai.error.llm.rate_limit": "The provider is rate limiting requests, try again a bit later.",
+  "friedai.error.llm.timeout": "The provider didn't respond in time.",
+  "friedai.error.llm.bad_request": "The provider rejected the request: %s",
+  "friedai.error.llm.server": "The provider had an internal error.",
+  "friedai.error.llm.network": "No connection to the provider.",
+  "friedai.error.llm.parse": "Couldn't understand the provider's response.",
+  "friedai.error.config": "Settings error: %s",
+  "friedai.error.unknown": "Something went wrong, see the log for details."
 }

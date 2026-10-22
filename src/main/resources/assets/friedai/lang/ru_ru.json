@@ -8,5 +8,15 @@
   "friedai.config.test.ok_tools": "Соединение есть: вызов инструментов работает",
   "friedai.config.test.ok_text": "Соединение есть, но модель ответила текстом вместо вызова инструмента",
 
-  "friedai.error.config.profile_missing": "Профиль «%s» не найден"
+  "friedai.error.config.profile_missing": "Профиль «%s» не найден",
+
+  "friedai.error.llm.auth": "Не могу подключиться к провайдеру: неверный API-ключ.",
+  "friedai.error.llm.rate_limit": "Провайдер ограничил частоту запросов, попробуй чуть позже.",
+  "friedai.error.llm.timeout": "Провайдер не ответил вовремя.",
+  "friedai.error.llm.bad_request": "Провайдер отклонил запрос: %s",
+  "friedai.error.llm.server": "Ошибка на стороне провайдера.",
+  "friedai.error.llm.network": "Нет связи с провайдером.",
+  "friedai.error.llm.parse": "Не понял ответ провайдера.",
+  "friedai.error.config": "Ошибка настроек: %s",
+  "friedai.error.unknown": "Что-то пошло не так, подробности в логе."
 }
