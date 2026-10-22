@@ -1,6 +1,10 @@
 package dev.friedai.entity;
 
 import com.mojang.serialization.Codec;
+import dev.friedai.task.Task;
+import dev.friedai.task.TaskFactory;
+import dev.friedai.task.TaskRunner;
+import dev.friedai.task.TaskSettings;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,9 +33,23 @@ public class CompanionEntity extends PathfinderMob {
 
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
+    private final TaskRunner taskRunner =
+            new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
+    }
+
+    public TaskRunner taskRunner() {
+        return taskRunner;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (!level().isClientSide() && isAlive()) {
+            taskRunner.tick();
+        }
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -131,6 +149,7 @@ public class CompanionEntity extends PathfinderMob {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
+        taskRunner.current().map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
     }
 
     @Override
@@ -138,5 +157,8 @@ public class CompanionEntity extends PathfinderMob {
         super.readAdditionalSaveData(input);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
+        if (level() instanceof ServerLevel) {
+            input.getString("SavedTask").flatMap(TaskFactory::restore).ifPresent(taskRunner::restore);
+        }
     }
 }
