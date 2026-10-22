@@ -1,8 +1,8 @@
-# Friedai
+# Friendai
 
 An open-source Fabric mod that adds an AI companion to Minecraft. Talk to it in chat or by voice, and it will follow you, fetch items, walk to places and mine blocks for you.
 
-> "Friedai, mine 10 logs" — the companion answers in chat, walks to the trees, chops them, picks up the drops and reports back.
+> "Friendai, mine 10 logs" — the companion answers in chat, walks to the trees, chops them, picks up the drops and reports back.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ The mod must be installed on both the client and the server (the integrated serv
 2. In a world, run `/friedai summon`. Your companion appears next to you.
 3. Talk to it:
    - in chat with a prefix: `@ come here`
-   - in chat by name: `Friedai, mine 10 logs`
+   - in chat by name: `Friendai, mine 10 logs`
    - by voice: hold **V** (push-to-talk, rebindable in Controls) and speak.
 4. `/friedai stop` cancels what it is doing, `/friedai dismiss` sends it away, `/friedai status` shows the provider and current task.
 
@@ -29,7 +29,7 @@ What it can do: follow you, stay, go to a point, pick up items, give you items, 
 
 ## Setting up a provider
 
-Open **Mod Menu → Friedai → Provider**, or edit `config/friedai-server.json`. On a dedicated server edit the file and run `/friedai reload`.
+Open **Mod Menu → Friendai → Provider**, or edit `config/friedai-server.json`. On a dedicated server edit the file and run `/friedai reload`.
 
 | Preset id | Service | Notes |
 |---|---|---|

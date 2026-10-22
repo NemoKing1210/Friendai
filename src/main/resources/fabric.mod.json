@@ -2,9 +2,19 @@
 	"schemaVersion": 1,
 	"id": "friedai",
 	"version": "${version}",
-	"name": "Friedai",
+	"name": "Friendai",
 	"description": "An AI companion you can play with and talk to — by chat or voice.",
-	"authors": ["Friedai contributors"],
+	"authors": [
+		{
+			"name": "NemoKing",
+			"contact": { "homepage": "https://github.com/NemoKing1210" }
+		}
+	],
+	"contact": {
+		"homepage": "https://github.com/NemoKing1210/Friendai",
+		"sources": "https://github.com/NemoKing1210/Friendai",
+		"issues": "https://github.com/NemoKing1210/Friendai/issues"
+	},
 	"license": "MIT",
 	"icon": "assets/friedai/icon.png",
 	"environment": "*",

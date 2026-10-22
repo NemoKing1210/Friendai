@@ -1,5 +1,5 @@
 {
-  "modmenu.nameTranslation.friedai": "Friedai",
+  "modmenu.nameTranslation.friedai": "Friendai",
   "modmenu.descriptionTranslation.friedai": "An AI companion you can play with and talk to — by chat or voice.",
 
   "friedai.error.config.unknown_provider": "Unknown provider: %s",
@@ -34,7 +34,7 @@
   "friedai.command.reloaded": "Config reloaded.",
   "friedai.command.reloaded_with_fixes": "Config reloaded; %s invalid values were corrected (see the log).",
 
-  "friedai.config.title": "Friedai Settings",
+  "friedai.config.title": "Friendai Settings",
   "friedai.config.category.provider": "Provider",
   "friedai.config.category.companion": "Companion",
   "friedai.config.category.chat": "Chat",
@@ -65,7 +65,7 @@
   "friedai.config.voice.device": "Microphone",
   "friedai.config.voice.device.default": "System default",
 
-  "key.category.friedai.main": "Friedai",
+  "key.category.friedai.main": "Friendai",
   "key.friedai.push_to_talk": "Push to talk",
   "friedai.voice.hud.recording": "● Recording…",
   "friedai.voice.hud.transcribing": "Transcribing…",

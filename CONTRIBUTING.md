@@ -1,4 +1,4 @@
-# Contributing to Friedai
+# Contributing to Friendai
 
 ## Ground rules
 

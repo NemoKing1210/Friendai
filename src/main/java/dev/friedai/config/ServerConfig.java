@@ -30,7 +30,7 @@ public class ServerConfig {
     }
 
     public static class CompanionSection {
-        public String name = "Friedai";
+        public String name = "Friendai";
         public String persona = "A friendly and resourceful Minecraft companion. Keeps answers short and helpful.";
         public String language = "auto";
     }

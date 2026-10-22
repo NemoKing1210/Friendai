@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "friedai-gametest",
 	"version": "1.0.0",
-	"name": "Friedai GameTests",
+	"name": "Friendai GameTests",
 	"environment": "*",
 	"entrypoints": {
 		"fabric-gametest": [

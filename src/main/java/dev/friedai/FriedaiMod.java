@@ -51,6 +51,6 @@ public class FriedaiMod implements ModInitializer {
             DebugStream.onDisconnect(handler.getPlayer());
             FriedaiServerState.get(server).brains().onOwnerLeft(handler.getPlayer().getUUID());
         });
-        LOGGER.info("Friedai initialized");
+        LOGGER.info("Friendai initialized");
     }
 }

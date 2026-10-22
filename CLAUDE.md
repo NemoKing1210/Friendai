@@ -25,7 +25,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
   JAVA_HOME="..." ./gradlew build --console=plain -q > /tmp/build.log 2>&1; grep -n "error:\|FAIL\|failed\|GAME TESTS\|passed" /tmp/build.log
   ```
 
-- `runClient` opens a real window. To smoke-test startup, start it in the background, wait for the title screen, read the log for `Friedai initialized` and exceptions, then kill the `KnotClient` java process. It cannot test the settings screen, voice or real providers.
+- `runClient` opens a real window. To smoke-test startup, start it in the background, wait for the title screen, read the log for `Friendai initialized` and exceptions, then kill the `KnotClient` java process. It cannot test the settings screen, voice or real providers.
 
 ## Verification habits for this repo
 

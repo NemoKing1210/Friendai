@@ -63,7 +63,7 @@ public class FriedaiClient implements ClientModInitializer {
             if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
                 ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));
             } else {
-                FriedaiMod.LOGGER.warn("Not connected to a server with Friedai, dropping transcript");
+                FriedaiMod.LOGGER.warn("Not connected to a server with Friendai, dropping transcript");
             }
         }).register();
     }

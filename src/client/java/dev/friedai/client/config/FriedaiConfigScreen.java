@@ -41,7 +41,7 @@ import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-/** The Friedai settings screen, built with YACL. Only loaded when YACL is installed. */
+/** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriedaiConfigScreen {
     private static final SystemToast.SystemToastId TOAST = new SystemToast.SystemToastId();
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
@@ -209,7 +209,7 @@ public final class FriedaiConfigScreen {
         var c = server.companion;
         return ConfigCategory.createBuilder()
                 .name(tr("friedai.config.category.companion"))
-                .option(stringOption("friedai.config.companion.name", () -> c.name, "Friedai", v -> c.name = v.isBlank() ? "Friedai" : v.strip()))
+                .option(stringOption("friedai.config.companion.name", () -> c.name, "Friendai", v -> c.name = v.isBlank() ? "Friendai" : v.strip()))
                 .option(stringOption("friedai.config.companion.persona", () -> c.persona, c.persona, v -> c.persona = v))
                 .option(Option.<String>createBuilder()
                         .name(tr("friedai.config.companion.language"))

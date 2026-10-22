@@ -87,7 +87,7 @@ public class BrainServiceTests {
         brains.setGatewayOverride(player.getUUID(), script);
         brains.setSpeakerWrapper(player.getUUID(), real -> said);
         CompanionManager.get(server).summon(player);
-        ChatRouter.onChat(player, "Friedai, hi");
+        ChatRouter.onChat(player, "Friendai, hi");
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 

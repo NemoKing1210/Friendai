@@ -1,5 +1,5 @@
 {
-  "modmenu.nameTranslation.friedai": "Friedai",
+  "modmenu.nameTranslation.friedai": "Friendai",
   "modmenu.descriptionTranslation.friedai": "ИИ-компаньон, с которым можно играть и разговаривать — в чате или голосом.",
 
   "friedai.error.config.unknown_provider": "Неизвестный провайдер: %s",
@@ -34,7 +34,7 @@
   "friedai.command.reloaded": "Конфиг перезагружен.",
   "friedai.command.reloaded_with_fixes": "Конфиг перезагружен; исправлено некорректных значений: %s (подробности в логе).",
 
-  "friedai.config.title": "Настройки Friedai",
+  "friedai.config.title": "Настройки Friendai",
   "friedai.config.category.provider": "Провайдер",
   "friedai.config.category.companion": "Компаньон",
   "friedai.config.category.chat": "Чат",
@@ -65,7 +65,7 @@
   "friedai.config.voice.device": "Микрофон",
   "friedai.config.voice.device.default": "По умолчанию",
 
-  "key.category.friedai.main": "Friedai",
+  "key.category.friedai.main": "Friendai",
   "key.friedai.push_to_talk": "Говорить (удерживать)",
   "friedai.voice.hud.recording": "● Запись…",
   "friedai.voice.hud.transcribing": "Распознаю…",

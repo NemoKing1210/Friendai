@@ -16,8 +16,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## End to end with a real provider
 
-- [ ] `/friedai summon`, then "Friedai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
-- [ ] The same in Russian ("Friedai, добудь 3 дерева"): the companion answers in Russian.
+- [ ] `/friedai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
+- [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
 - [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friedai status`).
 
 ## Voice
