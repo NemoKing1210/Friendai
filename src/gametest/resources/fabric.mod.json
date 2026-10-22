@@ -8,7 +8,8 @@
 		"fabric-gametest": [
 			"dev.friedai.test.FriedaiGameTests",
 			"dev.friedai.test.CompanionEntityTests",
-			"dev.friedai.test.TaskTests"
+			"dev.friedai.test.TaskTests",
+			"dev.friedai.test.ItemTaskTests"
 		]
 	},
 	"depends": {
