@@ -1,9 +1,60 @@
-.gradle/
-build/
-run/
-out/
+# Gradle
+/.gradle/
+/build/
+/out/
+/classes/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Minecraft / Fabric dev runs (worlds, configs, crash reports, logs, mod caches)
+/run/
+/runs/
+/logs/
+/crash-reports/
+hs_err_pid*.log
+replay_pid*.log
+*.log
+*.log.gz
+*.hprof
+*.jfr
+
+# Files the game writes next to the project when started from it
+# (anchored to the repository root: src/**/config/ is source code)
+/config/
+/saves/
+/mods/
+/resourcepacks/
+/shaderpacks/
+/screenshots/
+/options.txt
+/servers.dat
+/usercache.json
+/eula.txt
+/server.properties
+/whitelist.json
+/ops.json
+/banned-*.json
+/friedai/
+
+# IDEs
 .idea/
 *.iml
-.superpowers/
-.claude/worktrees/
-docs/
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+.eclipseproduct
+/bin/
+*.launch
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local tooling and planning files (never committed)
+/.claude/
+/.superpowers/
+/docs/
