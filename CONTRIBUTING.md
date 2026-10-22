@@ -36,3 +36,22 @@ Presets are data. Add one to `ProviderRegistry.withBuiltins`: id, display name, 
 ```
 
 Write the failing test first. Items that cannot be automated (real providers, voice on each OS, LAN) are tracked in [MANUAL_CHECKLIST.md](MANUAL_CHECKLIST.md).
+
+## Commits and CI
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<optional scope>): <lowercase subject>`, no trailing period, header up to 100 characters. Types: `feat fix docs style refactor perf test build ci chore revert`. Rules live in `commitlint.config.mjs`.
+
+Enable the local check once per clone (plain shell, no Node needed):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+On every pull request, GitHub Actions runs:
+
+- **CI** (`.github/workflows/ci.yml`): unit tests, Fabric GameTests and the jar build. The `CI gate` job is the single required check; the mod jar is attached to the run as the `friedai-jar` artifact.
+- **Commit lint** (`.github/workflows/commitlint.yml`): every commit message and the PR title. The `Commit lint gate` job is the required check.
+
+A PR cannot be merged while either gate is red. Enable that once with `sh scripts/setup-branch-protection.sh` (needs admin rights; run it after the workflows have run at least once).
+
+Releases: bump `mod_version` in `gradle.properties`, then push a tag `vX.Y.Z` that matches it. `.github/workflows/release.yml` runs the full build and publishes a GitHub release with the jar.
