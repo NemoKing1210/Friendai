@@ -34,6 +34,20 @@ public final class SchemaBuilder {
         return this;
     }
 
+    /** An integer with no bounds: for values whose limits are not known here (block coordinates, for example). */
+    public SchemaBuilder integer(String name, String description) {
+        property(name, "integer", description);
+        return this;
+    }
+
+    public SchemaBuilder array(String name, String description, JsonObject itemSchema, int minItems, int maxItems) {
+        JsonObject p = property(name, "array", description);
+        p.add("items", itemSchema);
+        p.addProperty("minItems", minItems);
+        p.addProperty("maxItems", maxItems);
+        return this;
+    }
+
     public SchemaBuilder number(String name, String description) {
         property(name, "number", description);
         return this;
