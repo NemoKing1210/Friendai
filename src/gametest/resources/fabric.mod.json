@@ -9,7 +9,8 @@
 			"dev.friedai.test.FriedaiGameTests",
 			"dev.friedai.test.CompanionEntityTests",
 			"dev.friedai.test.TaskTests",
-			"dev.friedai.test.ItemTaskTests"
+			"dev.friedai.test.ItemTaskTests",
+			"dev.friedai.test.MineBlocksTests"
 		]
 	},
 	"depends": {
