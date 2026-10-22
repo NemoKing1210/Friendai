@@ -19,17 +19,17 @@ public final class SecretResolver {
         return value;
     }
 
-    /** A display form that is safe to show in the GUI. Environment references are not secrets. */
-    public static String mask(String secret) {
+    /**
+     * The form of a key shown in the GUI: the key itself when {@code reveal} is set, otherwise a fixed
+     * placeholder that leaks neither content nor length. Environment references are not secrets.
+     */
+    public static String display(String secret, boolean reveal) {
         if (secret == null || secret.isEmpty()) {
             return "";
         }
-        if (secret.startsWith(ENV_PREFIX)) {
+        if (reveal || secret.startsWith(ENV_PREFIX)) {
             return secret;
         }
-        if (secret.length() < 10) {
-            return "•••";
-        }
-        return secret.substring(0, 3) + "…" + secret.substring(secret.length() - 3);
+        return "••••••••";
     }
 }

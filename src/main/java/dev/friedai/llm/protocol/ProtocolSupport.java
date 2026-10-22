@@ -35,6 +35,7 @@ public final class ProtocolSupport {
     public static Map<String, String> headers(Endpoint endpoint) {
         Map<String, String> h = new LinkedHashMap<>();
         endpoint.authStyle().apply(h, endpoint.apiKey());
+        h.putAll(endpoint.extraHeaders());
         return h;
     }
 

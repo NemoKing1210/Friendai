@@ -46,6 +46,8 @@
   "friedai.config.base_url": "Base URL",
   "friedai.config.api_key": "API key",
   "friedai.config.api_key.tooltip": "Use env:VAR_NAME to read the key from an environment variable.",
+  "friedai.config.api_key.show": "Show API key",
+  "friedai.config.api_key.hide": "Hide API key",
   "friedai.config.model": "Model",
   "friedai.config.temperature": "Temperature",
   "friedai.config.max_tokens": "Max tokens",

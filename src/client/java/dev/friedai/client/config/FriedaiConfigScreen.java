@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import dev.friedai.core.FriedaiServerState;
 import dev.friedai.llm.LlmClient;
 import dev.friedai.llm.http.HttpTransport;
+import dev.friedai.llm.provider.AuthStyle;
 import dev.friedai.llm.provider.LlmProfile;
 import dev.friedai.llm.provider.ProviderPreset;
 import dev.friedai.llm.provider.ProviderRegistry;
@@ -52,7 +53,29 @@ public final class FriedaiConfigScreen {
         return Component.translatable(key);
     }
 
+    /**
+     * Unsaved provider settings carried over when the screen is rebuilt (to refresh the model list or toggle
+     * the key field), so the rebuild does not fall back to what is on disk.
+     *
+     * @param revealKey whether the API key field shows the real key instead of a placeholder
+     */
+    private record ProviderDraft(
+            String provider, String baseUrl, String apiKey, String model,
+            Double temperature, int maxTokens, boolean revealKey) {
+        ProviderDraft withProvider(String newProvider) {
+            return new ProviderDraft(newProvider, baseUrl, apiKey, model, temperature, maxTokens, revealKey);
+        }
+
+        ProviderDraft withReveal(boolean reveal) {
+            return new ProviderDraft(provider, baseUrl, apiKey, model, temperature, maxTokens, reveal);
+        }
+    }
+
     public static Screen create(Screen parent) {
+        return create(parent, null);
+    }
+
+    private static Screen create(Screen parent, ProviderDraft draft) {
         Minecraft mc = Minecraft.getInstance();
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
 
@@ -68,7 +91,7 @@ public final class FriedaiConfigScreen {
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder().title(tr("friedai.config.title"));
         if (server != null) {
-            builder.category(providerCategory(parent, server));
+            builder.category(providerCategory(parent, server, draft));
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
         } else {
@@ -103,8 +126,17 @@ public final class FriedaiConfigScreen {
                 .build();
     }
 
-    private static ConfigCategory providerCategory(Screen parent, ServerConfig server) {
+    private static ConfigCategory providerCategory(Screen parent, ServerConfig server, ProviderDraft draft) {
         ServerConfig.ProfileConfig p = server.profiles.computeIfAbsent(server.activeProfile, k -> new ServerConfig.ProfileConfig());
+        boolean revealKey = draft != null && draft.revealKey();
+        if (draft != null) {
+            p.provider = draft.provider();
+            p.baseUrl = draft.baseUrl();
+            p.apiKey = draft.apiKey();
+            p.model = draft.model();
+            p.temperature = draft.temperature();
+            p.maxTokens = draft.maxTokens();
+        }
         ProviderRegistry registry = ProviderRegistry.withBuiltins(
                 new HttpTransport(HttpClient.newHttpClient(), Duration.ofSeconds(30), 1, Duration.ofMillis(300)));
         List<String> providerIds = registry.presets().stream().map(ProviderPreset::id).toList();
@@ -128,9 +160,9 @@ public final class FriedaiConfigScreen {
         Option<String> apiKeyOpt = Option.<String>createBuilder()
                 .name(tr("friedai.config.api_key"))
                 .description(OptionDescription.of(tr("friedai.config.api_key.tooltip")))
-                .binding("", () -> SecretResolver.mask(p.apiKey), v -> {
-                    // The field shows a mask; leaving it untouched must not overwrite the real key.
-                    if (!v.equals(SecretResolver.mask(p.apiKey))) {
+                .binding("", () -> SecretResolver.display(p.apiKey, revealKey), v -> {
+                    // The field may show a placeholder; leaving it untouched must not overwrite the real key.
+                    if (!v.equals(SecretResolver.display(p.apiKey, revealKey))) {
                         p.apiKey = v;
                     }
                 })
@@ -153,9 +185,12 @@ public final class FriedaiConfigScreen {
                 .controller(o -> IntegerFieldControllerBuilder.create(o).range(16, 65536))
                 .build();
 
-        java.util.function.Supplier<LlmClient> pendingClient = () -> {
+        java.util.function.Supplier<String> pendingKeyValue = () -> {
             String pendingKey = apiKeyOpt.pendingValue();
-            String key = pendingKey.equals(SecretResolver.mask(p.apiKey)) ? p.apiKey : pendingKey;
+            return pendingKey.equals(SecretResolver.display(p.apiKey, revealKey)) ? p.apiKey : pendingKey;
+        };
+        java.util.function.Supplier<LlmClient> pendingClient = () -> {
+            String key = pendingKeyValue.get();
             String base = baseUrlOpt.pendingValue();
             LlmProfile profile = new LlmProfile(
                     providerOpt.pendingValue(),
@@ -168,20 +203,53 @@ public final class FriedaiConfigScreen {
             return new LlmClient(registry, profile);
         };
 
+        java.util.function.Supplier<ProviderDraft> currentDraft = () -> {
+            String base = baseUrlOpt.pendingValue();
+            return new ProviderDraft(
+                    providerOpt.pendingValue(),
+                    base.isBlank() ? null : base.strip(),
+                    pendingKeyValue.get(),
+                    modelOpt.pendingValue(),
+                    temperatureOpt.pendingValue(),
+                    maxTokensOpt.pendingValue(),
+                    revealKey);
+        };
+
+        // Fetches the model list for the pending settings, then rebuilds the screen keeping them.
+        java.util.function.BiConsumer<ProviderDraft, Boolean> loadModelsThenReopen = (draftNow, reportSuccess) -> {
+            pendingClient.get().listModels().whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
+                if (error != null) {
+                    toast(Components.of(ErrorMessages.forUser(error)));
+                    return;
+                }
+                ModelCache.put(draftNow.provider(), models);
+                if (reportSuccess) {
+                    toast(Component.translatable("friedai.config.models_loaded", models.size()));
+                }
+                Minecraft.getInstance().setScreenAndShow(create(parent, draftNow));
+            }));
+        };
+
+        // Changing the provider reloads its models, so the dropdown never shows another provider's list.
+        providerOpt.addListener((opt, newProvider) -> {
+            ProviderDraft draftNow = currentDraft.get().withProvider(newProvider);
+            boolean needsKey = registry.preset(newProvider).map(x -> x.authStyle() != AuthStyle.NONE).orElse(false);
+            boolean hasKey = !SecretResolver.resolve(draftNow.apiKey(), System::getenv).isBlank();
+            if (needsKey && !hasKey) {
+                Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreenAndShow(create(parent, draftNow)));
+            } else {
+                loadModelsThenReopen.accept(draftNow, false);
+            }
+        });
+
         ButtonOption loadModels = ButtonOption.createBuilder()
                 .name(tr("friedai.config.load_models"))
-                .action((screen, button) -> {
-                    String provider = providerOpt.pendingValue();
-                    pendingClient.get().listModels().whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
-                        if (error != null) {
-                            toast(Components.of(ErrorMessages.forUser(error)));
-                            return;
-                        }
-                        ModelCache.put(provider, models);
-                        toast(Component.translatable("friedai.config.models_loaded", models.size()));
-                        Minecraft.getInstance().setScreenAndShow(create(parent));
-                    }));
-                })
+                .action((screen, button) -> loadModelsThenReopen.accept(currentDraft.get(), true))
+                .build();
+        ButtonOption toggleKey = ButtonOption.createBuilder()
+                .name(tr(revealKey ? "friedai.config.api_key.hide" : "friedai.config.api_key.show"))
+                .action((screen, button) ->
+                        Minecraft.getInstance().setScreenAndShow(create(parent, currentDraft.get().withReveal(!revealKey))))
                 .build();
         ButtonOption testConnection = ButtonOption.createBuilder()
                 .name(tr("friedai.config.test_connection"))
@@ -197,10 +265,11 @@ public final class FriedaiConfigScreen {
                 .option(providerOpt)
                 .option(baseUrlOpt)
                 .option(apiKeyOpt)
+                .option(toggleKey)
                 .option(modelOpt)
+                .option(loadModels)
                 .option(temperatureOpt)
                 .option(maxTokensOpt)
-                .option(loadModels)
                 .option(testConnection)
                 .build();
     }

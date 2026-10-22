@@ -46,6 +46,8 @@
   "friedai.config.base_url": "Base URL",
   "friedai.config.api_key": "API-ключ",
   "friedai.config.api_key.tooltip": "Используй env:ИМЯ_ПЕРЕМЕННОЙ, чтобы брать ключ из переменной окружения.",
+  "friedai.config.api_key.show": "Показать API-ключ",
+  "friedai.config.api_key.hide": "Скрыть API-ключ",
   "friedai.config.model": "Модель",
   "friedai.config.temperature": "Температура",
   "friedai.config.max_tokens": "Максимум токенов",

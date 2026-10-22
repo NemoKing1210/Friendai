@@ -13,9 +13,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 public final class ProviderRegistry {
     private static final String ZEN = "https://opencode.ai/inference";
+
+    private static final String GO = ZEN + "/go";
 
     private final Map<String, LlmProtocol> protocols = new LinkedHashMap<>();
     private final Map<String, ProviderPreset> presets = new LinkedHashMap<>();
@@ -50,11 +53,29 @@ public final class ProviderRegistry {
                         new RoutingRule("gemini-*", "gemini", ZEN + "/google/v1beta"),
                         new RoutingRule("*", "openai_chat", ZEN + "/openai/v1")),
                 "openai_chat"));
+        // OpenCode Go: same layout as Zen under /inference/go; the model list is at /go/v1/models (docs checked 2026-10-23).
+        r.add(new ProviderPreset("opencode_go", "OpenCode Go", GO + "/v1", AuthStyle.BEARER,
+                List.of(
+                        new RoutingRule("claude-*", "anthropic_messages", GO + "/anthropic/v1"),
+                        new RoutingRule("minimax-m3", "anthropic_messages", GO + "/anthropic/v1"),
+                        new RoutingRule("qwen3.*", "anthropic_messages", GO + "/anthropic/v1"),
+                        new RoutingRule("gpt-*", "openai_responses", GO + "/openai/v1"),
+                        new RoutingRule("grok-*", "openai_responses", GO + "/openai/v1"),
+                        new RoutingRule("muse-*", "openai_responses", GO + "/openai/v1"),
+                        new RoutingRule("gemini-*", "gemini", GO + "/google/v1beta"),
+                        new RoutingRule("*", "openai_chat", GO + "/openai/v1")),
+                "openai_chat",
+                // Go rejects requests without a session id and asks clients to use their own user agent.
+                Map.of("User-Agent", "friendai/1.0"),
+                "x-opencode-session"));
         r.add(new ProviderPreset("command_code", "Command Code", "https://api.commandcode.ai/provider/v1",
                 AuthStyle.BEARER,
                 List.of(rule("claude-*", "anthropic_messages"), rule("*", "openai_chat")), "openai_chat"));
         return r;
     }
+
+    /** One id per registry, i.e. per server run; sent to providers that ask for a stable session. */
+    private final String sessionId = UUID.randomUUID().toString();
 
     private static RoutingRule rule(String glob, String protocol) {
         return new RoutingRule(glob, protocol, null);
@@ -99,7 +120,7 @@ public final class ProviderRegistry {
                 () -> new ConfigException(UserMessage.of("friedai.error.config.unknown_provider", profile.provider())));
     }
 
-    private static Route route(LlmProtocol protocol, ProviderPreset preset, LlmProfile profile, String base) {
+    private Route route(LlmProtocol protocol, ProviderPreset preset, LlmProfile profile, String base) {
         if (base == null) {
             throw new ConfigException(UserMessage.of("friedai.error.config.needs_base_url", preset.id()));
         }
@@ -107,7 +128,11 @@ public final class ProviderRegistry {
         while (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
-        return new Route(protocol, new Endpoint(trimmed, profile.apiKey(), preset.authStyle()));
+        Map<String, String> extra = new LinkedHashMap<>(preset.headers());
+        if (preset.sessionHeader() != null) {
+            extra.put(preset.sessionHeader(), sessionId);
+        }
+        return new Route(protocol, new Endpoint(trimmed, profile.apiKey(), preset.authStyle(), extra));
     }
 
     private static String firstNonBlank(String... values) {

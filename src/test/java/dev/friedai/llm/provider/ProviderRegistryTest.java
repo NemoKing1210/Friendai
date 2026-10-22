@@ -10,6 +10,7 @@ import dev.friedai.text.UserMessage;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ProviderRegistryTest {
@@ -45,6 +46,47 @@ class ProviderRegistryTest {
         Route r = registry.resolve(profile("opencode_zen", "qwen3-coder", null, null));
         assertEquals("openai_chat", r.protocol().id());
         assertEquals("https://opencode.ai/inference/openai/v1", r.endpoint().baseUrl());
+    }
+
+    @Test
+    void goRoutesEachModelFamily() {
+        assertGo("claude-haiku-5-5", "anthropic_messages", "https://opencode.ai/inference/go/anthropic/v1");
+        assertGo("minimax-m3", "anthropic_messages", "https://opencode.ai/inference/go/anthropic/v1");
+        assertGo("qwen3.8-max", "anthropic_messages", "https://opencode.ai/inference/go/anthropic/v1");
+        assertGo("gpt-6-luna", "openai_responses", "https://opencode.ai/inference/go/openai/v1");
+        assertGo("grok-4.7", "openai_responses", "https://opencode.ai/inference/go/openai/v1");
+        assertGo("muse-spark-1.3-contributor", "openai_responses", "https://opencode.ai/inference/go/openai/v1");
+        assertGo("gemini-4-argon-contributor", "gemini", "https://opencode.ai/inference/go/google/v1beta");
+        assertGo("kimi-k3", "openai_chat", "https://opencode.ai/inference/go/openai/v1");
+        assertGo("minimax-m3.1-flash", "openai_chat", "https://opencode.ai/inference/go/openai/v1");
+    }
+
+    @Test
+    void goListsModelsFromGoEndpoint() {
+        Route r = registry.resolveModels(profile("opencode_go", "kimi-k3", null, null));
+        assertEquals("https://opencode.ai/inference/go/v1", r.endpoint().baseUrl());
+    }
+
+    @Test
+    void goSendsStableSessionHeaderAndOwnUserAgent() {
+        Map<String, String> first = registry.resolve(profile("opencode_go", "kimi-k3", null, null)).endpoint().extraHeaders();
+        Map<String, String> second = registry.resolve(profile("opencode_go", "claude-haiku-5-5", null, null)).endpoint().extraHeaders();
+        Map<String, String> models = registry.resolveModels(profile("opencode_go", "kimi-k3", null, null)).endpoint().extraHeaders();
+        assertTrue(!first.get("x-opencode-session").isBlank());
+        assertEquals(first.get("x-opencode-session"), second.get("x-opencode-session"));
+        assertEquals(first.get("x-opencode-session"), models.get("x-opencode-session"));
+        assertEquals("friendai/1.0", first.get("User-Agent"));
+    }
+
+    @Test
+    void otherProvidersSendNoExtraHeaders() {
+        assertTrue(registry.resolve(profile("opencode_zen", "kimi-k3", null, null)).endpoint().extraHeaders().isEmpty());
+    }
+
+    private void assertGo(String model, String protocol, String baseUrl) {
+        Route r = registry.resolve(profile("opencode_go", model, null, null));
+        assertEquals(protocol, r.protocol().id(), model);
+        assertEquals(baseUrl, r.endpoint().baseUrl(), model);
     }
 
     @Test

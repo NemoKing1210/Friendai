@@ -14,10 +14,17 @@ class SecretResolverTest {
     }
 
     @Test
-    void mask() {
-        assertEquals("sk-…456", SecretResolver.mask("sk-abcdef123456"));
-        assertEquals("•••", SecretResolver.mask("short"));
-        assertEquals("", SecretResolver.mask(""));
-        assertEquals("env:ANTHROPIC_API_KEY", SecretResolver.mask("env:ANTHROPIC_API_KEY"));
+    void displayHidesKeyByDefault() {
+        assertEquals("••••••••", SecretResolver.display("sk-abcdef123456", false));
+        assertEquals("••••••••", SecretResolver.display("short", false));
+        assertEquals("", SecretResolver.display("", false));
+        assertEquals("", SecretResolver.display(null, false));
+        assertEquals("env:ANTHROPIC_API_KEY", SecretResolver.display("env:ANTHROPIC_API_KEY", false));
+    }
+
+    @Test
+    void displayRevealsKeyOnRequest() {
+        assertEquals("sk-abcdef123456", SecretResolver.display("sk-abcdef123456", true));
+        assertEquals("", SecretResolver.display(null, true));
     }
 }
