@@ -10,7 +10,8 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": ["dev.friedai.FriedaiMod"],
-		"client": ["dev.friedai.client.FriedaiClient"]
+		"client": ["dev.friedai.client.FriedaiClient"],
+		"modmenu": ["dev.friedai.client.config.ModMenuIntegration"]
 	},
 	"depends": {
 		"fabricloader": ">=0.19.5",
