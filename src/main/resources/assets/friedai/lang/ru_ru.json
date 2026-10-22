@@ -63,5 +63,13 @@
   "friedai.config.voice.model": "Модель Whisper",
   "friedai.config.voice.language": "Язык речи",
   "friedai.config.voice.device": "Микрофон",
-  "friedai.config.voice.device.default": "По умолчанию"
+  "friedai.config.voice.device.default": "По умолчанию",
+
+  "key.category.friedai.main": "Friedai",
+  "key.friedai.push_to_talk": "Говорить (удерживать)",
+  "friedai.voice.hud.recording": "● Запись…",
+  "friedai.voice.hud.transcribing": "Распознаю…",
+  "friedai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
+  "friedai.voice.error.no_mic": "Микрофон недоступен",
+  "friedai.voice.error.failed": "Не удалось распознать речь"
 }

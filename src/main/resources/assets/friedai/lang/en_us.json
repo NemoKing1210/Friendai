@@ -63,5 +63,13 @@
   "friedai.config.voice.model": "Whisper model",
   "friedai.config.voice.language": "Speech language",
   "friedai.config.voice.device": "Microphone",
-  "friedai.config.voice.device.default": "System default"
+  "friedai.config.voice.device.default": "System default",
+
+  "key.category.friedai.main": "Friedai",
+  "key.friedai.push_to_talk": "Push to talk",
+  "friedai.voice.hud.recording": "● Recording…",
+  "friedai.voice.hud.transcribing": "Transcribing…",
+  "friedai.voice.error.no_model": "Speech model not downloaded — Settings → Voice",
+  "friedai.voice.error.no_mic": "Microphone unavailable",
+  "friedai.voice.error.failed": "Speech recognition failed"
 }

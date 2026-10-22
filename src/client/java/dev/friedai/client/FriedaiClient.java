@@ -2,6 +2,10 @@ package dev.friedai.client;
 
 import dev.friedai.FriedaiMod;
 import dev.friedai.client.render.CompanionRenderer;
+import dev.friedai.client.voice.PushToTalkHandler;
+import dev.friedai.client.voice.SpeechToText;
+import dev.friedai.client.voice.VoiceHud;
+import java.util.concurrent.CompletableFuture;
 import dev.friedai.config.ClientConfig;
 import dev.friedai.config.ConfigStore;
 import dev.friedai.entity.FriedaiEntities;
@@ -42,6 +46,20 @@ public class FriedaiClient implements ClientModInitializer {
     public void onInitializeClient() {
         EntityRenderers.register(FriedaiEntities.COMPANION, CompanionRenderer::new);
         clientConfig();
+        VoiceHud.register();
+        // Temporary stand-in until whisper arrives (Task 21): reports how long the recording was.
+        SpeechToText stub = new SpeechToText() {
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+
+            @Override
+            public CompletableFuture<String> transcribe(float[] samples16k, String language) {
+                return CompletableFuture.completedFuture("(test) " + samples16k.length / 16000.0 + " s");
+            }
+        };
+        new PushToTalkHandler(() -> stub, text -> FriedaiMod.LOGGER.info("Transcript: {}", text)).register();
         FriedaiMod.LOGGER.debug("Friedai client initialized");
     }
 }
