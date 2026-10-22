@@ -99,8 +99,16 @@ public class ToolTests {
     @GameTest
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
-        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "pickup_items",
+        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "look_around", "stop")), "names were " + names);
+        h.succeed();
+    }
+
+    @GameTest
+    public void mineAtOutsideHeightIsRejected(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "mine_block_at", "{\"x\":0,\"y\":100000,\"z\":0}");
+        h.assertTrue(r.error() && r.content().startsWith("y is outside the world"), "result was " + r.content());
         h.succeed();
     }
 }

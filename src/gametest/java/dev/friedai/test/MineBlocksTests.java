@@ -5,6 +5,7 @@ import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.MineBlockAtTask;
 import dev.friedai.task.builtin.MineBlocksTask;
 import dev.friedai.task.mining.BlockMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -144,6 +145,81 @@ public class MineBlocksTests {
         h.assertTrue(BlockMatcher.parse("nonsense:block").isEmpty(), "unknown block must not parse");
         h.assertTrue(BlockMatcher.parse("oak_log").isPresent(), "default namespace should be minecraft");
         h.assertTrue(BlockMatcher.parse("#minecraft:logs").isPresent(), "tags should parse");
+        h.succeed();
+    }
+
+    private static String coords(BlockPos p) {
+        return p.getX() + " " + p.getY() + " " + p.getZ();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void mineAtBreaksTargetAndCollects(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.EMERALD_BLOCK);
+        h.setBlock(6, 2, 4, Blocks.EMERALD_BLOCK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("mined minecraft:emerald_block at " + coords(target)), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 4)).is(Blocks.EMERALD_BLOCK), "the other block must stay");
+            h.assertTrue(c.inventory().countItem(Items.EMERALD_BLOCK) == 1, "drops collected: " + c.inventory().countItem(Items.EMERALD_BLOCK));
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void mineAtChangedBlockFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.LAPIS_BLOCK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (++ticks[0] == 5) {
+                h.setBlock(6, 2, 2, Blocks.GOLD_BLOCK);
+            }
+            if (ticks[0] < 6) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("the block at ") && result.summary.endsWith(" changed before I could mine it"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    @GameTest
+    public void mineAtAirFails(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
+        h.assertTrue(result.summary.equals("there is no block at " + coords(target)), "summary was " + result.summary);
+        h.succeed();
+    }
+
+    @GameTest
+    public void mineAtUnbreakableFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.BEDROCK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
+        h.assertTrue(result.summary.equals("minecraft:bedrock at " + coords(target) + " can't be broken"), "summary was " + result.summary);
         h.succeed();
     }
 }
