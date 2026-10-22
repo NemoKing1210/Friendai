@@ -6,5 +6,7 @@
   "friedai.error.config.needs_base_url": "Provider %s needs a base URL",
   "friedai.error.config.no_route": "No routing rule for model %s",
   "friedai.config.test.ok_tools": "Connected: tool calling works",
-  "friedai.config.test.ok_text": "Connected, but the model replied with text instead of calling the tool"
+  "friedai.config.test.ok_text": "Connected, but the model replied with text instead of calling the tool",
+
+  "friedai.error.config.profile_missing": "Profile '%s' not found"
 }

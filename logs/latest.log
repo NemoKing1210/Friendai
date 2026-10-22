@@ -1,0 +1,1 @@
+[19:39:19] [Test worker/WARN]: Config C:\Users\nemok\AppData\Local\Temp\junit-8144929644210299024\friedai-server.json is broken (java.io.EOFException: End of input at line 1 column 6 path $.oops); using defaults, old file kept as C:\Users\nemok\AppData\Local\Temp\junit-8144929644210299024\friedai-server.json.bak

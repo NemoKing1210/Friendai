@@ -6,5 +6,7 @@
   "friedai.error.config.needs_base_url": "Для провайдера %s нужен base URL",
   "friedai.error.config.no_route": "Нет правила маршрутизации для модели %s",
   "friedai.config.test.ok_tools": "Соединение есть: вызов инструментов работает",
-  "friedai.config.test.ok_text": "Соединение есть, но модель ответила текстом вместо вызова инструмента"
+  "friedai.config.test.ok_text": "Соединение есть, но модель ответила текстом вместо вызова инструмента",
+
+  "friedai.error.config.profile_missing": "Профиль «%s» не найден"
 }
