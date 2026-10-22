@@ -93,7 +93,8 @@ public final class TaskRunner {
         if (current != null) {
             cancelCurrent("replaced by a new task");
         }
-        Active active = new Active(nextId++, toolName, task, emit, ticks);
+        // Only tasks the brain hears about get a number, so "task #1" is the first thing the LLM started.
+        Active active = new Active(emit ? nextId++ : 0, toolName, task, emit, ticks);
         current = active;
         try {
             task.start(context());

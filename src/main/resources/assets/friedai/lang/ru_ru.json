@@ -24,5 +24,13 @@
   "friedai.command.summoned": "%s рядом.",
   "friedai.command.dismissed": "%s ушёл.",
   "friedai.command.no_companion": "У тебя нет компаньона. Используй /friedai summon.",
-  "friedai.companion.died": "%s погиб. Призови снова: /friedai summon"
+  "friedai.companion.died": "%s погиб. Призови снова: /friedai summon",
+
+  "friedai.companion.thinking": "%s думает…",
+  "friedai.command.stopped": "Остановился.",
+  "friedai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",
+  "friedai.common.yes": "да",
+  "friedai.common.no": "нет",
+  "friedai.command.reloaded": "Конфиг перезагружен.",
+  "friedai.command.reloaded_with_fixes": "Конфиг перезагружен; исправлено некорректных значений: %s (подробности в логе)."
 }
