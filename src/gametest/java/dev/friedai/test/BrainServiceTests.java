@@ -91,7 +91,9 @@ public class BrainServiceTests {
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 
-    @GameTest(maxTicks = 900)
+    // The brain waits brain.cooldownMs (500 ms of real time) between turns, while a gametest tick is far shorter
+    // than 50 ms: 900 ticks is only just over two cooldowns, so leave a wide budget.
+    @GameTest(maxTicks = 3600)
     public void toolCallStartsTaskAndFinishEventReturns(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos log = new BlockPos(4, 2, 2);
