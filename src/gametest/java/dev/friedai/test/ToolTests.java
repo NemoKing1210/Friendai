@@ -11,6 +11,7 @@ import dev.friedai.tool.ToolResult;
 import dev.friedai.tool.builtin.FriedaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -100,7 +101,7 @@ public class ToolTests {
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "look_around", "stop")), "names were " + names);
+                "give_items", "drop_items", "get_inventory", "look_around", "find_blocks", "stop")), "names were " + names);
         h.succeed();
     }
 
@@ -109,6 +110,38 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_block_at", "{\"x\":0,\"y\":100000,\"z\":0}");
         h.assertTrue(r.error() && r.content().startsWith("y is outside the world"), "result was " + r.content());
+        h.succeed();
+    }
+
+    private static String coords(BlockPos p) {
+        return p.getX() + " " + p.getY() + " " + p.getZ();
+    }
+
+    @GameTest
+    public void findBlocksListsNearestFirst(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(9, 2, 2, Blocks.IRON_BLOCK);
+        h.setBlock(5, 2, 2, Blocks.IRON_BLOCK);
+        h.setBlock(12, 2, 2, Blocks.IRON_BLOCK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:iron_block\",\"limit\":2}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().startsWith("2 x minecraft:iron_block nearest first: "), "content was " + r.content());
+        String nearest = coords(h.absolutePos(new BlockPos(5, 2, 2))) + " (";
+        String second = coords(h.absolutePos(new BlockPos(9, 2, 2))) + " (";
+        String cut = coords(h.absolutePos(new BlockPos(12, 2, 2))) + " (";
+        int nearestAt = r.content().indexOf(nearest);
+        int secondAt = r.content().indexOf(second);
+        h.assertTrue(nearestAt >= 0 && secondAt > nearestAt, "order was " + r.content());
+        h.assertTrue(!r.content().contains(cut), "the far block must be cut by the limit: " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void findBlocksNone(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:sponge\",\"radius\":8}");
+        h.assertTrue(!r.error() && r.content().equals("no minecraft:sponge within 8 blocks"), "content was " + r.content());
         h.succeed();
     }
 }
