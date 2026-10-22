@@ -5,6 +5,7 @@ import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.DropItemsTask;
 import dev.friedai.task.builtin.GiveItemsTask;
 import dev.friedai.task.builtin.PickupItemsTask;
 import dev.friedai.task.inventory.InventoryOps;
@@ -177,5 +178,76 @@ public class ItemTaskTests {
                 .mapToInt(e -> e.getItem().getCount()).sum();
         h.assertTrue(dropped == 5, "dropped " + dropped);
         h.succeed();
+    }
+
+    @GameTest
+    public void dropById(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.GRANITE, 10));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:granite").orElseThrow(), 7), "drop_items");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed");
+        h.assertTrue(result.summary.equals("dropped 7 minecraft:granite"), "summary was " + result.summary);
+        h.assertTrue(c.inventory().countItem(Items.GRANITE) == 3, "should have 3 left");
+        int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(2)).stream()
+                .filter(e -> e.getItem().is(Items.GRANITE))
+                .mapToInt(e -> e.getItem().getCount()).sum();
+        h.assertTrue(dropped == 7, "dropped " + dropped);
+        h.succeed();
+    }
+
+    @GameTest
+    public void dropByTag(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WOOL.white(), 2));
+        c.inventory().addItem(new ItemStack(Items.WOOL.lime(), 3));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new DropItemsTask(ItemMatcher.parse("#minecraft:wool").orElseThrow(), 4), "drop_items");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed");
+        h.assertTrue(result.summary.equals("dropped 4 #minecraft:wool"), "summary was " + result.summary);
+        int left = c.inventory().countItem(Items.WOOL.white()) + c.inventory().countItem(Items.WOOL.lime());
+        h.assertTrue(left == 1, "should have 1 wool left, had " + left);
+        h.succeed();
+    }
+
+    @GameTest
+    public void dropNothingFails(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:andesite").orElseThrow(), 1), "drop_items");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
+        h.assertTrue(result.summary.equals("I don't have minecraft:andesite"), "summary was " + result.summary);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void droppedItemsAreNotPickedUpBack(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.POLISHED_DIORITE, 5));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:polished_diorite").orElseThrow(), 5), "drop_items");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.SUCCESS, "drop should succeed");
+        runner.start(new PickupItemsTask(6), "pickup_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
+            h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.POLISHED_DIORITE) == 0, "must not pick its own drop back up");
+            int onGround = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(4)).stream()
+                    .filter(e -> e.getItem().is(Items.POLISHED_DIORITE))
+                    .mapToInt(e -> e.getItem().getCount()).sum();
+            h.assertTrue(onGround == 5, "on the ground " + onGround);
+        });
     }
 }

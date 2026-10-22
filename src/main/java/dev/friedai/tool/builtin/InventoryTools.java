@@ -2,6 +2,7 @@ package dev.friedai.tool.builtin;
 
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.perception.PerceptionSnapshot;
+import dev.friedai.task.builtin.DropItemsTask;
 import dev.friedai.task.builtin.GiveItemsTask;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.ToolRegistry;
@@ -24,6 +25,13 @@ final class InventoryTools {
                         .required("item", "count")
                         .build(),
                 (c, a) -> new GiveItemsTask(ToolKit.parseItemMatcher(a.get("item").getAsString()), a.get("count").getAsInt()), true));
+        ToolKit.add(registry, defs, new TaskToolDef("drop_items", "Drop items from the companion's inventory on the ground at its feet.",
+                SchemaBuilder.object()
+                        .string("item", "Item id like minecraft:cobblestone, or a tag like #minecraft:planks")
+                        .integer("count", "How many items to drop", 1, 64)
+                        .required("item", "count")
+                        .build(),
+                (c, a) -> new DropItemsTask(ToolKit.parseItemMatcher(a.get("item").getAsString()), a.get("count").getAsInt()), true));
         registry.register(ToolKit.instantTool("get_inventory", "List what the companion is carrying.", (c, a) -> {
             Map<String, Integer> counts = new LinkedHashMap<>();
             for (int i = 0; i < c.inventory().getContainerSize(); i++) {

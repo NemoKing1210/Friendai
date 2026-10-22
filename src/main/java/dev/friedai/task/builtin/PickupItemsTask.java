@@ -46,7 +46,7 @@ public final class PickupItemsTask implements Task {
         collected += companion.collectNearbyItems(COLLECT_RADIUS);
 
         List<ItemEntity> nearby = c.level().getEntitiesOfClass(
-                ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> !e.isRemoved() && !unreachable.contains(e.getUUID()));
+                ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> companion.canCollect(e) && !unreachable.contains(e.getUUID()));
         List<ItemEntity> collectible = nearby.stream().filter(e -> companion.inventory().canAddItem(e.getItem())).toList();
         if (collectible.isEmpty()) {
             boolean full = !nearby.isEmpty();

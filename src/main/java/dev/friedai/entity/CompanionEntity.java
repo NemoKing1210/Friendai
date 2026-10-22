@@ -84,12 +84,17 @@ public class CompanionEntity extends PathfinderMob {
         return inventory;
     }
 
+    /** True when the companion may pick the item up: it is still there, and it is not its own throw that is still on pickup delay. */
+    public boolean canCollect(ItemEntity entity) {
+        return !entity.isRemoved() && !(entity.hasPickUpDelay() && entity.getOwner() == this);
+    }
+
     /** Moves dropped item stacks within {@code radius} into the inventory. Returns the number of items moved. */
     public int collectNearbyItems(double radius) {
         int moved = 0;
         List<ItemEntity> items = level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(radius));
         for (ItemEntity entity : items) {
-            if (entity.isRemoved()) {
+            if (!canCollect(entity)) {
                 continue;
             }
             ItemStack stack = entity.getItem().copy();
