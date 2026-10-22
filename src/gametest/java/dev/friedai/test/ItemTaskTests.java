@@ -95,6 +95,7 @@ public class ItemTaskTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
             int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8)).stream()
+                    .filter(e -> e.getItem().is(Items.OAK_LOG))
                     .mapToInt(e -> e.getItem().getCount()).sum();
             h.assertTrue(dropped == 4, "dropped " + dropped);
             h.assertTrue(c.inventory().countItem(Items.OAK_LOG) == 6, "should have 6 left");
