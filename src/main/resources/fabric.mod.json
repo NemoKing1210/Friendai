@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "friedai",
+	"version": "${version}",
+	"name": "Friedai",
+	"description": "An AI companion you can play with and talk to — by chat or voice.",
+	"authors": ["Friedai contributors"],
+	"license": "MIT",
+	"icon": "assets/friedai/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["dev.friedai.FriedaiMod"],
+		"client": ["dev.friedai.client.FriedaiClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*",
+		"yet_another_config_lib_v3": "*"
+	}
+}

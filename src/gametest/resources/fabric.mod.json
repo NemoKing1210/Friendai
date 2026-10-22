@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "friedai-gametest",
+	"version": "1.0.0",
+	"name": "Friedai GameTests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-gametest": ["dev.friedai.test.FriedaiGameTests"]
+	},
+	"depends": {
+		"friedai": "*"
+	}
+}
