@@ -18,5 +18,11 @@
   "friedai.error.llm.network": "Нет связи с провайдером.",
   "friedai.error.llm.parse": "Не понял ответ провайдера.",
   "friedai.error.config": "Ошибка настроек: %s",
-  "friedai.error.unknown": "Что-то пошло не так, подробности в логе."
+  "friedai.error.unknown": "Что-то пошло не так, подробности в логе.",
+
+  "entity.friedai.companion": "Компаньон",
+  "friedai.command.summoned": "%s рядом.",
+  "friedai.command.dismissed": "%s ушёл.",
+  "friedai.command.no_companion": "У тебя нет компаньона. Используй /friedai summon.",
+  "friedai.companion.died": "%s погиб. Призови снова: /friedai summon"
 }

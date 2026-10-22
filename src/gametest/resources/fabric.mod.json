@@ -5,7 +5,10 @@
 	"name": "Friedai GameTests",
 	"environment": "*",
 	"entrypoints": {
-		"fabric-gametest": ["dev.friedai.test.FriedaiGameTests"]
+		"fabric-gametest": [
+			"dev.friedai.test.FriedaiGameTests",
+			"dev.friedai.test.CompanionEntityTests"
+		]
 	},
 	"depends": {
 		"friedai": "*"

@@ -18,5 +18,11 @@
   "friedai.error.llm.network": "No connection to the provider.",
   "friedai.error.llm.parse": "Couldn't understand the provider's response.",
   "friedai.error.config": "Settings error: %s",
-  "friedai.error.unknown": "Something went wrong, see the log for details."
+  "friedai.error.unknown": "Something went wrong, see the log for details.",
+
+  "entity.friedai.companion": "Companion",
+  "friedai.command.summoned": "%s is here.",
+  "friedai.command.dismissed": "%s has left.",
+  "friedai.command.no_companion": "You don't have a companion. Use /friedai summon.",
+  "friedai.companion.died": "%s died. Summon again: /friedai summon"
 }
