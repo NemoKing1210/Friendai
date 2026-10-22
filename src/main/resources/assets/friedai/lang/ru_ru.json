@@ -1,4 +1,10 @@
 {
   "modmenu.nameTranslation.friedai": "Friedai",
-  "modmenu.descriptionTranslation.friedai": "ИИ-компаньон, с которым можно играть и разговаривать — в чате или голосом."
+  "modmenu.descriptionTranslation.friedai": "ИИ-компаньон, с которым можно играть и разговаривать — в чате или голосом.",
+
+  "friedai.error.config.unknown_provider": "Неизвестный провайдер: %s",
+  "friedai.error.config.needs_base_url": "Для провайдера %s нужен base URL",
+  "friedai.error.config.no_route": "Нет правила маршрутизации для модели %s",
+  "friedai.config.test.ok_tools": "Соединение есть: вызов инструментов работает",
+  "friedai.config.test.ok_text": "Соединение есть, но модель ответила текстом вместо вызова инструмента"
 }
