@@ -33,6 +33,7 @@ Pure Java:
 - `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`.
 - `brain/` — `CompanionBrain` (the agent loop), `ConversationMemory`, `PromptBuilder`, events. It sees the world only through `PerceptionSource` and acts only through `ToolExecutor`.
 - `chat/AddressDetector`, `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
+- `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
 
 Minecraft layer:
 
@@ -40,9 +41,9 @@ Minecraft layer:
 - `task/` — `Task`, `TaskRunner` (one task at a time, timeouts, crash isolation, falls back to Follow), `task/builtin/` (Follow, Stay, GoTo, PickupItems, GiveItems, MineBlocks), `task/mining/`, `task/nav/MoveHelper`.
 - `tool/builtin/FriedaiTools` — the 9 skills as tools. `perception/` — surroundings snapshot for the prompt.
 - `core/` — `BrainService` (one brain per player, shared `LlmClient`), `FriedaiServerState` (per-server config and brains), `ServerBrainScheduler`, `Components` (`UserMessage` → `Component`).
-- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriedaiCommands`, `net/` (voice transcript packet).
+- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriedaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`; debug tabs are operator-only, checked on the server).
 
-Client (`src/client`): renderer, YACL settings screen (`client/config`), voice (`client/voice`: mic capture, push-to-talk, HUD, whisper-jni), `client/tts` (interface only).
+Client (`src/client`): renderer, companion menu (`client/ui`: pause-menu button, `CompanionControlScreen` and its tabs), YACL settings screen (`client/config`), voice (`client/voice`: mic capture, push-to-talk, HUD, whisper-jni), `client/tts` (interface only).
 
 Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gametest` (Fabric GameTest, mod id `friedai-gametest`).
 

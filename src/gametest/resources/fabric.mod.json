@@ -13,7 +13,8 @@
 			"dev.friedai.test.MineBlocksTests",
 			"dev.friedai.test.ToolTests",
 			"dev.friedai.test.BrainServiceTests",
-			"dev.friedai.test.VoiceTests"
+			"dev.friedai.test.VoiceTests",
+			"dev.friedai.test.CompanionControlTests"
 		]
 	},
 	"depends": {

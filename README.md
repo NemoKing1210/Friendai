@@ -23,6 +23,8 @@ The mod must be installed on both the client and the server (the integrated serv
    - by voice: hold **V** (push-to-talk, rebindable in Controls) and speak.
 4. `/friedai stop` cancels what it is doing, `/friedai dismiss` sends it away, `/friedai status` shows the provider and current task.
 
+The same controls are in the **pause menu (Esc)**: the companion icon next to the report-bug icon opens a screen to summon, dismiss and stop your companion and to see its current task and recent tasks. Operators also get the brain log (messages, tool calls, errors) and debug tools: what the companion sees, its current prompt, a manual message and a manual tool run.
+
 What it can do: follow you, stay, go to a point, pick up items, give you items, look around, show its inventory, stop, and mine N blocks of a kind.
 
 ## Setting up a provider

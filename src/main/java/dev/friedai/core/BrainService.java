@@ -12,7 +12,22 @@ import dev.friedai.config.ConfigException;
 import dev.friedai.config.ServerConfig;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import dev.friedai.config.SecretResolver;
+import dev.friedai.debug.DebugLog;
+import dev.friedai.debug.DebugLogObserver;
+import dev.friedai.debug.DebugService;
+import dev.friedai.debug.LogKind;
+import dev.friedai.debug.SecretRedactor;
+import dev.friedai.debug.TaskRecord;
 import dev.friedai.llm.LlmClient;
+import dev.friedai.llm.model.ToolCall;
+import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.tool.ToolResult;
+import java.util.ArrayList;
+import java.util.List;
 import dev.friedai.llm.http.HttpTransport;
 import dev.friedai.llm.provider.ProviderRegistry;
 import dev.friedai.perception.PerceptionBuilder;
@@ -41,6 +56,7 @@ public final class BrainService {
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
     private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
     private final ToolRegistry<CompanionEntity> tools = FriedaiTools.create(() -> this.config.tasks.mineSearchRadius);
+    private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
     private ServerConfig config;
     private LlmGateway current;
@@ -91,16 +107,71 @@ public final class BrainService {
         return Optional.ofNullable(entries.get(owner)).map(Entry::brain);
     }
 
+    public DebugService debug() {
+        return debug;
+    }
+
+    public List<String> toolNames() {
+        return tools.specs().stream().map(ToolSpec::name).toList();
+    }
+
+    /** The system prompt the owner's next LLM request would carry; empty if they have no companion. */
+    public Optional<String> currentPrompt(UUID owner) {
+        return entryFor(owner).map(e -> e.brain().currentSystemPrompt());
+    }
+
+    /** Runs a tool by hand, as if the model had called it. Never throws. */
+    public ToolResult runTool(UUID owner, String name, String argsJson) {
+        Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+        if (companion.isEmpty()) {
+            return ToolResult.error("No companion");
+        }
+        entryFor(owner);
+        DebugLog log = debug.logOf(owner);
+        log.add(LogKind.MANUAL, "run " + name + " " + argsJson);
+        JsonObject args = null;
+        try {
+            JsonElement parsed = JsonParser.parseString(argsJson);
+            args = parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            // stays null: the registry reports invalid JSON arguments
+        }
+        ToolResult result = tools.bind(companion.get()).execute(new ToolCall("manual", name, args, argsJson, null));
+        log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
+        return result;
+    }
+
+    /** Posts a chat-style message to the owner's brain. False if they have no companion. */
+    public boolean sendMessage(UUID owner, String playerName, String text) {
+        if (entryFor(owner).isEmpty()) {
+            return false;
+        }
+        post(owner, new BrainEvent.PlayerSaid(playerName, text, BrainEvent.Source.CHAT));
+        return true;
+    }
+
     public void post(UUID owner, BrainEvent event) {
+        entryFor(owner).ifPresent(entry -> entry.brain().post(event));
+    }
+
+    private Optional<Entry> entryFor(UUID owner) {
         Entry entry = entries.get(owner);
         if (entry == null) {
             Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
             if (companion.isEmpty()) {
-                return;
+                return Optional.empty();
             }
             entry = create(owner, companion.get());
         }
-        entry.brain().post(event);
+        return Optional.of(entry);
+    }
+
+    private List<String> configuredSecrets() {
+        List<String> secrets = new ArrayList<>();
+        for (ServerConfig.ProfileConfig profile : config.profiles.values()) {
+            secrets.add(SecretResolver.resolve(profile.apiKey, System::getenv));
+        }
+        return secrets;
     }
 
     public void cancel(UUID owner) {
@@ -147,14 +218,18 @@ public final class BrainService {
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
                 effective,
                 scheduler);
+        brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                debug.historyOf(owner).add(new TaskRecord(
+                        id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
                 post(owner, new BrainEvent.TaskFinished(id, toolName, status == TaskStatus.SUCCESS, summary));
             }
 
             @Override
             public void onCancelled(int id, String toolName, String reason) {
+                debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
                 post(owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
         });

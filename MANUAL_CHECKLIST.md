@@ -34,6 +34,19 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dedicated server: edit `config/friedai-server.json`, run `/friedai reload` as an operator, behaviour changes.
 - [ ] The settings screen on a client connected to a dedicated server shows "These settings are configured on the server."
 
+## Companion control menu
+
+- [ ] Esc in a world: the companion icon sits in the icon row next to the other icons, has a tooltip, and looks right at GUI scales 1-4 and in both languages.
+- [ ] The button opens the menu; Done returns to the pause menu; Esc closes it.
+- [ ] Control tab: Summon, Dismiss and Stop work and the status block follows them within about half a second.
+- [ ] Tasks tab: a finished task shows up in the history with its status; scrolling works.
+- [ ] Log tab (operator): messages, tool calls and errors appear live; kind filters work; Copy puts the visible lines on the clipboard.
+- [ ] Debug tab (operator): perception text is shown; "Show prompt" shows the system prompt; Send reaches the companion; Run executes a tool (empty arguments = `{}`) and shows up in the log as "Manual".
+- [ ] Dedicated server as a normal player: only Control and Tasks tabs; as an operator: all four.
+- [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
+- [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
+- [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
+
 ## World lifecycle
 
 - [ ] Companion death: inventory drops and the owner gets a message; `/friedai summon` creates a new one.

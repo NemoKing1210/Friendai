@@ -29,6 +29,7 @@ public final class CompanionBrain {
     private final Speaker speaker;
     private final BrainScheduler scheduler;
     private final ConversationMemory memory;
+    private BrainObserver observer = BrainObserver.NONE;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
     private boolean thinking;
@@ -75,6 +76,23 @@ public final class CompanionBrain {
         return thinking;
     }
 
+    public void setObserver(BrainObserver observer) {
+        this.observer = java.util.Objects.requireNonNull(observer);
+    }
+
+    /** The system prompt the next request would carry. */
+    public String currentSystemPrompt() {
+        return PromptBuilder.system(persona.get(), perception.describe());
+    }
+
+    private void observe(java.util.function.Consumer<BrainObserver> call) {
+        try {
+            call.accept(observer);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Brain observer failed", e);
+        }
+    }
+
     private void maybeStartTurn() {
         if (thinking || queue.isEmpty()) {
             return;
@@ -93,6 +111,9 @@ public final class CompanionBrain {
         thinking = true;
         speaker.thinking(true);
         String lines = queue.stream().map(BrainEvent::toPromptLine).collect(Collectors.joining("\n"));
+        for (BrainEvent event : queue) {
+            observe(o -> o.onEvent(event));
+        }
         queue.clear();
         memory.add(Message.user(lines));
         step = 0;
@@ -124,11 +145,13 @@ public final class CompanionBrain {
         }
         if (error != null) {
             LOGGER.warn("LLM request failed: {}", error.toString());
+            observe(o -> o.onError(error));
             speaker.error(ErrorMessages.forUser(error));
             endTurn();
             return;
         }
         if (!response.text().isBlank()) {
+            observe(o -> o.onAssistantText(response.text()));
             speaker.say(response.text());
         }
         List<ToolCall> calls = response.toolCalls();
@@ -141,12 +164,15 @@ public final class CompanionBrain {
         }
         for (ToolCall call : calls) {
             ToolResult result;
+            observe(o -> o.onToolCall(call));
             try {
                 result = tools.execute(call);
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
             }
+            ToolResult finalResult = result;
+            observe(o -> o.onToolResult(call, finalResult));
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
         }
         requestStep(gen);

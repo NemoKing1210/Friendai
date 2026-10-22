@@ -2,6 +2,10 @@ package dev.friedai.client;
 
 import dev.friedai.FriedaiMod;
 import dev.friedai.client.render.CompanionRenderer;
+import dev.friedai.client.ui.CompanionClientState;
+import dev.friedai.client.ui.PauseMenuButton;
+import dev.friedai.net.CompanionSnapshotS2CPayload;
+import dev.friedai.net.PromptS2CPayload;
 import dev.friedai.client.voice.PushToTalkHandler;
 import dev.friedai.client.voice.VoiceHud;
 import dev.friedai.client.voice.VoiceRuntime;
@@ -48,6 +52,13 @@ public class FriedaiClient implements ClientModInitializer {
         EntityRenderers.register(FriedaiEntities.COMPANION, CompanionRenderer::new);
         clientConfig();
         VoiceHud.register();
+        PauseMenuButton.register();
+        ClientPlayNetworking.registerGlobalReceiver(
+                CompanionSnapshotS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> CompanionClientState.onSnapshot(payload.snapshot())));
+        ClientPlayNetworking.registerGlobalReceiver(
+                PromptS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> CompanionClientState.onPrompt(payload.prompt())));
         new PushToTalkHandler(VoiceRuntime::stt, text -> {
             if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
                 ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));
