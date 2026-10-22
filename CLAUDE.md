@@ -11,6 +11,10 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 - Do not commit `docs/` (git-ignored specs and plans). If asked to write a design or plan, write it under `docs/superpowers/` and leave it uncommitted.
 - Destructive git operations (history rewrites, force pushes, deleting branches/worktrees) need explicit approval each time, and may be blocked by the permission classifier. If one is blocked, do not work around it — print the exact command for the maintainer to run.
 
+## Test jar for the maintainer
+
+- After any change to code or resources (fix, improvement, new feature), finish with a build that refreshes `test-builds/friedai-<version>.jar` (`./gradlew assemble` or `build` — `exportTestJar` runs automatically). Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
+
 ## Environment (Windows)
 
 - Shell: Git Bash and PowerShell are both available. In Bash, spell commands out plainly; compound commands with computed command names or `cd` into other directories can be refused inside a git worktree.

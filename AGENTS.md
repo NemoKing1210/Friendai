@@ -87,10 +87,30 @@ Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gamete
 - Do not rewrite history, force-push or delete branches without being asked.
 - Config files at runtime: `config/friedai-server.json`, `config/friedai-client.json`; whisper models in `<gameDir>/friedai/models/`.
 
+## Versioning
+
+The single source of truth is `mod_version` in `gradle.properties` ([Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`). The jar name, `fabric.mod.json` and release tags all derive from it; a release tag `vX.Y.Z` must equal it (the release workflow checks).
+
+Bump it as part of any change that alters the shipped mod, by the size of the change:
+
+| Change | Bump | Examples |
+|---|---|---|
+| Bug fix, small tweak, translation fix, dependency patch | **PATCH** (`0.1.0` → `0.1.1`) | `fix:` commits, `perf:` with no API change |
+| New feature or skill, new setting, new provider preset, user-visible improvement | **MINOR** (`0.1.1` → `0.2.0`), PATCH resets to 0 | `feat:` commits |
+| Breaking change: config format change that needs a migration, removed or renamed command/tool/setting, save-data incompatibility, Minecraft or Java version bump | **MAJOR** (`0.x` → next `MINOR`, see below), lower parts reset to 0 | `feat!:` / `BREAKING CHANGE:` commits |
+| No effect on the shipped jar | **no bump** | `docs`, `ci`, `test`, `style`, `chore`, `build` (tooling only), pure `refactor` |
+
+- While the major version is `0` (pre-1.0), breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision; never do it on your own.
+- One bump per task/PR, sized by the largest change in it, not one per commit. Put it in the same commit as the change, or in a final `chore: bump version to X.Y.Z` commit.
+- Changing the config schema: also add the `ConfigStore` migration and bump the config version (see `config/`), in addition to the mod version.
+- Do not create tags or releases yourself; tagging `vX.Y.Z` is the maintainer's call. Tell them when the version is ready to release.
+- When unsure between two sizes, pick the larger one and say why in the final message.
+
 ## Definition of done
 
 1. `./gradlew build` passes (unit tests **and** GameTests) — quote the real result, do not assume.
 2. New player-facing strings exist in both language files.
 3. New behavior has a test that failed first; bugs get a regression test.
 4. Layer boundaries respected (no Minecraft imports in the pure layers).
-5. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
+5. `mod_version` bumped according to "Versioning" (or a stated reason why no bump is needed).
+6. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
