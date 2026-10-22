@@ -3,15 +3,13 @@ package dev.friedai.tool.builtin;
 import com.google.gson.JsonObject;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.Task;
+import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.Tool;
 import dev.friedai.tool.ToolRegistry;
 import dev.friedai.tool.ToolResult;
 import java.util.List;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.Item;
 
 /** Helpers shared by the tool groups: turning a definition into a {@link Tool} and parsing item/block arguments. */
 final class ToolKit {
@@ -44,12 +42,9 @@ final class ToolKit {
         return tool(name, description, SchemaBuilder.object().build(), action);
     }
 
-    static Item parseItem(String name) {
-        Identifier id = Identifier.tryParse(name);
-        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
-            throw new IllegalArgumentException("unknown item: " + name);
-        }
-        return BuiltInRegistries.ITEM.getValue(id);
+    static ItemMatcher parseItemMatcher(String idOrTag) {
+        return ItemMatcher.parse(idOrTag)
+                .orElseThrow(() -> new IllegalArgumentException("unknown item or tag: " + idOrTag));
     }
 
     static BlockMatcher parseBlockMatcher(String idOrTag) {

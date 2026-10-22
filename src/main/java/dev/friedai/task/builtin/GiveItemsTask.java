@@ -3,11 +3,11 @@ package dev.friedai.task.builtin;
 import dev.friedai.task.Task;
 import dev.friedai.task.TaskContext;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.inventory.InventoryOps;
+import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.nav.MoveHelper;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
@@ -15,18 +15,18 @@ import net.minecraft.world.phys.Vec3;
 public final class GiveItemsTask implements Task {
     private static final double GIVE_DISTANCE = 2.5;
 
-    private final Item item;
+    private final ItemMatcher matcher;
     private final int count;
     private final MoveHelper mover = new MoveHelper(1.0, 2.0);
     private String summary = "";
 
-    public GiveItemsTask(Item item, int count) {
-        this.item = item;
+    public GiveItemsTask(ItemMatcher matcher, int count) {
+        this.matcher = matcher;
         this.count = count;
     }
 
-    private String itemId() {
-        return BuiltInRegistries.ITEM.getKey(item).toString();
+    private String itemLabel() {
+        return matcher.label();
     }
 
     @Override
@@ -42,9 +42,9 @@ public final class GiveItemsTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         var companion = c.companion();
-        int have = companion.inventory().countItem(item);
+        int have = InventoryOps.count(companion.inventory(), matcher);
         if (have == 0) {
-            summary = "I don't have " + itemId();
+            summary = "I don't have " + itemLabel();
             return TaskStatus.FAILED;
         }
         ServerPlayer owner = c.owner().orElse(null);
@@ -62,18 +62,12 @@ public final class GiveItemsTask implements Task {
             return TaskStatus.RUNNING;
         }
         companion.getNavigation().stop();
-        int remaining = Math.min(count, have);
         int gave = 0;
-        while (remaining > 0) {
-            ItemStack taken = companion.inventory().removeItemType(item, Math.min(remaining, item.getDefaultMaxStackSize()));
-            if (taken.isEmpty()) {
-                break;
-            }
+        for (ItemStack taken : InventoryOps.remove(companion.inventory(), matcher, Math.min(count, have))) {
             drop(c, owner, taken);
             gave += taken.getCount();
-            remaining -= taken.getCount();
         }
-        summary = "gave " + gave + " " + itemId();
+        summary = "gave " + gave + " " + itemLabel();
         return TaskStatus.SUCCESS;
     }
 
@@ -93,7 +87,7 @@ public final class GiveItemsTask implements Task {
 
     @Override
     public String describe() {
-        return "giving " + count + " " + itemId() + " to the owner";
+        return "giving " + count + " " + itemLabel() + " to the owner";
     }
 
     @Override

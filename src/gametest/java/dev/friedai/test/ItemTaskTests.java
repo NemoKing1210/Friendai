@@ -7,6 +7,9 @@ import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.GiveItemsTask;
 import dev.friedai.task.builtin.PickupItemsTask;
+import dev.friedai.task.inventory.InventoryOps;
+import dev.friedai.task.inventory.ItemMatcher;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -90,7 +93,7 @@ public class ItemTaskTests {
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 10));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new GiveItemsTask(Items.OAK_LOG, 4), "give_items");
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:oak_log").orElseThrow(), 4), "give_items");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
@@ -110,10 +113,69 @@ public class ItemTaskTests {
         c.setOwner(owner.getUUID());
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new GiveItemsTask(Items.DIAMOND, 1), "give_items");
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:diamond").orElseThrow(), 1), "give_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
         h.assertTrue(result.summary.equals("I don't have minecraft:diamond"), "summary was " + result.summary);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void giveAcceptsTag(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 5.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.BIRCH_PLANKS, 3));
+        c.inventory().addItem(new ItemStack(Items.SPRUCE_PLANKS, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("#minecraft:planks").orElseThrow(), 4), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
+            h.assertTrue(result.summary.equals("gave 4 #minecraft:planks"), "summary was " + result.summary);
+            int left = c.inventory().countItem(Items.BIRCH_PLANKS) + c.inventory().countItem(Items.SPRUCE_PLANKS);
+            h.assertTrue(left == 1, "should have 1 plank left, had " + left);
+        });
+    }
+
+    @GameTest
+    public void itemMatcherParsing(GameTestHelper h) {
+        h.assertTrue(ItemMatcher.parse("nonsense:item").isEmpty(), "unknown id must not parse");
+        h.assertTrue(ItemMatcher.parse(" oak_log ").orElseThrow().label().equals("minecraft:oak_log"), "label normalized");
+        h.assertTrue(ItemMatcher.parse("#minecraft:wool").orElseThrow().test(new ItemStack(Items.WOOL.red())), "tag matches");
+        h.assertTrue(!ItemMatcher.parse("minecraft:oak_log").orElseThrow().test(ItemStack.EMPTY), "empty never matches");
+        h.succeed();
+    }
+
+    @GameTest
+    public void inventoryOpsRemoveAcrossSlots(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ItemMatcher matcher = ItemMatcher.parse("minecraft:cobbled_deepslate").orElseThrow();
+        c.inventory().setItem(0, new ItemStack(Items.COBBLED_DEEPSLATE, 40));
+        c.inventory().setItem(5, new ItemStack(Items.COBBLED_DEEPSLATE, 30));
+        List<ItemStack> removed = InventoryOps.remove(c.inventory(), matcher, 50);
+        int total = removed.stream().mapToInt(ItemStack::getCount).sum();
+        h.assertTrue(total == 50, "removed " + total);
+        h.assertTrue(removed.stream().allMatch(s -> s.getCount() <= s.getMaxStackSize()), "a stack went over its limit");
+        h.assertTrue(InventoryOps.count(c.inventory(), matcher) == 20, "should have 20 left");
+        h.succeed();
+    }
+
+    @GameTest
+    public void insertOrDropSpillsLeftover(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        for (int i = 0; i < c.inventory().getContainerSize(); i++) {
+            c.inventory().setItem(i, new ItemStack(Items.STONE, 64));
+        }
+        InventoryOps.insertOrDrop(c, new ItemStack(Items.PRISMARINE, 5));
+        h.assertTrue(c.inventory().countItem(Items.PRISMARINE) == 0, "a full inventory must take nothing");
+        int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(2)).stream()
+                .filter(e -> e.getItem().is(Items.PRISMARINE))
+                .mapToInt(e -> e.getItem().getCount()).sum();
+        h.assertTrue(dropped == 5, "dropped " + dropped);
         h.succeed();
     }
 }
