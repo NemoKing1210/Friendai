@@ -2,6 +2,7 @@
 /.gradle/
 /build/
 /out/
+/test-builds/
 /classes/
 !gradle/wrapper/gradle-wrapper.jar
 

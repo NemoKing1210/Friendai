@@ -80,6 +80,19 @@ java {
 	}
 }
 
+// Copies the freshly built mod jar to /test-builds/ (git-ignored) so it can be dropped into a
+// Minecraft instance without digging through build/libs. Runs after every `assemble`/`build`.
+tasks.register('exportTestJar', Sync) {
+	group = 'build'
+	description = 'Copies the mod jar to test-builds/ for quick manual testing.'
+	from(tasks.named('jar'))
+	into(layout.projectDirectory.dir('test-builds'))
+}
+
+tasks.named('assemble') {
+	finalizedBy 'exportTestJar'
+}
+
 jar {
 	def projectName = project.name
 	inputs.property "projectName", projectName
