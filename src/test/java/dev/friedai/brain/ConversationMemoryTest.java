@@ -71,6 +71,20 @@ class ConversationMemoryTest {
     }
 
     @Test
+    void longTurnNeverLosesItsOwnUserMessage() {
+        ConversationMemory memory = new ConversationMemory(6);
+        memory.add(Message.user("mine everything"));
+        for (int i = 0; i < 5; i++) {
+            memory.add(Message.assistant("", List.of(call("c" + i))));
+            memory.add(Message.toolResult("c" + i, "tool", "ok"));
+        }
+        List<Message> snap = memory.snapshot();
+        assertEquals(11, snap.size());
+        assertEquals(Role.USER, snap.get(0).role());
+        assertEquals("mine everything", snap.get(0).text());
+    }
+
+    @Test
     void clearEmptiesMemory() {
         ConversationMemory memory = new ConversationMemory(10);
         memory.add(Message.user("hi"));
