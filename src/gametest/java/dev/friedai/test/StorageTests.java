@@ -6,6 +6,7 @@ import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.StoreItemsTask;
+import dev.friedai.task.builtin.TakeItemsTask;
 import dev.friedai.task.interact.ContainerAccess;
 import dev.friedai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -322,6 +323,104 @@ public class StorageTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             ChestBlockEntity chest = h.getBlockEntity(new BlockPos(5, 2, 5), ChestBlockEntity.class);
             h.assertTrue(chest.getEntitiesWithContainerOpen().isEmpty(), "the lid must be closed");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takeExactAmount(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        chest.setItem(0, new ItemStack(Items.IRON_NUGGET, 20));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_nugget"), 12, target), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("took 12 minecraft:iron_nugget from minecraft:chest at " + coords(target)),
+                    "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.IRON_NUGGET) == 12, "must take 12");
+            h.assertTrue(chest.getItem(0).getCount() == 8, "8 must stay, have " + chest.getItem(0).getCount());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takeOnlyWhatIsThere(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        chest.setItem(0, new ItemStack(Items.GOLD_NUGGET, 5));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:gold_nugget"), 12, target), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("took only 5 of 12 minecraft:gold_nugget from minecraft:chest at "
+                    + coords(target) + " (that was all it had)"), "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.GOLD_NUGGET) == 5, "must take 5");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void takeFindsChestWithItem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        h.setBlock(12, 2, 6, Blocks.CHEST);
+        containerAt(h, 12, 2, 6).setItem(0, new ItemStack(Items.LAPIS_LAZULI, 3));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos far = h.absolutePos(new BlockPos(12, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:lapis_lazuli"), 3, null), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("took 3 minecraft:lapis_lazuli from minecraft:chest at " + coords(far)),
+                    "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.LAPIS_LAZULI) == 3, "must take 3");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takeWithFullInventory(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        containerAt(h, 6, 2, 6).setItem(0, new ItemStack(Items.AMETHYST_SHARD, 1));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        for (int i = 0; i < 27; i++) {
+            c.inventory().addItem(new ItemStack(Items.STONE, 64));
+        }
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:amethyst_shard"), 1, target), "take_items");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+        h.assertTrue(result.summary.equals("my inventory is full"), "summary was " + result.summary);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takeMissingItemFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        containerAt(h, 6, 2, 6).setItem(0, new ItemStack(Items.DIRT, 1));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:quartz"), 1, target), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("the chest at " + coords(target) + " has no minecraft:quartz"),
+                    "summary was " + result.summary);
         });
     }
 }

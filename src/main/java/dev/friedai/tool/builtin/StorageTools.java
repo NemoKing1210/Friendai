@@ -2,6 +2,7 @@ package dev.friedai.tool.builtin;
 
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.builtin.StoreItemsTask;
+import dev.friedai.task.builtin.TakeItemsTask;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.ToolRegistry;
@@ -30,5 +31,20 @@ final class StorageTools {
                             : Integer.MAX_VALUE;
                     return new StoreItemsTask(matcher, count, ToolKit.optionalPos(a).orElse(null));
                 }, true));
+        ToolKit.add(registry, defs, new TaskToolDef("take_items",
+                "Take items from a chest, barrel or other storage container into the companion's inventory.",
+                SchemaBuilder.object()
+                        .string("item", "Item id like minecraft:iron_ingot, or a tag like #minecraft:planks")
+                        .integer("count", "How many items to take", 1, 2304)
+                        .integer("x", "Container X coordinate")
+                        .integer("y", "Container Y coordinate")
+                        .integer("z", "Container Z coordinate")
+                        .required("item", "count")
+                        .build(),
+                (c, a) -> new TakeItemsTask(
+                        ToolKit.parseItemMatcher(a.get("item").getAsString()),
+                        a.get("count").getAsInt(),
+                        ToolKit.optionalPos(a).orElse(null)),
+                true));
     }
 }
