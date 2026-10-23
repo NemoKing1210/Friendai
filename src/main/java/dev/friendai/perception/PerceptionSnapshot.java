@@ -1,5 +1,6 @@
 package dev.friendai.perception;
 
+import dev.friendai.survival.HungerModel;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -10,6 +11,7 @@ public record PerceptionSnapshot(
         String dimension,
         float health,
         float maxHealth,
+        int food,
         String timeOfDay,
         String biome,
         String weather,
@@ -24,6 +26,7 @@ public record PerceptionSnapshot(
         StringBuilder sb = new StringBuilder();
         sb.append("Position: ").append(position).append(" (").append(dimension).append(")\n");
         sb.append("Health: ").append(number(health)).append('/').append(number(maxHealth)).append('\n');
+        sb.append("Hunger: ").append(food).append('/').append(HungerModel.MAX_FOOD).append('\n');
         sb.append("Time: ").append(timeOfDay).append(", weather: ").append(weather).append(", biome: ").append(biome).append('\n');
         sb.append("Owner: ")
                 .append(ownerDistance == null ? "not nearby" : String.format(Locale.ROOT, "%.1f blocks away", ownerDistance))

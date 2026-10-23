@@ -106,21 +106,10 @@ public class CombatTests {
         h.succeed();
     }
 
-    @GameTest(maxTicks = 600)
-    public void regeneratesSlowly(GameTestHelper h) {
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        c.setHealth(10.0F);
-        h.runAfterDelay(200, () -> h.assertTrue(c.getHealth() == 10.0F, "healed too early: " + c.getHealth()));
-        h.runAfterDelay(460, () -> {
-            h.assertTrue(c.getHealth() == 11.0F, "health was " + c.getHealth() + ", expected 11");
-            h.succeed();
-        });
-    }
-
     @GameTest
     public void equipmentTextFormat(GameTestHelper h) {
         CompanionEntity empty = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive"),
+        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
                 "empty text was " + empty.equipmentText());
 
         CompanionEntity dressed = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
@@ -129,7 +118,7 @@ public class CombatTests {
         dressed.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         dressed.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TORCH));
         h.assertTrue(dressed.equipmentText()
-                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive"),
+                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive; hunger 20/20"),
                 "dressed text was " + dressed.equipmentText());
         h.succeed();
     }
@@ -385,6 +374,8 @@ public class CombatTests {
     public void eatsWhenHurt(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Hunger below the natural-regeneration thresholds, so only the eaten food changes health.
+        c.hunger().load(10, 0.0F, 0.0F);
         c.setHealth(8.0F);
         c.inventory().addItem(new ItemStack(Items.COOKED_BEEF));
         c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
@@ -400,6 +391,8 @@ public class CombatTests {
     public void doesNotEatUnsafe(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Hunger below the natural-regeneration thresholds, so a heal can only come from eating.
+        c.hunger().load(10, 0.0F, 0.0F);
         c.setHealth(8.0F);
         c.inventory().addItem(new ItemStack(Items.SPIDER_EYE));
         h.runAfterDelay(120, () -> {

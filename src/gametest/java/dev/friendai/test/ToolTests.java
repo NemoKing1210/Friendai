@@ -145,11 +145,11 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         h.assertTrue(run(tools, "get_inventory", "{}").content()
-                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive"),
+                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
                 "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         ToolResult r = run(tools, "get_inventory", "{}");
-        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive"),
+        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
                 "result was " + r.content());
         h.succeed();
     }

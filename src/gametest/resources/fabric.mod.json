@@ -27,6 +27,7 @@
 			"dev.friendai.test.CraftingTests",
 			"dev.friendai.test.CookingTests",
 			"dev.friendai.test.CombatTests",
+			"dev.friendai.test.HungerTests",
 			"dev.friendai.test.AnimalTests",
 			"dev.friendai.test.FarmingTests",
 			"dev.friendai.test.ObtainTests",

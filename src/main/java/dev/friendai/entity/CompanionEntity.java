@@ -2,6 +2,8 @@ package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
+import dev.friendai.survival.Difficulty;
+import dev.friendai.survival.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
@@ -22,6 +24,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
@@ -33,6 +37,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
@@ -42,12 +47,18 @@ public class CompanionEntity extends PathfinderMob {
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
-    /** Ticks without damage before natural healing starts, and between each healed point. */
-    private static final int REGEN_DELAY_TICKS = 200;
-    private static final int REGEN_INTERVAL_TICKS = 200;
+    /** Vanilla's starting saturation, used when an old save has no hunger fields. */
+    private static final float STARTING_SATURATION = 5.0f;
+    /** Vanilla exhaustion per block broken, per attack, per hit taken and per jump. */
+    public static final float EXHAUSTION_BLOCK = 0.005f;
+    public static final float EXHAUSTION_ATTACK = 0.1f;
+    private static final float EXHAUSTION_DAMAGE = 0.1f;
+    private static final float EXHAUSTION_JUMP = 0.05f;
+    private static final float EXHAUSTION_SWIM_PER_METER = 0.01f;
 
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
+    private final HungerModel hunger = new HungerModel();
     private final TaskRunner taskRunner =
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
     private final CombatController combatController = new CombatController(this);
@@ -57,8 +68,6 @@ public class CompanionEntity extends PathfinderMob {
     private transient PreviewOutline previewOutline;
     private int furnaceWatchTicks;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
-    private int lastDamageTick;
-    private int regenTicks;
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -106,13 +115,7 @@ public class CompanionEntity extends PathfinderMob {
             if (previewOutline != null && !previewOutline.tick((ServerLevel) level())) {
                 previewOutline = null;
             }
-            if (getHealth() < getMaxHealth()) {
-                int sinceDamage = tickCount - lastDamageTick;
-                int regenStart = REGEN_DELAY_TICKS + REGEN_INTERVAL_TICKS;
-                if (sinceDamage >= regenStart && (sinceDamage - regenStart) % REGEN_INTERVAL_TICKS == 0) {
-                    heal(1.0F);
-                }
-            }
+            tickHunger((ServerLevel) level());
             combatController.tick();
             taskRunner.tick();
             if (++furnaceWatchTicks % 20 == 0) {
@@ -121,11 +124,61 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
+    /** The companion's food, saturation and exhaustion; ticked every server tick by {@link #tick()}. */
+    public HungerModel hunger() {
+        return hunger;
+    }
+
+    /** Vanilla player hunger: movement, effects, then the model; heal and starve come back from it. */
+    private void tickHunger(ServerLevel level) {
+        if (isInWater()) {
+            double dx = getX() - xo;
+            double dz = getZ() - zo;
+            hunger.addExhaustion(EXHAUSTION_SWIM_PER_METER * (float) Math.sqrt(dx * dx + dz * dz));
+        }
+        HungerModel.TickResult result = hunger.tick(
+                survivalDifficulty(level.getDifficulty()),
+                level.getGameRules().get(GameRules.NATURAL_HEALTH_REGENERATION),
+                getHealth(),
+                getMaxHealth());
+        if (result.heal() > 0.0f) {
+            heal(result.heal());
+        }
+        if (result.damage() > 0.0f) {
+            hurtServer(level, damageSources().starve(), result.damage());
+        }
+        MobEffectInstance saturation = getEffect(MobEffects.SATURATION);
+        if (saturation != null) {
+            hunger.eat(saturation.getAmplifier() + 1, 1.0f);
+        }
+        MobEffectInstance hungerEffect = getEffect(MobEffects.HUNGER);
+        if (hungerEffect != null) {
+            hunger.addExhaustion(0.005f * (hungerEffect.getAmplifier() + 1));
+        }
+    }
+
+    private static Difficulty survivalDifficulty(net.minecraft.world.Difficulty difficulty) {
+        return switch (difficulty) {
+            case PEACEFUL -> Difficulty.PEACEFUL;
+            case EASY -> Difficulty.EASY;
+            case NORMAL -> Difficulty.NORMAL;
+            case HARD -> Difficulty.HARD;
+        };
+    }
+
+    @Override
+    public void jumpFromGround() {
+        super.jumpFromGround();
+        if (!level().isClientSide()) {
+            hunger.addExhaustion(EXHAUSTION_JUMP);
+        }
+    }
+
     @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         boolean hurt = super.hurtServer(level, source, amount);
         if (hurt) {
-            lastDamageTick = tickCount;
+            hunger.addExhaustion(EXHAUSTION_DAMAGE);
         }
         return hurt;
     }
@@ -162,7 +215,12 @@ public class CompanionEntity extends PathfinderMob {
         if (!offHand.isEmpty()) {
             text.append(" (offhand: ").append(itemName(offHand)).append(')');
         }
-        return text.append("; combat mode: ").append(combatMode.label()).toString();
+        return text.append("; combat mode: ").append(combatMode.label())
+                .append("; hunger ")
+                .append(hunger.food())
+                .append('/')
+                .append(HungerModel.MAX_FOOD)
+                .toString();
     }
 
     private static String itemName(ItemStack stack) {
@@ -286,6 +344,9 @@ public class CompanionEntity extends PathfinderMob {
         }
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
         output.putString("CombatMode", combatMode.label());
+        output.putInt("Food", hunger.food());
+        output.putFloat("Saturation", hunger.saturation());
+        output.putFloat("Exhaustion", hunger.exhaustion());
         taskRunner.current().map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
     }
 
@@ -295,6 +356,10 @@ public class CompanionEntity extends PathfinderMob {
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
         this.combatMode = CombatMode.parse(input.getString("CombatMode").orElse(null));
+        hunger.load(
+                input.getInt("Food").orElse(HungerModel.MAX_FOOD),
+                input.getFloatOr("Saturation", STARTING_SATURATION),
+                input.getFloatOr("Exhaustion", 0.0f));
         if (level() instanceof ServerLevel) {
             input.getString("SavedTask").flatMap(TaskFactory::restore).ifPresent(taskRunner::restore);
         }

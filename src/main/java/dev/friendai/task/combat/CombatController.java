@@ -600,7 +600,9 @@ public final class CombatController {
             lastDistance = distance;
             if (--attackCooldown <= 0) {
                 companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                companion.doHurtTarget(level, enemy);
+                if (companion.doHurtTarget(level, enemy)) {
+                    companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_ATTACK);
+                }
                 attackCooldown = attackInterval();
             }
         } else if (distanceSqr <= 9.0) {

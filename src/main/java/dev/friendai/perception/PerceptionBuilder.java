@@ -44,6 +44,7 @@ public final class PerceptionBuilder {
                 level.dimension().identifier().getPath(),
                 c.getHealth(),
                 c.getMaxHealth(),
+                c.hunger().food(),
                 level.isBrightOutside() ? "day" : "night",
                 biome,
                 weather,
