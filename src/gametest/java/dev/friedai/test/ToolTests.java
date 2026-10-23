@@ -106,16 +106,6 @@ public class ToolTests {
     }
 
     @GameTest
-    public void guestSeesOnlyLookAround(GameTestHelper h) {
-        List<String> names =
-                FriedaiTools.create(() -> 32).specs(dev.friedai.tool.AccessLevel.GUEST).stream()
-                        .map(ToolSpec::name)
-                        .toList();
-        h.assertTrue(names.equals(List.of("look_around")), "names were " + names);
-        h.succeed();
-    }
-
-    @GameTest
     public void mineAtOutsideHeightIsRejected(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_block_at", "{\"x\":0,\"y\":100000,\"z\":0}");

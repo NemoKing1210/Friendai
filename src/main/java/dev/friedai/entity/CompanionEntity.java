@@ -84,9 +84,12 @@ public class CompanionEntity extends PathfinderMob {
         return inventory;
     }
 
-    /** True when the companion may pick the item up: it is still there, and it is not its own throw that is still on pickup delay. */
+    /**
+     * True when the companion may pick the item up: it is still there, and the companion did not throw it itself.
+     * A drop the companion made is for the player, so it never takes it back, not even after the pickup delay expires.
+     */
     public boolean canCollect(ItemEntity entity) {
-        return !entity.isRemoved() && !(entity.hasPickUpDelay() && entity.getOwner() == this);
+        return !entity.isRemoved() && entity.getOwner() != this;
     }
 
     /** Moves dropped item stacks within {@code radius} into the inventory. Returns the number of items moved. */

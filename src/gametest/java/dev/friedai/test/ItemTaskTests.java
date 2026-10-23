@@ -228,6 +228,32 @@ public class ItemTaskTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 300)
+    public void ownDropsAreNotCollectedAfterTheDelay(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.TERRACOTTA, 5));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:terracotta").orElseThrow(), 5), "drop_items");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (ticks[0] == 120) {
+                runner.start(new PickupItemsTask(6), "pickup_items");
+            }
+            runner.tick();
+            h.assertTrue(ticks[0] >= 121, "waiting for the pickup delay to expire");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.TERRACOTTA) == 0, "picked its own drop back up after the pickup delay expired");
+            int onGround = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(6)).stream()
+                    .filter(e -> e.getItem().is(Items.TERRACOTTA))
+                    .mapToInt(e -> e.getItem().getCount()).sum();
+            h.assertTrue(onGround == 5, "on the ground " + onGround);
+        });
+    }
+
     @GameTest(maxTicks = 200)
     public void droppedItemsAreNotPickedUpBack(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

@@ -187,9 +187,7 @@ public class MineBlocksTests {
             if (++ticks[0] == 5) {
                 h.setBlock(6, 2, 2, Blocks.GOLD_BLOCK);
             }
-            if (ticks[0] < 6) {
-                return;
-            }
+            h.assertTrue(ticks[0] >= 6, "waiting for the block change");
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("the block at ") && result.summary.endsWith(" changed before I could mine it"),
                     "summary was " + result.summary);
