@@ -34,6 +34,13 @@
   "friedai.command.reloaded": "Конфиг перезагружен.",
   "friedai.command.reloaded_with_fixes": "Конфиг перезагружен; исправлено некорректных значений: %s (подробности в логе).",
   "friedai.memory.corrupt": "Файл памяти компаньона был повреждён и сброшен. Старый файл сохранён как копия .bak.",
+  "friedai.command.trust.self": "Ты и так владелец.",
+  "friedai.command.trust.added": "%s теперь в доверенных.",
+  "friedai.command.trust.already": "%s уже в доверенных.",
+  "friedai.command.untrust.unknown": "%s нет в списке доверенных.",
+  "friedai.command.untrust.removed": "%s больше не в доверенных.",
+  "friedai.command.trusted.list": "Доверенные: %s",
+  "friedai.command.trusted.none": "Доверенных нет.",
 
   "friedai.config.title": "Настройки Friendai",
   "friedai.config.category.provider": "Провайдер",

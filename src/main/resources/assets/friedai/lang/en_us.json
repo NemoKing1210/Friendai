@@ -34,6 +34,13 @@
   "friedai.command.reloaded": "Config reloaded.",
   "friedai.command.reloaded_with_fixes": "Config reloaded; %s invalid values were corrected (see the log).",
   "friedai.memory.corrupt": "Your companion's memory file was damaged and has been reset. The old file was kept as a .bak copy.",
+  "friedai.command.trust.self": "You are already the owner.",
+  "friedai.command.trust.added": "%s is now trusted.",
+  "friedai.command.trust.already": "%s is already trusted.",
+  "friedai.command.untrust.unknown": "%s is not in your trusted list.",
+  "friedai.command.untrust.removed": "%s is no longer trusted.",
+  "friedai.command.trusted.list": "Trusted: %s",
+  "friedai.command.trusted.none": "Nobody is trusted.",
 
   "friedai.config.title": "Friendai Settings",
   "friedai.config.category.provider": "Provider",
