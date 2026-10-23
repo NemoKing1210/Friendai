@@ -1,6 +1,7 @@
 package dev.friedai.memory;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -58,6 +59,27 @@ class MemoryStoreTest {
         assertTrue(Files.exists(dir.resolve(A + ".json.bak")));
         assertTrue(store.takeCorruptionNotice(A));
         assertFalse(store.takeCorruptionNotice(A));
+    }
+
+    @Test
+    void factsPersistAcrossStores() {
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).addFact(Subject.player(B), Category.PROFILE, "Builds farms", A, "Steve", 0,
+                MemoryLimits.DEFAULTS);
+        store.flushAll();
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        assertEquals(1, reopened.book(A).allFacts().size());
+        assertEquals("Builds farms", reopened.book(A).allFacts().get(0).text());
+    }
+
+    @Test
+    void oldFileWithoutFactsLoads() throws IOException {
+        Files.writeString(dir.resolve(A + ".json"), "{\"version\":1,\"players\":[]}");
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        assertTrue(store.book(A).allFacts().isEmpty());
+        assertEquals(1, store.book(A)
+                .addFact(Subject.WORLD, Category.NOTE, "first", A, "Steve", 0, MemoryLimits.DEFAULTS)
+                .id());
     }
 
     @Test
