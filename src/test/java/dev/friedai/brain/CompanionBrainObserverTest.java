@@ -28,6 +28,11 @@ class CompanionBrainObserverTest {
         }
 
         @Override
+        public void onEventDropped(BrainEvent e, String reason) {
+            calls.add("dropped:" + reason);
+        }
+
+        @Override
         public void onAssistantText(String text) {
             calls.add("text:" + text);
         }
@@ -62,7 +67,7 @@ class CompanionBrainObserverTest {
         recorder = new Recorder();
         brain = new CompanionBrain(
                 () -> new Persona("Friedai", "friendly", "auto"),
-                () -> new BrainSettings(8, 30, 0),
+                () -> new BrainSettings(8, 30, 0, 5_000),
                 () -> gateway,
                 tools,
                 () -> "state-1",
@@ -82,6 +87,15 @@ class CompanionBrainObserverTest {
         brain.post(said("one"));
         brain.post(said("two"));
         assertEquals(List.of("event:[Steve]: one"), recorder.calls);
+    }
+
+    @Test
+    void reportsDroppedGuestMessage() {
+        gateway.enqueue(text("hi"));
+        UUID guest = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        brain.post(new BrainEvent.PlayerSaid(guest, "Bob", "a", BrainEvent.Source.CHAT));
+        brain.post(new BrainEvent.PlayerSaid(guest, "Bob", "b", BrainEvent.Source.CHAT));
+        assertTrue(recorder.calls.contains("dropped:guest cooldown"));
     }
 
     @Test

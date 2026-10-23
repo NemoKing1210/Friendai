@@ -10,7 +10,9 @@ import dev.friedai.tool.ToolResult;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -25,6 +27,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friedai/brain");
+    /** How many queued events one guest may have waiting for a turn. */
+    public static final int MAX_PENDING_PER_GUEST = 2;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -38,6 +42,7 @@ public final class CompanionBrain {
     private BrainObserver observer = BrainObserver.NONE;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
+    private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
     private Caller turnCaller;
     private boolean thinking;
     private boolean cooldownScheduled;
@@ -68,8 +73,40 @@ public final class CompanionBrain {
     }
 
     public void post(BrainEvent e) {
+        if (shouldDrop(e)) {
+            return;
+        }
         queue.addLast(e);
         maybeStartTurn();
+    }
+
+    /**
+     * Guests are throttled because every request costs money; the owner never is. Dropped messages go to the
+     * observer and the debug log, never to chat.
+     */
+    private boolean shouldDrop(BrainEvent event) {
+        if (!(event instanceof BrainEvent.PlayerSaid said)) {
+            return false;
+        }
+        UUID guest = said.playerUuid();
+        if (access.accessOf(guest) != AccessLevel.GUEST) {
+            return false;
+        }
+        long now = scheduler.nowMillis();
+        Long last = lastAcceptedGuestMessage.get(guest);
+        if (last != null && now - last < settings.get().guestCooldownMs()) {
+            observe(o -> o.onEventDropped(event, "guest cooldown"));
+            return true;
+        }
+        long pending = queue.stream()
+                .filter(queued -> principalOf(queued).equals(guest))
+                .count();
+        if (pending >= MAX_PENDING_PER_GUEST) {
+            observe(o -> o.onEventDropped(event, "too many pending messages"));
+            return true;
+        }
+        lastAcceptedGuestMessage.put(guest, now);
+        return false;
     }
 
     /** Drops the in-flight request (its response will be ignored) and all queued events. */

@@ -13,6 +13,23 @@ import org.junit.jupiter.api.Test;
 
 class DebugLogObserverTest {
     @Test
+    void droppedEventIsLogged() {
+        DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
+        DebugLogObserver observer = new DebugLogObserver(log);
+        observer.onEventDropped(
+                new BrainEvent.PlayerSaid(
+                        UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                        "Bob",
+                        "hi",
+                        BrainEvent.Source.CHAT),
+                "guest cooldown");
+        List<LogEntry> entries = log.after(0, 50);
+        assertEquals(1, entries.size());
+        assertEquals(LogKind.USER, entries.get(0).kind());
+        assertEquals("dropped (guest cooldown): [Bob]: hi", entries.get(0).text());
+    }
+
+    @Test
     void mapsEachCallbackToExpectedKind() {
         DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
         DebugLogObserver observer = new DebugLogObserver(log);

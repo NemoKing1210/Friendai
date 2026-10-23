@@ -37,6 +37,7 @@ class CompanionBrainTest {
     private ManualScheduler scheduler;
     private int maxSteps;
     private long cooldown;
+    private long guestCooldown;
     private String perceptionText;
     private Supplier<LlmGateway> gatewaySupplier;
     private final Set<UUID> trusted = new HashSet<>();
@@ -50,11 +51,12 @@ class CompanionBrainTest {
         scheduler = new ManualScheduler();
         maxSteps = 8;
         cooldown = 0;
+        guestCooldown = 0;
         perceptionText = "state-1";
         gatewaySupplier = () -> gateway;
         brain = new CompanionBrain(
                 () -> new Persona("Friedai", "friendly", "auto"),
-                () -> new BrainSettings(maxSteps, 30, cooldown),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
                 () -> gatewaySupplier.get(),
                 tools,
                 () -> perceptionText,
@@ -185,6 +187,47 @@ class CompanionBrainTest {
         gateway.enqueue(text("noted"));
         brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
         assertEquals(AccessLevel.OWNER, tools.specAccess.get(0));
+    }
+
+    @Test
+    void guestCooldownDropsQuickRepeat() {
+        guestCooldown = 5_000;
+        gateway.enqueue(text("a"));
+        gateway.enqueue(text("c"));
+        brain.post(guest("a"));
+        brain.post(guest("b"));
+        assertEquals(1, gateway.requests.size());
+        scheduler.advance(5_000);
+        brain.post(guest("c"));
+        assertEquals("[Bob (guest)]: c", lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void guestPendingIsCapped() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("ok"));
+        brain.post(said("busy"));
+        brain.post(guest("g1"));
+        brain.post(guest("g2"));
+        brain.post(guest("g3"));
+        first.complete(text("done"));
+        assertEquals(
+                "[Bob (guest)]: g1\n[Bob (guest)]: g2", lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void ownerIsNeverThrottled() {
+        guestCooldown = 60_000;
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("ok"));
+        brain.post(said("1"));
+        brain.post(said("2"));
+        brain.post(said("3"));
+        brain.post(said("4"));
+        first.complete(text("done"));
+        assertEquals(
+                "[Steve (owner)]: 2\n[Steve (owner)]: 3\n[Steve (owner)]: 4",
+                lastUser(gateway.requests.get(1)).text());
     }
 
     @Test

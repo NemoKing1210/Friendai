@@ -213,7 +213,11 @@ public final class BrainService {
         Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(config.companion.name, config.companion.persona, config.companion.language),
-                () -> new BrainSettings(config.brain.maxToolStepsPerTurn, config.brain.historyMessages, config.brain.cooldownMs),
+                () -> new BrainSettings(
+                        config.brain.maxToolStepsPerTurn,
+                        config.brain.historyMessages,
+                        config.brain.cooldownMs,
+                        config.chat.guestCooldownMs),
                 () -> gatewayOverrides.getOrDefault(owner, current),
                 tools.bind(companion),
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
