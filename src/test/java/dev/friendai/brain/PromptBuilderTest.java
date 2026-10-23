@@ -61,6 +61,13 @@ class PromptBuilderTest {
     }
 
     @Test
+    void hungerRule() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains(
+                "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food."));
+    }
+
+    @Test
     void memoryBlockAndRulesAppear() {
         String s = PromptBuilder.system(
                 new Persona("F", "d", "auto"), "p", new Caller(ID, "Steve", AccessLevel.OWNER), "MEMORY-BLOCK");

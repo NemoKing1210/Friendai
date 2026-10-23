@@ -7,6 +7,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.builtin.AttackPlayerTask;
 import dev.friendai.task.builtin.EatTask;
 import dev.friendai.task.builtin.EquipTask;
+import dev.friendai.task.builtin.GetFoodTask;
 import dev.friendai.task.builtin.HuntTask;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.combat.Threats;
@@ -84,6 +85,15 @@ final class CombatTools {
                 (c, a) -> new EatTask(a.has("item") && !a.get("item").isJsonNull()
                         ? item(a.get("item").getAsString())
                         : null),
+                true));
+        ToolKit.add(registry, defs, new TaskToolDef("get_food",
+                "Get food the most efficient way: cook what I carry, take it from chests, bake bread, harvest, hunt or fish.",
+                SchemaBuilder.object()
+                        .integer("count", "How many food items to get (default 4)", 1, 16)
+                        .build(),
+                (c, a) -> new GetFoodTask(a.has("count") && !a.get("count").isJsonNull()
+                        ? a.get("count").getAsInt()
+                        : 4),
                 true));
     }
 
