@@ -55,6 +55,9 @@ public class CompanionEntity extends PathfinderMob {
     private static final float EXHAUSTION_DAMAGE = 0.1f;
     private static final float EXHAUSTION_JUMP = 0.05f;
     private static final float EXHAUSTION_SWIM_PER_METER = 0.01f;
+    /** How often, and how far, the companion takes items the owner threw: "here, take this". */
+    private static final int OWNER_PICKUP_INTERVAL = 10;
+    private static final double OWNER_PICKUP_RADIUS = 3.0;
 
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
@@ -67,6 +70,7 @@ public class CompanionEntity extends PathfinderMob {
     private transient Blueprint lastPreview;
     private transient PreviewOutline previewOutline;
     private int furnaceWatchTicks;
+    private int ownerPickupTicks;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
@@ -118,6 +122,9 @@ public class CompanionEntity extends PathfinderMob {
             tickHunger((ServerLevel) level());
             combatController.tick();
             taskRunner.tick();
+            if (++ownerPickupTicks % OWNER_PICKUP_INTERVAL == 0) {
+                collectOwnerThrows();
+            }
             if (++furnaceWatchTicks % 20 == 0) {
                 furnaceJobs.tick(this);
             }
@@ -281,15 +288,41 @@ public class CompanionEntity extends PathfinderMob {
             if (!canCollect(entity)) {
                 continue;
             }
-            ItemStack stack = entity.getItem().copy();
-            int before = stack.getCount();
-            ItemStack leftover = inventory.addItem(stack);
-            moved += before - leftover.getCount();
-            if (leftover.isEmpty()) {
-                entity.discard();
-            } else {
-                entity.setItem(leftover);
+            moved += storeItem(entity);
+        }
+        return moved;
+    }
+
+    /**
+     * Takes items the owner threw, any item, without a task: the owner handing something over
+     * needs no pickup order. Items thrown by anyone else, and the companion's own drops, stay.
+     */
+    private void collectOwnerThrows() {
+        if (ownerUuid == null) {
+            return;
+        }
+        List<ItemEntity> items = level().getEntitiesOfClass(
+                ItemEntity.class, getBoundingBox().inflate(OWNER_PICKUP_RADIUS));
+        for (ItemEntity entity : items) {
+            if (entity.isRemoved()) {
+                continue;
             }
+            if (entity.getOwner() instanceof ServerPlayer player && player.getUUID().equals(ownerUuid)) {
+                storeItem(entity);
+            }
+        }
+    }
+
+    /** Moves one item entity's stack into the inventory; the leftover stays on the ground. */
+    private int storeItem(ItemEntity entity) {
+        ItemStack stack = entity.getItem().copy();
+        int before = stack.getCount();
+        ItemStack leftover = inventory.addItem(stack);
+        int moved = before - leftover.getCount();
+        if (leftover.isEmpty()) {
+            entity.discard();
+        } else {
+            entity.setItem(leftover);
         }
         return moved;
     }

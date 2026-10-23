@@ -374,15 +374,16 @@ public class CombatTests {
     public void eatsWhenHurt(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        // Hunger below the natural-regeneration thresholds, so only the eaten food changes health.
+        // Hurt, below the regeneration thresholds: only the health reflex can start eating.
         c.hunger().load(10, 0.0F, 0.0F);
         c.setHealth(8.0F);
         c.inventory().addItem(new ItemStack(Items.COOKED_BEEF));
         c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
-        h.runAfterDelay(200, () -> {
-            h.assertTrue(c.getHealth() == 16.0F, "health was " + c.getHealth() + ", expected 16");
-            h.assertTrue(c.inventory().countItem(Items.COOKED_BEEF) == 0, "beef was not eaten");
-            h.assertTrue(c.inventory().countItem(Items.ROTTEN_FLESH) == 1, "rotten flesh must be kept");
+        h.runAfterDelay(120, () -> {
+            h.assertValueEqual(c.hunger().food(), 18, "food after the steak");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 0, "beef was not eaten");
+            h.assertValueEqual(c.inventory().countItem(Items.ROTTEN_FLESH), 1, "rotten flesh must be kept");
+            h.assertTrue(c.getHealth() < 16.0F, "eating must not heal directly: health " + c.getHealth());
             h.succeed();
         });
     }
@@ -391,13 +392,13 @@ public class CombatTests {
     public void doesNotEatUnsafe(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        // Hunger below the natural-regeneration thresholds, so a heal can only come from eating.
+        // Hurt and hungry below the regeneration thresholds: food can only change by eating.
         c.hunger().load(10, 0.0F, 0.0F);
         c.setHealth(8.0F);
         c.inventory().addItem(new ItemStack(Items.SPIDER_EYE));
         h.runAfterDelay(120, () -> {
-            h.assertTrue(c.getHealth() <= 9.0F, "health was " + c.getHealth());
-            h.assertTrue(c.inventory().countItem(Items.SPIDER_EYE) == 1, "the spider eye must be kept");
+            h.assertValueEqual(c.hunger().food(), 10, "food changed without safe food");
+            h.assertValueEqual(c.inventory().countItem(Items.SPIDER_EYE), 1, "the spider eye must be kept");
             h.succeed();
         });
     }
@@ -406,6 +407,7 @@ public class CombatTests {
     public void eatingInterruptedKeepsFood(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.hunger().load(10, 0.0F, 0.0F);
         c.setHealth(9.0F);
         c.inventory().addItem(new ItemStack(Items.BAKED_POTATO));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 4, 2, 2);
@@ -619,7 +621,7 @@ public class CombatTests {
         h.runAfterDelay(100, () -> {
             h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
                     "bread status " + notices.finalStatus + " " + notices.finalSummary);
-            h.assertTrue(notices.finalSummary.startsWith("ate minecraft:bread, health "),
+            h.assertTrue(notices.finalSummary.equals("ate minecraft:bread, hunger 20/20, health 20/20"),
                     "bread summary " + notices.finalSummary);
             notices.reset();
             c.taskRunner().start(new EatTask(null), "eat");
