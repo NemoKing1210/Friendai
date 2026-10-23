@@ -889,6 +889,39 @@ public class BuildTests {
     }
 
     @GameTest(maxTicks = 12000)
+    public void foundationSpendingKeepsScaffoldSurplus(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        // Nine one-block holes under the tower base need nine dirt of foundation; the other eleven dirt are the
+        // scaffold's. Spending the foundation must not eat the reserve left for the scaffold.
+        for (int x = 6; x <= 8; x++) {
+            for (int z = 6; z <= 8; z++) {
+                h.setBlock(x, 1, z, Blocks.AIR);
+                h.setBlock(x, 0, z, Blocks.STONE);
+            }
+        }
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 5));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 1, 6)).is(Blocks.DIRT),
+                    "the foundation is missing: " + h.getBlockState(new BlockPos(6, 1, 6)));
+            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+                    "the top of the wall is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
     public void scaffoldKeepsBlueprintMaterial(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         clearAir(h, 16, 2, 12);

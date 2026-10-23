@@ -9,6 +9,7 @@ import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +61,25 @@ public final class Scaffold {
     /** Keeps {@code needed} items for the blueprint: only what is left over may be spent on scaffolding. */
     public void reserve(Map<Item, Integer> needed) {
         this.reserved = Map.copyOf(needed);
+    }
+
+    /**
+     * One item of the reserve was placed in the blueprint, so the blueprint needs that much less. Without this the
+     * reserve would keep counting material the build has already spent, and the scaffold would starve itself after
+     * the foundation.
+     */
+    public void spend(Item item) {
+        int left = reserved.getOrDefault(item, 0);
+        if (left <= 0) {
+            return;
+        }
+        Map<Item, Integer> remaining = new HashMap<>(reserved);
+        if (left == 1) {
+            remaining.remove(item);
+        } else {
+            remaining.put(item, left - 1);
+        }
+        reserved = Map.copyOf(remaining);
     }
 
     /**

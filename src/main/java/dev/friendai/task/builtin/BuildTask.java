@@ -549,10 +549,15 @@ public final class BuildTask implements Task {
         }
     }
 
-    /** Whether every cell a pillar would climb through from {@code base} up to the feet height is free. */
-    private static boolean columnFree(ServerLevel level, BlockPos base, int feetY) {
+    /**
+     * Whether every cell a pillar would climb through from {@code base} up to the feet height is free and none of
+     * them is a blueprint cell the build has yet to fill: a pillar raised through one would leave the companion
+     * standing where a block has to go.
+     */
+    private boolean columnFree(ServerLevel level, BlockPos base, int feetY) {
         for (int y = base.getY() + 1; y <= feetY + 1; y++) {
-            if (!level.getBlockState(new BlockPos(base.getX(), y, base.getZ())).canBeReplaced()) {
+            BlockPos pos = new BlockPos(base.getX(), y, base.getZ());
+            if (plannedCells.contains(pos) || !level.getBlockState(pos).canBeReplaced()) {
                 return false;
             }
         }
@@ -692,11 +697,16 @@ public final class BuildTask implements Task {
         if (matcher != null) {
             List<ItemStack> removed = InventoryOps.remove(c.companion().inventory(), matcher, 1);
             if (!removed.isEmpty()) {
+                scaffold.spend(item);
                 return removed.get(0);
             }
         }
         if (c.companion().getMainHandItem().is(item)) {
-            return c.companion().getMainHandItem().split(1);
+            ItemStack held = c.companion().getMainHandItem().split(1);
+            if (!held.isEmpty()) {
+                scaffold.spend(item);
+            }
+            return held;
         }
         return ItemStack.EMPTY;
     }
