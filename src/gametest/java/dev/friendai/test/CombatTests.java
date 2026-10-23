@@ -109,7 +109,7 @@ public class CombatTests {
     @GameTest
     public void equipmentTextFormat(GameTestHelper h) {
         CompanionEntity empty = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
+        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive"),
                 "empty text was " + empty.equipmentText());
 
         CompanionEntity dressed = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
@@ -118,7 +118,7 @@ public class CombatTests {
         dressed.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         dressed.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TORCH));
         h.assertTrue(dressed.equipmentText()
-                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive; hunger 20/20"),
+                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive"),
                 "dressed text was " + dressed.equipmentText());
         h.succeed();
     }

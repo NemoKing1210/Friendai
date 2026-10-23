@@ -2,6 +2,7 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.PerceptionSnapshot;
+import dev.friendai.survival.HungerModel;
 import dev.friendai.task.builtin.DropItemsTask;
 import dev.friendai.task.builtin.GiveItemsTask;
 import dev.friendai.tool.SchemaBuilder;
@@ -41,9 +42,11 @@ final class InventoryTools {
                     counts.merge(id, s.getCount(), Integer::sum);
                 }
             }
+            String equipment = c.equipmentText()
+                    + "; hunger " + c.hunger().food() + '/' + HungerModel.MAX_FOOD;
             return counts.isEmpty()
-                    ? ToolResult.ok("Inventory is empty\n" + c.equipmentText())
-                    : ToolResult.ok("Inventory: " + PerceptionSnapshot.counts(counts, "") + "\n" + c.equipmentText());
+                    ? ToolResult.ok("Inventory is empty\n" + equipment)
+                    : ToolResult.ok("Inventory: " + PerceptionSnapshot.counts(counts, "") + "\n" + equipment);
         }));
     }
 }

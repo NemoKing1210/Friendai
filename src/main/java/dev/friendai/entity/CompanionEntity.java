@@ -215,12 +215,7 @@ public class CompanionEntity extends PathfinderMob {
         if (!offHand.isEmpty()) {
             text.append(" (offhand: ").append(itemName(offHand)).append(')');
         }
-        return text.append("; combat mode: ").append(combatMode.label())
-                .append("; hunger ")
-                .append(hunger.food())
-                .append('/')
-                .append(HungerModel.MAX_FOOD)
-                .toString();
+        return text.append("; combat mode: ").append(combatMode.label()).toString();
     }
 
     private static String itemName(ItemStack stack) {

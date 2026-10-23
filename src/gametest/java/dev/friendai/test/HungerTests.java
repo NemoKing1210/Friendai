@@ -98,6 +98,10 @@ public class HungerTests {
         c.hunger().load(14, 0.0f, 0.0f);
         String text = PerceptionBuilder.brief(c).toPromptText();
         h.assertTrue(text.contains("Health: 20/20\nHunger: 14/20\n"), text);
+        // Only the dedicated line: hunger must not leak into the equipment field as well.
+        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        h.assertTrue(lower.indexOf("hunger") == lower.lastIndexOf("hunger"),
+                "hunger appears more than once:\n" + text);
         h.succeed();
     }
 
