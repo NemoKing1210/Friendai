@@ -836,6 +836,132 @@ public class BuildTests {
         });
     }
 
+    @GameTest(maxTicks = 4000)
+    public void deferredSupportKeepsBlueprintCellsClear(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 10));
+        companion.inventory().addItem(new ItemStack(Items.OAK_FENCE, 2));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 4));
+        // Two floating columns that depend on a side block placed later in the same layer, pointing opposite ways.
+        // Whichever direction the serpentine walks the row, one of them is visited bottom block first: that block is
+        // deferred, its side block is placed later, and the block above it must wait instead of filling the deferred
+        // cell with scaffold dirt. The fences under the side blocks are not full faces, so they must not rescue the
+        // floating blocks' undersides.
+        Blueprint blueprint = parse("""
+                {
+                  "name": "deferred columns",
+                  "palette": { "P": "minecraft:oak_planks", "F": "minecraft:oak_fence" },
+                  "ops": [
+                    { "op": "box", "from": [1,0,0], "to": [1,0,0], "block": "P" },
+                    { "op": "box", "from": [4,0,0], "to": [4,0,0], "block": "P" },
+                    { "op": "box", "from": [1,1,0], "to": [1,1,0], "block": "F" },
+                    { "op": "box", "from": [4,1,0], "to": [4,1,0], "block": "F" },
+                    { "op": "box", "from": [0,2,0], "to": [0,2,0], "block": "P" },
+                    { "op": "box", "from": [1,2,0], "to": [1,2,0], "block": "P" },
+                    { "op": "box", "from": [4,2,0], "to": [4,2,0], "block": "P" },
+                    { "op": "box", "from": [5,2,0], "to": [5,2,0], "block": "P" },
+                    { "op": "box", "from": [0,3,0], "to": [0,3,0], "block": "P" },
+                    { "op": "box", "from": [5,3,0], "to": [5,3,0], "block": "P" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 4, 4)).is(Blocks.OAK_PLANKS),
+                    "the first deferred block is missing: " + h.getBlockState(new BlockPos(4, 4, 4)));
+            h.assertTrue(h.getBlockState(new BlockPos(9, 4, 4)).is(Blocks.OAK_PLANKS),
+                    "the second deferred block is missing: " + h.getBlockState(new BlockPos(9, 4, 4)));
+            h.assertTrue(h.getBlockState(new BlockPos(4, 5, 4)).is(Blocks.OAK_PLANKS),
+                    "the first block above a deferred one is missing: "
+                            + h.getBlockState(new BlockPos(4, 5, 4)));
+            h.assertTrue(h.getBlockState(new BlockPos(9, 5, 4)).is(Blocks.OAK_PLANKS),
+                    "the second block above a deferred one is missing: "
+                            + h.getBlockState(new BlockPos(9, 5, 4)));
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            h.assertTrue(dirt.isEmpty(), "a scaffold block was left in a blueprint cell at " + dirt);
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
+    public void scaffoldKeepsBlueprintMaterial(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Exactly the 69 cobblestone the tower needs and nothing to scaffold with: the wall material must not be
+        // spent on a pillar, so the build must not start at all.
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.endsWith(
+                            "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
+    public void cleanupProtectionReportsFailure(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        BlockPos[] guarded = {null};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (guarded[0] == null) {
+                BlockPos lowest = lowestScaffold(h, 16, 2, 12);
+                if (lowest != null) {
+                    guarded[0] = lowest;
+                    BlockPos absolute = h.absolutePos(lowest);
+                    companion.hands().overrideProtection(pos -> pos.equals(absolute));
+                }
+            }
+            h.assertTrue(guarded[0] != null, "the tower must need a scaffold");
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED,
+                    "a scaffold that cannot be removed must not report success: " + result.status + " "
+                            + result.summary);
+            h.assertTrue(result.summary.contains("left 1 scaffold blocks behind"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(guarded[0]).is(Blocks.DIRT), "the protected block must stay");
+        });
+    }
+
+    /** The lowest dirt or cobblestone block in the test area, or null. */
+    private static BlockPos lowestScaffold(GameTestHelper h, int size, int fromY, int toY) {
+        for (int y = fromY; y <= toY; y++) {
+            for (int x = 0; x < size; x++) {
+                for (int z = 0; z < size; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    BlockState state = h.getBlockState(pos);
+                    if (state.is(Blocks.DIRT) || state.is(Blocks.COBBLESTONE)) {
+                        return pos;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private static List<String> positionsOf(
             GameTestHelper h, int size, int fromY, int toY, Block block) {
         List<String> positions = new java.util.ArrayList<>();

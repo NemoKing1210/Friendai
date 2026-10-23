@@ -6,11 +6,14 @@ import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
+import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
@@ -19,6 +22,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Temporary dirt or cobblestone blocks that let the companion build where a standing player could not: one block as a
@@ -26,7 +30,8 @@ import net.minecraft.world.phys.AABB;
  * stepping onto it and repeating.
  *
  * <p>Everything here comes from the companion's own inventory, is recorded in {@link #placed()}, and is removed again
- * top-down. Only a recorded position that still holds dirt or cobblestone is ever broken.
+ * top-down. Only a recorded position that still holds dirt or cobblestone is ever broken. Only the surplus the
+ * blueprint does not need may be spent: the scaffold never takes the material of a wall or a foundation.
  */
 public final class Scaffold {
     public enum State { CLIMBING, READY, FAILED }
@@ -38,6 +43,7 @@ public final class Scaffold {
 
     private final CompanionEntity companion;
     private final List<BlockPos> placed = new ArrayList<>();
+    private Map<Item, Integer> reserved = Map.of();
     private String failure = "";
     private boolean climbing;
     private int climbX;
@@ -51,9 +57,17 @@ public final class Scaffold {
         this.companion = companion;
     }
 
-    /** Whether the companion carries dirt or cobblestone it can scaffold with. */
-    public static boolean hasMaterial(CompanionEntity companion) {
-        return count(companion, Items.DIRT) + count(companion, Items.COBBLESTONE) > 0;
+    /** Keeps {@code needed} items for the blueprint: only what is left over may be spent on scaffolding. */
+    public void reserve(Map<Item, Integer> needed) {
+        this.reserved = Map.copyOf(needed);
+    }
+
+    /**
+     * Whether the companion carries dirt or cobblestone the blueprint does not need. Without a surplus a tall build
+     * must be refused up front instead of spending its own wall or foundation material on a pillar.
+     */
+    public boolean canScaffold() {
+        return surplus(Items.DIRT) > 0 || surplus(Items.COBBLESTONE) > 0;
     }
 
     /** The blocks this scaffold placed and that are expected to be removed again. */
@@ -166,9 +180,11 @@ public final class Scaffold {
     }
 
     /**
-     * Breaks every block this scaffold placed, highest first. Returns {@link State#CLIMBING} while a block is being
-     * broken, {@link State#READY} when none is left, and {@link State#FAILED} when one cannot be reached or is
-     * protected. A block that no longer holds what the scaffold placed is left alone.
+     * Breaks every block this scaffold placed, highest first. The companion is moved to a standing spot within reach
+     * of each block instead of walking to it, so removal does not depend on pathfinding. Returns
+     * {@link State#CLIMBING} while a block is being broken, {@link State#READY} when none is left, and
+     * {@link State#FAILED} when one cannot be reached or is protected. A block that no longer holds what the
+     * scaffold placed is left alone.
      */
     public State removeAll() {
         ServerLevel level = level();
@@ -201,9 +217,69 @@ public final class Scaffold {
                 removalIndex++;
                 continue;
             }
+            if (!reachable(pos)) {
+                return State.FAILED;
+            }
             breaker = new BlockBreaker(pos, Scaffold::isScaffold);
         }
         return State.READY;
+    }
+
+    /** Puts the companion within reach of pos, stepping to a free standing spot when it is not there already. */
+    private boolean reachable(BlockPos pos) {
+        Vec3 center = Vec3.atCenterOf(pos);
+        if (companion.getEyePosition().distanceTo(center) <= Approach.REACH) {
+            return true;
+        }
+        BlockPos spot = standingSpotNear(pos);
+        if (spot == null) {
+            return false;
+        }
+        companion.getNavigation().stop();
+        companion.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
+        companion.getLookControl().setLookAt(center.x, center.y, center.z);
+        return companion.getEyePosition().distanceTo(center) <= Approach.REACH;
+    }
+
+    /**
+     * The free standing cell nearest to pos from which pos is in reach. The cell above the block is a candidate too,
+     * so a pillar standing on its own is dismantled from the top down.
+     */
+    private BlockPos standingSpotNear(BlockPos pos) {
+        ServerLevel level = level();
+        Vec3 center = Vec3.atCenterOf(pos);
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (int dy = 1; dy >= -3; dy--) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    if (dy == 0 && dx == 0 && dz == 0) {
+                        continue;
+                    }
+                    if (Math.sqrt(dx * dx + dz * dz) > 3.0) {
+                        continue;
+                    }
+                    BlockPos candidate = pos.offset(dx, dy, dz);
+                    if (!freeStanding(level, candidate)) {
+                        continue;
+                    }
+                    Vec3 eye = new Vec3(candidate.getX() + 0.5, candidate.getY() + 1.62, candidate.getZ() + 0.5);
+                    double distance = eye.distanceTo(center);
+                    if (distance > Approach.REACH || distance >= bestDistance) {
+                        continue;
+                    }
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean freeStanding(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).isAir()
+                && level.getBlockState(pos.above()).isAir()
+                && level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP);
     }
 
     /** How many of the placed blocks still hold the scaffold material. */
@@ -227,18 +303,23 @@ public final class Scaffold {
         climbing = false;
     }
 
-    /** Dirt, or cobblestone when that is the one the foundation will not use. */
+    /** Dirt, or cobblestone when that is the one the foundation will not use; only the surplus is considered. */
     private Item preferred() {
-        int dirt = count(companion, Items.DIRT);
-        int cobble = count(companion, Items.COBBLESTONE);
-        if (dirt == 0) {
+        int dirt = surplus(Items.DIRT);
+        int cobble = surplus(Items.COBBLESTONE);
+        if (dirt <= 0) {
             return cobble > 0 ? Items.COBBLESTONE : null;
         }
-        if (cobble == 0) {
+        if (cobble <= 0) {
             return Items.DIRT;
         }
         // Site prefers dirt for the foundation when there is more of it, so the scaffold takes the other one.
         return dirt > cobble ? Items.COBBLESTONE : Items.DIRT;
+    }
+
+    /** How much of {@code item} is carried beyond what the blueprint needs. */
+    private int surplus(Item item) {
+        return count(companion, item) - reserved.getOrDefault(item, 0);
     }
 
     private ItemStack takeMaterial() {

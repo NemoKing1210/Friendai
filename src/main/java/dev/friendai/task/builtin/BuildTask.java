@@ -52,6 +52,10 @@ public final class BuildTask implements Task {
     private static final int PROGRESS_STEP = 25;
     /** How far a block may be horizontally from the companion for a pillar to bring it into reach. */
     private static final double SCAFFOLD_RANGE = 3.8;
+    /** The sides of a target a pillar may be built on, in a fixed order so the column is reproducible. */
+    private static final Direction[] PILLAR_SIDES = {
+        Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
+    };
 
     private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE, CLEANUP }
 
@@ -68,6 +72,8 @@ public final class BuildTask implements Task {
 
     private Placement.PlacedBlueprint placed;
     private Site.SiteReport site;
+    /** Blueprint cells that hold a block when the build is done; the scaffold never fills one of them. */
+    private Set<BlockPos> plannedCells = Set.of();
     private List<BlockSpec> order = List.of();
     private int total;
     private int done;
@@ -140,18 +146,25 @@ public final class BuildTask implements Task {
         ServerLevel level = c.level();
         scaffold = new Scaffold(c.companion());
         placed = Placement.at(blueprint, origin, rotation);
+        site = Site.check(level, placed, c.companion(), clearSite);
+        // The foundation is needed to know how much dirt or cobblestone the blueprint needs, even when the site
+        // check found a problem; the problem itself is reported below, after the height check as before.
+        String materialError = null;
+        try {
+            scaffold.reserve(Materials.needed(placed.specs(), site.foundation()));
+        } catch (IllegalArgumentException e) {
+            materialError = e.getMessage();
+        }
+        plannedCells = plannedCells(placed.specs());
         String unreachable = unreachable(c);
         if (unreachable != null) {
             return fail(c, unreachable);
         }
-        site = Site.check(level, placed, c.companion(), clearSite);
         if (!site.problems().isEmpty()) {
             return fail(c, String.join("; ", site.problems()));
         }
-        try {
-            Materials.needed(placed.specs(), site.foundation());
-        } catch (IllegalArgumentException e) {
-            return fail(c, e.getMessage());
+        if (materialError != null) {
+            return fail(c, materialError);
         }
         clearQueue.addAll(site.toClear());
         foundation = site.foundation().stream()
@@ -169,12 +182,25 @@ public final class BuildTask implements Task {
         return state.contains("torch") || state.contains("door") || state.contains("ladder");
     }
 
+    /** The cells the blueprint fills with a block, which a support block must never occupy. */
+    private static Set<BlockPos> plannedCells(List<Placement.PlacedSpec> specs) {
+        Set<BlockPos> cells = new HashSet<>();
+        for (Placement.PlacedSpec spec : specs) {
+            if (!spec.wanted().isAir()) {
+                cells.add(spec.pos());
+            }
+        }
+        return Set.copyOf(cells);
+    }
+
     /**
      * The first block too high to place from any standing ground below it, or null. When the companion carries dirt
-     * or cobblestone it can build a scaffold pillar instead, so the height is checked while building.
+     * or cobblestone the blueprint does not need, it can build a scaffold pillar instead, so the height is checked
+     * while building. Material the blueprint needs is not scaffolding: a tower with an exact supply must be refused
+     * here rather than starved of its own walls.
      */
     private String unreachable(TaskContext c) {
-        if (Scaffold.hasMaterial(c.companion())) {
+        if (scaffold.canScaffold()) {
             return null;
         }
         BlockPos pos = Reach.firstOutOfReach(c.level(), placed.specs(), origin);
@@ -351,10 +377,7 @@ public final class BuildTask implements Task {
                         continue;
                     }
                     if (!deferred.isEmpty()) {
-                        BlockSpec stuck = deferred.get(0);
-                        Placement.PlacedSpec placedSpec = specOf(stuck);
-                        return fail(c, "can't place " + describeState(placedSpec.wanted()) + " at "
-                                + coords(placedSpec.pos()) + ": nothing to place it against");
+                        return supportStuck(c);
                     }
                     return finish(c);
                 }
@@ -394,10 +417,11 @@ public final class BuildTask implements Task {
                     if (state == Approach.State.IN_REACH) {
                         continue;
                     }
-                    feetY = pillarFeetY(c.companion(), currentPos);
-                    if (feetY < 0) {
-                        return fail(c, "can't reach " + coords(currentPos));
-                    }
+                }
+                alignForPillar(c.level(), c.companion(), currentPos);
+                feetY = pillarFeetY(c.companion(), currentPos);
+                if (feetY < 0) {
+                    return fail(c, "can't reach " + coords(currentPos));
                 }
                 switch (scaffold.pillarTo(feetY)) {
                     case CLIMBING -> {
@@ -420,12 +444,8 @@ public final class BuildTask implements Task {
             }
             Optional<PlaceSpot.Spot> spot = spot(level, currentPos);
             if (spot.isEmpty()) {
-                if (scaffold.support(currentPos.below()) && spot(level, currentPos).isPresent()) {
-                    continue;
-                }
-                if (scaffold.outOfMaterial()) {
-                    return fail(c, Scaffold.OUT_OF_MATERIAL);
-                }
+                // A block without a neighbour waits to the end of the queue: a neighbour placed later in the same
+                // layer is better than scaffold material, and support is only placed once nothing else can help.
                 deferred.add(current);
                 current = null;
                 approach = null;
@@ -451,6 +471,34 @@ public final class BuildTask implements Task {
     }
 
     /**
+     * Nothing in the deferred list has a neighbour even after every other block had its chance: the first stuck spec
+     * gets one temporary scaffold block underneath, as the last resort. A cell the blueprint fills itself, or one
+     * taken by a foreign block, is never used for support: the scaffold would block that spec or break someone's
+     * block. Returns to the main loop once a support is in place.
+     */
+    private TaskStatus supportStuck(TaskContext c) {
+        Placement.PlacedSpec spec = specOf(deferred.get(0));
+        BlockPos pos = spec.pos();
+        BlockPos below = pos.below();
+        if (plannedCells.contains(below) || taken(c.level(), below, spec.wanted())) {
+            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                    + ": nothing to place it against");
+        }
+        if (!scaffold.support(below) || spot(c.level(), pos).isEmpty()) {
+            if (scaffold.outOfMaterial()) {
+                return fail(c, scaffold.failure());
+            }
+            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                    + ": nothing to place it against");
+        }
+        queue = deferred;
+        deferred = new ArrayList<>();
+        cursor = 0;
+        passProgress = false;
+        return TaskStatus.RUNNING;
+    }
+
+    /**
      * The feet height a pillar must reach before {@code pos} is in reach, or -1 when the companion should walk
      * closer instead. The feet go two blocks below the target so the companion's head clears the cell it fills.
      */
@@ -473,6 +521,42 @@ public final class BuildTask implements Task {
         double dx = companion.getX() - (pos.getX() + 0.5);
         double dz = companion.getZ() - (pos.getZ() + 0.5);
         return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /**
+     * Steps the companion into a reproducible column for the pillar: the first free standing column beside the
+     * target in a fixed order, rather than wherever pathfinding happened to leave it. Does nothing when no such
+     * column is free, so the companion climbs where it stands.
+     */
+    private void alignForPillar(ServerLevel level, CompanionEntity companion, BlockPos target) {
+        int feetY = target.getY() - 2;
+        BlockPos base = companion.blockPosition();
+        if (feetY <= base.getY()) {
+            return;
+        }
+        for (Direction side : PILLAR_SIDES) {
+            BlockPos column = new BlockPos(
+                    target.getX() + side.getStepX(), base.getY(), target.getZ() + side.getStepZ());
+            if (!freeStanding(level, column) || !columnFree(level, column, feetY)) {
+                continue;
+            }
+            if (column.equals(base)) {
+                return;
+            }
+            companion.getNavigation().stop();
+            companion.teleportTo(column.getX() + 0.5, column.getY(), column.getZ() + 0.5);
+            return;
+        }
+    }
+
+    /** Whether every cell a pillar would climb through from {@code base} up to the feet height is free. */
+    private static boolean columnFree(ServerLevel level, BlockPos base, int feetY) {
+        for (int y = base.getY() + 1; y <= feetY + 1; y++) {
+            if (!level.getBlockState(new BlockPos(base.getX(), y, base.getZ())).canBeReplaced()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private BlockSpec nextSpec() {
@@ -593,8 +677,10 @@ public final class BuildTask implements Task {
                 return pendingStatus;
             }
             case FAILED -> {
+                // Leftover scaffolding is never part of a success: the build only counts as done once the world
+                // is clean again.
                 summary += "; left " + scaffold.left() + " scaffold blocks behind";
-                return pendingStatus;
+                return TaskStatus.FAILED;
             }
         }
         return TaskStatus.RUNNING;
