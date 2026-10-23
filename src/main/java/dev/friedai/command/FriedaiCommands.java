@@ -1,9 +1,12 @@
 package dev.friedai.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import dev.friedai.FriedaiMod;
 import dev.friedai.config.ServerConfig;
 import dev.friedai.core.Components;
@@ -11,6 +14,7 @@ import dev.friedai.core.FriedaiServerState;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
 import dev.friedai.memory.MemoryBook;
+import dev.friedai.memory.MemoryReport;
 import dev.friedai.memory.PlayerRecord;
 import dev.friedai.task.Task;
 import dev.friedai.text.UserMessage;
@@ -49,6 +53,7 @@ public final class FriedaiCommands {
                                 })
                                 .executes(FriedaiCommands::untrust)))
                 .then(Commands.literal("trusted").executes(FriedaiCommands::trusted))
+                .then(memoryCommand())
                 .then(Commands.literal("reload")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(FriedaiCommands::reload)));
@@ -159,6 +164,100 @@ public final class FriedaiCommands {
         ctx.getSource()
                 .sendSuccess(() -> Component.translatable("friedai.command.trusted.list", names), false);
         return records.size();
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> memoryCommand() {
+        return Commands.literal("memory")
+                .then(Commands.literal("list")
+                        .executes(ctx -> memoryList(ctx, null))
+                        .then(Commands.argument("target", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    suggestMemoryTargets(ctx.getSource(), builder, false);
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> memoryList(ctx, StringArgumentType.getString(ctx, "target")))))
+                .then(Commands.literal("forget")
+                        .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .executes(ctx -> memoryForget(ctx, IntegerArgumentType.getInteger(ctx, "id")))))
+                .then(Commands.literal("clear")
+                        .then(Commands.argument("target", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    suggestMemoryTargets(ctx.getSource(), builder, true);
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> memoryClear(ctx, StringArgumentType.getString(ctx, "target")))));
+    }
+
+    private static void suggestMemoryTargets(
+            CommandSourceStack source, SuggestionsBuilder builder, boolean withAll) {
+        if (withAll) {
+            builder.suggest("all");
+        }
+        builder.suggest("world");
+        try {
+            ServerPlayer sender = source.getPlayerOrException();
+            for (PlayerRecord record : FriedaiServerState.get(source.getServer())
+                    .memory()
+                    .book(sender.getUUID())
+                    .players()) {
+                if (record.lastName() != null && !record.lastName().isBlank()) {
+                    builder.suggest(record.lastName());
+                }
+            }
+        } catch (CommandSyntaxException e) {
+            // The console has no book: only the literals are suggested.
+        }
+    }
+
+    private static int memoryList(CommandContext<CommandSourceStack> ctx, String target)
+            throws CommandSyntaxException {
+        if (!memoryEnabled(ctx)) {
+            return 0;
+        }
+        ServerPlayer sender = ctx.getSource().getPlayerOrException();
+        MemoryBook book = FriedaiServerState.get(ctx.getSource().getServer())
+                .memory()
+                .book(sender.getUUID());
+        for (UserMessage message : MemoryReport.list(book, sender.getUUID(), target)) {
+            ctx.getSource().sendSuccess(() -> Components.of(message), false);
+        }
+        return 1;
+    }
+
+    private static int memoryForget(CommandContext<CommandSourceStack> ctx, int id)
+            throws CommandSyntaxException {
+        if (!memoryEnabled(ctx)) {
+            return 0;
+        }
+        ServerPlayer sender = ctx.getSource().getPlayerOrException();
+        MemoryBook book = FriedaiServerState.get(ctx.getSource().getServer())
+                .memory()
+                .book(sender.getUUID());
+        UserMessage message = MemoryReport.forget(book, id);
+        ctx.getSource().sendSuccess(() -> Components.of(message), false);
+        return 1;
+    }
+
+    private static int memoryClear(CommandContext<CommandSourceStack> ctx, String target)
+            throws CommandSyntaxException {
+        if (!memoryEnabled(ctx)) {
+            return 0;
+        }
+        ServerPlayer sender = ctx.getSource().getPlayerOrException();
+        MemoryBook book = FriedaiServerState.get(ctx.getSource().getServer())
+                .memory()
+                .book(sender.getUUID());
+        UserMessage message = MemoryReport.clear(book, target);
+        ctx.getSource().sendSuccess(() -> Components.of(message), false);
+        return 1;
+    }
+
+    private static boolean memoryEnabled(CommandContext<CommandSourceStack> ctx) {
+        if (FriedaiServerState.get(ctx.getSource().getServer()).config().memory.enabled) {
+            return true;
+        }
+        ctx.getSource().sendFailure(Component.translatable("friedai.command.memory.disabled"));
+        return false;
     }
 
     /** The sender's memory book: trust belongs to the owner, not to a companion entity. */
