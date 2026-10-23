@@ -4,9 +4,11 @@ import dev.friedai.crafting.obtain.Source;
 import dev.friedai.crafting.obtain.Tier;
 import dev.friedai.crafting.obtain.ToolKind;
 import dev.friedai.crafting.obtain.ToolNeed;
+import com.google.gson.JsonParser;
 import dev.friedai.crafting.obtain.WorldFacts;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.llm.model.ToolCall;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
@@ -15,6 +17,9 @@ import dev.friedai.task.builtin.ObtainTask;
 import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.task.obtain.DropIndex;
 import dev.friedai.task.obtain.WorldScan;
+import dev.friedai.tool.ToolExecutor;
+import dev.friedai.tool.ToolResult;
+import dev.friedai.tool.builtin.FriedaiTools;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -263,6 +268,7 @@ public class ObtainTests {
         for (int y = 2; y <= 5; y++) {
             h.setBlock(4, y, 2, Blocks.OAK_LOG);
         }
+        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
@@ -403,6 +409,21 @@ public class ObtainTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("gave up after 1 steps"), "summary was " + result.summary);
         });
+    }
+
+    @GameTest
+    public void planObtainText(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.IRON_ORE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        String json = "{\"item\":\"minecraft:raw_iron\",\"count\":1}";
+        ToolResult r = tools.execute(new ToolCall("1", "plan_obtain",
+                JsonParser.parseString(json).getAsJsonObject(), json, null));
+        h.assertFalse(r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("mine 1 × minecraft:iron_ore"), "result was " + r.content());
+        h.succeed();
     }
 
     @GameTest

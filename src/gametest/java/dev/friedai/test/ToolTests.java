@@ -163,6 +163,14 @@ public class ToolTests {
     }
 
     @GameTest
+    public void obtainToolRejectsUnknown(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "obtain_item", "{\"item\":\"nonsense:x\",\"count\":1}");
+        h.assertTrue(r.error() && r.content().equals("unknown item: nonsense:x"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
@@ -170,7 +178,7 @@ public class ToolTests {
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
                 "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
-                "lead_animals", "harvest_honey", "fish",
+                "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }

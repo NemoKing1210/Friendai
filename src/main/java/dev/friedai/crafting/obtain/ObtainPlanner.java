@@ -376,7 +376,7 @@ public final class ObtainPlanner {
                 sim.reserved.add(item);
                 return true;
             }
-            Attempt planned = need(item, 1, depth + 1, path, sim, true);
+            Attempt planned = craftable(item, 1, depth + 1, path, sim);
             if (!planned.ok()) {
                 return false;
             }
@@ -384,6 +384,44 @@ public final class ObtainPlanner {
             sim.add(item, 1);
             sim.reserved.add(item);
             return true;
+        }
+
+        /**
+         * Obtains a station item by crafting or carrying it, never by mining a placed one: a table taken from
+         * the world is infrastructure the rest of the plan is counting on.
+         */
+        private Attempt craftable(String item, int qty, int depth, Set<String> path, Sim sim) {
+            Attempt total = new Attempt();
+            qty -= sim.take(item, qty);
+            if (qty <= 0) {
+                return total;
+            }
+            if (depth > MAX_DEPTH || path.contains(item)) {
+                total.missing.merge(item, qty, Integer::sum);
+                return total;
+            }
+            Set<String> nextPath = new LinkedHashSet<>(path);
+            nextPath.add(item);
+            Attempt best = null;
+            Sim bestSim = null;
+            for (Recipe recipe : book.producing(item)) {
+                if (recipe.station().isCooking()) {
+                    continue;
+                }
+                Sim copy = sim.copy();
+                Candidate candidate = new CraftProvider(recipe).take(this, copy, qty, depth, nextPath, true);
+                if (candidate != null && candidate.supplied() > 0
+                        && (best == null || candidate.attempt().cost < best.cost)) {
+                    best = candidate.attempt();
+                    bestSim = copy;
+                }
+            }
+            if (best == null) {
+                total.missing.merge(item, qty, Integer::sum);
+                return total;
+            }
+            sim.adopt(bestSim);
+            return best;
         }
 
         private boolean stationNearby(Station station) {
