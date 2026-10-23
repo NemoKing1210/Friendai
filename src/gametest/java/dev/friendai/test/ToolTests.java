@@ -179,6 +179,7 @@ public class ToolTests {
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
                 "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
+                "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
@@ -372,6 +373,112 @@ public class ToolTests {
                 .toList();
         h.assertTrue(!trusted.contains("attack_player"), "trusted tools were " + trusted);
         h.assertTrue(owner.contains("attack_player"), "owner tools were " + owner);
+        h.succeed();
+    }
+
+    private static ToolResult runArgs(ToolExecutor tools, String name, JsonObject args) {
+        return tools.execute(new ToolCall("1", name, args, args.toString(), null));
+    }
+
+    private static JsonObject buildArgs(String generator, BlockPos at) {
+        JsonObject args = new JsonObject();
+        args.addProperty("generator", generator);
+        args.addProperty("x", at.getX());
+        args.addProperty("y", at.getY());
+        args.addProperty("z", at.getZ());
+        return args;
+    }
+
+    private static final String PLATFORM_3 =
+            "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:stone\"}";
+
+    @GameTest
+    public void helpMentionsOpsAndGenerators(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "blueprint_help", "{}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("\"ops\""), "content was " + r.content());
+        h.assertTrue(r.content().contains("house"), "content was " + r.content());
+        h.assertTrue(r.content().contains("tower"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void previewText(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        ToolResult r = runArgs(tools(c), "preview_structure", buildArgs(PLATFORM_3, at));
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("blocks to place"), "content was " + r.content());
+        h.assertTrue(r.content().contains("materials:"), "content was " + r.content());
+        h.assertTrue(r.content().contains("site: clear"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void previewErrorsListed(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        JsonObject args = new JsonObject();
+        args.addProperty("blueprint", """
+                {
+                  "palette": { "C": "minecraft:not_a_block" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [1,0,1], "block": "C" } ]
+                }
+                """);
+        ToolResult r = runArgs(tools(c), "preview_structure", args);
+        h.assertTrue(r.error(), "should be an error: " + r.content());
+        h.assertTrue(r.content().contains("unknown block minecraft:not_a_block"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void saveFromLastPreview(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        ToolResult preview = runArgs(tools(c), "preview_structure", buildArgs(PLATFORM_3, at));
+        h.assertTrue(!preview.error(), "preview: " + preview.content());
+        String name = "preview_hut_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        ToolResult saved = run(tools(c), "save_blueprint", "{\"name\":\"" + name + "\"}");
+        h.assertTrue(!saved.error(), "error: " + saved.content());
+        h.assertTrue(saved.content().equals("saved blueprint " + name + " (9 blocks)"), "content was " + saved.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void listShowsSaved(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        String name = "listed_tower_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        JsonObject save = new JsonObject();
+        save.addProperty("name", name);
+        save.addProperty("blueprint", """
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [1,1,1], "block": "C" } ]
+                }
+                """);
+        ToolResult saved = runArgs(tools(c), "save_blueprint", save);
+        h.assertTrue(!saved.error(), "save: " + saved.content());
+        ToolResult listed = run(tools(c), "list_blueprints", "{\"query\":\"" + name + "\"}");
+        h.assertTrue(!listed.error(), "list: " + listed.content());
+        h.assertTrue(listed.content().contains(name), "content was " + listed.content());
+        h.assertTrue(listed.content().contains("2×2×2"), "content was " + listed.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void buildToolStartsTask(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        ToolResult r = runArgs(tools(c), "build_structure", buildArgs(PLATFORM_3, at));
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("build_structure"), "build task should be current");
         h.succeed();
     }
 

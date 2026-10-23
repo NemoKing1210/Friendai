@@ -61,6 +61,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
 - [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
 - [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
+- [ ] Memory tab at GUI scales 1–4 in English and Russian: nothing overlaps, long facts wrap or scroll.
+- [ ] Tell the companion something with a real model while the Memory tab is open: the new fact appears within a second.
+- [ ] Add, edit, forget a fact; editing a guest's fact removes the "from" mark.
+- [ ] Clear asks "Sure?" and only clears on the second click.
+- [ ] Trust toggle on an online stranger; the trust shows up in `/friendai trusted`.
+- [ ] Memory turned off on the server: the tab shows the notice and the trust toggle still works.
+- [ ] On a dedicated server, a non-operator sees the Memory tab and only their own memory.
 
 ## World lifecycle
 
@@ -111,6 +118,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] At a base with iron in a chest: it takes the iron instead of mining.
 - [ ] "Get diamonds, but don't wander off" (explore=false): it reports what is missing instead of digging.
 - [ ] The first obtain call on a large modpack: note how long the drop index takes (log line "Indexed drops …").
+
+## Building
+
+- [ ] "Build me a small house here": the companion picks a generator, previews the outline (END_ROD for 10 seconds), then builds it block by block.
+- [ ] A custom blueprint from the model, such as a well: it reads blueprint_help, previews, then builds.
+- [ ] The preview outline is visible only to the owner, not to other players.
+- [ ] A chest on the site: the preview lists "the site isn't clear: minecraft:chest at …" and the build is refused.
+- [ ] "Save this design": save_blueprint, then list_blueprints shows it and a build_structure by name builds it again.
 
 ## Localization
 

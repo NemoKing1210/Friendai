@@ -32,6 +32,7 @@ public final class FriendaiTools {
         FarmingTools.register(registry, defs);
         AnimalTools.register(registry, defs);
         ObtainTools.register(registry, defs);
+        BuildTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
         MemoryTools.register(registry, memory);
         ControlTools.register(registry, defs);

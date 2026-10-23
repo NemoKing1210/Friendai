@@ -54,6 +54,13 @@ class PromptBuilderTest {
     }
 
     @Test
+    void buildingRule() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains(
+                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure."));
+    }
+
+    @Test
     void memoryBlockAndRulesAppear() {
         String s = PromptBuilder.system(
                 new Persona("F", "d", "auto"), "p", new Caller(ID, "Steve", AccessLevel.OWNER), "MEMORY-BLOCK");

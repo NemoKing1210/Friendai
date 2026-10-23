@@ -1,10 +1,12 @@
 package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
+import dev.friendai.build.Blueprint;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskSettings;
+import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
@@ -51,6 +53,8 @@ public class CompanionEntity extends PathfinderMob {
     private final CombatController combatController = new CombatController(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private transient CompanionHands hands;
+    private transient Blueprint lastPreview;
+    private transient PreviewOutline previewOutline;
     private int furnaceWatchTicks;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
     private int lastDamageTick;
@@ -81,10 +85,27 @@ public class CompanionEntity extends PathfinderMob {
         return hands;
     }
 
+    /** The blueprint {@code preview_structure} showed last, for {@code save_blueprint} without JSON. Not saved. */
+    public Optional<Blueprint> lastPreview() {
+        return Optional.ofNullable(lastPreview);
+    }
+
+    public void setLastPreview(Blueprint blueprint) {
+        this.lastPreview = blueprint;
+    }
+
+    /** Shows the owner where a structure will go; replaces any earlier outline. Not saved. */
+    public void showOutline(PreviewOutline outline) {
+        this.previewOutline = outline;
+    }
+
     @Override
     public void tick() {
         super.tick();
         if (!level().isClientSide() && isAlive()) {
+            if (previewOutline != null && !previewOutline.tick((ServerLevel) level())) {
+                previewOutline = null;
+            }
             if (getHealth() < getMaxHealth()) {
                 int sinceDamage = tickCount - lastDamageTick;
                 int regenStart = REGEN_DELAY_TICKS + REGEN_INTERVAL_TICKS;
