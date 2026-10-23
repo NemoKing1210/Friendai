@@ -16,6 +16,14 @@ class SchemaBuilderTest {
     }
 
     @Test
+    void boolShape() {
+        JsonObject p = SchemaBuilder.object().bool("wait", "Wait for it").build()
+                .getAsJsonObject("properties").getAsJsonObject("wait");
+        assertEquals("boolean", p.get("type").getAsString());
+        assertEquals("Wait for it", p.get("description").getAsString());
+    }
+
+    @Test
     void arrayShape() {
         JsonObject item = SchemaBuilder.object().string("tool", "T").required("tool").build();
         JsonObject p = SchemaBuilder.object().array("steps", "S", item, 1, 16).build().getAsJsonObject("properties").getAsJsonObject("steps");

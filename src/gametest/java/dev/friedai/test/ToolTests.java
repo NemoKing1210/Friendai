@@ -64,6 +64,25 @@ public class ToolTests {
     }
 
     @GameTest
+    public void smeltToolRejectsNonFuel(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "smelt_items",
+                "{\"item\":\"minecraft:raw_iron\",\"count\":1,\"fuel\":\"minecraft:dirt\"}");
+        h.assertTrue(r.error() && r.content().equals("minecraft:dirt is not a fuel"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void smeltToolStartsTask(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_IRON));
+        ToolResult r = run(tools(c), "smelt_items", "{\"item\":\"minecraft:raw_iron\",\"count\":1}");
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("smelt_items"), "smelt task should be current");
+        h.succeed();
+    }
+
+    @GameTest
     public void goToNeedsTarget(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "go_to", "{}");
@@ -121,8 +140,8 @@ public class ToolTests {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
-                "take_items", "check_container", "craft_item", "get_recipe", "look_around", "find_blocks", "stop",
-                "run_plan")), "names were " + names);
+                "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
+                "collect_smelted", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
 

@@ -20,6 +20,7 @@ public final class FriedaiTools {
         BuildingTools.register(registry, defs);
         StorageTools.register(registry, defs);
         CraftingTools.register(registry, defs);
+        CookingTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
         ControlTools.register(registry, defs);
         return registry;

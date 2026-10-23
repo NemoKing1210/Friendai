@@ -48,6 +48,11 @@ public final class SchemaBuilder {
         return this;
     }
 
+    public SchemaBuilder bool(String name, String description) {
+        property(name, "boolean", description);
+        return this;
+    }
+
     public SchemaBuilder number(String name, String description) {
         property(name, "number", description);
         return this;
