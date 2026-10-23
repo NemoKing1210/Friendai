@@ -2,6 +2,7 @@ package dev.friedai.config;
 
 import com.google.gson.JsonObject;
 import dev.friedai.llm.provider.LlmProfile;
+import dev.friedai.memory.MemoryLimits;
 import dev.friedai.llm.provider.RoutingRule;
 import dev.friedai.text.UserMessage;
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.function.Function;
 
 /** friedai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -21,6 +22,7 @@ public class ServerConfig {
     public ChatSection chat = new ChatSection();
     public BrainSection brain = new BrainSection();
     public TasksSection tasks = new TasksSection();
+    public MemorySection memory = new MemorySection();
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -61,6 +63,17 @@ public class ServerConfig {
         public int taskTimeoutSec = 300;
     }
 
+    public static class MemorySection {
+        public boolean enabled = true;
+        public int maxFactChars = 160;
+        public int maxFactsPerPlayer = 20;
+        public int maxWorldFacts = 30;
+
+        public MemoryLimits limits() {
+            return new MemoryLimits(maxFactChars, maxFactsPerPlayer, maxWorldFacts);
+        }
+    }
+
     public static ServerConfig defaults() {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
@@ -95,6 +108,10 @@ public class ServerConfig {
             tasks = new TasksSection();
             problems.add("tasks was missing");
         }
+        if (memory == null) {
+            memory = new MemorySection();
+            problems.add("memory was missing");
+        }
         brain.maxToolStepsPerTurn = clamp(problems, "brain.maxToolStepsPerTurn", brain.maxToolStepsPerTurn, 1, 32);
         brain.historyMessages = clamp(problems, "brain.historyMessages", brain.historyMessages, 6, 200);
         brain.requestTimeoutSec = clamp(problems, "brain.requestTimeoutSec", brain.requestTimeoutSec, 5, 600);
@@ -104,6 +121,9 @@ public class ServerConfig {
         chat.guestCooldownMs = clamp(problems, "chat.guestCooldownMs", chat.guestCooldownMs, 0, 60_000);
         tasks.mineSearchRadius = clamp(problems, "tasks.mineSearchRadius", tasks.mineSearchRadius, 4, 64);
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
+        memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 500);
+        memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 100);
+        memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);
         return problems;
     }
 

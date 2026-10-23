@@ -81,7 +81,7 @@ public final class FriedaiConfigScreen {
 
         ConfigStore<ServerConfig> serverStore = new ConfigStore<>(
                 FabricLoader.getInstance().getConfigDir().resolve("friedai-server.json"),
-                ServerConfig.class, ServerConfig::defaults, 1, (json, from) -> json);
+                ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
         ServerConfig server = null;
         if (serverEditable) {
             server = serverStore.load();
@@ -94,6 +94,7 @@ public final class FriedaiConfigScreen {
             builder.category(providerCategory(parent, server, draft));
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
+            builder.category(memoryCategory(server));
         } else {
             builder.category(ConfigCategory.createBuilder()
                     .name(tr("friedai.config.category.server"))
@@ -306,6 +307,29 @@ public final class FriedaiConfigScreen {
                         .name(tr("friedai.config.chat.guest_cooldown_ms"))
                         .binding(5000, () -> c.guestCooldownMs, v -> c.guestCooldownMs = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 60000))
+                        .build())
+                .build();
+    }
+
+    private static ConfigCategory memoryCategory(ServerConfig server) {
+        var m = server.memory;
+        return ConfigCategory.createBuilder()
+                .name(tr("friedai.config.category.memory"))
+                .option(booleanOption("friedai.config.memory.enabled", true, () -> m.enabled, v -> m.enabled = v))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friedai.config.memory.max_fact_chars"))
+                        .binding(160, () -> m.maxFactChars, v -> m.maxFactChars = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(40, 500))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friedai.config.memory.max_facts_per_player"))
+                        .binding(20, () -> m.maxFactsPerPlayer, v -> m.maxFactsPerPlayer = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 100))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friedai.config.memory.max_world_facts"))
+                        .binding(30, () -> m.maxWorldFacts, v -> m.maxWorldFacts = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 200))
                         .build())
                 .build();
     }

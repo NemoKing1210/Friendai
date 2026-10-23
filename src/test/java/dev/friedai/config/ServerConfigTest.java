@@ -52,7 +52,43 @@ class ServerConfigTest {
         assertTrue(c.chat.guestsEnabled);
         assertEquals(16, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
-        assertEquals(2, c.version);
+        assertEquals(3, c.version);
+    }
+
+    @Test
+    void memoryDefaults() {
+        var c = ServerConfig.defaults();
+        assertTrue(c.memory.enabled);
+        assertEquals(160, c.memory.maxFactChars);
+        assertEquals(20, c.memory.maxFactsPerPlayer);
+        assertEquals(30, c.memory.maxWorldFacts);
+        assertEquals(3, c.version);
+        assertEquals(160, c.memory.limits().maxFactChars());
+    }
+
+    @Test
+    void validateClampsMemoryLimits() {
+        var c = ServerConfig.defaults();
+        c.memory.maxFactChars = 5;
+        c.memory.maxFactsPerPlayer = 0;
+        c.memory.maxWorldFacts = 999;
+        c.validate();
+        assertEquals(40, c.memory.maxFactChars);
+        assertEquals(1, c.memory.maxFactsPerPlayer);
+        assertEquals(200, c.memory.maxWorldFacts);
+    }
+
+    @Test
+    void version2FileMigratesWithMemoryDefaults(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":2,\"chat\":{\"hearingRadius\":8}}");
+        var store = new ConfigStore<>(
+                f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ServerConfig c = store.load();
+        assertEquals(8, c.chat.hearingRadius);
+        assertEquals(160, c.memory.maxFactChars);
+        assertTrue(c.memory.enabled);
+        assertTrue(Files.readString(f).contains("\"version\": 3"));
     }
 
     @Test
@@ -73,7 +109,7 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(16, c.chat.hearingRadius);
-        assertTrue(Files.readString(f).contains("\"version\": 2"));
+        assertTrue(Files.readString(f).contains("\"version\": 3"));
     }
 
     @Test
