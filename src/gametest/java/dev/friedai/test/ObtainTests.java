@@ -11,6 +11,7 @@ import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.ExploreTask;
+import dev.friedai.task.builtin.ObtainTask;
 import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.task.obtain.DropIndex;
 import dev.friedai.task.obtain.WorldScan;
@@ -38,6 +39,13 @@ public class ObtainTests {
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    private static TaskRunner obtain(CompanionEntity c, Result result, ObtainTask task) {
+        TaskRunner runner = new TaskRunner(c, () -> 2400, () -> false);
+        runner.setListener(result);
+        runner.start(task, "obtain_item");
+        return runner;
     }
 
     private static TaskRunner explore(CompanionEntity c, Result result, ExploreTask task) {
@@ -246,6 +254,154 @@ public class ObtainTests {
                     }
                 }
             }
+        });
+    }
+
+    @GameTest(maxTicks = 4800)
+    public void obtainWoodenPickaxe(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(4, y, 2, Blocks.OAK_LOG);
+        }
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("got 1 minecraft:wooden_pickaxe in "), "summary was " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.WOODEN_PICKAXE), 1, "pickaxes");
+        });
+    }
+
+    @GameTest(maxTicks = 9600)
+    public void obtainStonePickaxe(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(4, y, 2, Blocks.OAK_LOG);
+        }
+        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
+        h.setBlock(6, 2, 2, Blocks.STONE);
+        h.setBlock(6, 2, 3, Blocks.STONE);
+        h.setBlock(6, 2, 4, Blocks.STONE);
+        h.setBlock(7, 2, 2, Blocks.STONE);
+        h.setBlock(7, 2, 3, Blocks.STONE);
+        h.setBlock(7, 2, 4, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 1, "pickaxes");
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void obtainTakesFromChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(4, 2, 2)));
+        chest.setItem(0, new ItemStack(Items.STONE_PICKAXE));
+        chest.setChanged();
+        h.setBlock(6, 2, 2, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("got 1 minecraft:stone_pickaxe in 1 steps: took"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 4800)
+    public void obtainIronIngot(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.IRON_ORE);
+        h.setBlock(6, 2, 2, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
+        c.inventory().addItem(new ItemStack(Items.COAL));
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 1, "iron ingots");
+        });
+    }
+
+    @GameTest(maxTicks = 9600)
+    public void replansAfterTheft(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 7; y++) {
+            h.setBlock(4, y, 2, Blocks.OAK_LOG);
+        }
+        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(5, 3, 2, Blocks.OAK_LOG);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
+        boolean[] stolen = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!stolen[0] && c.inventory().countItem(Items.OAK_LOG) > 0) {
+                for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+                    if (c.inventory().getItem(slot).is(Items.OAK_LOG)) {
+                        c.inventory().setItem(slot, ItemStack.EMPTY);
+                    }
+                }
+                stolen[0] = true;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void obtainMissingWithoutExplore(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("can't get 1 minecraft:iron_ingot here: missing:"),
+                    "summary was " + result.summary);
+            h.assertTrue(result.summary.endsWith("(exploring is off)"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 4800)
+    public void exploreFailureEndsObtain(GameTestHelper h) {
+        GameTestSupport.platformAt(h, -20, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, -19, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:oak_planks", 1, true, true, 40, 24000, 16, 128, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("stuck at explore"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void stepLimit(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(4, y, 2, Blocks.OAK_LOG);
+        }
+        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result,
+                new ObtainTask("minecraft:wooden_pickaxe", 1, true, false, 1, 24000, 64, 128, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("gave up after 1 steps"), "summary was " + result.summary);
         });
     }
 
