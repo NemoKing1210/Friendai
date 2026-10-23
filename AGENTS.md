@@ -36,6 +36,7 @@ Pure Java:
 - `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID; `Fact`, `Subject`, `Category` with monotonic ids; `revision()` for change tracking), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption), `MemoryActions` (tool logic and the permission matrix via `MemoryPolicy`), `MemoryMenuActions` (the memory tab's requests with owner rights), `MemoryView` + `MemoryViewBuilder` + `MemoryViewCodec` (what the tab shows and its wire format), `MemoryViewers` (who has the tab open), `MemoryPromptRenderer` (per-caller prompt block), `MemoryReport` (command output).
 - `chat/AddressDetector`, `chat/CompanionPicker` (which companion hears a message), `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
 - `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `MemoryTabModel` (the Memory tab's group, selection, edit draft and Clear confirmation), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
+- `perception/PerceptionSnapshot` + `OwnerFocus` — the surroundings and the speaker's view (where they stand and look) as prompt text; `PerceptionBuilder` fills them in the Minecraft layer.
 
 Minecraft layer:
 

@@ -52,7 +52,8 @@ public final class PerceptionBuilder {
                 top(countEntities(c, level)),
                 inventory(c),
                 c.equipmentText(),
-                task);
+                task,
+                null);
     }
 
     private static Map<String, Integer> countBlocks(ServerLevel level, BlockPos center, int radius) {
