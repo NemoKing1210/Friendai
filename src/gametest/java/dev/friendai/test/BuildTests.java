@@ -12,6 +12,7 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.build.BlueprintResolver;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
+import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.builtin.BuildTask;
@@ -27,14 +28,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public class BuildTests {
+    private static final Block RED_BED = Blocks.BED.pick(DyeColor.RED);
     private static final String EXAMPLE = """
             {
               "name": "hut",
@@ -719,6 +724,153 @@ public class BuildTests {
             h.assertTrue(result.summary.equals(at + " is taken by minecraft:glass"), "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(9, 2, 5)).is(Blocks.GLASS), "the glass must stay");
         });
+    }
+
+    @GameTest
+    public void gableRoofHasStandingGround(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        Blueprint house = generator("""
+                { "type": "house", "width": 7, "depth": 7,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_stairs" }
+                """);
+        BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
+        List<Placement.PlacedSpec> specs = Placement.at(house, origin, Rotation.NONE).specs();
+        BlockPos outOfReach = dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin);
+        h.assertTrue(outOfReach == null, "the gable roof must be reachable from its own walls, but " + outOfReach
+                + " is not");
+        h.succeed();
+    }
+
+    @GameTest
+    public void tallTowerStaysOutOfReach(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(6, 2, 6));
+        List<Placement.PlacedSpec> specs = Placement.at(tower, origin, Rotation.NONE).specs();
+        h.assertTrue(dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin) != null,
+                "a tower without scaffolding is out of reach");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void doorHalvesShareOrientation(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 4));
+        companion.inventory().addItem(new ItemStack(Items.OAK_DOOR, 1));
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" },
+                    { "op": "door", "at": [0,1,0], "facing": "north", "block": "minecraft:oak_door" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:oak_door[facing=north,half=lower]")),
+                    "the lower half was " + h.getBlockState(new BlockPos(4, 3, 4)));
+            h.assertTrue(h.getBlockState(new BlockPos(4, 4, 4)).equals(state("minecraft:oak_door[facing=north,half=upper]")),
+                    "the upper half was " + h.getBlockState(new BlockPos(4, 4, 4)));
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void bedHalvesMatchBlueprint(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 4));
+        companion.inventory().addItem(new ItemStack(Items.BED.pick(DyeColor.RED), 1));
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [1,0,1], "block": "C" },
+                    { "op": "box", "from": [0,1,0], "to": [0,1,0], "block": "minecraft:red_bed[facing=south,part=foot]" },
+                    { "op": "box", "from": [0,1,1], "to": [0,1,1], "block": "minecraft:red_bed[facing=south,part=head]" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:red_bed[facing=south,part=foot]")),
+                    "the foot was " + h.getBlockState(new BlockPos(4, 3, 4)));
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 5)).equals(state("minecraft:red_bed[facing=south,part=head]")),
+                    "the head was " + h.getBlockState(new BlockPos(4, 3, 5)));
+            for (Direction direction : Direction.Plane.HORIZONTAL) {
+                BlockPos neighbor = new BlockPos(4, 3, 4).relative(direction);
+                if (neighbor.equals(new BlockPos(4, 3, 5))) {
+                    continue;
+                }
+                BlockState stray = h.getBlockState(neighbor);
+                h.assertFalse(stray.is(RED_BED), "a stray bed part was left at " + neighbor + ": " + stray);
+            }
+        });
+    }
+
+    @GameTest
+    public void doorUpperHalfFollowsTheLower(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        BlockPos lower = h.absolutePos(new BlockPos(4, 3, 4));
+        level.setBlock(lower, state("minecraft:oak_door[facing=south,half=lower]"), Block.UPDATE_NONE);
+        level.setBlock(lower.above(), state("minecraft:oak_door[facing=south,half=upper]"), Block.UPDATE_NONE);
+        Parts.reconcile(level, lower, state("minecraft:oak_door[facing=north,half=lower]"));
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:oak_door[facing=north,half=lower]"));
+        h.assertBlockState(new BlockPos(4, 4, 4), state("minecraft:oak_door[facing=north,half=upper]"));
+        h.succeed();
+    }
+
+    @GameTest
+    public void strayBedHeadMovesToTheBlueprint(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        BlockPos foot = h.absolutePos(new BlockPos(4, 3, 4));
+        level.setBlock(foot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
+        level.setBlock(foot.south(), state("minecraft:red_bed[facing=south,part=head]"), Block.UPDATE_NONE);
+        Parts.reconcile(level, foot, state("minecraft:red_bed[facing=west,part=foot]"));
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=west,part=foot]"));
+        h.assertBlockState(new BlockPos(3, 3, 4), state("minecraft:red_bed[facing=west,part=head]"));
+        h.assertBlockState(new BlockPos(4, 3, 5), Blocks.AIR.defaultBlockState());
+        h.succeed();
+    }
+
+    @GameTest
+    public void defaultOriginLeavesRoomForTheWholeStructure(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [2,0,2], "block": "C" } ]
+                }
+                """);
+        BlockPos ownerPos = owner.blockPosition();
+        Placement.PlacedBlueprint south = Placement.of(blueprint, null, null, companion);
+        equal(ownerPos.getZ() + 3, south.origin().getZ(), "the near edge starts three blocks ahead");
+        equal(ownerPos.getX() - 1, south.origin().getX(), "centred across the owner");
+        equal(Rotation.CLOCKWISE_180, south.rotation(), "the front faces the owner");
+
+        owner.setYRot(90F);
+        Placement.PlacedBlueprint west = Placement.of(blueprint, null, null, companion);
+        equal(ownerPos.getX() - 5, west.origin().getX(), "west-facing: the whole depth lies ahead");
+        equal(ownerPos.getZ() - 1, west.origin().getZ(), "west-facing: centred across the owner");
+        equal(Rotation.COUNTERCLOCKWISE_90, west.rotation(), "the front faces the owner");
+        h.succeed();
     }
 
     private static Site.SiteReport site(

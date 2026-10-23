@@ -50,13 +50,33 @@ public final class Placement {
             Direction look = horizontal(anchor.getDirection());
             Direction front = facing == null ? look.getOpposite() : horizontal(facing);
             rotation = rotationFor(front);
-            BlockPos center = anchor.blockPosition().relative(look, 3);
             int width = rotatedWidth(blueprint, rotation);
             int depth = rotatedDepth(blueprint, rotation);
+            BlockPos anchorPos = anchor.blockPosition();
+            int x;
+            int z;
+            switch (look) {
+                case NORTH -> {
+                    x = anchorPos.getX() - width / 2;
+                    z = anchorPos.getZ() - 3 - depth + 1;
+                }
+                case EAST -> {
+                    x = anchorPos.getX() + 3;
+                    z = anchorPos.getZ() - depth / 2;
+                }
+                case WEST -> {
+                    x = anchorPos.getX() - 3 - width + 1;
+                    z = anchorPos.getZ() - depth / 2;
+                }
+                default -> {
+                    x = anchorPos.getX() - width / 2;
+                    z = anchorPos.getZ() + 3;
+                }
+            }
             corner = new BlockPos(
-                    center.getX() - width / 2,
-                    level(companion).getHeight(Heightmap.Types.WORLD_SURFACE, center.getX(), center.getZ()),
-                    center.getZ() - depth / 2);
+                    x,
+                    level(companion).getHeight(Heightmap.Types.WORLD_SURFACE, x + width / 2, z + depth / 2),
+                    z);
         }
 
         List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());

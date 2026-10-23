@@ -23,7 +23,8 @@ class GeneratorsTest {
             "minecraft:oak_fence",
             "minecraft:oak_fence_gate",
             "minecraft:ladder",
-            "minecraft:torch");
+            "minecraft:torch",
+            "minecraft:wall_torch");
 
     private static boolean known(String state) {
         int bracket = state.indexOf('[');
@@ -60,6 +61,23 @@ class GeneratorsTest {
             { "type": "house", "width": 7, "depth": 7, "floors": 1,
               "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_stairs" }
             """;
+
+    @Test
+    void houseTorchesAreOnTheWalls() {
+        Blueprint house = generateOk("""
+                { "type": "house", "width": 7, "depth": 7, "floors": 2,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone",
+                  "roof": "minecraft:oak_stairs", "torches": true }
+                """);
+        long torches = house.blocks().stream().filter(b -> b.state().contains("torch")).count();
+        assertEquals(4, torches, "two torches per floor");
+        for (BlockSpec spec : house.blocks()) {
+            if (spec.state().contains("torch")) {
+                assertTrue(spec.state().startsWith("minecraft:wall_torch[facing="),
+                        "a torch above the ground floor needs a wall: " + spec.state());
+            }
+        }
+    }
 
     @Test
     void houseBasics() {

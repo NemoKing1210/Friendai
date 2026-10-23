@@ -8,7 +8,9 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.build.Materials;
+import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
+import dev.friendai.task.build.Reach;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
@@ -33,7 +35,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -46,7 +47,6 @@ import net.minecraft.world.phys.AABB;
  * the task instead.
  */
 public final class BuildTask implements Task {
-    private static final int REACH_HEIGHT = 4;
     private static final int PROGRESS_STEP = 25;
 
     private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE }
@@ -162,28 +162,12 @@ public final class BuildTask implements Task {
 
     /** The first block too high to place from any standing ground below it, or null. */
     private String unreachable(ServerLevel level) {
-        for (Placement.PlacedSpec spec : placed.specs()) {
-            if (spec.wanted().isAir() || spec.pos().getY() - origin.getY() <= REACH_HEIGHT) {
-                continue;
-            }
-            if (standingGround(level, spec.pos())) {
-                continue;
-            }
-            return coords(spec.pos()) + " is out of reach (build height limit without scaffolding is "
-                    + REACH_HEIGHT + " above standing ground)";
+        BlockPos pos = Reach.firstOutOfReach(level, placed.specs(), origin);
+        if (pos == null) {
+            return null;
         }
-        return null;
-    }
-
-    /** Whether the companion can stand within reach below pos: a solid block no deeper than the reach height. */
-    private static boolean standingGround(ServerLevel level, BlockPos pos) {
-        for (int depth = 1; depth <= REACH_HEIGHT; depth++) {
-            BlockState below = level.getBlockState(pos.below(depth));
-            if (!below.isAir() && !below.canBeReplaced()) {
-                return true;
-            }
-        }
-        return false;
+        return coords(pos) + " is out of reach (build height limit without scaffolding is "
+                + Reach.HEIGHT + " above standing ground)";
     }
 
     private TaskStatus take(TaskContext c) {
@@ -326,9 +310,7 @@ public final class BuildTask implements Task {
             c.companion().hands().place(held, spot.get().against(), spot.get().face());
             BlockState after = c.level().getBlockState(spec.pos());
             if (after.getBlock() == spec.wanted().getBlock()) {
-                if (!after.equals(spec.wanted())) {
-                    c.level().setBlock(spec.pos(), spec.wanted(), Block.UPDATE_ALL);
-                }
+                Parts.reconcile(c.level(), spec.pos(), spec.wanted());
                 foundationCount++;
                 foundationIndex++;
                 approach = null;
@@ -416,9 +398,7 @@ public final class BuildTask implements Task {
             c.companion().hands().place(held, spot.get().against(), spot.get().face());
             BlockState after = level.getBlockState(currentPos);
             if (after.getBlock() == wanted.wanted().getBlock()) {
-                if (!after.equals(wanted.wanted())) {
-                    level.setBlock(currentPos, wanted.wanted(), Block.UPDATE_ALL);
-                }
+                Parts.reconcile(level, currentPos, wanted.wanted());
                 placedCount++;
                 passProgress = true;
                 current = null;

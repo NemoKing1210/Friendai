@@ -61,13 +61,6 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
 - [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
 - [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
-- [ ] Memory tab at GUI scales 1–4 in English and Russian: nothing overlaps, long facts wrap or scroll.
-- [ ] Tell the companion something with a real model while the Memory tab is open: the new fact appears within a second.
-- [ ] Add, edit, forget a fact; editing a guest's fact removes the "from" mark.
-- [ ] Clear asks "Sure?" and only clears on the second click.
-- [ ] Trust toggle on an online stranger; the trust shows up in `/friendai trusted`.
-- [ ] Memory turned off on the server: the tab shows the notice and the trust toggle still works.
-- [ ] On a dedicated server, a non-operator sees the Memory tab and only their own memory.
 
 ## World lifecycle
 

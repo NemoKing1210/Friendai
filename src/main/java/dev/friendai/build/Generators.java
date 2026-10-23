@@ -15,7 +15,10 @@ public final class Generators {
     private static final String DEFAULT_WINDOW = "minecraft:glass_pane";
     private static final String DEFAULT_DOOR = "minecraft:oak_door";
     private static final String DEFAULT_GATE = "minecraft:oak_fence_gate";
-    private static final String TORCH = "minecraft:torch";
+    /** A torch on the west wall, pointing east into the room. */
+    private static final String TORCH_EAST = "minecraft:wall_torch[facing=east]";
+    /** A torch on the east wall, pointing west into the room. */
+    private static final String TORCH_WEST = "minecraft:wall_torch[facing=west]";
     private static final Set<String> SIDES = Set.of("north", "east", "south", "west");
 
     private Generators() {}
@@ -118,8 +121,9 @@ public final class Generators {
                 }
             }
             if (spec.has("torches") && spec.get("torches").getAsBoolean()) {
-                box(ops, 1, 1 + 3 * floorIndex, 1, 1, 1 + 3 * floorIndex, 1, TORCH);
-                box(ops, width - 2, 1 + 3 * floorIndex, depth - 2, width - 2, 1 + 3 * floorIndex, depth - 2, TORCH);
+                // Wall torches, not standing ones: interior cells have no floor to stand a torch on above the first.
+                box(ops, 1, 1 + 3 * floorIndex, 1, 1, 1 + 3 * floorIndex, 1, TORCH_EAST);
+                box(ops, width - 2, 1 + 3 * floorIndex, depth - 2, width - 2, 1 + 3 * floorIndex, depth - 2, TORCH_WEST);
             }
         }
 
