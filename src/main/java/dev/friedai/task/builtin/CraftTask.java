@@ -220,12 +220,14 @@ public final class CraftTask implements Task {
         }
         if (phase == StationPhase.APPROACH_SPOT) {
             if (state == Approach.State.UNREACHABLE) {
+                approach.stop(c.companion());
                 summary = "couldn't place a " + station.noun() + ": can't reach " + coords(spot);
                 return TaskStatus.FAILED;
             }
             return placeStation(c, step);
         }
         if (state == Approach.State.UNREACHABLE) {
+            approach.stop(c.companion());
             summary = "can't reach the " + station.noun() + " at " + coords(stationPos);
             return TaskStatus.FAILED;
         }
@@ -242,20 +244,25 @@ public final class CraftTask implements Task {
         Station station = step.recipe().station();
         CompanionEntity companion = c.companion();
         BlockPos own = placedStations.get(station);
+        if (own != null) {
+            Block block = Stations.block(station);
+            // A station this task placed is approached even when the companion has walked out of scan range.
+            if (block != null && c.level().getBlockState(own).is(block)) {
+                stationPos = own;
+                phase = StationPhase.APPROACH_EXISTING;
+                approach = new Approach(own);
+                return TaskStatus.RUNNING;
+            }
+            placedStations.remove(station);
+        }
         Optional<BlockPos> nearby = Stations.nearby(c.level(), companion.blockPosition(), station);
         if (nearby.isPresent()) {
             BlockPos pos = nearby.get();
-            if (own == null || !own.equals(pos)) {
-                usedStations.putIfAbsent(station, pos);
-            }
+            usedStations.putIfAbsent(station, pos);
             stationPos = pos;
             phase = StationPhase.APPROACH_EXISTING;
             approach = new Approach(pos);
             return TaskStatus.RUNNING;
-        }
-        if (own != null) {
-            // The station this task placed is gone; the plan's station item has to be placed again.
-            placedStations.remove(station);
         }
         String noun = station.noun();
         String stationItem = index.stationItem(station);

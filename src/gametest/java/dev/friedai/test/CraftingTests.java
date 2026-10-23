@@ -503,6 +503,9 @@ public class CraftingTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(1, c.inventory().countItem(Items.NETHERITE_SWORD), "netherite swords");
             h.assertValueEqual(0, c.inventory().countItem(Items.DIAMOND_SWORD), "diamond swords left");
+            h.assertValueEqual(
+                    0, c.inventory().countItem(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE), "templates left");
+            h.assertValueEqual(0, c.inventory().countItem(Items.NETHERITE_INGOT), "netherite ingots left");
             ItemStack upgraded = find(c, Items.NETHERITE_SWORD);
             h.assertValueEqual(3, upgraded.getEnchantments().getLevel(sharpness), "sharpness on the upgraded sword");
             h.assertTrue(
