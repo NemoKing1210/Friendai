@@ -88,6 +88,7 @@ public final class CombatController {
     private boolean usingBow;
     private int drawTicks;
     private int unreachableTicks;
+    private double lastDistance = Double.MAX_VALUE;
     private int retreatTicks;
     private int retreatRepathTicks;
     private boolean retreatNoticed;
@@ -507,6 +508,7 @@ public final class CombatController {
         attackCooldown = 0;
         repathTicks = 0;
         unreachableTicks = 0;
+        lastDistance = Double.MAX_VALUE;
         drawTicks = 0;
         usingBow = false;
         lastSeenTick = companion.tickCount;
@@ -580,10 +582,22 @@ public final class CombatController {
         }
 
         companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
-        double distanceSqr = companion.distanceToSqr(enemy);
+        double distance = companion.distanceTo(enemy);
+        if (distance + 0.05 < lastDistance) {
+            lastDistance = distance;
+            unreachableTicks = 0;
+        } else {
+            unreachableTicks++;
+        }
+        if (unreachableTicks > OUT_OF_SIGHT_TICKS && !Equipment.hasBowAndArrows(companion)) {
+            endFight(level, enemy);
+            return;
+        }
+        double distanceSqr = distance * distance;
         if (companion.isWithinMeleeAttackRange(enemy) || distanceSqr <= 3.0625) {
             companion.getNavigation().stop();
             unreachableTicks = 0;
+            lastDistance = distance;
             if (--attackCooldown <= 0) {
                 companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                 companion.doHurtTarget(level, enemy);
@@ -594,7 +608,7 @@ public final class CombatController {
             companion.getNavigation().stop();
             companion.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.2);
         } else if (--repathTicks <= 0) {
-            unreachableTicks = companion.getNavigation().moveTo(enemy, 1.0) ? 0 : unreachableTicks + 1;
+            companion.getNavigation().moveTo(enemy, 1.0);
             repathTicks = 10;
         }
     }
@@ -719,6 +733,8 @@ public final class CombatController {
         state = State.IDLE;
         target = null;
         taskDriven = false;
+        unreachableTicks = 0;
+        lastDistance = Double.MAX_VALUE;
     }
 
     private int attackInterval() {
@@ -737,6 +753,8 @@ public final class CombatController {
         restoreWeapon();
         state = State.IDLE;
         target = null;
+        unreachableTicks = 0;
+        lastDistance = Double.MAX_VALUE;
         if (!taskDriven) {
             companion.taskRunner().notice(endNotice());
             companion.taskRunner().setPaused(false);

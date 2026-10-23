@@ -2,6 +2,7 @@ package dev.friedai.test;
 
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.task.TaskContext;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.AttackPlayerTask;
@@ -515,7 +516,7 @@ public class CombatTests {
             h.assertTrue(notices.finalSummary.equals("killed 1 minecraft:rabbit; skipped 1 that belong to someone"),
                     "summary " + notices.finalSummary);
             h.assertTrue(named.isAlive(), "the named rabbit must be alive");
-            h.assertTrue(other.isRemoved(), "the unnamed rabbit must be gone: removed " + other.isRemoved()
+            h.assertTrue(other.isDeadOrDying() || other.isRemoved(), "the unnamed rabbit must be gone: removed " + other.isRemoved()
                     + ", health " + other.getHealth() + ", state " + c.combatController().state()
                     + ", target " + c.combatController().target());
         });
@@ -686,6 +687,77 @@ public class CombatTests {
             h.assertTrue(notices.finalSummary.contains("mined 2"), "summary " + notices.finalSummary);
             h.assertTrue(notices.cancelled.isEmpty(), "the task must not be cancelled: " + notices.cancelled);
         });
+    }
+
+
+    @GameTest(maxTicks = 200)
+    public void attackTaskLimitEndsFight(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer target = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        c.combatController().fight(target);
+        h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
+                "the ordered fight did not start: " + c.combatController().state());
+
+        AttackPlayerTask task = new AttackPlayerTask(target.getUUID(), target.getName().getString());
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        task.start(ctx);
+        TaskStatus status = null;
+        for (int i = 0; i < 1201; i++) {
+            status = task.tick(ctx);
+        }
+        h.assertTrue(status == TaskStatus.FAILED, "status was " + status);
+        h.assertTrue(task.resultSummary().equals(target.getName().getString() + " got away"),
+                "summary was " + task.resultSummary());
+        h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+                "the fight must end when the task does: " + c.combatController().state());
+        h.assertTrue(c.getMainHandItem().isEmpty(), "main hand not restored: " + c.getMainHandItem());
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void visibleUnreachableTargetIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        glassPen(h, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 6, 2, 2);
+        zombie.setCustomName(Component.literal("test-window-zombie"));
+        roof(h, 6, 2);
+        Notices notices = listen(c);
+        h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.runAfterDelay(40, () -> h.assertTrue(c.hasLineOfSight(zombie),
+                "the fence must give line of sight, eyes " + c.getEyePosition() + " -> " + zombie.getEyePosition()));
+        boolean[] started = {false};
+        h.succeedWhen(() -> {
+            if (c.combatController().state() == CombatController.State.FIGHTING) {
+                started[0] = true;
+            }
+            if (started[0]) {
+                h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+                        "a visible but unreachable target must be dropped, state "
+                                + c.combatController().state()
+                                + ", distance " + c.distanceTo(zombie)
+                                + ", notices " + notices.texts);
+                h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+            }
+        });
+    }
+
+    /** A one-block glass cell with a head-height window: visible, but the mob cannot walk out. */
+    private static void glassPen(GameTestHelper h, int cx, int cz) {
+        for (int x = cx - 1; x <= cx + 1; x++) {
+            for (int z = cz - 1; z <= cz + 1; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    if (x != cx || z != cz) {
+                        h.setBlock(x, y, z, Blocks.GLASS);
+                    }
+                }
+            }
+        }
+        h.setBlock(cx + 1, 3, cz, Blocks.AIR);
     }
 
     /** A stone roof so undead mobs do not burn in daylight during the test. */

@@ -36,35 +36,38 @@ public final class AttackPlayerTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         if (++ticks > LIMIT_TICKS) {
-            summary = name + " got away";
-            return TaskStatus.FAILED;
+            return finish(c, name + " got away", TaskStatus.FAILED);
         }
         if (!(c.companion().level() instanceof ServerLevel level)) {
-            summary = name + " left";
-            return TaskStatus.FAILED;
+            return finish(c, name + " left", TaskStatus.FAILED);
         }
         ServerPlayer player = level.getServer().getPlayerList().getPlayer(targetId);
         if (player == null || player.isRemoved() || player.level() != level) {
-            summary = name + " left";
-            return TaskStatus.FAILED;
+            return finish(c, name + " left", TaskStatus.FAILED);
         }
         if (player.isDeadOrDying()) {
-            summary = name + " was defeated";
-            return TaskStatus.SUCCESS;
+            return finish(c, name + " was defeated", TaskStatus.SUCCESS);
         }
         if (c.companion().distanceTo(player) > MAX_DISTANCE) {
-            summary = name + " got away";
-            return TaskStatus.FAILED;
+            return finish(c, name + " got away", TaskStatus.FAILED);
         }
         if (!Threats.mayFightPlayer(c.companion(), player)) {
-            summary = level.isPvpAllowed() ? "I can't hurt " + name + " here" : "PvP is off here";
-            return TaskStatus.FAILED;
+            return finish(
+                    c,
+                    level.isPvpAllowed() ? "I can't hurt " + name + " here" : "PvP is off here",
+                    TaskStatus.FAILED);
         }
         CombatController controller = c.companion().combatController();
         if (controller.state() != CombatController.State.FIGHTING) {
             controller.fight(player);
         }
         return TaskStatus.RUNNING;
+    }
+
+    private TaskStatus finish(TaskContext c, String text, TaskStatus status) {
+        c.companion().combatController().stopFight();
+        summary = text;
+        return status;
     }
 
     @Override
