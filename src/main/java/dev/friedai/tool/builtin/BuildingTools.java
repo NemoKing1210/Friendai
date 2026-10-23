@@ -1,6 +1,7 @@
 package dev.friedai.tool.builtin;
 
 import dev.friedai.entity.CompanionEntity;
+import dev.friedai.task.builtin.LightAreaTask;
 import dev.friedai.task.builtin.PlaceBlockTask;
 import dev.friedai.task.builtin.UseBlockTask;
 import dev.friedai.tool.SchemaBuilder;
@@ -50,6 +51,13 @@ final class BuildingTools {
                 (c, a) -> new UseBlockTask(
                         new BlockPos(a.get("x").getAsInt(), a.get("y").getAsInt(), a.get("z").getAsInt()),
                         a.has("want") && !a.get("want").isJsonNull() ? a.get("want").getAsString() : null),
+                true));
+        ToolKit.add(registry, defs, new TaskToolDef("light_area",
+                "Place torches from the inventory where it is dark around the companion.",
+                SchemaBuilder.object()
+                        .integer("radius", "How far around the companion to light up, in blocks", 1, 16)
+                        .build(),
+                (c, a) -> new LightAreaTask(a.has("radius") ? a.get("radius").getAsInt() : 8),
                 true));
     }
 }
