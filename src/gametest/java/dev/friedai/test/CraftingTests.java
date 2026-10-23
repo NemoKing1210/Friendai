@@ -3,10 +3,17 @@ package dev.friedai.test;
 import dev.friedai.crafting.Ingredient;
 import dev.friedai.crafting.Recipe;
 import dev.friedai.crafting.Station;
+import dev.friedai.entity.CompanionEntity;
+import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.crafting.RecipeIndex;
+import dev.friedai.task.crafting.Stations;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.level.block.Blocks;
 
 public class CraftingTests {
     private static List<Recipe> producing(GameTestHelper h, String item) {
@@ -94,6 +101,53 @@ public class CraftingTests {
         h.assertTrue(
                 RecipeIndex.of(h.getLevel()) == RecipeIndex.of(h.getLevel()),
                 "RecipeIndex should be cached per RecipeManager");
+        h.succeed();
+    }
+
+    @GameTest
+    public void stationsFindsNearbyTable(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos origin = h.absolutePos(new BlockPos(2, 2, 2));
+        h.setBlock(8, 2, 2, Blocks.CRAFTING_TABLE);
+        BlockPos table = h.absolutePos(new BlockPos(8, 2, 2));
+
+        h.assertValueEqual(
+                Optional.of(table),
+                Stations.nearby(h.getLevel(), origin, Station.CRAFTING_TABLE),
+                "the crafting table 6 blocks away");
+        h.assertTrue(
+                Stations.nearby(h.getLevel(), origin, Station.STONECUTTER).isEmpty(),
+                "no stonecutter is nearby");
+
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Set<Station> available = Stations.available(h.getLevel(), c);
+        h.assertTrue(available.contains(Station.INVENTORY), "the inventory is always available: " + available);
+        h.assertTrue(available.contains(Station.CRAFTING_TABLE), "available should find the crafting table: " + available);
+        h.assertTrue(!available.contains(Station.STONECUTTER), "no stonecutter is available: " + available);
+        h.succeed();
+    }
+
+    @GameTest
+    public void baseNeedsTwoKinds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos pos = h.absolutePos(new BlockPos(8, 2, 8));
+        h.setBlock(10, 2, 8, Blocks.CHEST);
+        h.assertTrue(!Stations.looksLikeBase(h.getLevel(), pos), "one chest is not a base");
+
+        h.setBlock(6, 2, 8, Blocks.BED.red());
+        h.assertTrue(Stations.looksLikeBase(h.getLevel(), pos), "a bed and a chest look like a base");
+
+        h.setBlock(6, 2, 8, Blocks.AIR);
+        h.setBlock(12, 2, 8, Blocks.CHEST);
+        h.assertTrue(!Stations.looksLikeBase(h.getLevel(), pos), "two chests are still one kind");
+
+        h.setBlock(10, 2, 8, Blocks.AIR);
+        h.setBlock(12, 2, 8, Blocks.AIR);
+        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
+        h.setBlock(10, 2, 8, Blocks.CHEST);
+        h.assertTrue(
+                !Stations.looksLikeBase(h.getLevel(), pos),
+                "the station at the position itself does not count as a second kind");
         h.succeed();
     }
 }
