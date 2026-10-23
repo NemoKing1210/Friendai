@@ -115,7 +115,7 @@ public final class CraftTask implements Task {
     public void start(TaskContext c) {
         try {
             index = RecipeIndex.of(c.level());
-            if (index.producing(item).isEmpty()) {
+            if (index.producing(item).stream().noneMatch(recipe -> !recipe.station().isCooking())) {
                 failure = item + " has no crafting, stonecutter or smithing recipe";
                 return;
             }
