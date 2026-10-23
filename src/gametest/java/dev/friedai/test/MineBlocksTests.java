@@ -152,7 +152,8 @@ public class MineBlocksTests {
         return p.getX() + " " + p.getY() + " " + p.getZ();
     }
 
-    @GameTest(maxTicks = 600)
+    // Emerald is 500 ticks bare-handed (no correct tool drops), so the budget must cover the walk plus the break.
+    @GameTest(maxTicks = 1200)
     public void mineAtBreaksTargetAndCollects(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(6, 2, 2, Blocks.EMERALD_BLOCK);

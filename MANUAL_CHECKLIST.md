@@ -19,6 +19,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `/friedai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
 - [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friedai status`).
+- [ ] "Friendai, drop all your cobblestone and then mine 3 logs": the companion sends one run_plan with both steps and reports the plan result.
+- [ ] A plan that cannot finish (e.g. mine a block that is not nearby): the companion explains the failed step and proposes or sends a new plan.
 
 ## Voice
 

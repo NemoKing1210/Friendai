@@ -101,7 +101,17 @@ public class ToolTests {
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "look_around", "find_blocks", "stop")), "names were " + names);
+                "give_items", "drop_items", "get_inventory", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+        h.succeed();
+    }
+
+    @GameTest
+    public void guestSeesOnlyLookAround(GameTestHelper h) {
+        List<String> names =
+                FriedaiTools.create(() -> 32).specs(dev.friedai.tool.AccessLevel.GUEST).stream()
+                        .map(ToolSpec::name)
+                        .toList();
+        h.assertTrue(names.equals(List.of("look_around")), "names were " + names);
         h.succeed();
     }
 
@@ -142,6 +152,40 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:sponge\",\"radius\":8}");
         h.assertTrue(!r.error() && r.content().equals("no minecraft:sponge within 8 blocks"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void runPlanRejectsInvalidPlan(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult nonPlannable = run(tools(c), "run_plan", "{\"steps\":[{\"tool\":\"stay\"}]}");
+        h.assertTrue(nonPlannable.error()
+                && nonPlannable.content().startsWith("Invalid arguments for run_plan: 'steps[1].tool' must be one of "),
+                "result was " + nonPlannable.content());
+        ToolResult badArgs = run(tools(c), "run_plan",
+                "{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\"}\"}]}");
+        h.assertTrue(badArgs.error() && badArgs.content().equals("Invalid plan: step 1: missing required argument 'count'"),
+                "result was " + badArgs.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void runPlanArgsObjectInsteadOfString(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "run_plan",
+                "{\"steps\":[{\"tool\":\"drop_items\",\"args\":{\"item\":\"minecraft:dirt\",\"count\":1}}]}");
+        h.assertTrue(r.error() && r.content().startsWith("Invalid arguments for run_plan: 'steps[1].args' must be a string"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void runPlanStartsSequence(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DRIPSTONE_BLOCK, 1));
+        ToolResult r = run(tools(c), "run_plan",
+                "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("run_plan"), "the plan should be the current task");
         h.succeed();
     }
 }

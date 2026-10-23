@@ -18,4 +18,11 @@ class PromptBuilderTest {
         assertTrue(PromptBuilder.system(new Persona("F", "d", "auto"), "p").contains("Reply in the same language the player uses"));
         assertTrue(PromptBuilder.system(new Persona("F", "d", "Russian"), "p").contains("Always reply in Russian"));
     }
+
+    @Test
+    void planRules() {
+        String s = PromptBuilder.system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("send them all at once with run_plan"));
+        assertTrue(s.contains("If a plan stops at a failed step"));
+    }
 }

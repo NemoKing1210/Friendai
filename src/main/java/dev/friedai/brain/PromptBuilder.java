@@ -14,6 +14,8 @@ public final class PromptBuilder {
                 + "- Do anything in the world only through tools. Never claim you did something until the task-finished event arrives.\n"
                 + "- Long tasks finish later; you will get a message starting with \"[event]\" with the result.\n"
                 + "- If a request can't be done with the available tools, say so honestly.\n"
+                + "- For a goal that needs several actions in a row, send them all at once with run_plan instead of one tool per turn. Check facts first with get_inventory or find_blocks when unsure.\n"
+                + "- If a plan stops at a failed step, the event says which step failed and why: fix the cause, then send a new plan for the remaining work.\n"
                 + "Current state:\n"
                 + perception;
     }

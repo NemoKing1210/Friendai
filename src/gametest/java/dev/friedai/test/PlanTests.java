@@ -1,7 +1,9 @@
 package dev.friedai.test;
 
+import com.google.gson.JsonParser;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.llm.model.ToolCall;
 import dev.friedai.task.Task;
 import dev.friedai.task.TaskContext;
 import dev.friedai.task.TaskListener;
@@ -11,6 +13,9 @@ import dev.friedai.task.builtin.DropItemsTask;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.plan.PlanEntry;
 import dev.friedai.task.plan.SequenceTask;
+import dev.friedai.tool.ToolExecutor;
+import dev.friedai.tool.ToolResult;
+import dev.friedai.tool.builtin.FriedaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -226,5 +231,25 @@ public class PlanTests {
         runner.tick();
         h.assertTrue(plan.describe().equals("plan \"g\" step 1/2: waiting"), "describe was " + plan.describe());
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void runPlanEndToEnd(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        String json = "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
+                + "{\"tool\":\"pickup_items\",\"args\":\"{\\\"radius\\\":3}\"}]}";
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("plan \"drop and look\" done: 1) dropped 2 minecraft:mud_bricks; 2) picked up 0 items"),
+                    "summary was " + result.summary);
+        });
     }
 }
