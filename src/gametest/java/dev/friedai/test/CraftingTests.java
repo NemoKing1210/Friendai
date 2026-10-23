@@ -76,6 +76,16 @@ public class CraftingTests {
                 producing(h, "minecraft:diamond_chestplate").stream()
                         .noneMatch(recipe -> recipe.station() == Station.SMITHING_TABLE),
                 "smithing trims must be skipped: " + producing(h, "minecraft:diamond_chestplate"));
+        h.assertTrue(
+                RecipeIndex.of(h.getLevel())
+                        .holder("minecraft:sentry_armor_trim_smithing_template_smithing_trim")
+                        .isEmpty(),
+                "the sentry armor trim recipe must not be indexed");
+        h.assertTrue(
+                producing(h, "minecraft:leather_boots").stream()
+                        .noneMatch(recipe -> recipe.station() == Station.SMITHING_TABLE),
+                "a smithing trim must not be filed under the item its display resolves to: "
+                        + producing(h, "minecraft:leather_boots"));
         h.succeed();
     }
 
