@@ -1,16 +1,21 @@
 package dev.friedai.test;
 
+import com.google.gson.JsonParser;
 import dev.friedai.crafting.Ingredient;
 import dev.friedai.crafting.Recipe;
 import dev.friedai.crafting.Station;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.llm.model.ToolCall;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.CraftTask;
 import dev.friedai.task.crafting.RecipeIndex;
 import dev.friedai.task.crafting.Stations;
+import dev.friedai.tool.ToolExecutor;
+import dev.friedai.tool.ToolResult;
+import dev.friedai.tool.builtin.FriedaiTools;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -119,6 +124,40 @@ public class CraftingTests {
 
     private static List<Recipe> producing(GameTestHelper h, String item) {
         return RecipeIndex.of(h.getLevel()).producing(item);
+    }
+
+    private static ToolResult tool(CompanionEntity c, String name, String json) {
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        return tools.execute(new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null));
+    }
+
+    @GameTest
+    public void getRecipeForStick(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 2));
+        ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:stick\"}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(
+                r.content().contains("minecraft:stick ×4 in the inventory from 2 × #minecraft:planks"),
+                "content was " + r.content());
+        h.assertTrue(
+                java.util.Arrays.stream(r.content().split("\n"))
+                        .anyMatch(line -> line.startsWith("can craft 1 minecraft:stick now")),
+                "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void getRecipeForDiamond(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:netherite_scrap\"}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(
+                r.content()
+                        .equals("minecraft:netherite_scrap has no crafting, stonecutter or smithing recipe "
+                                + "(it has to be found, mined or smelted)"),
+                "content was " + r.content());
+        h.succeed();
     }
 
     private static Recipe firstAt(GameTestHelper h, String item, Station station) {
