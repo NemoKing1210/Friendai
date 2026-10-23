@@ -258,6 +258,38 @@ public class PlanTests {
         });
     }
 
+    @GameTest(maxTicks = 1200)
+    public void planSmeltThenCraft(GameTestHelper h) {
+        // A blast furnace on this deck keeps the scene invisible to the furnace tests that share the height.
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, 240, z, Blocks.STONE);
+                for (int y = 241; y <= 245; y++) {
+                    h.setBlock(x, y, z, Blocks.AIR);
+                }
+            }
+        }
+        h.setBlock(4, 241, 2, Blocks.BLAST_FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 241, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_IRON));
+        c.inventory().addItem(new ItemStack(Items.COAL));
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        String json = "{\"goal\":\"smelt and craft\",\"steps\":["
+                + "{\"tool\":\"smelt_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:raw_iron\\\","
+                + "\\\"count\\\":1,\\\"station\\\":\\\"blast_furnace\\\",\\\"wait\\\":true}\"},"
+                + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:iron_nugget\\\","
+                + "\\\"count\\\":9}\"}]}";
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 9, "iron nuggets");
+        });
+    }
+
     @GameTest(maxTicks = 800)
     public void planTakeThenPlace(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

@@ -148,6 +148,16 @@ public class CraftingTests {
     }
 
     @GameTest
+    public void getRecipeShowsSmelting(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:iron_ingot\"}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("in a furnace (10 s)"), "content was " + r.content());
+        h.assertTrue(r.content().contains("in a blast furnace (10 s)"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void getRecipeForDiamond(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:netherite_scrap\"}");

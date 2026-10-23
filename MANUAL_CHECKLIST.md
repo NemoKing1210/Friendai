@@ -74,6 +74,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Make 16 torches" with coal and logs.
 - [ ] "Make an iron pickaxe" without iron: the companion says what is missing (get_recipe) instead of failing silently.
 
+## Furnaces and cooking
+
+- [ ] "Smelt all the iron" with a full stack: the companion loads furnaces, is free meanwhile, later says the furnace is done and collects when asked.
+- [ ] "Cook the food" at the base with a smoker: food is cooked and collected.
+- [ ] A long job, then a world reload: the result is still in the furnace and "collect the smelted items" finds it.
+- [ ] The companion never burns tools or boats unless told which fuel to use.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.

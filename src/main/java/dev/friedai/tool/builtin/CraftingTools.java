@@ -5,6 +5,7 @@ import dev.friedai.crafting.CraftPlan;
 import dev.friedai.crafting.CraftPlanner;
 import dev.friedai.crafting.CraftText;
 import dev.friedai.crafting.Recipe;
+import dev.friedai.crafting.Station;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.builtin.CraftTask;
 import dev.friedai.task.builtin.CraftTask.StationPolicy;
@@ -13,9 +14,11 @@ import dev.friedai.task.crafting.Stations;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.ToolRegistry;
 import dev.friedai.tool.ToolResult;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -25,7 +28,7 @@ import net.minecraft.world.item.ItemStack;
 /** Crafting: starting a craft and explaining a recipe before the companion commits to one. */
 final class CraftingTools {
     /** How many alternative recipes {@code get_recipe} lists before summarising the rest. */
-    private static final int RECIPES_SHOWN = 3;
+    private static final int RECIPES_SHOWN = 4;
 
     private CraftingTools() {}
 
@@ -77,15 +80,22 @@ final class CraftingTools {
             return item + " has no crafting, stonecutter or smithing recipe (it has to be found, mined or smelted)";
         }
         StringBuilder text = new StringBuilder();
-        int shown = Math.min(RECIPES_SHOWN, recipes.size());
-        for (int i = 0; i < shown; i++) {
-            if (i > 0) {
+        Set<Station> shownCooking = EnumSet.noneOf(Station.class);
+        int shown = 0;
+        int cursor = 0;
+        while (cursor < recipes.size() && shown < RECIPES_SHOWN) {
+            Recipe recipe = recipes.get(cursor++);
+            if (recipe.station().isCooking() && !shownCooking.add(recipe.station())) {
+                continue;
+            }
+            if (shown > 0) {
                 text.append('\n');
             }
-            text.append(CraftText.recipeText(recipes.get(i)));
+            text.append(CraftText.recipeText(recipe));
+            shown++;
         }
-        if (recipes.size() > shown) {
-            text.append('\n').append("+ ").append(recipes.size() - shown).append(" more recipes");
+        if (recipes.size() > cursor) {
+            text.append('\n').append("+ ").append(recipes.size() - cursor).append(" more recipes");
         }
         CraftPlan plan = CraftPlanner.plan(item, count, inventoryMap(companion), index, Stations.available(level, companion));
         text.append('\n').append(CraftText.planText(plan, item, count));
