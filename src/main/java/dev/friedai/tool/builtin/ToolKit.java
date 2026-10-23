@@ -5,6 +5,7 @@ import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.Task;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.mining.BlockMatcher;
+import dev.friedai.tool.AccessLevel;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.Tool;
 import dev.friedai.tool.ToolRegistry;
@@ -22,7 +23,7 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
-        return tool(def.name(), def.description(), def.schema(), (c, args) -> {
+        return tool(def.name(), def.description(), def.schema(), AccessLevel.TRUSTED, (c, args) -> {
             Task task;
             try {
                 task = def.factory().create(c, args);
@@ -35,11 +36,16 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> instantTool(String name, String description, JsonObject schema, Action action) {
-        return tool(name, description, schema, action);
+        return tool(name, description, schema, AccessLevel.TRUSTED, action);
     }
 
     static Tool<CompanionEntity> instantTool(String name, String description, Action action) {
-        return tool(name, description, SchemaBuilder.object().build(), action);
+        return tool(name, description, SchemaBuilder.object().build(), AccessLevel.TRUSTED, action);
+    }
+
+    static Tool<CompanionEntity> instantTool(
+            String name, String description, AccessLevel minAccess, Action action) {
+        return tool(name, description, SchemaBuilder.object().build(), minAccess, action);
     }
 
     static ItemMatcher parseItemMatcher(String idOrTag) {
@@ -52,11 +58,17 @@ final class ToolKit {
                 .orElseThrow(() -> new IllegalArgumentException("unknown block or tag: " + idOrTag));
     }
 
-    private static Tool<CompanionEntity> tool(String name, String description, JsonObject schema, Action action) {
+    private static Tool<CompanionEntity> tool(
+            String name, String description, JsonObject schema, AccessLevel minAccess, Action action) {
         return new Tool<>() {
             @Override
             public String name() {
                 return name;
+            }
+
+            @Override
+            public AccessLevel minAccess() {
+                return minAccess;
             }
 
             @Override

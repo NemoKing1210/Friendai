@@ -1,9 +1,11 @@
 package dev.friedai.brain;
 
+import dev.friedai.tool.Caller;
+
 public final class PromptBuilder {
     private PromptBuilder() {}
 
-    public static String system(Persona p, String perception) {
+    public static String system(Persona p, String perception, Caller caller) {
         String languageRule = p.language() == null || p.language().isBlank() || p.language().equalsIgnoreCase("auto")
                 ? "Reply in the same language the player uses."
                 : "Always reply in " + p.language() + ".";
@@ -16,7 +18,16 @@ public final class PromptBuilder {
                 + "- If a request can't be done with the available tools, say so honestly.\n"
                 + "- For a goal that needs several actions in a row, send them all at once with run_plan instead of one tool per turn. Check facts first with get_inventory or find_blocks when unsure.\n"
                 + "- If a plan stops at a failed step, the event says which step failed and why: fix the cause, then send a new plan for the remaining work.\n"
+                + "- Players are tagged by role: owner, trusted or guest. You serve your owner; trusted players may also give you tasks. Guests can only chat: politely decline requests to act for them.\n"
+                + "- " + speakerLine(caller) + "\n"
                 + "Current state:\n"
                 + perception;
+    }
+
+    private static String speakerLine(Caller caller) {
+        if (caller.name() == null || caller.name().isBlank()) {
+            return "Current speaker: your owner (task events).";
+        }
+        return "Current speaker: " + caller.name() + " (" + caller.access().label() + ").";
     }
 }

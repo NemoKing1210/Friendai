@@ -4,6 +4,7 @@ import dev.friedai.entity.CompanionEntity;
 import dev.friedai.perception.PerceptionBuilder;
 import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.task.mining.BlockSearch;
+import dev.friedai.tool.AccessLevel;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.ToolRegistry;
 import dev.friedai.tool.ToolResult;
@@ -21,6 +22,7 @@ final class InfoTools {
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, IntSupplier mineRadius) {
         registry.register(ToolKit.instantTool("look_around", "Describe the surroundings in detail.",
+                AccessLevel.GUEST,
                 (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText())));
         registry.register(ToolKit.instantTool("find_blocks",
                 "List the nearest blocks of a given id or #tag with coordinates. Use it before planning.",

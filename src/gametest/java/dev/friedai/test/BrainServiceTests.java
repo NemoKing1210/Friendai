@@ -107,7 +107,7 @@ public class BrainServiceTests {
                 .text("Done");
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid("Steve", "mine a log", BrainEvent.Source.CHAT));
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             h.assertTrue(script.requests.size() >= 3, "requests so far: " + script.requests.size());
             List<Message> third = script.requests.get(2);
@@ -127,7 +127,7 @@ public class BrainServiceTests {
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid("Steve", "hello", BrainEvent.Source.CHAT));
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
         h.assertTrue(brains.brainOf(player.getUUID()).get().isThinking(), "brain should be waiting for the LLM");
         brains.onOwnerLeft(player.getUUID());
         h.assertTrue(!brains.brainOf(player.getUUID()).get().isThinking(), "brain should have been cancelled");

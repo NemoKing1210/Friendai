@@ -13,7 +13,9 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,8 +46,20 @@ public class FriedaiMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(FriedaiServerState::get);
         ServerLifecycleEvents.SERVER_STOPPED.register(FriedaiServerState::close);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            FriedaiServerState.get(server).brains().tick();
+            FriedaiServerState state = FriedaiServerState.get(server);
+            state.brains().tick();
+            state.memory().flushIfDue();
             DebugStream.tick(server);
+        });
+        ServerLifecycleEvents.SERVER_STOPPING.register(
+                server -> FriedaiServerState.get(server).memory().flushAll());
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            FriedaiServerState state = FriedaiServerState.get(server);
+            UUID player = handler.getPlayer().getUUID();
+            state.memory().book(player);
+            if (state.memory().takeCorruptionNotice(player)) {
+                handler.getPlayer().sendSystemMessage(Component.translatable("friedai.memory.corrupt"));
+            }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             DebugStream.onDisconnect(handler.getPlayer());

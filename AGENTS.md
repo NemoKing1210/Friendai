@@ -30,9 +30,10 @@ Pure Java:
 - `llm/` — `model/` (Message, ToolCall, LlmRequest/Response, LlmException), `protocol/` (`openai_chat`, `openai_responses`, `anthropic_messages`, `gemini`, `ollama`; each has a `toWire`/`fromWire` pair), `provider/` (presets and routing as **data**), `http/HttpTransport` (errors, retries), `LlmClient`.
 - `config/` — `ConfigStore` (atomic save, `.bak` on corruption, versioned migrations), `ServerConfig`, `ClientConfig`, `SecretResolver` (`env:NAME` keys).
 - `text/` — `UserMessage(key, args)` and `UserFacingException`: how pure layers talk to the player.
-- `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`.
-- `brain/` — `CompanionBrain` (the agent loop), `ConversationMemory`, `PromptBuilder`, events. It sees the world only through `PerceptionSource` and acts only through `ToolExecutor`.
-- `chat/AddressDetector`, `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
+- `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`, `AccessLevel`/`Caller` (who a turn acts for).
+- `brain/` — `CompanionBrain` (the agent loop, one principal per turn), `ConversationMemory`, `PromptBuilder`, `AccessResolver`, events. It sees the world only through `PerceptionSource` and acts only through `ToolExecutor`.
+- `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption).
+- `chat/AddressDetector`, `chat/CompanionPicker` (which companion hears a message), `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
 - `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
 
 Minecraft layer:

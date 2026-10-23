@@ -1,12 +1,13 @@
 package dev.friedai.net;
 
 import dev.friedai.brain.BrainEvent;
-import dev.friedai.core.FriedaiServerState;
-import dev.friedai.entity.CompanionManager;
+import dev.friedai.chat.CompanionRouting;
+import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-/** Server side of voice input: validates the transcript and hands it to the player's companion. */
+/** Server side of voice input: validates the transcript and hands it to the companion that should hear it. */
 public final class VoiceTranscriptHandler {
     private static final RateLimiter LIMITER = new RateLimiter(1_000, System::currentTimeMillis);
 
@@ -20,14 +21,15 @@ public final class VoiceTranscriptHandler {
             return;
         }
         var server = player.level().getServer();
-        if (CompanionManager.get(server).find(player.getUUID()).isEmpty()) {
+        Optional<UUID> owner = CompanionRouting.route(player);
+        if (owner.isEmpty()) {
             player.sendSystemMessage(Component.translatable("friedai.voice.need_companion"));
             return;
         }
         String name = player.getName().getString();
         String clean = text.strip();
-        server.getPlayerList().broadcastSystemMessage(Component.translatable("friedai.voice.chat_line", name, clean), false);
-        FriedaiServerState.get(server).brains().post(
-                player.getUUID(), new BrainEvent.PlayerSaid(name, clean, BrainEvent.Source.VOICE));
+        server.getPlayerList()
+                .broadcastSystemMessage(Component.translatable("friedai.voice.chat_line", name, clean), false);
+        CompanionRouting.deliver(player, owner.get(), clean, BrainEvent.Source.VOICE);
     }
 }

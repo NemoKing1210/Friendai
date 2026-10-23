@@ -296,6 +296,17 @@ public final class FriedaiConfigScreen {
                 .option(stringOption("friedai.config.chat.prefix", () -> c.prefix, "@", v -> c.prefix = v))
                 .option(booleanOption("friedai.config.chat.respond_to_name", true, () -> c.respondToName, v -> c.respondToName = v))
                 .option(booleanOption("friedai.config.chat.listen_all", false, () -> c.listenAll, v -> c.listenAll = v))
+                .option(booleanOption("friedai.config.chat.guests_enabled", true, () -> c.guestsEnabled, v -> c.guestsEnabled = v))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friedai.config.chat.hearing_radius"))
+                        .binding(16, () -> c.hearingRadius, v -> c.hearingRadius = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(4, 64))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friedai.config.chat.guest_cooldown_ms"))
+                        .binding(5000, () -> c.guestCooldownMs, v -> c.guestCooldownMs = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 60000))
+                        .build())
                 .build();
     }
 

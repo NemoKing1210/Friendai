@@ -9,6 +9,9 @@ public interface BrainObserver {
 
     default void onEvent(BrainEvent e) {}
 
+    /** A posted event that never reached the queue, with a short English reason. */
+    default void onEventDropped(BrainEvent e, String reason) {}
+
     default void onAssistantText(String text) {}
 
     default void onToolCall(ToolCall call) {}

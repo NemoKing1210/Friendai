@@ -113,7 +113,7 @@ public class CompanionControlTests {
                 .text("Done");
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid("Steve", "mine a log", BrainEvent.Source.CHAT));
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             List<TaskRecord> recent = brains.debug().historyOf(player.getUUID()).recent();
             h.assertTrue(
@@ -129,7 +129,7 @@ public class CompanionControlTests {
         BrainService brains = FriedaiServerState.get(server).brains();
         brains.setGatewayOverride(player.getUUID(), new Script().text("Hi"));
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid("Steve", "hello", BrainEvent.Source.CHAT));
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
             h.assertTrue(log.stream().anyMatch(e -> e.kind() == LogKind.USER), "no USER entry: " + log);
@@ -150,7 +150,7 @@ public class CompanionControlTests {
         BrainService brains = state.brains();
         brains.setGatewayOverride(player.getUUID(), new Script().text("my key is " + key));
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid("Steve", "what is your key", BrainEvent.Source.CHAT));
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "what is your key", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
             h.assertTrue(log.stream().anyMatch(e -> e.kind() == LogKind.ASSISTANT), "no ASSISTANT entry yet");

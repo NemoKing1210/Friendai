@@ -20,6 +20,11 @@ public final class DebugLogObserver implements BrainObserver {
     }
 
     @Override
+    public void onEventDropped(BrainEvent e, String reason) {
+        log.add(LogKind.USER, "dropped (" + reason + "): " + e.toPromptLine());
+    }
+
+    @Override
     public void onAssistantText(String text) {
         log.add(LogKind.ASSISTANT, text);
     }

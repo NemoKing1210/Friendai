@@ -1,6 +1,7 @@
 package dev.friedai.core;
 
 import dev.friedai.FriedaiMod;
+import dev.friedai.brain.AccessResolver;
 import dev.friedai.brain.BrainEvent;
 import dev.friedai.brain.BrainSettings;
 import dev.friedai.brain.CompanionBrain;
@@ -25,6 +26,7 @@ import dev.friedai.debug.TaskRecord;
 import dev.friedai.llm.LlmClient;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.memory.MemoryStore;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,7 @@ public final class BrainService {
 
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
+    private final MemoryStore memory;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<UUID, Entry> entries = new HashMap<>();
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
@@ -64,9 +67,10 @@ public final class BrainService {
     private String activeProvider = "";
     private int tickCounter;
 
-    public BrainService(MinecraftServer server, ServerConfig initial) {
+    public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
+        this.memory = memory;
         reload(initial);
     }
 
@@ -146,7 +150,7 @@ public final class BrainService {
         if (entryFor(owner).isEmpty()) {
             return false;
         }
-        post(owner, new BrainEvent.PlayerSaid(playerName, text, BrainEvent.Source.CHAT));
+        post(owner, new BrainEvent.PlayerSaid(owner, playerName, text, BrainEvent.Source.CHAT));
         return true;
     }
 
@@ -212,12 +216,17 @@ public final class BrainService {
         Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(config.companion.name, config.companion.persona, config.companion.language),
-                () -> new BrainSettings(config.brain.maxToolStepsPerTurn, config.brain.historyMessages, config.brain.cooldownMs),
+                () -> new BrainSettings(
+                        config.brain.maxToolStepsPerTurn,
+                        config.brain.historyMessages,
+                        config.brain.cooldownMs,
+                        config.chat.guestCooldownMs),
                 () -> gatewayOverrides.getOrDefault(owner, current),
                 tools.bind(companion),
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
                 effective,
-                scheduler);
+                scheduler,
+                AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         companion.taskRunner().setListener(new TaskListener() {
             @Override

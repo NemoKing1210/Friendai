@@ -1,6 +1,7 @@
 package dev.friedai.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -57,6 +58,16 @@ class ConfigStoreTest {
         try (Stream<Path> files = Files.list(dir)) {
             assertEquals(List.of("friedai-server.json"), files.map(p -> p.getFileName().toString()).toList());
         }
+    }
+
+    @Test
+    void recoveredFlagFollowsCorruption() throws IOException {
+        Files.writeString(dir.resolve("friedai-server.json"), "{oops");
+        ConfigStore<Sample> store = store();
+        store.load();
+        assertTrue(store.recoveredOnLastLoad());
+        store.load();
+        assertFalse(store.recoveredOnLastLoad());
     }
 
     @Test

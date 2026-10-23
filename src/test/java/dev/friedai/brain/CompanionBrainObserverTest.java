@@ -14,6 +14,7 @@ import dev.friedai.testutil.RecordingSpeaker;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +25,11 @@ class CompanionBrainObserverTest {
         @Override
         public void onEvent(BrainEvent e) {
             calls.add("event:" + e.toPromptLine());
+        }
+
+        @Override
+        public void onEventDropped(BrainEvent e, String reason) {
+            calls.add("dropped:" + reason);
         }
 
         @Override
@@ -61,17 +67,18 @@ class CompanionBrainObserverTest {
         recorder = new Recorder();
         brain = new CompanionBrain(
                 () -> new Persona("Friedai", "friendly", "auto"),
-                () -> new BrainSettings(8, 30, 0),
+                () -> new BrainSettings(8, 30, 0, 5_000),
                 () -> gateway,
                 tools,
                 () -> "state-1",
                 new RecordingSpeaker(),
-                scheduler);
+                scheduler,
+                AccessResolver.of(UUID.fromString("00000000-0000-0000-0000-000000000001"), p -> false));
         brain.setObserver(recorder);
     }
 
     private static BrainEvent said(String text) {
-        return new BrainEvent.PlayerSaid("Steve", text, BrainEvent.Source.CHAT);
+        return new BrainEvent.PlayerSaid(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", text, BrainEvent.Source.CHAT);
     }
 
     @Test
@@ -80,6 +87,15 @@ class CompanionBrainObserverTest {
         brain.post(said("one"));
         brain.post(said("two"));
         assertEquals(List.of("event:[Steve]: one"), recorder.calls);
+    }
+
+    @Test
+    void reportsDroppedGuestMessage() {
+        gateway.enqueue(text("hi"));
+        UUID guest = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        brain.post(new BrainEvent.PlayerSaid(guest, "Bob", "a", BrainEvent.Source.CHAT));
+        brain.post(new BrainEvent.PlayerSaid(guest, "Bob", "b", BrainEvent.Source.CHAT));
+        assertTrue(recorder.calls.contains("dropped:guest cooldown"));
     }
 
     @Test

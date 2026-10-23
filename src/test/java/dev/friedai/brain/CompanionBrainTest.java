@@ -17,21 +17,30 @@ import dev.friedai.testutil.FakeToolExecutor;
 import dev.friedai.testutil.ManualScheduler;
 import dev.friedai.testutil.RecordingSpeaker;
 import dev.friedai.text.UserMessage;
+import dev.friedai.tool.AccessLevel;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CompanionBrainTest {
+    private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID GUEST = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
     private FakeGateway gateway;
     private FakeToolExecutor tools;
     private RecordingSpeaker speaker;
     private ManualScheduler scheduler;
     private int maxSteps;
     private long cooldown;
+    private long guestCooldown;
     private String perceptionText;
     private Supplier<LlmGateway> gatewaySupplier;
+    private final Set<UUID> trusted = new HashSet<>();
     private CompanionBrain brain;
 
     @BeforeEach
@@ -42,20 +51,26 @@ class CompanionBrainTest {
         scheduler = new ManualScheduler();
         maxSteps = 8;
         cooldown = 0;
+        guestCooldown = 0;
         perceptionText = "state-1";
         gatewaySupplier = () -> gateway;
         brain = new CompanionBrain(
                 () -> new Persona("Friedai", "friendly", "auto"),
-                () -> new BrainSettings(maxSteps, 30, cooldown),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
                 () -> gatewaySupplier.get(),
                 tools,
                 () -> perceptionText,
                 speaker,
-                scheduler);
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains));
     }
 
     private static BrainEvent said(String text) {
-        return new BrainEvent.PlayerSaid("Steve", text, BrainEvent.Source.CHAT);
+        return new BrainEvent.PlayerSaid(OWNER, "Steve", text, BrainEvent.Source.CHAT);
+    }
+
+    private static BrainEvent guest(String text) {
+        return new BrainEvent.PlayerSaid(GUEST, "Bob", text, BrainEvent.Source.CHAT);
     }
 
     private static Message lastUser(FakeGateway.Request r) {
@@ -76,7 +91,7 @@ class CompanionBrainTest {
         brain.post(said("again"));
         gateway.enqueue(text("Again"));
         List<Message> second = gateway.requests.get(gateway.requests.size() - 1).messages();
-        assertEquals("[Steve]: hi", second.get(0).text());
+        assertEquals("[Steve (owner)]: hi", second.get(0).text());
         assertEquals(Role.ASSISTANT, second.get(1).role());
     }
 
@@ -125,7 +140,94 @@ class CompanionBrainTest {
         assertEquals(1, gateway.requests.size());
         first.complete(text("first"));
         assertEquals(2, gateway.requests.size());
-        assertEquals("[Steve]: two\n[event] task #1 mine_blocks finished: done", lastUser(gateway.requests.get(1)).text());
+        assertEquals(
+                "[Steve (owner)]: two\n[event] task #1 mine_blocks finished: done",
+                lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void turnsAreGroupedByPrincipal() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("owner again"));
+        gateway.enqueue(text("hi guest"));
+        brain.post(said("one"));
+        brain.post(guest("g1"));
+        brain.post(said("two"));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "done"));
+        first.complete(text("first"));
+        assertEquals("[Bob (guest)]: g1", lastUser(gateway.requests.get(1)).text());
+        assertEquals(
+                "[Steve (owner)]: two\n[event] task #1 mine_blocks finished: done",
+                lastUser(gateway.requests.get(2)).text());
+    }
+
+    @Test
+    void guestTurnUsesGuestAccessAndPrompt() {
+        gateway.enqueue(calls("", call("c1", "stay")));
+        gateway.enqueue(text("no"));
+        brain.post(guest("stay"));
+        assertEquals(AccessLevel.GUEST, tools.specAccess.get(0));
+        assertEquals(List.of(AccessLevel.GUEST), tools.executeAccess);
+        assertTrue(gateway.requests.get(0).system().contains("Current speaker: Bob (guest)."));
+    }
+
+    @Test
+    void accessIsResolvedWhenTheTurnStarts() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("ok"));
+        brain.post(said("one"));
+        brain.post(guest("g1"));
+        trusted.add(GUEST);
+        first.complete(text("first"));
+        assertEquals("[Bob (trusted)]: g1", lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void taskEventsOnlyTurnActsAsOwner() {
+        gateway.enqueue(text("noted"));
+        brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
+        assertEquals(AccessLevel.OWNER, tools.specAccess.get(0));
+    }
+
+    @Test
+    void guestCooldownDropsQuickRepeat() {
+        guestCooldown = 5_000;
+        gateway.enqueue(text("a"));
+        gateway.enqueue(text("c"));
+        brain.post(guest("a"));
+        brain.post(guest("b"));
+        assertEquals(1, gateway.requests.size());
+        scheduler.advance(5_000);
+        brain.post(guest("c"));
+        assertEquals("[Bob (guest)]: c", lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void guestPendingIsCapped() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("ok"));
+        brain.post(said("busy"));
+        brain.post(guest("g1"));
+        brain.post(guest("g2"));
+        brain.post(guest("g3"));
+        first.complete(text("done"));
+        assertEquals(
+                "[Bob (guest)]: g1\n[Bob (guest)]: g2", lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void ownerIsNeverThrottled() {
+        guestCooldown = 60_000;
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("ok"));
+        brain.post(said("1"));
+        brain.post(said("2"));
+        brain.post(said("3"));
+        brain.post(said("4"));
+        first.complete(text("done"));
+        assertEquals(
+                "[Steve (owner)]: 2\n[Steve (owner)]: 3\n[Steve (owner)]: 4",
+                lastUser(gateway.requests.get(1)).text());
     }
 
     @Test

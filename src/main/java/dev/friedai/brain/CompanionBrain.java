@@ -3,11 +3,17 @@ package dev.friedai.brain;
 import dev.friedai.llm.model.LlmResponse;
 import dev.friedai.llm.model.Message;
 import dev.friedai.llm.model.ToolCall;
+import dev.friedai.tool.AccessLevel;
+import dev.friedai.tool.Caller;
 import dev.friedai.tool.ToolExecutor;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -15,11 +21,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The agent loop: events in, speech and tool calls out. At most one LLM request is in flight.
- * Every method must be called on the scheduler's thread; LLM callbacks hop back through it.
+ * The agent loop: events in, speech and tool calls out. At most one LLM request is in flight, and one turn
+ * acts for exactly one principal. Every method must be called on the scheduler's thread; LLM callbacks hop
+ * back through it.
  */
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friedai/brain");
+    /** How many queued events one guest may have waiting for a turn. */
+    public static final int MAX_PENDING_PER_GUEST = 2;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -28,10 +37,13 @@ public final class CompanionBrain {
     private final PerceptionSource perception;
     private final Speaker speaker;
     private final BrainScheduler scheduler;
+    private final AccessResolver access;
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
+    private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
+    private Caller turnCaller;
     private boolean thinking;
     private boolean cooldownScheduled;
     private boolean hasFinishedTurn;
@@ -46,7 +58,8 @@ public final class CompanionBrain {
             ToolExecutor tools,
             PerceptionSource perception,
             Speaker speaker,
-            BrainScheduler scheduler) {
+            BrainScheduler scheduler,
+            AccessResolver access) {
         this.persona = persona;
         this.settings = settings;
         this.gateway = gateway;
@@ -54,12 +67,46 @@ public final class CompanionBrain {
         this.perception = perception;
         this.speaker = speaker;
         this.scheduler = scheduler;
+        this.access = access;
+        this.turnCaller = new Caller(access.owner(), "", AccessLevel.OWNER);
         this.memory = new ConversationMemory(settings.get().historyMessages());
     }
 
     public void post(BrainEvent e) {
+        if (shouldDrop(e)) {
+            return;
+        }
         queue.addLast(e);
         maybeStartTurn();
+    }
+
+    /**
+     * Guests are throttled because every request costs money; the owner never is. Dropped messages go to the
+     * observer and the debug log, never to chat.
+     */
+    private boolean shouldDrop(BrainEvent event) {
+        if (!(event instanceof BrainEvent.PlayerSaid said)) {
+            return false;
+        }
+        UUID guest = said.playerUuid();
+        if (access.accessOf(guest) != AccessLevel.GUEST) {
+            return false;
+        }
+        long now = scheduler.nowMillis();
+        Long last = lastAcceptedGuestMessage.get(guest);
+        if (last != null && now - last < settings.get().guestCooldownMs()) {
+            observe(o -> o.onEventDropped(event, "guest cooldown"));
+            return true;
+        }
+        long pending = queue.stream()
+                .filter(queued -> principalOf(queued).equals(guest))
+                .count();
+        if (pending >= MAX_PENDING_PER_GUEST) {
+            observe(o -> o.onEventDropped(event, "too many pending messages"));
+            return true;
+        }
+        lastAcceptedGuestMessage.put(guest, now);
+        return false;
     }
 
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
@@ -82,7 +129,7 @@ public final class CompanionBrain {
 
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
-        return PromptBuilder.system(persona.get(), perception.describe());
+        return PromptBuilder.system(persona.get(), perception.describe(), turnCaller);
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -91,6 +138,11 @@ public final class CompanionBrain {
         } catch (RuntimeException e) {
             LOGGER.warn("Brain observer failed", e);
         }
+    }
+
+    /** The player a turn acts for. Task events belong to the owner. */
+    private UUID principalOf(BrainEvent event) {
+        return event instanceof BrainEvent.PlayerSaid said ? said.playerUuid() : access.owner();
     }
 
     private void maybeStartTurn() {
@@ -108,13 +160,31 @@ public final class CompanionBrain {
             }
             return;
         }
+        UUID principal = principalOf(queue.peekFirst());
+        List<BrainEvent> batch = new ArrayList<>();
+        queue.removeIf(event -> {
+            if (principalOf(event).equals(principal)) {
+                batch.add(event);
+                return true;
+            }
+            return false;
+        });
+        String name = "";
+        for (BrainEvent event : batch) {
+            if (event instanceof BrainEvent.PlayerSaid said) {
+                name = said.playerName();
+            }
+        }
+        AccessLevel level = access.accessOf(principal);
+        turnCaller = new Caller(principal, name == null ? "" : name, level);
         thinking = true;
         speaker.thinking(true);
-        String lines = queue.stream().map(BrainEvent::toPromptLine).collect(Collectors.joining("\n"));
-        for (BrainEvent event : queue) {
+        String lines = batch.stream()
+                .map(event -> event.toPromptLine(level))
+                .collect(Collectors.joining("\n"));
+        for (BrainEvent event : batch) {
             observe(o -> o.onEvent(event));
         }
-        queue.clear();
         memory.add(Message.user(lines));
         step = 0;
         requestStep(generation);
@@ -129,10 +199,10 @@ public final class CompanionBrain {
             return;
         }
         step++;
-        String system = PromptBuilder.system(persona.get(), perception.describe());
+        String system = PromptBuilder.system(persona.get(), perception.describe(), turnCaller);
         CompletableFuture<LlmResponse> future;
         try {
-            future = gateway.get().complete(system, memory.snapshot(), tools.specs());
+            future = gateway.get().complete(system, memory.snapshot(), tools.specs(turnCaller.access()));
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
@@ -166,7 +236,7 @@ public final class CompanionBrain {
             ToolResult result;
             observe(o -> o.onToolCall(call));
             try {
-                result = tools.execute(call);
+                result = tools.execute(call, turnCaller.access());
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
