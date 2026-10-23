@@ -5,6 +5,10 @@ import dev.friedai.crafting.Recipe;
 import dev.friedai.crafting.Station;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.task.TaskListener;
+import dev.friedai.task.TaskRunner;
+import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.CraftTask;
 import dev.friedai.task.crafting.RecipeIndex;
 import dev.friedai.task.crafting.Stations;
 import java.util.List;
@@ -13,9 +17,33 @@ import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class CraftingTests {
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary;
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    private static TaskRunner craft(CompanionEntity c, Result result, String item, int count) {
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        runner.start(new CraftTask(item, count, CraftTask.StationPolicy.AUTO), "craft_item");
+        return runner;
+    }
+
     private static List<Recipe> producing(GameTestHelper h, String item) {
         return RecipeIndex.of(h.getLevel()).producing(item);
     }
@@ -149,5 +177,125 @@ public class CraftingTests {
                 !Stations.looksLikeBase(h.getLevel(), pos),
                 "the station at the position itself does not count as a second kind");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void craftsPlanksInInventory(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.CHERRY_LOG));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:cherry_planks", 4);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual("crafted 4 minecraft:cherry_planks", result.summary, "summary");
+            h.assertValueEqual(0, c.inventory().countItem(Items.CHERRY_LOG), "logs left");
+            h.assertValueEqual(4, c.inventory().countItem(Items.CHERRY_PLANKS), "planks");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void craftsSticksThroughPlanks(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.MANGROVE_LOG));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:stick", 4);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    "crafted 4 minecraft:stick (also crafted 4 minecraft:mangrove_planks)",
+                    result.summary,
+                    "summary");
+            h.assertValueEqual(0, c.inventory().countItem(Items.MANGROVE_LOG), "logs left");
+            h.assertValueEqual(4, c.inventory().countItem(Items.STICK), "sticks");
+            h.assertValueEqual(2, c.inventory().countItem(Items.MANGROVE_PLANKS), "planks left over");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void craftingTableFromLog(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.ACACIA_LOG));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:crafting_table", 1);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    "crafted 1 minecraft:crafting_table (also crafted 4 minecraft:acacia_planks)",
+                    result.summary,
+                    "summary");
+            h.assertValueEqual(0, c.inventory().countItem(Items.ACACIA_PLANKS), "planks left");
+            h.assertValueEqual(1, c.inventory().countItem(Items.CRAFTING_TABLE), "crafting tables");
+        });
+    }
+
+    @GameTest
+    public void missingMaterialsFails(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:stick", 1);
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+        h.assertValueEqual(
+                "can't craft 1 minecraft:stick; missing: 2 × #minecraft:planks", result.summary, "summary");
+        h.succeed();
+    }
+
+    @GameTest
+    public void noRecipeFails(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        // 26.3 makes diamond craftable from diamond blocks; netherite scrap is smelting-only.
+        TaskRunner runner = craft(c, result, "minecraft:netherite_scrap", 1);
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+        h.assertValueEqual(
+                "minecraft:netherite_scrap has no crafting, stonecutter or smithing recipe",
+                result.summary,
+                "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void mainHandItemIsUsed(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DARK_OAK_LOG));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:dark_oak_planks", 4);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual("crafted 4 minecraft:dark_oak_planks", result.summary, "summary");
+            h.assertTrue(c.getMainHandItem().isEmpty(), "the main hand must be empty, was " + c.getMainHandItem());
+            h.assertValueEqual(4, c.inventory().countItem(Items.DARK_OAK_PLANKS), "planks");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void inventoryChangedMidTask(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.PALE_OAK_LOG));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:stick", 4);
+        boolean[] cleared = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!cleared[0] && c.inventory().countItem(Items.PALE_OAK_PLANKS) > 0) {
+                c.inventory().clearContent();
+                cleared[0] = true;
+            }
+            h.assertTrue(cleared[0], "waiting for the planks to appear");
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary != null && result.summary.startsWith("the inventory changed while crafting"),
+                    "summary was " + result.summary);
+        });
     }
 }
