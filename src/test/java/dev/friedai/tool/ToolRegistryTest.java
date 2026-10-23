@@ -9,6 +9,8 @@ import com.google.gson.JsonParser;
 import dev.friedai.llm.model.ToolCall;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
 
 class ToolRegistryTest {
@@ -47,6 +49,74 @@ class ToolRegistryTest {
                 }
                 executed.add(ctx + ":" + args.get("count").getAsInt());
                 return ToolResult.ok("done");
+            }
+        };
+    }
+
+    private Tool<String> toggled(String name, BooleanSupplier enabled) {
+        return new Tool<>() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return "Toggleable test tool " + name;
+            }
+
+            @Override
+            public JsonObject schema() {
+                return SchemaBuilder.object().integer("count", "How many", 1, 10).required("count").build();
+            }
+
+            @Override
+            public AccessLevel minAccess() {
+                return AccessLevel.GUEST;
+            }
+
+            @Override
+            public boolean enabled() {
+                return enabled.getAsBoolean();
+            }
+
+            @Override
+            public ToolResult execute(String ctx, JsonObject args) {
+                return ToolResult.ok("ran");
+            }
+        };
+    }
+
+    private Tool<String> callerEcho(String name) {
+        return new Tool<>() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return "Echoes the caller";
+            }
+
+            @Override
+            public JsonObject schema() {
+                return SchemaBuilder.object().integer("count", "How many", 1, 10).required("count").build();
+            }
+
+            @Override
+            public AccessLevel minAccess() {
+                return AccessLevel.GUEST;
+            }
+
+            @Override
+            public ToolResult execute(String ctx, JsonObject args) {
+                return ToolResult.ok("unused");
+            }
+
+            @Override
+            public ToolResult execute(String ctx, Caller caller, JsonObject args) {
+                return ToolResult.ok(caller.uuid() + "/" + caller.name() + "/" + caller.access().label());
             }
         };
     }
@@ -121,6 +191,26 @@ class ToolRegistryTest {
     void defaultExecuteActsAsOwner() {
         ToolExecutor ex = new ToolRegistry<String>().register(tool("act", false)).bind("c");
         assertFalse(ex.execute(call("act", "{\"count\":1}")).error());
+    }
+
+    @Test
+    void disabledToolIsHiddenAndRefused() {
+        boolean[] on = {false};
+        ToolExecutor ex = new ToolRegistry<String>().register(toggled("note", () -> on[0])).bind("c");
+        assertTrue(ex.specs(AccessLevel.OWNER).isEmpty());
+        assertEquals("Tool note is disabled.", ex.execute(call("note", "{\"count\":1}")).content());
+        on[0] = true;
+        assertEquals(List.of("note"), ex.specs(AccessLevel.OWNER).stream().map(s -> s.name()).toList());
+    }
+
+    @Test
+    void callerReachesTheTool() {
+        UUID id = UUID.randomUUID();
+        ToolExecutor ex = new ToolRegistry<String>().register(callerEcho("who")).bind("c");
+        assertEquals(
+                id + "/Bob/guest",
+                ex.execute(call("who", "{\"count\":1}"), new Caller(id, "Bob", AccessLevel.GUEST))
+                        .content());
     }
 
     @Test

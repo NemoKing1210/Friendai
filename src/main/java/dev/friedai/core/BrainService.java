@@ -26,8 +26,12 @@ import dev.friedai.debug.TaskRecord;
 import dev.friedai.llm.LlmClient;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.memory.MemoryBook;
+import dev.friedai.memory.MemoryLimits;
+import dev.friedai.memory.MemoryPromptRenderer;
 import dev.friedai.memory.MemoryStore;
 import dev.friedai.tool.ToolResult;
+import dev.friedai.tool.builtin.MemoryAccess;
 import java.util.ArrayList;
 import java.util.List;
 import dev.friedai.llm.http.HttpTransport;
@@ -58,7 +62,7 @@ public final class BrainService {
     private final Map<UUID, Entry> entries = new HashMap<>();
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
     private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
-    private final ToolRegistry<CompanionEntity> tools = FriedaiTools.create(() -> this.config.tasks.mineSearchRadius);
+    private final ToolRegistry<CompanionEntity> tools;
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
     private ServerConfig config;
@@ -71,6 +75,22 @@ public final class BrainService {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
+        this.tools = FriedaiTools.create(() -> this.config.tasks.mineSearchRadius, new MemoryAccess() {
+            @Override
+            public boolean enabled() {
+                return config != null && config.memory.enabled;
+            }
+
+            @Override
+            public MemoryLimits limits() {
+                return config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
+            }
+
+            @Override
+            public MemoryBook book(UUID owner) {
+                return memory.book(owner);
+            }
+        });
         reload(initial);
     }
 
@@ -226,7 +246,10 @@ public final class BrainService {
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
                 effective,
                 scheduler,
-                AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)));
+                AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
+                caller -> config.memory.enabled
+                        ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
+                        : "");
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         companion.taskRunner().setListener(new TaskListener() {
             @Override

@@ -16,6 +16,16 @@ public interface Tool<C> {
         return AccessLevel.TRUSTED;
     }
 
+    /** Whether the tool exists at all right now; a disabled tool is hidden and refuses calls. */
+    default boolean enabled() {
+        return true;
+    }
+
     /** Called with arguments that already passed validation. */
     ToolResult execute(C ctx, JsonObject args);
+
+    /** Tools that need to know who the turn acts for override this; the rest keep the two-argument form. */
+    default ToolResult execute(C ctx, Caller caller, JsonObject args) {
+        return execute(ctx, args);
+    }
 }

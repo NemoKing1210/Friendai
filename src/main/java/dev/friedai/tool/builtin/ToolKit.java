@@ -6,12 +6,14 @@ import dev.friedai.task.Task;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.tool.AccessLevel;
+import dev.friedai.tool.Caller;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.Tool;
 import dev.friedai.tool.ToolRegistry;
 import dev.friedai.tool.ToolResult;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 
 /** Helpers shared by the tool groups: turning a definition into a {@link Tool} and parsing item/block arguments. */
@@ -48,6 +50,52 @@ final class ToolKit {
     static Tool<CompanionEntity> instantTool(
             String name, String description, AccessLevel minAccess, Action action) {
         return tool(name, description, SchemaBuilder.object().build(), minAccess, action);
+    }
+
+    /** A tool that needs the caller of the turn, and can be turned off at runtime. */
+    static Tool<CompanionEntity> callerTool(
+            String name,
+            String description,
+            JsonObject schema,
+            AccessLevel minAccess,
+            BooleanSupplier enabled,
+            CallerAction action) {
+        return new Tool<>() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return description;
+            }
+
+            @Override
+            public JsonObject schema() {
+                return schema;
+            }
+
+            @Override
+            public AccessLevel minAccess() {
+                return minAccess;
+            }
+
+            @Override
+            public boolean enabled() {
+                return enabled.getAsBoolean();
+            }
+
+            @Override
+            public ToolResult execute(CompanionEntity ctx, JsonObject args) {
+                return action.run(ctx, new Caller(null, "", minAccess), args);
+            }
+
+            @Override
+            public ToolResult execute(CompanionEntity ctx, Caller caller, JsonObject args) {
+                return action.run(ctx, caller, args);
+            }
+        };
     }
 
     static ItemMatcher parseItemMatcher(String idOrTag) {
@@ -111,5 +159,10 @@ final class ToolKit {
     @FunctionalInterface
     interface Action {
         ToolResult run(CompanionEntity companion, JsonObject args);
+    }
+
+    @FunctionalInterface
+    interface CallerAction {
+        ToolResult run(CompanionEntity companion, Caller caller, JsonObject args);
     }
 }

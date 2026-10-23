@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.llm.model.ToolSpec;
 import dev.friedai.tool.AccessLevel;
+import dev.friedai.tool.Caller;
 import dev.friedai.tool.ToolExecutor;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayList;
@@ -25,8 +26,8 @@ public final class FakeToolExecutor implements ToolExecutor {
     }
 
     @Override
-    public ToolResult execute(ToolCall call, AccessLevel access) {
-        executeAccess.add(access);
+    public ToolResult execute(ToolCall call, Caller caller) {
+        executeAccess.add(caller.access());
         executed.add(call.name());
         return ToolResult.ok("ok " + call.name());
     }

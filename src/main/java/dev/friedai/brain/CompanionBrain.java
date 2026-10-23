@@ -253,7 +253,7 @@ public final class CompanionBrain {
             ToolResult result;
             observe(o -> o.onToolCall(call));
             try {
-                result = tools.execute(call, turnCaller.access());
+                result = tools.execute(call, turnCaller);
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());

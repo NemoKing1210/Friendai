@@ -99,7 +99,9 @@ public class GuestTests {
             Request first = script.requests.get(0);
             h.assertTrue(lastUser(first.messages()).text().contains("(guest)]: "),
                     "user line was " + lastUser(first.messages()).text());
-            h.assertTrue(first.tools().equals(List.of("look_around")), "tools were " + first.tools());
+            h.assertTrue(
+                    first.tools().equals(List.of("look_around", "remember", "forget", "recall")),
+                    "tools were " + first.tools());
         });
     }
 

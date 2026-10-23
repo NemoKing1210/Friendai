@@ -10,8 +10,15 @@ import java.util.function.IntSupplier;
 public final class FriedaiTools {
     private FriedaiTools() {}
 
-    /** @param mineRadius search radius for {@code mine_blocks}, read on every call so config changes apply live */
     public static ToolRegistry<CompanionEntity> create(IntSupplier mineRadius) {
+        return create(mineRadius, MemoryAccess.DISABLED);
+    }
+
+    /**
+     * @param mineRadius search radius for {@code mine_blocks}, read on every call so config changes apply live
+     * @param memory long-term memory; {@link MemoryAccess#DISABLED} leaves the memory tools out
+     */
+    public static ToolRegistry<CompanionEntity> create(IntSupplier mineRadius, MemoryAccess memory) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
         MovementTools.register(registry, defs);
@@ -26,6 +33,7 @@ public final class FriedaiTools {
         AnimalTools.register(registry, defs);
         ObtainTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
+        MemoryTools.register(registry, memory);
         ControlTools.register(registry, defs);
         return registry;
     }

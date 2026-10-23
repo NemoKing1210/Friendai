@@ -15,14 +15,15 @@ public final class ToolRegistry<C> {
         return this;
     }
 
-    /** Every registered tool, regardless of who is asking. */
+    /** Every registered tool that is enabled, regardless of who is asking. */
     public List<ToolSpec> specs() {
-        return tools.values().stream().map(ToolRegistry::spec).toList();
+        return tools.values().stream().filter(Tool::enabled).map(ToolRegistry::spec).toList();
     }
 
-    /** Only the tools a caller at {@code access} may use, in registration order. */
+    /** Only the enabled tools a caller at {@code access} may use, in registration order. */
     public List<ToolSpec> specs(AccessLevel access) {
         return tools.values().stream()
+                .filter(Tool::enabled)
                 .filter(t -> access.allows(t.minAccess()))
                 .map(ToolRegistry::spec)
                 .toList();
@@ -40,17 +41,21 @@ public final class ToolRegistry<C> {
             }
 
             @Override
-            public ToolResult execute(ToolCall call, AccessLevel access) {
-                return run(ctx, call, access);
+            public ToolResult execute(ToolCall call, Caller caller) {
+                return run(ctx, call, caller);
             }
         };
     }
 
-    private ToolResult run(C ctx, ToolCall call, AccessLevel access) {
+    private ToolResult run(C ctx, ToolCall call, Caller caller) {
         Tool<C> tool = tools.get(call.name());
         if (tool == null) {
             return ToolResult.error("Unknown tool: " + call.name());
         }
+        if (!tool.enabled()) {
+            return ToolResult.error("Tool " + call.name() + " is disabled.");
+        }
+        AccessLevel access = caller.access();
         if (!access.allows(tool.minAccess())) {
             return ToolResult.error(
                     "Tool " + call.name() + " is not available to this speaker (" + access.label() + ").");
@@ -64,7 +69,7 @@ public final class ToolRegistry<C> {
             return ToolResult.error("Invalid arguments for " + call.name() + ": " + String.join("; ", problems));
         }
         try {
-            return tool.execute(ctx, args);
+            return tool.execute(ctx, caller, args);
         } catch (RuntimeException e) {
             return ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
         }

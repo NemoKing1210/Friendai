@@ -286,6 +286,14 @@ class CompanionBrainTest {
     }
 
     @Test
+    void toolCallsCarryTheTurnCaller() {
+        gateway.enqueue(calls("", call("c1", "stay")));
+        gateway.enqueue(text("ok"));
+        brain.post(guest("stay"));
+        assertEquals(List.of(AccessLevel.GUEST), tools.executeAccess);
+    }
+
+    @Test
     void memoryBlockFollowsTurnCaller() {
         brain = new CompanionBrain(
                 () -> new Persona("Friedai", "friendly", "auto"),
