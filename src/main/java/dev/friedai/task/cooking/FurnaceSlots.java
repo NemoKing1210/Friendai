@@ -68,33 +68,33 @@ public final class FurnaceSlots {
         ItemStack result = furnace.getItem(2);
         int capacity = result.isEmpty() ? EMPTY_RESULT_ROOM : result.getMaxStackSize();
         int used = result.isEmpty() ? 0 : result.getCount();
-        ItemStack input = furnace.getItem(0);
-        if (!input.isEmpty() && (result.isEmpty() || input.is(result.getItem()))) {
-            // Cooking is one input to one output: input already queued still has to fit in the result slot.
-            used += input.getCount();
-        }
+        // Cooking is one input to one output: input already queued still has to fit in the result slot.
+        used += furnace.getItem(0).getCount();
         return Math.max(0, capacity - used);
     }
 
-    /** Moves a fuel stack into the fuel slot, respecting stacking. */
-    public static void loadFuel(AbstractFurnaceBlockEntity furnace, ItemStack fuel) {
+    /** Moves as much of a fuel stack as fits into the fuel slot; returns how many items went in. */
+    public static int loadFuel(AbstractFurnaceBlockEntity furnace, ItemStack fuel) {
         if (fuel.isEmpty() || !furnace.canPlaceItem(1, fuel)) {
-            return;
+            return 0;
         }
         ItemStack fuelSlot = furnace.getItem(1);
         if (fuelSlot.isEmpty()) {
-            furnace.setItem(1, fuel.copy());
-            return;
+            int count = Math.min(fuel.getCount(), fuel.getMaxStackSize());
+            furnace.setItem(1, fuel.copyWithCount(count));
+            return count;
         }
         if (!ItemStack.isSameItemSameComponents(fuelSlot, fuel)) {
-            return;
+            return 0;
         }
         int room = fuelSlot.getMaxStackSize() - fuelSlot.getCount();
         if (room <= 0) {
-            return;
+            return 0;
         }
-        fuelSlot.grow(Math.min(room, fuel.getCount()));
+        int count = Math.min(room, fuel.getCount());
+        fuelSlot.grow(count);
         furnace.setChanged();
+        return count;
     }
 
     /** Takes everything in the result slot. */

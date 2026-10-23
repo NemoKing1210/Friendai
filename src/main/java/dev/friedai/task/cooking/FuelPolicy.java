@@ -75,37 +75,37 @@ public final class FuelPolicy {
             BlockPos furnacePos,
             int ticksNeeded,
             @Nullable ItemMatcher explicit) {
-        List<ItemStack> picked = new ArrayList<>();
-        int covered = 0;
         if (explicit != null) {
-            covered = take(companion, level, furnacePos, explicit, Math.max(0, ticksNeeded), picked, covered);
-        } else {
-            for (Supplier<Optional<ItemMatcher>> candidate : CHEAP) {
-                if (covered >= ticksNeeded) {
-                    break;
-                }
-                Optional<ItemMatcher> matcher = candidate.get();
-                if (matcher.isEmpty()) {
-                    continue;
-                }
-                covered = take(companion, level, furnacePos, matcher.get(), ticksNeeded, picked, covered);
+            return take(companion, level, furnacePos, explicit, Math.max(0, ticksNeeded));
+        }
+        for (Supplier<Optional<ItemMatcher>> candidate : CHEAP) {
+            Optional<ItemMatcher> matcher = candidate.get();
+            if (matcher.isEmpty()) {
+                continue;
+            }
+            FuelPick pick = take(companion, level, furnacePos, matcher.get(), Math.max(0, ticksNeeded));
+            if (!pick.stacks().isEmpty()) {
+                return pick;
             }
         }
-        return new FuelPick(picked, covered);
+        return FuelPick.empty();
     }
 
-    private static int take(
-            CompanionEntity companion,
-            ServerLevel level,
-            BlockPos furnacePos,
-            ItemMatcher matcher,
-            int ticksNeeded,
-            List<ItemStack> picked,
-            int covered) {
+    private static FuelPick take(
+            CompanionEntity companion, ServerLevel level, BlockPos furnacePos, ItemMatcher matcher, int ticksNeeded) {
         SimpleContainer inventory = companion.inventory();
+        ItemStack prototype = null;
+        List<ItemStack> picked = new ArrayList<>();
+        int covered = 0;
         for (int slot = 0; slot < inventory.getContainerSize() && covered < ticksNeeded; slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty() || !matcher.test(stack)) {
+                continue;
+            }
+            if (prototype == null) {
+                prototype = stack.copyWithCount(1);
+            } else if (!ItemStack.isSameItemSameComponents(prototype, stack)) {
+                // A furnace fuel slot holds one item type; mixing would make the extra stacks unusable.
                 continue;
             }
             int perItem = burnTicks(level, furnacePos, stack);
@@ -120,7 +120,7 @@ public final class FuelPolicy {
             picked.add(stack.copyWithCount(count));
             covered += count * perItem;
         }
-        return covered;
+        return new FuelPick(picked, covered);
     }
 
     /**

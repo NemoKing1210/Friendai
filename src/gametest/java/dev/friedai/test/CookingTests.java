@@ -91,6 +91,18 @@ public class CookingTests {
         h.succeed();
     }
 
+    @GameTest
+    public void queuedInputCountsAgainstResultRoom(GameTestHelper h) {
+        net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace = furnaceAt(h, 2, 2, 2);
+        furnace.setItem(2, new ItemStack(Items.COPPER_INGOT, 60));
+        furnace.setItem(0, new ItemStack(Items.RAW_COPPER, 3));
+        int loaded = FurnaceSlots.load(
+                furnace, new ItemStack(Items.RAW_COPPER, 5), new ItemStack(Items.COAL));
+        h.assertValueEqual(loaded, 1, "only the one free result slot");
+        h.assertValueEqual(furnace.getItem(0).getCount(), 4, "queued input plus the one loaded");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 400)
     public void watcherReportsFinished(GameTestHelper h) {
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace = furnaceAt(h, 2, 2, 2);
@@ -267,6 +279,28 @@ public class CookingTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("I have no pickaxe to pick it up"), "summary was " + result.summary);
             h.assertTrue(hasBlock(h, Blocks.FURNACE, 16, NOPICK_DECK), "the furnace must stay");
+            h.assertTrue(c.furnaceJobs().all().isEmpty(), "a waited job leaves no furnace job");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void waitModeTakesBackPlacedFurnace(GameTestHelper h) {
+        deck(h, 16, NOPICK_DECK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, NOPICK_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.FURNACE, 1));
+        c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE, 1));
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("and took it back"), "summary was " + result.summary);
+            h.assertFalse(hasBlock(h, Blocks.FURNACE, 16, NOPICK_DECK), "the furnace should be taken back");
+            h.assertValueEqual(c.inventory().countItem(Items.FURNACE), 1, "furnace item back");
+            h.assertTrue(result.notices.stream().noneMatch(text -> text.contains("is gone")),
+                    "no gone notice: " + result.notices);
         });
     }
 
@@ -345,6 +379,7 @@ public class CookingTests {
                             "smelted 1 minecraft:raw_copper into 1 minecraft:copper_ingot in 1 furnace"),
                     "summary was " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 1, "copper ingots");
+            h.assertTrue(c.furnaceJobs().all().isEmpty(), "a waited job leaves no furnace job");
         });
     }
 
@@ -360,6 +395,9 @@ public class CookingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.COOKED_MUTTON), 2, "cooked mutton");
+            h.assertTrue(c.furnaceJobs().all().isEmpty(), "a campfire needs no furnace job: " + c.furnaceJobs().all());
+            h.assertTrue(result.notices.stream().noneMatch(text -> text.contains("is gone")),
+                    "no gone notice: " + result.notices);
         });
     }
 
@@ -718,6 +756,20 @@ public class CookingTests {
         h.assertValueEqual(sticks.stacks().get(0).getCount(), 4, "four sticks");
         h.assertTrue(sticks.stacks().stream().noneMatch(stack -> stack.is(Items.IRON_PICKAXE)),
                 "a tool is never picked: " + sticks.stacks());
+        h.succeed();
+    }
+
+    @GameTest
+    public void fuelPickUsesOneType(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 10));
+        BlockPos furnace = pos(h, 4, 2, 4);
+
+        FuelPolicy.FuelPick pick = FuelPolicy.pick(c, h.getLevel(), furnace, 12_800, null);
+        h.assertValueEqual(pick.stacks().size(), 1, "a furnace burns one fuel type at a time: " + pick.stacks());
+        h.assertTrue(pick.stacks().get(0).is(Items.COAL), "coal wins the priority: " + pick.stacks());
         h.succeed();
     }
 

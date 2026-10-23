@@ -607,7 +607,6 @@ public final class SmeltTask implements Task {
                 }
                 loadedTotal += loaded;
                 stationsLoaded++;
-                addJob(c, target, share.get(0), loaded);
                 continue;
             }
             List<ItemStack> queue = new ArrayList<>(share);
@@ -624,7 +623,9 @@ public final class SmeltTask implements Task {
             }
             loadedTotal += loadedHere;
             stationsLoaded++;
-            addJob(c, target, share.get(0), loadedHere);
+            if (!waitMode) {
+                addJob(c, target, share.get(0), loadedHere);
+            }
         }
         if (loadedTotal == 0) {
             summary = "couldn't load any " + kind.noun() + " with " + input.label();
@@ -661,14 +662,17 @@ public final class SmeltTask implements Task {
                 summary = fuel == null ? "I have no fuel I'm allowed to burn" : "I don't have " + fuel.label();
                 return -1;
             }
+            int covered = 0;
+            int perItem = ticksFor(idOf(first));
             for (ItemStack fuelStack : pick.stacks()) {
-                FurnaceSlots.loadFuel(target.furnace(), fuelStack);
-                takeFromInventory(c.companion(), fuelStack, fuelStack.getCount());
+                int placed = FurnaceSlots.loadFuel(target.furnace(), fuelStack);
+                takeFromInventory(c.companion(), fuelStack, placed);
                 fuelsUsed.add(idOf(fuelStack));
+                covered += placed * burnTicksOf(c, target, fuelStack);
             }
-            int covered = pick.ticksCovered() / Math.max(1, ticksFor(idOf(first)));
-            if (covered < first.getCount()) {
-                fuelNote = "only enough fuel for " + Math.max(0, covered) + " of " + first.getCount();
+            int enoughFor = covered / Math.max(1, perItem);
+            if (enoughFor < first.getCount()) {
+                fuelNote = "only enough fuel for " + Math.max(0, enoughFor) + " of " + first.getCount();
             }
         }
         int loaded = FurnaceSlots.load(target.furnace(), first, ItemStack.EMPTY);
@@ -805,8 +809,8 @@ public final class SmeltTask implements Task {
                     return TaskStatus.FAILED;
                 }
                 for (ItemStack fuelStack : pick.stacks()) {
-                    FurnaceSlots.loadFuel(furnace, fuelStack);
-                    takeFromInventory(c.companion(), fuelStack, fuelStack.getCount());
+                    int placed = FurnaceSlots.loadFuel(furnace, fuelStack);
+                    takeFromInventory(c.companion(), fuelStack, placed);
                     fuelsUsed.add(idOf(fuelStack));
                 }
             }
@@ -941,6 +945,10 @@ public final class SmeltTask implements Task {
             ItemStack taken = target.furnace().removeItem(1, slot.getCount());
             InventoryOps.insertOrDrop(c.companion(), taken);
         }
+    }
+
+    private int burnTicksOf(TaskContext c, Target target, ItemStack stack) {
+        return FuelPolicy.burnTicks(c.level(), target.pos(), stack.copyWithCount(1));
     }
 
     private int ticksFor(String itemId) {
