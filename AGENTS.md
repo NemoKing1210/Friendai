@@ -32,7 +32,7 @@ Pure Java:
 - `text/` — `UserMessage(key, args)` and `UserFacingException`: how pure layers talk to the player.
 - `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`, `AccessLevel`/`Caller` (who a turn acts for).
 - `brain/` — `CompanionBrain` (the agent loop, one principal per turn), `ConversationMemory`, `PromptBuilder`, `AccessResolver`, events. It sees the world only through `PerceptionSource` and acts only through `ToolExecutor`.
-- `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption).
+- `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID; `Fact`, `Subject`, `Category` with monotonic ids), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption), `MemoryActions` (tool logic and the permission matrix via `MemoryPolicy`), `MemoryPromptRenderer` (per-caller prompt block), `MemoryReport` (command output).
 - `chat/AddressDetector`, `chat/CompanionPicker` (which companion hears a message), `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
 - `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
 
@@ -40,7 +40,7 @@ Minecraft layer:
 
 - `entity/` — `CompanionEntity` (a `PathfinderMob` with a 27-slot inventory, never despawns), `CompanionManager` (one per owner).
 - `task/` — `Task`, `TaskRunner` (one task at a time, timeouts, crash isolation, falls back to Follow), `task/builtin/` (Follow, Stay, GoTo, PickupItems, GiveItems, MineBlocks), `task/mining/`, `task/nav/MoveHelper`.
-- `tool/builtin/FriedaiTools` — the 9 skills as tools. `perception/` — surroundings snapshot for the prompt.
+- `tool/builtin/FriedaiTools` — the 9 skills as tools, plus the `remember`/`forget`/`recall` memory tools (always registered, `enabled()` follows `memory.enabled`). `perception/` — surroundings snapshot for the prompt.
 - `core/` — `BrainService` (one brain per player, shared `LlmClient`), `FriedaiServerState` (per-server config and brains), `ServerBrainScheduler`, `Components` (`UserMessage` → `Component`).
 - `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriedaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`; debug tabs are operator-only, checked on the server).
 
