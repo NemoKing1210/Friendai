@@ -1,7 +1,7 @@
 package dev.friedai.task.mining;
 
 import dev.friedai.task.TaskContext;
-import dev.friedai.task.nav.MoveHelper;
+import dev.friedai.task.nav.Approach;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -17,7 +17,6 @@ import net.minecraft.world.phys.Vec3;
 public final class BlockBreaker {
     public enum State { WORKING, BROKEN, GONE, UNREACHABLE }
 
-    private static final double REACH = 4.0;
     private static final int COLLECT_TICKS = 10;
     private static final double COLLECT_RADIUS = 4.0;
     private static final int SWING_INTERVAL = 5;
@@ -26,7 +25,7 @@ public final class BlockBreaker {
 
     private final BlockPos target;
     private final Predicate<BlockState> stillValid;
-    private final MoveHelper mover = new MoveHelper(1.0, 1.5);
+    private final Approach approach;
 
     private Phase phase = Phase.WALK;
     private int breakTicks;
@@ -37,6 +36,7 @@ public final class BlockBreaker {
     public BlockBreaker(BlockPos target, Predicate<BlockState> stillValid) {
         this.target = target;
         this.stillValid = stillValid;
+        this.approach = new Approach(target);
     }
 
     public BlockPos target() {
@@ -53,7 +53,7 @@ public final class BlockBreaker {
 
     /** Stops navigation and clears the crack overlay. */
     public void stop(TaskContext c) {
-        c.companion().getNavigation().stop();
+        approach.stop(c.companion());
         c.level().destroyBlockProgress(c.companion().getId(), target, -1);
     }
 
@@ -62,21 +62,23 @@ public final class BlockBreaker {
         if (!stillValid.test(c.level().getBlockState(target))) {
             return State.GONE;
         }
-        Vec3 center = Vec3.atCenterOf(target);
-        if (companion.getEyePosition().distanceTo(center) <= REACH) {
-            companion.getNavigation().stop();
-            BlockState state = c.level().getBlockState(target);
-            ToolSelector.equipBest(companion, state);
-            var tool = companion.getMainHandItem();
-            boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
-            breakNeeded = BreakProgress.ticksToBreak(state.getDestroySpeed(c.level(), target), tool.getDestroySpeed(state), correct);
-            breakTicks = 0;
-            phase = Phase.BREAK;
-            return State.WORKING;
+        switch (approach.tick(companion)) {
+            case UNREACHABLE -> {
+                return State.UNREACHABLE;
+            }
+            case MOVING -> {
+                return State.WORKING;
+            }
+            case IN_REACH -> {
+            }
         }
-        if (mover.tick(companion, center) == MoveHelper.State.STUCK) {
-            return State.UNREACHABLE;
-        }
+        BlockState state = c.level().getBlockState(target);
+        ToolSelector.equipBest(companion, state);
+        var tool = companion.getMainHandItem();
+        boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
+        breakNeeded = BreakProgress.ticksToBreak(state.getDestroySpeed(c.level(), target), tool.getDestroySpeed(state), correct);
+        breakTicks = 0;
+        phase = Phase.BREAK;
         return State.WORKING;
     }
 
