@@ -55,6 +55,14 @@ public final class TaskRunner {
         return Optional.ofNullable(current).map(Active::task);
     }
 
+    /**
+     * The id of the active task, 0 when idle and for tasks the brain is not told about
+     * (the default Follow, restored tasks). A change means someone started a new task.
+     */
+    public int currentId() {
+        return current == null ? 0 : current.id();
+    }
+
     /** Starts a task, cancelling the current one. Returns the task id. */
     public int start(Task task, String toolName) {
         return begin(task, toolName, task.emitsEvents());

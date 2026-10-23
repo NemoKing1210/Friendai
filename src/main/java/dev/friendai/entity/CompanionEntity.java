@@ -13,6 +13,7 @@ import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.interact.CompanionHands;
+import dev.friendai.task.survival.HungerWatcher;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,10 +67,13 @@ public class CompanionEntity extends PathfinderMob {
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
     private final CombatController combatController = new CombatController(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
+    private final HungerWatcher hungerWatcher = new HungerWatcher(
+            this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
     private transient CompanionHands hands;
     private transient Blueprint lastPreview;
     private transient PreviewOutline previewOutline;
     private int furnaceWatchTicks;
+    private int hungerWatchTicks;
     private int ownerPickupTicks;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
 
@@ -88,6 +92,11 @@ public class CompanionEntity extends PathfinderMob {
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
+    }
+
+    /** Hunger stages and the self-starting food quest; ticked every 20 server ticks. Not saved. */
+    public HungerWatcher hungerWatcher() {
+        return hungerWatcher;
     }
 
     /** The fake player that performs placements and right-clicks. Not saved. */
@@ -127,6 +136,9 @@ public class CompanionEntity extends PathfinderMob {
             }
             if (++furnaceWatchTicks % 20 == 0) {
                 furnaceJobs.tick(this);
+            }
+            if (++hungerWatchTicks % 20 == 0) {
+                hungerWatcher.tick();
             }
         }
     }

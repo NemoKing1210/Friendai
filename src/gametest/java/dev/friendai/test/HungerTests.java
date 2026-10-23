@@ -4,16 +4,25 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.GetFoodTask;
+import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.survival.HungerModel;
+import java.util.ArrayList;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.Container;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -263,6 +272,221 @@ public class HungerTests {
                     .mapToInt(e -> e.getItem().getCount()).sum();
             h.assertValueEqual(total, 64, "total apples in the world");
             h.succeed();
+        });
+    }
+
+    // Getting food: on request (GetFoodTask) and by the hunger watcher when starving.
+
+    /** Records the notices and the outcomes of the get_food runs for the food tests. */
+    private static final class FoodListener implements TaskListener {
+        private final CompanionEntity companion;
+        final List<String> notices = java.util.Collections.synchronizedList(new ArrayList<>());
+        final List<String> events = java.util.Collections.synchronizedList(new ArrayList<>());
+        volatile TaskStatus status;
+        volatile String summary = "";
+        volatile int getFoodRuns;
+        volatile int getFoodSuccesses;
+        volatile int breadAtFinish = -1;
+
+        FoodListener(CompanionEntity companion) {
+            this.companion = companion;
+        }
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+            events.add(toolName + ":" + status);
+            if (toolName.equals("get_food")) {
+                getFoodRuns++;
+                if (status == TaskStatus.SUCCESS) {
+                    getFoodSuccesses++;
+                    // The reflex eats at once; the bread is only in the inventory at the moment the task ends.
+                    breadAtFinish = companion.inventory().countItem(Items.BREAD);
+                }
+            }
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {
+            events.add(toolName + ":cancelled:" + reason);
+        }
+
+        @Override
+        public void onNotice(String text) {
+            notices.add(text);
+        }
+    }
+
+    private static Container containerAt(GameTestHelper h, int x, int y, int z) {
+        return ContainerAccess.at(h.getLevel(), h.absolutePos(new BlockPos(x, y, z))).orElseThrow();
+    }
+
+    private static int countIn(Container container, Item item) {
+        int total = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void getFoodCooksFirst(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 16);
+        h.setBlock(10, 200, 10, Blocks.FURNACE);
+        h.setBlock(12, 200, 4, Blocks.CHEST);
+        Container chest = containerAt(h, 12, 200, 4);
+        chest.setItem(0, new ItemStack(Items.BREAD, 2));
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 201, 2);
+        c.inventory().addItem(new ItemStack(Items.BEEF, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.taskRunner().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(n.status == TaskStatus.SUCCESS,
+                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 1, "cooked beef");
+            h.assertValueEqual(countIn(chest, Items.BREAD), 2, "the bread must stay in the chest");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void getFoodFromChest(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 152, 16);
+        h.setBlock(8, 152, 8, Blocks.CHEST);
+        Container chest = containerAt(h, 8, 152, 8);
+        chest.setItem(0, new ItemStack(Items.BREAD, 5));
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 153, 2);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.taskRunner().start(new GetFoodTask(2), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(n.status == TaskStatus.SUCCESS,
+                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.BREAD), 2, "bread taken");
+            h.assertValueEqual(countIn(chest, Items.BREAD), 3, "bread left in the chest");
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void getFoodBakesBread(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 56, 16);
+        h.setBlock(8, 56, 8, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 57, 2);
+        c.inventory().addItem(new ItemStack(Items.WHEAT, 3));
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.taskRunner().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(n.status == TaskStatus.SUCCESS,
+                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.BREAD), 1, "baked bread");
+            h.assertValueEqual(c.inventory().countItem(Items.WHEAT), 0, "wheat used up");
+        });
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void getFoodHuntsAndCooks(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 80, 16);
+        h.setBlock(10, 80, 10, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 81, 2);
+        h.spawn(EntityTypes.COW, 6, 81, 6);
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.taskRunner().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(n.status == TaskStatus.SUCCESS,
+                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 1, "cooked beef from the cow");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void getFoodNothing(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 26, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 27, 2);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.taskRunner().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(n.status == TaskStatus.FAILED, "not failed: " + n.status + " " + n.summary);
+            h.assertValueEqual(n.summary,
+                    "I can't find any food here: no food in chests, no crops, no animals and no way to fish",
+                    "summary");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void hungryNoticeNearOwner(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 176, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 7, 177, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 177, 2);
+        c.setOwner(owner.getUUID());
+        c.hunger().load(6, 0.0f, 0.0f);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.hungerWatcher().setAutoDelayTicks(40);
+        h.runAfterDelay(100, () -> {
+            long near = n.notices.stream()
+                    .filter(text -> text.startsWith("I'm hungry (6/20) and have no food; ") && text.endsWith("blocks away"))
+                    .count();
+            h.assertValueEqual(near, 1L, "notices " + n.notices);
+            h.assertValueEqual(n.notices.size(), 1, "the stage notice must come once: " + n.notices);
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void autoQuestWhenStarving(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 128, 16);
+        h.setBlock(8, 128, 8, Blocks.CHEST);
+        Container chest = containerAt(h, 8, 128, 8);
+        chest.setItem(0, new ItemStack(Items.BREAD, 4));
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 129, 2);
+        c.hunger().load(3, 0.0f, 0.0f);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.hungerWatcher().setAutoDelayTicks(40);
+        h.succeedWhen(() -> {
+            h.assertTrue(n.notices.contains("starving: going to get food myself"), "notices " + n.notices);
+            h.assertTrue(n.notices.stream().anyMatch(text -> text.startsWith("I'm hungry (3/20) and have no food; ")),
+                    "no starving notice: " + n.notices);
+            h.assertTrue(n.getFoodSuccesses == 1,
+                    "the quest did not succeed: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(n.breadAtFinish, 2, "bread in the inventory when the quest finished");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void autoQuestCoolDown(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 44, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 45, 2);
+        c.hunger().load(3, 0.0f, 0.0f);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.hungerWatcher().setAutoDelayTicks(40);
+        c.hungerWatcher().setCoolDownTicks(400);
+        int[] failedAt = {-1};
+        h.succeedWhen(() -> {
+            if (failedAt[0] < 0) {
+                if (n.getFoodRuns >= 1 && n.status == TaskStatus.FAILED) {
+                    failedAt[0] = c.tickCount;
+                }
+                h.assertTrue(failedAt[0] >= 0, "waiting for the auto quest to fail: " + n.status + " " + n.summary
+                        + " " + n.events + " " + n.notices);
+            }
+            h.assertTrue(c.tickCount - failedAt[0] >= 200, "waiting 200 ticks after the failure");
+            h.assertValueEqual(n.getFoodRuns, 1, "get_food runs after the cool-down started: " + n.events);
+            h.assertTrue(c.taskRunner().current().map(task -> !task.type().equals("get_food")).orElse(true),
+                    "a new get_food quest is running inside the cool-down");
         });
     }
 }
