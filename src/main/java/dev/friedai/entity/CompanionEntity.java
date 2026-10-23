@@ -5,6 +5,7 @@ import dev.friedai.task.Task;
 import dev.friedai.task.TaskFactory;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskSettings;
+import dev.friedai.task.cooking.FurnaceJobs;
 import dev.friedai.task.interact.CompanionHands;
 import java.util.List;
 import java.util.Optional;
@@ -36,7 +37,9 @@ public class CompanionEntity extends PathfinderMob {
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final TaskRunner taskRunner =
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
+    private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private transient CompanionHands hands;
+    private int furnaceWatchTicks;
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -44,6 +47,11 @@ public class CompanionEntity extends PathfinderMob {
 
     public TaskRunner taskRunner() {
         return taskRunner;
+    }
+
+    /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
+    public FurnaceJobs furnaceJobs() {
+        return furnaceJobs;
     }
 
     /** The fake player that performs placements and right-clicks. Not saved. */
@@ -59,6 +67,9 @@ public class CompanionEntity extends PathfinderMob {
         super.tick();
         if (!level().isClientSide() && isAlive()) {
             taskRunner.tick();
+            if (++furnaceWatchTicks % 20 == 0) {
+                furnaceJobs.tick(this);
+            }
         }
     }
 
