@@ -26,6 +26,7 @@ public final class ConfigStore<T> {
     private final Supplier<T> defaults;
     private final int currentVersion;
     private final BiFunction<JsonObject, Integer, JsonObject> migrator;
+    private boolean recoveredOnLastLoad;
 
     public ConfigStore(
             Path file,
@@ -44,7 +45,13 @@ public final class ConfigStore<T> {
         return file;
     }
 
+    /** True iff the last {@link #load()} replaced a corrupt file with defaults. */
+    public boolean recoveredOnLastLoad() {
+        return recoveredOnLastLoad;
+    }
+
     public T load() {
+        recoveredOnLastLoad = false;
         if (!Files.exists(file)) {
             T value = defaults.get();
             save(value);
@@ -82,6 +89,7 @@ public final class ConfigStore<T> {
     }
 
     private T recover(String text, RuntimeException cause) {
+        recoveredOnLastLoad = true;
         Path backup = file.resolveSibling(file.getFileName() + ".bak");
         try {
             Files.writeString(backup, text, StandardCharsets.UTF_8);
