@@ -13,6 +13,7 @@
 			"dev.friedai.test.MineBlocksTests",
 			"dev.friedai.test.InteractTests",
 			"dev.friedai.test.PlaceBlockTests",
+			"dev.friedai.test.UseBlockTests",
 			"dev.friedai.test.ToolTests",
 			"dev.friedai.test.GuestTests",
 			"dev.friedai.test.PlanTests",

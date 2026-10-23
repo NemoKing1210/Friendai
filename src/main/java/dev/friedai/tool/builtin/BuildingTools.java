@@ -2,9 +2,11 @@ package dev.friedai.tool.builtin;
 
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.builtin.PlaceBlockTask;
+import dev.friedai.task.builtin.UseBlockTask;
 import dev.friedai.tool.SchemaBuilder;
 import dev.friedai.tool.ToolRegistry;
 import java.util.List;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
@@ -36,5 +38,18 @@ final class BuildingTools {
                     }
                     return new PlaceBlockTask(blockItem, ToolKit.optionalPos(a).orElse(null));
                 }, true));
+        ToolKit.add(registry, defs, new TaskToolDef("use_block",
+                "Use a door, trapdoor, fence gate, lever or button at the given coordinates. With want, only acts if the block is not already in that state.",
+                SchemaBuilder.object()
+                        .integer("x", "Block X coordinate")
+                        .integer("y", "Block Y coordinate")
+                        .integer("z", "Block Z coordinate")
+                        .enumeration("want", "The state to reach, if the block has it", "open", "closed", "on", "off")
+                        .required("x", "y", "z")
+                        .build(),
+                (c, a) -> new UseBlockTask(
+                        new BlockPos(a.get("x").getAsInt(), a.get("y").getAsInt(), a.get("z").getAsInt()),
+                        a.has("want") && !a.get("want").isJsonNull() ? a.get("want").getAsString() : null),
+                true));
     }
 }

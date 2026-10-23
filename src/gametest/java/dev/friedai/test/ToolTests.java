@@ -101,7 +101,7 @@ public class ToolTests {
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "place_block", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+                "give_items", "drop_items", "get_inventory", "place_block", "use_block", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
 
