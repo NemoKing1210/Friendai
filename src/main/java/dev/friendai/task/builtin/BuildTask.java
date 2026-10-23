@@ -56,6 +56,15 @@ public final class BuildTask implements Task {
     private static final Direction[] PILLAR_SIDES = {
         Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
     };
+    /** The production way to obtain a missing material; tests replace it to tighten the obtain limits. */
+    private static final ObtainFactory DEFAULT_OBTAIN =
+            (item, count) -> new ObtainTask(item, count, true, true);
+
+    /** Creates the task that obtains one missing material for a build. */
+    @FunctionalInterface
+    public interface ObtainFactory {
+        Task create(String item, int count);
+    }
 
     private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE, CLEANUP }
 
@@ -63,6 +72,9 @@ public final class BuildTask implements Task {
     private final BlockPos origin;
     private final Rotation rotation;
     private final boolean clearSite;
+    /** Whether missing materials may be harvested or crafted with {@code obtain_item} instead of failing. */
+    private final boolean gather;
+    private final ObtainFactory obtainFactory;
     private final int tickLimit;
 
     private Phase phase = Phase.CHECK;
@@ -86,6 +98,13 @@ public final class BuildTask implements Task {
     private BlockPos takeTarget;
     private final Set<BlockPos> exhaustedStorage = new HashSet<>();
 
+    /** The obtain task working on one missing material; null when none is running. */
+    private Task gatherTask;
+    private Item gatherItem;
+    private int gatherCount;
+    /** Materials already asked an obtain task for, so a short result cannot start the same request again. */
+    private final Set<Item> gathered = new HashSet<>();
+
     /** Temporary support and pillar blocks; null until the check starts. */
     private Scaffold scaffold;
 
@@ -107,10 +126,22 @@ public final class BuildTask implements Task {
     private BlockPos currentPos;
 
     public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite) {
+        this(blueprint, origin, rotation, clearSite, false);
+    }
+
+    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather) {
+        this(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN);
+    }
+
+    /** The full constructor, for tests that need tighter obtain limits through their own factory. */
+    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+            ObtainFactory obtainFactory) {
         this.blueprint = blueprint;
         this.origin = origin;
         this.rotation = rotation;
         this.clearSite = clearSite;
+        this.gather = gather;
+        this.obtainFactory = obtainFactory;
         this.tickLimit = blueprint.blocks().size() * 60 + 12_000;
     }
 
@@ -211,6 +242,11 @@ public final class BuildTask implements Task {
                 + Reach.HEIGHT + " above standing ground)";
     }
 
+    /**
+     * Tries storage for every missing material first, then, when gathering is allowed, obtains what storage could not
+     * supply one material at a time for exactly the missing count. Anything that fails here fails the build before the
+     * site is cleared or a block is placed, so a failed gather leaves the world untouched.
+     */
     private TaskStatus take(TaskContext c) {
         if (takeTask != null) {
             TaskStatus status = takeTask.tick(c);
@@ -222,6 +258,23 @@ public final class BuildTask implements Task {
             }
             takeTask = null;
             takeTarget = null;
+            return TaskStatus.RUNNING;
+        }
+        if (gatherTask != null) {
+            TaskStatus status = gatherTask.tick(c);
+            if (status == TaskStatus.RUNNING) {
+                return TaskStatus.RUNNING;
+            }
+            String obtainSummary = gatherTask.resultSummary();
+            Item item = gatherItem;
+            int count = gatherCount;
+            gatherTask = null;
+            gatherItem = null;
+            if (status == TaskStatus.FAILED) {
+                return fail(c, "couldn't gather " + count + " × " + itemId(item) + ": " + obtainSummary);
+            }
+            // A gather that reports success but leaves the item short falls through to the usual materials failure;
+            // the gathered set keeps the same request from being started again.
             return TaskStatus.RUNNING;
         }
         Map<Item, Integer> missing = missing(c);
@@ -239,6 +292,18 @@ public final class BuildTask implements Task {
             takeTask.start(c);
             takeTarget = container;
             return TaskStatus.RUNNING;
+        }
+        if (gather) {
+            for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
+                if (!gathered.add(entry.getKey())) {
+                    continue;
+                }
+                gatherItem = entry.getKey();
+                gatherCount = entry.getValue();
+                gatherTask = obtainFactory.create(itemId(gatherItem), gatherCount);
+                gatherTask.start(c);
+                return TaskStatus.RUNNING;
+            }
         }
         return fail(c, missingText(missing));
     }
@@ -726,6 +791,9 @@ public final class BuildTask implements Task {
         }
         if (takeTask != null) {
             takeTask.stop(c);
+        }
+        if (gatherTask != null) {
+            gatherTask.stop(c);
         }
         if (scaffold != null) {
             scaffold.stop();

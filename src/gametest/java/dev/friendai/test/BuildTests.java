@@ -17,6 +17,7 @@ import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.builtin.BuildTask;
+import dev.friendai.task.builtin.ObtainTask;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -638,6 +639,100 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("missing materials:"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
+    public void gatherObtainsPlanks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // Four logs on the platform are enough to craft the twelve planks the wall needs; a crafting table is not
+        // needed for planks.
+        h.setBlock(2, 2, 10, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 11, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 12, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 13, Blocks.OAK_LOG);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Blueprint wall = generator(
+                "{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:oak_planks\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(3, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true),
+                "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.startsWith("built wall at "), "summary was " + result.summary);
+            for (int x = 3; x <= 14; x++) {
+                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.OAK_PLANKS),
+                        "missing plank at " + x + ",2,6: " + h.getBlockState(new BlockPos(x, 2, 6)));
+            }
+            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.OAK_LOG).size() < 4, "the logs must be mined");
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void gatherFailureStopsEarly(GameTestHelper h) {
+        GameTestSupport.platformAt(h, -40, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, -39, 2);
+        Blueprint blueprint = parse("""
+                {
+                  "name": "gold floor",
+                  "palette": { "G": "minecraft:gold_block" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [1,0,1], "block": "G" } ]
+                }
+                """);
+        // Nothing to gather in a bare band: the tight limits keep the obtain inside the test's tick budget.
+        BuildTask.ObtainFactory tight = (item, count) ->
+                new ObtainTask(item, count, false, false, 1, 200, 16, 32, 200);
+        BlockPos origin = h.absolutePos(new BlockPos(5, -39, 5));
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(new BuildTask(blueprint, origin, Placement.rotationFor(Direction.SOUTH), true, true, tight),
+                "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.startsWith("couldn't gather 4 × minecraft:gold_block: "),
+                    "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("can't get 4 minecraft:gold_block here:"),
+                    "the obtain summary must be included: " + result.summary);
+            for (int x = 5; x <= 6; x++) {
+                for (int z = 5; z <= 6; z++) {
+                    h.assertTrue(h.getBlockState(new BlockPos(x, -39, z)).isAir(),
+                            "nothing may be placed before gathering succeeds: "
+                                    + h.getBlockState(new BlockPos(x, -39, z)));
+                }
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void withoutGatherStillFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Blueprint platform = generator(
+                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(
+                new BuildTask(platform, origin, Placement.rotationFor(Direction.SOUTH), true, false),
+                "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("missing materials: 9 × minecraft:oak_planks"),
+                    "summary was " + result.summary);
+            for (int x = 5; x <= 7; x++) {
+                for (int z = 5; z <= 7; z++) {
+                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).isAir(),
+                            "nothing may be placed without gathering: " + h.getBlockState(new BlockPos(x, 2, z)));
+                }
+            }
         });
     }
 

@@ -85,7 +85,7 @@ final class BuildTools {
                     Blueprint blueprint = parsed.blueprint().get();
                     Placement.PlacedBlueprint placed =
                             Placement.of(blueprint, origin(a), facing(a), c);
-                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a));
+                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a));
                 },
                 true));
         registry.register(ToolKit.instantTool("save_blueprint",
@@ -121,6 +121,7 @@ final class BuildTools {
     private static JsonObject buildSchema() {
         return sourceSchema()
                 .bool("clear_site", "Break natural ground on the site (default true)")
+                .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
                 .build();
     }
 
@@ -270,6 +271,10 @@ final class BuildTools {
 
     private static boolean clearSite(JsonObject args) {
         return !present(args, "clear_site") || args.get("clear_site").getAsBoolean();
+    }
+
+    private static boolean gather(JsonObject args) {
+        return present(args, "gather") && args.get("gather").getAsBoolean();
     }
 
     private static boolean present(JsonObject args, String name) {
