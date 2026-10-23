@@ -88,7 +88,8 @@ public final class HungerWatcher {
             }
         }
 
-        if (hasFood) {
+        if (hasFood || stage < STAGE_THREE) {
+            // Fed, or no longer starving: anything queued waits for the next stage-3 entry.
             pending = false;
         }
         if (!pending) {
@@ -99,7 +100,8 @@ public final class HungerWatcher {
             pending = false;
             return;
         }
-        if (!questRunning && now - waitStartTick >= autoDelayTicks && now >= readyAtTick && !peaceful()) {
+        if (!questRunning && stage >= STAGE_THREE && !hasFood
+                && now - waitStartTick >= autoDelayTicks && now >= readyAtTick && !peaceful()) {
             pending = false;
             questRunning = true;
             runner.stop("starving");

@@ -489,4 +489,33 @@ public class HungerTests {
                     "a new get_food quest is running inside the cool-down");
         });
     }
+
+    @GameTest(maxTicks = 400)
+    public void autoQuestNeedsStarvingStage(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 230, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 231, 2);
+        c.hunger().load(3, 0.0f, 0.0f);
+        FoodListener n = new FoodListener(c);
+        c.taskRunner().setListener(n);
+        c.hungerWatcher().setAutoDelayTicks(40);
+        int[] fedAt = {-1};
+        h.succeedWhen(() -> {
+            if (fedAt[0] < 0) {
+                if (n.notices.stream().anyMatch(text -> text.startsWith("I'm hungry (3/20) and have no food; "))) {
+                    // Food arrived and was eaten between two watcher samples, so no item is left to be seen.
+                    c.hunger().load(5, 0.0f, 0.0f);
+                    fedAt[0] = c.tickCount;
+                }
+                h.assertTrue(fedAt[0] >= 0, "waiting for the starving notice: " + n.notices);
+            }
+            h.assertTrue(c.tickCount - fedAt[0] >= 120, "waiting out the auto delay and a margin");
+            h.assertValueEqual(n.getFoodRuns, 0, "get_food finished after food rose to stage 2: " + n.events);
+            h.assertTrue(n.events.stream().noneMatch(event -> event.startsWith("get_food:")),
+                    "a get_food task started at food 5: " + n.events);
+            h.assertTrue(c.taskRunner().current().map(task -> !task.type().equals("get_food")).orElse(true),
+                    "a get_food task is running at food 5");
+            h.assertTrue(!n.notices.contains("starving: going to get food myself"),
+                    "the auto quest notice came at food 5: " + n.notices);
+        });
+    }
 }
