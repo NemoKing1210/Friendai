@@ -8,12 +8,16 @@ import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.BreedTask;
 import dev.friedai.task.builtin.MilkTask;
 import dev.friedai.task.builtin.ShearTask;
+import dev.friedai.task.builtin.HoneyTask;
+import dev.friedai.task.builtin.LeadTask;
 import dev.friedai.task.builtin.TameTask;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.Leashable;
+import net.minecraft.world.entity.decoration.LeashFenceKnotEntity;
 import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.entity.animal.cow.MushroomCow;
 import net.minecraft.world.entity.animal.pig.Pig;
@@ -23,6 +27,11 @@ import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.BeehiveBlock;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -266,11 +275,22 @@ public class AnimalTests {
 
     @GameTest
     public void tameSkipsOthersPets(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        net.minecraft.server.level.ServerPlayer other = GameTestSupport.mockPlayerAt(h, 8, 2, 8);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        Wolf wolf = h.spawn(EntityTypes.WOLF, 5, 2, 4);
-        wolf.tame(other);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, 100, z, Blocks.STONE);
+                for (int y = 101; y <= 105; y++) {
+                    h.setBlock(x, y, z, Blocks.AIR);
+                }
+            }
+        }
+        net.minecraft.server.level.ServerPlayer other = GameTestSupport.mockPlayerAt(h, 8, 101, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 101, 2);
+        Wolf wolf = h.spawn(EntityTypes.WOLF, 5, 101, 4);
+        wolf.setTame(true, true);
+        wolf.setOwner(other);
+        h.assertTrue(wolf.isTame(), "setup: wolf must be tamed");
+        h.assertTrue(wolf.getOwnerReference() != null && wolf.getOwnerReference().getUUID().equals(other.getUUID()),
+                "setup: wolf owner");
         c.inventory().addItem(new ItemStack(Items.BONE, 4));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -292,6 +312,138 @@ public class AnimalTests {
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
         h.assertValueEqual(result.summary, "I have no raw cod or salmon to tame a cat", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void leadsPigsAndTiesThem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Pig first = h.spawn(EntityTypes.PIG, 4, 2, 3);
+        Pig second = h.spawn(EntityTypes.PIG, 5, 2, 3);
+        h.setBlock(10, 2, 2, Blocks.OAK_FENCE);
+        c.inventory().addItem(new ItemStack(Items.LEAD, 2));
+        BlockPos destination = h.absolutePos(new BlockPos(10, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 2, destination, true), "lead_animals");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("and tied them to the fence at "), "summary was " + result.summary);
+            for (Pig pig : List.of(first, second)) {
+                Leashable leashable = (Leashable) pig;
+                h.assertTrue(leashable.isLeashed(), "pig not leashed");
+                h.assertTrue(leashable.getLeashHolder() instanceof LeashFenceKnotEntity,
+                        "holder was " + leashable.getLeashHolder());
+            }
+            h.assertValueEqual(((Leashable) first).getLeashHolder().blockPosition(), destination, "knot position");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void leadLetsGoWithoutTie(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        net.minecraft.world.entity.animal.goat.Goat goat = h.spawn(EntityTypes.GOAT, 4, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.GOAT, 1, h.absolutePos(new BlockPos(8, 2, 4)), false), "lead_animals");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("and let them go"), "summary was " + result.summary);
+            h.assertTrue(!((Leashable) goat).isLeashed(), "goat should be free");
+            h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "lead returned");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void leadLosesAnimal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Pig first = h.spawn(EntityTypes.PIG, 4, 2, 3);
+        h.spawn(EntityTypes.PIG, 5, 2, 3);
+        h.setBlock(10, 2, 2, Blocks.OAK_FENCE);
+        c.inventory().addItem(new ItemStack(Items.LEAD, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 2, h.absolutePos(new BlockPos(10, 2, 2)), true), "lead_animals");
+        int[] ticks = {0};
+        boolean[] killed = {false};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (!killed[0] && ticks[0] >= 10) {
+                killed[0] = true;
+                first.kill(h.getLevel());
+            }
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("; lost 1 on the way"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest
+    public void honeyNeedsSmoke(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos hive = new BlockPos(5, 3, 5);
+        h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 5));
+        BeehiveBlockEntity blockEntity =
+                (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
+        blockEntity.addOccupant(h.spawn(EntityTypes.BEE, 5, 4, 5));
+        c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
+        runner.tick();
+        BlockPos at = h.absolutePos(hive);
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ()
+                + " isn't smoked; place a campfire under it", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void honeyWithCampfire(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos hive = new BlockPos(5, 3, 5);
+        h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 5));
+        BeehiveBlockEntity blockEntity =
+                (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
+        blockEntity.addOccupant(h.spawn(EntityTypes.BEE, 5, 4, 5));
+        h.setBlock(5, 1, 5, Blocks.CAMPFIRE.defaultBlockState().setValue(CampfireBlock.LIT, true));
+        c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("got 1 minecraft:honey_bottle from the hive at "),
+                    "summary was " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.HONEY_BOTTLE), 1, "honey bottle");
+            h.assertValueEqual(h.getBlockState(hive).getValue(BeehiveBlock.HONEY_LEVEL), 0, "hive level");
+        });
+    }
+
+    @GameTest
+    public void honeyNotFull(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos hive = new BlockPos(5, 3, 5);
+        h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 2));
+        c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
+        runner.tick();
+        BlockPos at = h.absolutePos(hive);
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary,
+                "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ() + " isn't full yet", "summary");
         h.succeed();
     }
 }
