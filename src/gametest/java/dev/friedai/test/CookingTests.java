@@ -9,6 +9,8 @@ import dev.friedai.task.cooking.FurnaceJob;
 import dev.friedai.task.cooking.FurnaceSlots;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.CollectSmeltedTask;
+import dev.friedai.task.builtin.CookFoodTask;
 import dev.friedai.task.builtin.CraftTask;
 import dev.friedai.task.builtin.SmeltTask;
 import dev.friedai.task.crafting.RecipeIndex;
@@ -131,6 +133,191 @@ public class CookingTests {
             h.assertTrue(result.notices.contains(expected), "notices: " + result.notices);
             h.assertTrue(c.furnaceJobs().all().isEmpty(), "the job should be dropped: " + c.furnaceJobs().all());
         });
+    }
+
+    private static final int GIVEN_DECK = 267;
+    private static final int TAKEOVER_DECK = 267;
+    private static final int NOPICK_DECK = 284;
+    private static final int LAVA_DECK = 301;
+
+    private static TaskRunner collect(CompanionEntity c, Result result, BlockPos target) {
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        runner.start(new CollectSmeltedTask(target), "collect_smelted");
+        return runner;
+    }
+
+    private static boolean resultReady(GameTestHelper h, BlockPos pos, net.minecraft.world.item.Item item) {
+        return h.getLevel().getBlockEntity(pos)
+                instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
+                && furnace.getItem(2).is(item);
+    }
+
+    @GameTest(maxTicks = 900)
+    public void loadThenCollect(GameTestHelper h) {
+        deck(h, 16, COLLECT_DECK);
+        h.setBlock(4, COLLECT_DECK + 1, 2, Blocks.FURNACE);
+        h.setBlock(8, COLLECT_DECK + 1, 2, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, COLLECT_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 2));
+        Result loaded = new Result();
+        TaskRunner smelt = smelt(c, loaded, "minecraft:raw_gold", 2, Station.FURNACE, null, false, 20);
+        Result collected = new Result();
+        TaskRunner[] collector = {null};
+        BlockPos first = pos(h, 4, COLLECT_DECK + 1, 2);
+        BlockPos second = pos(h, 8, COLLECT_DECK + 1, 2);
+        h.succeedWhen(() -> {
+            if (collector[0] == null && loaded.status == TaskStatus.SUCCESS
+                    && resultReady(h, first, Items.GOLD_INGOT) && resultReady(h, second, Items.GOLD_INGOT)) {
+                collector[0] = collect(c, collected, null);
+            }
+            if (collector[0] != null) {
+                collector[0].tick();
+                h.assertTrue(collected.status == TaskStatus.SUCCESS,
+                        "collect not finished: " + collected.status + " " + collected.summary);
+                h.assertValueEqual(collected.summary, "collected 2 minecraft:gold_ingot from 2 furnaces", "summary");
+                h.assertTrue(c.furnaceJobs().all().isEmpty(), "jobs left: " + c.furnaceJobs().all());
+            } else {
+                smelt.tick();
+                h.assertTrue(loaded.status == TaskStatus.SUCCESS, "load not finished: " + loaded.summary);
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void collectFromGivenFurnace(GameTestHelper h) {
+        deck(h, 16, GIVEN_DECK);
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
+                furnaceAt(h, 4, GIVEN_DECK + 1, 2);
+        BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
+        furnace.setItem(2, new ItemStack(Items.COOKED_SALMON, 3));
+        furnace.setItem(1, new ItemStack(Items.COAL));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        Result result = new Result();
+        TaskRunner runner = collect(c, result, pos);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(result.summary, "collected 3 minecraft:cooked_salmon from 1 furnace", "summary");
+            h.assertTrue(furnace.getItem(1).is(Items.COAL), "the fuel slot must stay untouched");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_SALMON), 3, "cooked salmon");
+        });
+    }
+
+    @GameTest
+    public void collectNothingFails(GameTestHelper h) {
+        deck(h, 16, GIVEN_DECK);
+        furnaceAt(h, 4, GIVEN_DECK + 1, 2);
+        BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        Result result = new Result();
+        TaskRunner runner = collect(c, result, pos);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(result.summary, "no furnace with finished items nearby", "summary");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void placedFurnaceKeptUntilCollected(GameTestHelper h) {
+        deck(h, 16, TAKEOVER_DECK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, TAKEOVER_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.FURNACE, 1));
+        c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE, 1));
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result loaded = new Result();
+        TaskRunner smelt = smelt(c, loaded, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 20);
+        Result collected = new Result();
+        TaskRunner[] collector = {null};
+        h.succeedWhen(() -> {
+            if (loaded.status == TaskStatus.SUCCESS && collector[0] == null) {
+                h.assertTrue(!c.furnaceJobs().all().isEmpty(), "a job should exist");
+                BlockPos furnacePos = c.furnaceJobs().all().get(0).pos();
+                h.assertTrue(resultReady(h, furnacePos, Items.COPPER_INGOT), "waiting for the copper");
+                collector[0] = collect(c, collected, null);
+            }
+            if (collector[0] != null) {
+                collector[0].tick();
+                h.assertTrue(collected.status == TaskStatus.SUCCESS,
+                        "collect not finished: " + collected.status + " " + collected.summary);
+                h.assertValueEqual(c.inventory().countItem(Items.FURNACE), 1, "furnace item back");
+                h.assertFalse(hasBlock(h, Blocks.FURNACE, 16, TAKEOVER_DECK), "the placed furnace should be gone");
+            } else {
+                smelt.tick();
+                h.assertTrue(loaded.status == TaskStatus.SUCCESS, "load not finished: " + loaded.summary);
+                h.assertTrue(hasBlock(h, Blocks.FURNACE, 16, TAKEOVER_DECK), "the placed furnace stays");
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void noPickaxeLeavesFurnace(GameTestHelper h) {
+        deck(h, 16, NOPICK_DECK);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, NOPICK_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.FURNACE, 1));
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("I have no pickaxe to pick it up"), "summary was " + result.summary);
+            h.assertTrue(hasBlock(h, Blocks.FURNACE, 16, NOPICK_DECK), "the furnace must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void lavaBucketReturnsEmptyBucket(GameTestHelper h) {
+        deck(h, 16, LAVA_DECK);
+        h.setBlock(4, LAVA_DECK + 1, 2, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, LAVA_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.LAVA_BUCKET, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, "minecraft:lava_bucket", false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.BUCKET), 1, "the empty bucket");
+            h.assertValueEqual(c.inventory().countItem(Items.LAVA_BUCKET), 0, "lava buckets left");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void cookFoodCooksAllRaw(GameTestHelper h) {
+        deck(h, 16, LOAD_DECK);
+        h.setBlock(8, LOAD_DECK + 1, 2, Blocks.SMOKER);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, LOAD_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.CHICKEN, 1));
+        c.inventory().addItem(new ItemStack(Items.RABBIT, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        runner.start(new CookFoodTask(256, false, CraftTask.StationPolicy.AUTO, 60 * 20), "cook_food");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_CHICKEN), 1, "cooked chicken");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_RABBIT), 1, "cooked rabbit");
+        });
+    }
+
+    @GameTest
+    public void cookFoodWithoutRawFood(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        runner.start(new CookFoodTask(256, false, CraftTask.StationPolicy.AUTO, 60 * 20), "cook_food");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+        h.assertValueEqual(result.summary, "I have no raw food", "summary");
+        h.succeed();
     }
 
     private static boolean hasItem(CompanionEntity c, net.minecraft.world.item.Item item) {

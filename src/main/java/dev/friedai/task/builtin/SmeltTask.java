@@ -13,6 +13,7 @@ import dev.friedai.task.crafting.RecipeIndex;
 import dev.friedai.task.crafting.Stations;
 import dev.friedai.task.interact.PlaceSpot;
 import dev.friedai.task.inventory.InventoryOps;
+import dev.friedai.task.mining.BlockBreaker;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.nav.Approach;
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ public final class SmeltTask implements Task {
     /** How far a station the companion places is looked for. */
     private static final int PLACE_RADIUS = 4;
 
-    private enum Phase { CRAFT_STATION, SEEK_SPOT, APPROACH_SPOT, PLACE_STATION, APPROACH_STATION, LOAD, WAIT, DONE }
+    private enum Phase { CRAFT_STATION, SEEK_SPOT, APPROACH_SPOT, PLACE_STATION, APPROACH_STATION, LOAD, WAIT, LEAVING, DONE }
 
     private record Target(BlockPos pos, AbstractFurnaceBlockEntity furnace, boolean placedByMe) {}
 
@@ -84,6 +85,11 @@ public final class SmeltTask implements Task {
 
     private int waitTicks;
     private int collected;
+    private String waitSummaryBase = "";
+    private final List<BlockPos> takeBacks = new ArrayList<>();
+    private final List<String> stationNotes = new ArrayList<>();
+    private int takeBackIndex;
+    private BlockBreaker breaker;
     private int loadedCount;
     private int stationsLoaded;
     private String outputId;
@@ -147,6 +153,7 @@ public final class SmeltTask implements Task {
             case APPROACH_STATION -> tickApproachStation(c);
             case LOAD -> loadAll(c);
             case WAIT -> tickWait(c);
+            case LEAVING -> tickLeaving(c);
             case DONE -> TaskStatus.SUCCESS;
         };
         return status;
@@ -158,6 +165,10 @@ public final class SmeltTask implements Task {
         if (craftTask != null) {
             craftTask.stop(c);
             craftTask = null;
+        }
+        if (breaker != null) {
+            breaker.stop(c);
+            breaker = null;
         }
     }
 
@@ -642,7 +653,9 @@ public final class SmeltTask implements Task {
         }
         ItemStack first = queue.remove(0);
         int needed = first.getCount() * ticksFor(idOf(first));
-        if (target.furnace().getItem(1).isEmpty()) {
+        BlockState fuelState = c.level().getBlockState(target.pos());
+        boolean lit = fuelState.hasProperty(AbstractFurnaceBlock.LIT) && fuelState.getValue(AbstractFurnaceBlock.LIT);
+        if (target.furnace().getItem(1).isEmpty() && !lit) {
             FuelPolicy.FuelPick pick = FuelPolicy.pick(c.companion(), c.level(), target.pos(), needed, fuel);
             if (pick.stacks().isEmpty()) {
                 summary = fuel == null ? "I have no fuel I'm allowed to burn" : "I don't have " + fuel.label();
@@ -803,15 +816,101 @@ public final class SmeltTask implements Task {
         }
         if (allDone) {
             takeBackFuel(c);
-            summary = "smelted " + loadedCount + " " + input.label() + " into " + collected + " " + outputName()
-                    + " in " + stationsLoaded + " " + plural(stationsLoaded);
+            waitSummaryBase = "smelted " + loadedCount + " " + input.label() + " into " + collected + " "
+                    + outputName() + " in " + stationsLoaded + " " + plural(stationsLoaded);
             if (fuelNote != null) {
-                summary += "; " + fuelNote;
+                waitSummaryBase += "; " + fuelNote;
             }
-            phase = Phase.DONE;
-            return TaskStatus.SUCCESS;
+            planLeaving(c);
+            if (takeBacks.isEmpty()) {
+                finishWait();
+                return TaskStatus.SUCCESS;
+            }
+            phase = Phase.LEAVING;
+            takeBackIndex = 0;
+            return TaskStatus.RUNNING;
         }
         return TaskStatus.RUNNING;
+    }
+
+    /** Applies the station policy to the furnaces this task placed, after the job is done. */
+    private void planLeaving(TaskContext c) {
+        for (Target target : targets) {
+            if (!target.placedByMe()) {
+                continue;
+            }
+            BlockPos pos = target.pos();
+            BlockState state = c.level().getBlockState(pos);
+            if (!isStationBlock(state, kind)) {
+                continue;
+            }
+            boolean base = policy == CraftTask.StationPolicy.AUTO && Stations.looksLikeBase(c.level(), pos);
+            if (policy == CraftTask.StationPolicy.KEEP || base) {
+                stationNotes.add("placed a " + kind.noun() + " at " + coords(pos) + " and left it there"
+                        + (base ? " (looks like a base)" : ""));
+            } else if (!hasPickaxe(c.companion(), state)) {
+                stationNotes.add("placed a " + kind.noun() + " at " + coords(pos)
+                        + " but couldn't take it back: I have no pickaxe to pick it up");
+            } else {
+                takeBacks.add(pos);
+            }
+        }
+    }
+
+    private TaskStatus tickLeaving(TaskContext c) {
+        if (takeBackIndex >= takeBacks.size()) {
+            finishWait();
+            return TaskStatus.SUCCESS;
+        }
+        BlockPos pos = takeBacks.get(takeBackIndex);
+        if (breaker == null) {
+            breaker = new BlockBreaker(pos, state -> isStationBlock(state, kind));
+        }
+        BlockBreaker.State state = breaker.tick(c);
+        if (state == BlockBreaker.State.WORKING) {
+            return TaskStatus.RUNNING;
+        }
+        breaker = null;
+        if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
+            stationNotes.add("placed a " + kind.noun() + " at " + coords(pos) + " and took it back");
+        } else {
+            stationNotes.add("placed a " + kind.noun() + " at " + coords(pos)
+                    + " but couldn't take it back: " + reason(state));
+        }
+        takeBackIndex++;
+        return TaskStatus.RUNNING;
+    }
+
+    private void finishWait() {
+        StringBuilder text = new StringBuilder(waitSummaryBase);
+        for (String note : stationNotes) {
+            text.append("; ").append(note);
+        }
+        summary = text.toString();
+        phase = Phase.DONE;
+    }
+
+    private static String reason(BlockBreaker.State state) {
+        return switch (state) {
+            case PROTECTED -> "it is protected";
+            case UNREACHABLE -> "can't reach it";
+            default -> "the block is gone";
+        };
+    }
+
+    /** True when a carried tool can mine the block with drops. */
+    static boolean hasPickaxe(CompanionEntity companion, BlockState state) {
+        if (!state.requiresCorrectToolForDrops()) {
+            return true;
+        }
+        SimpleContainer inventory = companion.inventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.isCorrectToolForDrops(state)) {
+                return true;
+            }
+        }
+        return companion.getMainHandItem().isCorrectToolForDrops(state);
     }
 
     private static boolean campfireCooking(ServerLevel level, BlockPos pos) {
