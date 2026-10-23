@@ -104,6 +104,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] It eats when hurt and tells you when it is retreating without food.
 - [ ] PvP server: "attack <player>" from the owner works when PvP is on and is refused with "PvP is off here" when the pvp gamerule is false; a trusted non-owner cannot order it.
 
+## Hunger
+
+- [ ] A long session of mining and fights: the companion eats on its own and never starves.
+- [ ] Empty inventory with the owner near: it asks the owner for food instead of wandering off.
+- [ ] Empty inventory with the owner far away: it goes to get food by itself.
+- [ ] Starving with no food and no reaction: the auto food quest starts on its own.
+- [ ] Throwing food to it works: the companion picks it up and eats it.
+
 ## Farming and animals
 
 - [ ] "Look after the farm": the companion harvests and replants for 10 minutes and fills the chest next to the field.

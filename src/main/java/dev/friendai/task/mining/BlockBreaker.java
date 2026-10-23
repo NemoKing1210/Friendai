@@ -1,5 +1,6 @@
 package dev.friendai.task.mining;
 
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.nav.Approach;
 import java.util.function.Predicate;
@@ -101,7 +102,9 @@ public final class BlockBreaker {
         level.destroyBlockProgress(companion.getId(), target, Math.min(9, breakTicks * 10 / breakNeeded));
         if (breakTicks >= breakNeeded) {
             level.destroyBlockProgress(companion.getId(), target, -1);
-            level.destroyBlock(target, true, companion);
+            if (level.destroyBlock(target, true, companion)) {
+                companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
+            }
             collectTicks = 0;
             phase = Phase.COLLECT;
         }

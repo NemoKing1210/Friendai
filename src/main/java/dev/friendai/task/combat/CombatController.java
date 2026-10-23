@@ -1,6 +1,7 @@
 package dev.friendai.task.combat;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.survival.HungerModel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -29,6 +31,7 @@ import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.SwingAnimation;
@@ -224,7 +227,13 @@ public final class CombatController {
     }
 
     private void tryEat(ServerLevel level) {
-        if (companion.getHealth() > companion.getMaxHealth() * 0.5F) {
+        int food = companion.hunger().food();
+        float health = companion.getHealth();
+        float maxHealth = companion.getMaxHealth();
+        boolean hungry = food <= 14
+                || (health < maxHealth && food < HungerModel.MAX_FOOD && food <= 17)
+                || (health <= maxHealth * 0.5F && food < HungerModel.MAX_FOOD);
+        if (!hungry) {
             return;
         }
         boolean threatClose = ruleOneThreats(level).stream()
@@ -232,9 +241,8 @@ public final class CombatController {
         if (threatClose) {
             return;
         }
-        boolean goldenAllowed = companion.getHealth() <= companion.getMaxHealth() * 0.3F
-                && !threatsNear(level).isEmpty();
-        Food.best(companion, goldenAllowed).ifPresent(this::startEating);
+        boolean goldenAllowed = health <= maxHealth * 0.3F && !threatsNear(level).isEmpty();
+        Food.choose(companion, goldenAllowed).ifPresent(this::startEating);
     }
 
     private void startEating(int slot) {
@@ -260,7 +268,10 @@ public final class CombatController {
             ItemStack current = companion.getMainHandItem();
             boolean consumed = current.isEmpty() || current.getCount() < eatingItem.getCount();
             if (consumed) {
-                companion.heal(Food.nutrition(eatingItem));
+                FoodProperties food = eatingItem.get(DataComponents.FOOD);
+                if (food != null) {
+                    companion.hunger().eat(food.nutrition(), food.saturation());
+                }
             }
             returnFood(level);
             state = State.IDLE;
@@ -431,7 +442,7 @@ public final class CombatController {
         }
         retreatNoticed = true;
         String text = "retreating: health " + number(companion.getHealth()) + "/" + number(companion.getMaxHealth());
-        companion.taskRunner().notice(Food.best(companion, false).isEmpty() ? text + ", I have no food" : text);
+        companion.taskRunner().notice(Food.choose(companion, false).isEmpty() ? text + ", I have no food" : text);
     }
 
     private void finishRetreat() {
@@ -600,7 +611,9 @@ public final class CombatController {
             lastDistance = distance;
             if (--attackCooldown <= 0) {
                 companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-                companion.doHurtTarget(level, enemy);
+                if (companion.doHurtTarget(level, enemy)) {
+                    companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_ATTACK);
+                }
                 attackCooldown = attackInterval();
             }
         } else if (distanceSqr <= 9.0) {

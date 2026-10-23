@@ -110,6 +110,15 @@ public class ToolTests {
     }
 
     @GameTest
+    public void getFoodToolStartsTask(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "get_food", "{}");
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("get_food"), "get_food task should be current");
+        h.succeed();
+    }
+
+    @GameTest
     public void goToNeedsTarget(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "go_to", "{}");
@@ -177,11 +186,11 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         h.assertTrue(run(tools, "get_inventory", "{}").content()
-                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive"),
+                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
                 "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         ToolResult r = run(tools, "get_inventory", "{}");
-        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive"),
+        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
                 "result was " + r.content());
         h.succeed();
     }
@@ -209,7 +218,7 @@ public class ToolTests {
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
-                "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
+                "get_food", "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "look_around", "find_blocks", "player_view", "trust_player", "untrust_player", "stop", "run_plan")),

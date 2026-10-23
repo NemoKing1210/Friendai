@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.survival.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -57,8 +58,9 @@ public final class EatTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (companion.inventory().countItem(eaten) < initialTotal) {
-            summary = "ate " + id(eaten) + ", health " + number(companion.getHealth()) + "/"
-                    + number(companion.getMaxHealth());
+            summary = "ate " + id(eaten)
+                    + ", hunger " + number(companion.hunger().food()) + "/" + HungerModel.MAX_FOOD
+                    + ", health " + number(companion.getHealth()) + "/" + number(companion.getMaxHealth());
             return TaskStatus.SUCCESS;
         }
         if (++attempts >= MAX_ATTEMPTS) {
@@ -95,7 +97,7 @@ public final class EatTask implements Task {
             }
             eaten = stack.getItem();
         } else {
-            var found = Food.best(companion, false);
+            var found = Food.choose(companion, false);
             if (found.isEmpty()) {
                 summary = "I have no food I can eat";
                 return TaskStatus.FAILED;
