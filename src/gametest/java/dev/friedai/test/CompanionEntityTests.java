@@ -92,4 +92,40 @@ public class CompanionEntityTests {
 
     @SuppressWarnings("unused")
     private static void unused(EntityType<?> t, Entity e) {}
+
+    @GameTest
+    public void combatModeSurvivesSave(GameTestHelper h) {
+        CompanionEntity a = h.spawn(FriedaiEntities.COMPANION, 1, 2, 1);
+        a.setCombatMode(dev.friedai.task.combat.CombatMode.GUARD);
+        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        a.saveWithoutId(out);
+
+        CompanionEntity b = h.spawn(FriedaiEntities.COMPANION, 3, 2, 3);
+        b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+        h.assertTrue(b.combatMode() == dev.friedai.task.combat.CombatMode.GUARD,
+                "combat mode was " + b.combatMode());
+
+        CompanionEntity fresh = h.spawn(FriedaiEntities.COMPANION, 4, 2, 4);
+        TagValueOutput plain = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        fresh.saveWithoutId(plain);
+        CompanionEntity loaded = h.spawn(FriedaiEntities.COMPANION, 5, 2, 5);
+        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), plain.buildResult()));
+        h.assertTrue(loaded.combatMode() == dev.friedai.task.combat.CombatMode.DEFENSIVE,
+                "missing mode should default to defensive, was " + loaded.combatMode());
+        h.succeed();
+    }
+
+    @GameTest
+    public void equipmentDropsOnDeath(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+        c.hurtServer(h.getLevel(), h.getLevel().damageSources().genericKill(), 1000.0F);
+        h.succeedWhen(() -> {
+            boolean found = h.getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(6.0))
+                    .stream()
+                    .anyMatch(e -> e.getItem().is(Items.IRON_BOOTS));
+            h.assertTrue(found, "iron boots did not drop");
+        });
+    }
 }

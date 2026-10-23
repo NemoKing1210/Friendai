@@ -51,6 +51,7 @@ public final class PerceptionBuilder {
                 top(countBlocks(level, pos, blockRadius)),
                 top(countEntities(c, level)),
                 inventory(c),
+                c.equipmentText(),
                 task);
     }
 

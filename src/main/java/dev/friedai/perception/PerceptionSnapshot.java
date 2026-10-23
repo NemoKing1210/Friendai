@@ -17,6 +17,7 @@ public record PerceptionSnapshot(
         Map<String, Integer> nearbyBlocks,
         Map<String, Integer> nearbyEntities,
         Map<String, Integer> inventory,
+        String equipment,
         String currentTask) {
 
     public String toPromptText() {
@@ -30,6 +31,7 @@ public record PerceptionSnapshot(
         sb.append("Nearby blocks: ").append(counts(nearbyBlocks, "none")).append('\n');
         sb.append("Nearby entities: ").append(counts(nearbyEntities, "none")).append('\n');
         sb.append("Inventory: ").append(counts(inventory, "empty")).append('\n');
+        sb.append(equipment).append('\n');
         sb.append("Current task: ").append(currentTask);
         return sb.toString();
     }

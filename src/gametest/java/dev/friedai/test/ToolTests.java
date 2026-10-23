@@ -120,10 +120,13 @@ public class ToolTests {
     public void getInventoryListsItems(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
-        h.assertTrue(run(tools, "get_inventory", "{}").content().equals("Inventory is empty"), "should start empty");
+        h.assertTrue(run(tools, "get_inventory", "{}").content()
+                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive"),
+                "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         ToolResult r = run(tools, "get_inventory", "{}");
-        h.assertTrue(r.content().equals("Inventory: oak_log×5"), "result was " + r.content());
+        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive"),
+                "result was " + r.content());
         h.succeed();
     }
 

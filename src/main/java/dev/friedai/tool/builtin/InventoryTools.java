@@ -42,8 +42,8 @@ final class InventoryTools {
                 }
             }
             return counts.isEmpty()
-                    ? ToolResult.ok("Inventory is empty")
-                    : ToolResult.ok("Inventory: " + PerceptionSnapshot.counts(counts, ""));
+                    ? ToolResult.ok("Inventory is empty\n" + c.equipmentText())
+                    : ToolResult.ok("Inventory: " + PerceptionSnapshot.counts(counts, "") + "\n" + c.equipmentText());
         }));
     }
 }

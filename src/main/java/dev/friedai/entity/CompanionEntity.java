@@ -5,18 +5,22 @@ import dev.friedai.task.Task;
 import dev.friedai.task.TaskFactory;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskSettings;
+import dev.friedai.task.combat.CombatMode;
 import dev.friedai.task.cooking.FurnaceJobs;
 import dev.friedai.task.interact.CompanionHands;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -32,6 +36,12 @@ import net.minecraft.world.level.storage.ValueOutput;
 /** The player's AI companion: a player-looking mob that never despawns and carries its own inventory. */
 public class CompanionEntity extends PathfinderMob {
     private static final Codec<UUID> UUID_CODEC = UUIDUtil.CODEC;
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+        EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
+    };
+    /** Ticks without damage before natural healing starts, and between each healed point. */
+    private static final int REGEN_DELAY_TICKS = 200;
+    private static final int REGEN_INTERVAL_TICKS = 200;
 
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
@@ -40,6 +50,9 @@ public class CompanionEntity extends PathfinderMob {
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private transient CompanionHands hands;
     private int furnaceWatchTicks;
+    private CombatMode combatMode = CombatMode.DEFENSIVE;
+    private int lastDamageTick;
+    private int regenTicks;
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -66,6 +79,13 @@ public class CompanionEntity extends PathfinderMob {
     public void tick() {
         super.tick();
         if (!level().isClientSide() && isAlive()) {
+            if (getHealth() < getMaxHealth()) {
+                int sinceDamage = tickCount - lastDamageTick;
+                int regenStart = REGEN_DELAY_TICKS + REGEN_INTERVAL_TICKS;
+                if (sinceDamage >= regenStart && (sinceDamage - regenStart) % REGEN_INTERVAL_TICKS == 0) {
+                    heal(1.0F);
+                }
+            }
             taskRunner.tick();
             if (++furnaceWatchTicks % 20 == 0) {
                 furnaceJobs.tick(this);
@@ -73,11 +93,62 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        boolean hurt = super.hurtServer(level, source, amount);
+        if (hurt) {
+            lastDamageTick = tickCount;
+        }
+        return hurt;
+    }
+
+    @Override
+    public void setItemSlot(EquipmentSlot slot, ItemStack stack) {
+        super.setItemSlot(slot, stack);
+        if (!stack.isEmpty()) {
+            setGuaranteedDrop(slot);
+        }
+    }
+
+    /** The armor, hands and combat mode, as one LLM-facing line. */
+    public String equipmentText() {
+        StringBuilder text = new StringBuilder("Wearing: ");
+        boolean anyArmor = false;
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack stack = getItemBySlot(slot);
+            if (!stack.isEmpty()) {
+                if (anyArmor) {
+                    text.append(", ");
+                }
+                text.append(itemName(stack));
+                anyArmor = true;
+            }
+        }
+        if (!anyArmor) {
+            text.append("nothing");
+        }
+        text.append("; holding: ");
+        ItemStack mainHand = getMainHandItem();
+        text.append(mainHand.isEmpty() ? "nothing" : itemName(mainHand));
+        ItemStack offHand = getItemBySlot(EquipmentSlot.OFFHAND);
+        if (!offHand.isEmpty()) {
+            text.append(" (offhand: ").append(itemName(offHand)).append(')');
+        }
+        return text.append("; combat mode: ").append(combatMode.label()).toString();
+    }
+
+    private static String itemName(ItemStack stack) {
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        return id.getNamespace().equals("minecraft") ? id.getPath() : id.toString();
+    }
+
     public static AttributeSupplier.Builder createAttributes() {
         return PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.3)
-                .add(Attributes.FOLLOW_RANGE, 48.0);
+                .add(Attributes.FOLLOW_RANGE, 48.0)
+                .add(Attributes.ATTACK_DAMAGE, 1.0)
+                .add(Attributes.ATTACK_SPEED, 4.0);
     }
 
     @Override
@@ -88,6 +159,14 @@ public class CompanionEntity extends PathfinderMob {
 
     public UUID ownerUuid() {
         return ownerUuid;
+    }
+
+    public CombatMode combatMode() {
+        return combatMode;
+    }
+
+    public void setCombatMode(CombatMode mode) {
+        this.combatMode = mode == null ? CombatMode.DEFENSIVE : mode;
     }
 
     public void setOwner(UUID owner) {
@@ -178,6 +257,7 @@ public class CompanionEntity extends PathfinderMob {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
+        output.putString("CombatMode", combatMode.label());
         taskRunner.current().map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
     }
 
@@ -186,6 +266,7 @@ public class CompanionEntity extends PathfinderMob {
         super.readAdditionalSaveData(input);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
+        this.combatMode = CombatMode.parse(input.getString("CombatMode").orElse(null));
         if (level() instanceof ServerLevel) {
             input.getString("SavedTask").flatMap(TaskFactory::restore).ifPresent(taskRunner::restore);
         }
