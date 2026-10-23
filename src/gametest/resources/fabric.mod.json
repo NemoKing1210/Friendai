@@ -25,7 +25,8 @@
 			"dev.friedai.test.CraftingTests",
 			"dev.friedai.test.CookingTests",
 			"dev.friedai.test.CombatTests",
-			"dev.friedai.test.AnimalTests"
+			"dev.friedai.test.AnimalTests",
+			"dev.friedai.test.FarmingTests"
 		]
 	},
 	"depends": {
