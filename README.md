@@ -16,12 +16,12 @@ The mod must be installed on both the client and the server (the integrated serv
 ## Quick start
 
 1. Install the mod and set up a provider (see below).
-2. In a world, run `/friedai summon`. Your companion appears next to you.
+2. In a world, run `/friendai summon`. Your companion appears next to you.
 3. Talk to it:
    - in chat with a prefix: `@ come here`
    - in chat by name: `Friendai, mine 10 logs`
    - by voice: hold **V** (push-to-talk, rebindable in Controls) and speak.
-4. `/friedai stop` cancels what it is doing, `/friedai dismiss` sends it away, `/friedai status` shows the provider and current task.
+4. `/friendai stop` cancels what it is doing, `/friendai dismiss` sends it away, `/friendai status` shows the provider and current task.
 
 The same controls are in the **pause menu (Esc)**: the companion icon next to the report-bug icon opens a screen to summon, dismiss and stop your companion and to see its current task and recent tasks. Operators also get the brain log (messages, tool calls, errors) and debug tools: what the companion sees, its current prompt, a manual message and a manual tool run.
 
@@ -29,7 +29,7 @@ What it can do: follow you, stay, go to a point, pick up items, give you items, 
 
 ## Setting up a provider
 
-Open **Mod Menu → Friendai → Provider**, or edit `config/friedai-server.json`. On a dedicated server edit the file and run `/friedai reload`.
+Open **Mod Menu → Friendai → Provider**, or edit `config/friendai-server.json`. On a dedicated server edit the file and run `/friendai reload`.
 
 | Preset id | Service | Notes |
 |---|---|---|
@@ -51,7 +51,7 @@ The key is never written to logs or chat. "Test connection" in the settings scre
 
 ## Voice
 
-Voice input runs locally with [whisper.cpp](https://github.com/ggerganov/whisper.cpp). Open **Settings → Voice**, pick a model (`tiny`, `base` or `small`) and press **Download model**. Models are stored in `<game dir>/friedai/models/`. Speech is turned into text on your machine; only the text is sent to the server.
+Voice input runs locally with [whisper.cpp](https://github.com/ggerganov/whisper.cpp). Open **Settings → Voice**, pick a model (`tiny`, `base` or `small`) and press **Download model**. Models are stored in `<game dir>/friendai/models/`. Speech is turned into text on your machine; only the text is sent to the server.
 
 ## Languages
 

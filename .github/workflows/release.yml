@@ -35,7 +35,7 @@ jobs:
           prerelease=""
           case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
           gh release create "${GITHUB_REF_NAME}" \
-            "build/libs/friedai-${GITHUB_REF_NAME#v}.jar" \
+            "build/libs/friendai-${GITHUB_REF_NAME#v}.jar" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
             ${prerelease}

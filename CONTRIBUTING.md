@@ -3,9 +3,9 @@
 ## Ground rules
 
 - **Everything in the repository is English**: code, identifiers, comments, logs, Markdown, commit messages, config defaults, the system prompt, tool descriptions and tool results.
-- **Everything the player sees goes through translation keys.** Add the key to `src/main/resources/assets/friedai/lang/en_us.json` and the same key to every other language file. `LangFilesTest` fails if the key sets differ, a value is empty, the `%s` placeholders do not match, or code refers to a key that does not exist.
+- **Everything the player sees goes through translation keys.** Add the key to `src/main/resources/assets/friendai/lang/en_us.json` and the same key to every other language file. `LangFilesTest` fails if the key sets differ, a value is empty, the `%s` placeholders do not match, or code refers to a key that does not exist.
 - Not translated: replies from the LLM, text addressed to the LLM (system prompt, tool descriptions/results, task summaries), logs and command literals.
-- `dev.friedai.llm`, `config`, `text`, `tool` (except `tool.builtin`) and `brain` must not import `net.minecraft.*` or `net.fabricmc.*`. They are plain Java so they can be unit-tested without the game. Pure layers return `UserMessage(key, args)`; the Minecraft layer converts it with `Components.of(...)`.
+- `dev.friendai.llm`, `config`, `text`, `tool` (except `tool.builtin`) and `brain` must not import `net.minecraft.*` or `net.fabricmc.*`. They are plain Java so they can be unit-tested without the game. Pure layers return `UserMessage(key, args)`; the Minecraft layer converts it with `Components.of(...)`.
 - The world is touched only on the server thread. HTTP and speech recognition run on their own threads and hop back through `server.execute`.
 - API keys must never appear in logs, chat, exception messages or `toString()`.
 
@@ -19,8 +19,8 @@
 
 A skill is a `Tool` (what the LLM sees) plus, usually, a `Task` (what the companion does over time).
 
-1. Write the task in `dev.friedai.task.builtin` (implement `Task`; add `saveData()` if it should survive a world reload and teach `TaskFactory.restore` about it).
-2. Register a tool for it in `FriedaiTools.create`: name, short English description, a schema built with `SchemaBuilder`, and the code that creates the task. Arguments are validated against the schema before your code runs.
+1. Write the task in `dev.friendai.task.builtin` (implement `Task`; add `saveData()` if it should survive a world reload and teach `TaskFactory.restore` about it).
+2. Register a tool for it in `FriendaiTools.create`: name, short English description, a schema built with `SchemaBuilder`, and the code that creates the task. Arguments are validated against the schema before your code runs.
 3. Add a Fabric GameTest under `src/gametest` that runs the task on a test platform.
 
 ## Adding a provider preset
@@ -49,7 +49,7 @@ git config core.hooksPath .githooks
 
 On every pull request, GitHub Actions runs:
 
-- **CI** (`.github/workflows/ci.yml`): unit tests, Fabric GameTests and the jar build. The `CI gate` job is the single required check; the mod jar is attached to the run as the `friedai-jar` artifact.
+- **CI** (`.github/workflows/ci.yml`): unit tests, Fabric GameTests and the jar build. The `CI gate` job is the single required check; the mod jar is attached to the run as the `friendai-jar` artifact.
 - **Commit lint** (`.github/workflows/commitlint.yml`): every commit message and the PR title. The `Commit lint gate` job is the required check.
 
 A PR cannot be merged while either gate is red. Enable that once with `sh scripts/setup-branch-protection.sh` (needs admin rights; run it after the workflows have run at least once).

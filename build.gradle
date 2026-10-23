@@ -19,7 +19,7 @@ loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"friedai" {
+		"friendai" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
@@ -29,7 +29,7 @@ loom {
 fabricApi {
 	configureTests {
 		createSourceSet = true
-		modId = "friedai-gametest"
+		modId = "friendai-gametest"
 		eula = true
 	}
 }

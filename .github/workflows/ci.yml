@@ -83,7 +83,7 @@ jobs:
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
         with:
-          name: friedai-jar
+          name: friendai-jar
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar

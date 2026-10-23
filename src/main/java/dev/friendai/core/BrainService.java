@@ -1,0 +1,278 @@
+package dev.friendai.core;
+
+import dev.friendai.FriendaiMod;
+import dev.friendai.brain.AccessResolver;
+import dev.friendai.brain.BrainEvent;
+import dev.friendai.brain.BrainSettings;
+import dev.friendai.brain.CompanionBrain;
+import dev.friendai.brain.LlmGateway;
+import dev.friendai.brain.Persona;
+import dev.friendai.brain.Speaker;
+import dev.friendai.chat.CompanionSpeaker;
+import dev.friendai.config.ConfigException;
+import dev.friendai.config.ServerConfig;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import dev.friendai.config.SecretResolver;
+import dev.friendai.debug.DebugLog;
+import dev.friendai.debug.DebugLogObserver;
+import dev.friendai.debug.DebugService;
+import dev.friendai.debug.LogKind;
+import dev.friendai.debug.SecretRedactor;
+import dev.friendai.debug.TaskRecord;
+import dev.friendai.llm.LlmClient;
+import dev.friendai.llm.model.ToolCall;
+import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.memory.MemoryBook;
+import dev.friendai.memory.MemoryLimits;
+import dev.friendai.memory.MemoryPromptRenderer;
+import dev.friendai.memory.MemoryStore;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.MemoryAccess;
+import java.util.ArrayList;
+import java.util.List;
+import dev.friendai.llm.http.HttpTransport;
+import dev.friendai.llm.provider.ProviderRegistry;
+import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.tool.ToolRegistry;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.UnaryOperator;
+import net.minecraft.server.MinecraftServer;
+
+/** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
+public final class BrainService {
+    private record Entry(CompanionBrain brain, CompanionSpeaker speaker) {}
+
+    private final MinecraftServer server;
+    private final ServerBrainScheduler scheduler;
+    private final MemoryStore memory;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final Map<UUID, Entry> entries = new HashMap<>();
+    private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
+    private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
+    private final ToolRegistry<CompanionEntity> tools;
+    private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
+
+    private ServerConfig config;
+    private LlmGateway current;
+    private String activeModel = "";
+    private String activeProvider = "";
+    private int tickCounter;
+
+    public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
+        this.server = server;
+        this.scheduler = new ServerBrainScheduler(server);
+        this.memory = memory;
+        this.tools = FriendaiTools.create(() -> this.config.tasks.mineSearchRadius, new MemoryAccess() {
+            @Override
+            public boolean enabled() {
+                return config != null && config.memory.enabled;
+            }
+
+            @Override
+            public MemoryLimits limits() {
+                return config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
+            }
+
+            @Override
+            public MemoryBook book(UUID owner) {
+                return memory.book(owner);
+            }
+        });
+        reload(initial);
+    }
+
+    /** Rebuilds the LLM client from the config. A broken profile gives a gateway that reports the problem. */
+    public void reload(ServerConfig cfg) {
+        this.config = cfg;
+        ServerConfig.ProfileConfig profile = cfg.profiles.get(cfg.activeProfile);
+        activeProvider = profile == null ? "?" : profile.provider;
+        activeModel = profile == null ? "?" : profile.model;
+        HttpTransport transport = new HttpTransport(
+                httpClient, Duration.ofSeconds(cfg.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
+        try {
+            current = new LlmClient(ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv));
+        } catch (ConfigException e) {
+            current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
+        }
+    }
+
+    public String activeProvider() {
+        return activeProvider;
+    }
+
+    public String activeModel() {
+        return activeModel;
+    }
+
+    /** Test hook: use this gateway instead of the configured one for one owner. */
+    public void setGatewayOverride(UUID owner, LlmGateway gateway) {
+        gatewayOverrides.put(owner, gateway);
+    }
+
+    /** Test hook: wrap the speaker of one owner's brain. Must be set before the brain is created. */
+    public void setSpeakerWrapper(UUID owner, UnaryOperator<Speaker> wrapper) {
+        speakerWrappers.put(owner, wrapper);
+    }
+
+    public Optional<CompanionBrain> brainOf(UUID owner) {
+        return Optional.ofNullable(entries.get(owner)).map(Entry::brain);
+    }
+
+    public DebugService debug() {
+        return debug;
+    }
+
+    public List<String> toolNames() {
+        return tools.specs().stream().map(ToolSpec::name).toList();
+    }
+
+    /** The system prompt the owner's next LLM request would carry; empty if they have no companion. */
+    public Optional<String> currentPrompt(UUID owner) {
+        return entryFor(owner).map(e -> e.brain().currentSystemPrompt());
+    }
+
+    /** Runs a tool by hand, as if the model had called it. Never throws. */
+    public ToolResult runTool(UUID owner, String name, String argsJson) {
+        Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+        if (companion.isEmpty()) {
+            return ToolResult.error("No companion");
+        }
+        entryFor(owner);
+        DebugLog log = debug.logOf(owner);
+        log.add(LogKind.MANUAL, "run " + name + " " + argsJson);
+        JsonObject args = null;
+        try {
+            JsonElement parsed = JsonParser.parseString(argsJson);
+            args = parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            // stays null: the registry reports invalid JSON arguments
+        }
+        ToolResult result = tools.bind(companion.get()).execute(new ToolCall("manual", name, args, argsJson, null));
+        log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
+        return result;
+    }
+
+    /** Posts a chat-style message to the owner's brain. False if they have no companion. */
+    public boolean sendMessage(UUID owner, String playerName, String text) {
+        if (entryFor(owner).isEmpty()) {
+            return false;
+        }
+        post(owner, new BrainEvent.PlayerSaid(owner, playerName, text, BrainEvent.Source.CHAT));
+        return true;
+    }
+
+    public void post(UUID owner, BrainEvent event) {
+        entryFor(owner).ifPresent(entry -> entry.brain().post(event));
+    }
+
+    private Optional<Entry> entryFor(UUID owner) {
+        Entry entry = entries.get(owner);
+        if (entry == null) {
+            Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+            if (companion.isEmpty()) {
+                return Optional.empty();
+            }
+            entry = create(owner, companion.get());
+        }
+        return Optional.of(entry);
+    }
+
+    private List<String> configuredSecrets() {
+        List<String> secrets = new ArrayList<>();
+        for (ServerConfig.ProfileConfig profile : config.profiles.values()) {
+            secrets.add(SecretResolver.resolve(profile.apiKey, System::getenv));
+        }
+        return secrets;
+    }
+
+    public void cancel(UUID owner) {
+        Entry entry = entries.get(owner);
+        if (entry != null) {
+            entry.brain().cancel();
+        }
+    }
+
+    /** The owner's companion is gone (death, dismissal, unload): drop its brain. */
+    public void onCompanionRemoved(UUID owner) {
+        Entry entry = entries.remove(owner);
+        if (entry != null) {
+            entry.brain().cancel();
+        }
+    }
+
+    /** The owner left the game. */
+    public void onOwnerLeft(UUID owner) {
+        cancel(owner);
+        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().stop("owner left"));
+    }
+
+    public void tick() {
+        scheduler.tick();
+        if (++tickCounter % 20 == 0) {
+            for (Entry entry : entries.values()) {
+                if (entry.brain().isThinking()) {
+                    entry.speaker().showThinking();
+                }
+            }
+        }
+    }
+
+    private Entry create(UUID owner, CompanionEntity companion) {
+        CompanionSpeaker speaker = new CompanionSpeaker(
+                server, owner, () -> config.companion.name, () -> config.chat.maxReplyChars);
+        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
+        CompanionBrain brain = new CompanionBrain(
+                () -> new Persona(config.companion.name, config.companion.persona, config.companion.language),
+                () -> new BrainSettings(
+                        config.brain.maxToolStepsPerTurn,
+                        config.brain.historyMessages,
+                        config.brain.cooldownMs,
+                        config.chat.guestCooldownMs),
+                () -> gatewayOverrides.getOrDefault(owner, current),
+                tools.bind(companion),
+                () -> PerceptionBuilder.brief(companion).toPromptText(),
+                effective,
+                scheduler,
+                AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
+                caller -> config.memory.enabled
+                        ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
+                        : "");
+        brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
+        companion.taskRunner().setListener(new TaskListener() {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                debug.historyOf(owner).add(new TaskRecord(
+                        id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
+                post(owner, new BrainEvent.TaskFinished(id, toolName, status == TaskStatus.SUCCESS, summary));
+            }
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {
+                debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
+                post(owner, new BrainEvent.TaskCancelled(id, toolName, reason));
+            }
+
+            @Override
+            public void onNotice(String text) {
+                post(owner, new BrainEvent.WorldNotice(text));
+            }
+        });
+        Entry entry = new Entry(brain, speaker);
+        entries.put(owner, entry);
+        FriendaiMod.LOGGER.debug("Created brain for {}", owner);
+        return entry;
+    }
+}

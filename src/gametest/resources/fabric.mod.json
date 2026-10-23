@@ -1,37 +1,37 @@
 {
 	"schemaVersion": 1,
-	"id": "friedai-gametest",
+	"id": "friendai-gametest",
 	"version": "1.0.0",
 	"name": "Friendai GameTests",
 	"environment": "*",
 	"entrypoints": {
 		"fabric-gametest": [
-			"dev.friedai.test.FriedaiGameTests",
-			"dev.friedai.test.CompanionEntityTests",
-			"dev.friedai.test.TaskTests",
-			"dev.friedai.test.ItemTaskTests",
-			"dev.friedai.test.MineBlocksTests",
-			"dev.friedai.test.InteractTests",
-			"dev.friedai.test.PlaceBlockTests",
-			"dev.friedai.test.UseBlockTests",
-			"dev.friedai.test.LightAreaTests",
-			"dev.friedai.test.StorageTests",
-			"dev.friedai.test.ToolTests",
-			"dev.friedai.test.GuestTests",
-			"dev.friedai.test.MemoryTests",
-			"dev.friedai.test.PlanTests",
-			"dev.friedai.test.BrainServiceTests",
-			"dev.friedai.test.VoiceTests",
-			"dev.friedai.test.CompanionControlTests",
-			"dev.friedai.test.CraftingTests",
-			"dev.friedai.test.CookingTests",
-			"dev.friedai.test.CombatTests",
-			"dev.friedai.test.AnimalTests",
-			"dev.friedai.test.FarmingTests",
-			"dev.friedai.test.ObtainTests"
+			"dev.friendai.test.FriendaiGameTests",
+			"dev.friendai.test.CompanionEntityTests",
+			"dev.friendai.test.TaskTests",
+			"dev.friendai.test.ItemTaskTests",
+			"dev.friendai.test.MineBlocksTests",
+			"dev.friendai.test.InteractTests",
+			"dev.friendai.test.PlaceBlockTests",
+			"dev.friendai.test.UseBlockTests",
+			"dev.friendai.test.LightAreaTests",
+			"dev.friendai.test.StorageTests",
+			"dev.friendai.test.ToolTests",
+			"dev.friendai.test.GuestTests",
+			"dev.friendai.test.MemoryTests",
+			"dev.friendai.test.PlanTests",
+			"dev.friendai.test.BrainServiceTests",
+			"dev.friendai.test.VoiceTests",
+			"dev.friendai.test.CompanionControlTests",
+			"dev.friendai.test.CraftingTests",
+			"dev.friendai.test.CookingTests",
+			"dev.friendai.test.CombatTests",
+			"dev.friendai.test.AnimalTests",
+			"dev.friendai.test.FarmingTests",
+			"dev.friendai.test.ObtainTests"
 		]
 	},
 	"depends": {
-		"friedai": "*"
+		"friendai": "*"
 	}
 }

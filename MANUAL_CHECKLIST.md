@@ -16,9 +16,9 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## End to end with a real provider
 
-- [ ] `/friedai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
+- [ ] `/friendai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
-- [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friedai status`).
+- [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friendai status`).
 - [ ] "Friendai, drop all your cobblestone and then mine 3 logs": the companion sends one run_plan with both steps and reports the plan result.
 - [ ] A plan that cannot finish (e.g. mine a block that is not nearby): the companion explains the failed step and proposes or sends a new plan.
 
@@ -34,20 +34,20 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] LAN with two clients: each player has their own companion; addressing by name reaches your own companion when it is within 16 blocks, otherwise the nearest other companion.
 - [ ] A guest next to another player's companion chats with it; asking it to act is politely declined.
-- [ ] `/friedai trust <guest>`: the guest's request now runs; `/friedai untrust` takes effect on the next message.
-- [ ] `/friedai trusted` and the trust messages read correctly in English and Russian.
-- [ ] Restart the server: the trusted list survives (`<world>/friedai/memory/<uuid>.json`).
+- [ ] `/friendai trust <guest>`: the guest's request now runs; `/friendai untrust` takes effect on the next message.
+- [ ] `/friendai trusted` and the trust messages read correctly in English and Russian.
+- [ ] Restart the server: the trusted list survives (`<world>/friendai/memory/<uuid>.json`).
 - [ ] A guest spamming the companion is throttled; the owner is not.
-- [ ] Dedicated server: edit `config/friedai-server.json`, run `/friedai reload` as an operator, behaviour changes.
+- [ ] Dedicated server: edit `config/friendai-server.json`, run `/friendai reload` as an operator, behaviour changes.
 - [ ] The settings screen on a client connected to a dedicated server shows "These settings are configured on the server."
 
 ## Memory
 
 - [ ] With a real model: tell the companion your name and where your base is; it calls `remember`, and after a server restart it still knows both.
-- [ ] A guest tells the companion something about themselves; `/friedai memory list` shows it; the guest cannot make it remember things about the owner.
+- [ ] A guest tells the companion something about themselves; `/friendai memory list` shows it; the guest cannot make it remember things about the owner.
 - [ ] A guest asks "what do you know about my friend's base?": the companion does not reveal the owner's or world facts.
-- [ ] `/friedai memory forget <id>` and `/friedai memory clear world` work; messages read correctly in English and Russian.
-- [ ] Settings → Memory → off, then `/friedai reload`: the companion no longer remembers; `/friedai memory` says memory is off.
+- [ ] `/friendai memory forget <id>` and `/friendai memory clear world` work; messages read correctly in English and Russian.
+- [ ] Settings → Memory → off, then `/friendai reload`: the companion no longer remembers; `/friendai memory` says memory is off.
 
 ## Companion control menu
 
@@ -64,7 +64,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## World lifecycle
 
-- [ ] Companion death: inventory drops and the owner gets a message; `/friedai summon` creates a new one.
+- [ ] Companion death: inventory drops and the owner gets a message; `/friendai summon` creates a new one.
 - [ ] Leave and rejoin the world: the companion is still there; a Stay task is restored.
 
 ## Blocks and containers

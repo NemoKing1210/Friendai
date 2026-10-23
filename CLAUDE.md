@@ -13,7 +13,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Test jar for the maintainer
 
-- After any change to code or resources (fix, improvement, new feature), finish with a build that refreshes `test-builds/friedai-<version>.jar` (`./gradlew assemble` or `build` — `exportTestJar` runs automatically). Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
+- After any change to code or resources (fix, improvement, new feature), finish with a build that refreshes `test-builds/friendai-<version>.jar` (`./gradlew assemble` or `build` — `exportTestJar` runs automatically). Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
 
 ## Environment (Windows)
 
@@ -36,8 +36,8 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Where things are
 
-- Entry points: `FriedaiMod` (common), `FriedaiClient` (client), `ModMenuIntegration` (optional).
-- Tools and skills: `tool/builtin/FriedaiTools.java`, `task/builtin/`.
+- Entry points: `FriendaiMod` (common), `FriendaiClient` (client), `ModMenuIntegration` (optional).
+- Tools and skills: `tool/builtin/FriendaiTools.java`, `task/builtin/`.
 - The prompt: `brain/PromptBuilder.java`. The agent loop: `brain/CompanionBrain.java`.
 - Provider presets and routing: `llm/provider/ProviderRegistry.java`.
-- Translations: `src/main/resources/assets/friedai/lang/`.
+- Translations: `src/main/resources/assets/friendai/lang/`.

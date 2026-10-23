@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "friedai",
+	"id": "friendai",
 	"version": "${version}",
 	"name": "Friendai",
 	"description": "An AI companion you can play with and talk to — by chat or voice.",
@@ -16,12 +16,12 @@
 		"issues": "https://github.com/NemoKing1210/Friendai/issues"
 	},
 	"license": "MIT",
-	"icon": "assets/friedai/icon.png",
+	"icon": "assets/friendai/icon.png",
 	"environment": "*",
 	"entrypoints": {
-		"main": ["dev.friedai.FriedaiMod"],
-		"client": ["dev.friedai.client.FriedaiClient"],
-		"modmenu": ["dev.friedai.client.config.ModMenuIntegration"]
+		"main": ["dev.friendai.FriendaiMod"],
+		"client": ["dev.friendai.client.FriendaiClient"],
+		"modmenu": ["dev.friendai.client.config.ModMenuIntegration"]
 	},
 	"depends": {
 		"fabricloader": ">=0.19.5",

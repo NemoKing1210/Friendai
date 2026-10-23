@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents (and humans) working on **Friendai**: a Fabric mod for Minecraft **26.3** that adds an AI companion you talk to by chat or voice. Mod id `friedai`, root package `dev.friedai`, MIT licensed.
+Guidance for AI coding agents (and humans) working on **Friendai**: a Fabric mod for Minecraft **26.3** that adds an AI companion you talk to by chat or voice. Mod id `friendai`, root package `dev.friendai`, MIT licensed.
 
 ## Commands
 
@@ -40,18 +40,18 @@ Minecraft layer:
 
 - `entity/` — `CompanionEntity` (a `PathfinderMob` with a 27-slot inventory, never despawns), `CompanionManager` (one per owner).
 - `task/` — `Task`, `TaskRunner` (one task at a time, timeouts, crash isolation, falls back to Follow), `task/builtin/` (Follow, Stay, GoTo, PickupItems, GiveItems, MineBlocks), `task/mining/`, `task/nav/MoveHelper`.
-- `tool/builtin/FriedaiTools` — the 9 skills as tools, plus the `remember`/`forget`/`recall` memory tools (always registered, `enabled()` follows `memory.enabled`). `perception/` — surroundings snapshot for the prompt.
-- `core/` — `BrainService` (one brain per player, shared `LlmClient`), `FriedaiServerState` (per-server config and brains), `ServerBrainScheduler`, `Components` (`UserMessage` → `Component`).
-- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriedaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`; debug tabs are operator-only, checked on the server).
+- `tool/builtin/FriendaiTools` — the 9 skills as tools, plus the `remember`/`forget`/`recall` memory tools (always registered, `enabled()` follows `memory.enabled`). `perception/` — surroundings snapshot for the prompt.
+- `core/` — `BrainService` (one brain per player, shared `LlmClient`), `FriendaiServerState` (per-server config and brains), `ServerBrainScheduler`, `Components` (`UserMessage` → `Component`).
+- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriendaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`; debug tabs are operator-only, checked on the server).
 
 Client (`src/client`): renderer, companion menu (`client/ui`: pause-menu button, `CompanionControlScreen` and its tabs), YACL settings screen (`client/config`), voice (`client/voice`: mic capture, push-to-talk, HUD, whisper-jni), `client/tts` (interface only).
 
-Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gametest` (Fabric GameTest, mod id `friedai-gametest`).
+Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gametest` (Fabric GameTest, mod id `friendai-gametest`).
 
 ### Rules that keep it working
 
 1. **Threads.** The world is touched only on the server thread. HTTP and speech recognition run on their own threads and hop back with `server.execute(...)` (`BrainScheduler.execute`). A `CompletableFuture` callback never touches entities directly.
-2. **A skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in `FriedaiTools.create`, and adding a GameTest. The core does not change.
+2. **A skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in `FriendaiTools.create`, and adding a GameTest. The core does not change.
 3. **Several tool calls in one response** must run in order, and Anthropic/Gemini must receive all the results in **one** user message (otherwise HTTP 400). Covered by tests; keep them green.
 4. **History trimming** must never leave a tool result or a call without results at the head, and must never drop the turn in progress.
 5. **A late LLM response** after `stop`/dismiss/owner logout must be dropped silently (generation counter in `CompanionBrain`).
@@ -61,7 +61,7 @@ Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gamete
 ## Language and localization
 
 - **Everything in the repository is English**: code, comments, identifiers, logs, Markdown, commit messages, config defaults, the system prompt, tool descriptions and results, task summaries.
-- **Player-facing text is always a translation key** rendered with `Component.translatable`. `src/main/resources/assets/friedai/lang/en_us.json` is the source of truth; `ru_ru.json` must have exactly the same keys and `%s` placeholders. `LangFilesTest` enforces this and also fails if code references a key (a string literal like `"friedai.something"`) that does not exist. Do not build keys by concatenating a literal that ends in `.` — the test will flag it.
+- **Player-facing text is always a translation key** rendered with `Component.translatable`. `src/main/resources/assets/friendai/lang/en_us.json` is the source of truth; `ru_ru.json` must have exactly the same keys and `%s` placeholders. `LangFilesTest` enforces this and also fails if code references a key (a string literal like `"friendai.something"`) that does not exist. Do not build keys by concatenating a literal that ends in `.` — the test will flag it.
 - Pure-Java layers return `UserMessage`; the Minecraft layer converts it with `Components.of(...)`.
 - Not translated: LLM replies, anything addressed to the LLM, logs, command literals.
 
@@ -153,7 +153,7 @@ The maintainer often runs several agent sessions on this repository at once, usu
 - `docs/` (design specs and implementation plans) is **git-ignored on purpose** — never commit it. Read it for context if it exists locally (`docs/superpowers/specs/`, `docs/superpowers/plans/`).
 - Never commit generated or local files: `run/`, `logs/`, `build/`, `.gradle/`, game configs, worlds, downloaded whisper models. `.gitignore` anchors these to the repo root; keep new entries anchored (`/config/`, not `config/`) so they cannot swallow source packages such as `src/**/config/`.
 - Do not rewrite history, force-push or delete branches without being asked.
-- Config files at runtime: `config/friedai-server.json`, `config/friedai-client.json`; whisper models in `<gameDir>/friedai/models/`.
+- Config files at runtime: `config/friendai-server.json`, `config/friendai-client.json`; whisper models in `<gameDir>/friendai/models/`.
 
 ## Versioning
 

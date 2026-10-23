@@ -1,7 +1,0 @@
-package dev.friedai.task.cooking;
-
-import dev.friedai.crafting.Station;
-import net.minecraft.core.BlockPos;
-
-/** A furnace this companion loaded, remembered until the result is collected. */
-public record FurnaceJob(BlockPos pos, Station station, String input, String output, int loaded, boolean placedByMe) {}

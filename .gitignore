@@ -34,7 +34,7 @@ replay_pid*.log
 /whitelist.json
 /ops.json
 /banned-*.json
-/friedai/
+/friendai/
 
 # IDEs
 .idea/
