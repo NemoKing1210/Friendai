@@ -101,7 +101,7 @@ public class ToolTests {
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+                "give_items", "drop_items", "get_inventory", "place_block", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
 
@@ -120,6 +120,16 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_block_at", "{\"x\":0,\"y\":100000,\"z\":0}");
         h.assertTrue(r.error() && r.content().startsWith("y is outside the world"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void placeToolRejectsNonBlockAndPartialCoords(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult nonBlock = run(tools(c), "place_block", "{\"block\":\"minecraft:stick\"}");
+        h.assertTrue(nonBlock.error() && nonBlock.content().equals("minecraft:stick is not a block"), "result was " + nonBlock.content());
+        ToolResult partial = run(tools(c), "place_block", "{\"block\":\"minecraft:stone\",\"x\":1}");
+        h.assertTrue(partial.error() && partial.content().equals("give all of x, y, z or none"), "result was " + partial.content());
         h.succeed();
     }
 

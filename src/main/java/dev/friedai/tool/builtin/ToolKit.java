@@ -11,6 +11,8 @@ import dev.friedai.tool.Tool;
 import dev.friedai.tool.ToolRegistry;
 import dev.friedai.tool.ToolResult;
 import java.util.List;
+import java.util.Optional;
+import net.minecraft.core.BlockPos;
 
 /** Helpers shared by the tool groups: turning a definition into a {@link Tool} and parsing item/block arguments. */
 final class ToolKit {
@@ -56,6 +58,24 @@ final class ToolKit {
     static BlockMatcher parseBlockMatcher(String idOrTag) {
         return BlockMatcher.parse(idOrTag)
                 .orElseThrow(() -> new IllegalArgumentException("unknown block or tag: " + idOrTag));
+    }
+
+    /** All of x, y, z or none. */
+    static Optional<BlockPos> optionalPos(JsonObject args) {
+        int present = 0;
+        for (String name : new String[] {"x", "y", "z"}) {
+            if (args.has(name) && !args.get(name).isJsonNull()) {
+                present++;
+            }
+        }
+        if (present == 0) {
+            return Optional.empty();
+        }
+        if (present != 3) {
+            throw new IllegalArgumentException("give all of x, y, z or none");
+        }
+        return Optional.of(new BlockPos(
+                args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt()));
     }
 
     private static Tool<CompanionEntity> tool(

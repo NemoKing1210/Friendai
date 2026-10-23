@@ -17,6 +17,7 @@ public final class FriedaiTools {
         MovementTools.register(registry, defs);
         GatheringTools.register(registry, defs, mineRadius);
         InventoryTools.register(registry, defs);
+        BuildingTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
         ControlTools.register(registry, defs);
         return registry;
