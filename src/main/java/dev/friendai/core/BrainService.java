@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.llm.provider.ProviderRegistry;
-import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.tool.builtin.FriendaiTools;
@@ -243,7 +242,7 @@ public final class BrainService {
                         config.chat.guestCooldownMs),
                 () -> gatewayOverrides.getOrDefault(owner, current),
                 tools.bind(companion),
-                () -> PerceptionBuilder.brief(companion).toPromptText(),
+                new CompanionPerception(companion),
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),

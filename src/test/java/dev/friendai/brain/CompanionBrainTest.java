@@ -314,6 +314,38 @@ class CompanionBrainTest {
     }
 
     @Test
+    void perceptionReceivesTheTurnCaller() {
+        java.util.List<dev.friendai.tool.Caller> seen = new java.util.ArrayList<>();
+        brain = new CompanionBrain(
+                () -> new Persona("Friendai", "friendly", "auto"),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
+                () -> gatewaySupplier.get(),
+                tools,
+                new PerceptionSource() {
+                    @Override
+                    public String describe() {
+                        return "no-caller";
+                    }
+
+                    @Override
+                    public String describe(dev.friendai.tool.Caller caller) {
+                        seen.add(caller);
+                        return "VIEW-FOR-" + caller.name();
+                    }
+                },
+                speaker,
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains));
+        trusted.add(GUEST);
+        gateway.enqueue(text("ok"));
+        brain.post(guest("look"));
+        assertFalse(seen.isEmpty());
+        assertEquals(new dev.friendai.tool.Caller(GUEST, "Bob", AccessLevel.TRUSTED), seen.get(seen.size() - 1));
+        assertTrue(gateway.requests.get(0).system().contains("VIEW-FOR-Bob"));
+        assertFalse(gateway.requests.get(0).system().contains("no-caller"));
+    }
+
+    @Test
     void gatewaySupplierReadEachTurn() {
         FakeGateway other = new FakeGateway();
         gateway.enqueue(text("a"));

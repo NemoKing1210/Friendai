@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -25,14 +26,19 @@ public final class PerceptionBuilder {
     private PerceptionBuilder() {}
 
     public static PerceptionSnapshot brief(CompanionEntity c) {
-        return build(c, BRIEF_RADIUS);
+        return build(c, BRIEF_RADIUS, null);
+    }
+
+    /** The brief snapshot with the view of {@code principal} (or the owner when null or offline). */
+    public static PerceptionSnapshot brief(CompanionEntity c, UUID principal) {
+        return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal));
     }
 
     public static PerceptionSnapshot detailed(CompanionEntity c) {
-        return build(c, DETAILED_RADIUS);
+        return build(c, DETAILED_RADIUS, null);
     }
 
-    private static PerceptionSnapshot build(CompanionEntity c, int blockRadius) {
+    private static PerceptionSnapshot build(CompanionEntity c, int blockRadius, OwnerFocus focus) {
         ServerLevel level = (ServerLevel) c.level();
         BlockPos pos = c.blockPosition();
         String biome = level.getBiome(pos).unwrapKey().map(k -> k.identifier().getPath()).orElse("unknown");
@@ -53,7 +59,7 @@ public final class PerceptionBuilder {
                 inventory(c),
                 c.equipmentText(),
                 task,
-                null);
+                focus);
     }
 
     private static Map<String, Integer> countBlocks(ServerLevel level, BlockPos center, int radius) {

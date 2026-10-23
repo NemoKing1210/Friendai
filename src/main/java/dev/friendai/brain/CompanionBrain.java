@@ -145,7 +145,7 @@ public final class CompanionBrain {
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
         return PromptBuilder.system(
-                persona.get(), perception.describe(), turnCaller, memorySource.describe(turnCaller));
+                persona.get(), perception.describe(turnCaller), turnCaller, memorySource.describe(turnCaller));
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -216,7 +216,7 @@ public final class CompanionBrain {
         }
         step++;
         String system = PromptBuilder.system(
-                persona.get(), perception.describe(), turnCaller, memorySource.describe(turnCaller));
+                persona.get(), perception.describe(turnCaller), turnCaller, memorySource.describe(turnCaller));
         CompletableFuture<LlmResponse> future;
         try {
             future = gateway.get().complete(system, memory.snapshot(), tools.specs(turnCaller.access()));
