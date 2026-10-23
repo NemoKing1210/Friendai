@@ -45,4 +45,10 @@ class PromptBuilderTest {
         assertTrue(s.contains("send them all at once with run_plan"));
         assertTrue(s.contains("If a plan stops at a failed step"));
     }
+
+    @Test
+    void obtainRule() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("prefer obtain_item over long hand-written plans"));
+    }
 }
