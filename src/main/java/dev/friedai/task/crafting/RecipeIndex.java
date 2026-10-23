@@ -71,6 +71,10 @@ public final class RecipeIndex implements RecipeBook {
             case CRAFTING_TABLE -> CRAFTING_TABLE;
             case STONECUTTER -> STONECUTTER;
             case SMITHING_TABLE -> SMITHING_TABLE;
+            case FURNACE -> "minecraft:furnace";
+            case SMOKER -> "minecraft:smoker";
+            case BLAST_FURNACE -> "minecraft:blast_furnace";
+            case CAMPFIRE -> "minecraft:campfire";
         };
     }
 

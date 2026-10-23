@@ -104,6 +104,10 @@ public final class Stations {
             case CRAFTING_TABLE -> Blocks.CRAFTING_TABLE;
             case STONECUTTER -> Blocks.STONECUTTER;
             case SMITHING_TABLE -> Blocks.SMITHING_TABLE;
+            case FURNACE -> Blocks.FURNACE;
+            case SMOKER -> Blocks.SMOKER;
+            case BLAST_FURNACE -> Blocks.BLAST_FURNACE;
+            case CAMPFIRE -> Blocks.CAMPFIRE;
         };
     }
 

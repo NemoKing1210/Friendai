@@ -180,7 +180,7 @@ public final class CraftPlanner {
             if (qty == 0) {
                 return new Attempt();
             }
-            List<Recipe> recipes = book.producing(item);
+            List<Recipe> recipes = craftable(item);
             if (depth >= MAX_DEPTH || path.contains(item) || recipes.isEmpty()) {
                 return Attempt.missing(item, qty);
             }
@@ -216,6 +216,31 @@ public final class CraftPlanner {
                 }
             }
             return chosen;
+        }
+
+        /**
+         * The recipes the planner may execute. Cooking recipes share the book with crafting ones but are the
+         * cooking skills' business: an item that only cooks is reported missing as itself.
+         */
+        private List<Recipe> craftable(String item) {
+            List<Recipe> recipes = book.producing(item);
+            boolean cooking = false;
+            for (Recipe recipe : recipes) {
+                if (recipe.station().isCooking()) {
+                    cooking = true;
+                    break;
+                }
+            }
+            if (!cooking) {
+                return recipes;
+            }
+            List<Recipe> filtered = new ArrayList<>(recipes.size());
+            for (Recipe recipe : recipes) {
+                if (!recipe.station().isCooking()) {
+                    filtered.add(recipe);
+                }
+            }
+            return filtered;
         }
 
         /** Fewer total crafts, then a station that is already available, then book order (the caller keeps it). */
@@ -329,7 +354,7 @@ public final class CraftPlanner {
         }
 
         private boolean reaches(String item, String target, Set<String> seen) {
-            for (Recipe recipe : book.producing(item)) {
+            for (Recipe recipe : craftable(item)) {
                 for (Ingredient ingredient : recipe.ingredients()) {
                     for (String id : ingredient.items()) {
                         if (id.equals(target)) {

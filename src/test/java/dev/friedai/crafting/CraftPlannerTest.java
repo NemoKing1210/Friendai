@@ -336,6 +336,27 @@ class CraftPlannerTest {
     }
 
     @Test
+    void cookingOnlyItemIsMissing() {
+        FakeRecipeBook book = FakeRecipeBook.vanillaLike()
+                .add(new Recipe("minecraft:iron_ingot_from_smelting_raw_iron", "minecraft:iron_ingot", 1,
+                        List.of(Ingredient.of("minecraft:raw_iron")), Station.FURNACE, 200));
+        CraftPlan plan = plan("minecraft:iron_ingot", 1, Map.of("minecraft:raw_iron", 3), book);
+        assertFalse(plan.ok());
+        assertEquals(Map.of("minecraft:iron_ingot", 1), plan.missing());
+    }
+
+    @Test
+    void craftingRecipeNextToCooking() {
+        FakeRecipeBook book = FakeRecipeBook.vanillaLike()
+                .add(new Recipe("minecraft:iron_ingot_from_smelting_raw_iron", "minecraft:iron_ingot", 1,
+                        List.of(Ingredient.of("minecraft:raw_iron")), Station.FURNACE, 200));
+        CraftPlan plan = plan("minecraft:iron_ingot", 1, Map.of("minecraft:iron_nugget", 9), book);
+        assertTrue(plan.ok());
+        assertEquals(1, plan.steps().size());
+        assertEquals("minecraft:iron_ingot_from_nuggets", plan.steps().get(0).recipe().id());
+    }
+
+    @Test
     void inventoryRecipesNeedNoStation() {
         CraftPlan plan = plan("minecraft:oak_planks", 4, Map.of("minecraft:oak_log", 1),
                 FakeRecipeBook.vanillaLike(), EnumSet.noneOf(Station.class));

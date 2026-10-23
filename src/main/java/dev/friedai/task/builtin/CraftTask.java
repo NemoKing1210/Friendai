@@ -340,6 +340,7 @@ public final class CraftTask implements Task {
             case STONECUTTER -> stonecutterOnce(c, step);
             case SMITHING_TABLE -> smithingOnce(c, step);
             case INVENTORY -> false;
+            case FURNACE, SMOKER, BLAST_FURNACE, CAMPFIRE -> false;
         };
         if (!crafted) {
             summary = "the inventory changed while crafting: " + remainingMissing(c);

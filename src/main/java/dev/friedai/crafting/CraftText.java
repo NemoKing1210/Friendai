@@ -1,6 +1,7 @@
 package dev.friedai.crafting;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
@@ -45,6 +46,17 @@ public final class CraftText {
                 .map(entry -> entry.getValue() + " × " + entry.getKey())
                 .collect(Collectors.joining(", "));
         String base = recipe.output() + " ×" + recipe.outputCount() + " " + recipe.station().phrase();
+        if (recipe.cookTicks() > 0) {
+            base += " (" + seconds(recipe.cookTicks()) + " s)";
+        }
         return from.isEmpty() ? base : base + " from " + from;
+    }
+
+    /** Whole seconds without a decimal point, otherwise one decimal: 200 ticks → {@code 10}, 150 → {@code 7.5}. */
+    private static String seconds(int ticks) {
+        if (ticks % 20 == 0) {
+            return Integer.toString(ticks / 20);
+        }
+        return String.format(Locale.ROOT, "%.1f", ticks / 20.0);
     }
 }
