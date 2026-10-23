@@ -728,10 +728,11 @@ public class BuildTests {
     }
 
     @GameTest(maxTicks = 200)
-    public void outOfReachFails(GameTestHelper h) {
+    public void noScaffoldStillFailsWithoutBlocks(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         Blueprint tower = generator(
                 "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
@@ -741,8 +742,124 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("out of reach"), "summary was " + result.summary);
+            h.assertTrue(result.summary.endsWith(
+                            "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
+                    "summary was " + result.summary);
         });
+    }
+
+    @GameTest(maxTicks = 12000)
+    public void towerWithScaffold(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 10, 6)).is(Blocks.STONE_BRICKS),
+                    "the top crenellation is missing: " + h.getBlockState(new BlockPos(6, 10, 6)));
+            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+                    "the top of the wall is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
+            h.assertTrue(dirt.isEmpty(), "scaffold dirt left behind at " + dirt);
+            h.assertTrue(cobblestone.isEmpty(), "scaffold cobblestone left behind at " + cobblestone);
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
+    public void outOfScaffoldCleansUp(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 2));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("I ran out of dirt or cobblestone for scaffolding"),
+                    "summary was " + result.summary);
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
+            h.assertTrue(dirt.isEmpty(), "scaffold dirt left behind at " + dirt);
+            h.assertTrue(cobblestone.isEmpty(), "scaffold cobblestone left behind at " + cobblestone);
+        });
+    }
+
+    @GameTest(maxTicks = 3000)
+    public void floatingBlockUsesSupport(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 2));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 4));
+        Blueprint blueprint = parse("""
+                {
+                  "name": "floating",
+                  "palette": { "P": "minecraft:oak_planks" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "P" },
+                    { "op": "box", "from": [0,1,2], "to": [0,1,2], "block": "P" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6)).is(Blocks.OAK_PLANKS),
+                    "the floating block is missing: " + h.getBlockState(new BlockPos(4, 3, 6)));
+            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
+                    "the support must be removed: " + h.getBlockState(new BlockPos(4, 2, 6)));
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            h.assertTrue(dirt.isEmpty(), "scaffold dirt left behind at " + dirt);
+        });
+    }
+
+    private static List<String> positionsOf(
+            GameTestHelper h, int size, int fromY, int toY, Block block) {
+        List<String> positions = new java.util.ArrayList<>();
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                for (int y = fromY; y <= toY; y++) {
+                    if (h.getBlockState(new BlockPos(x, y, z)).is(block)) {
+                        positions.add(x + " " + y + " " + z);
+                    }
+                }
+            }
+        }
+        return positions;
+    }
+
+    /** Clears the air above a platform; the world outside the test area may hold blocks this high. */
+    private static void clearAir(GameTestHelper h, int size, int fromY, int toY) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                for (int y = fromY; y <= toY; y++) {
+                    h.setBlock(x, y, z, Blocks.AIR);
+                }
+            }
+        }
     }
 
     @GameTest(maxTicks = 2000)
