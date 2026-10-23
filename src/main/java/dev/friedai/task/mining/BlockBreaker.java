@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
  * returned {@link State} means for its own task ({@code mine_blocks} searches again, {@code mine_block_at} fails).
  */
 public final class BlockBreaker {
-    public enum State { WORKING, BROKEN, GONE, UNREACHABLE }
+    public enum State { WORKING, BROKEN, GONE, UNREACHABLE, PROTECTED }
 
     private static final int COLLECT_TICKS = 10;
     private static final double COLLECT_RADIUS = 4.0;
@@ -71,6 +71,9 @@ public final class BlockBreaker {
             }
             case IN_REACH -> {
             }
+        }
+        if (!companion.hands().canInteract(target)) {
+            return State.PROTECTED;
         }
         BlockState state = c.level().getBlockState(target);
         ToolSelector.equipBest(companion, state);

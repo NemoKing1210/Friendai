@@ -56,6 +56,10 @@ public final class MineBlockAtTask implements Task {
                 summary = "can't reach " + coords();
                 yield TaskStatus.FAILED;
             }
+            case PROTECTED -> {
+                summary = coords() + " is protected";
+                yield TaskStatus.FAILED;
+            }
         };
     }
 

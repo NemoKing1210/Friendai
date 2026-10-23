@@ -221,4 +221,41 @@ public class MineBlocksTests {
         h.assertTrue(result.summary.equals("minecraft:bedrock at " + coords(target) + " can't be broken"), "summary was " + result.summary);
         h.succeed();
     }
+
+    @GameTest(maxTicks = 600)
+    public void mineAtProtectedFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.PRISMARINE_BRICKS);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        c.hands().overrideProtection(p -> p.equals(target));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals(coords(target) + " is protected"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.PRISMARINE_BRICKS), "block must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void mineBlocksSkipsProtected(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.DARK_PRISMARINE);
+        h.setBlock(10, 2, 2, Blocks.DARK_PRISMARINE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos nearer = h.absolutePos(new BlockPos(6, 2, 2));
+        c.hands().overrideProtection(p -> p.equals(nearer));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:dark_prismarine", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DARK_PRISMARINE), "the protected block must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(10, 2, 2)).is(Blocks.AIR), "the farther block must be mined");
+        });
+    }
 }

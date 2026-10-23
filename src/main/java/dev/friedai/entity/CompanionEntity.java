@@ -5,6 +5,7 @@ import dev.friedai.task.Task;
 import dev.friedai.task.TaskFactory;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskSettings;
+import dev.friedai.task.interact.CompanionHands;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public class CompanionEntity extends PathfinderMob {
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final TaskRunner taskRunner =
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
+    private transient CompanionHands hands;
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -42,6 +44,14 @@ public class CompanionEntity extends PathfinderMob {
 
     public TaskRunner taskRunner() {
         return taskRunner;
+    }
+
+    /** The fake player that performs placements and right-clicks. Not saved. */
+    public CompanionHands hands() {
+        if (hands == null) {
+            hands = new CompanionHands(this);
+        }
+        return hands;
     }
 
     @Override

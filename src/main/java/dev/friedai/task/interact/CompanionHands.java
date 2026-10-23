@@ -1,0 +1,152 @@
+package dev.friedai.task.interact;
+
+import com.mojang.authlib.GameProfile;
+import dev.friedai.entity.CompanionEntity;
+import dev.friedai.task.inventory.InventoryOps;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.function.Predicate;
+import net.fabricmc.fabric.api.entity.FakePlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.SwingAnimation;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * The companion's "hands": one Fabric fake player per companion, so vanilla code performs placements and
+ * right-clicks (orientation, sounds, block entities) and protection sees a player.
+ *
+ * <p>Anything left in the fake player's inventory after an action goes back to the companion, so items are never
+ * lost or duplicated.
+ */
+public final class CompanionHands {
+    private final CompanionEntity companion;
+    private FakePlayer player;
+    private Predicate<BlockPos> protectionOverride;
+
+    public CompanionHands(CompanionEntity companion) {
+        this.companion = companion;
+    }
+
+    /** Test hook: positions matching the predicate count as protected, like spawn protection would. Null clears. */
+    public void overrideProtection(Predicate<BlockPos> isProtected) {
+        this.protectionOverride = isProtected;
+    }
+
+    /** Whether the companion may act on pos: the per-companion test hook and the level's own protection. */
+    public boolean canInteract(BlockPos pos) {
+        if (protectionOverride != null && protectionOverride.test(pos)) {
+            return false;
+        }
+        return level().mayInteract(player(), pos);
+    }
+
+    /**
+     * Places one item of {@code stack} against {@code face} of {@code against}. The whole stack is handed to the
+     * fake player; whatever it does not use comes back to the companion.
+     */
+    public InteractionResult place(ItemStack stack, BlockPos against, Direction face) {
+        ServerLevel level = level();
+        FakePlayer hands = handsPlayer();
+        Vec3 hitPoint = Vec3.atCenterOf(against).relative(face, 0.5);
+        sync(hands, hitPoint);
+        ItemStack held = stack.copy();
+        hands.setItemInHand(InteractionHand.MAIN_HAND, held);
+        BlockHitResult hit = new BlockHitResult(hitPoint, face, against, false);
+        try {
+            return hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
+        } finally {
+            returnItems(hands);
+        }
+    }
+
+    /** Right-clicks pos with an empty hand. */
+    public InteractionResult use(BlockPos pos) {
+        ServerLevel level = level();
+        FakePlayer hands = handsPlayer();
+        BlockState state = level.getBlockState(pos);
+        Direction face = faceToward(pos, hands);
+        Vec3 hitPoint = Vec3.atCenterOf(pos).relative(face, 0.5);
+        sync(hands, hitPoint);
+        hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        BlockHitResult hit = new BlockHitResult(hitPoint, face, pos, false);
+        try {
+            return state.useWithoutItem(level, hands, hit);
+        } finally {
+            returnItems(hands);
+        }
+    }
+
+    /** The fake player, for container open/close animations. */
+    public ServerPlayer player() {
+        return handsPlayer();
+    }
+
+    private FakePlayer handsPlayer() {
+        ServerLevel level = level();
+        if (player == null || player.level() != level) {
+            UUID uuid = UUID.nameUUIDFromBytes(("friedai-hands:" + companion.getUUID()).getBytes(StandardCharsets.UTF_8));
+            player = FakePlayer.get(level, new GameProfile(uuid, "Friendai"));
+        }
+        return player;
+    }
+
+    private ServerLevel level() {
+        return (ServerLevel) companion.level();
+    }
+
+    private void sync(FakePlayer hands, Vec3 lookAt) {
+        Vec3 feet = companion.position();
+        hands.snapTo(feet.x, feet.y, feet.z);
+        hands.setDeltaMovement(Vec3.ZERO);
+        Vec3 eye = hands.getEyePosition();
+        double dx = lookAt.x - eye.x;
+        double dy = lookAt.y - eye.y;
+        double dz = lookAt.z - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
+        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        hands.setYRot(yaw);
+        hands.setXRot(pitch);
+        hands.setYHeadRot(yaw);
+        if (hands.gameMode.getGameModeForPlayer() != GameType.SURVIVAL) {
+            hands.setGameMode(GameType.SURVIVAL);
+        }
+        companion.getLookControl().setLookAt(lookAt.x, lookAt.y, lookAt.z);
+        companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
+    }
+
+    private void returnItems(FakePlayer hands) {
+        Inventory inventory = hands.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty()) {
+                InventoryOps.insertOrDrop(companion, stack.copy());
+            }
+        }
+        inventory.clearContent();
+        hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+    }
+
+    private static Direction faceToward(BlockPos pos, ServerPlayer player) {
+        Vec3 direction = player.getEyePosition().subtract(Vec3.atCenterOf(pos));
+        double x = Math.abs(direction.x);
+        double y = Math.abs(direction.y);
+        double z = Math.abs(direction.z);
+        if (y > x && y > z) {
+            return direction.y > 0 ? Direction.UP : Direction.DOWN;
+        }
+        if (x > z) {
+            return direction.x > 0 ? Direction.EAST : Direction.WEST;
+        }
+        return direction.z > 0 ? Direction.SOUTH : Direction.NORTH;
+    }
+}
