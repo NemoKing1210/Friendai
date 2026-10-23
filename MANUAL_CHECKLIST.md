@@ -81,6 +81,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A long job, then a world reload: the result is still in the furnace and "collect the smelted items" finds it.
 - [ ] The companion never burns tools or boats unless told which fuel to use.
 
+## Survival and combat
+
+- [ ] Give the companion iron armor: it wears it and the armor renders in first and third person.
+- [ ] A night with zombies in defensive mode: it fights what attacks you or it, not everything around.
+- [ ] "Guard me": it attacks hostile mobs near you; "be passive": it stays out of fights and runs.
+- [ ] It eats when hurt and tells you when it is retreating without food.
+- [ ] PvP server: "attack <player>" from the owner works when PvP is on and is refused with "PvP is off here" when the pvp gamerule is false; a trusted non-owner cannot order it.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
