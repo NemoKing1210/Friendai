@@ -504,6 +504,39 @@ public class ToolTests {
     }
 
     @GameTest
+    public void listIncludesTemplates(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "list_blueprints", "{\"query\":\"plains_small\"}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("minecraft:village/plains/houses/plains_small_house_1"),
+                "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void listLimit30(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "list_blueprints", "{}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        long ids = java.util.regex.Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+")
+                .matcher(r.content())
+                .results()
+                .count();
+        h.assertTrue(ids > 0 && ids <= 30, "counted " + ids + " template ids in " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void helpMentionsStructure(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "blueprint_help", "{}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("structure"), "content was " + r.content());
+        h.assertTrue(r.content().contains("gather"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void buildToolStartsTask(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

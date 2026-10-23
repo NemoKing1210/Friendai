@@ -7,10 +7,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Reach;
+import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -38,6 +41,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Builds a blueprint block by block: checks the site and materials, takes what storage has, clears the natural
@@ -48,21 +52,50 @@ import net.minecraft.world.phys.AABB;
  */
 public final class BuildTask implements Task {
     private static final int PROGRESS_STEP = 25;
+    /** How far a block may be horizontally from the companion for a pillar to bring it into reach. */
+    private static final double SCAFFOLD_RANGE = 3.8;
+    /** The sides of a target a pillar may be built on, in a fixed order so the column is reproducible. */
+    private static final Direction[] PILLAR_SIDES = {
+        Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
+    };
+    /** The production way to obtain a missing material; tests replace it to tighten the obtain limits. */
+    private static final ObtainFactory DEFAULT_OBTAIN =
+            (item, count) -> new ObtainTask(item, count, true, true);
 
-    private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE }
+    /** Creates the task that obtains one missing material for a build. */
+    @FunctionalInterface
+    public interface ObtainFactory {
+        Task create(String item, int count);
+    }
+
+    private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE, CLEANUP }
 
     private final Blueprint blueprint;
     private final BlockPos origin;
     private final Rotation rotation;
     private final boolean clearSite;
+    /** Whether missing materials may be harvested or crafted with {@code obtain_item} instead of failing. */
+    private final boolean gather;
+    private final ObtainFactory obtainFactory;
     private final int tickLimit;
+    /** The file id of this build: kept across a reload so the same in-progress file is resumed. */
+    private final String id;
+    /** Scaffold blocks a restored build found in the world; recorded, never placed or paid for again. */
+    private final List<BlockPos> adoptedScaffold;
+
+    /** Whether the in-progress file has been written, so later ticks may update it. */
+    private boolean inProgressStarted;
+    private int writtenScaffoldCount;
 
     private Phase phase = Phase.CHECK;
     private String summary = "";
     private int ticks;
+    private TaskStatus pendingStatus;
 
     private Placement.PlacedBlueprint placed;
     private Site.SiteReport site;
+    /** Blueprint cells that hold a block when the build is done; the scaffold never fills one of them. */
+    private Set<BlockPos> plannedCells = Set.of();
     private List<BlockSpec> order = List.of();
     private int total;
     private int done;
@@ -74,6 +107,16 @@ public final class BuildTask implements Task {
     private TakeItemsTask takeTask;
     private BlockPos takeTarget;
     private final Set<BlockPos> exhaustedStorage = new HashSet<>();
+
+    /** The obtain task working on one missing material; null when none is running. */
+    private Task gatherTask;
+    private Item gatherItem;
+    private int gatherCount;
+    /** Materials already asked an obtain task for, so a short result cannot start the same request again. */
+    private final Set<Item> gathered = new HashSet<>();
+
+    /** Temporary support and pillar blocks; null until the check starts. */
+    private Scaffold scaffold;
 
     private final Deque<BlockPos> clearQueue = new ArrayDeque<>();
     private BlockBreaker breaker;
@@ -93,11 +136,44 @@ public final class BuildTask implements Task {
     private BlockPos currentPos;
 
     public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite) {
+        this(blueprint, origin, rotation, clearSite, false);
+    }
+
+    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather) {
+        this(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN);
+    }
+
+    /** The full constructor, for tests that need tighter obtain limits through their own factory. */
+    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+            ObtainFactory obtainFactory) {
+        this(blueprint, origin, rotation, clearSite, gather, obtainFactory, newId(), List.of());
+    }
+
+    private BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+            ObtainFactory obtainFactory, String id, List<BlockPos> adoptedScaffold) {
         this.blueprint = blueprint;
         this.origin = origin;
         this.rotation = rotation;
         this.clearSite = clearSite;
+        this.gather = gather;
+        this.obtainFactory = obtainFactory;
         this.tickLimit = blueprint.blocks().size() * 60 + 12_000;
+        this.id = id;
+        this.adoptedScaffold = List.copyOf(adoptedScaffold);
+    }
+
+    /**
+     * A task that resumes a build saved before a reload: same blueprint and placement, same file id, and the scaffold
+     * the earlier session left in the world. The check runs again, so blocks that are already correct are skipped.
+     */
+    public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
+            boolean gather, List<BlockPos> scaffold, String id) {
+        return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold);
+    }
+
+    /** A fresh file id: a UUID without dashes, so it is a legal, unique file name. */
+    private static String newId() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     @Override
@@ -110,39 +186,70 @@ public final class BuildTask implements Task {
         return false;
     }
 
+    /**
+     * {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>}. The blueprint and the scaffold live in the
+     * in-progress file named by {@code <id>}, under the world's blueprint directory.
+     */
+    @Override
+    public String saveData() {
+        return "build:" + id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
+                + Placement.facingFor(rotation).getSerializedName() + "," + clearSite + "," + gather;
+    }
+
     @Override
     public void start(TaskContext c) {}
 
     @Override
     public TaskStatus tick(TaskContext c) {
-        if (++ticks > tickLimit) {
-            summary = "timed out";
-            return TaskStatus.FAILED;
+        TaskStatus status;
+        if (phase != Phase.CLEANUP && ++ticks > tickLimit) {
+            status = fail(c, "timed out");
+        } else {
+            status = switch (phase) {
+                case CHECK -> check(c);
+                case TAKE -> take(c);
+                case CLEAR -> clear(c);
+                case FOUNDATION -> buildFoundation(c);
+                case PLACE -> place(c);
+                case CLEANUP -> cleanup(c);
+            };
         }
-        return switch (phase) {
-            case CHECK -> check(c);
-            case TAKE -> take(c);
-            case CLEAR -> clear(c);
-            case FOUNDATION -> buildFoundation(c);
-            case PLACE -> place(c);
-        };
+        if (status == TaskStatus.RUNNING) {
+            syncInProgress(c);
+        } else {
+            // Every terminal path — success, failure after cleanup — leaves no in-progress file behind.
+            deleteInProgress(c);
+        }
+        return status;
     }
 
     private TaskStatus check(TaskContext c) {
         ServerLevel level = c.level();
+        scaffold = new Scaffold(c.companion());
+        scaffold.adopt(adoptedScaffold);
         placed = Placement.at(blueprint, origin, rotation);
-        String unreachable = unreachable(level);
-        if (unreachable != null) {
-            return fail(unreachable);
-        }
         site = Site.check(level, placed, c.companion(), clearSite);
-        if (!site.problems().isEmpty()) {
-            return fail(String.join("; ", site.problems()));
-        }
+        // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as
+        // scaffold surplus: only what is still to place counts.
+        List<Placement.PlacedSpec> remaining = remaining(level);
+        // The foundation is needed to know how much dirt or cobblestone the blueprint needs, even when the site
+        // check found a problem; the problem itself is reported below, after the height check as before.
+        String materialError = null;
         try {
-            Materials.needed(placed.specs(), site.foundation());
+            scaffold.reserve(Materials.needed(remaining, site.foundation()));
         } catch (IllegalArgumentException e) {
-            return fail(e.getMessage());
+            materialError = e.getMessage();
+        }
+        plannedCells = plannedCells(placed.specs());
+        String unreachable = unreachable(c, remaining);
+        if (unreachable != null) {
+            return fail(c, unreachable);
+        }
+        if (!site.problems().isEmpty()) {
+            return fail(c, String.join("; ", site.problems()));
+        }
+        if (materialError != null) {
+            return fail(c, materialError);
         }
         clearQueue.addAll(site.toClear());
         foundation = site.foundation().stream()
@@ -152,7 +259,19 @@ public final class BuildTask implements Task {
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
+        writeInProgress(c);
         return TaskStatus.RUNNING;
+    }
+
+    /** The specs the world does not already hold; a resumed build only has to work on these. */
+    private List<Placement.PlacedSpec> remaining(ServerLevel level) {
+        List<Placement.PlacedSpec> remaining = new ArrayList<>(placed.specs().size());
+        for (Placement.PlacedSpec spec : placed.specs()) {
+            if (!level.getBlockState(spec.pos()).equals(spec.wanted())) {
+                remaining.add(spec);
+            }
+        }
+        return remaining;
     }
 
     /** A block is an attachment when it cannot hang in the air without a neighbour. */
@@ -160,9 +279,28 @@ public final class BuildTask implements Task {
         return state.contains("torch") || state.contains("door") || state.contains("ladder");
     }
 
-    /** The first block too high to place from any standing ground below it, or null. */
-    private String unreachable(ServerLevel level) {
-        BlockPos pos = Reach.firstOutOfReach(level, placed.specs(), origin);
+    /** The cells the blueprint fills with a block, which a support block must never occupy. */
+    private static Set<BlockPos> plannedCells(List<Placement.PlacedSpec> specs) {
+        Set<BlockPos> cells = new HashSet<>();
+        for (Placement.PlacedSpec spec : specs) {
+            if (!spec.wanted().isAir()) {
+                cells.add(spec.pos());
+            }
+        }
+        return Set.copyOf(cells);
+    }
+
+    /**
+     * The first block too high to place from any standing ground below it, or null. When the companion carries dirt
+     * or cobblestone the blueprint does not need, it can build a scaffold pillar instead, so the height is checked
+     * while building. Material the blueprint needs is not scaffolding: a tower with an exact supply must be refused
+     * here rather than starved of its own walls.
+     */
+    private String unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
+        if (scaffold.canScaffold()) {
+            return null;
+        }
+        BlockPos pos = Reach.firstOutOfReach(c.level(), remaining, origin);
         if (pos == null) {
             return null;
         }
@@ -170,6 +308,11 @@ public final class BuildTask implements Task {
                 + Reach.HEIGHT + " above standing ground)";
     }
 
+    /**
+     * Tries storage for every missing material first, then, when gathering is allowed, obtains what storage could not
+     * supply one material at a time for exactly the missing count. Anything that fails here fails the build before the
+     * site is cleared or a block is placed, so a failed gather leaves the world untouched.
+     */
     private TaskStatus take(TaskContext c) {
         if (takeTask != null) {
             TaskStatus status = takeTask.tick(c);
@@ -181,6 +324,23 @@ public final class BuildTask implements Task {
             }
             takeTask = null;
             takeTarget = null;
+            return TaskStatus.RUNNING;
+        }
+        if (gatherTask != null) {
+            TaskStatus status = gatherTask.tick(c);
+            if (status == TaskStatus.RUNNING) {
+                return TaskStatus.RUNNING;
+            }
+            String obtainSummary = gatherTask.resultSummary();
+            Item item = gatherItem;
+            int count = gatherCount;
+            gatherTask = null;
+            gatherItem = null;
+            if (status == TaskStatus.FAILED) {
+                return fail(c, "couldn't gather " + count + " × " + itemId(item) + ": " + obtainSummary);
+            }
+            // A gather that reports success but leaves the item short falls through to the usual materials failure;
+            // the gathered set keeps the same request from being started again.
             return TaskStatus.RUNNING;
         }
         Map<Item, Integer> missing = missing(c);
@@ -199,11 +359,23 @@ public final class BuildTask implements Task {
             takeTarget = container;
             return TaskStatus.RUNNING;
         }
-        return fail(missingText(missing));
+        if (gather) {
+            for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
+                if (!gathered.add(entry.getKey())) {
+                    continue;
+                }
+                gatherItem = entry.getKey();
+                gatherCount = entry.getValue();
+                gatherTask = obtainFactory.create(itemId(gatherItem), gatherCount);
+                gatherTask.start(c);
+                return TaskStatus.RUNNING;
+            }
+        }
+        return fail(c, missingText(missing));
     }
 
     private Map<Item, Integer> missing(TaskContext c) {
-        Map<Item, Integer> needed = Materials.needed(placed.specs(), site.foundation());
+        Map<Item, Integer> needed = Materials.needed(remaining(c.level()), site.foundation());
         Map<Item, Integer> have = Materials.carried(c.companion());
         Map<Item, Integer> missing = new LinkedHashMap<>();
         for (Map.Entry<Item, Integer> entry : needed.entrySet()) {
@@ -293,19 +465,19 @@ public final class BuildTask implements Task {
                     return TaskStatus.RUNNING;
                 }
                 case UNREACHABLE -> {
-                    return fail("can't reach " + coords(spec.pos()));
+                    return fail(c, "can't reach " + coords(spec.pos()));
                 }
                 case IN_REACH -> {
                 }
             }
             Optional<PlaceSpot.Spot> spot = spot(c.level(), spec.pos());
             if (spot.isEmpty()) {
-                return fail("can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
+                return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
                         + ": nothing to place it against");
             }
             ItemStack held = takeOne(c, spec.wanted());
             if (held.isEmpty()) {
-                return fail("missing materials: 1 × " + itemId(Materials.itemFor(spec.wanted())));
+                return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(spec.wanted())));
             }
             c.companion().hands().place(held, spot.get().against(), spot.get().face());
             BlockState after = c.level().getBlockState(spec.pos());
@@ -316,7 +488,7 @@ public final class BuildTask implements Task {
                 approach = null;
                 return TaskStatus.RUNNING;
             }
-            return fail("couldn't place " + describeState(spec.wanted()) + " at " + coords(spec.pos()));
+            return fail(c, "couldn't place " + describeState(spec.wanted()) + " at " + coords(spec.pos()));
         }
         phase = Phase.PLACE;
         return TaskStatus.RUNNING;
@@ -336,12 +508,9 @@ public final class BuildTask implements Task {
                         continue;
                     }
                     if (!deferred.isEmpty()) {
-                        BlockSpec stuck = deferred.get(0);
-                        Placement.PlacedSpec placedSpec = specOf(stuck);
-                        return fail("can't place " + describeState(placedSpec.wanted()) + " at "
-                                + coords(placedSpec.pos()) + ": nothing to place it against");
+                        return supportStuck(c);
                     }
-                    return finish();
+                    return finish(c);
                 }
                 current = next;
                 currentPlaced = specOf(current);
@@ -360,32 +529,54 @@ public final class BuildTask implements Task {
                 continue;
             }
             if (taken(level, currentPos, wanted.wanted())) {
-                return fail(coords(currentPos) + " is taken by " + blockId(world));
+                return fail(c, coords(currentPos) + " is taken by " + blockId(world));
             }
             if (standsIn(c.companion(), currentPos) && !stepAside(c, currentPos)) {
-                return fail(coords(currentPos) + " is blocked by me and there is nowhere to step aside");
+                return fail(c, coords(currentPos) + " is blocked by me and there is nowhere to step aside");
             }
-            if (approach == null) {
-                approach = new Approach(currentPos);
+            if (!inReach(c.companion(), currentPos)) {
+                int feetY = pillarFeetY(c.companion(), currentPos);
+                if (feetY < 0) {
+                    if (approach == null) {
+                        approach = new Approach(currentPos);
+                    }
+                    Approach.State state = approach.tick(c.companion());
+                    if (state == Approach.State.MOVING) {
+                        return TaskStatus.RUNNING;
+                    }
+                    approach = null;
+                    if (state == Approach.State.IN_REACH) {
+                        continue;
+                    }
+                }
+                alignForPillar(c.level(), c.companion(), currentPos);
+                feetY = pillarFeetY(c.companion(), currentPos);
+                if (feetY < 0) {
+                    return fail(c, "can't reach " + coords(currentPos));
+                }
+                switch (scaffold.pillarTo(feetY)) {
+                    case CLIMBING -> {
+                        return TaskStatus.RUNNING;
+                    }
+                    case FAILED -> {
+                        return fail(c, scaffold.failure());
+                    }
+                    case READY -> {
+                    }
+                }
+                continue;
             }
-            switch (approach.tick(c.companion())) {
-                case MOVING -> {
-                    return TaskStatus.RUNNING;
-                }
-                case UNREACHABLE -> {
-                    return fail("can't reach " + coords(currentPos));
-                }
-                case IN_REACH -> {
-                }
-            }
+            c.companion().getNavigation().stop();
             if (taken(level, currentPos, wanted.wanted())) {
-                return fail(coords(currentPos) + " is taken by " + blockId(level.getBlockState(currentPos)));
+                return fail(c, coords(currentPos) + " is taken by " + blockId(level.getBlockState(currentPos)));
             }
             if (!c.companion().hands().canInteract(currentPos)) {
-                return fail(coords(currentPos) + " is protected");
+                return fail(c, coords(currentPos) + " is protected");
             }
             Optional<PlaceSpot.Spot> spot = spot(level, currentPos);
             if (spot.isEmpty()) {
+                // A block without a neighbour waits to the end of the queue: a neighbour placed later in the same
+                // layer is better than scaffold material, and support is only placed once nothing else can help.
                 deferred.add(current);
                 current = null;
                 approach = null;
@@ -393,7 +584,7 @@ public final class BuildTask implements Task {
             }
             ItemStack held = takeOne(c, wanted.wanted());
             if (held.isEmpty()) {
-                return fail("missing materials: 1 × " + itemId(Materials.itemFor(wanted.wanted())));
+                return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(wanted.wanted())));
             }
             c.companion().hands().place(held, spot.get().against(), spot.get().face());
             BlockState after = level.getBlockState(currentPos);
@@ -406,8 +597,102 @@ public final class BuildTask implements Task {
                 advance(c);
                 return TaskStatus.RUNNING;
             }
-            return fail("couldn't place " + describeState(wanted.wanted()) + " at " + coords(currentPos));
+            return fail(c, "couldn't place " + describeState(wanted.wanted()) + " at " + coords(currentPos));
         }
+    }
+
+    /**
+     * Nothing in the deferred list has a neighbour even after every other block had its chance: the first stuck spec
+     * gets one temporary scaffold block underneath, as the last resort. A cell the blueprint fills itself, or one
+     * taken by a foreign block, is never used for support: the scaffold would block that spec or break someone's
+     * block. Returns to the main loop once a support is in place.
+     */
+    private TaskStatus supportStuck(TaskContext c) {
+        Placement.PlacedSpec spec = specOf(deferred.get(0));
+        BlockPos pos = spec.pos();
+        BlockPos below = pos.below();
+        if (plannedCells.contains(below) || taken(c.level(), below, spec.wanted())) {
+            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                    + ": nothing to place it against");
+        }
+        if (!scaffold.support(below) || spot(c.level(), pos).isEmpty()) {
+            if (scaffold.outOfMaterial()) {
+                return fail(c, scaffold.failure());
+            }
+            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                    + ": nothing to place it against");
+        }
+        queue = deferred;
+        deferred = new ArrayList<>();
+        cursor = 0;
+        passProgress = false;
+        return TaskStatus.RUNNING;
+    }
+
+    /**
+     * The feet height a pillar must reach before {@code pos} is in reach, or -1 when the companion should walk
+     * closer instead. The feet go two blocks below the target so the companion's head clears the cell it fills.
+     */
+    private int pillarFeetY(CompanionEntity companion, BlockPos pos) {
+        int feetY = pos.getY() - 2;
+        if (feetY <= companion.blockPosition().getY()) {
+            return -1;
+        }
+        if (horizontalDistance(companion, pos) > SCAFFOLD_RANGE) {
+            return -1;
+        }
+        return feetY;
+    }
+
+    private static boolean inReach(CompanionEntity companion, BlockPos pos) {
+        return companion.getEyePosition().distanceTo(Vec3.atCenterOf(pos)) <= Approach.REACH;
+    }
+
+    private static double horizontalDistance(CompanionEntity companion, BlockPos pos) {
+        double dx = companion.getX() - (pos.getX() + 0.5);
+        double dz = companion.getZ() - (pos.getZ() + 0.5);
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /**
+     * Steps the companion into a reproducible column for the pillar: the first free standing column beside the
+     * target in a fixed order, rather than wherever pathfinding happened to leave it. Does nothing when no such
+     * column is free, so the companion climbs where it stands.
+     */
+    private void alignForPillar(ServerLevel level, CompanionEntity companion, BlockPos target) {
+        int feetY = target.getY() - 2;
+        BlockPos base = companion.blockPosition();
+        if (feetY <= base.getY()) {
+            return;
+        }
+        for (Direction side : PILLAR_SIDES) {
+            BlockPos column = new BlockPos(
+                    target.getX() + side.getStepX(), base.getY(), target.getZ() + side.getStepZ());
+            if (!freeStanding(level, column) || !columnFree(level, column, feetY)) {
+                continue;
+            }
+            if (column.equals(base)) {
+                return;
+            }
+            companion.getNavigation().stop();
+            companion.teleportTo(column.getX() + 0.5, column.getY(), column.getZ() + 0.5);
+            return;
+        }
+    }
+
+    /**
+     * Whether every cell a pillar would climb through from {@code base} up to the feet height is free and none of
+     * them is a blueprint cell the build has yet to fill: a pillar raised through one would leave the companion
+     * standing where a block has to go.
+     */
+    private boolean columnFree(ServerLevel level, BlockPos base, int feetY) {
+        for (int y = base.getY() + 1; y <= feetY + 1; y++) {
+            BlockPos pos = new BlockPos(base.getX(), y, base.getZ());
+            if (plannedCells.contains(pos) || !level.getBlockState(pos).canBeReplaced()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private BlockSpec nextSpec() {
@@ -496,11 +781,45 @@ public final class BuildTask implements Task {
         }
     }
 
-    private TaskStatus finish() {
+    private TaskStatus finish(TaskContext c) {
         summary = "built " + blueprint.name() + " at " + coords(origin) + " facing "
                 + Placement.facingFor(rotation).getSerializedName() + ": " + placedCount + " placed, "
                 + clearedCount + " cleared, " + foundationCount + " foundation";
-        return TaskStatus.SUCCESS;
+        return complete(c, TaskStatus.SUCCESS);
+    }
+
+    /**
+     * Ends the task, first removing any scaffold blocks it placed. The result is held back until they are gone, so
+     * the summary can say whether the world is clean.
+     */
+    private TaskStatus complete(TaskContext c, TaskStatus status) {
+        if (scaffold == null || scaffold.placed().isEmpty()) {
+            return status;
+        }
+        pendingStatus = status;
+        phase = Phase.CLEANUP;
+        return TaskStatus.RUNNING;
+    }
+
+    private TaskStatus cleanup(TaskContext c) {
+        switch (scaffold.removeAll()) {
+            case CLIMBING -> {
+                return TaskStatus.RUNNING;
+            }
+            case READY -> {
+                if (pendingStatus == TaskStatus.SUCCESS) {
+                    summary += "; used " + scaffold.used() + " scaffold blocks (removed)";
+                }
+                return pendingStatus;
+            }
+            case FAILED -> {
+                // Leftover scaffolding is never part of a success: the build only counts as done once the world
+                // is clean again.
+                summary += "; left " + scaffold.left() + " scaffold blocks behind";
+                return TaskStatus.FAILED;
+            }
+        }
+        return TaskStatus.RUNNING;
     }
 
     private ItemStack takeOne(TaskContext c, BlockState wanted) {
@@ -509,18 +828,23 @@ public final class BuildTask implements Task {
         if (matcher != null) {
             List<ItemStack> removed = InventoryOps.remove(c.companion().inventory(), matcher, 1);
             if (!removed.isEmpty()) {
+                scaffold.spend(item);
                 return removed.get(0);
             }
         }
         if (c.companion().getMainHandItem().is(item)) {
-            return c.companion().getMainHandItem().split(1);
+            ItemStack held = c.companion().getMainHandItem().split(1);
+            if (!held.isEmpty()) {
+                scaffold.spend(item);
+            }
+            return held;
         }
         return ItemStack.EMPTY;
     }
 
-    private TaskStatus fail(String text) {
+    private TaskStatus fail(TaskContext c, String text) {
         summary = text;
-        return TaskStatus.FAILED;
+        return complete(c, TaskStatus.FAILED);
     }
 
     @Override
@@ -534,6 +858,45 @@ public final class BuildTask implements Task {
         if (takeTask != null) {
             takeTask.stop(c);
         }
+        if (gatherTask != null) {
+            gatherTask.stop(c);
+        }
+        if (scaffold != null) {
+            scaffold.stop();
+        }
+        // Cancelling ends the build: a reload must not pick it up again.
+        deleteInProgress(c);
+    }
+
+    /** Writes the in-progress file again when the scaffold has grown since the last write. */
+    private void syncInProgress(TaskContext c) {
+        if (!inProgressStarted || scaffold == null) {
+            return;
+        }
+        if (scaffold.placed().size() == writtenScaffoldCount) {
+            return;
+        }
+        writeInProgress(c);
+    }
+
+    /** Persists the build so a reload can resume it. Best effort: a disk problem must not abort the build. */
+    private void writeInProgress(TaskContext c) {
+        if (scaffold == null) {
+            return;
+        }
+        try {
+            BlueprintStore.forLevel(c.level())
+                    .saveInProgress(id, blueprint, origin, rotation, clearSite, gather, scaffold.placed());
+            inProgressStarted = true;
+            writtenScaffoldCount = scaffold.placed().size();
+        } catch (RuntimeException ignored) {
+            // The build continues; only its ability to survive a reload is lost.
+        }
+    }
+
+    private void deleteInProgress(TaskContext c) {
+        inProgressStarted = false;
+        BlueprintStore.forLevel(c.level()).deleteInProgress(id);
     }
 
     @Override

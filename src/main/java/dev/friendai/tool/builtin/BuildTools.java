@@ -23,6 +23,7 @@ import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 
@@ -30,9 +31,13 @@ import net.minecraft.world.item.Item;
 final class BuildTools {
     private BuildTools() {}
 
+    /** At most this many structure template ids are listed, to keep the result small. */
+    private static final int MAX_TEMPLATES = 30;
+
     static final String HELP = """
-            A structure is a blueprint (JSON you write), a generator (JSON for a standard shape) or a saved name.
-            Give exactly one of "blueprint", "generator", "saved" (structure templates are not supported yet).
+            A structure is a blueprint (JSON you write), a generator (JSON for a standard shape), a saved name or a
+            structure template.
+            Give exactly one of "blueprint", "generator", "saved", "structure" (a template id from list_blueprints).
 
             Blueprint format (JSON):
             {"name":"hut",
@@ -62,6 +67,9 @@ final class BuildTools {
             - platform: width 1..32, depth 1..32, block.
             - bridge: length 3..32, width 1..5, block, railing (fence id, optional).
 
+            preview_structure shows the size, materials and site problems. build_structure takes clear_site
+            (default true) and gather (default false, obtain missing materials with obtain_item instead of failing).
+
             Errors name the place and the reason, for example:
             palette: key "CC" must be one character, ops[1]: 'to' is below 'from', unknown block minecraft:oak_plank.
             """;
@@ -85,7 +93,7 @@ final class BuildTools {
                     Blueprint blueprint = parsed.blueprint().get();
                     Placement.PlacedBlueprint placed =
                             Placement.of(blueprint, origin(a), facing(a), c);
-                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a));
+                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a));
                 },
                 true));
         registry.register(ToolKit.instantTool("save_blueprint",
@@ -98,9 +106,9 @@ final class BuildTools {
                         .build(),
                 BuildTools::save));
         registry.register(ToolKit.instantTool("list_blueprints",
-                "List saved blueprints with their sizes and authors.",
+                "List saved blueprints with their sizes and authors, and structure templates matching the query.",
                 SchemaBuilder.object()
-                        .string("query", "Only names containing this text")
+                        .string("query", "Only blueprint names and template ids containing this text")
                         .build(),
                 BuildTools::list));
     }
@@ -110,7 +118,8 @@ final class BuildTools {
                 .string("blueprint", "Blueprint JSON; blueprint_help explains the format")
                 .string("generator", "Generator JSON, for example {\"type\":\"house\",\"width\":7,\"depth\":7}")
                 .string("saved", "Name of a saved blueprint")
-                .string("structure", "Structure template id (not supported yet)")
+                .string("structure",
+                        "Structure template id, for example minecraft:village/plains/houses/plains_small_house_1")
                 .integer("x", "Origin X; give all of x, y, z or none for 3 blocks in front of the owner")
                 .integer("y", "Origin Y")
                 .integer("z", "Origin Z")
@@ -120,6 +129,7 @@ final class BuildTools {
     private static JsonObject buildSchema() {
         return sourceSchema()
                 .bool("clear_site", "Break natural ground on the site (default true)")
+                .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
                 .build();
     }
 
@@ -143,7 +153,8 @@ final class BuildTools {
         companion.setLastPreview(blueprint);
         companion.owner().ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), placed, blueprint)));
         return ToolResult.ok(previewText(
-                blueprint, placed, site, needed, Materials.have(companion, level), Materials.carried(companion)));
+                blueprint, placed, site, needed, Materials.have(companion, level), Materials.carried(companion),
+                parsed.notes()));
     }
 
     private static String previewText(
@@ -152,7 +163,8 @@ final class BuildTools {
             Site.SiteReport site,
             Map<Item, Integer> needed,
             Map<Item, Integer> have,
-            Map<Item, Integer> carried) {
+            Map<Item, Integer> carried,
+            List<String> notes) {
         long blocks = placed.specs().stream().filter(spec -> !spec.wanted().isAir()).count();
         return blueprint.name() + " " + blueprint.width() + "×" + blueprint.height() + "×" + blueprint.depth()
                 + " at " + coords(placed.origin())
@@ -161,7 +173,8 @@ final class BuildTools {
                 + site.toClear().size() + " to clear, "
                 + site.foundation().size() + " foundation; materials: "
                 + materialsText(needed, have, carried)
-                + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()));
+                + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()))
+                + (notes.isEmpty() ? "" : "; " + String.join("; ", notes));
     }
 
     private static String materialsText(
@@ -221,18 +234,37 @@ final class BuildTools {
         List<BlueprintStore.Entry> entries = BlueprintStore.forLevel(level).list().stream()
                 .filter(entry -> entry.name().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
-        if (entries.isEmpty()) {
-            return ToolResult.ok(query.isEmpty() ? "no saved blueprints" : "no saved blueprints matching " + query);
-        }
-        StringBuilder text = new StringBuilder(entries.size() == 1 ? "1 blueprint: " : entries.size() + " blueprints: ");
-        for (int i = 0; i < entries.size(); i++) {
-            BlueprintStore.Entry entry = entries.get(i);
-            if (i > 0) {
-                text.append(", ");
+        List<String> templates = level.getServer().getStructureTemplateManager().listTemplates()
+                .map(Identifier::toString)
+                .filter(id -> id.toLowerCase(Locale.ROOT).contains(query))
+                .sorted()
+                .limit(MAX_TEMPLATES)
+                .toList();
+        StringBuilder text = new StringBuilder();
+        if (!entries.isEmpty()) {
+            text.append(entries.size() == 1 ? "1 blueprint: " : entries.size() + " blueprints: ");
+            for (int i = 0; i < entries.size(); i++) {
+                BlueprintStore.Entry entry = entries.get(i);
+                if (i > 0) {
+                    text.append(", ");
+                }
+                text.append(entry.name())
+                        .append(' ').append(entry.width()).append('×').append(entry.height()).append('×')
+                        .append(entry.depth())
+                        .append(" by ").append(authorName(level, entry.author()));
             }
-            text.append(entry.name())
-                    .append(' ').append(entry.width()).append('×').append(entry.height()).append('×').append(entry.depth())
-                    .append(" by ").append(authorName(level, entry.author()));
+        }
+        if (!templates.isEmpty()) {
+            if (text.length() > 0) {
+                text.append('\n');
+            }
+            text.append(templates.size() == 1 ? "1 structure template: " : templates.size() + " structure templates: ");
+            text.append(String.join(", ", templates));
+        }
+        if (text.length() == 0) {
+            return ToolResult.ok(query.isEmpty()
+                    ? "no saved blueprints or structure templates"
+                    : "no saved blueprints or structure templates matching " + query);
         }
         return ToolResult.ok(text.toString());
     }
@@ -266,6 +298,10 @@ final class BuildTools {
 
     private static boolean clearSite(JsonObject args) {
         return !present(args, "clear_site") || args.get("clear_site").getAsBoolean();
+    }
+
+    private static boolean gather(JsonObject args) {
+        return present(args, "gather") && args.get("gather").getAsBoolean();
     }
 
     private static boolean present(JsonObject args, String name) {

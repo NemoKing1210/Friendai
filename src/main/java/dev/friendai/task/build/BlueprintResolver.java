@@ -29,7 +29,7 @@ public final class BlueprintResolver {
             return ParseResult.failed(List.of(SOURCE_ERROR));
         }
         if (structure) {
-            return ParseResult.failed(List.of("structure templates are not supported yet"));
+            return TemplateConverter.convert(args.get("structure").getAsString(), level);
         }
         if (blueprint) {
             return BlueprintParser.parse(args.get("blueprint").getAsString(), knownState());
