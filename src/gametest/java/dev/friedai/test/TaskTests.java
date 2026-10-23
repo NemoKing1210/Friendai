@@ -181,4 +181,101 @@ public class TaskTests {
                 "stay task not restored");
         h.succeed();
     }
+
+    /** A task that only counts how many times it was ticked. */
+    private static final class CountingTask implements Task {
+        int ticks;
+
+        @Override
+        public String type() {
+            return "counting";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            ticks++;
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "counting";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "";
+        }
+    }
+
+    private static void tick(TaskRunner runner, int times) {
+        for (int i = 0; i < times; i++) {
+            runner.tick();
+        }
+    }
+
+    @GameTest(maxTicks = 400)
+    public void pausedTaskDoesNotTick(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 300, false);
+        CountingTask task = new CountingTask();
+        runner.start(task, "counting");
+        tick(runner, 10);
+        h.assertTrue(task.ticks == 10, "ticks before pause: " + task.ticks);
+
+        runner.setPaused(true);
+        tick(runner, 50);
+        h.assertTrue(task.ticks == 10, "ticks while paused: " + task.ticks);
+
+        runner.setPaused(false);
+        tick(runner, 5);
+        h.assertTrue(task.ticks == 15, "ticks after unpause: " + task.ticks);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void pauseStopsTimeoutClock(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 2, false);
+        runner.start(new CountingTask(), "counting");
+        tick(runner, 20);
+        runner.setPaused(true);
+        tick(runner, 100);
+        runner.setPaused(false);
+        tick(runner, 20);
+        h.assertTrue(runner.current().isPresent(), "task should still be running: " + events.log);
+        h.assertTrue(events.finalStatus == null, "task must not time out while paused: " + events.log);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void newTaskDuringPauseStartsAfterFight(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 300, false);
+        CountingTask first = new CountingTask();
+        runner.start(first, "first");
+        runner.setPaused(true);
+        tick(runner, 5);
+        h.assertTrue(first.ticks == 0, "the paused task must not tick: " + first.ticks);
+
+        CountingTask second = new CountingTask();
+        runner.start(second, "second");
+        tick(runner, 10);
+        h.assertTrue(second.ticks == 0, "a task started while paused must wait: " + second.ticks);
+        h.assertTrue(events.log.equals(List.of("cancelled:first:replaced by a new task")), "events were " + events.log);
+
+        runner.setPaused(false);
+        tick(runner, 3);
+        h.assertTrue(second.ticks == 3, "ticks after unpause: " + second.ticks);
+        h.succeed();
+    }
 }

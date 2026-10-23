@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 public final class TaskRunner {
     private static final Logger LOGGER = LoggerFactory.getLogger("friedai/task");
 
-    private record Active(int id, String toolName, Task task, boolean emit, int startTick) {}
+    private record Active(int id, String toolName, Task task, boolean emit, int startActiveTick) {}
 
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
@@ -21,8 +21,18 @@ public final class TaskRunner {
 
     private Active current;
     private int nextId = 1;
-    private int ticks;
+    /** Advances only while the runner is unpaused: the timeout clock of the active task. */
+    private int activeTicks;
     private TaskListener listener;
+    private boolean paused;
+
+    public void setPaused(boolean paused) {
+        this.paused = paused;
+    }
+
+    public boolean paused() {
+        return paused;
+    }
 
     public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
         this.companion = companion;
@@ -64,11 +74,14 @@ public final class TaskRunner {
     }
 
     public void tick() {
-        ticks++;
+        if (paused) {
+            return;
+        }
         if (current == null) {
             startDefault();
             return;
         }
+        activeTicks++;
         Active active = current;
         TaskContext ctx = context();
         TaskStatus status;
@@ -82,7 +95,7 @@ public final class TaskRunner {
         }
         if (status == TaskStatus.RUNNING
                 && active.task().hasTimeout()
-                && ticks - active.startTick() > timeoutSec.getAsInt() * 20) {
+                && activeTicks - active.startActiveTick() > timeoutSec.getAsInt() * 20) {
             safeStop(active.task(), ctx);
             status = TaskStatus.FAILED;
             summary = "timed out";
@@ -101,7 +114,7 @@ public final class TaskRunner {
             cancelCurrent("replaced by a new task");
         }
         // Only tasks the brain hears about get a number, so "task #1" is the first thing the LLM started.
-        Active active = new Active(emit ? nextId++ : 0, toolName, task, emit, ticks);
+        Active active = new Active(emit ? nextId++ : 0, toolName, task, emit, activeTicks);
         current = active;
         try {
             task.start(context());
@@ -125,7 +138,7 @@ public final class TaskRunner {
     }
 
     private void startDefault() {
-        if (current == null && defaultFollow.getAsBoolean()) {
+        if (!paused && current == null && defaultFollow.getAsBoolean()) {
             begin(new FollowTask(true), "follow", false);
         }
     }
