@@ -169,6 +169,8 @@ public class ToolTests {
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
+                "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
+                "lead_animals", "harvest_honey", "fish",
                 "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
@@ -280,6 +282,23 @@ public class ToolTests {
                 "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
         h.assertTrue(c.taskRunner().current().get().type().equals("run_plan"), "the plan should be the current task");
+        h.succeed();
+    }
+
+    @GameTest
+    public void farmToolRejectsStick(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "farm", "{\"crop\":\"minecraft:stick\"}");
+        h.assertTrue(r.error() && r.content().equals("minecraft:stick is not something I can plant"),
+                "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void breedToolRejectsHorse(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "breed_animals", "{\"target\":\"minecraft:horse\",\"pairs\":1}");
+        h.assertTrue(r.error() && r.content().equals("I can't breed minecraft:horse"), "result was " + r.content());
         h.succeed();
     }
 

@@ -62,9 +62,9 @@ public class AnimalTests {
 
     @GameTest(maxTicks = 100)
     public void interactReturnsFilledBucket(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        Cow cow = h.spawn(EntityTypes.COW, 4, 2, 2);
+        GameTestSupport.platformAt(h, 260, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 261, 2);
+        Cow cow = h.spawn(EntityTypes.COW, 4, 261, 2);
         InteractionResult result = c.hands().interact(cow, new ItemStack(Items.BUCKET));
         h.assertTrue(result.consumesAction(), "interaction failed: " + result);
         h.assertValueEqual(c.inventory().countItem(Items.MILK_BUCKET), 1, "milk buckets");
@@ -102,10 +102,10 @@ public class AnimalTests {
 
     @GameTest
     public void breedLimit(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        GameTestSupport.platformAt(h, 100, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 101, 2);
         for (int i = 0; i < 24; i++) {
-            h.spawn(EntityTypes.PIG, 4 + (i % 6), 2, 4 + (i / 6));
+            h.spawn(EntityTypes.PIG, 4 + (i % 6), 101, 4 + (i / 6));
         }
         c.inventory().addItem(new ItemStack(Items.CARROT, 2));
         Result result = new Result();
@@ -196,10 +196,10 @@ public class AnimalTests {
 
     @GameTest(maxTicks = 600)
     public void shearTargetGoneMovesOn(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        Sheep first = h.spawn(EntityTypes.SHEEP, 7, 2, 4);
-        h.spawn(EntityTypes.SHEEP, 10, 2, 7);
+        GameTestSupport.platformAt(h, 180, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 181, 2);
+        Sheep first = h.spawn(EntityTypes.SHEEP, 7, 181, 4);
+        h.spawn(EntityTypes.SHEEP, 10, 181, 7);
         c.inventory().addItem(new ItemStack(Items.SHEARS));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -220,9 +220,9 @@ public class AnimalTests {
 
     @GameTest(maxTicks = 400)
     public void milksCow(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        h.spawn(EntityTypes.COW, 4, 2, 4);
+        GameTestSupport.platformAt(h, 220, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 221, 2);
+        h.spawn(EntityTypes.COW, 4, 221, 4);
         c.inventory().addItem(new ItemStack(Items.BUCKET, 2));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -362,15 +362,15 @@ public class AnimalTests {
 
     @GameTest(maxTicks = 1600)
     public void leadLosesAnimal(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        Pig first = h.spawn(EntityTypes.PIG, 4, 2, 3);
-        h.spawn(EntityTypes.PIG, 5, 2, 3);
-        h.setBlock(10, 2, 2, Blocks.OAK_FENCE);
+        GameTestSupport.platformAt(h, 180, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 181, 2);
+        Pig first = h.spawn(EntityTypes.PIG, 4, 181, 3);
+        h.spawn(EntityTypes.PIG, 5, 181, 3);
+        h.setBlock(10, 181, 2, Blocks.OAK_FENCE);
         c.inventory().addItem(new ItemStack(Items.LEAD, 2));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new LeadTask(EntityTypes.PIG, 2, h.absolutePos(new BlockPos(10, 2, 2)), true), "lead_animals");
+        runner.start(new LeadTask(EntityTypes.PIG, 2, h.absolutePos(new BlockPos(10, 181, 2)), true), "lead_animals");
         int[] ticks = {0};
         boolean[] killed = {false};
         h.succeedWhen(() -> {
@@ -494,8 +494,8 @@ public class AnimalTests {
 
     @GameTest
     public void fishWithoutWater(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        GameTestSupport.platformAt(h, 140, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 141, 2);
         c.inventory().addItem(new ItemStack(Items.FISHING_ROD));
         Result result = new Result();
         TaskRunner runner = runner(c, result);

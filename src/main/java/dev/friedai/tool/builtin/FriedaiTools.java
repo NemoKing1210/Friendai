@@ -22,6 +22,8 @@ public final class FriedaiTools {
         CraftingTools.register(registry, defs);
         CookingTools.register(registry, defs);
         CombatTools.register(registry, defs);
+        FarmingTools.register(registry, defs);
+        AnimalTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
         ControlTools.register(registry, defs);
         return registry;

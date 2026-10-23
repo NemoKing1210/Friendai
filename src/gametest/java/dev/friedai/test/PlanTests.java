@@ -24,7 +24,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.Items;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.level.block.Blocks;
 
 public class PlanTests {
@@ -389,6 +391,57 @@ public class PlanTests {
             h.assertTrue(result.summary.contains("crafted 8 minecraft:oak_planks"), "summary was " + result.summary);
             h.assertValueEqual(0, c.inventory().countItem(Items.OAK_LOG), "logs left");
             h.assertValueEqual(8, c.inventory().countItem(Items.OAK_PLANKS), "planks");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void planShearThenStore(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        h.setBlock(10, 2, 10, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        BlockPos chestPos = h.absolutePos(new BlockPos(10, 2, 10));
+
+        JsonObject shearArgs = new JsonObject();
+        shearArgs.addProperty("target", "minecraft:sheep");
+        shearArgs.addProperty("count", 1);
+        JsonObject shear = new JsonObject();
+        shear.addProperty("tool", "shear");
+        shear.addProperty("args", shearArgs.toString());
+
+        JsonObject storeArgs = new JsonObject();
+        storeArgs.addProperty("item", "#minecraft:wool");
+        storeArgs.addProperty("count", 64);
+        storeArgs.addProperty("x", chestPos.getX());
+        storeArgs.addProperty("y", chestPos.getY());
+        storeArgs.addProperty("z", chestPos.getZ());
+        JsonObject store = new JsonObject();
+        store.addProperty("tool", "store_items");
+        store.addProperty("args", storeArgs.toString());
+
+        JsonArray steps = new JsonArray();
+        steps.add(shear);
+        steps.add(store);
+        JsonObject json = new JsonObject();
+        json.addProperty("goal", "shear and store");
+        json.add("steps", steps);
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            int wool = 0;
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                if (chest.getItem(slot).is(ItemTags.WOOL)) {
+                    wool += chest.getItem(slot).getCount();
+                }
+            }
+            h.assertTrue(wool > 0, "wool not stored in the chest");
         });
     }
 }

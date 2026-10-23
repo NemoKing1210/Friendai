@@ -89,6 +89,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] It eats when hurt and tells you when it is retreating without food.
 - [ ] PvP server: "attack <player>" from the owner works when PvP is on and is refused with "PvP is off here" when the pvp gamerule is false; a trusted non-owner cannot order it.
 
+## Farming and animals
+
+- [ ] "Look after the farm": the companion harvests and replants for 10 minutes and fills the chest next to the field.
+- [ ] "Tame that wolf for me": the wolf becomes your pet and follows you, not the companion.
+- [ ] "Bring the cows into the pen": cows are led on leads and tied to the fence.
+- [ ] "Go fishing" by a river: catches arrive, the rod wears out.
+- [ ] Honey from a hive with a campfire below; a hive without one is refused.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.

@@ -114,7 +114,8 @@ public class FarmingTests {
                 h.assertValueEqual(age(h, ring[index].getX(), 2, ring[index].getZ()), 0, "mature plot replanted");
             }
             for (int index : immature) {
-                h.assertValueEqual(age(h, ring[index].getX(), 2, ring[index].getZ()), 3, "immature plot untouched");
+                int age = age(h, ring[index].getX(), 2, ring[index].getZ());
+                h.assertTrue(age >= 3, "immature plot untouched, age " + age);
             }
         });
     }

@@ -26,4 +26,16 @@ final class GameTestSupport {
             }
         }
     }
+
+    /** A stone floor at {@code y} with clear air above it, for tests that need a world band of their own. */
+    static void platformAt(GameTestHelper h, int y, int size) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                h.setBlock(x, y, z, Blocks.STONE);
+                for (int level = y + 1; level <= y + 6; level++) {
+                    h.setBlock(x, level, z, Blocks.AIR);
+                }
+            }
+        }
+    }
 }
