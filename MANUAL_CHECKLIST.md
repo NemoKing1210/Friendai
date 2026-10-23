@@ -30,7 +30,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Multiplayer
 
-- [ ] LAN with two clients: each player has their own companion; addressing by name only triggers your own.
+- [ ] LAN with two clients: each player has their own companion; addressing by name reaches your own companion when it is within 16 blocks, otherwise the nearest other companion.
+- [ ] A guest next to another player's companion chats with it; asking it to act is politely declined.
+- [ ] `/friedai trust <guest>`: the guest's request now runs; `/friedai untrust` takes effect on the next message.
+- [ ] `/friedai trusted` and the trust messages read correctly in English and Russian.
+- [ ] Restart the server: the trusted list survives (`<world>/friedai/memory/<uuid>.json`).
+- [ ] A guest spamming the companion is throttled; the owner is not.
 - [ ] Dedicated server: edit `config/friedai-server.json`, run `/friedai reload` as an operator, behaviour changes.
 - [ ] The settings screen on a client connected to a dedicated server shows "These settings are configured on the server."
 
