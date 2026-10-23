@@ -5,6 +5,7 @@ import dev.friedai.task.Task;
 import dev.friedai.task.TaskFactory;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskSettings;
+import dev.friedai.task.combat.CombatController;
 import dev.friedai.task.combat.CombatMode;
 import dev.friedai.task.cooking.FurnaceJobs;
 import dev.friedai.task.interact.CompanionHands;
@@ -47,6 +48,7 @@ public class CompanionEntity extends PathfinderMob {
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final TaskRunner taskRunner =
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
+    private final CombatController combatController = new CombatController(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private transient CompanionHands hands;
     private int furnaceWatchTicks;
@@ -60,6 +62,10 @@ public class CompanionEntity extends PathfinderMob {
 
     public TaskRunner taskRunner() {
         return taskRunner;
+    }
+
+    public CombatController combatController() {
+        return combatController;
     }
 
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
@@ -86,6 +92,7 @@ public class CompanionEntity extends PathfinderMob {
                     heal(1.0F);
                 }
             }
+            combatController.tick();
             taskRunner.tick();
             if (++furnaceWatchTicks % 20 == 0) {
                 furnaceJobs.tick(this);
