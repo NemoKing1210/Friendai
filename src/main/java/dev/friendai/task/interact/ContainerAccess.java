@@ -40,6 +40,18 @@ public final class ContainerAccess {
     /** The nearest position within radius whose container passes the filter. */
     public static Optional<BlockPos> nearest(
             ServerLevel level, BlockPos origin, int radius, Predicate<Container> filter) {
+        List<BlockPos> found = all(level, origin, radius, filter);
+        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
+    }
+
+    /** Every storage container within radius, nearest first. */
+    public static List<BlockPos> all(ServerLevel level, BlockPos origin, int radius) {
+        return all(level, origin, radius, container -> true);
+    }
+
+    /** Every storage container within radius whose contents pass the filter, nearest first. */
+    public static List<BlockPos> all(
+            ServerLevel level, BlockPos origin, int radius, Predicate<Container> filter) {
         List<BlockPos> found = new ArrayList<>();
         int minChunkX = (origin.getX() - radius) >> 4;
         int maxChunkX = (origin.getX() + radius) >> 4;
@@ -66,7 +78,7 @@ public final class ContainerAccess {
                 .thenComparingInt(BlockPos::getX)
                 .thenComparingInt(BlockPos::getY)
                 .thenComparingInt(BlockPos::getZ));
-        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
+        return found;
     }
 
     /** "minecraft:chest" for summaries. */

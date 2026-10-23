@@ -8,7 +8,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.build.BlueprintResolver;
 import dev.friendai.task.build.BlueprintStore;
+import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Placement;
+import dev.friendai.task.build.Site;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,6 +23,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -228,5 +233,183 @@ public class BuildTests {
         store.save("hut", blueprint, null, true);
         equal(1, store.list().size(), "one blueprint after overwrite");
         h.succeed();
+    }
+
+    @GameTest
+    public void chestBlocksSite(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Site.SiteReport report = site(h, companion, 5, 2, 5, "minecraft:cobblestone", true);
+        String at = coords(h.absolutePos(new BlockPos(5, 2, 5)));
+        equal(List.of("the site isn't clear: minecraft:chest at " + at), report.problems(), "problems");
+        h.succeed();
+    }
+
+    @GameTest
+    public void naturalBlocksCleared(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.SHORT_GRASS);
+        h.setBlock(6, 2, 6, Blocks.TALL_GRASS);
+        h.setBlock(7, 2, 7, Blocks.DIRT);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [2,0,2], "block": "C" } ]
+                }
+                """);
+        Site.SiteReport report = Site.check(
+                h.getLevel(),
+                Placement.of(blueprint, h.absolutePos(new BlockPos(5, 2, 5)), Direction.SOUTH, companion),
+                companion,
+                true);
+        check(report.problems().isEmpty(), "unexpected problems: " + report.problems());
+        equal(List.of(
+                        h.absolutePos(new BlockPos(5, 2, 5)),
+                        h.absolutePos(new BlockPos(6, 2, 6)),
+                        h.absolutePos(new BlockPos(7, 2, 7))),
+                report.toClear(), "positions to clear");
+        h.succeed();
+    }
+
+    @GameTest
+    public void clearSiteOff(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.DIRT);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Site.SiteReport report = site(h, companion, 5, 2, 5, "minecraft:cobblestone", false);
+        String at = coords(h.absolutePos(new BlockPos(5, 2, 5)));
+        equal(List.of("the site isn't clear: minecraft:dirt at " + at), report.problems(), "problems");
+        check(report.toClear().isEmpty(), "nothing may be cleared with clear_site off");
+        h.succeed();
+    }
+
+    @GameTest
+    public void foundationFillsHole(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 3, 16);
+        h.setBlock(5, 3, 5, Blocks.AIR);
+        h.setBlock(5, 2, 5, Blocks.AIR);
+        h.setBlock(5, 1, 5, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 4, 2);
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 10));
+        Site.SiteReport report = site(h, companion, 5, 4, 5, "minecraft:cobblestone", true);
+        check(report.problems().isEmpty(), "unexpected problems: " + report.problems());
+        equal(2, report.foundation().size(), "two foundation blocks");
+        equal(h.absolutePos(new BlockPos(5, 3, 5)), report.foundation().get(0).pos(), "first foundation block");
+        equal(h.absolutePos(new BlockPos(5, 2, 5)), report.foundation().get(1).pos(), "second foundation block");
+        equal(state("minecraft:dirt"), report.foundation().get(0).wanted(), "foundation material from the inventory");
+        h.succeed();
+    }
+
+    @GameTest
+    public void foundationTooDeep(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 6, 16);
+        for (int y = 2; y <= 6; y++) {
+            h.setBlock(5, y, 5, Blocks.AIR);
+        }
+        h.setBlock(5, 1, 5, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 7, 2);
+        Site.SiteReport report = site(h, companion, 5, 7, 5, "minecraft:cobblestone", true);
+        String at = coords(h.absolutePos(new BlockPos(5, 7, 5)));
+        equal(List.of("the ground under " + at + " drops more than 4 blocks"), report.problems(), "problems");
+        equal(4, report.foundation().size(), "foundation stops at four blocks");
+        h.succeed();
+    }
+
+    @GameTest
+    public void foundationOnlyUnderBlocks(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 3, 16);
+        for (int y = 2; y <= 3; y++) {
+            h.setBlock(4, y, 4, Blocks.AIR);
+            h.setBlock(5, y, 5, Blocks.AIR);
+        }
+        h.setBlock(4, 1, 4, Blocks.STONE);
+        h.setBlock(5, 1, 5, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 4, 2);
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone", "_": "minecraft:air" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" },
+                    { "op": "box", "from": [1,0,1], "to": [1,0,1], "block": "_" }
+                  ]
+                }
+                """);
+        Site.SiteReport report = Site.check(
+                h.getLevel(),
+                Placement.of(blueprint, h.absolutePos(new BlockPos(4, 4, 4)), Direction.SOUTH, companion),
+                companion,
+                true);
+        equal(2, report.foundation().size(), "foundation only under the cobblestone spec");
+        int column = h.absolutePos(new BlockPos(4, 0, 0)).getX();
+        for (Placement.PlacedSpec spec : report.foundation()) {
+            equal(column, spec.pos().getX(), "no foundation under the air spec");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void protectedPosition(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(5, 2, 5));
+        companion.hands().overrideProtection(pos -> pos.equals(target));
+        Site.SiteReport report = site(h, companion, 5, 2, 5, "minecraft:cobblestone", true);
+        equal(List.of(coords(target) + " is protected"), report.problems(), "problems");
+        h.succeed();
+    }
+
+    @GameTest
+    public void doorCountsOneItem(GameTestHelper h) {
+        BlockPos pos = h.absolutePos(new BlockPos(2, 2, 2));
+        List<Placement.PlacedSpec> specs = List.of(
+                new Placement.PlacedSpec(pos, state("minecraft:oak_door[facing=south,half=lower]")),
+                new Placement.PlacedSpec(pos.above(), state("minecraft:oak_door[facing=south,half=upper]")));
+        java.util.Map<net.minecraft.world.item.Item, Integer> needed = Materials.needed(specs, List.of());
+        equal(java.util.Map.of(Items.OAK_DOOR, 1), needed, "one door");
+        h.succeed();
+    }
+
+    @GameTest
+    public void wallTorchNeedsTorch(GameTestHelper h) {
+        BlockPos pos = h.absolutePos(new BlockPos(2, 2, 2));
+        List<Placement.PlacedSpec> specs =
+                List.of(new Placement.PlacedSpec(pos, state("minecraft:wall_torch[facing=south]")));
+        equal(java.util.Map.of(Items.TORCH, 1), Materials.needed(specs, List.of()), "a wall torch is one torch");
+        h.succeed();
+    }
+
+    @GameTest
+    public void haveCountsChests(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 10));
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        var chest = (net.minecraft.world.level.block.entity.ChestBlockEntity)
+                h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(6, 2, 6)));
+        chest.setItem(0, new ItemStack(Items.OAK_PLANKS, 20));
+        chest.setChanged();
+        equal(30, Materials.have(companion, h.getLevel()).getOrDefault(Items.OAK_PLANKS, 0), "inventory plus chest");
+        h.succeed();
+    }
+
+    private static Site.SiteReport site(
+            GameTestHelper h, CompanionEntity companion, int x, int y, int z, String block, boolean clear) {
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "%s" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" } ]
+                }
+                """.formatted(block));
+        return Site.check(
+                h.getLevel(),
+                Placement.of(blueprint, h.absolutePos(new BlockPos(x, y, z)), Direction.SOUTH, companion),
+                companion,
+                clear);
+    }
+
+    private static String coords(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 }
