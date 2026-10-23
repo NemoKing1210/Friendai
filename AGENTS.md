@@ -80,6 +80,72 @@ Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gamete
 - Things that tripped us before: `Identifier` (not `ResourceLocation`); entity save/load uses `ValueOutput`/`ValueInput`; `Entity.snapTo`; the current screen is `minecraft.gui.screen()`, toasts are `minecraft.gui.toastManager()`, open a screen with `setScreenAndShow`; `Mob.swing(hand, SwingAnimation.DEFAULT)`; `EntityRenderers.register`; HUD via `HudElementRegistry`; keybinds via `KeyMappingHelper` and `KeyMapping.Category.register(Identifier)`; command permissions via `Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)`.
 - YACL and Mod Menu are **optional** dependencies. Code that touches them lives in `client/config` and must only be loaded when `yet_another_config_lib_v3` is present.
 
+## Working with subagents
+
+Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `subagent`, `@mention`, "spawn agents", etc.). The rules below are tool-independent; the adapter notes at the end only name the tools.
+
+**You are the orchestrator.** Split the work, write the briefs, integrate the results, and own the final verification. Subagents do bounded pieces.
+
+### When to delegate
+
+- The task splits into 2+ independent parts (separate modules or files, parallel searches, comparing several options, writing tests, reviewing). Launch them **in parallel in one step**, not one after another, if the tool allows it.
+- Heavy reading goes to a subagent: wide code searches, tracing a call path through many files, reading logs or decompiled Minecraft sources. Ask for a short summary with `path:line` references so your own context stays small.
+- Review changes with parallel reviewer subagents (e.g. one for thread/layer rules in the Architecture section, one for tests and localization), when the tool supports it.
+
+### When NOT to delegate
+
+- Steps depend on each other's output, the task is small (a few tool calls), or the decision needs one continuous context. Delegating then only adds tokens and latency.
+- If your environment has no subagents, do not invent them. Do the work yourself, but still split it into independent steps and read only what you need.
+
+### Writing a brief
+
+A subagent does not see this conversation. Make each brief self-contained:
+
+- **Goal** and why it matters, in one or two sentences.
+- **Paths** to read and, for writers, the exact files it may change.
+- **Constraints**: the relevant rules from this file (layer boundaries, threading, English only, no commits), and what is out of scope.
+- **Result format**: e.g. "reply with a summary under 200 words plus `path:line` list".
+- **Done when**: a checkable criterion (a test passes, a symbol is found, a list is complete).
+
+### Isolation
+
+- Subagents that edit code must own disjoint files. Fix the split before launching. If two parts must touch the same file, run them one after another.
+- Prefer a separate branch or worktree for parallel writers if the tool offers it.
+- Only one agent should run `./gradlew` in a given checkout at a time: parallel builds fight over the Gradle lock and the shared run directory. Give builders their own worktree, or run the build yourself after integrating.
+
+### After they finish
+
+- Subagent reports are claims, not proof. Read the diff, then run `./gradlew build` and quote the real result before saying the work is done (see "Definition of done").
+- Resolve conflicting edits yourself. Do not ask a subagent to settle a conflict between subagents.
+
+### Examples
+
+- Research. Before: read `PromptBuilder`, `CompanionBrain` and `ToolRegistry` one by one in the main session. After: three read-only subagents, one per area, each returns the key types and call sites in a few lines.
+- New skill. Before: write the task, then the tool, then the GameTest, then both lang files in sequence. After: after you fix the interface, run the task + tool, the GameTest, and the `en_us.json`/`ru_ru.json` entries in parallel on disjoint files; then integrate and build.
+- Review. Before: one pass over the whole diff. After: parallel reviewers for layer/thread rules, test coverage, and localization; you merge the findings.
+
+### Adapter notes
+
+- **oh-my-pi (`omp`)**: tool `task` (parallel, optionally worktree-isolated); `wait` collects background results; `/review` spawns reviewers. Custom agents: `.omp/agents/*.md` (project) or `~/.omp/agent/agents/*.md`; `.claude/agents` is not read. Bundled: `scout` (read-only), `reviewer`, `task`.
+- **Claude Code**: tool `Agent` (formerly `Task`). Custom agents: `.claude/agents/*.md` with YAML frontmatter (`name`, `description`, `tools`, `model`; `isolation: worktree` for an isolated checkout). Default cap is 20 concurrent subagents.
+- **Codex CLI**: enabled by default; ask for it explicitly ("spawn agents for X, Y, Z in parallel"). Custom agents: TOML in `.codex/agents/` (`name`, `description`, `developer_instructions`). Cap: `agents.max_concurrent_threads_per_session`. Prefer parallelism for read-heavy work; be careful with concurrent writes.
+- **opencode**: `Task` tool and `@name` mentions. Built-in subagents: `general`, `explore`, `scout`. Custom agents: `.opencode/agents/*.md` with `mode: subagent`. Not an import: opencode does not expand `@file` in `AGENTS.md`.
+- **pi**: no built-in subagents; they come from an installed extension (typically `.pi/agents/*.md` definitions, which may need project trust). Check which extension is loaded before relying on delegation.
+
+## Parallel sessions
+
+The maintainer often runs several agent sessions on this repository at once, usually in the same checkout. Files can change under you at any time, and a dirty `git status` is normal, not an error.
+
+- **Assume other changes are someone else's work.** Uncommitted modifications, untracked files and new directories you did not create may belong to another live session. Do not revert, delete, stash, reformat or "clean up" them.
+- **Never run `git checkout -- <path>`, `git restore`, `git reset --hard`, `git stash` or `git clean`** to get a tidy tree. If a file blocks you, work around it or report it.
+- **Re-read before you edit.** Another session may have changed the file since you last read it. Make small, targeted edits instead of rewriting whole files, and re-check the file after a failed edit.
+- **Stay in your lane.** Touch only the files your task needs. Spot a problem elsewhere? Mention it in your final message instead of fixing it.
+- **Commit only your own files**, naming them explicitly (`git add <path>...`). Never use `git add -A` or `git commit -a`. If a file holds both your edits and someone else's, say so and leave it uncommitted.
+- **Failures outside your change may not be yours.** A build or test error in code you did not touch is often another session's work in progress. Check `git status` and `git diff` for that file first; if it is not yours, report it rather than patching it, and re-run later.
+- **One Gradle run at a time per checkout** (see "Working with subagents"). If a build fails on a lock or the `run/` directory, wait and retry; do not delete lock files or kill other Java processes.
+- **Prefer a worktree** for work that edits many files or runs long builds, so you do not collide with other sessions. Do not delete or rewrite other sessions' worktrees or branches.
+- In the final message, list the files you changed and mention any foreign changes you noticed, so the maintainer can reconcile them.
+
 ## Git and repository hygiene
 
 - Commit messages: conventional style (`feat:`, `fix:`, `chore:`, `docs:`, optional scope), imperative, English. **No `Co-Authored-By` or other AI attribution lines.**
