@@ -9,6 +9,7 @@ import dev.friedai.chat.ChatRouter;
 import dev.friedai.config.ServerConfig;
 import dev.friedai.core.BrainService;
 import dev.friedai.core.FriedaiServerState;
+import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
 import dev.friedai.llm.model.LlmResponse;
 import dev.friedai.llm.model.Message;
@@ -115,6 +116,26 @@ public class BrainServiceTests {
             h.assertTrue(last.role() == Role.USER && last.text().contains("[event] task #1 mine_blocks finished"),
                     "last message was " + last.text());
             h.assertTrue(h.getLevel().getBlockState(h.absolutePos(log)).isAir(), "log should be mined");
+        });
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void noticeReachesBrain(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        BrainService brains = FriedaiServerState.get(server).brains();
+        Script script = new Script().text("Hi").text("Noted");
+        brains.setGatewayOverride(player.getUUID(), script);
+        CompanionEntity companion = CompanionManager.get(server).summon(player);
+        brains.sendMessage(player.getUUID(), "Steve", "hello");
+        companion.taskRunner().notice("x");
+        h.succeedWhen(() -> {
+            h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
+            boolean seen = script.requests.stream().anyMatch(request -> {
+                Message last = request.get(request.size() - 1);
+                return last.role() == Role.USER && last.text().contains("[event] x");
+            });
+            h.assertTrue(seen, "no request carried the world notice");
         });
     }
 

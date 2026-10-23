@@ -34,6 +34,13 @@ public final class TaskRunner {
         this.listener = listener;
     }
 
+    /** Passes a world notice to the listener, when one is attached. */
+    public void notice(String text) {
+        if (listener != null) {
+            listener.onNotice(text);
+        }
+    }
+
     public Optional<Task> current() {
         return Optional.ofNullable(current).map(Active::task);
     }

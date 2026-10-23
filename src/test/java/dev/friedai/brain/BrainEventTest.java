@@ -44,4 +44,9 @@ class BrainEventTest {
         assertEquals("[event] task #7 mine_blocks cancelled: replaced by a new task",
                 new BrainEvent.TaskCancelled(7, "mine_blocks", "replaced by a new task").toPromptLine());
     }
+
+    @Test
+    void worldNoticeLine() {
+        assertEquals("[event] the furnace is done", new BrainEvent.WorldNotice("the furnace is done").toPromptLine());
+    }
 }

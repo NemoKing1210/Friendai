@@ -241,6 +241,11 @@ public final class BrainService {
                 debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
                 post(owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
+
+            @Override
+            public void onNotice(String text) {
+                post(owner, new BrainEvent.WorldNotice(text));
+            }
         });
         Entry entry = new Entry(brain, speaker);
         entries.put(owner, entry);

@@ -45,4 +45,12 @@ public sealed interface BrainEvent {
             return "[event] task #" + taskId + " " + toolName + " cancelled: " + reason;
         }
     }
+
+    /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
+    record WorldNotice(String text) implements BrainEvent {
+        @Override
+        public String toPromptLine() {
+            return "[event] " + text;
+        }
+    }
 }

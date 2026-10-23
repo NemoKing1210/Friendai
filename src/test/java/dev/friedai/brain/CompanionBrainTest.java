@@ -183,6 +183,15 @@ class CompanionBrainTest {
     }
 
     @Test
+    void worldNoticeStartsTurnForOwner() {
+        gateway.enqueue(text("noted"));
+        brain.post(new BrainEvent.WorldNotice("the furnace is done"));
+        assertEquals(1, gateway.requests.size());
+        assertEquals("[event] the furnace is done", lastUser(gateway.requests.get(0)).text());
+        assertEquals(AccessLevel.OWNER, tools.specAccess.get(0));
+    }
+
+    @Test
     void taskEventsOnlyTurnActsAsOwner() {
         gateway.enqueue(text("noted"));
         brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
