@@ -24,8 +24,8 @@ public final class FriedaiServerState {
                 FabricLoader.getInstance().getConfigDir().resolve("friedai-server.json"),
                 ServerConfig.class,
                 ServerConfig::defaults,
-                1,
-                (json, from) -> json);
+                ServerConfig.VERSION,
+                ServerConfig::migrate);
         this.config = store.load();
         logProblems(config.validate());
         applyTaskSettings(config);

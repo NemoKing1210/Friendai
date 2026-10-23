@@ -1,5 +1,6 @@
 package dev.friedai.config;
 
+import com.google.gson.JsonObject;
 import dev.friedai.llm.provider.LlmProfile;
 import dev.friedai.llm.provider.RoutingRule;
 import dev.friedai.text.UserMessage;
@@ -11,7 +12,9 @@ import java.util.function.Function;
 
 /** friedai-server.json. */
 public class ServerConfig {
-    public int version = 1;
+    public static final int VERSION = 2;
+
+    public int version = VERSION;
     public String activeProfile = "main";
     public Map<String, ProfileConfig> profiles = new LinkedHashMap<>();
     public CompanionSection companion = new CompanionSection();
@@ -40,6 +43,9 @@ public class ServerConfig {
         public boolean respondToName = true;
         public boolean listenAll = false;
         public int maxReplyChars = 256;
+        public boolean guestsEnabled = true;
+        public int hearingRadius = 16;
+        public int guestCooldownMs = 5000;
     }
 
     public static class BrainSection {
@@ -59,6 +65,11 @@ public class ServerConfig {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
         return c;
+    }
+
+    /** Older files keep their values; missing fields keep their field-initializer defaults. */
+    public static JsonObject migrate(JsonObject json, int from) {
+        return json;
     }
 
     /** Fills missing sections and clamps ranges. Returns English descriptions of what was fixed, for the log. */
@@ -89,6 +100,8 @@ public class ServerConfig {
         brain.requestTimeoutSec = clamp(problems, "brain.requestTimeoutSec", brain.requestTimeoutSec, 5, 600);
         brain.cooldownMs = clamp(problems, "brain.cooldownMs", brain.cooldownMs, 0, 60_000);
         chat.maxReplyChars = clamp(problems, "chat.maxReplyChars", chat.maxReplyChars, 32, 256);
+        chat.hearingRadius = clamp(problems, "chat.hearingRadius", chat.hearingRadius, 4, 64);
+        chat.guestCooldownMs = clamp(problems, "chat.guestCooldownMs", chat.guestCooldownMs, 0, 60_000);
         tasks.mineSearchRadius = clamp(problems, "tasks.mineSearchRadius", tasks.mineSearchRadius, 4, 64);
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
         return problems;
