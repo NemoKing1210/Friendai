@@ -32,9 +32,9 @@ Pure Java:
 - `text/` — `UserMessage(key, args)` and `UserFacingException`: how pure layers talk to the player.
 - `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`, `AccessLevel`/`Caller` (who a turn acts for).
 - `brain/` — `CompanionBrain` (the agent loop, one principal per turn), `ConversationMemory`, `PromptBuilder`, `AccessResolver`, events. It sees the world only through `PerceptionSource` and acts only through `ToolExecutor`.
-- `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID; `Fact`, `Subject`, `Category` with monotonic ids), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption), `MemoryActions` (tool logic and the permission matrix via `MemoryPolicy`), `MemoryPromptRenderer` (per-caller prompt block), `MemoryReport` (command output).
+- `memory/` — `MemoryBook` (`PlayerRecord`, trust keyed by owner UUID; `Fact`, `Subject`, `Category` with monotonic ids; `revision()` for change tracking), `MemoryStore` (lazy load, 5 s debounced save, `.bak` on corruption), `MemoryActions` (tool logic and the permission matrix via `MemoryPolicy`), `MemoryMenuActions` (the memory tab's requests with owner rights), `MemoryView` + `MemoryViewBuilder` + `MemoryViewCodec` (what the tab shows and its wire format), `MemoryViewers` (who has the tab open), `MemoryPromptRenderer` (per-caller prompt block), `MemoryReport` (command output).
 - `chat/AddressDetector`, `chat/CompanionPicker` (which companion hears a message), `chat/ReplySplitter`, `voice/` (`PcmConverter`, `WhisperModelManager`), `net/RateLimiter`.
-- `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
+- `debug/` — the companion menu's model: `DebugLog` (bounded brain log), `TaskHistory`, `SecretRedactor`, `DebugAccess` (who may do what), `CompanionSnapshot` + `SnapshotCodec` (what travels to the client), `MemoryTabModel` (the Memory tab's group, selection, edit draft and Clear confirmation), `RequestType`, `PauseRowPlacement`. `brain/BrainObserver` is the hook `CompanionBrain` reports to; `DebugLogObserver` writes it into the log.
 
 Minecraft layer:
 
@@ -42,9 +42,9 @@ Minecraft layer:
 - `task/` — `Task`, `TaskRunner` (one task at a time, timeouts, crash isolation, falls back to Follow), `task/builtin/` (Follow, Stay, GoTo, PickupItems, GiveItems, MineBlocks), `task/mining/`, `task/nav/MoveHelper`.
 - `tool/builtin/FriendaiTools` — the 9 skills as tools, plus the `remember`/`forget`/`recall` memory tools (always registered, `enabled()` follows `memory.enabled`). `perception/` — surroundings snapshot for the prompt.
 - `core/` — `BrainService` (one brain per player, shared `LlmClient`), `FriendaiServerState` (per-server config and brains), `ServerBrainScheduler`, `Components` (`UserMessage` → `Component`).
-- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriendaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`; debug tabs are operator-only, checked on the server).
+- `chat/ChatRouter`, `chat/CompanionSpeaker`, `command/FriendaiCommands`, `net/` (voice transcript packet; companion menu: `CompanionRequestC2SPayload` handled by `CompanionRequestHandler`, snapshots built by `SnapshotBuilder` and pushed by `DebugStream`, memory views carried by `MemoryViewS2CPayload` and pushed by `MemoryViewStream`; debug tabs are operator-only, checked on the server).
 
-Client (`src/client`): renderer, companion menu (`client/ui`: pause-menu button, `CompanionControlScreen` and its tabs), YACL settings screen (`client/config`), voice (`client/voice`: mic capture, push-to-talk, HUD, whisper-jni), `client/tts` (interface only).
+Client (`src/client`): renderer, companion menu (`client/ui`: pause-menu button, `CompanionControlScreen` and its tabs including the Memory tab, `MemoryTab`), YACL settings screen (`client/config`), voice (`client/voice`: mic capture, push-to-talk, HUD, whisper-jni), `client/tts` (interface only).
 
 Source sets: `main`, `client` (Loom split environments), `test` (JUnit), `gametest` (Fabric GameTest, mod id `friendai-gametest`).
 
