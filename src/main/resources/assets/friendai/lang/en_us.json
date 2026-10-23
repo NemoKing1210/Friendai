@@ -144,5 +144,21 @@
   "friendai.menu.debug.send": "Send",
   "friendai.menu.debug.tool": "Tool: %s",
   "friendai.menu.debug.args_hint": "Arguments (JSON)",
-  "friendai.menu.debug.run": "Run"
+  "friendai.menu.debug.run": "Run",
+  "friendai.menu.memory.status.added": "Remembered as fact %s.",
+  "friendai.menu.memory.status.saved": "Fact %s saved.",
+  "friendai.menu.memory.status.forgotten": "Fact %s forgotten.",
+  "friendai.menu.memory.status.cleared": "Cleared %s facts.",
+  "friendai.menu.memory.status.trusted": "%s is now trusted.",
+  "friendai.menu.memory.status.untrusted": "%s is no longer trusted.",
+  "friendai.menu.memory.error.empty": "The fact is empty.",
+  "friendai.menu.memory.error.too_long": "The fact is too long (%s of %s characters).",
+  "friendai.menu.memory.error.full": "Memory about %s is full (%s facts).",
+  "friendai.menu.memory.error.full_world": "Shared memory is full (%s facts).",
+  "friendai.menu.memory.error.duplicate": "This is already remembered as fact %s.",
+  "friendai.menu.memory.error.no_fact": "Fact %s no longer exists.",
+  "friendai.menu.memory.error.bad_request": "The request could not be understood.",
+  "friendai.menu.memory.error.self_trust": "You are the owner already.",
+  "friendai.menu.memory.error.unknown_player": "This player is not known or not online.",
+  "friendai.menu.memory.error.disabled": "Memory is turned off on this server."
 }

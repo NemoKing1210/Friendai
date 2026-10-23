@@ -144,5 +144,21 @@
   "friendai.menu.debug.send": "Отправить",
   "friendai.menu.debug.tool": "Инструмент: %s",
   "friendai.menu.debug.args_hint": "Аргументы (JSON)",
-  "friendai.menu.debug.run": "Запустить"
+  "friendai.menu.debug.run": "Запустить",
+  "friendai.menu.memory.status.added": "Запомнено как факт %s.",
+  "friendai.menu.memory.status.saved": "Факт %s сохранён.",
+  "friendai.menu.memory.status.forgotten": "Факт %s забыт.",
+  "friendai.menu.memory.status.cleared": "Удалено фактов: %s.",
+  "friendai.menu.memory.status.trusted": "%s теперь в доверенных.",
+  "friendai.menu.memory.status.untrusted": "%s больше не в доверенных.",
+  "friendai.menu.memory.error.empty": "Факт пустой.",
+  "friendai.menu.memory.error.too_long": "Факт слишком длинный (%s из %s символов).",
+  "friendai.menu.memory.error.full": "Память о %s заполнена (фактов: %s).",
+  "friendai.menu.memory.error.full_world": "Общая память заполнена (фактов: %s).",
+  "friendai.menu.memory.error.duplicate": "Это уже запомнено как факт %s.",
+  "friendai.menu.memory.error.no_fact": "Факта %s больше нет.",
+  "friendai.menu.memory.error.bad_request": "Не удалось разобрать запрос.",
+  "friendai.menu.memory.error.self_trust": "Ты и так владелец.",
+  "friendai.menu.memory.error.unknown_player": "Игрок неизвестен или не в сети.",
+  "friendai.menu.memory.error.disabled": "Память на этом сервере выключена."
 }
