@@ -53,6 +53,24 @@ public final class PlaceSpot {
         return Optional.empty();
     }
 
+    /**
+     * Like {@link #spotAt}, but any neighbour with a collision shape counts, not only a full support face: a placed
+     * slab or stairs can be clicked to place the next block, even though its side is not a full face.
+     */
+    public static Optional<Spot> standingSpotAt(ServerLevel level, BlockPos pos) {
+        for (Direction direction : NEIGHBOURS) {
+            BlockPos against = pos.relative(direction);
+            BlockState state = level.getBlockState(against);
+            if (state.isAir() || state.canBeReplaced()) {
+                continue;
+            }
+            if (!state.getCollisionShape(level, against).isEmpty()) {
+                return Optional.of(new Spot(pos, against, direction.getOpposite()));
+            }
+        }
+        return Optional.empty();
+    }
+
     /** An automatic spot near the companion, for blocks like a crafting table. */
     public static Optional<Spot> near(ServerLevel level, CompanionEntity companion, int radius) {
         BlockPos origin = companion.blockPosition();

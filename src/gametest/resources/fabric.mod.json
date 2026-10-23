@@ -29,7 +29,8 @@
 			"dev.friendai.test.CombatTests",
 			"dev.friendai.test.AnimalTests",
 			"dev.friendai.test.FarmingTests",
-			"dev.friendai.test.ObtainTests"
+			"dev.friendai.test.ObtainTests",
+			"dev.friendai.test.BuildTests"
 		]
 	},
 	"depends": {
