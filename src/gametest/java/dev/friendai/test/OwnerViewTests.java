@@ -62,6 +62,21 @@ public class OwnerViewTests {
     }
 
     @GameTest
+    public void playerViewToolReportsTarget(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.OAK_LOG);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = companionFor(h, owner);
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(companion);
+        var call = new dev.friendai.llm.model.ToolCall("1", "player_view", new com.google.gson.JsonObject(), "{}", null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), "error: " + result.content());
+        h.assertTrue(result.content().contains("looking at: block oak_log at"), "content: " + result.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void viewSeesEntityInFrontOfBlock(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         h.setBlock(10, 3, 2, Blocks.OAK_LOG);
@@ -91,6 +106,12 @@ public class OwnerViewTests {
                 jumping.standingOn().startsWith("in the air above stone at ")
                         && jumping.standingOn().endsWith("(3 blocks below)"),
                 "in the air: " + jumping.standingOn());
+
+        var low = h.absoluteVec(new net.minecraft.world.phys.Vec3(2.5, 2.5, 2.5));
+        owner.teleportTo(low.x, low.y, low.z);
+        owner.setOnGround(false);
+        OwnerFocus hopping = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(hopping.standingOn().endsWith("(1 block below)"), "one block: " + hopping.standingOn());
         h.succeed();
     }
 

@@ -54,6 +54,13 @@ class PromptBuilderTest {
     }
 
     @Test
+    void explainsPlayerView() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("player_view"));
+        assertTrue(s.contains("never guess"));
+    }
+
+    @Test
     void buildingRule() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains(

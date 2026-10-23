@@ -127,6 +127,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A chest on the site: the preview lists "the site isn't clear: minecraft:chest at …" and the build is refused.
 - [ ] "Save this design": save_blueprint, then list_blueprints shows it and a build_structure by name builds it again.
 
+## Player view
+
+- [ ] Ask a real model: "break the block I'm looking at" / "the one I'm standing on" / from behind a wall (it should say it cannot see you, not guess).
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.

@@ -1,6 +1,7 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
@@ -53,5 +54,13 @@ final class InfoTools {
                     }
                     return ToolResult.ok(text.toString());
                 }));
+        registry.register(ToolKit.callerTool("player_view",
+                "Where the player who is talking to you stands and what they are looking at or standing on, "
+                        + "right now. Use it when they say 'this block', 'the one I'm looking at' or 'where I stand', "
+                        + "especially after they may have moved.",
+                SchemaBuilder.object().build(),
+                AccessLevel.TRUSTED,
+                () -> true,
+                (c, caller, a) -> ToolResult.ok(OwnerFocusBuilder.of(c, caller.uuid()).toPromptText())));
     }
 }

@@ -75,7 +75,7 @@ public final class OwnerFocusBuilder {
             }
             BlockState state = level.getBlockState(pos);
             if (!state.getCollisionShape(level, pos).isEmpty()) {
-                return "in the air above " + blockName(level, pos) + " at " + coords(pos) + " (" + n + " blocks below)";
+                return "in the air above " + blockName(level, pos) + " at " + coords(pos) + " (" + n + (n == 1 ? " block" : " blocks") + " below)";
             }
         }
         return "in the air (nothing within " + GROUND_SCAN + " blocks below)";
@@ -96,7 +96,16 @@ public final class OwnerFocusBuilder {
 
         AABB box = player.getBoundingBox().expandTowards(look.scale(LOOK_RANGE)).inflate(1.0);
         EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(
-                player, eye, end, box, e -> e != companion && !e.isSpectator() && e.isPickable(), LOOK_RANGE * LOOK_RANGE);
+                player,
+                eye,
+                end,
+                box,
+                e -> e != companion
+                        && e != player.getVehicle()
+                        && !e.isPassengerOfSameVehicle(player)
+                        && !e.isSpectator()
+                        && e.isPickable(),
+                LOOK_RANGE * LOOK_RANGE);
         double entityDistance = entityHit == null ? Double.MAX_VALUE : eye.distanceTo(entityHit.getLocation());
 
         if (entityHit != null && entityDistance < blockDistance) {
