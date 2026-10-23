@@ -12,6 +12,7 @@
 			"dev.friedai.test.ItemTaskTests",
 			"dev.friedai.test.MineBlocksTests",
 			"dev.friedai.test.ToolTests",
+			"dev.friedai.test.GuestTests",
 			"dev.friedai.test.PlanTests",
 			"dev.friedai.test.BrainServiceTests",
 			"dev.friedai.test.VoiceTests",

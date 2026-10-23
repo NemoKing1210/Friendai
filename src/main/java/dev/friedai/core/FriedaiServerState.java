@@ -4,12 +4,14 @@ import dev.friedai.FriedaiMod;
 import dev.friedai.config.ConfigStore;
 import dev.friedai.config.ServerConfig;
 import dev.friedai.entity.CompanionManager;
+import dev.friedai.memory.MemoryStore;
 import dev.friedai.task.TaskSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
 
 /** Per-server mod state: the loaded config and the brains. */
 public final class FriedaiServerState {
@@ -17,6 +19,7 @@ public final class FriedaiServerState {
 
     private final ConfigStore<ServerConfig> store;
     private final BrainService brains;
+    private final MemoryStore memory;
     private ServerConfig config;
 
     private FriedaiServerState(MinecraftServer server) {
@@ -29,7 +32,10 @@ public final class FriedaiServerState {
         this.config = store.load();
         logProblems(config.validate());
         applyTaskSettings(config);
-        this.brains = new BrainService(server, config);
+        this.memory = new MemoryStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friedai").resolve("memory"),
+                System::currentTimeMillis);
+        this.brains = new BrainService(server, config, memory);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);
     }
 
@@ -51,6 +57,11 @@ public final class FriedaiServerState {
 
     public BrainService brains() {
         return brains;
+    }
+
+    /** Per-owner memory books: trust and player records. */
+    public MemoryStore memory() {
+        return memory;
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */

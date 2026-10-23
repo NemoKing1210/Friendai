@@ -35,6 +35,11 @@ public final class CompanionManager {
         return Optional.ofNullable(byOwner.get(owner)).filter(e -> !e.isRemoved());
     }
 
+    /** Loaded companions that have not been removed. */
+    public List<CompanionEntity> all() {
+        return byOwner.values().stream().filter(e -> !e.isRemoved()).toList();
+    }
+
     /** Indexes a loaded companion. A second companion of the same owner is discarded. */
     public void register(CompanionEntity entity) {
         UUID owner = entity.ownerUuid();

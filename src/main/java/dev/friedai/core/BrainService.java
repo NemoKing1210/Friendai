@@ -26,6 +26,7 @@ import dev.friedai.debug.TaskRecord;
 import dev.friedai.llm.LlmClient;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.memory.MemoryStore;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,7 @@ public final class BrainService {
 
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
+    private final MemoryStore memory;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<UUID, Entry> entries = new HashMap<>();
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
@@ -65,9 +67,10 @@ public final class BrainService {
     private String activeProvider = "";
     private int tickCounter;
 
-    public BrainService(MinecraftServer server, ServerConfig initial) {
+    public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
+        this.memory = memory;
         reload(initial);
     }
 
@@ -223,7 +226,7 @@ public final class BrainService {
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
                 effective,
                 scheduler,
-                AccessResolver.of(owner, p -> false));
+                AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         companion.taskRunner().setListener(new TaskListener() {
             @Override

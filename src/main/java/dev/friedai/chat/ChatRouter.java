@@ -4,10 +4,11 @@ import dev.friedai.brain.BrainEvent;
 import dev.friedai.config.ServerConfig;
 import dev.friedai.core.FriedaiServerState;
 import dev.friedai.entity.CompanionManager;
+import java.util.Optional;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.minecraft.server.level.ServerPlayer;
 
-/** Sends chat messages addressed to a player's companion to its brain. */
+/** Sends chat messages addressed to a companion to the companion that should hear them. */
 public final class ChatRouter {
     private ChatRouter() {}
 
@@ -17,15 +18,20 @@ public final class ChatRouter {
 
     public static void onChat(ServerPlayer player, String text) {
         var server = player.level().getServer();
-        if (CompanionManager.get(server).find(player.getUUID()).isEmpty()) {
-            return;
-        }
         FriedaiServerState state = FriedaiServerState.get(server);
         ServerConfig cfg = state.config();
-        AddressDetector detector = new AddressDetector(
-                cfg.companion.name, cfg.chat.prefix, cfg.chat.respondToName, cfg.chat.listenAll);
-        detector.match(text).ifPresent(content -> state.brains().post(
-                player.getUUID(),
-                new BrainEvent.PlayerSaid(player.getUUID(), player.getName().getString(), content, BrainEvent.Source.CHAT)));
+        AddressDetector detector =
+                new AddressDetector(cfg.companion.name, cfg.chat.prefix, cfg.chat.respondToName, false);
+        Optional<String> addressed = detector.match(text);
+        if (addressed.isPresent()) {
+            CompanionRouting.route(player)
+                    .ifPresent(owner ->
+                            CompanionRouting.deliver(player, owner, addressed.get(), BrainEvent.Source.CHAT));
+            return;
+        }
+        // Unaddressed lines only reach the speaker's own companion, never someone else's.
+        if (cfg.chat.listenAll && CompanionManager.get(server).find(player.getUUID()).isPresent()) {
+            CompanionRouting.deliver(player, player.getUUID(), text, BrainEvent.Source.CHAT);
+        }
     }
 }

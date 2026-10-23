@@ -33,6 +33,7 @@
   "friedai.common.no": "no",
   "friedai.command.reloaded": "Config reloaded.",
   "friedai.command.reloaded_with_fixes": "Config reloaded; %s invalid values were corrected (see the log).",
+  "friedai.memory.corrupt": "Your companion's memory file was damaged and has been reset. The old file was kept as a .bak copy.",
 
   "friedai.config.title": "Friendai Settings",
   "friedai.config.category.provider": "Provider",

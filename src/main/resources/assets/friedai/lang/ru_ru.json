@@ -33,6 +33,7 @@
   "friedai.common.no": "нет",
   "friedai.command.reloaded": "Конфиг перезагружен.",
   "friedai.command.reloaded_with_fixes": "Конфиг перезагружен; исправлено некорректных значений: %s (подробности в логе).",
+  "friedai.memory.corrupt": "Файл памяти компаньона был повреждён и сброшен. Старый файл сохранён как копия .bak.",
 
   "friedai.config.title": "Настройки Friendai",
   "friedai.config.category.provider": "Провайдер",
