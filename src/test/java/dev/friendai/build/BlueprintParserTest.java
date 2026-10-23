@@ -223,6 +223,17 @@ class BlueprintParserTest {
     }
 
     @Test
+    void badPaletteValueReportedOnce() {
+        List<String> errors = errors("""
+                {
+                  "palette": { "C": "minecraft:not_a_block" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [1,0,1], "block": "C" } ]
+                }
+                """);
+        assertEquals(List.of("unknown block minecraft:not_a_block"), errors);
+    }
+
+    @Test
     void unknownBlock() {
         List<String> errors = errors("""
                 {

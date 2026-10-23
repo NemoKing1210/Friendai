@@ -25,6 +25,7 @@ public final class BlueprintParser {
     private final Predicate<String> knownState;
     private final List<String> errors = new ArrayList<>();
     private final Map<Character, String> palette = new LinkedHashMap<>();
+    private final Set<Character> declaredPaletteKeys = new LinkedHashSet<>();
     private final Map<Pos, String> blocks = new LinkedHashMap<>();
     private final Set<String> reportedUnknownBlocks = new LinkedHashSet<>();
 
@@ -90,6 +91,7 @@ public final class BlueprintParser {
                 errors.add("palette: key \".\" is reserved");
                 continue;
             }
+            declaredPaletteKeys.add(key.charAt(0));
             if (!checkKnown(state)) {
                 continue;
             }
@@ -500,11 +502,9 @@ public final class BlueprintParser {
     }
 
     private String resolve(String reference) {
-        if (reference.length() == 1) {
-            String fromPalette = palette.get(reference.charAt(0));
-            if (fromPalette != null) {
-                return fromPalette;
-            }
+        if (reference.length() == 1 && declaredPaletteKeys.contains(reference.charAt(0))) {
+            // A palette key whose own value already failed is not reported again as a block id.
+            return palette.get(reference.charAt(0));
         }
         if (!checkKnown(reference)) {
             return null;
