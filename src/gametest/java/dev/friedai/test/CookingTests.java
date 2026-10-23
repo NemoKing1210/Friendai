@@ -133,18 +133,127 @@ public class CookingTests {
         });
     }
 
+    private static boolean hasItem(CompanionEntity c, net.minecraft.world.item.Item item) {
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            if (c.inventory().getItem(slot).is(item)) {
+                return true;
+            }
+        }
+        return c.getMainHandItem().is(item);
+    }
+
+    @GameTest(maxTicks = 600)
+    public void waitsAndCollects(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith(
+                            "smelted 1 minecraft:raw_copper into 1 minecraft:copper_ingot in 1 furnace"),
+                    "summary was " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 1, "copper ingots");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void campfireCooks(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.CAMPFIRE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.MUTTON, 2));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:mutton", 2, Station.CAMPFIRE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_MUTTON), 2, "cooked mutton");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void outOfFuelWhileWaiting(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
+        BlockPos pos = pos(h, 4, WAIT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.KELP, 2));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:kelp", 2, Station.FURNACE, null, false, 60 * 20);
+        String expected = "ran out of fuel; 1 minecraft:dried_kelp collected, "
+                + "1 minecraft:kelp still in the furnace at " + coords(pos);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(result.summary, expected, "summary");
+            h.assertValueEqual(c.inventory().countItem(Items.DRIED_KELP), 1, "dried kelp");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void furnaceBrokenWhileWaiting(GameTestHelper h) {
+        deck(h, 16, BROKEN_DECK);
+        h.setBlock(4, BROKEN_DECK + 1, 2, Blocks.FURNACE);
+        BlockPos pos = pos(h, 4, BROKEN_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, BROKEN_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 2, Station.FURNACE, null, false, 60 * 20);
+        boolean[] broken = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!broken[0] && h.getLevel().getBlockEntity(pos)
+                    instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
+                    && !furnace.getItem(0).isEmpty()) {
+                h.setBlock(4, BROKEN_DECK + 1, 2, Blocks.AIR);
+                broken[0] = true;
+            }
+            h.assertTrue(broken[0], "waiting for the furnace to be loaded");
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(result.summary,
+                    "the furnace at " + coords(pos) + " is gone; 0 minecraft:copper_ingot collected so far", "summary");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void tagInputsSmeltedTypeByType(GameTestHelper h) {
+        deck(h, 16, TAG_DECK);
+        h.setBlock(4, TAG_DECK + 1, 2, Blocks.BLAST_FURNACE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, TAG_DECK + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_ORE, 1));
+        c.inventory().addItem(new ItemStack(Items.DEEPSLATE_IRON_ORE, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 2));
+        Result result = new Result();
+        TaskRunner runner = smelt(c, result, "#minecraft:iron_ores", 2, Station.BLAST_FURNACE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 2, "iron ingots");
+            h.assertTrue(result.summary.startsWith(
+                            "smelted 2 #minecraft:iron_ores into 2 minecraft:iron_ingot"),
+                    "summary was " + result.summary);
+        });
+    }
+
     // Task 5: load-and-leave scenes live on their own decks, 24 blocks apart, so no test sees another's stations.
-    private static final int LOAD_DECK = 240;
-    private static final int BLAST_DECK = 264;
-    private static final int SMOKER_DECK = 288;
-    private static final int BUSY_DECK = 312;
-    private static final int NOFUEL_DECK = 240;
-    private static final int CRAFT_DECK = 264;
-    private static final int CAMPFIRE_DECK = 288;
-    private static final int WAIT_DECK = 240;
-    private static final int TAG_DECK = 264;
-    private static final int BROKEN_DECK = 288;
-    private static final int COLLECT_DECK = 312;
+    private static final int LOAD_DECK = 4;
+    private static final int BLAST_DECK = 4;
+    private static final int SMOKER_DECK = -30;
+    private static final int BUSY_DECK = -13;
+    private static final int NOFUEL_DECK = 233;
+    private static final int CRAFT_DECK = -30;
+    private static final int CAMPFIRE_DECK = -13;
+    private static final int WAIT_DECK = -47;
+    private static final int TAG_DECK = -64;
+    private static final int BROKEN_DECK = 233;
+    private static final int COLLECT_DECK = 250;
 
     private static void deck(GameTestHelper h, int size, int y) {
         for (int x = 0; x < size; x++) {
@@ -198,7 +307,7 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_gold", 2, null, null, false, 20);
+        TaskRunner runner = smelt(c, result, "minecraft:raw_gold", 2, Station.FURNACE, null, false, 20);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -265,7 +374,7 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, null, null, false, 20);
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 20);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -278,7 +387,7 @@ public class CookingTests {
     public void nothingToSmeltFails(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, null, null, false, 20);
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 20);
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
         h.assertValueEqual(result.summary, "I don't have minecraft:raw_copper", "summary");
@@ -300,12 +409,12 @@ public class CookingTests {
     @GameTest(maxTicks = 400)
     public void noAllowedFuelFails(GameTestHelper h) {
         deck(h, 16, NOFUEL_DECK);
-        h.setBlock(4, NOFUEL_DECK + 1, 2, Blocks.FURNACE);
+        h.setBlock(4, NOFUEL_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, NOFUEL_DECK + 1, 2);
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.OAK_BOAT));
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, null, null, false, 20);
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.BLAST_FURNACE, null, false, 20);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
@@ -322,7 +431,7 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 3));
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, null, null, false, 20);
+        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 20);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);

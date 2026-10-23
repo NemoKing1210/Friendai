@@ -12,6 +12,7 @@ import dev.friedai.task.cooking.FurnaceSlots;
 import dev.friedai.task.crafting.RecipeIndex;
 import dev.friedai.task.crafting.Stations;
 import dev.friedai.task.interact.PlaceSpot;
+import dev.friedai.task.inventory.InventoryOps;
 import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.nav.Approach;
 import java.util.ArrayList;
@@ -28,11 +29,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.entity.CampfireBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -80,6 +84,12 @@ public final class SmeltTask implements Task {
 
     private int waitTicks;
     private int collected;
+    private int loadedCount;
+    private int stationsLoaded;
+    private String outputId;
+    private final Set<String> fuelsUsed = new LinkedHashSet<>();
+    private final List<ItemStack> waitingInputs = new ArrayList<>();
+    private Approach waitApproach;
 
     public SmeltTask(
             ItemMatcher input,
@@ -205,6 +215,7 @@ public final class SmeltTask implements Task {
             }
         }
         cookTicks = recipe.cookTicks();
+        outputId = recipe.output();
 
         List<BlockPos> free = freeStations(c, kind);
         int stations = free.isEmpty() ? 1 : Math.min(free.size(), MAX_FURNACES);
@@ -222,6 +233,7 @@ public final class SmeltTask implements Task {
                 return;
             }
             cookTicks = recipe.cookTicks();
+            outputId = recipe.output();
             free = freeStations(c, kind);
             stations = free.isEmpty() ? 1 : Math.min(free.size(), MAX_FURNACES);
             estimate = estimate(kind, total(), stations);
@@ -571,6 +583,7 @@ public final class SmeltTask implements Task {
         int perStation = (total() + targets.size() - 1) / targets.size();
         int loadedTotal = 0;
         int stationsLoaded = 0;
+        List<ItemStack> waiting = new ArrayList<>();
         for (Target target : targets) {
             List<ItemStack> share = takeUpTo(remainingInputs, perStation);
             if (share.isEmpty()) {
@@ -586,35 +599,17 @@ public final class SmeltTask implements Task {
                 addJob(c, target, share.get(0), loaded);
                 continue;
             }
-            int ticksNeeded = 0;
-            for (ItemStack stack : share) {
-                Recipe recipe = recipeOn(kind, idOf(stack));
-                ticksNeeded += (recipe == null ? cookTicks : recipe.cookTicks()) * stack.getCount();
-            }
-            FuelPolicy.FuelPick pick = FuelPolicy.pick(c.companion(), c.level(), target.pos(), ticksNeeded, fuel);
-            if (pick.stacks().isEmpty()) {
-                summary = fuel == null ? "I have no fuel I'm allowed to burn" : "I don't have " + fuel.label();
+            List<ItemStack> queue = new ArrayList<>(share);
+            int loadedHere = loadOneType(c, target, queue);
+            if (loadedHere < 0) {
                 return TaskStatus.FAILED;
             }
-            int loadedHere = 0;
-            for (ItemStack stack : share) {
-                int loaded = FurnaceSlots.load(target.furnace(), stack, ItemStack.EMPTY);
-                takeFromInventory(c.companion(), stack, loaded);
-                loadedHere += loaded;
-                if (loaded < stack.getCount()) {
-                    remainingInputs.add(0, stack.copyWithCount(stack.getCount() - loaded));
-                }
-            }
             if (loadedHere <= 0) {
+                remainingInputs.addAll(0, queue);
                 continue;
             }
-            for (ItemStack fuelStack : pick.stacks()) {
-                FurnaceSlots.loadFuel(target.furnace(), fuelStack);
-                takeFromInventory(c.companion(), fuelStack, fuelStack.getCount());
-            }
-            int covered = pick.ticksCovered() / Math.max(1, cookTicks);
-            if (covered < loadedHere) {
-                fuelNote = "only enough fuel for " + Math.max(0, covered) + " of " + loadedHere;
+            if (waitMode) {
+                waiting.addAll(queue);
             }
             loadedTotal += loadedHere;
             stationsLoaded++;
@@ -624,6 +619,10 @@ public final class SmeltTask implements Task {
             summary = "couldn't load any " + kind.noun() + " with " + input.label();
             return TaskStatus.FAILED;
         }
+        this.loadedCount = loadedTotal;
+        this.stationsLoaded = stationsLoaded;
+        this.waitingInputs.clear();
+        this.waitingInputs.addAll(waiting);
         if (waitMode) {
             phase = Phase.WAIT;
             waitTicks = 0;
@@ -631,6 +630,40 @@ public final class SmeltTask implements Task {
             return TaskStatus.RUNNING;
         }
         return finishLoadAndLeave(loadedTotal, stationsLoaded);
+    }
+
+    /**
+     * Loads one type at a time: a furnace input slot accepts a single item type, so anything else in the queue
+     * waits for the next round. Returns the number loaded, or -1 when no allowed fuel is left.
+     */
+    private int loadOneType(TaskContext c, Target target, List<ItemStack> queue) {
+        if (queue.isEmpty()) {
+            return 0;
+        }
+        ItemStack first = queue.remove(0);
+        int needed = first.getCount() * ticksFor(idOf(first));
+        if (target.furnace().getItem(1).isEmpty()) {
+            FuelPolicy.FuelPick pick = FuelPolicy.pick(c.companion(), c.level(), target.pos(), needed, fuel);
+            if (pick.stacks().isEmpty()) {
+                summary = fuel == null ? "I have no fuel I'm allowed to burn" : "I don't have " + fuel.label();
+                return -1;
+            }
+            for (ItemStack fuelStack : pick.stacks()) {
+                FurnaceSlots.loadFuel(target.furnace(), fuelStack);
+                takeFromInventory(c.companion(), fuelStack, fuelStack.getCount());
+                fuelsUsed.add(idOf(fuelStack));
+            }
+            int covered = pick.ticksCovered() / Math.max(1, ticksFor(idOf(first)));
+            if (covered < first.getCount()) {
+                fuelNote = "only enough fuel for " + Math.max(0, covered) + " of " + first.getCount();
+            }
+        }
+        int loaded = FurnaceSlots.load(target.furnace(), first, ItemStack.EMPTY);
+        takeFromInventory(c.companion(), first, loaded);
+        if (loaded < first.getCount()) {
+            queue.add(0, first.copyWithCount(first.getCount() - loaded));
+        }
+        return loaded;
     }
 
     private int placeOnCampfire(TaskContext c, Target target, List<ItemStack> share) {
@@ -678,8 +711,146 @@ public final class SmeltTask implements Task {
         return TaskStatus.SUCCESS;
     }
 
+    private static final int WAIT_INTERVAL = 20;
+
     private TaskStatus tickWait(TaskContext c) {
+        waitTicks++;
+        int deadline = estimate(kind, loadedCount, stationsLoaded) * 3 / 2 + 600;
+        if (waitTicks > deadline) {
+            summary = "the " + kind.noun() + " took too long; " + collected + " " + outputName() + " collected so far";
+            return TaskStatus.FAILED;
+        }
+
+        BlockPos first = targets.get(0).pos();
+        Vec3 center = Vec3.atCenterOf(first);
+        if (c.companion().getEyePosition().distanceTo(center) > Approach.REACH) {
+            if (waitApproach == null) {
+                waitApproach = new Approach(first);
+            }
+            if (waitApproach.tick(c.companion()) == Approach.State.MOVING) {
+                return TaskStatus.RUNNING;
+            }
+            waitApproach = null;
+        } else {
+            c.companion().getLookControl().setLookAt(center.x, center.y, center.z);
+        }
+
+        if (waitTicks % WAIT_INTERVAL != 0) {
+            return TaskStatus.RUNNING;
+        }
+
+        boolean allDone = true;
+        for (Target target : targets) {
+            if (kind == Station.CAMPFIRE) {
+                collected += c.companion().collectNearbyItems(3.0);
+                if (campfireCooking(c.level(), target.pos())) {
+                    allDone = false;
+                }
+                continue;
+            }
+            if (!(c.level().getBlockEntity(target.pos()) instanceof AbstractFurnaceBlockEntity furnace)) {
+                summary = "the " + kind.noun() + " at " + coords(target.pos()) + " is gone; " + collected + " "
+                        + outputName() + " collected so far";
+                return TaskStatus.FAILED;
+            }
+            ItemStack result = FurnaceSlots.takeResult(furnace);
+            if (!result.isEmpty()) {
+                collected += result.getCount();
+                InventoryOps.insertOrDrop(c.companion(), result);
+                FurnaceSlots.popExperience(c.level(), furnace, center);
+            }
+            ItemStack input = furnace.getItem(0);
+            if (input.isEmpty()) {
+                if (!furnace.getItem(2).isEmpty()) {
+                    allDone = false;
+                    continue;
+                }
+                if (!waitingInputs.isEmpty()) {
+                    List<ItemStack> queue = new ArrayList<>();
+                    queue.add(waitingInputs.remove(0));
+                    int loaded = loadOneType(c, target, queue);
+                    if (loaded < 0) {
+                        return TaskStatus.FAILED;
+                    }
+                    waitingInputs.addAll(0, queue);
+                    loadedCount += loaded;
+                    allDone = false;
+                }
+                continue;
+            }
+            allDone = false;
+            BlockState state = c.level().getBlockState(target.pos());
+            boolean lit = state.hasProperty(AbstractFurnaceBlock.LIT) && state.getValue(AbstractFurnaceBlock.LIT);
+            if (!lit && furnace.getItem(1).isEmpty()) {
+                int needed = input.getCount() * ticksFor(idOf(input));
+                FuelPolicy.FuelPick pick =
+                        FuelPolicy.pick(c.companion(), c.level(), target.pos(), needed, fuel);
+                if (pick.stacks().isEmpty()) {
+                    summary = "ran out of fuel; " + collected + " " + outputName() + " collected, "
+                            + input.getCount() + " " + idOf(input) + " still in the " + kind.noun() + " at "
+                            + coords(target.pos());
+                    return TaskStatus.FAILED;
+                }
+                for (ItemStack fuelStack : pick.stacks()) {
+                    FurnaceSlots.loadFuel(furnace, fuelStack);
+                    takeFromInventory(c.companion(), fuelStack, fuelStack.getCount());
+                    fuelsUsed.add(idOf(fuelStack));
+                }
+            }
+        }
+        if (allDone && !waitingInputs.isEmpty()) {
+            allDone = false;
+        }
+        if (allDone) {
+            takeBackFuel(c);
+            summary = "smelted " + loadedCount + " " + input.label() + " into " + collected + " " + outputName()
+                    + " in " + stationsLoaded + " " + plural(stationsLoaded);
+            if (fuelNote != null) {
+                summary += "; " + fuelNote;
+            }
+            phase = Phase.DONE;
+            return TaskStatus.SUCCESS;
+        }
         return TaskStatus.RUNNING;
+    }
+
+    private static boolean campfireCooking(ServerLevel level, BlockPos pos) {
+        if (!(level.getBlockEntity(pos) instanceof CampfireBlockEntity campfire)) {
+            return false;
+        }
+        for (ItemStack stack : campfire.getItems()) {
+            if (!stack.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void takeBackFuel(TaskContext c) {
+        for (Target target : targets) {
+            if (target.furnace() == null) {
+                continue;
+            }
+            ItemStack slot = target.furnace().getItem(1);
+            if (slot.isEmpty()) {
+                continue;
+            }
+            String id = idOf(slot);
+            if (!fuelsUsed.contains(id) && !slot.is(Items.BUCKET)) {
+                continue;
+            }
+            ItemStack taken = target.furnace().removeItem(1, slot.getCount());
+            InventoryOps.insertOrDrop(c.companion(), taken);
+        }
+    }
+
+    private int ticksFor(String itemId) {
+        Recipe recipe = recipeOn(kind, itemId);
+        return recipe == null ? cookTicks : recipe.cookTicks();
+    }
+
+    private String outputName() {
+        return outputId == null ? input.label() : outputId;
     }
 
     // ---------------------------------------------------------------- small helpers
