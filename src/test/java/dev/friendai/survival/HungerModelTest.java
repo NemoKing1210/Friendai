@@ -113,6 +113,24 @@ class HungerModelTest {
     }
 
     @Test
+    void sharedTimerCarriesAcrossRegenBranches() {
+        HungerModel model = model(20, 0.0f, 0.0f);
+
+        // 79 slow-regen ticks: the shared timer sits at 79, nothing healed yet.
+        tick(model, 79, Difficulty.NORMAL, true, 15.0f, 20.0f);
+
+        // Saturation regen becomes possible, food stays 20, saturation becomes 2.
+        model.eat(1, 1.0f);
+        assertEquals(2.0f, model.saturation(), EPS);
+
+        HungerModel.TickResult result = model.tick(Difficulty.NORMAL, true, 15.0f, 20.0f);
+
+        // Vanilla's shared timer hits 80 and fires in the saturation branch.
+        assertEquals(2.0f / 6.0f, result.heal(), EPS);
+        assertEquals(2.0f, model.exhaustion(), EPS);
+    }
+
+    @Test
     void noRegenWhenGameruleOff() {
         HungerModel model = model(20, 6.0f, 0.0f);
 

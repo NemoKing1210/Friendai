@@ -21,8 +21,7 @@ public final class HungerModel {
     private float saturation;
     private float exhaustion;
 
-    private int saturationTimer;
-    private int slowRegenTimer;
+    private int tickTimer;
     private int starveTimer;
     private int peacefulTimer;
 
@@ -89,37 +88,33 @@ public final class HungerModel {
             peacefulTimer = 0;
         }
 
+        // Vanilla shares one tickTimer between both regeneration paths, so a
+        // switch carries partial progress; the starvation branch keeps its own
+        // timer and leaves tickTimer untouched.
         boolean hurt = health < maxHealth;
         if (naturalRegeneration && saturation > 0.0f && food >= MAX_FOOD && hurt) {
-            saturationTimer++;
-            slowRegenTimer = 0;
-            if (saturationTimer >= SATURATION_REGEN_INTERVAL) {
+            tickTimer++;
+            if (tickTimer >= SATURATION_REGEN_INTERVAL) {
                 float f = Math.min(saturation, 6.0f);
                 heal = f / 6.0f;
                 addExhaustion(f);
-                saturationTimer = 0;
+                tickTimer = 0;
             }
         } else if (naturalRegeneration && food >= 18 && hurt) {
-            slowRegenTimer++;
-            saturationTimer = 0;
-            if (slowRegenTimer >= SLOW_REGEN_INTERVAL) {
+            tickTimer++;
+            if (tickTimer >= SLOW_REGEN_INTERVAL) {
                 heal = 1.0f;
                 addExhaustion(6.0f);
-                slowRegenTimer = 0;
+                tickTimer = 0;
             }
-        } else {
-            saturationTimer = 0;
-            slowRegenTimer = 0;
-        }
-
-        if (food <= 0) {
+        } else if (food <= 0) {
             starveTimer++;
             if (starveTimer >= STARVE_INTERVAL) {
                 starveTimer = 0;
                 damage = starveDamage(difficulty, health);
             }
         } else {
-            starveTimer = 0;
+            tickTimer = 0;
         }
 
         return new TickResult(heal, damage);
@@ -130,8 +125,7 @@ public final class HungerModel {
         this.food = clamp(food, 0, MAX_FOOD);
         this.saturation = clamp(saturation, 0.0f, this.food);
         this.exhaustion = clamp(exhaustion, 0.0f, MAX_EXHAUSTION);
-        saturationTimer = 0;
-        slowRegenTimer = 0;
+        tickTimer = 0;
         starveTimer = 0;
         peacefulTimer = 0;
     }
