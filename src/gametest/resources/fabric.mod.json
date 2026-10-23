@@ -18,6 +18,7 @@
 			"dev.friedai.test.StorageTests",
 			"dev.friedai.test.ToolTests",
 			"dev.friedai.test.GuestTests",
+			"dev.friedai.test.MemoryTests",
 			"dev.friedai.test.PlanTests",
 			"dev.friedai.test.BrainServiceTests",
 			"dev.friedai.test.VoiceTests",

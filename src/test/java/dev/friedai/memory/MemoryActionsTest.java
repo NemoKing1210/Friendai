@@ -129,6 +129,28 @@ class MemoryActionsTest {
     }
 
     @Test
+    void anonymousGuestCannotWriteInsteadOfCrashing() {
+        var anonymous = new Caller(null, "", AccessLevel.GUEST);
+        var e = assertThrows(IllegalArgumentException.class, () -> actions(anonymous).remember("me", "NOTE", "x"));
+        assertTrue(e.getMessage().startsWith("You cannot remember that for this speaker (guest)"));
+        assertTrue(book.allFacts().isEmpty());
+    }
+
+    @Test
+    void anonymousOwnerWithABookActsAsTheOwner() {
+        actions(new Caller(null, "", AccessLevel.OWNER)).remember("me", "NOTE", "x");
+        assertEquals(Subject.player(O), book.allFacts().get(0).subject());
+    }
+
+    @Test
+    void ownerlessBookRefusesToRemember() {
+        var anonymous = new Caller(null, "", AccessLevel.OWNER);
+        MemoryActions ownerless = new MemoryActions(book, null, anonymous, L, 0, directory);
+        assertThrows(IllegalArgumentException.class, () -> ownerless.remember("world", "NOTE", "x"));
+        assertTrue(book.allFacts().isEmpty());
+    }
+
+    @Test
     void recallSelfWhenNothingIsKnown() {
         assertEquals("I remember nothing about Gus.", actions(guest).recall("me"));
     }

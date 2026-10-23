@@ -66,6 +66,24 @@ class MemoryPolicyTest {
     }
 
     @Test
+    void anonymousCallersAreDeniedInsteadOfMatchingNull() {
+        var anonymousGuest = new Caller(null, "", AccessLevel.GUEST);
+        var anonymousTrusted = new Caller(null, "", AccessLevel.TRUSTED);
+        assertFalse(MemoryPolicy.canWrite(O, anonymousGuest, Subject.player(null)));
+        assertFalse(MemoryPolicy.canWrite(O, anonymousTrusted, Subject.player(null)));
+        assertFalse(MemoryPolicy.canRecall(O, anonymousGuest, null));
+        assertFalse(MemoryPolicy.canRecall(O, anonymousTrusted, null));
+    }
+
+    @Test
+    void ownerlessBookRefusesEverything() {
+        var anonymousOwner = new Caller(null, "", AccessLevel.OWNER);
+        assertFalse(MemoryPolicy.canWrite(null, anonymousOwner, Subject.WORLD));
+        assertFalse(MemoryPolicy.canRecall(null, anonymousOwner, O));
+        assertFalse(MemoryPolicy.canForget(null, anonymousOwner, factAbout(Subject.WORLD, O)));
+    }
+
+    @Test
     void recallFollowsTheSameSelfRule() {
         assertTrue(MemoryPolicy.canRecall(O, ownerCaller, O));
         assertTrue(MemoryPolicy.canRecall(O, ownerCaller, B));

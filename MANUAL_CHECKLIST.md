@@ -44,7 +44,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Memory
 
 - [ ] With a real model: tell the companion your name and where your base is; it calls `remember`, and after a server restart it still knows both.
-- [ ] A guest tells the companion something about themselves; `/friedai memory list` shows it marked with the guest as author; the guest cannot make it remember things about the owner.
+- [ ] A guest tells the companion something about themselves; `/friedai memory list` shows it; the guest cannot make it remember things about the owner.
 - [ ] A guest asks "what do you know about my friend's base?": the companion does not reveal the owner's or world facts.
 - [ ] `/friedai memory forget <id>` and `/friedai memory clear world` work; messages read correctly in English and Russian.
 - [ ] Settings → Memory → off, then `/friedai reload`: the companion no longer remembers; `/friedai memory` says memory is off.
