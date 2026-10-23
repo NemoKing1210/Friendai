@@ -38,11 +38,21 @@ public final class Stations {
 
     /** The nearest block of the station's type within {@link #SEARCH_RADIUS}; empty for {@code INVENTORY}. */
     public static Optional<BlockPos> nearby(ServerLevel level, BlockPos origin, Station station) {
-        Block block = block(station);
-        if (block == null) {
-            return Optional.empty();
+        List<BlockPos> found = nearbyAll(level, origin, station, 1);
+        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
+    }
+
+    /** Up to {@code limit} blocks of the station's type within {@link #SEARCH_RADIUS}, nearest first. */
+    public static List<BlockPos> nearbyAll(ServerLevel level, BlockPos origin, Station station, int limit) {
+        if (block(station) == null) {
+            return List.of();
         }
-        BlockMatcher matcher = new BlockMatcher() {
+        return BlockSearch.nearestN(level, origin, SEARCH_RADIUS, matcher(station), Set.of(), limit);
+    }
+
+    private static BlockMatcher matcher(Station station) {
+        Block block = block(station);
+        return new BlockMatcher() {
             @Override
             public boolean test(BlockState state) {
                 if (station == Station.CAMPFIRE) {
@@ -58,8 +68,6 @@ public final class Stations {
                         : BuiltInRegistries.BLOCK.getKey(block).toString();
             }
         };
-        List<BlockPos> found = BlockSearch.nearestN(level, origin, SEARCH_RADIUS, matcher, Set.of(), 1);
-        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
     /** The stations the companion can use where it stands, for the planner. */

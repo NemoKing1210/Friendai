@@ -66,13 +66,18 @@ public final class FurnaceSlots {
 
     private static int resultRoom(AbstractFurnaceBlockEntity furnace) {
         ItemStack result = furnace.getItem(2);
-        if (result.isEmpty()) {
-            return EMPTY_RESULT_ROOM;
+        int capacity = result.isEmpty() ? EMPTY_RESULT_ROOM : result.getMaxStackSize();
+        int used = result.isEmpty() ? 0 : result.getCount();
+        ItemStack input = furnace.getItem(0);
+        if (!input.isEmpty() && (result.isEmpty() || input.is(result.getItem()))) {
+            // Cooking is one input to one output: input already queued still has to fit in the result slot.
+            used += input.getCount();
         }
-        return Math.max(0, result.getMaxStackSize() - result.getCount());
+        return Math.max(0, capacity - used);
     }
 
-    private static void loadFuel(AbstractFurnaceBlockEntity furnace, ItemStack fuel) {
+    /** Moves a fuel stack into the fuel slot, respecting stacking. */
+    public static void loadFuel(AbstractFurnaceBlockEntity furnace, ItemStack fuel) {
         if (fuel.isEmpty() || !furnace.canPlaceItem(1, fuel)) {
             return;
         }
