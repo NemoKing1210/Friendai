@@ -27,7 +27,8 @@
 			"dev.friedai.test.CombatTests",
 			"dev.friedai.test.AnimalTests",
 			"dev.friedai.test.FarmingTests",
-			"dev.friedai.test.ObtainTests"
+			"dev.friedai.test.ObtainTests",
+			"dev.friedai.test.TrustTests"
 		]
 	},
 	"depends": {

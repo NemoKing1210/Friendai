@@ -48,6 +48,7 @@ public class FriedaiMod implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriedaiServerState state = FriedaiServerState.get(server);
             state.brains().tick();
+            state.tick(System.currentTimeMillis());
             state.memory().flushIfDue();
             DebugStream.tick(server);
         });

@@ -20,7 +20,9 @@ public final class FriedaiServerState {
     private final ConfigStore<ServerConfig> store;
     private final BrainService brains;
     private final MemoryStore memory;
+    private final TrustConfirmations trust;
     private ServerConfig config;
+    private long lastTrustTick;
 
     private FriedaiServerState(MinecraftServer server) {
         this.store = new ConfigStore<>(
@@ -36,6 +38,7 @@ public final class FriedaiServerState {
                 server.getWorldPath(LevelResource.ROOT).resolve("friedai").resolve("memory"),
                 System::currentTimeMillis);
         this.brains = new BrainService(server, config, memory);
+        this.trust = new TrustConfirmations(server, memory, brains, () -> this.config.companion.name);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);
     }
 
@@ -62,6 +65,20 @@ public final class FriedaiServerState {
     /** Per-owner memory books: trust and player records. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** Trust changes waiting for the owner's confirmation. */
+    public TrustConfirmations trust() {
+        return trust;
+    }
+
+    /** Expires pending trust requests, checked once per second. */
+    public void tick(long now) {
+        if (now - lastTrustTick < 1_000) {
+            return;
+        }
+        lastTrustTick = now;
+        trust.tick(now);
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */

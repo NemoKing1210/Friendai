@@ -179,7 +179,7 @@ public class ToolTests {
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
                 "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
-                "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+                "look_around", "find_blocks", "trust_player", "untrust_player", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
 
