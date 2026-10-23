@@ -22,7 +22,6 @@ public final class HungerModel {
     private float exhaustion;
 
     private int tickTimer;
-    private int starveTimer;
     private int peacefulTimer;
 
     /** A full companion: food 20, saturation 5, exhaustion 0. */
@@ -88,9 +87,9 @@ public final class HungerModel {
             peacefulTimer = 0;
         }
 
-        // Vanilla shares one tickTimer between both regeneration paths, so a
-        // switch carries partial progress; the starvation branch keeps its own
-        // timer and leaves tickTimer untouched.
+        // Vanilla shares one tickTimer across the saturation-regen, slow-regen
+        // and starvation branches, so a switch carries partial progress; only
+        // the final else resets it.
         boolean hurt = health < maxHealth;
         if (naturalRegeneration && saturation > 0.0f && food >= MAX_FOOD && hurt) {
             tickTimer++;
@@ -108,9 +107,9 @@ public final class HungerModel {
                 tickTimer = 0;
             }
         } else if (food <= 0) {
-            starveTimer++;
-            if (starveTimer >= STARVE_INTERVAL) {
-                starveTimer = 0;
+            tickTimer++;
+            if (tickTimer >= STARVE_INTERVAL) {
+                tickTimer = 0;
                 damage = starveDamage(difficulty, health);
             }
         } else {
@@ -126,11 +125,11 @@ public final class HungerModel {
         this.saturation = clamp(saturation, 0.0f, this.food);
         this.exhaustion = clamp(exhaustion, 0.0f, MAX_EXHAUSTION);
         tickTimer = 0;
-        starveTimer = 0;
         peacefulTimer = 0;
     }
 
     private static float starveDamage(Difficulty difficulty, float health) {
+        // Spec deviation: vanilla 26.3 also starves on PEACEFUL when health > 10.
         boolean hurt = switch (difficulty) {
             case PEACEFUL -> false;
             case EASY -> health > 10.0f;

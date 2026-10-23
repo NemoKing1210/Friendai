@@ -131,6 +131,25 @@ class HungerModelTest {
     }
 
     @Test
+    void sharedTimerCarriesIntoStarvation() {
+        HungerModel model = model(18, 0.0f, 0.0f);
+
+        // 79 slow-regen ticks leave the shared timer one tick short of firing.
+        tick(model, 79, Difficulty.NORMAL, true, 15.0f, 20.0f);
+
+        // Negative nutrition is a test-only shortcut to empty the food bar
+        // without resetting the timers; eat() just clamps the result.
+        model.eat(-18, 0.0f);
+        assertEquals(0, model.food());
+
+        HungerModel.TickResult result = model.tick(Difficulty.NORMAL, true, 15.0f, 20.0f);
+
+        // Vanilla's shared timer hits 80 in the starvation branch.
+        assertEquals(1.0f, result.damage(), EPS);
+        assertEquals(0.0f, result.heal(), EPS);
+    }
+
+    @Test
     void noRegenWhenGameruleOff() {
         HungerModel model = model(20, 6.0f, 0.0f);
 
