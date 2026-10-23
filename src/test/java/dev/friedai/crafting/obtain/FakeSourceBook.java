@@ -20,6 +20,8 @@ final class FakeSourceBook implements SourceBook {
                 .add("minecraft:oak_log", new Source.Mine("minecraft:oak_log", ToolNeed.HAND, 1, true, 0))
                 .add("minecraft:cobblestone", new Source.Mine("minecraft:stone", woodenPickaxe, 1, true, 0))
                 .add("minecraft:raw_iron", new Source.Mine("minecraft:iron_ore", stonePickaxe, 1, false, 16))
+                .add("minecraft:raw_gold", new Source.Mine("minecraft:gold_ore",
+                        new ToolNeed(ToolKind.PICKAXE, Tier.IRON), 1, false, -16))
                 .add("minecraft:coal", new Source.Mine("minecraft:coal_ore", woodenPickaxe, 1, false, 96))
                 .add("minecraft:leather", new Source.Hunt("minecraft:cow", 1.0))
                 .add("minecraft:beef", new Source.Hunt("minecraft:cow", 1.0))

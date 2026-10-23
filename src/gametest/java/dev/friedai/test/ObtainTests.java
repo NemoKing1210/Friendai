@@ -26,10 +26,11 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
     private static final class Result implements TaskListener {
@@ -145,10 +146,10 @@ public class ObtainTests {
         h.setBlock(6, 301, 2, Blocks.IRON_ORE);
         h.spawn(net.minecraft.world.entity.EntityTypes.COW, 8, 301, 8);
         h.setBlock(3, 301, 8, Blocks.CHEST);
-        h.setBlock(6, 300, 6, Blocks.FARMLAND);
-        h.setBlock(7, 300, 6, Blocks.FARMLAND);
-        h.setBlock(6, 301, 6, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
-        h.setBlock(7, 301, 6, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(6, 300, 6, Blocks.SOUL_SAND);
+        h.setBlock(7, 300, 6, Blocks.SOUL_SAND);
+        h.setBlock(6, 301, 6, Blocks.NETHER_WART.defaultBlockState().setValue(NetherWartBlock.AGE, 3));
+        h.setBlock(7, 301, 6, Blocks.NETHER_WART.defaultBlockState().setValue(NetherWartBlock.AGE, 3));
 
         h.succeedWhen(() -> {
             Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(3, 301, 8)));
@@ -159,7 +160,7 @@ public class ObtainTests {
             h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:iron_ore", 0), 3, "iron ore blocks");
             h.assertValueEqual(world.mobsNearby().getOrDefault("minecraft:cow", 0), 1, "cows");
             h.assertValueEqual(world.containerItems().getOrDefault("minecraft:iron_ingot", 0), 2, "chest ingots");
-            h.assertValueEqual(world.matureCrops().getOrDefault("minecraft:wheat", 0), 2, "mature wheat");
+            h.assertValueEqual(world.matureCrops().getOrDefault("minecraft:nether_wart", 0), 2, "mature nether wart");
         });
     }
 
@@ -369,8 +370,8 @@ public class ObtainTests {
 
     @GameTest(maxTicks = 2400)
     public void obtainMissingWithoutExplore(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        GameTestSupport.platformAt(h, -40, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, -39, 2);
         Result result = new Result();
         TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, false));
         h.succeedWhen(() -> {
@@ -392,6 +393,21 @@ public class ObtainTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("stuck at explore"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void alreadyHeldCountsAsObtained(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_PICKAXE));
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("got 1 minecraft:stone_pickaxe in 0 steps"),
+                    "summary was " + result.summary);
         });
     }
 

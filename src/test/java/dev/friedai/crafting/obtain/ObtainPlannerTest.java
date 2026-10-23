@@ -36,7 +36,9 @@ class ObtainPlannerTest {
                         List.of(cobblestone, cobblestone, cobblestone, stick, stick), Station.CRAFTING_TABLE))
                 .add(new Recipe("test:furnace", "minecraft:furnace", 1,
                         java.util.Collections.nCopies(8, cobblestone), Station.CRAFTING_TABLE))
-                .add(new Recipe("test:iron_ingot", IRON_INGOT, 1, List.of(rawIron), Station.FURNACE, 200));
+                .add(new Recipe("test:iron_ingot", IRON_INGOT, 1, List.of(rawIron), Station.FURNACE, 200))
+                .add(new Recipe("test:gold_ingot", "minecraft:gold_ingot", 1,
+                        List.of(Ingredient.of("minecraft:raw_gold")), Station.FURNACE, 200));
     }
 
     private static WorldFacts world(Map<String, Integer> blocks, Map<String, Integer> mobs,
@@ -207,6 +209,18 @@ class ObtainPlannerTest {
         ObtainPlan nothing = plan(RAW_IRON, 2, Map.of(RAW_IRON, 2), world);
         assertTrue(nothing.ok());
         assertTrue(nothing.steps().isEmpty(), nothing.steps().toString());
+    }
+
+    @Test
+    void goldIngotFromScratchNeedsAnIronPickaxe() {
+        ObtainPlan plan = plan("minecraft:gold_ingot", 1, Map.of(),
+                world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, "minecraft:gold_ore", 4, COAL_ORE, 4), false));
+        assertTrue(plan.ok(), plan.missing().toString());
+        int ironPickaxe = indexOf(plan, step -> step instanceof ObtainStep.Craft craft
+                && craft.item().equals(IRON_PICKAXE));
+        int gold = indexOf(plan, step -> step instanceof ObtainStep.Mine mine
+                && mine.block().equals("minecraft:gold_ore"));
+        assertTrue(ironPickaxe >= 0 && gold > ironPickaxe, plan.steps().toString());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.friedai.task.builtin;
 
+import dev.friedai.crafting.obtain.Spiral;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.Task;
 import dev.friedai.task.TaskContext;
@@ -35,9 +36,6 @@ public final class ExploreTask implements Task {
     private static final int BRANCH = 32;
     private static final int TORCH_EVERY = 8;
     private static final int MAX_NO_PROGRESS = 200;
-    private static final Direction[] SPIRAL = {
-        Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH
-    };
 
     private final BlockMatcher target;
     private final boolean down;
@@ -57,7 +55,7 @@ public final class ExploreTask implements Task {
     private int stalled;
     private boolean failed;
 
-    private int leg;
+    private Spiral spiral;
     private Vec3 waypoint;
 
     private Direction heading;
@@ -92,6 +90,7 @@ public final class ExploreTask implements Task {
         ServerLevel level = c.level();
         BlockPos start = c.companion().blockPosition();
         origin = Vec3.atBottomCenterOf(start);
+        spiral = new Spiral(origin.x, origin.z, LEG, maxRadius);
         heading = c.companion().getDirection();
         waypoint = origin;
         c.companion().taskRunner().notice(down
@@ -158,14 +157,8 @@ public final class ExploreTask implements Task {
     }
 
     private @Nullable Vec3 nextWaypoint() {
-        Direction direction = SPIRAL[leg % SPIRAL.length];
-        int length = LEG * (leg / 2 + 1);
-        leg++;
-        Vec3 next = origin.add(direction.getStepX() * length, 0, direction.getStepZ() * length);
-        if (Math.sqrt(next.distanceToSqr(origin)) > maxRadius + 0.5) {
-            return null;
-        }
-        return next;
+        var next = spiral.next();
+        return next.map(point -> new Vec3(point[0], origin.y, point[1])).orElse(null);
     }
 
     private TaskStatus digTick(TaskContext c) {

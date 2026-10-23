@@ -289,7 +289,9 @@ public final class ObtainTask implements Task {
     }
 
     private int have(CompanionEntity companion) {
-        return InventoryOps.count(companion.inventory(), itemMatcher(item));
+        ItemMatcher matcher = itemMatcher(item);
+        int held = matcher.test(companion.getMainHandItem()) ? companion.getMainHandItem().getCount() : 0;
+        return InventoryOps.count(companion.inventory(), matcher) + held;
     }
 
     private static int emptySlots(CompanionEntity companion) {

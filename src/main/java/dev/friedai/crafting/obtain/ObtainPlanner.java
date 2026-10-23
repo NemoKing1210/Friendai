@@ -353,7 +353,9 @@ public final class ObtainPlanner {
             if (item == null) {
                 return false;
             }
-            Attempt tool = need(item, 1, depth + 1, path, sim, true);
+            // A tool is its own chain: a gold trip may need an iron pickaxe whose chain is as long as any
+            // other, and the shared path already guards real cycles.
+            Attempt tool = need(item, 1, 0, path, sim, true);
             if (!tool.ok()) {
                 return false;
             }
@@ -376,7 +378,7 @@ public final class ObtainPlanner {
                 sim.reserved.add(item);
                 return true;
             }
-            Attempt planned = craftable(item, 1, depth + 1, path, sim);
+            Attempt planned = craftable(item, 1, 0, path, sim);
             if (!planned.ok()) {
                 return false;
             }
