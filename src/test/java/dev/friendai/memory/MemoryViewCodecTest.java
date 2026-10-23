@@ -166,6 +166,29 @@ class MemoryViewCodecTest {
     }
 
     @Test
+    void encodeFittingDropsFactsUntilItFits() {
+        List<MemoryView.FactRow> facts = new ArrayList<>();
+        for (int i = 1; i <= 50; i++) {
+            facts.add(new MemoryView.FactRow(i, "world", Category.NOTE, "текст ".repeat(20), ""));
+        }
+        MemoryView view = new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty());
+        int full = MemoryViewCodec.encode(view).length;
+        byte[] fitted = MemoryViewCodec.encodeFitting(view, full / 2);
+        assertTrue(fitted.length <= full / 2, "fitted view is " + fitted.length + " bytes");
+        MemoryView decoded = MemoryViewCodec.decode(fitted);
+        assertTrue(decoded.facts().size() < facts.size(), "some facts should be dropped");
+        assertEquals(Category.NOTE, decoded.facts().get(0).category());
+    }
+
+    @Test
+    void encodeFittingLeavesASmallViewAlone() {
+        MemoryView view = sample(Optional.empty());
+        assertEquals(
+                MemoryViewCodec.encode(view).length,
+                MemoryViewCodec.encodeFitting(view, 1 << 20).length);
+    }
+
+    @Test
     void trailingBytesFail() {
         byte[] data = MemoryViewCodec.encode(sample(Optional.empty()));
         byte[] longer = Arrays.copyOf(data, data.length + 1);

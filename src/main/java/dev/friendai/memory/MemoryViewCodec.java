@@ -13,9 +13,9 @@ import java.util.Optional;
 
 /** Pure-Java wire format for {@link MemoryView}. Decoding failures are {@link IllegalArgumentException}. */
 public final class MemoryViewCodec {
+    public static final int MAX_FACTS = 2000;
+    public static final int MAX_GROUPS = 500;
     private static final int MAX_STRING_BYTES = 1 << 20;
-    private static final int MAX_FACTS = 2000;
-    private static final int MAX_GROUPS = 500;
     private static final int MAX_ARGS = 100;
 
     private MemoryViewCodec() {}
@@ -60,6 +60,32 @@ public final class MemoryViewCodec {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /**
+     * Encodes a view no larger than {@code maxBytes}. Facts are dropped from the end until it fits, so a
+     * book larger than the packet limit degrades to a partial tab instead of a view the client rejects.
+     */
+    public static byte[] encodeFitting(MemoryView view, int maxBytes) {
+        byte[] data = encode(view);
+        if (data.length <= maxBytes) {
+            return data;
+        }
+        List<MemoryView.FactRow> facts = view.facts();
+        int keep = facts.size();
+        while (keep > 0) {
+            keep /= 2;
+            data = encode(withFacts(view, facts.subList(0, keep)));
+            if (data.length <= maxBytes) {
+                return data;
+            }
+        }
+        return data;
+    }
+
+    private static MemoryView withFacts(MemoryView view, List<MemoryView.FactRow> facts) {
+        return new MemoryView(
+                view.enabled(), view.limits(), view.groups(), List.copyOf(facts), view.status());
     }
 
     public static MemoryView decode(byte[] data) {

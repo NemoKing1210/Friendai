@@ -21,6 +21,7 @@ public final class MemoryTabModel {
     private Category draftCategory = Category.PROFILE;
     private String draftText = "";
     private boolean statusVisible;
+    private MenuStatus lastStatus;
     private long clearArmedAt = -1;
 
     /** Takes a fresh view: keeps the group by key, drops a vanished selection or edit, shows any status. */
@@ -42,6 +43,7 @@ public final class MemoryTabModel {
             cancelEdit();
         }
         if (next.status().isPresent()) {
+            lastStatus = next.status().get();
             statusVisible = true;
         }
     }
@@ -160,8 +162,11 @@ public final class MemoryTabModel {
         return statusVisible;
     }
 
-    /** The status to render, or empty while the status line is hidden. */
+    /**
+     * The status to render, or empty while the status line is hidden. The last status is kept across the
+     * periodic refreshes that carry no status, so a message stays readable for its full lifetime.
+     */
     public Optional<MenuStatus> status() {
-        return statusVisible && view != null ? view.status() : Optional.empty();
+        return statusVisible ? Optional.ofNullable(lastStatus) : Optional.empty();
     }
 }

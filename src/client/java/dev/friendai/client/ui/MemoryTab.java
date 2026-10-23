@@ -98,10 +98,10 @@ final class MemoryTab implements MenuTab {
         int categoryWidth = 110;
         int textX = left + categoryWidth + GAP;
         int textWidth = Math.max(40, addX - GAP - textX);
-        category = CycleButton.<Category>builder(c -> Component.literal(c.name()), model.draftCategory())
+        category = host.add(CycleButton.<Category>builder(c -> Component.literal(c.name()), model.draftCategory())
                 .withValues(List.of(Category.values()))
                 .create(left, formY, categoryWidth, ROW, Component.empty(), (button, value) ->
-                        model.setDraft(value, text == null ? model.draftText() : text.getValue()));
+                        model.setDraft(value, text == null ? model.draftText() : text.getValue())));
         text = host.add(new EditBox(
                 host.font(), textX, formY, textWidth, ROW, Component.translatable("friendai.menu.memory.text_hint")));
         text.setHint(Component.translatable("friendai.menu.memory.text_hint"));

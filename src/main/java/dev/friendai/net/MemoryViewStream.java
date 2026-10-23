@@ -10,6 +10,7 @@ import dev.friendai.memory.MenuStatus;
 import dev.friendai.memory.PlayerRef;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -20,6 +21,9 @@ import net.minecraft.server.level.ServerPlayer;
 public final class MemoryViewStream {
     private static final int INTERVAL_TICKS = 10;
     private static int counter;
+    private static int viewEpoch;
+    private static List<UUID> lastOnline = List.of();
+    private static int lastConfig;
 
     private MemoryViewStream() {}
 
@@ -48,16 +52,40 @@ public final class MemoryViewStream {
         }
         FriendaiServerState state = FriendaiServerState.get(server);
         MemoryViewers viewers = state.memoryViewers();
+        int epoch = currentEpoch(state, server);
         for (UUID uuid : viewers.viewers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player == null) {
                 viewers.close(uuid);
                 continue;
             }
-            if (viewers.needsUpdate(uuid, state.memory().book(uuid).revision())) {
+            if (viewers.needsUpdate(uuid, state.memory().book(uuid).revision(), epoch)) {
                 send(state, player, Optional.empty());
             }
         }
+    }
+
+    /**
+     * Bumps the view epoch when something the view shows but the book does not record changed: who is
+     * online (names and the online flag, and guests that stop being listed) or the memory config.
+     */
+    private static int currentEpoch(FriendaiServerState state, MinecraftServer server) {
+        List<UUID> online = new ArrayList<>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            online.add(player.getUUID());
+        }
+        online.sort(null);
+        int config = Objects.hash(
+                state.config().memory.enabled,
+                state.config().memory.limits().maxFactChars(),
+                state.config().memory.limits().maxFactsPerPlayer(),
+                state.config().memory.limits().maxWorldFacts());
+        if (!online.equals(lastOnline) || config != lastConfig) {
+            lastOnline = List.copyOf(online);
+            lastConfig = config;
+            viewEpoch++;
+        }
+        return viewEpoch;
     }
 
     public static void onDisconnect(ServerPlayer player) {
@@ -80,8 +108,9 @@ public final class MemoryViewStream {
                 state.config().memory.limits(),
                 status);
         if (ServerPlayNetworking.canSend(player, MemoryViewS2CPayload.TYPE)) {
-            ServerPlayNetworking.send(player, new MemoryViewS2CPayload(MemoryViewCodec.encode(view)));
+            ServerPlayNetworking.send(player, new MemoryViewS2CPayload(
+                    MemoryViewCodec.encodeFitting(view, MemoryViewS2CPayload.MAX_BYTES)));
         }
-        state.memoryViewers().markSent(uuid, book.revision());
+        state.memoryViewers().markSent(uuid, book.revision(), viewEpoch);
     }
 }

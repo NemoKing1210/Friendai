@@ -66,6 +66,9 @@ public final class MemoryViewBuilder {
         rest.sort(Comparator.comparing(MemoryView.Group::name, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(MemoryView.Group::key));
         groups.addAll(rest);
+        if (groups.size() > MemoryViewCodec.MAX_GROUPS) {
+            groups = new ArrayList<>(groups.subList(0, MemoryViewCodec.MAX_GROUPS));
+        }
 
         List<MemoryView.FactRow> facts = new ArrayList<>();
         if (enabled) {
@@ -73,6 +76,9 @@ public final class MemoryViewBuilder {
                 String author = Objects.equals(fact.authorUuid(), owner) ? "" : label(fact.authorName());
                 facts.add(new MemoryView.FactRow(
                         fact.id(), fact.subject().key(), fact.category(), fact.text(), author));
+            }
+            if (facts.size() > MemoryViewCodec.MAX_FACTS) {
+                facts = new ArrayList<>(facts.subList(0, MemoryViewCodec.MAX_FACTS));
             }
         }
         return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status);

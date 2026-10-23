@@ -166,6 +166,20 @@ class MemoryTabModelTest {
         model.onView(view(List.of(owner()), List.of(), status("friendai.menu.memory.status.added")));
         model.onView(view(List.of(owner()), List.of(), Optional.empty()));
         assertTrue(model.statusVisible());
+        assertEquals(
+                "friendai.menu.memory.status.added",
+                model.status().orElseThrow().message().key());
+    }
+
+    @Test
+    void hiddenStatusIsNotRendered() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(
+                List.of(owner(), world()),
+                List.of(),
+                status("friendai.menu.memory.status.added")));
+        model.next();
+        assertTrue(model.status().isEmpty());
     }
 
     @Test

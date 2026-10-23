@@ -1,5 +1,6 @@
 package dev.friendai.memory;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -127,5 +128,17 @@ class MemoryViewBuilderTest {
     @Test
     void statusIsNotInventedWhenMissing() {
         assertTrue(build(List.of(), true, Optional.empty()).status().isEmpty());
+    }
+
+    @Test
+    void factsAreCappedAtTheCodecLimit() {
+        for (int i = 1; i <= MemoryViewCodec.MAX_FACTS + 1; i++) {
+            book.addFact(Subject.WORLD, Category.NOTE, "fact " + i, O, "Steve", 0, new MemoryLimits(160, 5000, 5000));
+        }
+        MemoryView view = MemoryViewBuilder.build(
+                book, O, "Steve", List.of(), true, new MemoryLimits(160, 5000, 5000), Optional.empty());
+        assertEquals(MemoryViewCodec.MAX_FACTS, view.facts().size());
+        assertEquals(1, view.facts().get(0).id());
+        assertDoesNotThrow(() -> MemoryViewCodec.decode(MemoryViewCodec.encode(view)));
     }
 }

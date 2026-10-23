@@ -67,6 +67,17 @@ class MemoryViewersTest {
     }
 
     @Test
+    void aNewEpochNeedsUpdateEvenWithTheSameRevision() {
+        MemoryViewers viewers = new MemoryViewers();
+        viewers.open(A);
+        viewers.markSent(A, 3, 0);
+        assertFalse(viewers.needsUpdate(A, 3, 0));
+        assertTrue(viewers.needsUpdate(A, 3, 1));
+        viewers.markSent(A, 3, 1);
+        assertFalse(viewers.needsUpdate(A, 3, 1));
+    }
+
+    @Test
     void markSentOnlyAppliesToOnePlayer() {
         MemoryViewers viewers = new MemoryViewers();
         viewers.open(A);
