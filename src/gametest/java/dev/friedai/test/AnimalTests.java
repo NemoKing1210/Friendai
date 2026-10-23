@@ -8,6 +8,7 @@ import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.BreedTask;
 import dev.friedai.task.builtin.MilkTask;
 import dev.friedai.task.builtin.ShearTask;
+import dev.friedai.task.builtin.TameTask;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -18,6 +19,7 @@ import net.minecraft.world.entity.animal.cow.MushroomCow;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.animal.sheep.Sheep;
+import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -235,6 +237,61 @@ public class AnimalTests {
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
         h.assertValueEqual(result.summary, "I have no minecraft:bucket", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void tamesWolfForOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        net.minecraft.server.level.ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        Wolf wolf = h.spawn(EntityTypes.WOLF, 5, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.BONE, 64));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TameTask("wolf", 1), "tame_animal");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("tamed 1 minecraft:wolf for "), "summary was " + result.summary);
+            h.assertTrue(wolf.isTame(), "wolf not tamed");
+            h.assertTrue(wolf.getOwnerReference() != null, "no owner reference");
+            java.util.UUID ownerId = wolf.getOwnerReference().getUUID();
+            h.assertValueEqual(ownerId, owner.getUUID(), "owner");
+            h.assertTrue(!ownerId.equals(c.getUUID()), "the companion must not own the pet");
+            h.assertTrue(!ownerId.equals(c.hands().player().getUUID()), "the fake player must not own the pet");
+        });
+    }
+
+    @GameTest
+    public void tameSkipsOthersPets(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        net.minecraft.server.level.ServerPlayer other = GameTestSupport.mockPlayerAt(h, 8, 2, 8);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Wolf wolf = h.spawn(EntityTypes.WOLF, 5, 2, 4);
+        wolf.tame(other);
+        c.inventory().addItem(new ItemStack(Items.BONE, 4));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TameTask("wolf", 1), "tame_animal");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "no untamed wolf nearby", "summary");
+        h.succeed();
+    }
+
+    @GameTest
+    public void tameWithoutFood(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(EntityTypes.CAT, 5, 2, 4);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TameTask("cat", 1), "tame_animal");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "I have no raw cod or salmon to tame a cat", "summary");
         h.succeed();
     }
 }
