@@ -6,6 +6,8 @@ import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.BreedTask;
+import dev.friedai.task.builtin.MilkTask;
+import dev.friedai.task.builtin.ShearTask;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -133,6 +135,106 @@ public class AnimalTests {
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
         h.assertValueEqual(result.summary, "not enough adult minecraft:rabbit ready to breed nearby", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void shearsSheep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        h.spawn(EntityTypes.SHEEP, 6, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new ShearTask(EntityTypes.SHEEP, 2), "shear");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("sheared 2 minecraft:sheep"), "summary was " + result.summary);
+            int wool = 0;
+            ItemStack shears = ItemStack.EMPTY;
+            for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+                ItemStack stack = c.inventory().getItem(slot);
+                if (stack.is(Items.SHEARS)) {
+                    shears = stack;
+                }
+                if (stack.is(net.minecraft.tags.ItemTags.WOOL)) {
+                    wool += stack.getCount();
+                }
+            }
+            h.assertTrue(wool > 0, "no wool collected");
+            h.assertValueEqual(shears.getDamageValue(), 2, "shears damage");
+        });
+    }
+
+    @GameTest
+    public void shearWithoutShears(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new ShearTask(EntityTypes.SHEEP, 1), "shear");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "I have no minecraft:shears", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void shearTargetGoneMovesOn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Sheep first = h.spawn(EntityTypes.SHEEP, 7, 2, 4);
+        h.spawn(EntityTypes.SHEEP, 10, 2, 7);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new ShearTask(EntityTypes.SHEEP, 2), "shear");
+        int[] ticks = {0};
+        boolean[] killed = {false};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (!killed[0] && ticks[0] >= 5) {
+                killed[0] = true;
+                first.kill(h.getLevel());
+            }
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("sheared 1 minecraft:sheep"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void milksCow(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(EntityTypes.COW, 4, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.BUCKET, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MilkTask(2, EntityTypes.COW), "milk");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(result.summary, "filled 2 minecraft:milk_bucket", "summary");
+            h.assertValueEqual(c.inventory().countItem(Items.MILK_BUCKET), 2, "milk buckets");
+            h.assertValueEqual(c.inventory().countItem(Items.BUCKET), 0, "empty buckets");
+        });
+    }
+
+    @GameTest
+    public void milkWithoutBuckets(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(EntityTypes.COW, 4, 2, 4);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MilkTask(1, EntityTypes.COW), "milk");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "I have no minecraft:bucket", "summary");
         h.succeed();
     }
 }
