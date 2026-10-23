@@ -15,12 +15,16 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
+import net.minecraft.world.entity.monster.skeleton.Skeleton;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 /** Survival and combat behaviour. Every test spawns its own mobs in its own area. */
 public class CombatTests {
@@ -102,11 +106,12 @@ public class CombatTests {
 
     @GameTest(maxTicks = 800)
     public void fightsBackZombie(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Notices notices = listen(c);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        roof(h, 5, 2);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
         h.succeedWhen(() -> {
             h.assertTrue(zombie.isDeadOrDying() || zombie.isRemoved(),
@@ -127,7 +132,7 @@ public class CombatTests {
 
     @GameTest(maxTicks = 800)
     public void defendsOwner(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         owner.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
@@ -145,13 +150,14 @@ public class CombatTests {
 
     @GameTest(maxTicks = 800)
     public void guardAttacksUnprovoked(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
         c.setCombatMode(dev.friedai.task.combat.CombatMode.GUARD);
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         ZombieVillager zombieVillager = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE_VILLAGER, 8, 2, 2);
+        roof(h, 8, 2);
         h.succeedWhen(() -> h.assertTrue(zombieVillager.isDeadOrDying() || zombieVillager.isRemoved(),
                 "guard did not attack: " + zombieVillager.getHealth()
                         + ", companion health " + c.getHealth()
@@ -160,7 +166,7 @@ public class CombatTests {
 
     @GameTest(maxTicks = 300)
     public void defensiveIgnoresUnprovoked(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Notices notices = listen(c);
         var unprovoked = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 12, 2, 2);
@@ -182,7 +188,7 @@ public class CombatTests {
 
     @GameTest(maxTicks = 400)
     public void guardIgnoresProtected(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer other = GameTestSupport.mockPlayerAt(h, 14, 2, 14);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
@@ -202,7 +208,7 @@ public class CombatTests {
 
     @GameTest(maxTicks = 400)
     public void neverHitsOwner(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
@@ -217,7 +223,7 @@ public class CombatTests {
 
     @GameTest(maxTicks = 800)
     public void targetKilledByOthersEndsFight(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
+        GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
@@ -232,5 +238,117 @@ public class CombatTests {
             h.assertTrue(c.getMainHandItem().isEmpty(), "main hand not restored: " + c.getMainHandItem());
             h.succeed();
         });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void shootsFarSkeleton(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.BOW));
+        c.inventory().addItem(new ItemStack(Items.ARROW, 5));
+        Skeleton skeleton = h.spawnWithNoFreeWill(EntityTypes.SKELETON, 13, 2, 2);
+        roof(h, 13, 2);
+        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(skeleton), 1.0F));
+        h.succeedWhen(() -> {
+            int arrows = c.inventory().countItem(Items.ARROW);
+            boolean arrowFlying = !h.getLevel()
+                    .getEntitiesOfClass(AbstractArrow.class, c.getBoundingBox().inflate(20.0))
+                    .isEmpty();
+            h.assertTrue(arrows < 5 || arrowFlying || skeleton.getHealth() < skeleton.getMaxHealth(),
+                    "no arrow: arrows " + arrows + ", skeleton health " + skeleton.getHealth()
+                            + ", held " + c.getMainHandItem());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void passiveRunsAway(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setCombatMode(dev.friedai.task.combat.CombatMode.PASSIVE);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        float before = c.distanceTo(zombie);
+        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(c.distanceTo(zombie) > before + 1.0,
+                    "distance before " + before + ", after " + c.distanceTo(zombie));
+            h.assertTrue(zombie.getHealth() == zombie.getMaxHealth(), "zombie was hit: " + zombie.getHealth());
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void retreatsAtLowHealth(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setHealth(4.0F);
+        Notices notices = listen(c);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 6, 2, 2);
+        zombie.setTarget(c);
+        float before = c.distanceTo(zombie);
+        h.succeedWhen(() -> {
+            h.assertTrue(notices.texts.stream()
+                            .anyMatch(n -> n.equals("retreating: health 4/20, I have no food")),
+                    "notices " + notices.texts);
+            h.assertTrue(c.distanceTo(zombie) > before + 1.0,
+                    "distance before " + before + ", after " + c.distanceTo(zombie));
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void fleesSwellingCreeper(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Creeper creeper = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 5, 2, 2);
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (ticks[0] <= 20) {
+                creeper.setSwellDir(1);
+            } else if (!creeper.isRemoved()) {
+                creeper.discard();
+            }
+            if (ticks[0] > 60) {
+                h.assertTrue(c.distanceTo(creeper) > 6.0,
+                        "distance after the creeper was removed: " + c.distanceTo(creeper));
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void unreachableTargetIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        boxIn(h, 6, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 6, 2, 2);
+        h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.runAfterDelay(320, () -> {
+            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+                    "state was " + c.combatController().state());
+            h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+            h.succeed();
+        });
+    }
+
+    /** A stone roof so undead mobs do not burn in daylight during the test. */
+    private static void roof(GameTestHelper h, int cx, int cz) {
+        for (int x = cx - 1; x <= cx + 1; x++) {
+            for (int z = cz - 1; z <= cz + 1; z++) {
+                h.setBlock(x, 6, z, Blocks.STONE);
+            }
+        }
+    }
+
+    /** A closed glass shell with a two-block air pocket inside. */
+    private static void boxIn(GameTestHelper h, int cx, int cy, int cz) {
+        for (int x = cx - 1; x <= cx + 1; x++) {
+            for (int z = cz - 1; z <= cz + 1; z++) {
+                for (int y = cy; y <= cy + 2; y++) {
+                    boolean inside = x == cx && z == cz && y <= cy + 1;
+                    if (!inside) {
+                        h.setBlock(x, y, z, Blocks.GLASS);
+                    }
+                }
+            }
+        }
     }
 }
