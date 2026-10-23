@@ -3,10 +3,13 @@ package dev.friedai.test;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.tool.AccessLevel;
 import dev.friedai.tool.ToolExecutor;
 import dev.friedai.tool.ToolResult;
 import dev.friedai.tool.builtin.FriedaiTools;
@@ -14,9 +17,15 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.scores.PlayerTeam;
+import java.util.UUID;
 
 public class ToolTests {
     private static ToolResult run(ToolExecutor tools, String name, String json) {
@@ -26,6 +35,21 @@ public class ToolTests {
 
     private static ToolExecutor tools(CompanionEntity c) {
         return FriedaiTools.create(() -> 32).bind(c);
+    }
+
+    /** A mock player with a unique name, because the stock helper names every player "test-mock-player". */
+    @SuppressWarnings("removal")
+    private static ServerPlayer mockPlayerNamed(GameTestHelper h, String name, double x, double y, double z) {
+        var server = h.getLevel().getServer();
+        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+        ServerPlayer player = new ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection, player, cookie);
+        var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(x, y, z));
+        player.teleportTo(pos.x, pos.y, pos.z);
+        return player;
     }
 
     @GameTest
@@ -144,7 +168,8 @@ public class ToolTests {
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
-                "collect_smelted", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+                "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
+                "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
         h.succeed();
     }
 
@@ -257,4 +282,70 @@ public class ToolTests {
         h.assertTrue(c.taskRunner().current().get().type().equals("run_plan"), "the plan should be the current task");
         h.succeed();
     }
+
+    @GameTest
+    public void attackToolRefusals(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        ToolResult villager = run(tools, "attack", "{\"target\":\"minecraft:villager\",\"count\":1}");
+        h.assertTrue(villager.error() && villager.content().equals("I won't attack minecraft:villager"),
+                "result was " + villager.content());
+        ToolResult player = run(tools, "attack", "{\"target\":\"minecraft:player\",\"count\":1}");
+        h.assertTrue(player.error() && player.content().equals("use attack_player for players"),
+                "result was " + player.content());
+        ToolResult unknown = run(tools, "attack", "{\"target\":\"nonsense:mob\",\"count\":1}");
+        h.assertTrue(unknown.error() && unknown.content().equals("unknown mob: nonsense:mob"),
+                "result was " + unknown.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void setCombatModeTool(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "set_combat_mode", "{\"mode\":\"guard\"}");
+        h.assertTrue(!r.error() && r.content().equals("combat mode is now guard"), "result was " + r.content());
+        h.assertTrue(c.combatMode() == dev.friedai.task.combat.CombatMode.GUARD, "mode was " + c.combatMode());
+        h.succeed();
+    }
+
+    @GameTest
+    public void attackPlayerRefusesOwnerAndTeam(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = mockPlayerNamed(
+                h, "friedai-owner-" + UUID.randomUUID().toString().substring(0, 8), 2, 2, 2);
+        ServerPlayer target = mockPlayerNamed(
+                h, "friedai-target-" + UUID.randomUUID().toString().substring(0, 8), 5, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        ToolExecutor tools = tools(c);
+
+        ToolResult own = run(tools, "attack_player", "{\"name\":\"" + owner.getName().getString() + "\"}");
+        h.assertTrue(own.error() && own.content().equals("I won't attack you"), "result was " + own.content());
+
+        PlayerTeam team = h.getLevel().getScoreboard()
+                .addPlayerTeam("friedai_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10));
+        team.setAllowFriendlyFire(false);
+        h.getLevel().getScoreboard().addPlayerToTeam(owner.getName().getString(), team);
+        h.getLevel().getScoreboard().addPlayerToTeam(target.getName().getString(), team);
+        ToolResult friendly = run(tools, "attack_player",
+                "{\"name\":\"" + target.getName().getString() + "\"}");
+        h.assertTrue(friendly.error() && friendly.content().equals("I can't hurt " + target.getName().getString() + " here"),
+                "result was " + friendly.content());
+        h.getLevel().getScoreboard().removePlayerTeam(team);
+        h.succeed();
+    }
+
+    @GameTest
+    public void attackPlayerIsOwnerOnly(GameTestHelper h) {
+        List<String> trusted = FriedaiTools.create(() -> 32).specs(AccessLevel.TRUSTED).stream()
+                .map(ToolSpec::name)
+                .toList();
+        List<String> owner = FriedaiTools.create(() -> 32).specs(AccessLevel.OWNER).stream()
+                .map(ToolSpec::name)
+                .toList();
+        h.assertTrue(!trusted.contains("attack_player"), "trusted tools were " + trusted);
+        h.assertTrue(owner.contains("attack_player"), "owner tools were " + owner);
+        h.succeed();
+    }
+
 }

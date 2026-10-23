@@ -25,7 +25,7 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
-        return tool(def.name(), def.description(), def.schema(), AccessLevel.TRUSTED, (c, args) -> {
+        return tool(def.name(), def.description(), def.schema(), def.minAccess(), (c, args) -> {
             Task task;
             try {
                 task = def.factory().create(c, args);
