@@ -35,6 +35,7 @@ public final class FriendaiTools {
         BuildTools.register(registry, defs);
         InfoTools.register(registry, defs, mineRadius);
         MemoryTools.register(registry, memory);
+        TrustTools.register(registry);
         ControlTools.register(registry, defs);
         return registry;
     }

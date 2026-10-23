@@ -135,6 +135,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Follow on foot, sprint away: the companion runs and drops back to walking; "run" / "slow down" change it.
 
+## Trust by voice
+
+- [ ] Say "Friendai, Bob is my friend now" by voice: the "Trust Bob?" message appears with buttons; say "да" and Bob can make the companion act.
+- [ ] Do the same with the [Confirm] button instead of the voice answer; [Cancel] and "нет" each leave trust unchanged.
+- [ ] "Friendai, Bob is no longer my friend" asks to stop trusting and only applies after confirmation.
+- [ ] Wait a minute without confirming: the request expires, the message says so, and the companion is told.
+- [ ] Both messages and buttons read correctly with the game language set to English and to Русский.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.

@@ -98,6 +98,12 @@ final class ToolKit {
         };
     }
 
+    /** An instant tool with arguments, visible only at {@code minAccess} or above. */
+    static Tool<CompanionEntity> instantTool(
+            String name, String description, JsonObject schema, AccessLevel minAccess, Action action) {
+        return tool(name, description, schema, minAccess, action);
+    }
+
     static ItemMatcher parseItemMatcher(String idOrTag) {
         return ItemMatcher.parse(idOrTag)
                 .orElseThrow(() -> new IllegalArgumentException("unknown item or tag: " + idOrTag));

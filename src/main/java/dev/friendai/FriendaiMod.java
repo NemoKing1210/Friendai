@@ -49,6 +49,7 @@ public class FriendaiMod implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriendaiServerState state = FriendaiServerState.get(server);
             state.brains().tick();
+            state.tick(System.currentTimeMillis());
             state.memory().flushIfDue();
             DebugStream.tick(server);
             MemoryViewStream.tick(server);

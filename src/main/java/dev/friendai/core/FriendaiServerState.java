@@ -22,7 +22,9 @@ public final class FriendaiServerState {
     private final BrainService brains;
     private final MemoryStore memory;
     private final MemoryViewers memoryViewers = new MemoryViewers();
+    private final TrustConfirmations trust;
     private ServerConfig config;
+    private long lastTrustTick;
 
     private FriendaiServerState(MinecraftServer server) {
         this.store = new ConfigStore<>(
@@ -38,6 +40,7 @@ public final class FriendaiServerState {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
         this.brains = new BrainService(server, config, memory);
+        this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);
     }
 
@@ -69,6 +72,20 @@ public final class FriendaiServerState {
     /** Who has the memory tab open, and the last book revision each received. */
     public MemoryViewers memoryViewers() {
         return memoryViewers;
+    }
+
+    /** Trust changes waiting for the owner's confirmation. */
+    public TrustConfirmations trust() {
+        return trust;
+    }
+
+    /** Expires pending trust requests, checked once per second. */
+    public void tick(long now) {
+        if (now - lastTrustTick < 1_000) {
+            return;
+        }
+        lastTrustTick = now;
+        trust.tick(now);
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */

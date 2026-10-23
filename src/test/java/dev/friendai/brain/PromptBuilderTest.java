@@ -89,4 +89,21 @@ class PromptBuilderTest {
         assertFalse(s.contains("Facts marked \"from\""));
         assertFalse(s.contains("Use remember only"));
     }
+
+    @Test
+    void trustRuleOnlyForOwner() {
+        String owner = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(owner.contains("call trust_player or untrust_player"));
+
+        String taskEvents = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "", AccessLevel.OWNER));
+        assertTrue(taskEvents.contains("call trust_player or untrust_player"));
+
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Tia", AccessLevel.TRUSTED));
+        assertTrue(!trusted.contains("trust_player"), trusted);
+        String guest = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Gus", AccessLevel.GUEST));
+        assertTrue(!guest.contains("untrust_player"), guest);
+    }
 }
