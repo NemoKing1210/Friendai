@@ -125,7 +125,7 @@ public final class PlaceBlockTask implements Task {
             return TaskStatus.FAILED;
         }
         companion.hands().place(held, against, face);
-        if (c.level().getBlockState(spot).is(item.getBlock())) {
+        if (c.level().getBlockState(spot).getBlock().asItem() == item) {
             placedAt = spot;
             summary = "placed " + itemId() + " at " + coords(spot);
             return TaskStatus.SUCCESS;

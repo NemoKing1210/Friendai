@@ -408,6 +408,24 @@ public class StorageTests {
     }
 
     @GameTest(maxTicks = 400)
+    public void takeMissingItemFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        containerAt(h, 6, 2, 6).setItem(0, new ItemStack(Items.DIRT, 1));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:quartz"), 1, target), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("the chest at " + coords(target) + " has no minecraft:quartz"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
     public void checkListsContents(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(6, 2, 6, Blocks.BARREL);

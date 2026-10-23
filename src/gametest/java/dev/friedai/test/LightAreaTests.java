@@ -125,6 +125,23 @@ public class LightAreaTests {
         });
     }
 
+    @GameTest(maxTicks = 200)
+    public void lightReportsSkippedSpots(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.TORCH, 1));
+        c.hands().overrideProtection(p -> true);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new LightAreaTask(2), "light_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("couldn't reach or place any torch within 2 blocks"),
+                    "summary was " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void lightRunsOutOfTorches(GameTestHelper h) {
         darkRoom(h);

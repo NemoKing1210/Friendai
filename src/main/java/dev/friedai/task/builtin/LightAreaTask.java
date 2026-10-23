@@ -62,6 +62,13 @@ public final class LightAreaTask implements Task {
 
         Optional<BlockPos> next = findDarkSpot(c);
         if (next.isEmpty()) {
+            if (!skipped.isEmpty()) {
+                summary = placed.isEmpty()
+                        ? "couldn't reach or place any torch within " + radius + " blocks"
+                        : "placed " + placed.size() + " torches; skipped " + skipped.size()
+                                + " dark spots I couldn't reach or place on";
+                return placed.isEmpty() ? TaskStatus.FAILED : TaskStatus.SUCCESS;
+            }
             summary = placed.isEmpty()
                     ? "no dark spots within " + radius + " blocks"
                     : "placed " + placed.size() + " torches; no dark spots left within " + radius + " blocks";

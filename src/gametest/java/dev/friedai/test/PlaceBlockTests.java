@@ -212,6 +212,26 @@ public class PlaceBlockTests {
     }
 
     @GameTest(maxTicks = 400)
+    public void placeWallTorchUsesWallVariant(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(8, 3, 3, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.TORCH));
+        BlockPos target = h.absolutePos(new BlockPos(8, 3, 4));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(place(Items.TORCH, target), "place_block");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("placed minecraft:torch at " + coords(target)), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(8, 3, 4)).is(Blocks.WALL_TORCH),
+                    "wall torch expected, got " + h.getBlockState(new BlockPos(8, 3, 4)));
+            h.assertTrue(c.inventory().countItem(Items.TORCH) == 0, "the torch must be consumed");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
     public void placeProtectedFails(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
