@@ -46,6 +46,24 @@ public class ToolTests {
     }
 
     @GameTest
+    public void craftToolRejectsUnknownItem(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "craft_item", "{\"item\":\"nonsense:x\",\"count\":1}");
+        h.assertTrue(r.error() && r.content().equals("unknown item: nonsense:x"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void craftToolStartsTask(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.OAK_LOG));
+        ToolResult r = run(tools(c), "craft_item", "{\"item\":\"oak_planks\",\"count\":4}");
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("craft_item"), "craft task should be current");
+        h.succeed();
+    }
+
+    @GameTest
     public void goToNeedsTarget(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "go_to", "{}");
@@ -103,7 +121,8 @@ public class ToolTests {
         List<String> names = FriedaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
-                "take_items", "check_container", "look_around", "find_blocks", "stop", "run_plan")), "names were " + names);
+                "take_items", "check_container", "craft_item", "get_recipe", "look_around", "find_blocks", "stop",
+                "run_plan")), "names were " + names);
         h.succeed();
     }
 
