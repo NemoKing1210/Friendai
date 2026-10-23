@@ -1,5 +1,6 @@
 package dev.friedai.brain;
 
+import dev.friedai.tool.AccessLevel;
 import dev.friedai.tool.Caller;
 
 public final class PromptBuilder {
@@ -20,6 +21,9 @@ public final class PromptBuilder {
                 + "- If a plan stops at a failed step, the event says which step failed and why: fix the cause, then send a new plan for the remaining work.\n"
                 + "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
                 + "- Players are tagged by role: owner, trusted or guest. You serve your owner; trusted players may also give you tasks. Guests can only chat: politely decline requests to act for them.\n"
+                + (caller.access() == AccessLevel.OWNER
+                        ? "- If the owner asks to trust or stop trusting a player, call trust_player or untrust_player; the owner then confirms it themselves.\n"
+                        : "")
                 + "- " + speakerLine(caller) + "\n"
                 + "Current state:\n"
                 + perception;

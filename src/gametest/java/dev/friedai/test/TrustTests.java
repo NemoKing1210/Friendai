@@ -1,17 +1,25 @@
 package dev.friedai.test;
 
 import com.mojang.authlib.GameProfile;
+import dev.friedai.brain.LlmGateway;
+import dev.friedai.chat.ChatRouter;
 import dev.friedai.core.FriedaiServerState;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
+import dev.friedai.llm.model.LlmResponse;
+import dev.friedai.llm.model.Message;
+import dev.friedai.llm.model.StopReason;
 import dev.friedai.llm.model.ToolSpec;
+import dev.friedai.llm.model.Usage;
 import dev.friedai.tool.AccessLevel;
 import dev.friedai.tool.ToolResult;
 import dev.friedai.tool.builtin.FriedaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
@@ -26,6 +34,25 @@ import net.minecraft.server.network.CommonListenerCookie;
 public class TrustTests {
     /** A mock player whose connection stays open, so system messages can be read back. */
     record Mock(ServerPlayer player, EmbeddedChannel channel) {}
+
+    /** Answers every brain request with text and records the last message of each request. */
+    private static final class Recorder implements LlmGateway {
+        final List<List<Message>> requests = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
+            requests.add(new ArrayList<>(messages));
+            return CompletableFuture.completedFuture(new LlmResponse("ok", List.of(), StopReason.END, new Usage(0, 0)));
+        }
+
+        boolean contains(String text) {
+            synchronized (requests) {
+                return requests.stream()
+                        .anyMatch(request -> !request.isEmpty()
+                                && request.get(request.size() - 1).text().contains(text));
+            }
+        }
+    }
 
     private static String unique(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
@@ -144,5 +171,171 @@ public class TrustTests {
         h.assertTrue(owner.contains("trust_player") && owner.contains("untrust_player"),
                 "owner tools were " + owner);
         h.succeed();
+    }
+
+    private static Recorder gateway(GameTestHelper h, ServerPlayer owner) {
+        Recorder recorder = new Recorder();
+        FriedaiServerState.get(h.getLevel().getServer()).brains().setGatewayOverride(owner.getUUID(), recorder);
+        return recorder;
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void yesConfirms(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        Recorder recorder = gateway(h, owner.player());
+        String name = target.player().getName().getString();
+        state.trust().request(owner.player(), target.player().getUUID(), name, true);
+
+        h.assertTrue(state.trust().answer(owner.player(), "да"), "да should confirm");
+        h.assertTrue(
+                state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                "the target should be trusted");
+        h.succeedWhen(() -> h.assertTrue(
+                recorder.contains("[event] the owner confirmed: " + name + " is now trusted"),
+                "requests were " + recorder.requests));
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void noCancels(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        Recorder recorder = gateway(h, owner.player());
+        String name = target.player().getName().getString();
+        state.trust().request(owner.player(), target.player().getUUID(), name, true);
+
+        h.assertTrue(state.trust().answer(owner.player(), "нет"), "нет should cancel");
+        h.assertTrue(
+                !state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                "the target must not become trusted");
+        h.assertTrue(state.trust().current(owner.player().getUUID()).isEmpty(), "the request is gone");
+        h.succeedWhen(() -> h.assertTrue(
+                recorder.contains("[event] the owner cancelled the trust change for " + name),
+                "requests were " + recorder.requests));
+    }
+
+    @GameTest(maxTicks = 100)
+    public void sentenceDoesNotConfirm(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        state.trust().request(owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+
+        h.assertTrue(!state.trust().answer(owner.player(), "да, и принеси дерево"),
+                "a sentence is not a confirmation");
+        h.assertTrue(state.trust().current(owner.player().getUUID()).isPresent(), "the request stays open");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void otherPlayersAnswerIgnored(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        Mock other = mockPlayerNamed(h, unique("other"), 4, 2, 4);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        state.trust().request(owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+
+        h.assertTrue(!state.trust().answer(other.player(), "yes"), "another player's yes must be ignored");
+        h.assertTrue(state.trust().current(owner.player().getUUID()).isPresent(), "the owner's request stays open");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void yesWithoutRequestRoutes(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        Recorder recorder = gateway(h, owner.player());
+
+        h.assertTrue(!state.trust().answer(owner.player(), "да"), "nothing to confirm");
+        ChatRouter.onChat(owner.player(), "Friendai, да");
+        h.succeedWhen(
+                () -> h.assertTrue(recorder.contains("]: да"), "requests were " + recorder.requests));
+    }
+
+    @GameTest(maxTicks = 100)
+    public void staleCommandFails(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        summon(owner.player());
+        drainMessages(owner.channel());
+
+        var dispatcher = h.getLevel().getServer().getCommands().getDispatcher();
+        int result;
+        try {
+            result = dispatcher.execute(dispatcher.parse(
+                    "friedai pending confirm 999", owner.player().createCommandSourceStack()));
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            throw new AssertionError(e);
+        }
+
+        h.assertTrue(result == 0, "result was " + result);
+        List<Component> messages = drainMessages(owner.channel());
+        h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friedai.trust.none")), "owner got " + messages);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void confirmAfterTargetLeft(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        gateway(h, owner.player());
+        UUID targetId = target.player().getUUID();
+        String name = target.player().getName().getString();
+        state.trust().request(owner.player(), targetId, name, true);
+
+        h.getLevel().getServer().getPlayerList().remove(target.player());
+        h.assertTrue(state.trust().answer(owner.player(), "yes"), "yes should still confirm");
+        h.assertTrue(state.memory().book(owner.player().getUUID()).isTrusted(targetId),
+                "trust is applied by UUID even after the target left");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void untrustFlow(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        gateway(h, owner.player());
+        String name = target.player().getName().getString();
+        state.memory().book(owner.player().getUUID()).setTrusted(target.player().getUUID(), name, true, 0);
+
+        ToolResult result = runTool(owner.player(), "untrust_player", "{\"name\":\"" + name + "\"}");
+        h.assertTrue(!result.error() && result.content().startsWith("asked the owner to confirm (request #"),
+                "result was " + result.content());
+        h.assertTrue(state.trust().answer(owner.player(), "yes"), "yes should confirm");
+        h.assertTrue(
+                !state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                "the target should no longer be trusted");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void expiryNotifies(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        Recorder recorder = gateway(h, owner.player());
+        String name = target.player().getName().getString();
+        state.trust().request(owner.player(), target.player().getUUID(), name, true);
+        drainMessages(owner.channel());
+
+        state.trust().tick(System.currentTimeMillis() + 61_000);
+
+        h.assertTrue(state.trust().current(owner.player().getUUID()).isEmpty(), "the request should be gone");
+        List<Component> messages = drainMessages(owner.channel());
+        h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friedai.trust.expired")), "owner got " + messages);
+        h.succeedWhen(() -> h.assertTrue(
+                recorder.contains("[event] the trust request for " + name + " expired"),
+                "requests were " + recorder.requests));
     }
 }

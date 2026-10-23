@@ -1,6 +1,7 @@
 package dev.friedai.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -49,6 +50,13 @@ public final class FriedaiCommands {
                                 })
                                 .executes(FriedaiCommands::untrust)))
                 .then(Commands.literal("trusted").executes(FriedaiCommands::trusted))
+                .then(Commands.literal("pending")
+                        .then(Commands.literal("confirm")
+                                .then(Commands.argument("id", IntegerArgumentType.integer())
+                                        .executes(ctx -> pending(ctx, true))))
+                        .then(Commands.literal("cancel")
+                                .then(Commands.argument("id", IntegerArgumentType.integer())
+                                        .executes(ctx -> pending(ctx, false)))))
                 .then(Commands.literal("reload")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(FriedaiCommands::reload)));
@@ -159,6 +167,20 @@ public final class FriedaiCommands {
         ctx.getSource()
                 .sendSuccess(() -> Component.translatable("friedai.command.trusted.list", names), false);
         return records.size();
+    }
+
+    /** Applies or cancels the player's own pending trust request; the buttons run these commands. */
+    private static int pending(CommandContext<CommandSourceStack> ctx, boolean confirm) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        int id = IntegerArgumentType.getInteger(ctx, "id");
+        boolean applied = FriedaiServerState.get(ctx.getSource().getServer())
+                .trust()
+                .apply(player.getUUID(), id, confirm);
+        if (!applied) {
+            ctx.getSource().sendFailure(Component.translatable("friedai.trust.none"));
+            return 0;
+        }
+        return 1;
     }
 
     /** The sender's memory book: trust belongs to the owner, not to a companion entity. */

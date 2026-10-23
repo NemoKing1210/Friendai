@@ -19,6 +19,10 @@ public final class ChatRouter {
     public static void onChat(ServerPlayer player, String text) {
         var server = player.level().getServer();
         FriedaiServerState state = FriedaiServerState.get(server);
+        // A yes/no answer to a pending trust request is handled before any companion sees the line.
+        if (state.trust().answer(player, text)) {
+            return;
+        }
         ServerConfig cfg = state.config();
         AddressDetector detector =
                 new AddressDetector(cfg.companion.name, cfg.chat.prefix, cfg.chat.respondToName, false);
