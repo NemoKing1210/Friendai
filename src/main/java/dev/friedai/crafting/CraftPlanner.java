@@ -12,7 +12,8 @@ import java.util.Set;
 
 /**
  * Plans the crafts that make an item from a simulated inventory: intermediate items are crafted as
- * needed, leftovers feed later steps, and alternative recipes compete on total crafts.
+ * needed, leftovers feed later steps, and alternative recipes compete on total crafts. A recipe whose
+ * station is neither nearby nor carried makes its station item a craft goal of its own.
  */
 public final class CraftPlanner {
     /** How many nested crafts the search may chain. */
@@ -30,15 +31,16 @@ public final class CraftPlanner {
             throw new IllegalArgumentException("count must be positive: " + count);
         }
         Objects.requireNonNull(book, "book");
-        Map<String, Integer> simulated = new LinkedHashMap<>();
+        Sim sim = new Sim();
         if (inventory != null) {
             inventory.forEach((item, amount) -> {
                 if (item != null && amount != null && amount > 0) {
-                    simulated.put(item, amount);
+                    sim.items.put(item, amount);
                 }
             });
         }
-        Attempt attempt = new Search(target, book).need(target, count, 0, new LinkedHashSet<>(), simulated);
+        Set<Station> nearby = stationsNearby == null ? EnumSet.noneOf(Station.class) : stationsNearby;
+        Attempt attempt = new Search(target, book, nearby).need(target, count, 0, new LinkedHashSet<>(), sim);
         List<CraftStep> steps = attempt.steps();
         Set<Station> stationsUsed = EnumSet.noneOf(Station.class);
         for (CraftStep step : steps) {
@@ -46,29 +48,60 @@ public final class CraftPlanner {
                 stationsUsed.add(step.recipe().station());
             }
         }
-        return new CraftPlan(steps, attempt.missing, stationsUsed, EnumSet.noneOf(Station.class));
+        return new CraftPlan(steps, attempt.missing, stationsUsed, attempt.stationsCrafted);
+    }
+
+    /**
+     * The simulated world of one search branch: the items, the station items that exist but must never be
+     * consumed, and the stations already crafted so their item is crafted at most once.
+     */
+    private static final class Sim {
+        final Map<String, Integer> items = new LinkedHashMap<>();
+        final Set<String> reserved = new LinkedHashSet<>();
+        final Set<Station> craftedStations = EnumSet.noneOf(Station.class);
+
+        Sim copy() {
+            Sim copy = new Sim();
+            copy.items.putAll(items);
+            copy.reserved.addAll(reserved);
+            copy.craftedStations.addAll(craftedStations);
+            return copy;
+        }
+
+        void adopt(Sim other) {
+            items.clear();
+            items.putAll(other.items);
+            reserved.clear();
+            reserved.addAll(other.reserved);
+            craftedStations.clear();
+            craftedStations.addAll(other.craftedStations);
+        }
     }
 
     private static final class Search {
         private final String target;
         private final RecipeBook book;
+        private final Set<Station> stationsNearby;
         private final Map<String, Boolean> cycles = new HashMap<>();
 
-        Search(String target, RecipeBook book) {
+        Search(String target, RecipeBook book, Set<Station> stationsNearby) {
             this.target = target;
             this.book = book;
+            this.stationsNearby = stationsNearby;
         }
 
         /**
          * Obtains {@code qty} of {@code item} from {@code sim}, crafting it if needed. The carried items are
          * consumed from {@code sim}; a successful attempt leaves leftover outputs in it.
          */
-        Attempt need(String item, int qty, int depth, Set<String> path, Map<String, Integer> sim) {
-            int carried = sim.getOrDefault(item, 0);
-            int taken = Math.min(carried, qty);
-            if (taken > 0) {
-                sim.put(item, carried - taken);
-                qty -= taken;
+        Attempt need(String item, int qty, int depth, Set<String> path, Sim sim) {
+            if (!sim.reserved.contains(item)) {
+                int carried = sim.items.getOrDefault(item, 0);
+                int taken = Math.min(carried, qty);
+                if (taken > 0) {
+                    sim.items.put(item, carried - taken);
+                    qty -= taken;
+                }
             }
             if (qty == 0) {
                 return new Attempt();
@@ -78,13 +111,13 @@ public final class CraftPlanner {
                 return Attempt.missing(item, qty);
             }
             Attempt best = null;
-            Map<String, Integer> bestSim = null;
+            Sim bestSim = null;
             List<Attempt> failed = new ArrayList<>();
             for (Recipe recipe : recipes) {
-                Map<String, Integer> copy = new LinkedHashMap<>(sim);
+                Sim copy = sim.copy();
                 Attempt attempt = tryRecipe(item, recipe, qty, depth, path, copy);
                 if (attempt.ok()) {
-                    if (best == null || attempt.crafts() < best.crafts()) {
+                    if (best == null || cheaper(attempt, best)) {
                         best = attempt;
                         bestSim = copy;
                     }
@@ -93,8 +126,7 @@ public final class CraftPlanner {
                 }
             }
             if (best != null) {
-                sim.clear();
-                sim.putAll(bestSim);
+                sim.adopt(bestSim);
                 return best;
             }
             if (!anyIngredientPresent(recipes, sim) && (!item.equals(target) || cyclic(item))) {
@@ -112,12 +144,22 @@ public final class CraftPlanner {
             return chosen;
         }
 
-        private Attempt tryRecipe(String item, Recipe recipe, int qty, int depth, Set<String> path,
-                Map<String, Integer> sim) {
+        /** Fewer total crafts, then a station that is already available, then book order (the caller keeps it). */
+        private static boolean cheaper(Attempt candidate, Attempt best) {
+            if (candidate.crafts() != best.crafts()) {
+                return candidate.crafts() < best.crafts();
+            }
+            return candidate.stationPenalty < best.stationPenalty;
+        }
+
+        private Attempt tryRecipe(String item, Recipe recipe, int qty, int depth, Set<String> path, Sim sim) {
             int times = (qty + recipe.outputCount() - 1) / recipe.outputCount();
             Set<String> nextPath = new LinkedHashSet<>(path);
             nextPath.add(item);
             Attempt attempt = new Attempt();
+            Attempt station = ensureStation(recipe.station(), depth + 1, nextPath, sim);
+            attempt.merge(station);
+            attempt.stationPenalty = station.stationPenalty;
             for (int craft = 0; craft < times; craft++) {
                 for (Ingredient ingredient : recipe.ingredients()) {
                     Attempt filled = fill(ingredient, depth + 1, nextPath, sim);
@@ -129,37 +171,73 @@ public final class CraftPlanner {
             }
             int leftover = times * recipe.outputCount() - qty;
             if (leftover > 0) {
-                sim.merge(recipe.output(), leftover, Integer::sum);
+                sim.items.merge(recipe.output(), leftover, Integer::sum);
             }
             attempt.addStep(recipe, times);
             return attempt;
         }
 
-        private Attempt fill(Ingredient ingredient, int depth, Set<String> path, Map<String, Integer> sim) {
+        /**
+         * Makes {@code station} available: nearby and carried stations cost nothing, a missing one becomes a
+         * craft goal of its own whose item then stays in the simulation reserved for the station.
+         */
+        private Attempt ensureStation(Station station, int depth, Set<String> path, Sim sim) {
+            if (station == Station.INVENTORY || stationsNearby.contains(station)) {
+                return new Attempt();
+            }
+            String item = book.stationItem(station);
+            if (item == null) {
+                // A book that names no item for a non-inventory station leaves nothing to craft or carry.
+                return Attempt.missing(station.noun(), 1);
+            }
+            if (sim.craftedStations.contains(station) || sim.reserved.contains(item)) {
+                return new Attempt();
+            }
+            if (sim.items.getOrDefault(item, 0) > 0) {
+                sim.reserved.add(item);
+                return new Attempt();
+            }
+            Attempt attempt = need(item, 1, depth, path, sim);
+            if (!attempt.ok()) {
+                return attempt;
+            }
+            if (sim.items.getOrDefault(item, 0) < 1) {
+                sim.items.put(item, 1);
+            }
+            sim.reserved.add(item);
+            sim.craftedStations.add(station);
+            attempt.stationsCrafted.add(station);
+            attempt.stationPenalty = 1;
+            return attempt;
+        }
+
+        private Attempt fill(Ingredient ingredient, int depth, Set<String> path, Sim sim) {
             for (String id : ingredient.items()) {
-                int carried = sim.getOrDefault(id, 0);
+                if (sim.reserved.contains(id)) {
+                    continue;
+                }
+                int carried = sim.items.getOrDefault(id, 0);
                 if (carried > 0) {
-                    sim.put(id, carried - 1);
+                    sim.items.put(id, carried - 1);
                     return new Attempt();
                 }
             }
             for (String id : ingredient.items()) {
-                Map<String, Integer> copy = new LinkedHashMap<>(sim);
+                Sim copy = sim.copy();
                 Attempt attempt = need(id, 1, depth, path, copy);
                 if (attempt.ok()) {
-                    sim.clear();
-                    sim.putAll(copy);
+                    sim.adopt(copy);
                     return attempt;
                 }
             }
             return Attempt.missing(ingredient.label(), 1);
         }
 
-        private static boolean anyIngredientPresent(List<Recipe> recipes, Map<String, Integer> sim) {
+        private static boolean anyIngredientPresent(List<Recipe> recipes, Sim sim) {
             for (Recipe recipe : recipes) {
                 for (Ingredient ingredient : recipe.ingredients()) {
                     for (String id : ingredient.items()) {
-                        if (sim.getOrDefault(id, 0) > 0) {
+                        if (!sim.reserved.contains(id) && sim.items.getOrDefault(id, 0) > 0) {
                             return true;
                         }
                     }
@@ -193,12 +271,17 @@ public final class CraftPlanner {
         }
     }
 
-    /** Steps merged by recipe id (dependencies first), the missing labels, and the total craft count. */
+    /**
+     * Steps merged by recipe id (dependencies first), the missing labels, the total craft count, the stations
+     * whose item this attempt crafted, and whether the attempt's own recipe needed a crafted station.
+     */
     private static final class Attempt {
         private final Map<String, Integer> stepTimes = new LinkedHashMap<>();
         private final Map<String, Recipe> stepRecipes = new HashMap<>();
         private final Map<String, Integer> missing = new LinkedHashMap<>();
+        private final Set<Station> stationsCrafted = EnumSet.noneOf(Station.class);
         private int crafts;
+        private int stationPenalty;
 
         static Attempt missing(String label, int qty) {
             Attempt attempt = new Attempt();
@@ -225,6 +308,7 @@ public final class CraftPlanner {
             });
             other.missing.forEach((label, qty) -> missing.merge(label, qty, Integer::sum));
             crafts += other.crafts;
+            stationsCrafted.addAll(other.stationsCrafted);
         }
 
         void addStep(Recipe recipe, int times) {

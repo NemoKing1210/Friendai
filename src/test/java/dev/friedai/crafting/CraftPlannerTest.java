@@ -14,7 +14,22 @@ class CraftPlannerTest {
     private static final Set<Station> ALL_STATIONS = EnumSet.allOf(Station.class);
 
     private static CraftPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook book) {
-        return CraftPlanner.plan(target, count, inventory, book, ALL_STATIONS);
+        return plan(target, count, inventory, book, ALL_STATIONS);
+    }
+
+    private static CraftPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook book,
+            Set<Station> stations) {
+        return CraftPlanner.plan(target, count, inventory, book, stations);
+    }
+
+    private static int indexOf(CraftPlan plan, String output) {
+        List<CraftStep> steps = plan.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i).recipe().output().equals(output)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static long stepCount(CraftPlan plan, String output) {
@@ -178,5 +193,84 @@ class CraftPlannerTest {
         CraftStep planks = step(plan, "minecraft:oak_planks");
         assertEquals(2, planks.times());
         assertEquals("minecraft:oak_planks", plan.steps().get(0).recipe().output());
+    }
+
+    @Test
+    void tableCraftedWhenMissing() {
+        CraftPlan plan = plan("minecraft:wooden_pickaxe", 1, Map.of("minecraft:oak_log", 3),
+                FakeRecipeBook.vanillaLike(), EnumSet.noneOf(Station.class));
+        assertTrue(plan.ok());
+        assertEquals(Set.of(Station.CRAFTING_TABLE), plan.stationsToCraft());
+        assertEquals(1, step(plan, "minecraft:crafting_table").times());
+        assertTrue(indexOf(plan, "minecraft:crafting_table") < indexOf(plan, "minecraft:wooden_pickaxe"));
+    }
+
+    @Test
+    void tableNearbyNotCrafted() {
+        CraftPlan plan = plan("minecraft:wooden_pickaxe", 1, Map.of("minecraft:oak_log", 3),
+                FakeRecipeBook.vanillaLike(), EnumSet.of(Station.CRAFTING_TABLE));
+        assertTrue(plan.ok());
+        assertEquals(0, stepCount(plan, "minecraft:crafting_table"));
+        assertTrue(plan.stationsToCraft().isEmpty());
+        assertEquals(Set.of(Station.CRAFTING_TABLE), plan.stationsUsed());
+        assertEquals(2, step(plan, "minecraft:oak_planks").times());
+    }
+
+    @Test
+    void carriedTableIsReserved() {
+        CraftPlan plan = plan("minecraft:wooden_pickaxe", 1,
+                Map.of("minecraft:oak_log", 2, "minecraft:crafting_table", 1), FakeRecipeBook.vanillaLike(),
+                EnumSet.noneOf(Station.class));
+        assertTrue(plan.ok());
+        assertEquals(0, stepCount(plan, "minecraft:crafting_table"));
+        assertTrue(plan.stationsToCraft().isEmpty());
+        // Five planks are needed, which two logs (eight planks) cover.
+        assertEquals(2, step(plan, "minecraft:oak_planks").times());
+        assertEquals("minecraft:wooden_pickaxe", plan.steps().get(plan.steps().size() - 1).recipe().output());
+    }
+
+    @Test
+    void missingIncludesTable() {
+        CraftPlan plan = plan("minecraft:wooden_pickaxe", 1, Map.of(), FakeRecipeBook.vanillaLike(),
+                EnumSet.noneOf(Station.class));
+        assertFalse(plan.ok());
+        assertEquals(Map.of("#minecraft:planks", 3, "minecraft:stick", 2, "minecraft:crafting_table", 1),
+                plan.missing());
+    }
+
+    @Test
+    void stonecutterPreferredWhenNearby() {
+        CraftPlan plan = plan("minecraft:andesite_stairs", 4, Map.of("minecraft:andesite", 4),
+                FakeRecipeBook.vanillaLike(), EnumSet.of(Station.CRAFTING_TABLE, Station.STONECUTTER));
+        assertTrue(plan.ok());
+        CraftStep stairs = step(plan, "minecraft:andesite_stairs");
+        assertEquals("minecraft:andesite_stairs_from_stonecutter", stairs.recipe().id());
+        assertEquals(Station.STONECUTTER, stairs.recipe().station());
+        assertEquals(4, stairs.times());
+        assertEquals(Set.of(Station.STONECUTTER), plan.stationsUsed());
+        assertTrue(plan.stationsToCraft().isEmpty());
+    }
+
+    @Test
+    void tableRecipeWhenNoStonecutter() {
+        CraftPlan plan = plan("minecraft:andesite_stairs", 4, Map.of("minecraft:andesite", 6),
+                FakeRecipeBook.vanillaLike(), EnumSet.of(Station.CRAFTING_TABLE));
+        assertTrue(plan.ok());
+        CraftStep stairs = step(plan, "minecraft:andesite_stairs");
+        assertEquals("minecraft:andesite_stairs", stairs.recipe().id());
+        assertEquals(Station.CRAFTING_TABLE, stairs.recipe().station());
+        assertEquals(1, stairs.times());
+        assertEquals(0, stepCount(plan, "minecraft:stonecutter"));
+    }
+
+    @Test
+    void inventoryRecipesNeedNoStation() {
+        CraftPlan plan = plan("minecraft:oak_planks", 4, Map.of("minecraft:oak_log", 1),
+                FakeRecipeBook.vanillaLike(), EnumSet.noneOf(Station.class));
+        assertTrue(plan.ok());
+        assertEquals(1, plan.steps().size());
+        assertEquals(Station.INVENTORY, plan.steps().get(0).recipe().station());
+        assertTrue(plan.stationsUsed().isEmpty());
+        assertTrue(plan.stationsToCraft().isEmpty());
     }
 }

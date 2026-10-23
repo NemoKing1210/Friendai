@@ -43,7 +43,15 @@ class FakeRecipeBook implements RecipeBook {
                 .add(new Recipe("minecraft:iron_nugget", "minecraft:iron_nugget", 9,
                         List.of(ironIngot), Station.INVENTORY))
                 .add(new Recipe("minecraft:iron_pickaxe", "minecraft:iron_pickaxe", 1,
-                        List.of(ironIngot, ironIngot, ironIngot, stick, stick), Station.CRAFTING_TABLE));
+                        List.of(ironIngot, ironIngot, ironIngot, stick, stick), Station.CRAFTING_TABLE))
+                .add(new Recipe("minecraft:stonecutter", "minecraft:stonecutter", 1,
+                        List.of(Ingredient.of("minecraft:stone"), Ingredient.of("minecraft:stone"),
+                                Ingredient.of("minecraft:stone"), ironIngot),
+                        Station.CRAFTING_TABLE))
+                .add(new Recipe("minecraft:andesite_stairs", "minecraft:andesite_stairs", 4,
+                        Collections.nCopies(6, Ingredient.of("minecraft:andesite")), Station.CRAFTING_TABLE))
+                .add(new Recipe("minecraft:andesite_stairs_from_stonecutter", "minecraft:andesite_stairs", 1,
+                        List.of(Ingredient.of("minecraft:andesite")), Station.STONECUTTER));
     }
 
     FakeRecipeBook add(Recipe recipe) {
