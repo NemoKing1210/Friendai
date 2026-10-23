@@ -120,6 +120,17 @@ class CraftPlannerTest {
     }
 
     @Test
+    void missingDependencyReportedItself() {
+        // The crafting table cannot start, so a dependency goal names the table, not its planks.
+        FakeRecipeBook book = FakeRecipeBook.vanillaLike()
+                .add(new Recipe("test:bench_part", "test:bench_part", 1,
+                        List.of(Ingredient.of("minecraft:crafting_table")), Station.INVENTORY));
+        CraftPlan plan = plan("test:bench_part", 1, Map.of(), book);
+        assertFalse(plan.ok());
+        assertEquals(Map.of("minecraft:crafting_table", 1), plan.missing());
+    }
+
+    @Test
     void fallsBackToSecondRecipe() {
         Ingredient planks =
                 Ingredient.tag("minecraft:planks", "minecraft:oak_planks", "minecraft:birch_planks");

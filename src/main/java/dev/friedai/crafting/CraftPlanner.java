@@ -38,7 +38,7 @@ public final class CraftPlanner {
                 }
             });
         }
-        Attempt attempt = new Search(book).need(target, count, 0, new LinkedHashSet<>(), simulated);
+        Attempt attempt = new Search(target, book).need(target, count, 0, new LinkedHashSet<>(), simulated);
         List<CraftStep> steps = attempt.steps();
         Set<Station> stationsUsed = EnumSet.noneOf(Station.class);
         for (CraftStep step : steps) {
@@ -50,10 +50,12 @@ public final class CraftPlanner {
     }
 
     private static final class Search {
+        private final String target;
         private final RecipeBook book;
         private final Map<String, Boolean> cycles = new HashMap<>();
 
-        Search(RecipeBook book) {
+        Search(String target, RecipeBook book) {
+            this.target = target;
             this.book = book;
         }
 
@@ -95,9 +97,10 @@ public final class CraftPlanner {
                 sim.putAll(bestSim);
                 return best;
             }
-            if (!anyIngredientPresent(recipes, sim) && cyclic(item)) {
-                // Nothing can start and every recipe only loops back to the item: report the item, not its
-                // siblings (2 × iron_ingot rather than 1 × iron_block).
+            if (!anyIngredientPresent(recipes, sim) && (!item.equals(target) || cyclic(item))) {
+                // Nothing can start: a dependency is reported itself (a station goal, an iron ingot). The
+                // requested target is the exception, because naming its ingredients is more useful there —
+                // unless it only feeds its own recipe loop (ingot → block → ingot).
                 return Attempt.missing(item, qty);
             }
             Attempt chosen = failed.get(0);
