@@ -9,15 +9,15 @@ import dev.friedai.task.farming.FarmPass;
 import dev.friedai.task.farming.FarmReport;
 import dev.friedai.task.interact.ContainerAccess;
 import dev.friedai.task.nav.MoveHelper;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /** Stays at a farm, harvests every period, and stores the harvest in a nearby chest until stopped. */
@@ -117,30 +117,31 @@ public final class TendFarmTask implements Task {
     }
 
     private void store(TaskContext c) {
-        if (lastReport == null || lastReport.harvested().isEmpty()) {
-            return;
-        }
-        Set<String> outputs = lastReport.harvested().keySet();
+        CompanionEntity companion = c.companion();
+        Map<Item, Integer> totals = farmOutputs(companion);
         Optional<BlockPos> chestPos = ContainerAccess.nearest(c.level(), center, STORE_RADIUS);
         Optional<Container> chest = chestPos.flatMap(pos -> ContainerAccess.at(c.level(), pos));
         if (chest.isEmpty()) {
-            notice(c, noChestNotified, "no chest near the farm at " + coords() + "; keeping the harvest");
-            noChestNotified = true;
+            if (!totals.isEmpty()) {
+                notice(c, noChestNotified, "no chest near the farm at " + coords() + "; keeping the harvest");
+                noChestNotified = true;
+            } else {
+                noChestNotified = false;
+            }
             return;
         }
         noChestNotified = false;
+        if (totals.isEmpty()) {
+            fullNotified = false;
+            return;
+        }
 
         int attempted = 0;
         int moved = 0;
-        CompanionEntity companion = c.companion();
-        for (String id : outputs) {
-            Item item = itemById(id);
-            if (item == null) {
-                continue;
-            }
+        for (Map.Entry<Item, Integer> entry : totals.entrySet()) {
+            Item item = entry.getKey();
             int keep = Crops.isPlantableSeed(item) ? new ItemStack(item).getMaxStackSize() : 0;
-            int total = count(companion, item);
-            int storeable = Math.max(0, total - keep);
+            int storeable = Math.max(0, entry.getValue() - keep);
             if (storeable == 0) {
                 continue;
             }
@@ -174,6 +175,27 @@ public final class TendFarmTask implements Task {
         }
     }
 
+    private static Map<Item, Integer> farmOutputs(CompanionEntity companion) {
+        Map<Item, Integer> totals = new LinkedHashMap<>();
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            ItemStack stack = companion.inventory().getItem(slot);
+            if (!stack.isEmpty() && isFarmOutput(stack.getItem())) {
+                totals.merge(stack.getItem(), stack.getCount(), Integer::sum);
+            }
+        }
+        return totals;
+    }
+
+    private static boolean isFarmOutput(Item item) {
+        return Crops.isPlantableSeed(item)
+                || item == Items.WHEAT
+                || item == Items.MELON_SLICE
+                || item == Items.PUMPKIN
+                || item == Items.SUGAR_CANE
+                || item == Items.SWEET_BERRIES
+                || item == Items.BEETROOT;
+    }
+
     private void updateSeedNotice(TaskContext c) {
         boolean outOfSeeds = lastReport != null && lastReport.noSeeds() > 0;
         if (outOfSeeds) {
@@ -188,22 +210,6 @@ public final class TendFarmTask implements Task {
         if (!alreadySent) {
             c.companion().taskRunner().notice(text);
         }
-    }
-
-    private static Item itemById(String id) {
-        Identifier identifier = Identifier.tryParse(id);
-        return identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
-    }
-
-    private static int count(CompanionEntity companion, Item item) {
-        int total = 0;
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            ItemStack stack = companion.inventory().getItem(slot);
-            if (stack.is(item)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
     }
 
     private String coords() {

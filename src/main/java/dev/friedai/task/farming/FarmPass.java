@@ -162,6 +162,9 @@ public final class FarmPass {
             berryApproach = null;
             return Step.BUSY;
         }
+        if (!hasRoom(c.companion())) {
+            return Step.IDLE;
+        }
         BlockPos target = nearestHarvestable(c);
         if (target == null) {
             return Step.IDLE;
@@ -457,6 +460,15 @@ public final class FarmPass {
                         || level.getBlockState(pos.offset(dx, -1, dz)).is(Blocks.WATER)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasRoom(CompanionEntity companion) {
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            if (companion.inventory().getItem(slot).isEmpty()) {
+                return true;
             }
         }
         return false;

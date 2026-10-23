@@ -505,4 +505,21 @@ public class AnimalTests {
         h.assertValueEqual(result.summary, "no open water nearby", "summary");
         h.succeed();
     }
+
+    @GameTest(maxTicks = 900)
+    public void breedStopsAfterParentsCoolDown(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 240, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 241, 2);
+        h.spawn(EntityTypes.COW, 5, 241, 4);
+        h.spawn(EntityTypes.COW, 7, 241, 4);
+        c.inventory().addItem(new ItemStack(Items.WHEAT, 8));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new BreedTask(EntityTypes.COW, 2), "breed_animals");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("fed 1 pairs of minecraft:cow"), "summary was " + result.summary);
+        });
+    }
 }

@@ -6,7 +6,9 @@ import dev.friedai.task.TaskContext;
 import dev.friedai.task.TaskStatus;
 import dev.friedai.task.farming.Animals;
 import dev.friedai.task.nav.Approach;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -28,6 +30,7 @@ public final class BreedTask implements Task {
     private final EntityType<?> type;
     private final int pairs;
     private final String id;
+    private final Set<UUID> unreachable = new HashSet<>();
 
     private Vec3 origin;
     private boolean preflightDone;
@@ -186,10 +189,11 @@ public final class BreedTask implements Task {
 
     private Animal nextReady(TaskContext c, UUID exclude) {
         for (Animal animal : Animals.nearby(c.level(), c.companion(), origin, RADIUS, candidate -> candidate == type)) {
-            if (animal.isBaby() || !animal.canFallInLove()) {
+            if (animal.isBaby() || animal.getAge() != 0 || !animal.canFallInLove()) {
                 continue;
             }
-            if (exclude != null && exclude.equals(animal.getUUID())) {
+            if (unreachable.contains(animal.getUUID())
+                    || (exclude != null && exclude.equals(animal.getUUID()))) {
                 continue;
             }
             return animal;
@@ -225,7 +229,11 @@ public final class BreedTask implements Task {
             return Feed.NO_FOOD;
         }
         InteractionResult result = c.companion().hands().interact(animal, one);
-        return result.consumesAction() ? Feed.FED : Feed.MOVING;
+        if (result.consumesAction()) {
+            return Feed.FED;
+        }
+        unreachable.add(animal.getUUID());
+        return Feed.GONE;
     }
 
     private static Item findFood(CompanionEntity companion, Animal animal) {

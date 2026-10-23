@@ -424,4 +424,49 @@ public class FarmingTests {
         }
         return total;
     }
+
+    @GameTest(maxTicks = 600)
+    public void farmPassSkipsHarvestWithoutRoom(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 260, 16);
+        h.setBlock(4, 260, 4, Blocks.FARMLAND);
+        h.setBlock(5, 260, 4, Blocks.FARMLAND);
+        h.setBlock(4, 261, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(5, 261, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 261, 2);
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        FarmPass pass = new FarmPass(h.absolutePos(new BlockPos(5, 261, 4)), 8, null, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(pass.tick(ctx), "pass not done yet");
+            h.assertTrue(pass.report().harvested().isEmpty(), "harvested " + pass.report().harvested());
+            BlockState wheat = h.getBlockState(new BlockPos(4, 261, 4));
+            h.assertTrue(wheat.is(Blocks.WHEAT) && wheat.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + wheat);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void tendWithFullInventoryDoesNotHarvest(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 280, 16);
+        h.setBlock(4, 280, 4, Blocks.FARMLAND);
+        h.setBlock(5, 280, 4, Blocks.FARMLAND);
+        h.setBlock(4, 281, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(5, 281, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(10, 281, 10, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 281, 2);
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        c.taskRunner().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 281, 4)), 8, 100), "tend_farm");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            h.assertTrue(ticks[0] > 200, "waiting for a couple of passes");
+            BlockState first = h.getBlockState(new BlockPos(4, 281, 4));
+            BlockState second = h.getBlockState(new BlockPos(5, 281, 4));
+            h.assertTrue(first.is(Blocks.WHEAT) && first.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + first);
+            h.assertTrue(second.is(Blocks.WHEAT) && second.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + second);
+        });
+    }
 }
