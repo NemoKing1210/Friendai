@@ -1,6 +1,7 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
+import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
@@ -127,10 +128,93 @@ public class BuildTests {
     }
 
     @GameTest
-    public void structureNotSupportedYet(GameTestHelper h) {
-        ParseResult result = BlueprintResolver.resolve(args("structure", "minecraft:village_plains"), h.getLevel(), null);
-        equal(List.of("structure templates are not supported yet"), result.errors(), "errors");
+    public void resolvesTestTemplate(GameTestHelper h) {
+        ParseResult result = resolveTemplate(h, "friendai-gametest:tiny_hut");
+        check(result.errors().isEmpty(), "unexpected errors: " + result.errors());
+        Blueprint hut = result.blueprint().orElseThrow();
+        equal("tiny_hut", hut.name(), "name");
+        equal(5, hut.width(), "width");
+        equal(4, hut.height(), "height");
+        equal(5, hut.depth(), "depth");
+        equal(83, hut.blocks().size(), "block count");
+        equal(List.of("skipped 1 liquid block"), result.notes(), "notes");
+        for (BlockSpec spec : hut.blocks()) {
+            check(spec.x() >= 0 && spec.x() < hut.width(), "x outside the size: " + spec);
+            check(spec.y() >= 0 && spec.y() < hut.height(), "y outside the size: " + spec);
+            check(spec.z() >= 0 && spec.z() < hut.depth(), "z outside the size: " + spec);
+        }
+        BlockSpec roof = hut.blocks().stream()
+                .filter(spec -> spec.x() == 2 && spec.y() == 3 && spec.z() == 2)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no block at the jigsaw position"));
+        check(state(roof.state()).is(Blocks.OAK_PLANKS), "the jigsaw must become oak planks, was " + roof.state());
         h.succeed();
+    }
+
+    @GameTest
+    public void templateSkipsVoidAndLiquids(GameTestHelper h) {
+        ParseResult result = resolveTemplate(h, "friendai-gametest:tiny_hut");
+        check(result.errors().isEmpty(), "unexpected errors: " + result.errors());
+        Blueprint hut = result.blueprint().orElseThrow();
+        for (BlockSpec spec : hut.blocks()) {
+            BlockState blockState = state(spec.state());
+            check(!blockState.is(Blocks.STRUCTURE_VOID), "structure void must be skipped: " + spec);
+            check(blockState.getFluidState().isEmpty(), "liquid must be skipped: " + spec);
+        }
+        equal(List.of("skipped 1 liquid block"), result.notes(), "notes");
+        h.succeed();
+    }
+
+    @GameTest
+    public void templateDropsBlockEntityData(GameTestHelper h) {
+        Blueprint hut = template(h, "friendai-gametest:tiny_hut");
+        List<BlockSpec> chests = hut.blocks().stream()
+                .filter(spec -> state(spec.state()).is(Blocks.CHEST))
+                .toList();
+        equal(1, chests.size(), "one chest");
+        equal(Blocks.CHEST.defaultBlockState(), state(chests.get(0).state()), "a plain chest without block-entity data");
+        equal(83, hut.blocks().size(), "the chest stays one block; its items are dropped");
+        h.succeed();
+    }
+
+    @GameTest
+    public void unknownTemplate(GameTestHelper h) {
+        ParseResult result = resolveTemplate(h, "friendai:nope");
+        equal(List.of("no structure template friendai:nope"), result.errors(), "errors");
+        check(result.blueprint().isEmpty(), "no blueprint");
+        h.succeed();
+    }
+
+    @GameTest
+    public void badTemplateId(GameTestHelper h) {
+        ParseResult result = resolveTemplate(h, "Bad Id");
+        equal(List.of("not a valid template id: Bad Id"), result.errors(), "errors");
+        check(result.blueprint().isEmpty(), "no blueprint");
+        h.succeed();
+    }
+
+    @GameTest
+    public void vanillaTemplateResolves(GameTestHelper h) {
+        ParseResult result = resolveTemplate(h, "minecraft:village/plains/houses/plains_small_house_1");
+        check(result.errors().isEmpty(), "unexpected errors: " + result.errors());
+        Blueprint house = result.blueprint().orElseThrow();
+        check(house.width() <= Blueprint.MAX_SIZE
+                        && house.height() <= Blueprint.MAX_SIZE
+                        && house.depth() <= Blueprint.MAX_SIZE,
+                "size " + house.width() + "×" + house.height() + "×" + house.depth());
+        check(house.blocks().size() <= Blueprint.MAX_BLOCKS, "block count " + house.blocks().size());
+        check(!house.blocks().isEmpty(), "the house must have blocks");
+        h.succeed();
+    }
+
+    private static ParseResult resolveTemplate(GameTestHelper h, String id) {
+        return BlueprintResolver.resolve(args("structure", id), h.getLevel(), null);
+    }
+
+    private static Blueprint template(GameTestHelper h, String id) {
+        ParseResult result = resolveTemplate(h, id);
+        check(result.errors().isEmpty(), "could not resolve " + id + ": " + result.errors());
+        return result.blueprint().orElseThrow();
     }
 
     @GameTest

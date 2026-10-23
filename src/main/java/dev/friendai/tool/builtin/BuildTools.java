@@ -110,7 +110,8 @@ final class BuildTools {
                 .string("blueprint", "Blueprint JSON; blueprint_help explains the format")
                 .string("generator", "Generator JSON, for example {\"type\":\"house\",\"width\":7,\"depth\":7}")
                 .string("saved", "Name of a saved blueprint")
-                .string("structure", "Structure template id (not supported yet)")
+                .string("structure",
+                        "Structure template id, for example minecraft:village/plains/houses/plains_small_house_1")
                 .integer("x", "Origin X; give all of x, y, z or none for 3 blocks in front of the owner")
                 .integer("y", "Origin Y")
                 .integer("z", "Origin Z")
@@ -143,7 +144,8 @@ final class BuildTools {
         companion.setLastPreview(blueprint);
         companion.owner().ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), placed, blueprint)));
         return ToolResult.ok(previewText(
-                blueprint, placed, site, needed, Materials.have(companion, level), Materials.carried(companion)));
+                blueprint, placed, site, needed, Materials.have(companion, level), Materials.carried(companion),
+                parsed.notes()));
     }
 
     private static String previewText(
@@ -152,7 +154,8 @@ final class BuildTools {
             Site.SiteReport site,
             Map<Item, Integer> needed,
             Map<Item, Integer> have,
-            Map<Item, Integer> carried) {
+            Map<Item, Integer> carried,
+            List<String> notes) {
         long blocks = placed.specs().stream().filter(spec -> !spec.wanted().isAir()).count();
         return blueprint.name() + " " + blueprint.width() + "×" + blueprint.height() + "×" + blueprint.depth()
                 + " at " + coords(placed.origin())
@@ -161,7 +164,8 @@ final class BuildTools {
                 + site.toClear().size() + " to clear, "
                 + site.foundation().size() + " foundation; materials: "
                 + materialsText(needed, have, carried)
-                + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()));
+                + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()))
+                + (notes.isEmpty() ? "" : "; " + String.join("; ", notes));
     }
 
     private static String materialsText(
