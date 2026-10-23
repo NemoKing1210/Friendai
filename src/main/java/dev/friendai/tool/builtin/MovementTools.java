@@ -2,12 +2,14 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.movement.PaceMode;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
+import dev.friendai.tool.ToolResult;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 
@@ -28,6 +30,17 @@ final class MovementTools {
                         .enumeration("target", "Use 'owner' to walk to the owner", "owner")
                         .build(),
                 MovementTools::goTo, true));
+        registry.register(ToolKit.instantTool("set_pace",
+                "Set how fast the companion travels: auto (runs when the owner is far ahead, walks otherwise), walk (never sprint), run (sprint whenever it can).",
+                SchemaBuilder.object()
+                        .enumeration("mode", "Pace mode", "auto", "walk", "run")
+                        .required("mode")
+                        .build(),
+                (c, a) -> {
+                    PaceMode mode = PaceMode.parse(a.get("mode").getAsString());
+                    c.setPaceMode(mode);
+                    return ToolResult.ok("pace: " + mode.label());
+                }));
     }
 
     private static Task goTo(CompanionEntity c, JsonObject args) {

@@ -120,7 +120,7 @@ public class CompanionEntity extends PathfinderMob {
             }
             combatController.tick();
             taskRunner.tick();
-            if (isSprinting() && getNavigation().isDone()) {
+            if (isSprinting() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
             }
             if (++furnaceWatchTicks % 20 == 0) {
@@ -170,7 +170,11 @@ public class CompanionEntity extends PathfinderMob {
         if (!offHand.isEmpty()) {
             text.append(" (offhand: ").append(itemName(offHand)).append(')');
         }
-        return text.append("; combat mode: ").append(combatMode.label()).toString();
+        text.append("; combat mode: ").append(combatMode.label());
+        if (paceMode != PaceMode.AUTO) {
+            text.append("; pace: ").append(paceMode.label());
+        }
+        return text.toString();
     }
 
     private static String itemName(ItemStack stack) {

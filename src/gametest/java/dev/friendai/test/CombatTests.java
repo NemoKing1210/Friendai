@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.movement.PaceMode;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -131,6 +132,11 @@ public class CombatTests {
         h.assertTrue(dressed.equipmentText()
                         .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive"),
                 "dressed text was " + dressed.equipmentText());
+
+        CompanionEntity runner = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        runner.setPaceMode(PaceMode.RUN);
+        h.assertTrue(runner.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive; pace: run"),
+                "run text was " + runner.equipmentText());
         h.succeed();
     }
 

@@ -61,6 +61,12 @@ class PromptBuilderTest {
     }
 
     @Test
+    void explainsPace() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("set_pace"));
+    }
+
+    @Test
     void buildingRule() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains(

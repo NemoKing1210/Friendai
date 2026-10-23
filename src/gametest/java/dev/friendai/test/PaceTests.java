@@ -1,10 +1,15 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.llm.model.ToolCall;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
+import dev.friendai.tool.ToolExecutor;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -108,6 +113,7 @@ public class PaceTests {
         h.runAfterDelay(3, () -> {
             h.assertTrue(c.isInWater(), "the companion should be in water");
             h.assertFalse(c.canSprint(), "canSprint in water");
+            c.setSprinting(true);
             c.pace().update(false, Double.NaN);
             h.assertFalse(c.isSprinting(), "sprinting in water");
             h.succeed();
@@ -161,6 +167,42 @@ public class PaceTests {
         d.setPaceMode(PaceMode.WALK);
         d.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
         h.assertTrue(d.paceMode() == PaceMode.AUTO, "a missing key should give auto, was " + d.paceMode());
+        h.succeed();
+    }
+
+    @GameTest
+    public void staleSprintFlagClearsWhenCannotSprint(GameTestHelper h) {
+        int floor = 130;
+        GameTestSupport.platformAt(h, floor, 8);
+        for (int x = 1; x <= 3; x++) {
+            for (int z = 1; z <= 3; z++) {
+                h.setBlock(x, floor + 1, z, Blocks.WATER);
+                h.setBlock(x, floor + 2, z, Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        h.runAfterDelay(3, () -> {
+            h.assertFalse(c.canSprint(), "canSprint in water");
+            c.setSprinting(true);
+        });
+        h.runAfterDelay(6, () -> {
+            h.assertFalse(c.isSprinting(), "the stale sprint flag survived a tick");
+            h.succeed();
+        });
+    }
+
+    @GameTest
+    public void setPaceToolSwitchesMode(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        String ok = "{\"mode\":\"run\"}";
+        ToolResult r = tools.execute(new ToolCall("1", "set_pace", JsonParser.parseString(ok).getAsJsonObject(), ok, null));
+        h.assertTrue(!r.error() && r.content().equals("pace: run"), "result was " + r.content());
+        h.assertTrue(c.paceMode() == PaceMode.RUN, "mode was " + c.paceMode());
+        String bad = "{\"mode\":\"sprint\"}";
+        ToolResult e = tools.execute(new ToolCall("2", "set_pace", JsonParser.parseString(bad).getAsJsonObject(), bad, null));
+        h.assertTrue(e.error(), "a bad mode should be an error, was " + e.content());
+        h.assertTrue(c.paceMode() == PaceMode.RUN, "a bad mode changed the pace to " + c.paceMode());
         h.succeed();
     }
 }

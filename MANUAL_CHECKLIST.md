@@ -131,6 +131,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Ask a real model: "break the block I'm looking at" / "the one I'm standing on" / from behind a wall (it should say it cannot see you, not guess).
 
+## Pace
+
+- [ ] Follow on foot, sprint away: the companion runs and drops back to walking; "run" / "slow down" change it.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
