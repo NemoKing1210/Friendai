@@ -9,6 +9,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.crafting.Station;
+import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
@@ -125,6 +128,35 @@ public class ToolTests {
         ToolResult r = run(tools, "stop", "{}");
         h.assertTrue(!r.error() && r.content().equals("stopped"), "result was " + r.content());
         h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be following again");
+        h.succeed();
+    }
+
+    @GameTest
+    public void stopToolScopes(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        run(tools, "stay", "{}");
+        ToolResult plain = run(tools, "stop", "{}");
+        h.assertTrue(!plain.error() && plain.content().equals("stopped"), "plain stop was " + plain.content());
+
+        run(tools, "stay", "{}");
+        ToolResult miss = run(tools, "stop", "{\"what\":\"mine_blocks\"}");
+        h.assertTrue(miss.error() && miss.content().startsWith("not running: mine_blocks; current task: staying in place"), "miss was " + miss.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("stay"), "a missed name must leave the task alone");
+
+        c.taskRunner().start(new StayTask(), "mine_blocks");
+        ToolResult spaced = run(tools, "stop", "{\"what\":\"Mine Blocks\"}");
+        h.assertTrue(!spaced.error() && spaced.content().equals("stopped staying in place"), "named stop was " + spaced.content());
+        h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be following again");
+
+        run(tools, "stay", "{}");
+        c.furnaceJobs().add(new FurnaceJob(h.absolutePos(new BlockPos(5, 2, 5)), Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        ToolResult all = run(tools, "stop", "{\"what\":\"all\"}");
+        h.assertTrue(!all.error() && all.content().startsWith("stopped everything: "), "all was " + all.content());
+        h.assertTrue(all.content().contains("staying in place") && all.content().contains("dropped 1 furnace job"), "all was " + all.content());
+        h.assertTrue(!all.content().contains("fight"), "no fight was running, all was " + all.content());
+        h.assertTrue(c.furnaceJobs().all().isEmpty(), "furnace jobs should be cleared");
+        h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be back on the default activity");
         h.succeed();
     }
 

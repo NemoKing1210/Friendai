@@ -39,6 +39,12 @@ public final class SequenceTask implements Task {
         return "run_plan";
     }
 
+    /** The plan itself, or the tool of the step that is running; a step still waiting in the queue does not match. */
+    @Override
+    public boolean matches(String name) {
+        return type().equals(name) || (active != null && index < entries.size() && entries.get(index).tool().equals(name));
+    }
+
     @Override
     public boolean hasTimeout() {
         return false;

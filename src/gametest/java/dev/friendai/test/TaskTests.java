@@ -9,6 +9,8 @@ import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.plan.PlanEntry;
+import dev.friendai.task.plan.SequenceTask;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -95,6 +97,41 @@ public class TaskTests {
         runner.start(new GoToTask(h.absoluteVec(new Vec3(10, 2, 2))), "go_to");
         runner.start(new StayTask(), "stay");
         h.assertTrue(events.log.equals(List.of("cancelled:go_to:replaced by a new task")), "events were " + events.log);
+        h.succeed();
+    }
+
+    @GameTest
+    public void stopNamedStopsOnlyAMatchingTask(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 300, true);
+        runner.start(new StayTask(), "mine_blocks");
+        h.assertTrue(runner.stopNamed("go_to", "x").isEmpty(), "a different name must not stop the task");
+        h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("stay"), "the task should still run");
+        h.assertTrue(events.log.isEmpty(), "nothing was cancelled, events were " + events.log);
+        var stopped = runner.stopNamed("mine_blocks", "x");
+        h.assertTrue(stopped.isPresent() && stopped.get().equals("staying in place"), "stopped was " + stopped);
+        h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity");
+        h.assertTrue(events.log.equals(List.of("cancelled:mine_blocks:x")), "events were " + events.log);
+        h.assertTrue(runner.stopNamed("mine_blocks", "x").isEmpty(), "nothing named mine_blocks is running any more");
+        h.succeed();
+    }
+
+    @GameTest
+    public void stopNamedMatchesTheRunningPlanStep(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 300, true);
+        for (String name : List.of("mine_blocks", "run_plan")) {
+            runner.start(new SequenceTask(null, List.of(
+                    new PlanEntry("mine_blocks", ctx -> new StayTask()),
+                    new PlanEntry("craft_item", ctx -> new StayTask())), () -> 300), "run_plan");
+            runner.tick();
+            h.assertTrue(runner.stopNamed("craft_item", "x").isEmpty(), "a queued step must not match");
+            h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("run_plan"), "the plan should still run");
+            h.assertTrue(runner.stopNamed(name, "x").isPresent(), name + " should stop the plan");
+            h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity after " + name);
+        }
         h.succeed();
     }
 

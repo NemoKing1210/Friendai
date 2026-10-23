@@ -35,6 +35,14 @@ public final class FurnaceJobs {
         notified.remove(pos);
     }
 
+    /** Forgets every job; returns how many there were. */
+    public int clear() {
+        int count = jobs.size();
+        jobs.clear();
+        notified.clear();
+        return count;
+    }
+
     /** Called every 20 ticks on the server thread from {@link CompanionEntity#tick()}. */
     public void tick(CompanionEntity companion) {
         if (!(companion.level() instanceof ServerLevel level)) {

@@ -14,6 +14,11 @@ public interface Task {
 
     String resultSummary();
 
+    /** Whether a {@code stop} aimed at this tool name means this task; the runner also matches the name it started it under. */
+    default boolean matches(String name) {
+        return type().equals(name);
+    }
+
     /** Whether the brain should hear about this task finishing or being cancelled. */
     default boolean emitsEvents() {
         return true;

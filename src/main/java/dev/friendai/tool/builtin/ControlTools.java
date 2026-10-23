@@ -2,12 +2,15 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.task.Task;
 import dev.friendai.task.TaskSettings;
+import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.tool.PlanParser;
 import dev.friendai.tool.PlanStep;
 import dev.friendai.tool.SchemaBuilder;
+import dev.friendai.tool.StopScope;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import java.util.ArrayList;
@@ -15,17 +18,59 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** Control over what the companion is doing. */
 final class ControlTools {
+    private static final String STOP_REASON = "stopped by the LLM";
+
     private ControlTools() {}
 
+    private static ToolResult stop(CompanionEntity c, String what) {
+        return switch (StopScope.parse(what)) {
+            case StopScope.Current ignored -> {
+                c.taskRunner().stop(STOP_REASON);
+                yield ToolResult.ok("stopped");
+            }
+            case StopScope.All ignored -> stopEverything(c);
+            case StopScope.Named named -> {
+                // The model writes "mine blocks" as often as "mine_blocks".
+                String name = named.name().replaceAll("\\s+", "_");
+                Optional<String> stopped = c.taskRunner().stopNamed(name, STOP_REASON);
+                if (stopped.isPresent()) {
+                    yield ToolResult.ok("stopped " + stopped.get());
+                }
+                String current = c.taskRunner().current().map(Task::describe).orElse("none");
+                yield ToolResult.error("not running: " + name + "; current task: " + current);
+            }
+        };
+    }
+
+    private static ToolResult stopEverything(CompanionEntity c) {
+        String task = c.taskRunner().current().map(Task::describe).orElse("no task");
+        c.taskRunner().stop(STOP_REASON);
+        StringBuilder text = new StringBuilder("stopped everything: ").append(task);
+        CombatController.State before = c.combatController().state();
+        c.combatController().stopFight();
+        if (c.combatController().state() != before) {
+            text.append("; ended the fight");
+        }
+        int jobs = c.furnaceJobs().clear();
+        if (jobs > 0) {
+            text.append("; dropped ").append(jobs).append(jobs == 1 ? " furnace job" : " furnace jobs");
+        }
+        return ToolResult.ok(text.toString());
+    }
+
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        registry.register(ToolKit.instantTool("stop", "Cancel the current task and go back to the default activity.", (c, a) -> {
-            c.taskRunner().stop("stopped by the LLM");
-            return ToolResult.ok("stopped");
-        }));
+        registry.register(ToolKit.instantTool("stop",
+                "Cancel the current task and go back to the default activity. Pass what to stop a specific action by its tool name"
+                        + " (for example mine_blocks) or everything (the task, a fight, furnace jobs). To stop following the owner, use stay.",
+                SchemaBuilder.object()
+                        .string("what", "current (default), a tool name like mine_blocks, or all")
+                        .build(),
+                (c, a) -> stop(c, a.has("what") && !a.get("what").isJsonNull() ? a.get("what").getAsString() : null)));
 
         List<TaskToolDef> plannable = defs.stream().filter(TaskToolDef::plannable).toList();
         Map<String, TaskToolDef> byName = new LinkedHashMap<>();

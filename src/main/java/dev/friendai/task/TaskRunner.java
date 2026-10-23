@@ -73,6 +73,22 @@ public final class TaskRunner {
         startDefault();
     }
 
+    /**
+     * Cancels the current task only when {@code name} is the tool it was started under or the task says it matches,
+     * then falls back to the default activity.
+     *
+     * @return the stopped task's description, or empty when nothing matched and nothing was stopped
+     */
+    public Optional<String> stopNamed(String name, String reason) {
+        Active active = current;
+        if (active == null || !(active.toolName().equals(name) || active.task().matches(name))) {
+            return Optional.empty();
+        }
+        String description = active.task().describe();
+        stop(reason);
+        return Optional.of(description);
+    }
+
     public void tick() {
         if (paused) {
             return;
