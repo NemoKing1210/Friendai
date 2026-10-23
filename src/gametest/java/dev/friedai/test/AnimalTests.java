@@ -8,6 +8,7 @@ import dev.friedai.task.TaskStatus;
 import dev.friedai.task.builtin.BreedTask;
 import dev.friedai.task.builtin.MilkTask;
 import dev.friedai.task.builtin.ShearTask;
+import dev.friedai.task.builtin.FishTask;
 import dev.friedai.task.builtin.HoneyTask;
 import dev.friedai.task.builtin.LeadTask;
 import dev.friedai.task.builtin.TameTask;
@@ -444,6 +445,64 @@ public class AnimalTests {
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
         h.assertValueEqual(result.summary,
                 "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ() + " isn't full yet", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void fishesTwice(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.FISHING_ROD));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new FishTask(2, () -> 20), "fish");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("caught 2: "), "summary was " + result.summary);
+            ItemStack rod = ItemStack.EMPTY;
+            int total = 0;
+            for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+                ItemStack stack = c.inventory().getItem(slot);
+                total += stack.getCount();
+                if (stack.is(Items.FISHING_ROD)) {
+                    rod = stack;
+                }
+            }
+            h.assertValueEqual(rod.getDamageValue(), 2, "rod damage");
+            h.assertValueEqual(total, 3, "inventory has the rod and two catches");
+        });
+    }
+
+    @GameTest
+    public void fishWithoutRod(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new FishTask(1, () -> 20), "fish");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "I have no minecraft:fishing_rod", "summary");
+        h.succeed();
+    }
+
+    @GameTest
+    public void fishWithoutWater(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.FISHING_ROD));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new FishTask(1, () -> 20), "fish");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "no open water nearby", "summary");
         h.succeed();
     }
 }
