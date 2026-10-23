@@ -97,6 +97,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Go fishing" by a river: catches arrive, the rod wears out.
 - [ ] Honey from a hive with a campfire below; a hive without one is refused.
 
+## Obtaining items
+
+- [ ] Fresh world, "get me an iron pickaxe": the companion explains the trip, digs down safely, smelts, crafts and hands over the pickaxe; progress events arrive along the way.
+- [ ] At a base with iron in a chest: it takes the iron instead of mining.
+- [ ] "Get diamonds, but don't wander off" (explore=false): it reports what is missing instead of digging.
+- [ ] The first obtain call on a large modpack: note how long the drop index takes (log line "Indexed drops …").
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
