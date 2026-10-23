@@ -34,6 +34,8 @@ class FakeRecipeBook implements RecipeBook {
                         List.of(planks, planks, planks, planks), Station.INVENTORY))
                 .add(new Recipe("minecraft:wooden_pickaxe", "minecraft:wooden_pickaxe", 1,
                         List.of(planks, planks, planks, stick, stick), Station.CRAFTING_TABLE))
+                .add(new Recipe("minecraft:ladder", "minecraft:ladder", 3,
+                        Collections.nCopies(7, stick), Station.CRAFTING_TABLE))
                 .add(new Recipe("minecraft:iron_ingot_from_nuggets", "minecraft:iron_ingot", 1,
                         Collections.nCopies(9, Ingredient.of("minecraft:iron_nugget")), Station.INVENTORY))
                 .add(new Recipe("minecraft:iron_ingot_from_block", "minecraft:iron_ingot", 9,

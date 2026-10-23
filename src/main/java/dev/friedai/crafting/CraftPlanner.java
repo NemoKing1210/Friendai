@@ -41,7 +41,7 @@ public final class CraftPlanner {
         }
         Set<Station> nearby = stationsNearby == null ? EnumSet.noneOf(Station.class) : stationsNearby;
         Attempt attempt = new Search(target, book, nearby).need(target, count, 0, new LinkedHashSet<>(), sim);
-        List<CraftStep> steps = attempt.steps();
+        List<CraftStep> steps = orderedSteps(attempt.steps(), book);
         Set<Station> stationsUsed = EnumSet.noneOf(Station.class);
         for (CraftStep step : steps) {
             if (step.recipe().station() != Station.INVENTORY) {
@@ -49,6 +49,80 @@ public final class CraftPlanner {
             }
         }
         return new CraftPlan(steps, attempt.missing, stationsUsed, attempt.stationsCrafted);
+    }
+
+    /**
+     * Puts the merged steps in dependency order: a step that produces an item another step consumes runs first,
+     * and a station step follows the step that crafts its station item. Steps merge by recipe id, so a recipe
+     * first used early keeps its position while a later use may add dependencies after it; without this pass the
+     * executor would run such a step before the ingredients that use is counting on. Ties keep insertion order.
+     * A cycle (not expected for a plan the search accepted) falls back to insertion order.
+     */
+    private static List<CraftStep> orderedSteps(List<CraftStep> steps, RecipeBook book) {
+        int n = steps.size();
+        if (n < 2) {
+            return List.copyOf(steps);
+        }
+        List<List<Integer>> before = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            before.add(new ArrayList<>());
+        }
+        int[] waiting = new int[n];
+        for (int producer = 0; producer < n; producer++) {
+            String output = steps.get(producer).recipe().output();
+            for (int consumer = 0; consumer < n; consumer++) {
+                if (consumer != producer && uses(steps.get(consumer), output)) {
+                    before.get(producer).add(consumer);
+                    waiting[consumer]++;
+                }
+            }
+        }
+        for (int consumer = 0; consumer < n; consumer++) {
+            Station station = steps.get(consumer).recipe().station();
+            if (station == Station.INVENTORY) {
+                continue;
+            }
+            String stationItem = book.stationItem(station);
+            if (stationItem == null) {
+                continue;
+            }
+            for (int producer = 0; producer < n; producer++) {
+                if (producer != consumer && steps.get(producer).recipe().output().equals(stationItem)) {
+                    before.get(producer).add(consumer);
+                    waiting[consumer]++;
+                }
+            }
+        }
+        List<CraftStep> ordered = new ArrayList<>(n);
+        boolean[] emitted = new boolean[n];
+        while (ordered.size() < n) {
+            int next = -1;
+            for (int i = 0; i < n; i++) {
+                if (!emitted[i] && waiting[i] == 0) {
+                    next = i;
+                    break;
+                }
+            }
+            if (next < 0) {
+                return List.copyOf(steps);
+            }
+            emitted[next] = true;
+            ordered.add(steps.get(next));
+            for (int consumer : before.get(next)) {
+                waiting[consumer]--;
+            }
+        }
+        return List.copyOf(ordered);
+    }
+
+    /** True when a step consumes the item in any ingredient slot. */
+    private static boolean uses(CraftStep step, String item) {
+        for (Ingredient ingredient : step.recipe().ingredients()) {
+            if (ingredient.items().contains(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

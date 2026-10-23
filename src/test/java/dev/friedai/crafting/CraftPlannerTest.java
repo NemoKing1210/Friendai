@@ -2,9 +2,11 @@ package dev.friedai.crafting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +41,43 @@ class CraftPlannerTest {
     private static CraftStep step(CraftPlan plan, String output) {
         assertEquals(1, stepCount(plan, output), "expected one step for " + output + " in " + plan.steps());
         return plan.steps().stream().filter(s -> s.recipe().output().equals(output)).findFirst().orElseThrow();
+    }
+
+    /**
+     * Replays a plan the way the executor does: steps in order, each craft takes the first accepted item per
+     * slot from a greedy inventory, then adds the result. A station that is not nearby is assumed carried (the
+     * executor places it and keeps it placed until the plan ends, and the planner reserves it, so no craft
+     * consumes it). Returns null when the whole plan runs, otherwise the first missing item.
+     */
+    private static String replay(CraftPlan plan, RecipeBook book, Map<String, Integer> inventory,
+            Set<Station> stationsNearby) {
+        Map<String, Integer> items = new HashMap<>(inventory);
+        for (CraftStep step : plan.steps()) {
+            Station station = step.recipe().station();
+            if (station != Station.INVENTORY && !stationsNearby.contains(station)) {
+                String stationItem = book.stationItem(station);
+                if (stationItem == null || items.getOrDefault(stationItem, 0) < 1) {
+                    return "station " + station + " is neither nearby nor carried";
+                }
+            }
+            for (int craft = 0; craft < step.times(); craft++) {
+                for (Ingredient ingredient : step.recipe().ingredients()) {
+                    String picked = null;
+                    for (String id : ingredient.items()) {
+                        if (items.getOrDefault(id, 0) > 0) {
+                            picked = id;
+                            break;
+                        }
+                    }
+                    if (picked == null) {
+                        return step.recipe().output() + " craft " + (craft + 1) + " lacks " + ingredient.label();
+                    }
+                    items.merge(picked, -1, Integer::sum);
+                }
+                items.merge(step.recipe().output(), step.recipe().outputCount(), Integer::sum);
+            }
+        }
+        return null;
     }
 
     @Test
@@ -90,6 +129,39 @@ class CraftPlannerTest {
         assertEquals(2, step(plan, "minecraft:oak_planks").times());
         assertEquals(3, plan.steps().size());
         assertEquals("minecraft:wooden_pickaxe", plan.steps().get(2).recipe().output());
+    }
+
+    @Test
+    void mergedStepsRunInDependencyOrder() {
+        // The ladder has seven stick slots: the first stick craft uses the two carried planks, the second needs
+        // planks crafted from the log. Merging the crafts into one step must not run it before that planks step.
+        RecipeBook book = FakeRecipeBook.vanillaLike();
+        Map<String, Integer> inventory = Map.of("minecraft:oak_planks", 2, "minecraft:oak_log", 1);
+        Set<Station> stations = EnumSet.of(Station.CRAFTING_TABLE);
+        CraftPlan plan = plan("minecraft:ladder", 1, inventory, book, stations);
+        assertTrue(plan.ok(), () -> "missing " + plan.missing());
+        assertEquals(2, step(plan, "minecraft:stick").times());
+        assertEquals(1, step(plan, "minecraft:oak_planks").times());
+        assertTrue(indexOf(plan, "minecraft:oak_planks") < indexOf(plan, "minecraft:stick"),
+                "planks must be crafted before the sticks: " + plan.steps());
+        assertNull(replay(plan, book, inventory, stations), "the plan must run in order: " + plan.steps());
+        assertEquals("minecraft:ladder", plan.steps().get(plan.steps().size() - 1).recipe().output());
+    }
+
+    @Test
+    void replayRejectsDependencyInversion() {
+        // The pre-fix order of the ladder plan: the merged stick step before the planks it needs for craft 2.
+        FakeRecipeBook book = FakeRecipeBook.vanillaLike();
+        Recipe stick = book.producing("minecraft:stick").get(0);
+        Recipe planks = book.producing("minecraft:oak_planks").get(0);
+        Recipe ladder = book.producing("minecraft:ladder").get(0);
+        CraftPlan inverted = new CraftPlan(
+                List.of(new CraftStep(stick, 2), new CraftStep(planks, 1), new CraftStep(ladder, 1)),
+                Map.of(), Set.of(Station.CRAFTING_TABLE), Set.of());
+        assertEquals(
+                "minecraft:stick craft 2 lacks #minecraft:planks",
+                replay(inverted, book, Map.of("minecraft:oak_planks", 2, "minecraft:oak_log", 1),
+                        EnumSet.of(Station.CRAFTING_TABLE)));
     }
 
     @Test
