@@ -15,7 +15,16 @@ class ToolRegistryTest {
     private final List<String> executed = new ArrayList<>();
 
     private Tool<String> tool(String name, boolean throwing) {
+        return tool(name, throwing, AccessLevel.TRUSTED);
+    }
+
+    private Tool<String> tool(String name, boolean throwing, AccessLevel minAccess) {
         return new Tool<>() {
+            @Override
+            public AccessLevel minAccess() {
+                return minAccess;
+            }
+
             @Override
             public String name() {
                 return name;
@@ -83,6 +92,35 @@ class ToolRegistryTest {
         ToolResult res = ex.execute(call("a", "{\"count\":0}"));
         assertTrue(res.error());
         assertTrue(executed.isEmpty());
+    }
+
+    @Test
+    void guestSeesOnlyGuestTools() {
+        var r = new ToolRegistry<String>().register(tool("chat", false, AccessLevel.GUEST)).register(tool("act", false));
+        assertEquals(List.of("chat"), r.specs(AccessLevel.GUEST).stream().map(s -> s.name()).toList());
+        assertEquals(List.of("chat", "act"), r.specs(AccessLevel.TRUSTED).stream().map(s -> s.name()).toList());
+        assertEquals(List.of("chat", "act"), r.specs().stream().map(s -> s.name()).toList());
+    }
+
+    @Test
+    void forbiddenCallIsAnErrorResultAndDoesNotRun() {
+        ToolExecutor ex = new ToolRegistry<String>().register(tool("act", false)).bind("c");
+        ToolResult res = ex.execute(call("act", "{\"count\":1}"), AccessLevel.GUEST);
+        assertTrue(res.error());
+        assertEquals("Tool act is not available to this speaker (guest).", res.content());
+        assertTrue(executed.isEmpty());
+    }
+
+    @Test
+    void unknownToolIsReportedBeforeAccess() {
+        ToolResult res = new ToolRegistry<String>().bind("c").execute(call("fly", "{}"), AccessLevel.GUEST);
+        assertEquals("Unknown tool: fly", res.content());
+    }
+
+    @Test
+    void defaultExecuteActsAsOwner() {
+        ToolExecutor ex = new ToolRegistry<String>().register(tool("act", false)).bind("c");
+        assertFalse(ex.execute(call("act", "{\"count\":1}")).error());
     }
 
     @Test
