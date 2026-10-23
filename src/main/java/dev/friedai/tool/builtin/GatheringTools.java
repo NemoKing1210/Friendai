@@ -46,7 +46,16 @@ final class GatheringTools {
                     return new MineBlockAtTask(new BlockPos(x, y, z));
                 }, true));
         ToolKit.add(registry, defs, new TaskToolDef("pickup_items", "Pick up dropped items within the given radius.",
-                SchemaBuilder.object().integer("radius", "Search radius in blocks", 1, 16).required("radius").build(),
-                (c, a) -> new PickupItemsTask(a.get("radius").getAsInt()), true));
+                SchemaBuilder.object()
+                        .integer("radius", "Search radius in blocks", 1, 16)
+                        .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")
+                        .required("radius")
+                        .build(),
+                (c, a) -> new PickupItemsTask(
+                        a.get("radius").getAsInt(),
+                        a.has("item") && !a.get("item").isJsonNull()
+                                ? ToolKit.parseItemMatcher(a.get("item").getAsString())
+                                : null),
+                true));
     }
 }

@@ -69,6 +69,24 @@ public class ItemTaskTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void pickupFilterTakesOnlyMatching(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        dropItem(h, 4.5, 2, 2.5, new ItemStack(Items.EGG, 3));
+        ItemEntity cobblestone = dropItem(h, 2.5, 2, 5.5, new ItemStack(Items.COBBLESTONE, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new PickupItemsTask(6, ItemMatcher.parse("minecraft:egg").orElseThrow()), "pickup_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
+            h.assertValueEqual(3, c.inventory().countItem(Items.EGG), "eggs");
+            h.assertTrue(!cobblestone.isRemoved(), "cobblestone should stay on the ground");
+            h.assertTrue(result.summary.equals("picked up 3 items"), "summary was " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 100)
     public void pickupIgnoresOutsideRadius(GameTestHelper h) {
         GameTestSupport.platform(h, 32);

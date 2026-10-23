@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -64,6 +65,24 @@ public final class CompanionHands {
         BlockHitResult hit = new BlockHitResult(hitPoint, face, against, false);
         try {
             return hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
+        } finally {
+            returnItems(hands);
+        }
+    }
+
+    /**
+     * Right-clicks the entity with {@code stack} in the fake player's main hand; the remainder returns to the
+     * companion.
+     */
+    public InteractionResult interact(Entity target, ItemStack stack) {
+        ServerLevel level = level();
+        FakePlayer hands = handsPlayer();
+        sync(hands, target.getEyePosition());
+        ItemStack held = stack.copy();
+        hands.setItemInHand(InteractionHand.MAIN_HAND, held);
+        Vec3 hitPoint = target.position().add(0.0, target.getBbHeight() * 0.5, 0.0);
+        try {
+            return hands.interactOn(target, InteractionHand.MAIN_HAND, hitPoint);
         } finally {
             returnItems(hands);
         }

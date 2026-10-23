@@ -1,8 +1,10 @@
 package dev.friedai.task.builtin;
 
+import dev.friedai.entity.CompanionEntity;
 import dev.friedai.task.Task;
 import dev.friedai.task.TaskContext;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.inventory.ItemMatcher;
 import dev.friedai.task.nav.MoveHelper;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -10,14 +12,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /** Walks to dropped items within a radius of where it started and collects them. */
 public final class PickupItemsTask implements Task {
     private static final double COLLECT_RADIUS = 1.5;
 
     private final int radius;
+    private final @Nullable ItemMatcher filter;
     private final MoveHelper mover = new MoveHelper(1.0, 1.0);
     private final Set<UUID> unreachable = new HashSet<>();
     private Vec3 origin;
@@ -27,7 +32,13 @@ public final class PickupItemsTask implements Task {
     private String summary = "";
 
     public PickupItemsTask(int radius) {
+        this(radius, null);
+    }
+
+    /** @param filter when given, only item entities matching it are picked up; the rest stay on the ground */
+    public PickupItemsTask(int radius, @Nullable ItemMatcher filter) {
         this.radius = radius;
+        this.filter = filter;
     }
 
     @Override
@@ -43,10 +54,13 @@ public final class PickupItemsTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         var companion = c.companion();
-        collected += companion.collectNearbyItems(COLLECT_RADIUS);
+        collected += filter == null
+                ? companion.collectNearbyItems(COLLECT_RADIUS)
+                : collectMatching(companion);
 
         List<ItemEntity> nearby = c.level().getEntitiesOfClass(
-                ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> companion.canCollect(e) && !unreachable.contains(e.getUUID()));
+                ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> companion.canCollect(e)
+                        && (filter == null || filter.test(e.getItem())) && !unreachable.contains(e.getUUID()));
         List<ItemEntity> collectible = nearby.stream().filter(e -> companion.inventory().canAddItem(e.getItem())).toList();
         if (collectible.isEmpty()) {
             boolean full = !nearby.isEmpty();
@@ -74,6 +88,26 @@ public final class PickupItemsTask implements Task {
     @Override
     public void stop(TaskContext c) {
         c.companion().getNavigation().stop();
+    }
+
+    private int collectMatching(CompanionEntity companion) {
+        int moved = 0;
+        for (ItemEntity entity : companion.level().getEntitiesOfClass(
+                ItemEntity.class, companion.getBoundingBox().inflate(COLLECT_RADIUS))) {
+            if (!companion.canCollect(entity) || !filter.test(entity.getItem())) {
+                continue;
+            }
+            ItemStack stack = entity.getItem().copy();
+            int before = stack.getCount();
+            ItemStack leftover = companion.inventory().addItem(stack);
+            moved += before - leftover.getCount();
+            if (leftover.isEmpty()) {
+                entity.discard();
+            } else {
+                entity.setItem(leftover);
+            }
+        }
+        return moved;
     }
 
     @Override
