@@ -93,6 +93,11 @@ public final class CombatController {
     private boolean retreatNoticed;
     private boolean retreatFromCreeper;
     private Vec3 retreatTarget;
+    private int armorCheckTicks = 20;
+    private int lastArmorHash;
+    private ItemStack eatingPrevious = ItemStack.EMPTY;
+    private ItemStack eatingItem = ItemStack.EMPTY;
+    private int eatTicks;
 
     public CombatController(CompanionEntity companion) {
         this.companion = companion;
@@ -124,6 +129,7 @@ public final class CombatController {
             return;
         }
         int now = companion.tickCount;
+        tickArmor();
         Creeper creeper = swellingCreeper(level);
         if (creeper != null) {
             if (state != State.RETREATING || !retreatFromCreeper) {
@@ -146,6 +152,10 @@ public final class CombatController {
             tickRetreat(level, now, threats);
             return;
         }
+        if (state == State.EATING) {
+            tickEating(level);
+            return;
+        }
         if (state == State.FIGHTING) {
             tickFight(level, now);
             return;
@@ -160,16 +170,106 @@ public final class CombatController {
             if (!passiveThreats.isEmpty()) {
                 beginRetreat(level, passiveThreats, false);
                 tickRetreat(level, now, passiveThreats);
+            } else {
+                tryEat(level);
             }
             return;
         }
-        if (now < nextScan) {
+        if (now >= nextScan) {
+            nextScan = now + SCAN_INTERVAL;
+            Selection selection = selectTarget(level);
+            if (selection != null) {
+                beginFight(level, selection, false);
+                return;
+            }
+        }
+        tryEat(level);
+    }
+
+    private void tryEat(ServerLevel level) {
+        if (companion.getHealth() > companion.getMaxHealth() * 0.5F) {
             return;
         }
-        nextScan = now + SCAN_INTERVAL;
-        Selection selection = selectTarget(level);
-        if (selection != null) {
-            beginFight(level, selection, false);
+        boolean threatClose = ruleOneThreats(level).stream()
+                .anyMatch(threat -> companion.distanceTo(threat) <= 3.0);
+        if (threatClose) {
+            return;
+        }
+        boolean goldenAllowed = companion.getHealth() <= companion.getMaxHealth() * 0.3F
+                && !threatsNear(level).isEmpty();
+        Food.best(companion, goldenAllowed).ifPresent(this::startEating);
+    }
+
+    private void startEating(int slot) {
+        ItemStack food = companion.inventory().removeItemNoUpdate(slot);
+        if (food.isEmpty()) {
+            return;
+        }
+        state = State.EATING;
+        eatingItem = food.copy();
+        eatingPrevious = companion.getMainHandItem().copy();
+        eatTicks = 0;
+        companion.setItemSlot(EquipmentSlot.MAINHAND, food);
+        companion.startUsingItem(InteractionHand.MAIN_HAND);
+    }
+
+    private void tickEating(ServerLevel level) {
+        eatTicks++;
+        LivingEntity attacker = companion.getLastHurtByMob();
+        boolean hitRecently = attacker != null
+                && companion.tickCount - companion.getLastHurtByMobTimestamp() <= 1
+                && companion.distanceTo(attacker) <= 3.0;
+        if (hitRecently || !companion.isUsingItem()) {
+            ItemStack current = companion.getMainHandItem();
+            boolean consumed = current.isEmpty() || current.getCount() < eatingItem.getCount();
+            if (consumed) {
+                companion.heal(Food.nutrition(eatingItem));
+            }
+            returnFood(level);
+            state = State.IDLE;
+            return;
+        }
+        if (eatTicks > 200) {
+            companion.stopUsingItem();
+            returnFood(level);
+            state = State.IDLE;
+        }
+    }
+
+    private void interruptEating(ServerLevel level) {
+        if (state != State.EATING) {
+            return;
+        }
+        if (companion.isUsingItem()) {
+            companion.stopUsingItem();
+        }
+        returnFood(level);
+        state = State.IDLE;
+    }
+
+    private void returnFood(ServerLevel level) {
+        ItemStack food = companion.getMainHandItem();
+        companion.setItemSlot(EquipmentSlot.MAINHAND, eatingPrevious);
+        if (!food.isEmpty()) {
+            ItemStack leftover = companion.inventory().addItem(food);
+            if (!leftover.isEmpty()) {
+                companion.spawnAtLocation(level, leftover);
+            }
+        }
+        eatingPrevious = ItemStack.EMPTY;
+        eatingItem = ItemStack.EMPTY;
+        eatTicks = 0;
+    }
+
+    private void tickArmor() {
+        if (--armorCheckTicks > 0) {
+            return;
+        }
+        armorCheckTicks = 20;
+        int hash = Equipment.armorHash(companion);
+        if (hash != lastArmorHash) {
+            Equipment.equipBestArmor(companion);
+            lastArmorHash = Equipment.armorHash(companion);
         }
     }
 
@@ -222,6 +322,7 @@ public final class CombatController {
     }
 
     private void beginRetreat(ServerLevel level, List<LivingEntity> threats, boolean fromCreeper) {
+        interruptEating(level);
         if (state == State.FIGHTING) {
             abandonFight();
         }
@@ -293,7 +394,7 @@ public final class CombatController {
         }
         retreatNoticed = true;
         String text = "retreating: health " + number(companion.getHealth()) + "/" + number(companion.getMaxHealth());
-        companion.taskRunner().notice(text + ", I have no food");
+        companion.taskRunner().notice(Food.best(companion, false).isEmpty() ? text + ", I have no food" : text);
     }
 
     private void finishRetreat() {

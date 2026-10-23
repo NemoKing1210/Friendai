@@ -3,6 +3,7 @@ package dev.friedai.task.combat;
 import dev.friedai.entity.CompanionEntity;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -10,6 +11,9 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.equipment.Equippable;
 
 /** Weapons and hands: what to hold, and how hard it hits. */
 public final class Equipment {
@@ -69,9 +73,90 @@ public final class Equipment {
         return bow && companion.inventory().countItem(Items.ARROW) > 0;
     }
 
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+        EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
+    };
+
+    /** A cheap fingerprint of the armor-capable inventory stacks, for the periodic check. */
+    public static int armorHash(CompanionEntity companion) {
+        int hash = 1;
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            ItemStack stack = companion.inventory().getItem(i);
+            Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
+            if (equippable != null && equippable.slot().isArmor()) {
+                hash = 31 * hash + stack.hashCode();
+            }
+        }
+        return hash;
+    }
+
+    /**
+     * Wears a strictly better piece in each armor slot. Equal pieces are left alone, and a worn piece with
+     * Curse of Binding is never removed.
+     */
+    public static void equipBestArmor(CompanionEntity companion) {
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack worn = companion.getItemBySlot(slot);
+            if (hasBindingCurse(companion, worn)) {
+                continue;
+            }
+            double bestArmor = armor(worn, slot);
+            double bestToughness = toughness(worn, slot);
+            int bestSlot = -1;
+            for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+                ItemStack stack = companion.inventory().getItem(i);
+                Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
+                if (equippable == null || equippable.slot() != slot) {
+                    continue;
+                }
+                double candidateArmor = armor(stack, slot);
+                double candidateToughness = toughness(stack, slot);
+                if (candidateArmor > bestArmor
+                        || (candidateArmor == bestArmor && candidateToughness > bestToughness)) {
+                    bestArmor = candidateArmor;
+                    bestToughness = candidateToughness;
+                    bestSlot = i;
+                }
+            }
+            if (bestSlot >= 0) {
+                ItemStack better = companion.inventory().removeItemNoUpdate(bestSlot);
+                companion.setItemSlot(slot, better);
+                if (!worn.isEmpty()) {
+                    ItemStack leftover = companion.inventory().addItem(worn);
+                    if (!leftover.isEmpty() && companion.level() instanceof ServerLevel level) {
+                        companion.spawnAtLocation(level, leftover);
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean hasBindingCurse(CompanionEntity companion, ItemStack stack) {
+        if (stack.isEmpty() || !(companion.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        return EnchantmentHelper.getItemEnchantmentLevel(
+                        level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.BINDING_CURSE),
+                        stack)
+                > 0;
+    }
+
+    private static double armor(ItemStack stack, EquipmentSlot slot) {
+        return modifier(stack, Attributes.ARMOR, slot);
+    }
+
+    private static double toughness(ItemStack stack, EquipmentSlot slot) {
+        return modifier(stack, Attributes.ARMOR_TOUGHNESS, slot);
+    }
+
     /** The value an item's main-hand modifiers add to an attribute. */
     private static double modifier(ItemStack stack, Holder<Attribute> attribute) {
+        return modifier(stack, attribute, EquipmentSlot.MAINHAND);
+    }
+
+    /** The value an item's modifiers for a slot add to an attribute. */
+    private static double modifier(ItemStack stack, Holder<Attribute> attribute, EquipmentSlot slot) {
         ItemAttributeModifiers modifiers = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
-        return modifiers == null ? 0.0 : modifiers.compute(attribute, 0.0, EquipmentSlot.MAINHAND);
+        return modifiers == null ? 0.0 : modifiers.compute(attribute, 0.0, slot);
     }
 }

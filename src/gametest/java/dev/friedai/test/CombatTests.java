@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -24,6 +26,7 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
 
 /** Survival and combat behaviour. Every test spawns its own mobs in its own area. */
@@ -111,6 +114,7 @@ public class CombatTests {
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Notices notices = listen(c);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        zombie.setCustomName(Component.literal("test-fight-zombie"));
         roof(h, 5, 2);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
         h.succeedWhen(() -> {
@@ -140,6 +144,7 @@ public class CombatTests {
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Notices notices = listen(c);
         Husk husk = h.spawnWithNoFreeWill(EntityTypes.HUSK, 6, 2, 2);
+        husk.setCustomName(Component.literal("test-owner-husk"));
         h.runAfterDelay(100, () -> owner.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(husk), 1.0F));
         h.succeedWhen(() -> {
             h.assertTrue(husk.isDeadOrDying() || husk.isRemoved(), "husk still alive: " + husk.getHealth());
@@ -170,6 +175,7 @@ public class CombatTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Notices notices = listen(c);
         var unprovoked = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 12, 2, 2);
+        unprovoked.setCustomName(Component.literal("test-unprovoked-creeper"));
         h.runAfterDelay(200, () -> {
             h.assertTrue(unprovoked.getHealth() == unprovoked.getMaxHealth(),
                     "unprovoked mob was attacked: " + unprovoked.getHealth()
@@ -227,6 +233,7 @@ public class CombatTests {
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        zombie.setCustomName(Component.literal("test-other-kill-zombie"));
         zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0);
         zombie.setHealth(200.0F);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
@@ -247,6 +254,7 @@ public class CombatTests {
         c.inventory().addItem(new ItemStack(Items.BOW));
         c.inventory().addItem(new ItemStack(Items.ARROW, 5));
         Skeleton skeleton = h.spawnWithNoFreeWill(EntityTypes.SKELETON, 13, 2, 2);
+        skeleton.setCustomName(Component.literal("test-bow-skeleton"));
         roof(h, 13, 2);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(skeleton), 1.0F));
         h.succeedWhen(() -> {
@@ -263,9 +271,11 @@ public class CombatTests {
     @GameTest(maxTicks = 400)
     public void passiveRunsAway(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 7, 2, 7);
         c.setCombatMode(dev.friedai.task.combat.CombatMode.PASSIVE);
-        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 10, 2, 7);
+        zombie.setCustomName(Component.literal("test-passive-zombie"));
+        roof(h, 10, 7);
         float before = c.distanceTo(zombie);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
         h.runAfterDelay(160, () -> {
@@ -279,10 +289,12 @@ public class CombatTests {
     @GameTest(maxTicks = 400)
     public void retreatsAtLowHealth(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 7, 2, 7);
         c.setHealth(4.0F);
         Notices notices = listen(c);
-        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 6, 2, 2);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 10, 2, 7);
+        zombie.setCustomName(Component.literal("test-retreat-zombie"));
+        roof(h, 10, 7);
         zombie.setTarget(c);
         float before = c.distanceTo(zombie);
         h.succeedWhen(() -> {
@@ -297,8 +309,9 @@ public class CombatTests {
     @GameTest(maxTicks = 300)
     public void fleesSwellingCreeper(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
-        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
-        Creeper creeper = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 5, 2, 2);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 7, 2, 7);
+        Creeper creeper = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 10, 2, 7);
+        creeper.setCustomName(Component.literal("test-swell-creeper"));
         int[] ticks = {0};
         h.succeedWhen(() -> {
             ticks[0]++;
@@ -320,11 +333,102 @@ public class CombatTests {
         boxIn(h, 6, 2, 2);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 6, 2, 2);
+        zombie.setCustomName(Component.literal("test-boxed-zombie"));
         h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
         h.runAfterDelay(320, () -> {
             h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
                     "state was " + c.combatController().state());
             h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+            h.succeed();
+        });
+    }
+
+
+    @GameTest(maxTicks = 400)
+    public void eatsWhenHurt(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setHealth(8.0F);
+        c.inventory().addItem(new ItemStack(Items.COOKED_BEEF));
+        c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+        h.runAfterDelay(200, () -> {
+            h.assertTrue(c.getHealth() == 16.0F, "health was " + c.getHealth() + ", expected 16");
+            h.assertTrue(c.inventory().countItem(Items.COOKED_BEEF) == 0, "beef was not eaten");
+            h.assertTrue(c.inventory().countItem(Items.ROTTEN_FLESH) == 1, "rotten flesh must be kept");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void doesNotEatUnsafe(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setHealth(8.0F);
+        c.inventory().addItem(new ItemStack(Items.SPIDER_EYE));
+        h.runAfterDelay(120, () -> {
+            h.assertTrue(c.getHealth() <= 9.0F, "health was " + c.getHealth());
+            h.assertTrue(c.inventory().countItem(Items.SPIDER_EYE) == 1, "the spider eye must be kept");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void eatingInterruptedKeepsFood(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.setHealth(9.0F);
+        c.inventory().addItem(new ItemStack(Items.BAKED_POTATO));
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 4, 2, 2);
+        zombie.setCustomName(Component.literal("test-eating-zombie"));
+        h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.runAfterDelay(16, () -> {
+            h.assertTrue(c.inventory().countItem(Items.BAKED_POTATO) == 1,
+                    "the baked potato must stay in the inventory, held " + c.getMainHandItem()
+                            + ", inventory " + c.inventory().countItem(Items.BAKED_POTATO));
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void wearsBetterArmor(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_CHESTPLATE));
+        h.runAfterDelay(60, () -> {
+            h.assertTrue(c.getArmorValue() == 6, "armor value was " + c.getArmorValue());
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.CHEST).is(Items.IRON_CHESTPLATE),
+                    "worn " + c.getItemBySlot(EquipmentSlot.CHEST));
+            c.inventory().addItem(new ItemStack(Items.LEATHER_CHESTPLATE));
+        });
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(c.getArmorValue() == 6, "the leather chestplate replaced iron: " + c.getArmorValue());
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void armorDoesNotFlipFlop(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_CHESTPLATE));
+        c.inventory().addItem(new ItemStack(Items.IRON_CHESTPLATE));
+        ItemStack cursedHelmet = new ItemStack(Items.IRON_HELMET);
+        cursedHelmet.enchant(h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
+                .getOrThrow(Enchantments.BINDING_CURSE), 1);
+        c.setItemSlot(EquipmentSlot.HEAD, cursedHelmet);
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_HELMET));
+
+        ItemStack[] worn = new ItemStack[1];
+        h.runAfterDelay(60, () -> {
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.CHEST).is(Items.IRON_CHESTPLATE),
+                    "chestplate not worn: " + c.getItemBySlot(EquipmentSlot.CHEST));
+            worn[0] = c.getItemBySlot(EquipmentSlot.CHEST);
+        });
+        h.runAfterDelay(260, () -> {
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.CHEST) == worn[0],
+                    "the equal chestplate was swapped: " + c.getItemBySlot(EquipmentSlot.CHEST));
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET),
+                    "the binding helmet was removed: " + c.getItemBySlot(EquipmentSlot.HEAD));
             h.succeed();
         });
     }
