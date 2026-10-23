@@ -77,11 +77,7 @@ public final class Materials {
 
     /** What the companion has at hand: its inventory, its main hand, and storage within {@link #STORAGE_RADIUS}. */
     public static Map<Item, Integer> have(CompanionEntity companion, ServerLevel level) {
-        Map<Item, Integer> have = new LinkedHashMap<>();
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            count(have, companion.inventory().getItem(slot));
-        }
-        count(have, companion.getMainHandItem());
+        Map<Item, Integer> have = carried(companion);
         BlockPos origin = companion.blockPosition();
         for (BlockPos pos : ContainerAccess.all(level, origin, STORAGE_RADIUS)) {
             if (isSecondHalf(level, pos)) {
@@ -95,6 +91,16 @@ public final class Materials {
                 count(have, container.getItem(slot));
             }
         }
+        return have;
+    }
+
+    /** What the companion carries in its own inventory and main hand, without any storage. */
+    public static Map<Item, Integer> carried(CompanionEntity companion) {
+        Map<Item, Integer> have = new LinkedHashMap<>();
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            count(have, companion.inventory().getItem(slot));
+        }
+        count(have, companion.getMainHandItem());
         return have;
     }
 

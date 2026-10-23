@@ -111,7 +111,7 @@ public final class Site {
     }
 
     /** Ground the companion may cut: dirt, stone, sand, gravel, clay, leaves and logs, plus replaceable plants. */
-    static boolean isNatural(BlockState state) {
+    public static boolean isNatural(BlockState state) {
         if (state.isAir()) {
             return false;
         }

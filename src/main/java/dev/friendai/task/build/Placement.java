@@ -67,6 +67,16 @@ public final class Placement {
         return new PlacedBlueprint(specs, corner, rotation);
     }
 
+    /** The blueprint placed at an explicit origin with an explicit rotation. */
+    public static PlacedBlueprint at(Blueprint blueprint, BlockPos origin, Rotation rotation) {
+        List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());
+        for (BlockSpec spec : blueprint.blocks()) {
+            BlockPos local = rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
+            specs.add(new PlacedSpec(origin.offset(local), parseState(spec.state()).rotate(rotation)));
+        }
+        return new PlacedBlueprint(specs, origin, rotation);
+    }
+
     /** The owner when online, otherwise the companion itself. */
     private static Entity anchor(CompanionEntity companion) {
         return companion.owner().filter(owner -> owner.level() == companion.level()).map(Entity.class::cast)
@@ -83,6 +93,16 @@ public final class Placement {
             case NORTH -> Rotation.CLOCKWISE_180;
             case EAST -> Rotation.COUNTERCLOCKWISE_90;
             default -> Rotation.NONE;
+        };
+    }
+
+    /** The direction the structure's front faces after this rotation. */
+    public static Direction facingFor(Rotation rotation) {
+        return switch (rotation) {
+            case CLOCKWISE_90 -> Direction.WEST;
+            case CLOCKWISE_180 -> Direction.NORTH;
+            case COUNTERCLOCKWISE_90 -> Direction.EAST;
+            default -> Direction.SOUTH;
         };
     }
 

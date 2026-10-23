@@ -152,6 +152,6 @@ public final class TaskRunner {
     }
 
     private TaskContext context() {
-        return new TaskContext(companion, (ServerLevel) companion.level());
+        return new TaskContext(companion, (ServerLevel) companion.level(), this);
     }
 }
