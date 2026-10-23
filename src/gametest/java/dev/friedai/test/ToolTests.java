@@ -1,5 +1,6 @@
 package dev.friedai.test;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friedai.entity.CompanionEntity;
@@ -113,6 +114,22 @@ public class ToolTests {
                         .map(ToolSpec::name)
                         .toList();
         h.assertTrue(names.equals(List.of("look_around")), "names were " + names);
+        h.succeed();
+    }
+
+    @GameTest
+    public void runPlanAcceptsNewTools(GameTestHelper h) {
+        ToolSpec spec = FriedaiTools.create(() -> 32).specs().stream()
+                .filter(s -> s.name().equals("run_plan"))
+                .findFirst()
+                .orElseThrow();
+        JsonArray allowed = spec.parametersSchema().getAsJsonObject("properties").getAsJsonObject("steps")
+                .getAsJsonObject("items").getAsJsonObject("properties").getAsJsonObject("tool").getAsJsonArray("enum");
+        List<String> names = new java.util.ArrayList<>();
+        allowed.forEach(entry -> names.add(entry.getAsString()));
+        for (String tool : List.of("place_block", "use_block", "light_area", "store_items", "take_items", "check_container")) {
+            h.assertTrue(names.contains(tool), tool + " missing from " + names);
+        }
         h.succeed();
     }
 

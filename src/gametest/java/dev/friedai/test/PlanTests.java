@@ -1,5 +1,7 @@
 package dev.friedai.test;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
@@ -18,9 +20,12 @@ import dev.friedai.tool.ToolResult;
 import dev.friedai.tool.builtin.FriedaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 public class PlanTests {
     private static final class Result implements TaskListener {
@@ -250,6 +255,61 @@ public class PlanTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("plan \"drop and look\" done: 1) dropped 2 minecraft:mud_bricks; 2) picked up 0 items"),
                     "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void planTakeThenPlace(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(8, 2, 2, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(8, 2, 2)));
+        chest.setItem(0, new ItemStack(Items.CRAFTING_TABLE, 1));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        BlockPos chestPos = h.absolutePos(new BlockPos(8, 2, 2));
+
+        JsonObject takeArgs = new JsonObject();
+        takeArgs.addProperty("item", "minecraft:crafting_table");
+        takeArgs.addProperty("count", 1);
+        takeArgs.addProperty("x", chestPos.getX());
+        takeArgs.addProperty("y", chestPos.getY());
+        takeArgs.addProperty("z", chestPos.getZ());
+        JsonObject take = new JsonObject();
+        take.addProperty("tool", "take_items");
+        take.addProperty("args", takeArgs.toString());
+
+        JsonObject placeArgs = new JsonObject();
+        placeArgs.addProperty("block", "minecraft:crafting_table");
+        JsonObject place = new JsonObject();
+        place.addProperty("tool", "place_block");
+        place.addProperty("args", placeArgs.toString());
+
+        JsonArray steps = new JsonArray();
+        steps.add(take);
+        steps.add(place);
+        JsonObject json = new JsonObject();
+        json.addProperty("goal", "set up a table");
+        json.add("steps", steps);
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("plan \"set up a table\" done: 1) took 1 minecraft:crafting_table"),
+                    "summary was " + result.summary);
+            boolean found = false;
+            for (int dx = -4; dx <= 4 && !found; dx++) {
+                for (int dz = -4; dz <= 4 && !found; dz++) {
+                    for (int dy = -1; dy <= 1 && !found; dy++) {
+                        if (h.getLevel().getBlockState(c.blockPosition().offset(dx, dy, dz)).is(Blocks.CRAFTING_TABLE)) {
+                            found = true;
+                        }
+                    }
+                }
+            }
+            h.assertTrue(found, "no crafting table near " + c.blockPosition());
         });
     }
 }

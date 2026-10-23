@@ -59,6 +59,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Companion death: inventory drops and the owner gets a message; `/friedai summon` creates a new one.
 - [ ] Leave and rejoin the world: the companion is still there; a Stay task is restored.
 
+## Blocks and containers
+
+- [ ] "Put all the cobblestone in the chest" and "bring me 5 iron from the chest": the companion walks to the chest, the lid opens, items move, the result is reported.
+- [ ] "Light up this cave": torches appear on the floor in dark spots.
+- [ ] "Open the door" twice: the second time the companion says it is already open.
+- [ ] Dedicated server, non-op owner: asking the companion to place or break a block inside spawn protection fails with "is protected".
+- [ ] With a claim/protection mod (if available): the companion cannot place, use or break blocks in someone else's claim.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
