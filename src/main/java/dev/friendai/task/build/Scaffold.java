@@ -95,6 +95,17 @@ public final class Scaffold {
         return List.copyOf(placed);
     }
 
+    /**
+     * Takes over scaffold blocks that are already in the world, from a build that was saved and reloaded. Nothing is
+     * placed and no material is spent: the blocks are only recorded so {@link #removeAll()} removes them at the end.
+     * A recorded position that no longer holds dirt or cobblestone is skipped there.
+     */
+    public void adopt(List<BlockPos> positions) {
+        for (BlockPos pos : positions) {
+            remember(pos);
+        }
+    }
+
     /** How many blocks the scaffold placed in total. */
     public int used() {
         return placed.size();

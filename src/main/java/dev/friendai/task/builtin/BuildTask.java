@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -76,6 +78,14 @@ public final class BuildTask implements Task {
     private final boolean gather;
     private final ObtainFactory obtainFactory;
     private final int tickLimit;
+    /** The file id of this build: kept across a reload so the same in-progress file is resumed. */
+    private final String id;
+    /** Scaffold blocks a restored build found in the world; recorded, never placed or paid for again. */
+    private final List<BlockPos> adoptedScaffold;
+
+    /** Whether the in-progress file has been written, so later ticks may update it. */
+    private boolean inProgressStarted;
+    private int writtenScaffoldCount;
 
     private Phase phase = Phase.CHECK;
     private String summary = "";
@@ -136,6 +146,11 @@ public final class BuildTask implements Task {
     /** The full constructor, for tests that need tighter obtain limits through their own factory. */
     public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
             ObtainFactory obtainFactory) {
+        this(blueprint, origin, rotation, clearSite, gather, obtainFactory, newId(), List.of());
+    }
+
+    private BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+            ObtainFactory obtainFactory, String id, List<BlockPos> adoptedScaffold) {
         this.blueprint = blueprint;
         this.origin = origin;
         this.rotation = rotation;
@@ -143,6 +158,22 @@ public final class BuildTask implements Task {
         this.gather = gather;
         this.obtainFactory = obtainFactory;
         this.tickLimit = blueprint.blocks().size() * 60 + 12_000;
+        this.id = id;
+        this.adoptedScaffold = List.copyOf(adoptedScaffold);
+    }
+
+    /**
+     * A task that resumes a build saved before a reload: same blueprint and placement, same file id, and the scaffold
+     * the earlier session left in the world. The check runs again, so blocks that are already correct are skipped.
+     */
+    public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
+            boolean gather, List<BlockPos> scaffold, String id) {
+        return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold);
+    }
+
+    /** A fresh file id: a UUID without dashes, so it is a legal, unique file name. */
+    private static String newId() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     @Override
@@ -155,39 +186,62 @@ public final class BuildTask implements Task {
         return false;
     }
 
+    /**
+     * {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>}. The blueprint and the scaffold live in the
+     * in-progress file named by {@code <id>}, under the world's blueprint directory.
+     */
+    @Override
+    public String saveData() {
+        return "build:" + id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
+                + Placement.facingFor(rotation).getSerializedName() + "," + clearSite + "," + gather;
+    }
+
     @Override
     public void start(TaskContext c) {}
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        TaskStatus status;
         if (phase != Phase.CLEANUP && ++ticks > tickLimit) {
-            return fail(c, "timed out");
+            status = fail(c, "timed out");
+        } else {
+            status = switch (phase) {
+                case CHECK -> check(c);
+                case TAKE -> take(c);
+                case CLEAR -> clear(c);
+                case FOUNDATION -> buildFoundation(c);
+                case PLACE -> place(c);
+                case CLEANUP -> cleanup(c);
+            };
         }
-        return switch (phase) {
-            case CHECK -> check(c);
-            case TAKE -> take(c);
-            case CLEAR -> clear(c);
-            case FOUNDATION -> buildFoundation(c);
-            case PLACE -> place(c);
-            case CLEANUP -> cleanup(c);
-        };
+        if (status == TaskStatus.RUNNING) {
+            syncInProgress(c);
+        } else {
+            // Every terminal path — success, failure after cleanup — leaves no in-progress file behind.
+            deleteInProgress(c);
+        }
+        return status;
     }
 
     private TaskStatus check(TaskContext c) {
         ServerLevel level = c.level();
         scaffold = new Scaffold(c.companion());
+        scaffold.adopt(adoptedScaffold);
         placed = Placement.at(blueprint, origin, rotation);
         site = Site.check(level, placed, c.companion(), clearSite);
+        // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as
+        // scaffold surplus: only what is still to place counts.
+        List<Placement.PlacedSpec> remaining = remaining(level);
         // The foundation is needed to know how much dirt or cobblestone the blueprint needs, even when the site
         // check found a problem; the problem itself is reported below, after the height check as before.
         String materialError = null;
         try {
-            scaffold.reserve(Materials.needed(placed.specs(), site.foundation()));
+            scaffold.reserve(Materials.needed(remaining, site.foundation()));
         } catch (IllegalArgumentException e) {
             materialError = e.getMessage();
         }
         plannedCells = plannedCells(placed.specs());
-        String unreachable = unreachable(c);
+        String unreachable = unreachable(c, remaining);
         if (unreachable != null) {
             return fail(c, unreachable);
         }
@@ -205,7 +259,19 @@ public final class BuildTask implements Task {
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
+        writeInProgress(c);
         return TaskStatus.RUNNING;
+    }
+
+    /** The specs the world does not already hold; a resumed build only has to work on these. */
+    private List<Placement.PlacedSpec> remaining(ServerLevel level) {
+        List<Placement.PlacedSpec> remaining = new ArrayList<>(placed.specs().size());
+        for (Placement.PlacedSpec spec : placed.specs()) {
+            if (!level.getBlockState(spec.pos()).equals(spec.wanted())) {
+                remaining.add(spec);
+            }
+        }
+        return remaining;
     }
 
     /** A block is an attachment when it cannot hang in the air without a neighbour. */
@@ -230,11 +296,11 @@ public final class BuildTask implements Task {
      * while building. Material the blueprint needs is not scaffolding: a tower with an exact supply must be refused
      * here rather than starved of its own walls.
      */
-    private String unreachable(TaskContext c) {
+    private String unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
         if (scaffold.canScaffold()) {
             return null;
         }
-        BlockPos pos = Reach.firstOutOfReach(c.level(), placed.specs(), origin);
+        BlockPos pos = Reach.firstOutOfReach(c.level(), remaining, origin);
         if (pos == null) {
             return null;
         }
@@ -309,7 +375,7 @@ public final class BuildTask implements Task {
     }
 
     private Map<Item, Integer> missing(TaskContext c) {
-        Map<Item, Integer> needed = Materials.needed(placed.specs(), site.foundation());
+        Map<Item, Integer> needed = Materials.needed(remaining(c.level()), site.foundation());
         Map<Item, Integer> have = Materials.carried(c.companion());
         Map<Item, Integer> missing = new LinkedHashMap<>();
         for (Map.Entry<Item, Integer> entry : needed.entrySet()) {
@@ -798,6 +864,39 @@ public final class BuildTask implements Task {
         if (scaffold != null) {
             scaffold.stop();
         }
+        // Cancelling ends the build: a reload must not pick it up again.
+        deleteInProgress(c);
+    }
+
+    /** Writes the in-progress file again when the scaffold has grown since the last write. */
+    private void syncInProgress(TaskContext c) {
+        if (!inProgressStarted || scaffold == null) {
+            return;
+        }
+        if (scaffold.placed().size() == writtenScaffoldCount) {
+            return;
+        }
+        writeInProgress(c);
+    }
+
+    /** Persists the build so a reload can resume it. Best effort: a disk problem must not abort the build. */
+    private void writeInProgress(TaskContext c) {
+        if (scaffold == null) {
+            return;
+        }
+        try {
+            BlueprintStore.forLevel(c.level())
+                    .saveInProgress(id, blueprint, origin, rotation, clearSite, gather, scaffold.placed());
+            inProgressStarted = true;
+            writtenScaffoldCount = scaffold.placed().size();
+        } catch (RuntimeException ignored) {
+            // The build continues; only its ability to survive a reload is lost.
+        }
+    }
+
+    private void deleteInProgress(TaskContext c) {
+        inProgressStarted = false;
+        BlueprintStore.forLevel(c.level()).deleteInProgress(id);
     }
 
     @Override

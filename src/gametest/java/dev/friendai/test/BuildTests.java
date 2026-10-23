@@ -7,6 +7,8 @@ import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
@@ -326,6 +328,172 @@ public class BuildTests {
         }
         store.save("hut", blueprint, null, true);
         equal(1, store.list().size(), "one blueprint after overwrite");
+        h.succeed();
+    }
+
+    private static BlueprintStore store(GameTestHelper h) {
+        return BlueprintStore.forLevel(h.getLevel());
+    }
+
+    private static String buildId(String saved) {
+        return saved.substring("build:".length(), saved.indexOf(','));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void saveDataFormat(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
+        BuildTask task = new BuildTask(parse(EXAMPLE), origin, Rotation.CLOCKWISE_90, true, false);
+        String saved = task.saveData();
+        String[] parts = saved.split(",");
+        equal(7, parts.length, "field count");
+        check(parts[0].matches("build:[0-9a-f]{32}"), "field id: " + parts[0]);
+        equal(Integer.toString(origin.getX()), parts[1], "x");
+        equal(Integer.toString(origin.getY()), parts[2], "y");
+        equal(Integer.toString(origin.getZ()), parts[3], "z");
+        equal("west", parts[4], "facing of CLOCKWISE_90");
+        equal("true", parts[5], "clearSite");
+        equal("false", parts[6], "gather");
+
+        // A level-free restore cannot rebuild a build task; the in-progress file lives in the world.
+        check(TaskFactory.restore(saved).isEmpty(), "a build needs a level");
+
+        String id = buildId(saved);
+        BlueprintStore store = store(h);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        try {
+            runner.start(task, "build_structure");
+            runner.tick();
+            check(Files.exists(store.inProgressFile(id)), "the in-progress file must exist after the check");
+            Task restored = TaskFactory.restore(saved, h.getLevel()).orElseThrow();
+            equal(saved, restored.saveData(), "save data round trip");
+        } finally {
+            store.deleteInProgress(id);
+            runner.stop("test");
+        }
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 4000)
+    public void restoreResumes(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        Blueprint platform = generator(
+                "{\"type\":\"platform\",\"width\":4,\"depth\":4,\"block\":\"minecraft:cobblestone\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        BlueprintStore store = store(h);
+        Result first = new Result();
+        TaskRunner runner = runner(companion, first);
+        runner.start(new BuildTask(platform, origin, Rotation.NONE, true, false), "build_structure");
+        Result restored = new Result();
+        String[] saved = {null};
+        TaskRunner[] restoredRunner = {null};
+        h.succeedWhen(() -> {
+            if (saved[0] == null) {
+                runner.tick();
+                if (companion.inventory().countItem(Items.COBBLESTONE) < 16) {
+                    saved[0] = runner.current().orElseThrow().saveData();
+                    BuildTask resumed = (BuildTask) TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                    equal(saved[0], resumed.saveData(), "the id and fields survive the restore");
+                    restoredRunner[0] = runner(companion, restored);
+                    restoredRunner[0].start(resumed, "build_structure");
+                }
+                return;
+            }
+            restoredRunner[0].tick();
+            h.assertTrue(restored.status != null, "still running");
+            h.assertTrue(restored.status == TaskStatus.SUCCESS,
+                    "status " + restored.status + ": " + restored.summary);
+            h.assertTrue(restored.summary.startsWith("built platform at "), "summary was " + restored.summary);
+            for (int x = 5; x <= 8; x++) {
+                for (int z = 5; z <= 8; z++) {
+                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                            "missing block at " + x + ",2," + z);
+                }
+            }
+            h.assertTrue(!Files.exists(store.inProgressFile(buildId(saved[0]))),
+                    "the in-progress file must be gone after the build");
+            runner.stop("test");
+        });
+    }
+
+    @GameTest(maxTicks = 20000)
+    public void restoreRemovesOldScaffold(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 14);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        BlueprintStore store = store(h);
+        Result first = new Result();
+        TaskRunner runner = runner(companion, first);
+        runner.start(new BuildTask(tower, h.absolutePos(new BlockPos(6, 2, 6)), Rotation.NONE, true, false),
+                "build_structure");
+        Result restored = new Result();
+        String[] saved = {null};
+        TaskRunner[] restoredRunner = {null};
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (saved[0] == null) {
+                runner.tick();
+                if (ticks[0] % 5 == 0) {
+                    String current = runner.current().orElseThrow().saveData();
+                    boolean scaffolded = store.loadInProgress(buildId(current))
+                            .map(inProgress -> !inProgress.scaffold().isEmpty())
+                            .orElse(false);
+                    if (scaffolded) {
+                        saved[0] = current;
+                        BuildTask resumed = (BuildTask) TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                        restoredRunner[0] = runner(companion, restored);
+                        restoredRunner[0].start(resumed, "build_structure");
+                    }
+                }
+                return;
+            }
+            restoredRunner[0].tick();
+            h.assertTrue(restored.status != null, "still running");
+            h.assertTrue(restored.status == TaskStatus.SUCCESS,
+                    "status " + restored.status + ": " + restored.summary);
+            h.assertTrue(restored.summary.contains("scaffold blocks (removed)"), "summary was " + restored.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+                    "the tower top is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
+            h.assertTrue(dirt.isEmpty(), "restored scaffold dirt left behind at " + dirt);
+            h.assertTrue(cobblestone.isEmpty(), "restored scaffold cobblestone left behind at " + cobblestone);
+            h.assertTrue(!Files.exists(store.inProgressFile(buildId(saved[0]))),
+                    "the in-progress file must be gone after the build");
+            runner.stop("test");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void cancelDeletesFile(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        Blueprint platform = generator(
+                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
+        BuildTask task = new BuildTask(
+                platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(task, "build_structure");
+        runner.tick();
+        String saved = task.saveData();
+        BlueprintStore store = store(h);
+        check(Files.exists(store.inProgressFile(buildId(saved))), "the file exists after the check");
+        runner.stop("test");
+        check(!Files.exists(store.inProgressFile(buildId(saved))), "stop must delete the file");
+        check(TaskFactory.restore(saved, h.getLevel()).isEmpty(), "a cancelled build must not restore");
         h.succeed();
     }
 

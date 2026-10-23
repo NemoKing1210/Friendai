@@ -295,8 +295,10 @@ public class CompanionEntity extends PathfinderMob {
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
         this.combatMode = CombatMode.parse(input.getString("CombatMode").orElse(null));
-        if (level() instanceof ServerLevel) {
-            input.getString("SavedTask").flatMap(TaskFactory::restore).ifPresent(taskRunner::restore);
+        if (level() instanceof ServerLevel serverLevel) {
+            input.getString("SavedTask")
+                    .flatMap(saved -> TaskFactory.restore(saved, serverLevel))
+                    .ifPresent(taskRunner::restore);
         }
     }
 }
