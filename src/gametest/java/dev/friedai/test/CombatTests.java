@@ -3,6 +3,11 @@ package dev.friedai.test;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.TaskListener;
+import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.AttackPlayerTask;
+import dev.friedai.task.builtin.EatTask;
+import dev.friedai.task.builtin.EquipTask;
+import dev.friedai.task.builtin.HuntTask;
 import dev.friedai.task.combat.CombatController;
 import dev.friedai.task.combat.Threats;
 import java.util.ArrayList;
@@ -15,6 +20,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.animal.chicken.Chicken;
+import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Creeper;
@@ -35,8 +42,19 @@ public class CombatTests {
         final List<String> texts = Collections.synchronizedList(new ArrayList<>());
         final List<ItemStack> heldAtStart = Collections.synchronizedList(new ArrayList<>());
 
+        TaskStatus finalStatus;
+        String finalSummary;
+
+        void reset() {
+            finalStatus = null;
+            finalSummary = null;
+        }
+
         @Override
-        public void onFinished(int id, String toolName, dev.friedai.task.TaskStatus status, String summary) {}
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            finalStatus = status;
+            finalSummary = summary;
+        }
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {}
@@ -55,7 +73,10 @@ public class CombatTests {
         Notices notices = new Notices();
         c.taskRunner().setListener(new TaskListener() {
             @Override
-            public void onFinished(int id, String toolName, dev.friedai.task.TaskStatus status, String summary) {}
+            public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                notices.finalStatus = status;
+                notices.finalSummary = summary;
+            }
 
             @Override
             public void onCancelled(int id, String toolName, String reason) {}
@@ -147,7 +168,12 @@ public class CombatTests {
         husk.setCustomName(Component.literal("test-owner-husk"));
         h.runAfterDelay(100, () -> owner.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(husk), 1.0F));
         h.succeedWhen(() -> {
-            h.assertTrue(husk.isDeadOrDying() || husk.isRemoved(), "husk still alive: " + husk.getHealth());
+            h.assertTrue(husk.isDeadOrDying() || husk.isRemoved(),
+                    "husk still alive: " + husk.getHealth()
+                            + ", state " + c.combatController().state()
+                            + ", target " + c.combatController().target()
+                            + ", distance " + c.distanceTo(husk)
+                            + ", main hand " + c.getMainHandItem());
             String expected = "a husk attacked " + owner.getName().getString() + "; defending";
             h.assertTrue(notices.texts.stream().anyMatch(n -> n.startsWith(expected)), "notices " + notices.texts);
         });
@@ -302,7 +328,11 @@ public class CombatTests {
                             .anyMatch(n -> n.equals("retreating: health 4/20, I have no food")),
                     "notices " + notices.texts);
             h.assertTrue(c.distanceTo(zombie) > before + 1.0,
-                    "distance before " + before + ", after " + c.distanceTo(zombie));
+                    "distance before " + before + ", after " + c.distanceTo(zombie)
+                            + ", state " + c.combatController().state()
+                            + ", zombie target " + zombie.getTarget()
+                            + ", nav done " + c.getNavigation().isDone()
+                            + ", notices " + notices.texts);
         });
     }
 
@@ -429,6 +459,194 @@ public class CombatTests {
                     "the equal chestplate was swapped: " + c.getItemBySlot(EquipmentSlot.CHEST));
             h.assertTrue(c.getItemBySlot(EquipmentSlot.HEAD).is(Items.IRON_HELMET),
                     "the binding helmet was removed: " + c.getItemBySlot(EquipmentSlot.HEAD));
+            h.succeed();
+        });
+    }
+
+
+    @GameTest(maxTicks = 1200)
+    public void huntKillsChickens(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        Chicken first = h.spawnWithNoFreeWill(EntityTypes.CHICKEN, 5, 2, 2);
+        Chicken second = h.spawnWithNoFreeWill(EntityTypes.CHICKEN, 7, 2, 2);
+        c.taskRunner().start(new HuntTask(type -> type == EntityTypes.CHICKEN, "minecraft:chicken", 2, 16), "attack");
+        h.succeedWhen(() -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "status " + notices.finalStatus + " " + notices.finalSummary
+                            + ", state " + c.combatController().state()
+                            + ", target " + c.combatController().target()
+                            + ", first " + first.isRemoved() + "/" + first.getHealth()
+                            + ", second " + second.isRemoved() + "/" + second.getHealth());
+            h.assertTrue(notices.finalSummary.equals("killed 2 minecraft:chicken"),
+                    "summary " + notices.finalSummary);
+            h.assertTrue(c.inventory().countItem(Items.CHICKEN) > 0, "no raw chicken collected");
+            h.assertTrue((first.isDeadOrDying() || first.isRemoved()) && (second.isDeadOrDying() || second.isRemoved()),
+                    "both chickens must be gone: " + first.isRemoved() + "/" + first.getHealth()
+                            + ", " + second.isRemoved() + "/" + second.getHealth()
+                            + ", state " + c.combatController().state()
+                            + ", target " + c.combatController().target());
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void huntSkipsNamedMob(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        Rabbit named = h.spawnWithNoFreeWill(EntityTypes.RABBIT, 5, 2, 2);
+        named.setCustomName(Component.literal("Bunny"));
+        Rabbit other = h.spawnWithNoFreeWill(EntityTypes.RABBIT, 7, 2, 2);
+        c.taskRunner().start(new HuntTask(type -> type == EntityTypes.RABBIT, "minecraft:rabbit", 1, 16), "attack");
+        h.succeedWhen(() -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "status " + notices.finalStatus + " " + notices.finalSummary
+                            + ", state " + c.combatController().state()
+                            + ", target " + c.combatController().target()
+                            + ", named alive " + named.isAlive()
+                            + ", other " + other.isRemoved() + "/" + other.getHealth());
+            h.assertTrue(notices.finalSummary.equals("killed 1 minecraft:rabbit; skipped 1 that belong to someone"),
+                    "summary " + notices.finalSummary);
+            h.assertTrue(named.isAlive(), "the named rabbit must be alive");
+            h.assertTrue(other.isRemoved(), "the unnamed rabbit must be gone: removed " + other.isRemoved()
+                    + ", health " + other.getHealth() + ", state " + c.combatController().state()
+                    + ", target " + c.combatController().target());
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void huntNothingNearby(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        c.taskRunner().start(new HuntTask(type -> type == EntityTypes.MOOSHROOM, "minecraft:mooshroom", 1, 16), "attack");
+        h.succeedWhen(() -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.FAILED,
+                    "status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("no minecraft:mooshroom within 16 blocks"),
+                    "summary " + notices.finalSummary);
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void attackPlayerHits(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        owner.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        ServerPlayer target = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
+        target.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        target.getAbilities().instabuild = false;
+        target.getAbilities().invulnerable = false;
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        Notices notices = listen(c);
+        List<String> probe = Collections.synchronizedList(new ArrayList<>());
+        h.runAfterDelay(150, () -> {
+            probe.add("canHarm=" + owner.canHarmPlayer(target)
+                    + " pvp=" + h.getLevel().isPvpAllowed()
+                    + " targetCreative=" + target.isCreative()
+                    + " targetSpectator=" + target.isSpectator()
+                    + " ownerTeam=" + owner.getTeam()
+                    + " targetTeam=" + target.getTeam()
+                    + " ownerMode=" + owner.gameMode.getGameModeForPlayer()
+                    + " targetMode=" + target.gameMode.getGameModeForPlayer());
+            c.taskRunner().start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
+        });
+        h.runAfterDelay(600, () -> {
+            h.assertTrue(target.getHealth() < target.getMaxHealth(),
+                    "target health " + target.getHealth() + ", state " + c.combatController().state()
+                            + ", task " + notices.finalStatus + " " + notices.finalSummary
+                            + ", owner " + c.owner().isPresent()
+                            + ", probe " + probe);
+            h.assertTrue(notices.finalStatus != TaskStatus.FAILED,
+                    "attack failed: " + notices.finalSummary);
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void equipArmorAndOffhand(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        c.inventory().addItem(new ItemStack(Items.GOLDEN_HELMET));
+        c.inventory().addItem(new ItemStack(Items.TORCH));
+        c.taskRunner().start(new EquipTask(Items.GOLDEN_HELMET, null), "equip_item");
+        h.runAfterDelay(4, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "helmet status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("now wearing minecraft:golden_helmet"),
+                    "helmet summary " + notices.finalSummary);
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.HEAD).is(Items.GOLDEN_HELMET), "helmet not worn");
+            notices.reset();
+            c.taskRunner().start(new EquipTask(Items.TORCH, EquipmentSlot.OFFHAND), "equip_item");
+        });
+        h.runAfterDelay(8, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "torch status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("now holding minecraft:torch in the offhand"),
+                    "torch summary " + notices.finalSummary);
+            h.assertTrue(c.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.TORCH), "torch not in the offhand");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void equipWrongSlot(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        c.inventory().addItem(new ItemStack(Items.IRON_BOOTS));
+        c.taskRunner().start(new EquipTask(Items.IRON_BOOTS, EquipmentSlot.HEAD), "equip_item");
+        h.runAfterDelay(4, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.FAILED,
+                    "status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("minecraft:iron_boots can't be worn on head"),
+                    "summary " + notices.finalSummary);
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void eatTaskResults(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Notices notices = listen(c);
+        c.inventory().addItem(new ItemStack(Items.BREAD));
+        c.taskRunner().start(new EatTask(Items.BREAD), "eat");
+        h.runAfterDelay(100, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "bread status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.startsWith("ate minecraft:bread, health "),
+                    "bread summary " + notices.finalSummary);
+            notices.reset();
+            c.taskRunner().start(new EatTask(null), "eat");
+        });
+        h.runAfterDelay(104, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.FAILED,
+                    "no food status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("I have no food I can eat"),
+                    "no food summary " + notices.finalSummary);
+            notices.reset();
+            c.inventory().addItem(new ItemStack(Items.DIRT));
+            c.taskRunner().start(new EatTask(Items.DIRT), "eat");
+        });
+        h.runAfterDelay(108, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.FAILED,
+                    "dirt status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("minecraft:dirt is not food"),
+                    "dirt summary " + notices.finalSummary);
+            notices.reset();
+            c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+            c.taskRunner().start(new EatTask(Items.ROTTEN_FLESH), "eat");
+        });
+        h.runAfterDelay(112, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.FAILED,
+                    "rotten flesh status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertTrue(notices.finalSummary.equals("I won't eat minecraft:rotten_flesh"),
+                    "rotten flesh summary " + notices.finalSummary);
             h.succeed();
         });
     }

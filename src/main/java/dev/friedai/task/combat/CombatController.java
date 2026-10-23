@@ -116,6 +116,42 @@ public final class CombatController {
         return state == State.IDLE;
     }
 
+    /** True while the controller is eating. */
+    public boolean isEating() {
+        return state == State.EATING;
+    }
+
+    /** Starts eating from an inventory slot; false when the controller is busy. */
+    public boolean eatFromSlot(int slot) {
+        if (state != State.IDLE || slot < 0) {
+            return false;
+        }
+        startEating(slot);
+        return state == State.EATING;
+    }
+
+    /** Interrupts an eating attempt and returns the food to the inventory. */
+    public void stopEating() {
+        if (state == State.EATING && companion.level() instanceof ServerLevel level) {
+            interruptEating(level);
+        }
+    }
+
+    /** Ends a fight the tasks asked for, restoring the main hand. */
+    public void stopFight() {
+        if (state != State.FIGHTING || !taskDriven) {
+            return;
+        }
+        companion.getNavigation().stop();
+        companion.stopUsingItem();
+        usingBow = false;
+        drawTicks = 0;
+        restoreWeapon();
+        state = State.IDLE;
+        target = null;
+        taskDriven = false;
+    }
+
     /** Starts a fight on a task's behalf: the runner is not paused and the brain gets no notices. */
     public void fight(LivingEntity enemy) {
         if (state != State.IDLE || enemy == null || !enemy.isAlive() || !(companion.level() instanceof ServerLevel level)) {
@@ -544,7 +580,8 @@ public final class CombatController {
         }
 
         companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
-        if (companion.isWithinMeleeAttackRange(enemy)) {
+        double distanceSqr = companion.distanceToSqr(enemy);
+        if (companion.isWithinMeleeAttackRange(enemy) || distanceSqr <= 3.0625) {
             companion.getNavigation().stop();
             unreachableTicks = 0;
             if (--attackCooldown <= 0) {
@@ -552,6 +589,10 @@ public final class CombatController {
                 companion.doHurtTarget(level, enemy);
                 attackCooldown = attackInterval();
             }
+        } else if (distanceSqr <= 9.0) {
+            // Pathfinding stops just outside the reach of a small mob; the move control closes the last step.
+            companion.getNavigation().stop();
+            companion.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.2);
         } else if (--repathTicks <= 0) {
             unreachableTicks = companion.getNavigation().moveTo(enemy, 1.0) ? 0 : unreachableTicks + 1;
             repathTicks = 10;

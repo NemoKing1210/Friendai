@@ -61,9 +61,6 @@ public final class Threats {
 
     /** A player may be fought only when the owner is allowed to hurt them here. */
     public static boolean mayFightPlayer(CompanionEntity companion, ServerPlayer target) {
-        if (target.isCreative() || target.isSpectator()) {
-            return false;
-        }
         return companion.owner().map(owner -> owner != target && owner.canHarmPlayer(target)).orElse(false);
     }
 }
