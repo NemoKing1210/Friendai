@@ -25,4 +25,10 @@ class DebugAccessTest {
                         DebugAccess.Action.RUN_TOOL),
                 operatorOnly);
     }
+
+    @Test
+    void memoryActionsAreAllowedForEveryone() {
+        assertTrue(DebugAccess.allowed(DebugAccess.Action.VIEW_MEMORY, false));
+        assertTrue(DebugAccess.allowed(DebugAccess.Action.EDIT_MEMORY, false));
+    }
 }

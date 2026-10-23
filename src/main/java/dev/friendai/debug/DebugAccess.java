@@ -10,14 +10,16 @@ public final class DebugAccess {
         VIEW_LOG,
         VIEW_PROMPT,
         SEND_MESSAGE,
-        RUN_TOOL
+        RUN_TOOL,
+        VIEW_MEMORY,
+        EDIT_MEMORY
     }
 
     private DebugAccess() {}
 
     public static boolean allowed(Action action, boolean operator) {
         return switch (action) {
-            case SUMMON, DISMISS, STOP, VIEW_STATUS -> true;
+            case SUMMON, DISMISS, STOP, VIEW_STATUS, VIEW_MEMORY, EDIT_MEMORY -> true;
             case VIEW_LOG, VIEW_PROMPT, SEND_MESSAGE, RUN_TOOL -> operator;
         };
     }

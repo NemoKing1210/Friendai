@@ -15,6 +15,30 @@ class RequestTypeTest {
     }
 
     @Test
+    void existingOrdinalsAreStable() {
+        assertEquals(0, RequestType.SUBSCRIBE.ordinal());
+        assertEquals(1, RequestType.UNSUBSCRIBE.ordinal());
+        assertEquals(2, RequestType.SUMMON.ordinal());
+        assertEquals(3, RequestType.DISMISS.ordinal());
+        assertEquals(4, RequestType.STOP.ordinal());
+        assertEquals(5, RequestType.REQUEST_PROMPT.ordinal());
+        assertEquals(6, RequestType.SEND_MESSAGE.ordinal());
+        assertEquals(7, RequestType.RUN_TOOL.ordinal());
+        assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
+    }
+
+    @Test
+    void newMemoryTypesMapToTheirActions() {
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_MEMORY), RequestType.MEMORY_OPEN.action());
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_MEMORY), RequestType.MEMORY_CLOSE.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_ADD.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_EDIT.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_FORGET.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_CLEAR.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_TRUST.action());
+    }
+
+    @Test
     void everyTypeMapsToExpectedAction() {
         assertEquals(Optional.of(DebugAccess.Action.VIEW_STATUS), RequestType.SUBSCRIBE.action());
         assertEquals(Optional.of(DebugAccess.Action.VIEW_STATUS), RequestType.UNSUBSCRIBE.action());

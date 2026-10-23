@@ -12,6 +12,13 @@ public enum RequestType {
     REQUEST_PROMPT(DebugAccess.Action.VIEW_PROMPT),
     SEND_MESSAGE(DebugAccess.Action.SEND_MESSAGE),
     RUN_TOOL(DebugAccess.Action.RUN_TOOL),
+    MEMORY_OPEN(DebugAccess.Action.VIEW_MEMORY),
+    MEMORY_CLOSE(DebugAccess.Action.VIEW_MEMORY),
+    MEMORY_ADD(DebugAccess.Action.EDIT_MEMORY),
+    MEMORY_EDIT(DebugAccess.Action.EDIT_MEMORY),
+    MEMORY_FORGET(DebugAccess.Action.EDIT_MEMORY),
+    MEMORY_CLEAR(DebugAccess.Action.EDIT_MEMORY),
+    MEMORY_TRUST(DebugAccess.Action.EDIT_MEMORY),
     INVALID(null);
 
     private final DebugAccess.Action action;

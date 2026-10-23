@@ -5,10 +5,14 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.debug.RequestType;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.memory.MemoryMenuActions;
+import dev.friendai.memory.MenuStatus;
+import dev.friendai.memory.PlayerRef;
 import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Server side of the companion menu: checks permissions and carries out the request. Runs on the server thread. */
@@ -50,9 +54,18 @@ public final class CompanionRequestHandler {
             brains.debug().unsubscribe(owner);
             return;
         }
+        if (type == RequestType.MEMORY_OPEN) {
+            MemoryViewStream.open(player);
+            return;
+        }
+        if (type == RequestType.MEMORY_CLOSE) {
+            MemoryViewStream.close(player);
+            return;
+        }
         if (!limiter.tryAcquire(owner)) {
             return;
         }
+        MenuStatus memoryStatus = null;
         CompanionManager companions = CompanionManager.get(server);
         switch (type) {
             case SUMMON -> companions
@@ -78,8 +91,37 @@ public final class CompanionRequestHandler {
                 }
             }
             case RUN_TOOL -> brains.runTool(owner, a.strip(), b.isBlank() ? "{}" : b);
+            case MEMORY_ADD, MEMORY_EDIT, MEMORY_FORGET, MEMORY_CLEAR, MEMORY_TRUST -> {
+                var cfg = state.config();
+                MemoryMenuActions actions = new MemoryMenuActions(
+                        state.memory().book(owner),
+                        owner,
+                        player.getName().getString(),
+                        cfg.memory.enabled,
+                        cfg.memory.limits(),
+                        System.currentTimeMillis(),
+                        uuid -> onlineRef(server, uuid));
+                memoryStatus = switch (type) {
+                    case MEMORY_ADD -> actions.add(a, b);
+                    case MEMORY_EDIT -> actions.edit(a, b);
+                    case MEMORY_FORGET -> actions.forget(a);
+                    case MEMORY_CLEAR -> actions.clear(a);
+                    case MEMORY_TRUST -> actions.trust(a, b);
+                    default -> null;
+                };
+            }
             default -> {}
         }
+        if (memoryStatus != null) {
+            MemoryViewStream.sendNow(player, Optional.of(memoryStatus));
+        }
         DebugStream.sendNow(player);
+    }
+
+    private static Optional<PlayerRef> onlineRef(MinecraftServer server, UUID uuid) {
+        ServerPlayer online = server.getPlayerList().getPlayer(uuid);
+        return online == null
+                ? Optional.empty()
+                : Optional.of(new PlayerRef(uuid, online.getName().getString()));
     }
 }

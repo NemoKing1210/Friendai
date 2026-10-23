@@ -5,6 +5,7 @@ import dev.friendai.config.ConfigStore;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.memory.MemoryViewers;
 import dev.friendai.task.TaskSettings;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ public final class FriendaiServerState {
     private final ConfigStore<ServerConfig> store;
     private final BrainService brains;
     private final MemoryStore memory;
+    private final MemoryViewers memoryViewers = new MemoryViewers();
     private ServerConfig config;
 
     private FriendaiServerState(MinecraftServer server) {
@@ -62,6 +64,11 @@ public final class FriendaiServerState {
     /** Per-owner memory books: trust and player records. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** Who has the memory tab open, and the last book revision each received. */
+    public MemoryViewers memoryViewers() {
+        return memoryViewers;
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */
