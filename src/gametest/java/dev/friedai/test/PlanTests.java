@@ -312,4 +312,51 @@ public class PlanTests {
             h.assertTrue(found, "no crafting table near " + c.blockPosition());
         });
     }
+
+    @GameTest(maxTicks = 800)
+    public void planTakeLogsThenCraft(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(11, 2, 11, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(11, 2, 11)));
+        chest.setItem(0, new ItemStack(Items.OAK_LOG, 2));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriedaiTools.create(() -> 32).bind(c);
+        BlockPos chestPos = h.absolutePos(new BlockPos(11, 2, 11));
+
+        JsonObject takeArgs = new JsonObject();
+        takeArgs.addProperty("item", "minecraft:oak_log");
+        takeArgs.addProperty("count", 2);
+        takeArgs.addProperty("x", chestPos.getX());
+        takeArgs.addProperty("y", chestPos.getY());
+        takeArgs.addProperty("z", chestPos.getZ());
+        JsonObject take = new JsonObject();
+        take.addProperty("tool", "take_items");
+        take.addProperty("args", takeArgs.toString());
+
+        JsonObject craftArgs = new JsonObject();
+        craftArgs.addProperty("item", "minecraft:oak_planks");
+        craftArgs.addProperty("count", 8);
+        JsonObject craft = new JsonObject();
+        craft.addProperty("tool", "craft_item");
+        craft.addProperty("args", craftArgs.toString());
+
+        JsonArray steps = new JsonArray();
+        steps.add(take);
+        steps.add(craft);
+        JsonObject json = new JsonObject();
+        json.addProperty("goal", "turn logs into planks");
+        json.add("steps", steps);
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("took 2 minecraft:oak_log"), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("crafted 8 minecraft:oak_planks"), "summary was " + result.summary);
+            h.assertValueEqual(0, c.inventory().countItem(Items.OAK_LOG), "logs left");
+            h.assertValueEqual(8, c.inventory().countItem(Items.OAK_PLANKS), "planks");
+        });
+    }
 }

@@ -67,6 +67,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dedicated server, non-op owner: asking the companion to place or break a block inside spawn protection fails with "is protected".
 - [ ] With a claim/protection mod (if available): the companion cannot place, use or break blocks in someone else's claim.
 
+## Crafting
+
+- [ ] "Make me a stone pickaxe" with cobblestone and logs in the companion's inventory: it crafts planks, sticks, a crafting table, the pickaxe, and takes the table back in the open.
+- [ ] The same next to your base (bed and chest nearby): the crafting table stays.
+- [ ] "Make 16 torches" with coal and logs.
+- [ ] "Make an iron pickaxe" without iron: the companion says what is missing (get_recipe) instead of failing silently.
+
 ## Localization
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
