@@ -350,7 +350,7 @@ public final class CombatController {
     private List<LivingEntity> threatsNear(ServerLevel level) {
         List<LivingEntity> threats = new ArrayList<>(ruleOneThreats(level));
         for (LivingEntity hostile : Threats.hostilesNear(level, companion.position(), RETREAT_THREAT_RADIUS)) {
-            if (!Threats.isProtected(hostile, companion) && !threats.contains(hostile)) {
+            if (!threats.contains(hostile)) {
                 threats.add(hostile);
             }
         }
