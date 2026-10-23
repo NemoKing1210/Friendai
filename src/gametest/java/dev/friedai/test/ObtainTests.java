@@ -265,9 +265,10 @@ public class ObtainTests {
     @GameTest(maxTicks = 4800)
     public void obtainWoodenPickaxe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int y = 2; y <= 5; y++) {
-            h.setBlock(4, y, 2, Blocks.OAK_LOG);
-        }
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
         h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
@@ -283,9 +284,10 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600)
     public void obtainStonePickaxe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int y = 2; y <= 5; y++) {
-            h.setBlock(4, y, 2, Blocks.OAK_LOG);
-        }
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
         h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
         h.setBlock(6, 2, 2, Blocks.STONE);
         h.setBlock(6, 2, 3, Blocks.STONE);
@@ -342,11 +344,11 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600)
     public void replansAfterTheft(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int y = 2; y <= 7; y++) {
-            h.setBlock(4, y, 2, Blocks.OAK_LOG);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 2; z <= 3; z++) {
+                h.setBlock(x, 2, z, Blocks.OAK_LOG);
+            }
         }
-        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(5, 3, 2, Blocks.OAK_LOG);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
@@ -396,9 +398,10 @@ public class ObtainTests {
     @GameTest(maxTicks = 2400)
     public void stepLimit(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int y = 2; y <= 5; y++) {
-            h.setBlock(4, y, 2, Blocks.OAK_LOG);
-        }
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
+        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
         h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
