@@ -7,6 +7,11 @@ import dev.friedai.crafting.obtain.ToolNeed;
 import dev.friedai.crafting.obtain.WorldFacts;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.task.TaskListener;
+import dev.friedai.task.TaskRunner;
+import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.ExploreTask;
+import dev.friedai.task.mining.BlockMatcher;
 import dev.friedai.task.obtain.DropIndex;
 import dev.friedai.task.obtain.WorldScan;
 import java.util.List;
@@ -21,6 +26,41 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
 public class ObtainTests {
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary;
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    private static TaskRunner explore(CompanionEntity c, Result result, ExploreTask task) {
+        TaskRunner runner = new TaskRunner(c, () -> 600, () -> false);
+        runner.setListener(result);
+        runner.start(task, "explore");
+        return runner;
+    }
+
+    private static BlockMatcher logs() {
+        return BlockMatcher.parse("#minecraft:logs").orElseThrow();
+    }
+
+    private static void stoneColumn(GameTestHelper h, int upToZ) {
+        for (int x = -1; x <= 8; x++) {
+            for (int z = 0; z <= upToZ; z++) {
+                for (int y = -16; y <= 0; y++) {
+                    h.setBlock(x, y, z, Blocks.STONE);
+                }
+            }
+        }
+    }
+
     private static Optional<Source.Mine> mineOf(DropIndex index, String item, String block) {
         List<Source> sources = index.sourcesOf(item);
         return sources.stream()
@@ -128,6 +168,85 @@ public class ObtainTests {
         WorldFacts world = WorldScan.scan(h.getLevel(), c, 32, false, false);
         h.assertTrue(world.dimensionHasOre(), "the overworld has ores");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void surfaceExploreFindsLogs(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 240, 32);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 241, 2);
+        h.setBlock(22, 241, 2, Blocks.DARK_OAK_LOG);
+        Result result = new Result();
+        TaskRunner runner = explore(c, result, new ExploreTask(logs(), false, 0, 32, 128, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("found minecraft:dark_oak_log at"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void surfaceExploreGivesUp(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 280, 32);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 281, 2);
+        Result result = new Result();
+        TaskRunner runner = explore(c, result, new ExploreTask(logs(), false, 0, 16, 128, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("no #minecraft:logs within 16 blocks"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void staircaseFindsOre(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        stoneColumn(h, 16);
+        h.setBlock(2, -6, 10, Blocks.GOLD_ORE);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_PICKAXE));
+        Result result = new Result();
+        TaskRunner runner = explore(c, result,
+                new ExploreTask(BlockMatcher.parse("minecraft:gold_ore").orElseThrow(), true, -6, 64, 128, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("found minecraft:gold_ore at"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void staircaseAvoidsLava(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        stoneColumn(h, 16);
+        h.setBlock(2, -1, 5, Blocks.LAVA);
+        h.setBlock(3, -1, 5, Blocks.LAVA);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_PICKAXE));
+        float health = c.getHealth();
+        Result result = new Result();
+        TaskRunner runner = explore(c, result,
+                new ExploreTask(logs(), true, -12, 64, 20, 6000));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "not finished");
+            h.assertTrue(result.status == TaskStatus.SUCCESS || result.status == TaskStatus.FAILED,
+                    "unexpected status " + result.status + " " + result.summary);
+            h.assertValueEqual(c.getHealth(), health, "health changed");
+            for (int x = -1; x <= 8; x++) {
+                for (int z = 0; z <= 16; z++) {
+                    for (int y = -16; y <= 0; y++) {
+                        BlockPos pos = new BlockPos(x, y, z);
+                        if (h.getLevel().getBlockState(h.absolutePos(pos)).isAir()) {
+                            for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+                                BlockPos next = pos.relative(direction);
+                                h.assertFalse(h.getLevel().getBlockState(h.absolutePos(next)).is(Blocks.LAVA),
+                                        "dug next to lava at " + pos);
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     @GameTest
