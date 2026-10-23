@@ -2,6 +2,7 @@ package dev.friedai.core;
 
 import dev.friedai.brain.BrainEvent;
 import dev.friedai.chat.ConfirmationMatcher;
+import dev.friedai.config.ServerConfig;
 import dev.friedai.memory.MemoryStore;
 import dev.friedai.memory.PendingTrust;
 import dev.friedai.memory.TrustRequest;
@@ -23,15 +24,15 @@ public final class TrustConfirmations {
     private final MinecraftServer server;
     private final MemoryStore memory;
     private final BrainService brains;
-    private final Supplier<String> companionName;
+    private final Supplier<ServerConfig> config;
     private final PendingTrust pending = new PendingTrust();
 
     public TrustConfirmations(
-            MinecraftServer server, MemoryStore memory, BrainService brains, Supplier<String> companionName) {
+            MinecraftServer server, MemoryStore memory, BrainService brains, Supplier<ServerConfig> config) {
         this.server = server;
         this.memory = memory;
         this.brains = brains;
-        this.companionName = companionName;
+        this.config = config;
     }
 
     /** Opens the owner's request (replacing an older one) and sends them the confirmation message. */
@@ -78,7 +79,8 @@ public final class TrustConfirmations {
         if (current.isEmpty()) {
             return false;
         }
-        ConfirmationMatcher.Answer answer = ConfirmationMatcher.match(text, companionName.get());
+        ServerConfig cfg = config.get();
+        ConfirmationMatcher.Answer answer = ConfirmationMatcher.match(text, cfg.companion.name, cfg.chat.prefix);
         if (answer == ConfirmationMatcher.Answer.NONE) {
             return false;
         }
@@ -93,6 +95,10 @@ public final class TrustConfirmations {
     /** Drops expired requests, telling the owner and their brain. Call once per second. */
     public void tick(long now) {
         for (TrustRequest request : pending.expire(now)) {
+            if (server.getPlayerList().getPlayer(request.owner()) == null) {
+                // An owner who logged out must not have their companion woken for a dead request.
+                continue;
+            }
             brains.post(
                     request.owner(),
                     new BrainEvent.WorldNotice("the trust request for " + request.targetName() + " expired"));

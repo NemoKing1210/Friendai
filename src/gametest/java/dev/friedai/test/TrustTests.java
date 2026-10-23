@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import dev.friedai.brain.LlmGateway;
 import dev.friedai.chat.ChatRouter;
 import dev.friedai.core.FriedaiServerState;
+import dev.friedai.core.TrustConfirmations;
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.CompanionManager;
 import dev.friedai.llm.model.LlmResponse;
@@ -179,6 +180,13 @@ public class TrustTests {
         return recorder;
     }
 
+    /** A test-private confirmation queue, so a synthetic future tick cannot expire another test's request. */
+    private static TrustConfirmations isolated(GameTestHelper h) {
+        FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
+        return new TrustConfirmations(
+                h.getLevel().getServer(), state.memory(), state.brains(), state::config);
+    }
+
     @GameTest(maxTicks = 3600)
     public void yesConfirms(GameTestHelper h) {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
@@ -326,16 +334,38 @@ public class TrustTests {
         FriedaiServerState state = FriedaiServerState.get(h.getLevel().getServer());
         Recorder recorder = gateway(h, owner.player());
         String name = target.player().getName().getString();
-        state.trust().request(owner.player(), target.player().getUUID(), name, true);
+        TrustConfirmations confirmations = isolated(h);
+        confirmations.request(owner.player(), target.player().getUUID(), name, true);
         drainMessages(owner.channel());
 
-        state.trust().tick(System.currentTimeMillis() + 61_000);
+        confirmations.tick(System.currentTimeMillis() + 61_000);
 
-        h.assertTrue(state.trust().current(owner.player().getUUID()).isEmpty(), "the request should be gone");
+        h.assertTrue(confirmations.current(owner.player().getUUID()).isEmpty(), "the request should be gone");
         List<Component> messages = drainMessages(owner.channel());
         h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friedai.trust.expired")), "owner got " + messages);
         h.succeedWhen(() -> h.assertTrue(
                 recorder.contains("[event] the trust request for " + name + " expired"),
                 "requests were " + recorder.requests));
+    }
+
+    @GameTest(maxTicks = 100)
+    public void expiryWhileOwnerOfflineDoesNotWakeBrain(GameTestHelper h) {
+        Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
+        Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
+        summon(owner.player());
+        Recorder recorder = gateway(h, owner.player());
+        TrustConfirmations confirmations = isolated(h);
+        confirmations.request(
+                owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+        h.getLevel().getServer().getPlayerList().remove(owner.player());
+
+        confirmations.tick(System.currentTimeMillis() + 61_000);
+
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(
+                    recorder.requests.isEmpty(),
+                    "an offline owner's expiry must not wake the brain: " + recorder.requests);
+            h.succeed();
+        });
     }
 }

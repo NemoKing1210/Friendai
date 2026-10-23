@@ -25,10 +25,22 @@ public final class ConfirmationMatcher {
     private ConfirmationMatcher() {}
 
     public static Answer match(String text, String companionName) {
+        return match(text, companionName, null);
+    }
+
+    /**
+     * Matches against the chat form too: a configured prefix ("@") and then the companion's name are
+     * removed, like {@link AddressDetector} does, so "@ да" and "@Friendai, да" confirm.
+     */
+    public static Answer match(String text, String companionName, String prefix) {
         if (text == null) {
             return Answer.NONE;
         }
-        String normalized = stripTrailing(text.strip().toLowerCase(Locale.ROOT));
+        String stripped = text.strip();
+        if (prefix != null && !prefix.isEmpty() && stripped.startsWith(prefix)) {
+            stripped = stripped.substring(prefix.length()).stripLeading();
+        }
+        String normalized = stripTrailing(stripped.toLowerCase(Locale.ROOT));
         if (companionName != null && !companionName.isBlank()) {
             normalized = stripTrailing(stripLeadingName(normalized, companionName.toLowerCase(Locale.ROOT)));
         }

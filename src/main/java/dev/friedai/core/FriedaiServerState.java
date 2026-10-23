@@ -38,7 +38,7 @@ public final class FriedaiServerState {
                 server.getWorldPath(LevelResource.ROOT).resolve("friedai").resolve("memory"),
                 System::currentTimeMillis);
         this.brains = new BrainService(server, config, memory);
-        this.trust = new TrustConfirmations(server, memory, brains, () -> this.config.companion.name);
+        this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);
     }
 

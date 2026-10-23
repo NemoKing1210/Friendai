@@ -47,6 +47,13 @@ class ConfirmationMatcherTest {
     }
 
     @Test
+    void chatPrefixAndName() {
+        assertEquals(Answer.YES, ConfirmationMatcher.match("@ да", NAME, "@"));
+        assertEquals(Answer.NO, ConfirmationMatcher.match("@Friendai, нет.", NAME, "@"));
+        assertEquals(Answer.YES, ConfirmationMatcher.match("да", NAME, "@"));
+    }
+
+    @Test
     void sentencesAreNone() {
         assertEquals(Answer.NONE, match("да, и принеси дерево"));
         assertEquals(Answer.NONE, match("yes please bring wood"));
