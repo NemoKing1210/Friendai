@@ -2,6 +2,7 @@ package dev.friendai.client.ui;
 
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.LogBuffer;
+import dev.friendai.memory.MemoryView;
 import java.util.Optional;
 
 /** What the companion menu knows: the latest snapshot, the accumulated log and the last fetched prompt. */
@@ -12,6 +13,7 @@ public final class CompanionClientState {
     private static volatile CompanionSnapshot snapshot;
     private static volatile long receivedAt;
     private static volatile String prompt = "";
+    private static volatile MemoryView memoryView;
 
     private CompanionClientState() {}
 
@@ -25,12 +27,20 @@ public final class CompanionClientState {
         prompt = received;
     }
 
+    public static void onMemoryView(MemoryView received) {
+        memoryView = received;
+    }
+
     public static Optional<CompanionSnapshot> snapshot() {
         return Optional.ofNullable(snapshot);
     }
 
     public static String prompt() {
         return prompt;
+    }
+
+    public static Optional<MemoryView> memoryView() {
+        return Optional.ofNullable(memoryView);
     }
 
     public static LogBuffer log() {
@@ -45,6 +55,7 @@ public final class CompanionClientState {
     public static void reset() {
         snapshot = null;
         prompt = "";
+        memoryView = null;
         LOG.clear();
     }
 }

@@ -12,6 +12,8 @@ import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.memory.MemoryViewCodec;
+import dev.friendai.net.MemoryViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -59,6 +61,15 @@ public class FriendaiClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(
                 PromptS2CPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> CompanionClientState.onPrompt(payload.prompt())));
+        ClientPlayNetworking.registerGlobalReceiver(MemoryViewS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> {
+                    try {
+                        CompanionClientState.onMemoryView(MemoryViewCodec.decode(payload.data()));
+                    } catch (IllegalArgumentException e) {
+                        // Keep the last good view: a bad packet must not empty the tab.
+                        FriendaiMod.LOGGER.warn("Dropping a malformed memory view: {}", e.getMessage());
+                    }
+                }));
         new PushToTalkHandler(VoiceRuntime::stt, text -> {
             if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
                 ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));

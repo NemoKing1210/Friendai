@@ -1,0 +1,179 @@
+package dev.friendai.debug;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.friendai.memory.Category;
+import dev.friendai.memory.MemoryLimits;
+import dev.friendai.memory.MemoryView;
+import dev.friendai.memory.MenuStatus;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+class MemoryTabModelTest {
+    private static final UUID O = UUID.fromString("00000000-0000-0000-0000-0000000000e0");
+    private static final UUID B = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+
+    private static MemoryView view(
+            List<MemoryView.Group> groups, List<MemoryView.FactRow> facts, Optional<MenuStatus> status) {
+        return new MemoryView(true, MemoryLimits.DEFAULTS, groups, facts, status);
+    }
+
+    private static MemoryView.Group owner() {
+        return new MemoryView.Group(O.toString(), "Steve", MemoryView.Role.OWNER, 1, true);
+    }
+
+    private static MemoryView.Group world() {
+        return new MemoryView.Group("world", "", MemoryView.Role.WORLD, 0, false);
+    }
+
+    private static MemoryView.Group bob() {
+        return new MemoryView.Group(B.toString(), "Bob", MemoryView.Role.TRUSTED, 1, true);
+    }
+
+    private static MemoryView.FactRow fact(int id, String groupKey, String text) {
+        return new MemoryView.FactRow(id, groupKey, Category.PLACE, text, "");
+    }
+
+    private static Optional<MenuStatus> status(String key) {
+        return Optional.of(MenuStatus.ok(key));
+    }
+
+    @Test
+    void firstViewSelectsOwnerGroup() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        assertEquals(O.toString(), model.group().orElseThrow().key());
+    }
+
+    @Test
+    void cyclingWrapsAround() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        model.next();
+        assertEquals("world", model.group().orElseThrow().key());
+        model.next();
+        assertEquals(O.toString(), model.group().orElseThrow().key());
+        model.previous();
+        assertEquals("world", model.group().orElseThrow().key());
+    }
+
+    @Test
+    void missingGroupFallsBackToOwner() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world(), bob()), List.of(), Optional.empty()));
+        model.next();
+        model.next();
+        assertEquals(B.toString(), model.group().orElseThrow().key());
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        assertEquals(O.toString(), model.group().orElseThrow().key());
+    }
+
+    @Test
+    void selectionClearedWhenFactGone() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(fact(1, O.toString(), "Base")), Optional.empty()));
+        model.select(1);
+        assertTrue(model.selected().isPresent());
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertTrue(model.selected().isEmpty());
+    }
+
+    @Test
+    void editedFactDisappearingCancelsEdit() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(fact(1, O.toString(), "Base")), Optional.empty()));
+        model.select(1);
+        assertTrue(model.startEdit());
+        assertEquals("Base", model.draftText());
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertTrue(model.editing().isEmpty());
+        assertEquals("", model.draftText());
+    }
+
+    @Test
+    void startEditCopiesFact() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(fact(1, O.toString(), "Base")), Optional.empty()));
+        model.select(1);
+        assertTrue(model.startEdit());
+        assertEquals(1, model.editing().orElseThrow());
+        assertEquals(Category.PLACE, model.draftCategory());
+        assertEquals("Base", model.draftText());
+    }
+
+    @Test
+    void startEditWithoutSelectionReturnsFalse() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(fact(1, O.toString(), "Base")), Optional.empty()));
+        assertFalse(model.startEdit());
+        assertTrue(model.editing().isEmpty());
+    }
+
+    @Test
+    void factsAreOnlyTheCurrentGroups() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(
+                List.of(owner(), world()),
+                List.of(fact(1, O.toString(), "own"), fact(2, "world", "shared")),
+                Optional.empty()));
+        assertEquals(List.of(1), model.facts().stream().map(MemoryView.FactRow::id).toList());
+        model.next();
+        assertEquals(List.of(2), model.facts().stream().map(MemoryView.FactRow::id).toList());
+    }
+
+    @Test
+    void clearNeedsSecondClickWithin3s() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertFalse(model.clickClear(0));
+        assertTrue(model.clearArmed(2999));
+        assertTrue(model.clickClear(2999));
+        assertFalse(model.clearArmed(3000));
+
+        MemoryTabModel slow = new MemoryTabModel();
+        slow.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertFalse(slow.clickClear(0));
+        assertFalse(slow.clickClear(3001));
+    }
+
+    @Test
+    void clearConfirmResetsOnGroupChange() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        assertFalse(model.clickClear(0));
+        model.next();
+        assertFalse(model.clickClear(100));
+    }
+
+    @Test
+    void statusHiddenAfterGroupChangeAndShownOnNewStatus() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), status("friendai.menu.memory.status.cleared")));
+        assertTrue(model.statusVisible());
+        model.next();
+        assertFalse(model.statusVisible());
+        model.onView(view(List.of(owner(), world()), List.of(), status("friendai.menu.memory.status.added")));
+        assertTrue(model.statusVisible());
+    }
+
+    @Test
+    void statusSurvivesAStatusFreeRefresh() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(), status("friendai.menu.memory.status.added")));
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertTrue(model.statusVisible());
+    }
+
+    @Test
+    void clearArmedExpiresWithoutClicking() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertFalse(model.clickClear(0));
+        assertFalse(model.clearArmed(3001));
+        assertFalse(model.clickClear(3001));
+    }
+}

@@ -20,6 +20,11 @@ interface MenuTab {
 
     default void tick() {}
 
+    /** A left click inside the tab's content area, in screen coordinates. True when the tab handled it. */
+    default boolean mouseClicked(double x, double y) {
+        return false;
+    }
+
     default boolean scroll(double amount) {
         return false;
     }

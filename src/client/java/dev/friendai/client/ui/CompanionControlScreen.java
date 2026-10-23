@@ -10,6 +10,7 @@ import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
@@ -26,6 +27,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Screen parent;
     private final Entry control = new Entry("friendai.menu.tab.control", new ControlTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
+    private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
@@ -50,6 +52,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public void removed() {
         CompanionRequests.send(RequestType.UNSUBSCRIBE);
+        if (selected == memory) {
+            CompanionRequests.send(RequestType.MEMORY_CLOSE);
+        }
     }
 
     @Override
@@ -77,12 +82,26 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(control, tasks));
+        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory));
         if (operator()) {
             tabs.add(log);
             tabs.add(debug);
         }
         return tabs;
+    }
+
+    private void select(Entry entry) {
+        if (entry == selected) {
+            return;
+        }
+        if (selected == memory) {
+            CompanionRequests.send(RequestType.MEMORY_CLOSE);
+        }
+        selected = entry;
+        if (entry == memory) {
+            CompanionRequests.send(RequestType.MEMORY_OPEN);
+        }
+        rebuildWidgets();
     }
 
     @Override
@@ -97,13 +116,15 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         top = 56;
         contentHeight = height - top - 34;
 
-        int barLeft = (width - tabs.size() * TAB_WIDTH) / 2;
+        // Five tabs no longer fit at small GUI scales, so they may share the width they have.
+        int tabWidth = Math.min(TAB_WIDTH, Math.max(40, (width - 20) / tabs.size()));
+        int barLeft = (width - tabs.size() * tabWidth) / 2;
         for (int i = 0; i < tabs.size(); i++) {
             Entry entry = tabs.get(i);
-            Button button = addRenderableWidget(Button.builder(Component.translatable(entry.titleKey()), b -> {
-                selected = entry;
-                rebuildWidgets();
-            }).bounds(barLeft + i * TAB_WIDTH, 24, TAB_WIDTH, 20).build());
+            Button button = addRenderableWidget(Button.builder(
+                            Component.translatable(entry.titleKey()), b -> select(entry))
+                    .bounds(barLeft + i * tabWidth, 24, tabWidth, 20)
+                    .build());
             button.active = entry != selected;
         }
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
@@ -118,6 +139,14 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             return;
         }
         selected.tab().tick();
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (event.button() == 0 && selected.tab().mouseClicked(event.x(), event.y())) {
+            return true;
+        }
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
