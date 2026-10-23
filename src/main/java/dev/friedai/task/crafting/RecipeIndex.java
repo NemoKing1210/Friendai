@@ -19,8 +19,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
@@ -40,10 +42,15 @@ public final class RecipeIndex implements RecipeBook {
     private static final Map<RecipeManager, RecipeIndex> CACHE = new WeakHashMap<>();
 
     private final Map<String, List<Recipe>> byOutput;
+    private final Map<String, List<Recipe>> cookingByInput;
     private final Map<String, RecipeHolder<?>> holders;
 
-    private RecipeIndex(Map<String, List<Recipe>> byOutput, Map<String, RecipeHolder<?>> holders) {
+    private RecipeIndex(
+            Map<String, List<Recipe>> byOutput,
+            Map<String, List<Recipe>> cookingByInput,
+            Map<String, RecipeHolder<?>> holders) {
         this.byOutput = byOutput;
+        this.cookingByInput = cookingByInput;
         this.holders = holders;
     }
 
@@ -62,6 +69,11 @@ public final class RecipeIndex implements RecipeBook {
     @Override
     public List<Recipe> producing(String item) {
         return byOutput.getOrDefault(item, List.of());
+    }
+
+    /** Cooking recipes whose ingredient accepts this item, in furnace, blast furnace, smoker, campfire order. */
+    public List<Recipe> cookingFrom(String inputItem) {
+        return cookingByInput.getOrDefault(inputItem, List.of());
     }
 
     @Override
@@ -89,6 +101,7 @@ public final class RecipeIndex implements RecipeBook {
         ContextMap context = SlotDisplayContext.fromLevel(level);
 
         Map<String, List<Recipe>> byOutput = new LinkedHashMap<>();
+        Map<String, List<Recipe>> cookingByInput = new LinkedHashMap<>();
         Map<String, RecipeHolder<?>> holders = new LinkedHashMap<>();
 
         for (RecipeHolder<?> holder : sorted) {
@@ -110,10 +123,37 @@ public final class RecipeIndex implements RecipeBook {
                 add(holder, Station.SMITHING_TABLE, context, byOutput, holders);
             }
         }
+        for (RecipeHolder<?> holder : sorted) {
+            if (holder.value() instanceof AbstractCookingRecipe cooking) {
+                Station station = cookingStation(cooking.getType());
+                if (station != null) {
+                    add(holder, station, context, byOutput, holders, cooking.cookingTime(), cookingByInput);
+                }
+            }
+        }
 
         Map<String, List<Recipe>> frozen = new LinkedHashMap<>();
         byOutput.forEach((output, recipes) -> frozen.put(output, List.copyOf(recipes)));
-        return new RecipeIndex(Map.copyOf(frozen), Map.copyOf(holders));
+        Map<String, List<Recipe>> frozenCooking = new LinkedHashMap<>();
+        cookingByInput.forEach((input, recipes) -> frozenCooking.put(input, List.copyOf(recipes)));
+        return new RecipeIndex(Map.copyOf(frozen), Map.copyOf(frozenCooking), Map.copyOf(holders));
+    }
+
+    /** The station a cooking recipe type runs on, or null for a type this mod does not cook with. */
+    private static Station cookingStation(RecipeType<?> type) {
+        if (type == RecipeType.SMELTING) {
+            return Station.FURNACE;
+        }
+        if (type == RecipeType.BLASTING) {
+            return Station.BLAST_FURNACE;
+        }
+        if (type == RecipeType.SMOKING) {
+            return Station.SMOKER;
+        }
+        if (type == RecipeType.CAMPFIRE_COOKING) {
+            return Station.CAMPFIRE;
+        }
+        return null;
     }
 
     private static void add(
@@ -122,6 +162,17 @@ public final class RecipeIndex implements RecipeBook {
             ContextMap context,
             Map<String, List<Recipe>> byOutput,
             Map<String, RecipeHolder<?>> holders) {
+        add(holder, station, context, byOutput, holders, 0, null);
+    }
+
+    private static void add(
+            RecipeHolder<?> holder,
+            Station station,
+            ContextMap context,
+            Map<String, List<Recipe>> byOutput,
+            Map<String, RecipeHolder<?>> holders,
+            int cookTicks,
+            Map<String, List<Recipe>> cookingByInput) {
         if (holder.value().isSpecial() || holder.value().placementInfo().isImpossibleToPlace()) {
             return;
         }
@@ -135,8 +186,15 @@ public final class RecipeIndex implements RecipeBook {
         }
         String id = pureId(holder);
         String output = BuiltInRegistries.ITEM.getKey(result.getItem()).toString();
-        Recipe recipe = new Recipe(id, output, result.getCount(), ingredients, station);
+        Recipe recipe = new Recipe(id, output, result.getCount(), ingredients, station, cookTicks);
         byOutput.computeIfAbsent(output, key -> new ArrayList<>()).add(recipe);
+        if (cookingByInput != null) {
+            for (Ingredient ingredient : ingredients) {
+                for (String input : ingredient.items()) {
+                    cookingByInput.computeIfAbsent(input, key -> new ArrayList<>()).add(recipe);
+                }
+            }
+        }
         holders.put(id, holder);
     }
 

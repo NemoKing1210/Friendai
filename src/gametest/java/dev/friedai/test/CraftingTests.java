@@ -154,8 +154,9 @@ public class CraftingTests {
         h.assertTrue(!r.error(), "error: " + r.content());
         h.assertTrue(
                 r.content()
-                        .equals("minecraft:netherite_scrap has no crafting, stonecutter or smithing recipe "
-                                + "(it has to be found, mined or smelted)"),
+                        .equals("minecraft:netherite_scrap ×1 in a furnace (10 s) from 1 × minecraft:ancient_debris\n"
+                                + "minecraft:netherite_scrap ×1 in a blast furnace (10 s) from 1 × minecraft:ancient_debris\n"
+                                + "can't craft 1 minecraft:netherite_scrap yet; missing: 1 × minecraft:netherite_scrap"),
                 "content was " + r.content());
         h.succeed();
     }

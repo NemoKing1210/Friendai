@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Finding crafting stations around the companion and judging whether a place looks like a base. */
@@ -44,12 +45,17 @@ public final class Stations {
         BlockMatcher matcher = new BlockMatcher() {
             @Override
             public boolean test(BlockState state) {
+                if (station == Station.CAMPFIRE) {
+                    return state.is(BlockTags.CAMPFIRES) && CampfireBlock.isLitCampfire(state);
+                }
                 return state.is(block);
             }
 
             @Override
             public String label() {
-                return BuiltInRegistries.BLOCK.getKey(block).toString();
+                return station == Station.CAMPFIRE
+                        ? "#minecraft:campfires"
+                        : BuiltInRegistries.BLOCK.getKey(block).toString();
             }
         };
         List<BlockPos> found = BlockSearch.nearestN(level, origin, SEARCH_RADIUS, matcher, Set.of(), 1);

@@ -22,7 +22,8 @@
 			"dev.friedai.test.BrainServiceTests",
 			"dev.friedai.test.VoiceTests",
 			"dev.friedai.test.CompanionControlTests",
-			"dev.friedai.test.CraftingTests"
+			"dev.friedai.test.CraftingTests",
+			"dev.friedai.test.CookingTests"
 		]
 	},
 	"depends": {
