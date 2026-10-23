@@ -2,6 +2,7 @@ package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
+import dev.friendai.movement.PaceMode;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
@@ -11,6 +12,7 @@ import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.interact.CompanionHands;
+import dev.friendai.task.nav.Pace;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +35,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
@@ -57,6 +60,8 @@ public class CompanionEntity extends PathfinderMob {
     private transient PreviewOutline previewOutline;
     private int furnaceWatchTicks;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
+    private PaceMode paceMode = PaceMode.AUTO;
+    private final Pace pace = new Pace(this);
     private int lastDamageTick;
     private int regenTicks;
 
@@ -115,6 +120,9 @@ public class CompanionEntity extends PathfinderMob {
             }
             combatController.tick();
             taskRunner.tick();
+            if (isSprinting() && getNavigation().isDone()) {
+                setSprinting(false);
+            }
             if (++furnaceWatchTicks % 20 == 0) {
                 furnaceJobs.tick(this);
             }
@@ -195,6 +203,30 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setCombatMode(CombatMode mode) {
         this.combatMode = mode == null ? CombatMode.DEFENSIVE : mode;
+    }
+
+    public PaceMode paceMode() {
+        return paceMode;
+    }
+
+    public void setPaceMode(PaceMode mode) {
+        this.paceMode = mode == null ? PaceMode.AUTO : mode;
+    }
+
+    /** Decides between walking and running; the movement code calls it before it starts a path. */
+    public Pace pace() {
+        return pace;
+    }
+
+    /** Running is possible on dry land, not riding, and with enough food. */
+    @Override
+    public boolean canSprint() {
+        return !isInWater() && !getInBlockState().is(Blocks.BUBBLE_COLUMN) && !isPassenger() && sprintFoodOk();
+    }
+
+    /** Whether the companion has the stamina to run; always true until hunger exists, then the food check goes here. */
+    protected boolean sprintFoodOk() {
+        return true;
     }
 
     public void setOwner(UUID owner) {
@@ -286,6 +318,7 @@ public class CompanionEntity extends PathfinderMob {
         }
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
         output.putString("CombatMode", combatMode.label());
+        output.putString("PaceMode", paceMode.label());
         taskRunner.current().map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
     }
 
@@ -295,6 +328,7 @@ public class CompanionEntity extends PathfinderMob {
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
         this.combatMode = CombatMode.parse(input.getString("CombatMode").orElse(null));
+        this.paceMode = PaceMode.parse(input.getString("PaceMode").orElse(null));
         if (level() instanceof ServerLevel) {
             input.getString("SavedTask").flatMap(TaskFactory::restore).ifPresent(taskRunner::restore);
         }

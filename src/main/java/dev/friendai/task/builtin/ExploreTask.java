@@ -209,6 +209,7 @@ public final class ExploreTask implements Task {
                 previousFoot = companion.blockPosition();
                 return TaskStatus.RUNNING;
             }
+            companion.pace().update(false, Double.NaN);
             if (walkTicks++ % 10 == 0) {
                 companion.getNavigation().moveTo(walkTo.x, walkTo.y, walkTo.z, 1.0);
             }

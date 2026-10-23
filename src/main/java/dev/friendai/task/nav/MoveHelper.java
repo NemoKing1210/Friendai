@@ -1,5 +1,6 @@
 package dev.friendai.task.nav;
 
+import dev.friendai.entity.CompanionEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.phys.Vec3;
 
@@ -36,6 +37,9 @@ public final class MoveHelper {
             return State.ARRIVED;
         }
         double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (mob instanceof CompanionEntity companion) {
+            companion.pace().update(false, Double.NaN);
+        }
         if (ticks % REPATH_TICKS == 0) {
             mob.getNavigation().moveTo(target.x, target.y, target.z, speed);
         }

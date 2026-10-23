@@ -48,6 +48,9 @@ public final class FollowTask implements Task {
         } else if (!moving && distance > START_DISTANCE) {
             moving = true;
         }
+        if (moving) {
+            companion.pace().update(true, distance);
+        }
         if (moving && ticks++ % 10 == 0) {
             companion.getNavigation().moveTo(owner, 1.0);
         }

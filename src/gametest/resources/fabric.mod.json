@@ -31,7 +31,8 @@
 			"dev.friendai.test.FarmingTests",
 			"dev.friendai.test.ObtainTests",
 			"dev.friendai.test.BuildTests",
-			"dev.friendai.test.OwnerViewTests"
+			"dev.friendai.test.OwnerViewTests",
+			"dev.friendai.test.PaceTests"
 		]
 	},
 	"depends": {
