@@ -4,11 +4,21 @@ import dev.friedai.crafting.obtain.Source;
 import dev.friedai.crafting.obtain.Tier;
 import dev.friedai.crafting.obtain.ToolKind;
 import dev.friedai.crafting.obtain.ToolNeed;
+import dev.friedai.crafting.obtain.WorldFacts;
+import dev.friedai.entity.CompanionEntity;
+import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.obtain.DropIndex;
+import dev.friedai.task.obtain.WorldScan;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 
 public class ObtainTests {
     private static Optional<Source.Mine> mineOf(DropIndex index, String item, String block) {
@@ -70,6 +80,53 @@ public class ObtainTests {
     @GameTest
     public void indexBuiltOnce(GameTestHelper h) {
         h.assertTrue(DropIndex.of(h.getLevel()) == DropIndex.of(h.getLevel()), "index was rebuilt");
+        h.succeed();
+    }
+
+    @GameTest
+    public void scanCountsBlocksMobsChests(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 300, 32);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 301, 2);
+        h.setBlock(4, 301, 2, Blocks.IRON_ORE);
+        h.setBlock(5, 301, 2, Blocks.IRON_ORE);
+        h.setBlock(6, 301, 2, Blocks.IRON_ORE);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 8, 301, 8);
+        h.setBlock(3, 301, 8, Blocks.CHEST);
+        h.setBlock(6, 300, 6, Blocks.FARMLAND);
+        h.setBlock(7, 300, 6, Blocks.FARMLAND);
+        h.setBlock(6, 301, 6, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(7, 301, 6, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+
+        h.succeedWhen(() -> {
+            Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(3, 301, 8)));
+            h.assertTrue(chest != null, "chest block entity is missing");
+            chest.setItem(0, new ItemStack(Items.IRON_INGOT, 2));
+            chest.setChanged();
+            WorldFacts world = WorldScan.scan(h.getLevel(), c, 32, true, false);
+            h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:iron_ore", 0), 3, "iron ore blocks");
+            h.assertValueEqual(world.mobsNearby().getOrDefault("minecraft:cow", 0), 1, "cows");
+            h.assertValueEqual(world.containerItems().getOrDefault("minecraft:iron_ingot", 0), 2, "chest ingots");
+            h.assertValueEqual(world.matureCrops().getOrDefault("minecraft:wheat", 0), 2, "mature wheat");
+        });
+    }
+
+    @GameTest
+    public void scanWithoutContainers(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(3, 2, 8, Blocks.CHEST);
+
+        WorldFacts world = WorldScan.scan(h.getLevel(), c, 32, false, false);
+        h.assertTrue(world.containerItems().isEmpty(), "containers were read: " + world.containerItems());
+        h.succeed();
+    }
+
+    @GameTest
+    public void scanOverworldFlag(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        WorldFacts world = WorldScan.scan(h.getLevel(), c, 32, false, false);
+        h.assertTrue(world.dimensionHasOre(), "the overworld has ores");
         h.succeed();
     }
 
