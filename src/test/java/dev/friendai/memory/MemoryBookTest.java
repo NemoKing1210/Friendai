@@ -197,4 +197,97 @@ class MemoryBookTest {
         f.facts.add(e);
         assertTrue(MemoryBook.fromFile(f).allFacts().isEmpty());
     }
+
+    @Test
+    void limitErrorsAreTypedAndKeepTheModelText() {
+        var b = new MemoryBook();
+        var e = assertThrows(MemoryLimitException.class,
+                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L));
+        assertEquals(MemoryLimitException.Kind.TOO_LONG, e.kind());
+        assertEquals(List.of(161, 160), e.values());
+        assertEquals("Fact is too long (161 chars, max 160). Shorten it.", e.getMessage());
+    }
+
+    @Test
+    void emptyTextIsTyped() {
+        var b = new MemoryBook();
+        var e = assertThrows(MemoryLimitException.class,
+                () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L));
+        assertEquals(MemoryLimitException.Kind.EMPTY, e.kind());
+        assertEquals(List.of(), e.values());
+        assertEquals("Fact text is empty.", e.getMessage());
+    }
+
+    @Test
+    void fullCarriesSubjectAndMax() {
+        var limits = new MemoryLimits(160, 20, 1);
+        var b = new MemoryBook();
+        b.addFact(Subject.WORLD, Category.NOTE, "one", A, "S", 0, limits);
+        var e = assertThrows(MemoryLimitException.class,
+                () -> b.addFact(Subject.WORLD, Category.NOTE, "two", A, "S", 0, limits));
+        assertEquals(MemoryLimitException.Kind.FULL, e.kind());
+        assertEquals(List.of(Subject.WORLD, 1), e.values());
+    }
+
+    @Test
+    void editKeepsIdAndSubjectAndChangesAuthor() {
+        var b = new MemoryBook();
+        int id = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", B, "Bob", 1, L).id();
+        Fact f = b.editFact(id, Category.PREFERENCE, "Likes  big cats", A, "Steve", 9, L);
+        assertEquals(new Fact(id, Subject.player(B), Category.PREFERENCE, "Likes big cats", A, "Steve", 9), f);
+    }
+
+    @Test
+    void editToOwnTextIsAllowed() {
+        var b = new MemoryBook();
+        int id = b.addFact(Subject.player(B), Category.NOTE, "cats", A, "S", 0, L).id();
+        Fact f = b.editFact(id, Category.PREFERENCE, "cats", A, "S", 1, L);
+        assertEquals(id, f.id());
+        assertEquals(Category.PREFERENCE, f.category());
+        assertEquals("cats", f.text());
+    }
+
+    @Test
+    void editDuplicateOfAnotherFact() {
+        var b = new MemoryBook();
+        int first = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", A, "S", 0, L).id();
+        int second = b.addFact(Subject.player(B), Category.NOTE, "Likes dogs", A, "S", 0, L).id();
+        var e = assertThrows(MemoryLimitException.class,
+                () -> b.editFact(second, Category.NOTE, "  likes CATS ", A, "S", 1, L));
+        assertEquals(MemoryLimitException.Kind.DUPLICATE, e.kind());
+        assertEquals(List.of(first), e.values());
+        assertEquals("This is already remembered as [" + first + "].", e.getMessage());
+    }
+
+    @Test
+    void editMissingFact() {
+        var e = assertThrows(MemoryLimitException.class,
+                () -> new MemoryBook().editFact(5, Category.NOTE, "x", A, "S", 0, L));
+        assertEquals(MemoryLimitException.Kind.NO_FACT, e.kind());
+        assertEquals("There is no fact [5].", e.getMessage());
+    }
+
+    @Test
+    void revisionGrowsOnEveryMutationOnly() {
+        var b = new MemoryBook();
+        long r = b.revision();
+        b.touch(A, "Steve", 1);
+        assertEquals(++r, b.revision());
+        int id = b.addFact(Subject.WORLD, Category.NOTE, "a", A, "S", 0, L).id();
+        assertEquals(++r, b.revision());
+        b.editFact(id, Category.PLACE, "a", A, "S", 0, L);
+        assertEquals(++r, b.revision());
+        b.facts(Subject.WORLD);
+        b.player(A);
+        b.allFacts();
+        assertEquals(r, b.revision());
+        assertFalse(b.removeFact(999));
+        assertEquals(r, b.revision());
+        assertTrue(b.removeFact(id));
+        assertEquals(++r, b.revision());
+        assertEquals(0, b.clearAllFacts());
+        assertEquals(r, b.revision());
+        b.setTrusted(B, "Bob", true, 0);
+        assertEquals(++r, b.revision());
+    }
 }

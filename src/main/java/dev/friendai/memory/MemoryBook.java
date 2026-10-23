@@ -17,7 +17,13 @@ public final class MemoryBook {
     private final Map<UUID, PlayerRecord> players = new LinkedHashMap<>();
     private final TreeMap<Integer, Fact> facts = new TreeMap<>();
     private int nextId = 1;
+    private long revision;
     private boolean dirty;
+
+    /** Changes on every mutation; the menu compares it with the last revision it sent. Not persisted. */
+    public long revision() {
+        return revision;
+    }
 
     public Optional<PlayerRecord> player(UUID uuid) {
         return Optional.ofNullable(players.get(uuid));
@@ -45,11 +51,13 @@ public final class MemoryBook {
         if (existing == null) {
             players.put(uuid, new PlayerRecord(uuid, name, false, 0));
             dirty = true;
+            revision++;
             return;
         }
         if (name != null && !name.equals(existing.lastName())) {
             players.put(uuid, new PlayerRecord(uuid, name, existing.trusted(), existing.lastSeen()));
             dirty = true;
+            revision++;
         }
     }
 
@@ -59,6 +67,7 @@ public final class MemoryBook {
         boolean trusted = existing != null && existing.trusted();
         players.put(uuid, new PlayerRecord(uuid, name, trusted, now));
         dirty = true;
+        revision++;
     }
 
     /** Creates or updates the record. Returns whether the trust flag actually changed. */
@@ -68,12 +77,14 @@ public final class MemoryBook {
             if (name != null && !name.equals(existing.lastName())) {
                 players.put(uuid, new PlayerRecord(uuid, name, trusted, existing.lastSeen()));
                 dirty = true;
+                revision++;
             }
             return false;
         }
         long lastSeen = existing == null ? now : existing.lastSeen();
         players.put(uuid, new PlayerRecord(uuid, name, trusted, lastSeen));
         dirty = true;
+        revision++;
         return true;
     }
 
@@ -116,14 +127,8 @@ public final class MemoryBook {
             String authorName,
             long now,
             MemoryLimits limits) {
-        String normalized = text == null ? "" : text.strip().replaceAll("\\s+", " ");
-        if (normalized.isBlank()) {
-            throw new IllegalArgumentException("Fact text is empty.");
-        }
-        if (normalized.length() > limits.maxFactChars()) {
-            throw new IllegalArgumentException("Fact is too long (" + normalized.length() + " chars, max "
-                    + limits.maxFactChars() + "). Shorten it.");
-        }
+        String normalized = normalize(text);
+        checkText(normalized, limits);
         Optional<Fact> duplicate = facts.values().stream()
                 .filter(f -> f.subject().equals(subject) && f.text().equalsIgnoreCase(normalized))
                 .findFirst();
@@ -132,17 +137,77 @@ public final class MemoryBook {
             Fact updated = new Fact(old.id(), subject, category, normalized, authorUuid, authorName, now);
             facts.put(old.id(), updated);
             dirty = true;
+            revision++;
             return updated;
         }
         int max = subject instanceof Subject.World ? limits.maxWorldFacts() : limits.maxFactsPerPlayer();
         if (facts(subject).size() >= max) {
-            throw new IllegalArgumentException(
-                    "Memory about " + label(subject) + " is full (" + max + " facts). Forget something first.");
+            throw new MemoryLimitException(
+                    MemoryLimitException.Kind.FULL,
+                    "Memory about " + label(subject) + " is full (" + max + " facts). Forget something first.",
+                    List.of(subject, max));
         }
         Fact fact = new Fact(nextId++, subject, category, normalized, authorUuid, authorName, now);
         facts.put(fact.id(), fact);
         dirty = true;
+        revision++;
         return fact;
+    }
+
+    /**
+     * Replaces a fact's category, text, author and time, keeping its id and subject. Editing a fact to its
+     * own current text is allowed; another fact of the same subject with that text is a duplicate.
+     */
+    public Fact editFact(
+            int id,
+            Category category,
+            String text,
+            UUID authorUuid,
+            String authorName,
+            long now,
+            MemoryLimits limits) {
+        Fact existing = facts.get(id);
+        if (existing == null) {
+            throw new MemoryLimitException(
+                    MemoryLimitException.Kind.NO_FACT, "There is no fact [" + id + "].", List.of(id));
+        }
+        String normalized = normalize(text);
+        checkText(normalized, limits);
+        Optional<Fact> duplicate = facts.values().stream()
+                .filter(f -> f.id() != id
+                        && f.subject().equals(existing.subject())
+                        && f.text().equalsIgnoreCase(normalized))
+                .findFirst();
+        if (duplicate.isPresent()) {
+            int otherId = duplicate.get().id();
+            throw new MemoryLimitException(
+                    MemoryLimitException.Kind.DUPLICATE,
+                    "This is already remembered as [" + otherId + "].",
+                    List.of(otherId));
+        }
+        Fact updated =
+                new Fact(id, existing.subject(), category, normalized, authorUuid, authorName, now);
+        facts.put(id, updated);
+        dirty = true;
+        revision++;
+        return updated;
+    }
+
+    private static String normalize(String text) {
+        return text == null ? "" : text.strip().replaceAll("\\s+", " ");
+    }
+
+    private static void checkText(String normalized, MemoryLimits limits) {
+        if (normalized.isBlank()) {
+            throw new MemoryLimitException(MemoryLimitException.Kind.EMPTY, "Fact text is empty.", List.of());
+        }
+        if (normalized.length() > limits.maxFactChars()) {
+            throw new MemoryLimitException(
+                    MemoryLimitException.Kind.TOO_LONG,
+                    "Fact is too long (" + normalized.length() + " chars, max " + limits.maxFactChars()
+                            + "). Shorten it.",
+                    List.of(normalized.length(), limits.maxFactChars()));
+        }
     }
 
     public boolean removeFact(int id) {
@@ -150,6 +215,7 @@ public final class MemoryBook {
             return false;
         }
         dirty = true;
+        revision++;
         return true;
     }
 
@@ -159,6 +225,7 @@ public final class MemoryBook {
         matching.forEach(f -> facts.remove(f.id()));
         if (!matching.isEmpty()) {
             dirty = true;
+            revision++;
         }
         return matching.size();
     }
@@ -169,6 +236,7 @@ public final class MemoryBook {
         facts.clear();
         if (removed > 0) {
             dirty = true;
+            revision++;
         }
         return removed;
     }
