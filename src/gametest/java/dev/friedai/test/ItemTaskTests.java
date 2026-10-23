@@ -81,7 +81,7 @@ public class ItemTaskTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
-            h.assertValueEqual(3, c.inventory().countItem(Items.EGG), "eggs");
+            h.assertValueEqual(c.inventory().countItem(Items.EGG), 3, "eggs");
             h.assertTrue(!cobblestone.isRemoved(), "cobblestone should stay on the ground");
             h.assertTrue(result.summary.equals("picked up 3 items"), "summary was " + result.summary);
         });
