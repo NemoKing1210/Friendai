@@ -10,6 +10,8 @@ import dev.friedai.task.builtin.EquipTask;
 import dev.friedai.task.builtin.HuntTask;
 import dev.friedai.task.combat.CombatController;
 import dev.friedai.task.combat.Threats;
+import dev.friedai.task.builtin.MineBlocksTask;
+import dev.friedai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +46,7 @@ public class CombatTests {
 
         TaskStatus finalStatus;
         String finalSummary;
+        final List<String> cancelled = Collections.synchronizedList(new ArrayList<>());
 
         void reset() {
             finalStatus = null;
@@ -57,7 +60,9 @@ public class CombatTests {
         }
 
         @Override
-        public void onCancelled(int id, String toolName, String reason) {}
+        public void onCancelled(int id, String toolName, String reason) {
+            cancelled.add(toolName + ":" + reason);
+        }
 
         @Override
         public void onNotice(String text) {
@@ -173,6 +178,7 @@ public class CombatTests {
                             + ", state " + c.combatController().state()
                             + ", target " + c.combatController().target()
                             + ", distance " + c.distanceTo(husk)
+                            + ", companion health " + c.getHealth() + "/alive " + c.isAlive()
                             + ", main hand " + c.getMainHandItem());
             String expected = "a husk attacked " + owner.getName().getString() + "; defending";
             h.assertTrue(notices.texts.stream().anyMatch(n -> n.startsWith(expected)), "notices " + notices.texts);
@@ -648,6 +654,37 @@ public class CombatTests {
             h.assertTrue(notices.finalSummary.equals("I won't eat minecraft:rotten_flesh"),
                     "rotten flesh summary " + notices.finalSummary);
             h.succeed();
+        });
+    }
+
+
+    @GameTest(maxTicks = 2400)
+    public void miningResumesAfterFight(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        h.setBlock(8, 2, 2, Blocks.CRIMSON_STEM);
+        h.setBlock(8, 3, 2, Blocks.CRIMSON_STEM);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        Notices notices = listen(c);
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        zombie.setCustomName(Component.literal("test-mining-zombie"));
+        zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(60.0);
+        zombie.setHealth(60.0F);
+        zombie.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(0.1);
+        roof(h, 5, 2);
+        c.taskRunner().start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:crimson_stem").orElseThrow(), 2, 8),
+                "mine_blocks");
+        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.runAfterDelay(120, () -> h.assertTrue(c.taskRunner().paused(),
+                "the runner must be paused during the fight, state " + c.combatController().state()));
+        h.succeedWhen(() -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "status " + notices.finalStatus + " " + notices.finalSummary
+                            + ", cancelled " + notices.cancelled
+                            + ", state " + c.combatController().state());
+            h.assertTrue(notices.finalSummary.contains("mined 2"), "summary " + notices.finalSummary);
+            h.assertTrue(notices.cancelled.isEmpty(), "the task must not be cancelled: " + notices.cancelled);
         });
     }
 
