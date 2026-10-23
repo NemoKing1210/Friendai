@@ -5,6 +5,7 @@ import dev.friedai.entity.FriedaiEntities;
 import dev.friedai.task.TaskListener;
 import dev.friedai.task.TaskRunner;
 import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.CheckContainerTask;
 import dev.friedai.task.builtin.StoreItemsTask;
 import dev.friedai.task.builtin.TakeItemsTask;
 import dev.friedai.task.interact.ContainerAccess;
@@ -321,8 +322,8 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            ChestBlockEntity chest = h.getBlockEntity(new BlockPos(5, 2, 5), ChestBlockEntity.class);
-            h.assertTrue(chest.getEntitiesWithContainerOpen().isEmpty(), "the lid must be closed");
+            h.assertTrue(ChestBlockEntity.getOpenCount(h.getLevel(), h.absolutePos(new BlockPos(5, 2, 5))) == 0,
+                    "the lid must be closed");
         });
     }
 
@@ -407,20 +408,93 @@ public class StorageTests {
     }
 
     @GameTest(maxTicks = 400)
-    public void takeMissingItemFails(GameTestHelper h) {
+    public void checkListsContents(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        h.setBlock(6, 2, 6, Blocks.CHEST);
-        containerAt(h, 6, 2, 6).setItem(0, new ItemStack(Items.DIRT, 1));
+        h.setBlock(6, 2, 6, Blocks.BARREL);
+        Container barrel = containerAt(h, 6, 2, 6);
+        barrel.setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        barrel.setItem(3, new ItemStack(Items.IRON_INGOT, 12));
+        barrel.setItem(4, new ItemStack(Items.COBBLESTONE, 20));
         CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new TakeItemsTask(matcher("minecraft:quartz"), 1, target), "take_items");
+        runner.start(new CheckContainerTask(target), "check_container");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("the chest at " + coords(target) + " has no minecraft:quartz"),
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("minecraft:barrel at " + coords(target)
+                    + " holds: cobblestone×84, iron_ingot×12 (3 of 27 slots used)"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void checkEmpty(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new CheckContainerTask(target), "check_container");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("minecraft:chest at " + coords(target) + " is empty"),
                     "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void checkManyKinds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        net.minecraft.world.item.Item[] items = {
+            Items.COBBLESTONE, Items.DIRT, Items.GRANITE, Items.DIORITE, Items.ANDESITE, Items.STONE,
+            Items.OAK_LOG, Items.BIRCH_LOG, Items.SAND, Items.GRAVEL, Items.COAL, Items.IRON_INGOT,
+            Items.GOLD_INGOT, Items.COPPER_INGOT, Items.DIAMOND, Items.EMERALD, Items.REDSTONE,
+            Items.LAPIS_LAZULI, Items.QUARTZ, Items.CLAY_BALL, Items.BRICK, Items.FLINT
+        };
+        for (int i = 0; i < items.length; i++) {
+            chest.setItem(i, new ItemStack(items[i], 1));
+        }
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new CheckContainerTask(target), "check_container");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.endsWith("… and 2 more kinds (22 of 27 slots used)"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void checkStopClosesContainer(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(5, 2, 5));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new CheckContainerTask(target), "check_container");
+        boolean[] opened = {false};
+        boolean[] stopped = {false};
+        h.succeedWhen(() -> {
+            if (!stopped[0]) {
+                runner.tick();
+                if (ChestBlockEntity.getOpenCount(h.getLevel(), target) > 0) {
+                    opened[0] = true;
+                    runner.stop("test");
+                    stopped[0] = true;
+                }
+            }
+            h.assertTrue(opened[0] && stopped[0], "waiting for the lid to open");
+            h.assertTrue(ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
+                    "the lid must close on stop, openers "
+                            + ChestBlockEntity.getOpenCount(h.getLevel(), target));
         });
     }
 }

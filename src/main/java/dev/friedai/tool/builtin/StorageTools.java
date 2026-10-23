@@ -1,6 +1,7 @@
 package dev.friedai.tool.builtin;
 
 import dev.friedai.entity.CompanionEntity;
+import dev.friedai.task.builtin.CheckContainerTask;
 import dev.friedai.task.builtin.StoreItemsTask;
 import dev.friedai.task.builtin.TakeItemsTask;
 import dev.friedai.task.inventory.ItemMatcher;
@@ -45,6 +46,15 @@ final class StorageTools {
                         ToolKit.parseItemMatcher(a.get("item").getAsString()),
                         a.get("count").getAsInt(),
                         ToolKit.optionalPos(a).orElse(null)),
+                true));
+        ToolKit.add(registry, defs, new TaskToolDef("check_container",
+                "Walk to a chest, barrel or other storage container and report what is inside.",
+                SchemaBuilder.object()
+                        .integer("x", "Container X coordinate")
+                        .integer("y", "Container Y coordinate")
+                        .integer("z", "Container Z coordinate")
+                        .build(),
+                (c, a) -> new CheckContainerTask(ToolKit.optionalPos(a).orElse(null)),
                 true));
     }
 }
