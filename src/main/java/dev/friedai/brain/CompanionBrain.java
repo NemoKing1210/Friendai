@@ -38,6 +38,7 @@ public final class CompanionBrain {
     private final Speaker speaker;
     private final BrainScheduler scheduler;
     private final AccessResolver access;
+    private final MemorySource memorySource;
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
 
@@ -60,6 +61,19 @@ public final class CompanionBrain {
             Speaker speaker,
             BrainScheduler scheduler,
             AccessResolver access) {
+        this(persona, settings, gateway, tools, perception, speaker, scheduler, access, MemorySource.NONE);
+    }
+
+    public CompanionBrain(
+            Supplier<Persona> persona,
+            Supplier<BrainSettings> settings,
+            Supplier<LlmGateway> gateway,
+            ToolExecutor tools,
+            PerceptionSource perception,
+            Speaker speaker,
+            BrainScheduler scheduler,
+            AccessResolver access,
+            MemorySource memorySource) {
         this.persona = persona;
         this.settings = settings;
         this.gateway = gateway;
@@ -68,6 +82,7 @@ public final class CompanionBrain {
         this.speaker = speaker;
         this.scheduler = scheduler;
         this.access = access;
+        this.memorySource = memorySource;
         this.turnCaller = new Caller(access.owner(), "", AccessLevel.OWNER);
         this.memory = new ConversationMemory(settings.get().historyMessages());
     }
@@ -129,7 +144,8 @@ public final class CompanionBrain {
 
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
-        return PromptBuilder.system(persona.get(), perception.describe(), turnCaller);
+        return PromptBuilder.system(
+                persona.get(), perception.describe(), turnCaller, memorySource.describe(turnCaller));
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -199,7 +215,8 @@ public final class CompanionBrain {
             return;
         }
         step++;
-        String system = PromptBuilder.system(persona.get(), perception.describe(), turnCaller);
+        String system = PromptBuilder.system(
+                persona.get(), perception.describe(), turnCaller, memorySource.describe(turnCaller));
         CompletableFuture<LlmResponse> future;
         try {
             future = gateway.get().complete(system, memory.snapshot(), tools.specs(turnCaller.access()));

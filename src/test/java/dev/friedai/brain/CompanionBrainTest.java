@@ -286,6 +286,26 @@ class CompanionBrainTest {
     }
 
     @Test
+    void memoryBlockFollowsTurnCaller() {
+        brain = new CompanionBrain(
+                () -> new Persona("Friedai", "friendly", "auto"),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
+                () -> gatewaySupplier.get(),
+                tools,
+                () -> perceptionText,
+                speaker,
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains),
+                caller -> "MEM:" + caller.access().label());
+        gateway.enqueue(text("guest reply"));
+        gateway.enqueue(text("owner reply"));
+        brain.post(guest("hi"));
+        assertTrue(gateway.requests.get(0).system().contains("MEM:guest"));
+        brain.post(said("hi"));
+        assertTrue(gateway.requests.get(1).system().contains("MEM:owner"));
+    }
+
+    @Test
     void gatewaySupplierReadEachTurn() {
         FakeGateway other = new FakeGateway();
         gateway.enqueue(text("a"));
