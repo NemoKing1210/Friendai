@@ -10,16 +10,20 @@ import java.util.Map;
  * Test recipe book: recipes are added in order and returned per output in that order. Station items are
  * the three vanilla stations. Subclasses can build richer fixtures on top of {@link #add(Recipe)}.
  */
-class FakeRecipeBook implements RecipeBook {
+public class FakeRecipeBook implements RecipeBook {
     private static final Map<Station, String> STATION_ITEMS = Map.of(
             Station.CRAFTING_TABLE, "minecraft:crafting_table",
             Station.STONECUTTER, "minecraft:stonecutter",
-            Station.SMITHING_TABLE, "minecraft:smithing_table");
+            Station.SMITHING_TABLE, "minecraft:smithing_table",
+            Station.FURNACE, "minecraft:furnace",
+            Station.SMOKER, "minecraft:smoker",
+            Station.BLAST_FURNACE, "minecraft:blast_furnace",
+            Station.CAMPFIRE, "minecraft:campfire");
 
     private final Map<String, List<Recipe>> byOutput = new LinkedHashMap<>();
 
     /** The recipes the planner tests reason about, ordered like a vanilla book. */
-    static FakeRecipeBook vanillaLike() {
+    public static FakeRecipeBook vanillaLike() {
         Ingredient planks = Ingredient.tag("minecraft:planks", "minecraft:oak_planks", "minecraft:birch_planks");
         Ingredient ironIngot = Ingredient.of("minecraft:iron_ingot");
         Ingredient stick = Ingredient.of("minecraft:stick");
@@ -56,7 +60,7 @@ class FakeRecipeBook implements RecipeBook {
                         List.of(Ingredient.of("minecraft:andesite")), Station.STONECUTTER));
     }
 
-    FakeRecipeBook add(Recipe recipe) {
+    public FakeRecipeBook add(Recipe recipe) {
         byOutput.computeIfAbsent(recipe.output(), output -> new ArrayList<>()).add(recipe);
         return this;
     }
