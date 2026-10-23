@@ -7,6 +7,7 @@ import dev.friedai.brain.BrainEvent;
 import dev.friedai.llm.model.ToolCall;
 import dev.friedai.tool.ToolResult;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,7 @@ class DebugLogObserverTest {
         DebugLogObserver observer = new DebugLogObserver(log);
         ToolCall call = new ToolCall("c1", "go_to", new JsonObject(), "{\"x\":1}", null);
 
-        observer.onEvent(new BrainEvent.PlayerSaid("Steve", "hi", BrainEvent.Source.CHAT));
+        observer.onEvent(new BrainEvent.PlayerSaid(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", "hi", BrainEvent.Source.CHAT));
         observer.onEvent(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
         observer.onAssistantText("Hello");
         observer.onToolCall(call);

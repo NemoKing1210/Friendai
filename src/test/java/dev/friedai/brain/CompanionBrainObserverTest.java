@@ -14,6 +14,7 @@ import dev.friedai.testutil.RecordingSpeaker;
 import dev.friedai.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -66,12 +67,13 @@ class CompanionBrainObserverTest {
                 tools,
                 () -> "state-1",
                 new RecordingSpeaker(),
-                scheduler);
+                scheduler,
+                AccessResolver.of(UUID.fromString("00000000-0000-0000-0000-000000000001"), p -> false));
         brain.setObserver(recorder);
     }
 
     private static BrainEvent said(String text) {
-        return new BrainEvent.PlayerSaid("Steve", text, BrainEvent.Source.CHAT);
+        return new BrainEvent.PlayerSaid(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", text, BrainEvent.Source.CHAT);
     }
 
     @Test

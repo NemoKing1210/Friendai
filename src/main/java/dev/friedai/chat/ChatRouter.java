@@ -25,6 +25,7 @@ public final class ChatRouter {
         AddressDetector detector = new AddressDetector(
                 cfg.companion.name, cfg.chat.prefix, cfg.chat.respondToName, cfg.chat.listenAll);
         detector.match(text).ifPresent(content -> state.brains().post(
-                player.getUUID(), new BrainEvent.PlayerSaid(player.getName().getString(), content, BrainEvent.Source.CHAT)));
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(player.getUUID(), player.getName().getString(), content, BrainEvent.Source.CHAT)));
     }
 }

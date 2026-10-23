@@ -41,7 +41,7 @@ public class VoiceTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
         VoiceTranscriptHandler.handle(player, "stay");
-        String expected = "[" + player.getName().getString() + ", by voice]: stay";
+        String expected = "[" + player.getName().getString() + " (owner), by voice]: stay";
         h.succeedWhen(() -> {
             h.assertTrue(!recorder.requests.isEmpty(), "no LLM request yet");
             List<Message> first = recorder.requests.get(0);

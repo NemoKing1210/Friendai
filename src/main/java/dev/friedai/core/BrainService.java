@@ -1,6 +1,7 @@
 package dev.friedai.core;
 
 import dev.friedai.FriedaiMod;
+import dev.friedai.brain.AccessResolver;
 import dev.friedai.brain.BrainEvent;
 import dev.friedai.brain.BrainSettings;
 import dev.friedai.brain.CompanionBrain;
@@ -146,7 +147,7 @@ public final class BrainService {
         if (entryFor(owner).isEmpty()) {
             return false;
         }
-        post(owner, new BrainEvent.PlayerSaid(playerName, text, BrainEvent.Source.CHAT));
+        post(owner, new BrainEvent.PlayerSaid(owner, playerName, text, BrainEvent.Source.CHAT));
         return true;
     }
 
@@ -217,7 +218,8 @@ public final class BrainService {
                 tools.bind(companion),
                 () -> PerceptionBuilder.brief(companion).toPromptText(),
                 effective,
-                scheduler);
+                scheduler,
+                AccessResolver.of(owner, p -> false));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         companion.taskRunner().setListener(new TaskListener() {
             @Override

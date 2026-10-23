@@ -28,6 +28,6 @@ public final class VoiceTranscriptHandler {
         String clean = text.strip();
         server.getPlayerList().broadcastSystemMessage(Component.translatable("friedai.voice.chat_line", name, clean), false);
         FriedaiServerState.get(server).brains().post(
-                player.getUUID(), new BrainEvent.PlayerSaid(name, clean, BrainEvent.Source.VOICE));
+                player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), name, clean, BrainEvent.Source.VOICE));
     }
 }
