@@ -2,22 +2,63 @@ package dev.friedai.test;
 
 import dev.friedai.entity.CompanionEntity;
 import dev.friedai.entity.FriedaiEntities;
+import dev.friedai.task.Task;
 import dev.friedai.task.TaskContext;
+import dev.friedai.task.TaskFactory;
+import dev.friedai.task.TaskListener;
+import dev.friedai.task.TaskRunner;
+import dev.friedai.task.TaskStatus;
+import dev.friedai.task.builtin.BonemealTask;
+import dev.friedai.task.builtin.FarmTask;
+import dev.friedai.task.builtin.TendFarmTask;
 import dev.friedai.task.farming.FarmPass;
 import dev.friedai.task.farming.FarmReport;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.AttachedStemBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class FarmingTests {
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary;
+        int cancelled;
+        final List<String> notices = new ArrayList<>();
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {
+            cancelled++;
+        }
+
+        @Override
+        public void onNotice(String text) {
+            notices.add(text);
+        }
+    }
+
+    private static TaskRunner runner(CompanionEntity c, Result result) {
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        return runner;
+    }
+
     /** A 3x3 plot of farmland with water in the middle; returns the eight ring cells. */
     private static BlockPos[] plot(GameTestHelper h) {
         BlockPos[] ring = new BlockPos[8];
@@ -241,5 +282,145 @@ public class FarmingTests {
         h.assertValueEqual(new FarmReport(Map.of(), 0, 0, 0, 0, false).text(8),
                 "nothing to harvest or plant within 8 blocks", "empty report text");
         h.succeed();
+    }
+
+    private static void wheatPlot(GameTestHelper h, int x1, int z1, int x2, int z2, int age) {
+        for (int x = x1; x <= x2; x++) {
+            for (int z = z1; z <= z2; z++) {
+                h.setBlock(x, 1, z, Blocks.FARMLAND);
+                h.setBlock(x, 2, z, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, age));
+            }
+        }
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void farmTaskReports(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 1, 4, Blocks.FARMLAND);
+        h.setBlock(5, 1, 4, Blocks.FARMLAND);
+        h.setBlock(4, 2, 4, Blocks.CARROTS.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(5, 2, 4, Blocks.CARROTS.defaultBlockState().setValue(CropBlock.AGE, 7));
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 4)), 8, null, false), "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("harvested "), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void farmTaskNothingToDo(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, null, false), "farm");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "nothing to harvest or plant within 8 blocks", "summary");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void tendStoresHarvestInChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        wheatPlot(h, 4, 4, 5, 5, 7);
+        h.setBlock(10, 2, 10, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(countItem(chest, Items.WHEAT) > 0, "wheat not stored yet");
+            h.assertTrue(c.inventory().countItem(Items.WHEAT_SEEDS) <= 64, "kept more than a stack of seeds");
+            runner.stop("test");
+            h.assertTrue(runner.current().isEmpty(), "tend_farm should stop");
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void tendWithFullChestNotifiesOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        wheatPlot(h, 4, 4, 5, 5, 7);
+        h.setBlock(10, 2, 10, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            chest.setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        c.taskRunner().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            h.assertTrue(ticks[0] > 300, "waiting for two passes");
+            h.assertValueEqual(result.notices.size(), 1, "notices " + result.notices);
+            h.assertTrue(result.notices.get(0).contains("are full"), "notice was " + result.notices.get(0));
+        });
+    }
+
+    @GameTest
+    public void tendFarmRestores(GameTestHelper h) {
+        Task task = TaskFactory.restore("tend_farm:1,2,3,8").orElseThrow();
+        h.assertValueEqual(task.type(), "tend_farm", "type");
+        h.assertValueEqual(task.saveData(), "tend_farm:1,2,3,8", "save data");
+        h.assertValueEqual(task.describe(), "tending the farm at 1 2 3 (radius 8)", "describe");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void bonemealGrowsPotatoes(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            h.setBlock(x, 1, 4, Blocks.FARMLAND);
+            h.setBlock(x, 2, 4, Blocks.POTATOES.defaultBlockState().setValue(CropBlock.AGE, 0));
+        }
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.BONE_MEAL, 20));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new BonemealTask(h.absolutePos(new BlockPos(5, 2, 4)), 4, 20), "use_bonemeal");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.startsWith("used "), "summary was " + result.summary);
+            boolean ripe = false;
+            for (int x = 4; x <= 6; x++) {
+                ripe |= h.getBlockState(new BlockPos(x, 2, 4)).getValue(CropBlock.AGE) == 7;
+            }
+            h.assertTrue(ripe, "no potato matured");
+            h.assertTrue(c.inventory().countItem(Items.BONE_MEAL) < 20, "bone meal was not used");
+        });
+    }
+
+    @GameTest
+    public void bonemealWithout(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriedaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new BonemealTask(h.absolutePos(new BlockPos(5, 2, 5)), 4, 5), "use_bonemeal");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertValueEqual(result.summary, "I have no minecraft:bone_meal", "summary");
+        h.succeed();
+    }
+
+    private static int countItem(Container container, net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 }
