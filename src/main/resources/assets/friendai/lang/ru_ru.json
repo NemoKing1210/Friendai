@@ -115,6 +115,7 @@
   "friendai.voice.need_companion": "Сначала призови компаньона: /friendai summon",
   "friendai.voice.error.model_corrupt": "Файл модели повреждён, попробуй ещё раз.",
   "friendai.voice.tts.sample": "Привет! Я умею говорить. Так звучит выбранный голос.",
+  "friendai.voice.tts.test_ok": "Воспроизвожу образец.",
   "friendai.voice.tts.error.no_voice": "Голос не выбран или не установлен. Открой настройки и скачай голос.",
   "friendai.voice.tts.error.no_key": "Для озвучивания не задан API-ключ.",
   "friendai.voice.tts.error.auth": "API-ключ отклонён. Проверь его в настройках.",

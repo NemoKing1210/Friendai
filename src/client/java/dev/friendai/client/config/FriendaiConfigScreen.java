@@ -2,6 +2,7 @@ package dev.friendai.client.config;
 
 import dev.friendai.brain.ErrorMessages;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.ui.ClientToasts;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.config.SecretResolver;
@@ -38,13 +39,11 @@ import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
-    private static final SystemToast.SystemToastId TOAST = new SystemToast.SystemToastId();
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
 
     private FriendaiConfigScreen() {}
@@ -438,7 +437,6 @@ public final class FriendaiConfigScreen {
     }
 
     private static void toast(Component message) {
-        Minecraft mc = Minecraft.getInstance();
-        SystemToast.addOrUpdate(mc.gui.toastManager(), TOAST, tr("friendai.config.title"), message);
+        ClientToasts.show(message);
     }
 }
