@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -238,11 +239,13 @@ public final class CraftTask implements Task {
 
     /**
      * Looks for the station block again at this moment; when there is none, the companion places one of the items
-     * the plan crafted for it. Only a station this task placed itself is ever taken back.
+     * the plan crafted for it. A station this task placed, or one it left out for the next craft, is reused rather
+     * than replaced; only a station this task placed itself is ever taken back.
      */
     private TaskStatus findOrPlaceStation(TaskContext c, CraftStep step) {
         Station station = step.recipe().station();
         CompanionEntity companion = c.companion();
+        long now = c.level().getGameTime();
         BlockPos own = placedStations.get(station);
         if (own != null) {
             Block block = Stations.block(station);
@@ -254,6 +257,10 @@ public final class CraftTask implements Task {
                 return TaskStatus.RUNNING;
             }
             placedStations.remove(station);
+        }
+        OptionalLong leased = companion.stationLease().held(station, now);
+        if (leased.isPresent() && leaseUsable(c, station, BlockPos.of(leased.getAsLong()), now)) {
+            return TaskStatus.RUNNING;
         }
         Optional<BlockPos> nearby = Stations.nearby(c.level(), companion.blockPosition(), station);
         if (nearby.isPresent()) {
@@ -282,6 +289,21 @@ public final class CraftTask implements Task {
         phase = StationPhase.APPROACH_SPOT;
         approach = new Approach(spot);
         return TaskStatus.RUNNING;
+    }
+
+    /** Whether the station the companion left out before is still there; using it again renews its lease. */
+    private boolean leaseUsable(TaskContext c, Station station, BlockPos pos, long now) {
+        Block block = Stations.block(station);
+        if (block == null || !c.level().getBlockState(pos).is(block)) {
+            c.companion().stationLease().release(station);
+            return false;
+        }
+        c.companion().stationLease().keep(station, pos.asLong(), now);
+        usedStations.putIfAbsent(station, pos);
+        stationPos = pos;
+        phase = StationPhase.APPROACH_EXISTING;
+        approach = new Approach(pos);
+        return true;
     }
 
     private TaskStatus placeStation(TaskContext c, CraftStep step) {
@@ -314,6 +336,7 @@ public final class CraftTask implements Task {
         if (block != null && c.level().getBlockState(spot).is(block)) {
             stationPos = spot;
             placedStations.put(station, spot);
+            c.companion().stationLease().keep(station, spot.asLong(), c.level().getGameTime());
             spot = null;
             approach = null;
             phase = StationPhase.NONE;
@@ -463,14 +486,22 @@ public final class CraftTask implements Task {
 
     private void planLeaving(TaskContext c) {
         leavingStarted = true;
+        long now = c.level().getGameTime();
         for (Map.Entry<Station, BlockPos> entry : placedStations.entrySet()) {
             Station station = entry.getKey();
             BlockPos pos = entry.getValue();
             boolean base = policy == StationPolicy.AUTO && Stations.looksLikeBase(c.level(), pos);
             if (policy == StationPolicy.KEEP || base) {
+                c.companion().stationLease().release(station);
                 stationNotes.add("placed a " + station.noun() + " at " + coords(pos)
                         + " and left it there" + (base ? " (looks like a base)" : ""));
+            } else if (policy == StationPolicy.AUTO) {
+                // Crafting several things in a row is several tasks: keep it out so the next craft reuses it, and
+                // fetch it back once nothing follows.
+                c.companion().stationLease().keep(station, pos.asLong(), now);
+                stationNotes.add("placed a " + station.noun() + " at " + coords(pos) + " and left it there for now");
             } else {
+                c.companion().stationLease().release(station);
                 takeBacks.add(station);
             }
         }

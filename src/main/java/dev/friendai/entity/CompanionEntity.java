@@ -3,6 +3,8 @@ package dev.friendai.entity;
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.crafting.Station;
+import dev.friendai.crafting.StationLease;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.survival.Difficulty;
@@ -12,9 +14,12 @@ import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.build.PreviewOutline;
+import dev.friendai.task.builtin.CollectStationTask;
+import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
+import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
 import dev.friendai.task.plan.PlanSave;
@@ -23,6 +28,7 @@ import dev.friendai.tool.InventoryAccess;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -46,6 +52,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.ValueInput;
@@ -71,6 +78,10 @@ public class CompanionEntity extends PathfinderMob {
     private static final int OWNER_PICKUP_INTERVAL = 10;
     private static final double OWNER_PICKUP_RADIUS = 3.0;
 
+    /** How often the companion looks for stations it left out, and how far it will walk back for one. */
+    private static final int STATION_WATCH_INTERVAL = 20;
+    private static final double STATION_RECOVERY_RADIUS = 32.0;
+
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final HungerModel hunger = new HungerModel();
@@ -80,6 +91,7 @@ public class CompanionEntity extends PathfinderMob {
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher = new HungerWatcher(
             this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
+    private final StationLease stationLease = new StationLease();
     private transient CompanionHands hands;
     private transient Blueprint lastPreview;
     private transient PreviewOutline previewOutline;
@@ -88,6 +100,7 @@ public class CompanionEntity extends PathfinderMob {
     private transient int pathingTicks;
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
+    private int stationWatchTicks;
     private int ownerPickupTicks;
     /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
     private int inventoryViewers;
@@ -110,6 +123,14 @@ public class CompanionEntity extends PathfinderMob {
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
+    }
+
+    /**
+     * The stations this companion placed and still owns: kept out between crafts so the next one reuses them, and
+     * fetched back when nothing followed. Not saved; after a reload a station left out simply stays where it is.
+     */
+    public StationLease stationLease() {
+        return stationLease;
     }
 
     /** Hunger stages and the self-starting food quest; ticked every 20 server ticks. Not saved. */
@@ -191,7 +212,43 @@ public class CompanionEntity extends PathfinderMob {
             if (++hungerWatchTicks % 20 == 0) {
                 hungerWatcher.tick();
             }
+            if (++stationWatchTicks % STATION_WATCH_INTERVAL == 0) {
+                fetchBackLeftStations();
+            }
         }
+    }
+
+    /**
+     * Takes back a station the companion left out when no craft followed: the lease ran out, the block is still
+     * there and close, and nothing else is going on. A station that is gone, out of walking distance or replaced by
+     * something else is simply forgotten.
+     */
+    private void fetchBackLeftStations() {
+        if (taskRunner.paused() || !idle()) {
+            return;
+        }
+        long now = level().getGameTime();
+        for (Optional<StationLease.Due> due = stationLease.due(now); due.isPresent(); due = stationLease.due(now)) {
+            StationLease.Due entry = due.get();
+            Station station = entry.station();
+            BlockPos pos = BlockPos.of(entry.posKey());
+            stationLease.release(station);
+            Block block = Stations.block(station);
+            if (block == null || !level().getBlockState(pos).is(block)) {
+                continue;
+            }
+            if (distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
+                    > STATION_RECOVERY_RADIUS * STATION_RECOVERY_RADIUS) {
+                continue;
+            }
+            taskRunner.start(new CollectStationTask(station, pos), "collect_station");
+            return;
+        }
+    }
+
+    /** True when the default activity is all the runner is doing, so a quick errand may replace it. */
+    private boolean idle() {
+        return taskRunner.current().map(task -> task instanceof FollowTask).orElse(true);
     }
 
     /** The companion's food, saturation and exhaustion; ticked every server tick by {@link #tick()}. */

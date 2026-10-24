@@ -7,9 +7,12 @@ import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.CraftTask;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
@@ -70,6 +73,8 @@ public class CraftingTests {
     private static final int SMITHING_DECK = 168;
     private static final int CAKE_DECK = 192;
     private static final int TAKE_FAIL_DECK = 216;
+    private static final int REUSE_DECK = 240;
+    private static final int COLLECT_DECK = 264;
 
     /**
      * Station scenes live on separate stone decks well above the shared test grid, each at its own height, so no
@@ -102,6 +107,21 @@ public class CraftingTests {
         return false;
     }
 
+    /** The first block of the given type on the deck, in absolute coordinates, or null. */
+    private static BlockPos stationAt(GameTestHelper h, Block block, int size, int y) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                for (int scan = y - 1; scan <= y + 4; scan++) {
+                    BlockPos pos = h.absolutePos(new BlockPos(x, scan, z));
+                    if (h.getLevel().getBlockState(pos).is(block)) {
+                        return pos;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private static ItemStack find(CompanionEntity c, Item item) {
         for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
             ItemStack stack = c.inventory().getItem(slot);
@@ -116,6 +136,17 @@ public class CraftingTests {
         for (int i = 0; i < count; i++) {
             c.inventory().addItem(new ItemStack(log));
         }
+    }
+
+    private static String inventoryText(CompanionEntity c) {
+        StringBuilder text = new StringBuilder();
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            ItemStack stack = c.inventory().getItem(slot);
+            if (!stack.isEmpty()) {
+                text.append(stack.getCount()).append('x').append(stack.getItem()).append(';');
+            }
+        }
+        return text.toString();
     }
 
     private static String coords(BlockPos pos) {
@@ -422,7 +453,11 @@ public class CraftingTests {
         });
     }
 
-    @GameTest(maxTicks = 1200)
+    /**
+     * One craft in the field: the table is kept out for a while, in case another craft follows, and the companion
+     * comes back for it once nothing else was crafted.
+     */
+    @GameTest(maxTicks = 2000)
     public void woodenPickaxeFromLogsInField(GameTestHelper h) {
         deck(h, 16, WOODEN_DECK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WOODEN_DECK + 1, 2);
@@ -433,10 +468,65 @@ public class CraftingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(1, c.inventory().countItem(Items.WOODEN_PICKAXE), "pickaxes");
-            h.assertValueEqual(1, c.inventory().countItem(Items.CRAFTING_TABLE), "crafting tables");
-            h.assertFalse(hasBlock(h, Blocks.CRAFTING_TABLE, 16, WOODEN_DECK), "the placed table should be taken back");
             h.assertTrue(result.summary.contains("placed a crafting table at "), "summary was " + result.summary);
-            h.assertTrue(result.summary.contains("and took it back"), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("and left it there for now"), "summary was " + result.summary);
+            // Nothing else is crafted, so the lease runs out and the companion fetches the table back.
+            h.assertValueEqual(c.inventory().countItem(Items.CRAFTING_TABLE), 1, "crafting tables fetched back");
+            h.assertFalse(hasBlock(h, Blocks.CRAFTING_TABLE, 16, WOODEN_DECK), "the placed table should be gone");
+        });
+    }
+
+    /** The errand the companion runs later for a station it left out: walk back, break it, keep the drop. */
+    @GameTest(maxTicks = 600)
+    public void collectStationPutsTheTableBack(GameTestHelper h) {
+        deck(h, 16, COLLECT_DECK);
+        h.setBlock(6, COLLECT_DECK + 1, 2, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, COLLECT_DECK + 1, 2);
+        BlockPos table = h.absolutePos(new BlockPos(6, COLLECT_DECK + 1, 2));
+        Task task = new CollectStationTask(Station.CRAFTING_TABLE, table);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            boolean running = task.tick(ctx) == TaskStatus.RUNNING;
+            h.assertTrue(!running, "still running after " + ticks[0] + " ticks; summary=" + task.resultSummary()
+                    + " at=" + c.blockPosition() + " slots=" + inventoryText(c));
+            h.assertValueEqual(c.inventory().countItem(Items.CRAFTING_TABLE), 1, "tables back");
+            h.assertBlockNotPresent(Blocks.CRAFTING_TABLE, h.relativePos(table));
+            h.assertValueEqual(task.resultSummary(), "put the crafting table back", "summary");
+        });
+    }
+
+    /** Two crafts in a row on the same deck: the table stays where it is instead of being taken back and replaced. */
+    @GameTest(maxTicks = 2400)
+    public void reusesTheTableForTheNextCraft(GameTestHelper h) {
+        deck(h, 16, REUSE_DECK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, REUSE_DECK + 1, 2);
+        addLogs(c, Items.JUNGLE_LOG, 8);
+        Result first = new Result();
+        Result second = new Result();
+        TaskRunner runner = craft(c, first, "minecraft:wooden_pickaxe", 1);
+        boolean[] secondStarted = {false};
+        BlockPos[] table = new BlockPos[1];
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!secondStarted[0]) {
+                h.assertTrue(first.status == TaskStatus.SUCCESS, "first craft: " + first.status + " " + first.summary);
+                h.assertTrue(first.summary.contains("and left it there for now"), "summary was " + first.summary);
+                table[0] = stationAt(h, Blocks.CRAFTING_TABLE, 16, REUSE_DECK);
+                h.assertTrue(table[0] != null, "the table should still stand after the first craft");
+                secondStarted[0] = true;
+                runner.setListener(second);
+                runner.start(new CraftTask("minecraft:wooden_axe", 1, CraftTask.StationPolicy.AUTO), "craft_item");
+                return;
+            }
+            h.assertTrue(second.status == TaskStatus.SUCCESS, "second craft: " + second.status + " " + second.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.WOODEN_AXE), 1, "axes");
+            h.assertFalse(second.summary.contains("placed a "), "the table must be reused: " + second.summary);
+            h.assertTrue(
+                    second.summary.contains("used the crafting table at " + coords(table[0])),
+                    "summary was " + second.summary);
+            h.assertBlockPresent(Blocks.CRAFTING_TABLE, h.relativePos(table[0]));
         });
     }
 
@@ -591,7 +681,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAKE_FAIL_DECK + 1, 2);
         addLogs(c, Items.ACACIA_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
+        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
         boolean[] protectedOnce = {false};
         h.succeedWhen(() -> {
             runner.tick();
