@@ -260,6 +260,62 @@ public class MineBlocksTests {
         });
     }
 
+    /**
+     * A granite block at the heart of a grass hill: nothing can see it from outside, so mining it means taking the
+     * grass in the way first, the way a player digs into a hill.
+     */
+    @GameTest(maxTicks = 1200)
+    public void minesBlockBuriedInAHill(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 5; z <= 9; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.GRASS_BLOCK);
+                }
+            }
+        }
+        h.setBlock(new BlockPos(7, 3, 7), Blocks.GRANITE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:granite", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 0, "the buried granite must be mined");
+        });
+    }
+
+    /**
+     * Two trunks side by side: the companion must finish the tree it started on before moving to the other one, so
+     * the four logs of one tree are gone while the other tree stands untouched.
+     */
+    @GameTest(maxTicks = 1600)
+    public void fellsOneTreeBeforeTheNext(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 6; y++) {
+            h.setBlock(new BlockPos(7, y, 7), Blocks.OAK_LOG);
+            h.setBlock(new BlockPos(10, y, 3), Blocks.OAK_LOG);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Dirt to pillar up the trunk: the upper logs are out of reach from the ground.
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:oak_log", 5), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            int firstTree = 0;
+            for (int y = 2; y <= 6; y++) {
+                if (h.getBlockState(new BlockPos(7, y, 7)).is(Blocks.OAK_LOG)) {
+                    firstTree++;
+                }
+            }
+            h.assertTrue(firstTree == 0, "the first tree still has " + firstTree + " logs");
+        });
+    }
+
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
         h.setBlock(new BlockPos(x, y, z),
@@ -276,8 +332,9 @@ public class MineBlocksTests {
         leaf(h, 6, 2, 3);
     }
 
-    @GameTest(maxTicks = 600)
-    public void doesNotMineHiddenLog(GameTestHelper h) {
+    /** Mining a kind of block means getting it: the leaves in front of the log are dug away, as a player would. */
+    @GameTest(maxTicks = 1200)
+    public void digsLeavesToTheHiddenLog(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         buryLog(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -286,8 +343,8 @@ public class MineBlocksTests {
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 0, "the log must be mined");
         });
     }
 

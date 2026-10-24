@@ -1,12 +1,16 @@
 package dev.friendai.task.mining;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -18,6 +22,47 @@ public final class BlockSearch {
             ServerLevel level, BlockPos origin, int radius, BlockMatcher matcher, Set<BlockPos> blacklist) {
         List<BlockPos> found = nearestN(level, origin, radius, matcher, blacklist, 1);
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
+    }
+
+    /**
+     * Up to {@code limit} matching blocks connected to {@code seeds} through other matching blocks, so a task can
+     * finish one tree or vein before it starts the next. Seeds that do not match are ignored.
+     */
+    public static List<BlockPos> connected(
+            ServerLevel level, Collection<BlockPos> seeds, BlockMatcher matcher, int limit) {
+        List<BlockPos> found = new ArrayList<>(limit);
+        Set<BlockPos> seen = new HashSet<>();
+        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        for (BlockPos seed : seeds) {
+            BlockPos pos = seed.immutable();
+            if (seen.add(pos) && matches(level, pos, matcher)) {
+                found.add(pos);
+                queue.add(pos);
+            }
+        }
+        while (!queue.isEmpty() && found.size() < limit) {
+            BlockPos pos = queue.poll();
+            for (Direction side : Direction.values()) {
+                if (found.size() >= limit) {
+                    break;
+                }
+                BlockPos next = pos.relative(side);
+                if (!seen.add(next) || !matches(level, next, matcher)) {
+                    continue;
+                }
+                found.add(next);
+                queue.add(next);
+            }
+        }
+        return found;
+    }
+
+    private static boolean matches(ServerLevel level, BlockPos pos, BlockMatcher matcher) {
+        if (!level.hasChunkAt(pos)) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        return matcher.test(state) && state.getDestroySpeed(level, pos) >= 0;
     }
 
     /**

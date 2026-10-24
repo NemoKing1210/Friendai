@@ -24,6 +24,8 @@ public final class MineBlocksTask implements Task {
 
     private BlockBreaker breaker;
     private int mined;
+    /** The last block mined: the rest of its tree is worked on before any other block is considered. */
+    private BlockPos lastBroken;
     private String summary = "";
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
@@ -48,6 +50,7 @@ public final class MineBlocksTask implements Task {
         return switch (breaker.tick(c)) {
             case WORKING -> TaskStatus.RUNNING;
             case BROKEN -> {
+                lastBroken = breaker.target();
                 breaker = null;
                 mined++;
                 yield TaskStatus.RUNNING;
@@ -57,8 +60,10 @@ public final class MineBlocksTask implements Task {
                 yield TaskStatus.RUNNING;
             }
             case UNREACHABLE -> {
-                // None of the eight can be reached: blacklist them all, or the next search finds them again.
+                // None of the eight can be reached: blacklist them all, or the next search finds them again. The
+                // trunk this block belonged to is given up with them, so the search may look elsewhere.
                 blacklist.addAll(breaker.candidates());
+                lastBroken = null;
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }
@@ -78,18 +83,47 @@ public final class MineBlocksTask implements Task {
             summary = "mined " + mined + " " + matcher.label();
             return TaskStatus.SUCCESS;
         }
-        List<BlockPos> candidates = new ArrayList<>(BlockSearch.nearestN(
-                c.level(), c.companion().blockPosition(), radius, matcher, blacklist, CANDIDATES));
+        List<BlockPos> candidates = treeCandidates(c);
         if (candidates.isEmpty()) {
-            summary = mined == 0
-                    ? "no " + matcher.label() + " nearby"
-                    : "mined " + mined + " of " + count + ", no more " + matcher.label() + " nearby";
+            lastBroken = null;
+            candidates = new ArrayList<>(BlockSearch.nearestN(
+                    c.level(), c.companion().blockPosition(), radius, matcher, blacklist, CANDIDATES));
+            candidates.removeIf(blacklist::contains);
+        }
+        if (candidates.isEmpty()) {
+            // Say which it is: nothing around, or blocks that were found and could not be reached.
+            boolean hidden = !blacklist.isEmpty();
+            if (mined == 0) {
+                summary = hidden
+                        ? "could not reach any " + matcher.label() + " nearby"
+                        : "no " + matcher.label() + " nearby";
+            } else {
+                summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
+                        + (hidden ? " could be reached" : " nearby");
+            }
             return TaskStatus.FAILED;
         }
         // The route may pillar up to a block that cannot be reached from the ground, using the material the
-        // companion carries.
-        breaker = new BlockBreaker(candidates, matcher::test, true, true);
+        // companion carries, and it digs away whatever hides the block: mining a kind of block means getting it.
+        breaker = new BlockBreaker(candidates, matcher::test, true, true, true);
         return TaskStatus.RUNNING;
+    }
+
+    /**
+     * The blocks of the same tree or vein as the last mined one, so one tree is felled before the next is started.
+     * Empty when there is no last block or its surroundings hold nothing of the kind.
+     */
+    private List<BlockPos> treeCandidates(TaskContext c) {
+        if (lastBroken == null) {
+            return new ArrayList<>();
+        }
+        List<BlockPos> seeds = new ArrayList<>(6);
+        for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
+            seeds.add(lastBroken.relative(side));
+        }
+        List<BlockPos> result = new ArrayList<>(BlockSearch.connected(c.level(), seeds, matcher, CANDIDATES));
+        result.removeIf(blacklist::contains);
+        return result;
     }
 
     @Override

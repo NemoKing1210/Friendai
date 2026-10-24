@@ -22,15 +22,24 @@ public final class BlockBreaker {
 
     private enum Phase { WALK, BREAK }
 
+    /** How many blocks one target may have dug away before it is given up as hidden. */
+    private static final int MAX_DUG = 12;
+
     private final List<BlockPos> candidates;
     private final Predicate<BlockState> stillValid;
     private final boolean requireSight;
+    /** Whether the companion digs away what hides the target, as a player digging into a hill does. */
+    private final boolean digToTarget;
     private final Approach approach;
 
     /** The candidate the companion reached and is working on, or null before it reached one. */
     private BlockPos target;
     private Phase phase = Phase.WALK;
     private BreakAction action;
+    /** The block hiding the target that is being dug away right now, and how many were dug for this target. */
+    private BlockPos digging;
+    private BreakAction digAction;
+    private int dug;
 
     /** @param stillValid whether the block is still the one this breaker was made for; when false the breaker reports {@link State#GONE} */
     public BlockBreaker(BlockPos target, Predicate<BlockState> stillValid) {
@@ -59,12 +68,23 @@ public final class BlockBreaker {
      */
     public BlockBreaker(
             Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight, boolean mayPlace) {
+        this(candidates, stillValid, requireSight, mayPlace, false);
+    }
+
+    /**
+     * @param digToTarget whether the companion digs away a block hiding the target instead of reporting
+     *     {@link State#OUT_OF_SIGHT}. Mining a kind of block means getting it, so {@code mine_blocks} asks for this;
+     *     breaking one block the player named keeps the plain line-of-sight rule.
+     */
+    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
+            boolean mayPlace, boolean digToTarget) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
         this.stillValid = stillValid;
         this.requireSight = requireSight;
+        this.digToTarget = digToTarget;
         this.approach = new Approach(this.candidates, mayPlace);
     }
 
@@ -90,6 +110,11 @@ public final class BlockBreaker {
         approach.stop(c.companion());
         if (action != null) {
             action.stop(c);
+        }
+        if (digAction != null) {
+            digAction.stop(c);
+            digAction = null;
+            digging = null;
         }
         for (BlockPos pos : target != null ? List.of(target) : candidates) {
             c.level().destroyBlockProgress(c.companion().getId(), pos, -1);
@@ -118,18 +143,47 @@ public final class BlockBreaker {
         }
         if (requireSight && !Sight.canSee(c.level(), companion, target)) {
             BlockPos view = Sight.viewSpot(c.level(), companion, target);
-            if (view == null) {
-                return State.OUT_OF_SIGHT;
+            if (view != null) {
+                companion.getNavigation().stop();
+                companion.teleportTo(view.getX() + 0.5, view.getY(), view.getZ() + 0.5);
             }
-            companion.getNavigation().stop();
-            companion.teleportTo(view.getX() + 0.5, view.getY(), view.getZ() + 0.5);
             if (!Sight.canSee(c.level(), companion, target)) {
-                return State.OUT_OF_SIGHT;
+                if (!digToTarget || !dig(c)) {
+                    return State.OUT_OF_SIGHT;
+                }
+                return State.WORKING;
             }
         }
         action = new BreakAction(target);
         phase = Phase.BREAK;
         return State.WORKING;
+    }
+
+    /** Digs away the block that hides the target; true while there is something left to dig. */
+    private boolean dig(TaskContext c) {
+        if (dug >= MAX_DUG) {
+            return false;
+        }
+        var companion = c.companion();
+        BlockPos obstruction = Sight.firstBlockOnRay(c.level(), companion, target);
+        if (obstruction == null || c.level().getBlockState(obstruction).getDestroySpeed(c.level(), obstruction) < 0
+                || !companion.hands().canInteract(obstruction)) {
+            return false;
+        }
+        if (digAction == null || !obstruction.equals(digging)) {
+            if (digAction != null) {
+                digAction.stop(c);
+            }
+            digAction = new BreakAction(obstruction);
+            digging = obstruction;
+            dug++;
+        }
+        if (digAction.tick(c, state -> !state.isAir()) == BreakAction.State.WORKING) {
+            return true;
+        }
+        digAction = null;
+        digging = null;
+        return true;
     }
 
     private boolean allGone(TaskContext c) {

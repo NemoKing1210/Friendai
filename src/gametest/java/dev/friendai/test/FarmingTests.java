@@ -220,7 +220,8 @@ public class FarmingTests {
             h.assertValueEqual(pass.report().planted(), 4, "planted");
             for (int x = 4; x <= 5; x++) {
                 for (int z = 4; z <= 5; z++) {
-                    h.assertValueEqual(age(h, x, 2, z), 0, "carrot crop planted");
+                    // The crop may have grown while the pass walked: any age means a planted carrot.
+                    h.assertTrue(age(h, x, 2, z) >= 0, "carrot crop planted at " + x + " " + z);
                 }
             }
         });

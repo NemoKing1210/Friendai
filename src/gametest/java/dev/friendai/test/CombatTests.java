@@ -167,6 +167,8 @@ public class CombatTests {
         Notices notices = listen(c);
         Husk husk = h.spawnWithNoFreeWill(EntityTypes.HUSK, 6, 2, 2);
         husk.setCustomName(Component.literal("test-owner-husk"));
+        // removeFreeWill clears goals but leaves target goals; NoAI stops them picking the companion.
+        husk.setNoAi(true);
         h.runAfterDelay(100, () -> owner.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(husk), 1.0F));
         h.succeedWhen(() -> {
             h.assertTrue(husk.isDeadOrDying() || husk.isRemoved(),
@@ -204,6 +206,8 @@ public class CombatTests {
         Notices notices = listen(c);
         var unprovoked = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 12, 2, 2);
         unprovoked.setCustomName(Component.literal("test-unprovoked-creeper"));
+        // removeFreeWill clears goals but leaves target goals; NoAI stops them picking the companion.
+        unprovoked.setNoAi(true);
         h.runAfterDelay(200, () -> {
             h.assertTrue(unprovoked.getHealth() == unprovoked.getMaxHealth(),
                     "unprovoked mob was attacked: " + unprovoked.getHealth()
@@ -312,6 +316,17 @@ public class CombatTests {
             h.assertTrue(zombie.getHealth() == zombie.getMaxHealth(), "zombie was hit: " + zombie.getHealth());
             h.succeed();
         });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void zombieTargetsTheCompanionUnprovoked(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 2, 7);
+        Zombie zombie = h.spawn(EntityTypes.ZOMBIE, 11, 2, 7);
+        zombie.setCustomName(Component.literal("test-aggro-zombie"));
+        h.succeedWhen(() -> h.assertTrue(zombie.getTarget() == c,
+                "zombie target: " + zombie.getTarget() + ", zombie at " + zombie.position()
+                        + ", companion at " + c.position()));
     }
 
     @GameTest(maxTicks = 400)
