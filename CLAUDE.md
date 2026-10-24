@@ -13,7 +13,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Test jar for the maintainer
 
-- After any change to code or resources (fix, improvement, new feature), finish with a build that refreshes `test-builds/friendai-<version>.jar` (`./gradlew assemble` or `build` — `exportTestJar` runs automatically). Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
+- After any change to code or resources (fix, improvement, new feature), refresh `test-builds/friendai-<version>.jar` with `./gradlew assemble` — it packages without running the test suites, and `exportTestJar` runs automatically. Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
 
 ## Environment (Windows)
 
@@ -29,7 +29,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Verification habits for this repo
 
-- "Tests pass" means you ran `./gradlew build` and read the result, not that the code looks right. Report the unit-test count and the GameTest line.
+- Tests are not a prerequisite for a commit; commit a coherent change when it is ready. When you do claim tests pass, you must have run `./gradlew build` and read the result, not assumed it — report the unit-test count and the GameTest line.
 - Changing anything in `llm/protocol`, `brain`, or tool handling: re-read rules 3–6 in `AGENTS.md` and make sure the matching regression tests still exist.
 - When a Minecraft or Fabric API name does not compile, look it up in the decompiled sources / with `javap` (see `AGENTS.md`), do not guess variants.
 - If a GameTest fails only in the full run, suspect cross-test interference in the shared world before suspecting the code under test.
