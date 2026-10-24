@@ -38,6 +38,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] ElevenLabs with a valid key and voice id speaks a reply.
 - [ ] A local OpenAI-compatible server (custom base URL, no key) speaks a reply.
 - [ ] Pressing push-to-talk during a reply stops it; the **Stop speaking** keybind (Controls → Friendai) does the same; nothing is recorded while a reply plays.
+- [ ] A reply that begins just as push-to-talk is pressed is cut off instead of playing into the recording (the audio device takes a moment to open).
+- [ ] Changing a speech setting while a reply is being synthesized: saving does not freeze the screen, and the next reply uses the new setting.
 - [ ] Leaving the world stops the audio and rejoining speaks again; the client config keeps the enabled setting.
 - [ ] Every Speech synthesis label is translated in both English and Russian, including the engine and voice names.
 - [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.

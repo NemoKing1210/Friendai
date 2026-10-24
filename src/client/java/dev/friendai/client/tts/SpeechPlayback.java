@@ -3,6 +3,7 @@ package dev.friendai.client.tts;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
+import dev.friendai.voice.tts.PlaybackGate;
 import dev.friendai.voice.tts.TtsClip;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ import javax.sound.sampled.SourceDataLine;
  */
 public final class SpeechPlayback {
     private final Object lock = new Object();
+    private final PlaybackGate gate = new PlaybackGate();
     private SourceDataLine line;
 
     /** Names of the audio outputs that can play what we synthesize. */
@@ -39,6 +41,7 @@ public final class SpeechPlayback {
             return;
         }
         AudioFormat format = new AudioFormat(clip.sampleRate(), 16, 1, true, false);
+        long token = gate.token();
         SourceDataLine opened;
         try {
             opened = open(format, deviceName);
@@ -46,6 +49,11 @@ public final class SpeechPlayback {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.playback"));
         }
         synchronized (lock) {
+            // The device can take a moment to open; a stop during that window must not let the clip play.
+            if (!gate.stillOpen(token)) {
+                closeQuietly(opened);
+                return;
+            }
             stopLocked();
             line = opened;
         }
@@ -86,6 +94,7 @@ public final class SpeechPlayback {
     /** Cuts the current clip off. Safe to call when nothing is playing. */
     public void stop() {
         synchronized (lock) {
+            gate.cancel();
             stopLocked();
         }
     }
@@ -107,6 +116,14 @@ public final class SpeechPlayback {
             // the writer already closed it
         }
         current.close();
+    }
+
+    private static void closeQuietly(SourceDataLine line) {
+        try {
+            line.close();
+        } catch (IllegalStateException ignored) {
+            // never opened: nothing to release
+        }
     }
 
     private static SourceDataLine open(AudioFormat format, String deviceName) throws LineUnavailableException {

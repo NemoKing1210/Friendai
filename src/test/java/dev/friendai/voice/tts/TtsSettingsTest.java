@@ -2,6 +2,7 @@ package dev.friendai.voice.tts;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -71,6 +72,33 @@ class TtsSettingsTest {
         TtsSettings s = TtsSettings.from(cfg, "en_us", name -> "");
         assertTrue(s.isLocal());
         assertEquals("en_US-lessac-medium", s.voice());
+    }
+
+    @Test
+    void theEngineCacheKeyChangesWhenTheKeyChanges() {
+        ClientConfig.TtsSection cfg = ClientConfig.defaults().voice.tts;
+        cfg.provider = "openai";
+        cfg.openai.voice = "alloy";
+        cfg.openai.apiKey = "first-key";
+        TtsSettings first = TtsSettings.from(cfg, "en_us", name -> "");
+        cfg.openai.apiKey = "second-key";
+        TtsSettings second = TtsSettings.from(cfg, "en_us", name -> "");
+
+        assertNotEquals(first.cacheKey(), second.cacheKey());
+        assertFalse(first.cacheKey().contains("first-key"));
+        assertFalse(second.cacheKey().contains("second-key"));
+    }
+
+    @Test
+    void equalSettingsShareOneEngineCacheKey() {
+        ClientConfig.TtsSection cfg = ClientConfig.defaults().voice.tts;
+        cfg.provider = "elevenlabs";
+        cfg.elevenlabs.apiKey = "key";
+        cfg.elevenlabs.voice = "voice-id";
+
+        assertEquals(
+                TtsSettings.from(cfg, "en_us", name -> "").cacheKey(),
+                TtsSettings.from(cfg, "en_us", name -> "").cacheKey());
     }
 
     @Test

@@ -128,8 +128,15 @@ public final class SpeechRuntime {
     /** Called when the settings change: releases the engine so the next reply uses the new one. */
     public static void invalidate() {
         stop();
+        SpeechEngine closing;
         synchronized (LOCK) {
-            closeCachedLocked();
+            closing = cachedEngine;
+            cachedEngine = null;
+            cachedKey = null;
+        }
+        if (closing != null) {
+            // Closing a local engine waits for a synthesis holding it, so it must not run on the render thread.
+            WORKER.execute(closing::close);
         }
     }
 
@@ -245,8 +252,7 @@ public final class SpeechRuntime {
     }
 
     private static SpeechEngine engine(TtsSettings settings) {
-        String key = settings.provider() + "|" + settings.baseUrl() + "|" + settings.model() + "|"
-                + settings.voice() + "|" + settings.speed();
+        String key = settings.cacheKey();
         synchronized (LOCK) {
             if (cachedEngine != null && key.equals(cachedKey)) {
                 return cachedEngine;

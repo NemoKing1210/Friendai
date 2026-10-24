@@ -68,6 +68,15 @@ public record TtsSettings(
         return null;
     }
 
+    /**
+     * Identifies the engine these settings need, so a changed key is not served by a cached engine built with
+     * the old one. The key is hashed: this string is never shown to a player, but it must not carry a secret.
+     */
+    public String cacheKey() {
+        return provider + "|" + baseUrl + "|" + model + "|" + voice + "|" + speed + "|"
+                + (blank(apiKey) ? "" : Integer.toHexString(apiKey.hashCode()));
+    }
+
     @Override
     public String toString() {
         return "TtsSettings[provider=" + provider + ", baseUrl=" + baseUrl

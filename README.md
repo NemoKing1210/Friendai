@@ -57,7 +57,7 @@ Voice input runs locally with [whisper.cpp](https://github.com/ggerganov/whisper
 
 The companion can also speak its replies. Synthesis is off by default; turn on **Speak replies** in **Settings → Voice → Speech synthesis** and choose an engine:
 
-- **Local (free, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) runs a Piper voice on your CPU. Pick a voice and press **Download voice**; voices are stored in `<game dir>/friendai/models/tts/` (about 67 MB each). Russian systems get Irina, everything else Lessac; Dmitri and Alba are offered too. The models are MIT; the license line under the dropdown names the training data of the selected voice.
+- **Local (free, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) runs a Piper voice on your CPU. Pick a voice and press **Download voice**; voices are stored in `<game dir>/friendai/models/tts/` (about 67 MB each). Russian systems get Irina, everything else Lessac; Dmitri and Alba are offered too. The model files are published under MIT; the license line under the dropdown names the training data of the selected voice, which is unknown for a few of them.
 - **OpenAI (paid)** — the OpenAI speech API and an API key. The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **ElevenLabs (paid)** — the ElevenLabs text-to-speech API; a key and a voice id.
 
