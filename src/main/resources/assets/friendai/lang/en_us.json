@@ -105,7 +105,7 @@
 
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Push to talk",
-  "friendai.voice.hud.recording": "● Recording…",
+  "friendai.voice.hud.recording": "Recording…",
   "friendai.voice.hud.transcribing": "Transcribing…",
   "friendai.voice.error.no_model": "Speech model not downloaded — Settings → Voice",
   "friendai.voice.error.no_mic": "Microphone unavailable",

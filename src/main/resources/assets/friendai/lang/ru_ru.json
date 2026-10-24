@@ -105,7 +105,7 @@
 
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Говорить (удерживать)",
-  "friendai.voice.hud.recording": "● Запись…",
+  "friendai.voice.hud.recording": "Запись…",
   "friendai.voice.hud.transcribing": "Распознаю…",
   "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
   "friendai.voice.error.no_mic": "Микрофон недоступен",
