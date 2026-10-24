@@ -23,6 +23,12 @@
 		"client": ["dev.friendai.client.FriendaiClient"],
 		"modmenu": ["dev.friendai.client.config.ModMenuIntegration"]
 	},
+	"mixins": [
+		{
+			"config": "friendai.mixins.json",
+			"environment": "*"
+		}
+	],
 	"depends": {
 		"fabricloader": ">=0.19.5",
 		"minecraft": "~26.3",
