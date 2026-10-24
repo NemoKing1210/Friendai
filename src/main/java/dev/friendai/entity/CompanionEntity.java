@@ -2,6 +2,7 @@ package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.HungerModel;
@@ -15,6 +16,7 @@ import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
+import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
 import java.util.List;
 import java.util.Optional;
@@ -440,8 +442,16 @@ public class CompanionEntity extends PathfinderMob {
                 input.getFloatOr("Exhaustion", 0.0f));
         if (level() instanceof ServerLevel serverLevel) {
             input.getString("SavedTask")
-                    .flatMap(saved -> TaskFactory.restore(saved, serverLevel))
+                    .flatMap(saved -> restoreTask(saved, serverLevel))
                     .ifPresent(taskRunner::restore);
         }
+    }
+
+    /** Plans are rebuilt with the server's tool set; every other task restores on its own. */
+    private Optional<Task> restoreTask(String saved, ServerLevel level) {
+        if (saved.startsWith(PlanSave.PREFIX)) {
+            return FriendaiServerState.get(level.getServer()).brains().restorePlan(this, saved);
+        }
+        return TaskFactory.restore(saved, level);
     }
 }

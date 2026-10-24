@@ -102,7 +102,8 @@ final class ControlTools {
                     List<PlanEntry> entries = new ArrayList<>();
                     for (PlanStep step : parsed.steps()) {
                         TaskToolDef def = byName.get(step.tool());
-                        entries.add(new PlanEntry(step.tool(), ctx -> def.factory().create(ctx.companion(), step.args())));
+                        entries.add(new PlanEntry(step.tool(), step.args(),
+                                ctx -> def.factory().create(ctx.companion(), step.args())));
                     }
                     String goal = a.has("goal") && !a.get("goal").isJsonNull() ? a.get("goal").getAsString() : null;
                     SequenceTask plan = new SequenceTask(goal, entries, () -> TaskSettings.taskTimeoutSec * 20);

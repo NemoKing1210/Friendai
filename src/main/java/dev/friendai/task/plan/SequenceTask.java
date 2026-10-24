@@ -103,6 +103,32 @@ public final class SequenceTask implements Task {
         return active == null ? null : active.cleanupAfterCancel(c);
     }
 
+    /**
+     * The remaining plan, so a reload continues at the same step. The running step is saved too when it knows how to
+     * save itself (a build), so a build keeps the work and the scaffold already in the world.
+     */
+    @Override
+    public String saveData() {
+        List<PlanSave.Step> steps = new ArrayList<>(entries.size());
+        for (PlanEntry entry : entries) {
+            steps.add(new PlanSave.Step(entry.tool(), entry.args()));
+        }
+        return PlanSave.encode(goal, index, done, active == null ? null : active.saveData(), steps);
+    }
+
+    /**
+     * A plan read back from a save: it continues at {@code index}, already reported the {@code done} summaries, and
+     * resumes {@code active} (a build) instead of starting that step again.
+     */
+    public static SequenceTask resumed(String goal, List<PlanEntry> entries, int index, List<String> done, Task active,
+            IntSupplier stepTimeoutTicks) {
+        SequenceTask plan = new SequenceTask(goal, entries, stepTimeoutTicks);
+        plan.index = Math.min(index, entries.size());
+        plan.done.addAll(done);
+        plan.active = active;
+        return plan;
+    }
+
     @Override
     public void stop(TaskContext c) {
         if (active != null) {

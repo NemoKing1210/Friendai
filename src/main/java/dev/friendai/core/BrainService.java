@@ -36,9 +36,16 @@ import java.util.ArrayList;
 import java.util.List;
 import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.llm.provider.ProviderRegistry;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.plan.PlanEntry;
+import dev.friendai.task.plan.PlanSave;
+import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.tool.builtin.TaskToolDef;
 import dev.friendai.tool.ToolRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -49,6 +56,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.UnaryOperator;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
 public final class BrainService {
@@ -62,6 +70,8 @@ public final class BrainService {
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
     private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
     private final ToolRegistry<CompanionEntity> tools;
+    /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
+    private final Map<String, TaskToolDef> planTools;
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
     private ServerConfig config;
@@ -74,7 +84,7 @@ public final class BrainService {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
-        this.tools = FriendaiTools.create(() -> this.config.tasks.mineSearchRadius, new MemoryAccess() {
+        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> this.config.tasks.mineSearchRadius, new MemoryAccess() {
             @Override
             public boolean enabled() {
                 return config != null && config.memory.enabled;
@@ -90,6 +100,8 @@ public final class BrainService {
                 return memory.book(owner);
             }
         });
+        this.tools = builtins.registry();
+        this.planTools = builtins.plannable();
         reload(initial);
     }
 
@@ -221,6 +233,34 @@ public final class BrainService {
     /** The owner came back to a still-loaded companion. */
     public void onOwnerJoined(UUID owner) {
         CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().resume());
+    }
+
+    /**
+     * Rebuilds a plan saved with the world. The steps come from this server's tools, so a plan is only resumed when
+     * every tool it used still exists and is still plannable. A build step that saved itself keeps its progress and
+     * its scaffold; other steps start again.
+     */
+    public Optional<Task> restorePlan(CompanionEntity companion, String saved) {
+        Optional<PlanSave.Saved> decoded = PlanSave.decode(saved);
+        if (decoded.isEmpty()) {
+            return Optional.empty();
+        }
+        PlanSave.Saved data = decoded.get();
+        List<PlanEntry> entries = new ArrayList<>(data.steps().size());
+        for (PlanSave.Step step : data.steps()) {
+            TaskToolDef def = planTools.get(step.tool());
+            if (def == null) {
+                FriendaiMod.LOGGER.warn("Plan step {} is unavailable; the saved plan is not resumed", step.tool());
+                return Optional.empty();
+            }
+            JsonObject args = step.args();
+            entries.add(new PlanEntry(step.tool(), args, ctx -> def.factory().create(ctx.companion(), args)));
+        }
+        Task active = data.active() == null || !(companion.level() instanceof ServerLevel level)
+                ? null
+                : TaskFactory.restore(data.active(), level).orElse(null);
+        return Optional.of(SequenceTask.resumed(data.goal(), entries, data.index(), data.done(), active,
+                () -> TaskSettings.taskTimeoutSec * 20));
     }
 
     public void tick() {

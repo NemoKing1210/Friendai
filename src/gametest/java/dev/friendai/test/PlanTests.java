@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -257,6 +258,40 @@ public class PlanTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("plan \"drop and look\" done: 1) dropped 2 minecraft:mud_bricks; 2) picked up 0 items"),
                     "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void planSurvivesReload(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
+        Result result = new Result();
+        c.taskRunner().setListener(result);
+        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        String json = "{\"goal\":\"drop twice\",\"steps\":["
+                + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
+                + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"}]}";
+        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        String[] saved = {null};
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            if (saved[0] == null && c.inventory().countItem(Items.MUD_BRICKS) == 1) {
+                // The first step is done: take the plan's state as the reload would.
+                saved[0] = c.taskRunner().current().orElseThrow().saveData();
+                h.assertTrue(saved[0] != null && saved[0].startsWith("plan:"), "saved was " + saved[0]);
+                Task restored = FriendaiServerState.get(h.getLevel().getServer())
+                        .brains().restorePlan(c, saved[0]).orElseThrow();
+                h.assertTrue(saved[0].equals(restored.saveData()), "the plan must survive the round trip");
+                c.taskRunner().start(restored, "run_plan");
+            }
+            h.assertTrue(saved[0] != null, "the first step never finished");
+            h.assertTrue(result.status == TaskStatus.SUCCESS,
+                    "restored plan did not finish: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("plan \"drop twice\" done: 1) dropped 1 minecraft:mud_bricks; "
+                    + "2) dropped 1 minecraft:mud_bricks"), "summary was " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.MUD_BRICKS), 0, "mud bricks left");
         });
     }
 
