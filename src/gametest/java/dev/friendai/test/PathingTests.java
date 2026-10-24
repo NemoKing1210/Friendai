@@ -39,6 +39,7 @@ public class PathingTests {
         String summary = "";
         /** The last few pathing decisions, so a timed-out test says why it could not walk. */
         final List<String> debug = new ArrayList<>();
+        final List<String> notices = new ArrayList<>();
 
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
@@ -58,6 +59,11 @@ public class PathingTests {
             if (debug.size() > 10) {
                 debug.remove(0);
             }
+        }
+
+        @Override
+        public void onNotice(String text) {
+            notices.add(text);
         }
 
         String why() {
@@ -215,6 +221,46 @@ public class PathingTests {
             }
             // A running jump over the last two cells can save one placement, so two dirt blocks already mean a bridge.
             h.assertTrue(bridged >= 2, "bridged " + bridged + " cells of the pit row with dirt");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void goToGathersDirtThenBridges(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 1, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 2; y <= 5; y++) {
+                    boolean pit = x >= 6 && x <= 8;
+                    // Planks are blacklisted, so the only way across the 4-deep pit is to build over it.
+                    h.setBlock(x, y, z, pit ? Blocks.AIR : Blocks.OAK_PLANKS);
+                }
+            }
+        }
+        // The only material within reach: a dirt mound on the near side.
+        for (int x = 2; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                for (int y = 6; y <= 7; y++) {
+                    h.setBlock(x, y, z, Blocks.DIRT);
+                }
+            }
+        }
+        CompanionEntity c = walker(h, 1, 6, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, 6, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            int bridged = 0;
+            for (int x = 6; x <= 8; x++) {
+                for (int z = 7; z <= 9; z++) {
+                    BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, 5, z)));
+                    if (state.is(Blocks.DIRT)) {
+                        bridged++;
+                    }
+                }
+            }
+            h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row with gathered dirt");
+            h.assertTrue(out.notices.stream().anyMatch(text -> text.startsWith("gathering ")),
+                    "no gathering notice, notices: " + out.notices);
         });
     }
 

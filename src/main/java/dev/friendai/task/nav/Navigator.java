@@ -8,11 +8,17 @@ import dev.friendai.pathing.Node;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathGoal;
 import dev.friendai.pathing.PathSearch;
+import dev.friendai.pathing.PathStep;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.pathing.Pos;
 import dev.friendai.pathing.SearchOptions;
 import dev.friendai.pathing.SearchResult;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskSettings;
+import java.util.HashSet;
+import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -29,6 +35,8 @@ public final class Navigator {
     private static final int REPLAN_LIMIT = 3;
     /** Total search time for one goal before vanilla navigation takes over. */
     private static final long FALLBACK_NANOS = 200_000_000L;
+    /** How many times one goal may send the companion out to gather before giving up. */
+    private static final int GATHER_ROUNDS = 2;
     private static final double PROGRESS = 1.0;
     private static final int FALLBACK_REPATH_TICKS = 10;
     private static final int FALLBACK_STUCK_TICKS = 100;
@@ -49,6 +57,12 @@ public final class Navigator {
     private int fallbackTicks;
     private int fallbackCheckpoint;
     private double fallbackDistance;
+    /** Whether the running search is the material probe (2.5), which ignores the inventory. */
+    private boolean probing;
+    /** How many blocks the inventory held when the probe started; the probe path may want more. */
+    private int availableAtProbe;
+    private MaterialGatherer gatherer;
+    private int gatherRounds;
 
     public Navigator(CompanionEntity companion) {
         this(companion, true);
@@ -77,14 +91,21 @@ public final class Navigator {
      * is replaced when a search finds a way to the new goal.
      */
     public void setGoal(PathGoal goal) {
-        if (goal == null || goal.equals(this.goal) && (search != null || executor != null || state == State.SEARCHING)) {
+        if (goal == null || goal.equals(this.goal)
+                && (search != null || executor != null || state == State.SEARCHING || state == State.GATHERING)) {
             return;
+        }
+        if (gatherer != null) {
+            gatherer.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+            gatherer = null;
         }
         this.goal = goal;
         searchNanos = 0;
         failedPlans = 0;
         bestHeuristic = goal.heuristic(node());
         fallback = false;
+        probing = false;
+        gatherRounds = 0;
         startSearch();
         if (executor == null) {
             state = State.SEARCHING;
@@ -105,8 +126,7 @@ public final class Navigator {
             return tickExecutor(c);
         }
         if (state == State.GATHERING) {
-            // Task 10 replaces this: gather the missing material, then search again.
-            state = State.UNREACHABLE;
+            tickGathering(c);
             return state;
         }
         if (state != State.ARRIVED && state != State.UNREACHABLE) {
@@ -121,8 +141,73 @@ public final class Navigator {
             executor.stop(c);
             executor = null;
         }
+        if (gatherer != null) {
+            gatherer.stop(c);
+            gatherer = null;
+        }
+        probing = false;
         search = null;
         companion.getNavigation().stop();
+    }
+
+    private void tickGathering(TaskContext c) {
+        if (gatherer == null) {
+            startSearch();
+            state = State.SEARCHING;
+            return;
+        }
+        if (gatherer.tick(c) == MaterialGatherer.State.WORKING) {
+            state = State.GATHERING;
+            return;
+        }
+        gatherer = null;
+        gatherRounds++;
+        startSearch();
+        state = State.SEARCHING;
+    }
+
+    /** Searches once more as if the companion carried every block it needs, to learn how many it is short of. */
+    private void beginProbe() {
+        PathingConfig config = TaskSettings.pathing;
+        LevelCellView view = new LevelCellView(companion, config, CostModel.DEFAULTS);
+        availableAtProbe = new MaterialPicker(config).count(companion.inventory());
+        probing = true;
+        search = new PathSearch(view, CostModel.DEFAULTS, goal, node(),
+                new SearchOptions(config.maxNodes(), 64, Integer.MAX_VALUE, 1));
+        state = State.SEARCHING;
+    }
+
+    private void startGathering(TaskContext c, Path path) {
+        if (path == null || path.steps().isEmpty() || path.places() <= availableAtProbe) {
+            state = State.UNREACHABLE;
+            return;
+        }
+        int missing = path.places() - availableAtProbe;
+        // A few spare blocks: an extra bridge cell or a pillar is cheaper to gather now than to walk back for.
+        int needed = Math.min(missing + 4, TaskSettings.pathing.maxGatherBlocks());
+        gatherer = new MaterialGatherer(needed, avoidCells(path));
+        state = State.GATHERING;
+    }
+
+    /** The cells a route walks or builds through: gathering must not take them away from it. */
+    private static Set<BlockPos> avoidCells(Path path) {
+        Set<BlockPos> cells = new HashSet<>();
+        for (PathStep step : path.steps()) {
+            cells.add(blockPos(step.from()));
+            cells.add(blockPos(step.to()));
+            for (Pos pos : step.places()) {
+                cells.add(blockPos(pos));
+            }
+        }
+        return cells;
+    }
+
+    private static BlockPos blockPos(Pos pos) {
+        return new BlockPos(pos.x(), pos.y(), pos.z());
+    }
+
+    private static BlockPos blockPos(Node node) {
+        return new BlockPos(node.x(), node.y(), node.z());
     }
 
     private void stepSearch(TaskContext c) {
@@ -147,6 +232,11 @@ public final class Navigator {
                     .append(", places ").append(path.places())
                     .append(path.partial() ? ", partial" : "");
         }
+        boolean probed = probing;
+        probing = false;
+        if (probed) {
+            line.append(", material probe");
+        }
         companion.taskRunner().debug(line.toString());
         search = null;
         if (result.status() == SearchResult.Status.FOUND && path != null && path.steps().isEmpty()) {
@@ -154,9 +244,17 @@ public final class Navigator {
             state = State.ARRIVED;
             return;
         }
+        if (probed) {
+            startGathering(c, path);
+            return;
+        }
         if (result.status() == SearchResult.Status.NO_PATH || path == null || path.steps().isEmpty()) {
-            // A missing route may just mean missing material: Task 10 gathers and searches again. Until then, no.
-            state = State.GATHERING;
+            if (!mayPlace || !TaskSettings.pathing.allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                state = State.UNREACHABLE;
+                return;
+            }
+            // A missing route may mean missing material: ask what it would take with unlimited blocks to place.
+            beginProbe();
             return;
         }
         if (executor != null) {
