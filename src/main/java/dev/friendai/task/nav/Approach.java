@@ -13,7 +13,12 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Walks a companion until one of the blocks is within reach. A companion walks with its {@link Navigator}, so it may
- * dig or bridge on the way; {@link GoalReach} only counts a place the companion can actually see the block from.
+ * dig through what is in the way; {@link GoalReach} only counts a place the companion can actually see the block
+ * from.
+ *
+ * <p>Building on the way (pillar, bridge) is off unless the caller asks for it: an approach that is only there to use
+ * a block must not spend the material a task brought for its own work. {@code MineBlocksTask} turns it on, because a
+ * block above the ground can only be reached by pillaring.
  */
 public final class Approach {
     public enum State {
