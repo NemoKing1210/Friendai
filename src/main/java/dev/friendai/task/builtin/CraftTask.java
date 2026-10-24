@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -74,6 +75,8 @@ public final class CraftTask implements Task {
     private RecipeIndex index;
     private CraftPlan plan;
     private String failure;
+    /** How many of the target the companion already carried when there was nothing left to craft. */
+    private int alreadyHad;
     private int stepIndex;
     private int stepTicks;
     private int craftsDone;
@@ -120,14 +123,19 @@ public final class CraftTask implements Task {
                 failure = item + " has no crafting, stonecutter or smithing recipe";
                 return;
             }
-            plan = CraftPlanner.plan(
-                    item,
-                    count,
-                    inventoryMap(c.companion()),
-                    index,
-                    Stations.available(c.level(), c.companion()));
+            Map<String, Integer> items = inventoryMap(c.companion());
+            plan = CraftPlanner.planNew(
+                    item, count, items, index, Stations.available(c.level(), c.companion()));
             if (!plan.ok()) {
-                failure = "can't craft " + count + " " + item + "; " + CraftText.missingText(plan.missing());
+                int held = items.getOrDefault(item, 0);
+                if (held >= count) {
+                    // Nothing can be crafted, but the companion already carries what was asked for: say so instead
+                    // of failing on ingredients it does not need.
+                    alreadyHad = held;
+                    plan = new CraftPlan(List.of(), Map.of(), Set.of(), Set.of());
+                } else {
+                    failure = "can't craft " + count + " " + item + "; " + CraftText.missingText(plan.missing());
+                }
             }
         } catch (RuntimeException e) {
             failure = "can't craft " + count + " " + item;
@@ -518,7 +526,7 @@ public final class CraftTask implements Task {
     private TaskStatus finish() {
         StringBuilder text = new StringBuilder();
         if (plan.steps().isEmpty()) {
-            text.append("crafted 0 ").append(item);
+            text.append("already had ").append(alreadyHad).append(' ').append(item).append("; crafted nothing");
         } else {
             CraftStep last = plan.steps().getLast();
             text.append("crafted ").append(produced(last)).append(' ').append(item);
@@ -724,11 +732,7 @@ public final class CraftTask implements Task {
         }
         int remaining = Math.max(1, count - producedTarget);
         try {
-            CraftPlan rest = CraftPlanner.plan(
-                    item,
-                    remaining,
-                    inventoryMap(c.companion()),
-                    index,
+            CraftPlan rest = CraftPlanner.planNew(item, remaining, inventoryMap(c.companion()), index,
                     Stations.available(c.level(), c.companion()));
             if (!rest.missing().isEmpty()) {
                 return CraftText.missingText(rest.missing());

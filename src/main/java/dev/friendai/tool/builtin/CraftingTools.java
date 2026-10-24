@@ -37,7 +37,7 @@ final class CraftingTools {
                 "Craft an item from the companion's inventory, crafting intermediate items (planks, sticks, a crafting table) as needed. Uses a nearby crafting table, stonecutter or smithing table, or places its own. Call get_recipe first for anything complex.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:stick; tags are not accepted")
-                        .integer("count", "How many to craft", 1, 64)
+                        .integer("count", "How many to craft; ones already carried do not count", 1, 64)
                         .enumeration("station", "What to do with a station the companion places itself", "keep", "take")
                         .required("item", "count")
                         .build(),
@@ -97,8 +97,13 @@ final class CraftingTools {
         if (recipes.size() > cursor) {
             text.append('\n').append("+ ").append(recipes.size() - cursor).append(" more recipes");
         }
-        CraftPlan plan = CraftPlanner.plan(item, count, inventoryMap(companion), index, Stations.available(level, companion));
+        Map<String, Integer> items = inventoryMap(companion);
+        CraftPlan plan = CraftPlanner.planNew(item, count, items, index, Stations.available(level, companion));
         text.append('\n').append(CraftText.planText(plan, item, count));
+        int carried = items.getOrDefault(item, 0);
+        if (carried > 0) {
+            text.append('\n').append("already carries ").append(carried).append(" × ").append(item);
+        }
         return text.toString();
     }
 

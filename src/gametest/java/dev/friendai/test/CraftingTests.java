@@ -388,6 +388,54 @@ public class CraftingTests {
         });
     }
 
+    /**
+     * A carried stack of the target must not turn a craft into a no-op: the companion always carries a crafting
+     * table it uses as a station, and "craft a crafting table" has to produce a new one.
+     */
+    @GameTest(maxTicks = 200)
+    public void craftsTheTableItAlreadyCarries(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.CRAFTING_TABLE));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:crafting_table", 1);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual("crafted 1 minecraft:crafting_table", result.summary, "summary");
+            h.assertValueEqual(2, c.inventory().countItem(Items.CRAFTING_TABLE), "crafting tables");
+            h.assertValueEqual(0, c.inventory().countItem(Items.OAK_PLANKS), "planks left");
+        });
+    }
+
+    /** Nothing to craft, but the companion already carries what was asked for: say so instead of "crafted 0". */
+    @GameTest(maxTicks = 200)
+    public void alreadyCarriedPlanksNeedNoCraft(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+        Result result = new Result();
+        TaskRunner runner = craft(c, result, "minecraft:oak_planks", 4);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual("already had 4 minecraft:oak_planks; crafted nothing", result.summary, "summary");
+            h.assertValueEqual(4, c.inventory().countItem(Items.OAK_PLANKS), "planks");
+        });
+    }
+
+    @GameTest
+    public void getRecipeMentionsWhatIsAlreadyCarried(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.CRAFTING_TABLE));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+        ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:crafting_table\"}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("already carries 1 × minecraft:crafting_table"), "content was " + r.content());
+        h.succeed();
+    }
+
     @GameTest
     public void missingMaterialsFails(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

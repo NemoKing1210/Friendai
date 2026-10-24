@@ -110,6 +110,28 @@ class CraftPlannerTest {
     }
 
     @Test
+    void carriedTargetIsStillCrafted() {
+        // A craft was asked for: the four planks already carried must not turn the plan into a no-op.
+        CraftPlan plan = CraftPlanner.planNew("minecraft:oak_planks", 4,
+                Map.of("minecraft:oak_planks", 4, "minecraft:oak_log", 1), FakeRecipeBook.vanillaLike(),
+                ALL_STATIONS);
+        assertTrue(plan.ok());
+        assertEquals(1, plan.steps().size());
+        assertEquals("minecraft:oak_planks", plan.steps().get(0).recipe().output());
+        assertEquals(1, plan.steps().get(0).times());
+    }
+
+    @Test
+    void carriedIngredientsStillFeedANewCraft() {
+        // Only the target is set aside: the two carried planks make the sticks, no log is touched.
+        CraftPlan plan = CraftPlanner.planNew("minecraft:stick", 4,
+                Map.of("minecraft:oak_planks", 2, "minecraft:stick", 3), FakeRecipeBook.vanillaLike(), ALL_STATIONS);
+        assertTrue(plan.ok());
+        assertEquals(1, plan.steps().size());
+        assertEquals("minecraft:stick", plan.steps().get(0).recipe().output());
+    }
+
+    @Test
     void tagAlternativeUsesWhatIsCarried() {
         CraftPlan plan = plan("minecraft:stick", 4,
                 Map.of("minecraft:birch_planks", 2, "minecraft:oak_log", 1), FakeRecipeBook.vanillaLike());

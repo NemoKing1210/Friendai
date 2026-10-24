@@ -52,6 +52,26 @@ public final class CraftPlanner {
     }
 
     /**
+     * Plans {@code count} new items from the same inventory, even when it already carries some of the target: a
+     * craft was asked for, so a carried stack must not turn the plan into a no-op (the companion always carries
+     * the crafting table it uses as a station, and a request to craft one has to produce a new one). Carried
+     * ingredients, intermediates included, are used as usual.
+     */
+    public static CraftPlan planNew(String target, int count, Map<String, Integer> inventory, RecipeBook book,
+            Set<Station> stationsNearby) {
+        Objects.requireNonNull(target, "target");
+        Map<String, Integer> others = new LinkedHashMap<>();
+        if (inventory != null) {
+            inventory.forEach((item, amount) -> {
+                if (item != null && !item.equals(target) && amount != null && amount > 0) {
+                    others.put(item, amount);
+                }
+            });
+        }
+        return plan(target, count, others, book, stationsNearby);
+    }
+
+    /**
      * Puts the merged steps in dependency order: a step that produces an item another step consumes runs first,
      * and a station step follows the step that crafts its station item. Steps merge by recipe id, so a recipe
      * first used early keeps its position while a later use may add dependencies after it; without this pass the
