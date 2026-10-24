@@ -422,7 +422,9 @@ public final class BuildTask implements Task {
                 phase = foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION;
                 return TaskStatus.RUNNING;
             }
-            breaker = new BlockBreaker(next, Site::isNatural);
+            // Excavating the site: a cell inside a hill has no view from any standing spot, and the build needs it
+            // cleared anyway, so this breaker does not require line of sight.
+            breaker = new BlockBreaker(next, Site::isNatural, false);
         }
         return switch (breaker.tick(c)) {
             case WORKING -> TaskStatus.RUNNING;
@@ -431,7 +433,7 @@ public final class BuildTask implements Task {
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }
-            case GONE, UNREACHABLE, PROTECTED -> {
+            case GONE, UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }

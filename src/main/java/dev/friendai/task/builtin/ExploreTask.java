@@ -176,7 +176,7 @@ public final class ExploreTask implements Task {
                     breaker = null;
                 }
                 case GONE -> breaker = null;
-                case UNREACHABLE, PROTECTED -> {
+                case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
                     breaker.stop(c);
                     breaker = null;
                     turn();

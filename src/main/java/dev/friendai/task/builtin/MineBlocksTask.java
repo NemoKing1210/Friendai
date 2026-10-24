@@ -52,7 +52,7 @@ public final class MineBlocksTask implements Task {
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }
-            case UNREACHABLE, PROTECTED -> {
+            case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
                 blacklist.add(breaker.target());
                 breaker = null;
                 yield TaskStatus.RUNNING;

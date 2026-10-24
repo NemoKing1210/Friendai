@@ -15,6 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 
 public class MineBlocksTests {
     private static final class Result implements TaskListener {
@@ -256,6 +257,73 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DARK_PRISMARINE), "the protected block must stay");
             h.assertTrue(h.getBlockState(new BlockPos(10, 2, 2)).is(Blocks.AIR), "the farther block must be mined");
+        });
+    }
+
+    /** Persistent leaves, so they do not decay while the test waits. */
+    private static void leaf(GameTestHelper h, int x, int y, int z) {
+        h.setBlock(new BlockPos(x, y, z),
+                Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+    }
+
+    /** A log with every face but the floor covered: no standing spot can see it. */
+    private static void buryLog(GameTestHelper h) {
+        h.setBlock(new BlockPos(6, 2, 2), Blocks.OAK_LOG);
+        leaf(h, 6, 3, 2);
+        leaf(h, 5, 2, 2);
+        leaf(h, 7, 2, 2);
+        leaf(h, 6, 2, 1);
+        leaf(h, 6, 2, 3);
+    }
+
+    @GameTest(maxTicks = 600)
+    public void doesNotMineHiddenLog(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        buryLog(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void mineAtHiddenLogFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        buryLog(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals(coords(target) + " is hidden behind another block"),
+                    "summary was " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay");
+        });
+    }
+
+    /** Leaves cover one side only: the companion must step around them instead of mining through them. */
+    @GameTest(maxTicks = 1200)
+    public void minesAroundLeavesInTheWay(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(6, 2, 2), Blocks.OAK_LOG);
+        leaf(h, 5, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 0, "the log must be mined");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 2)).is(Blocks.OAK_LEAVES), "the leaves must stay");
         });
     }
 }

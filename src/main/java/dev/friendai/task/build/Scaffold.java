@@ -236,7 +236,7 @@ public final class Scaffold {
                         breaker = null;
                         removalIndex++;
                     }
-                    case UNREACHABLE, PROTECTED -> {
+                    case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
                         breaker = null;
                         return State.FAILED;
                     }
@@ -251,7 +251,9 @@ public final class Scaffold {
             if (!reachable(pos)) {
                 return State.FAILED;
             }
-            breaker = new BlockBreaker(pos, Scaffold::isScaffold);
+            // Taking down its own scaffold: the structure it helped build may hide the block, and leaving it behind
+            // is worse, so this breaker does not require line of sight.
+            breaker = new BlockBreaker(pos, Scaffold::isScaffold, false);
         }
         return State.READY;
     }
