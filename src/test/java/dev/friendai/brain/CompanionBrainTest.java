@@ -96,6 +96,16 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aMessageFromFarAwayIsAnsweredOnTheSpot() {
+        perceptionText = "Owner: 40.0 blocks away, out of sight (I can't tell where they stand or look)";
+        gateway.enqueue(text("Doing fine, thanks"));
+        brain.post(said("how are you?"));
+        assertEquals(List.of("Doing fine, thanks"), speaker.said);
+        assertTrue(tools.executed.isEmpty(), "a plain message must not start a task such as a walk");
+        assertTrue(gateway.requests.get(0).system().contains("Answering is never a reason to move"));
+    }
+
+    @Test
     void toolCallLoopsUntilText() {
         gateway.enqueue(calls("", call("c1", "stay")));
         gateway.enqueue(text("Staying"));

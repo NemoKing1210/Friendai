@@ -41,6 +41,16 @@ class PromptBuilderTest {
     }
 
     @Test
+    void answeringNeverRequiresWalkingOver() {
+        String owner = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(owner.contains("- Answering is never a reason to move"), owner);
+        assertTrue(owner.contains("Reply where you stand"), owner);
+        String guest = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Gus", AccessLevel.GUEST));
+        assertTrue(guest.contains("- Answering is never a reason to move"), guest);
+    }
+
+    @Test
     void planRules() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains("send them all at once with run_plan"));
