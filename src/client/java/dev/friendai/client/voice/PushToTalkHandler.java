@@ -17,7 +17,7 @@ import net.minecraft.client.Minecraft;
 public final class PushToTalkHandler {
     private static final int MIN_RECORDING_BYTES = 9_600; // 0.3 s at 16 kHz, 16-bit mono
 
-    private final MicCapture mic = new MicCapture();
+    private final MicCapture mic = VoiceRuntime.mic();
     private final Supplier<SpeechToText> stt;
     private final Consumer<String> onTranscript;
     private KeyMapping key;

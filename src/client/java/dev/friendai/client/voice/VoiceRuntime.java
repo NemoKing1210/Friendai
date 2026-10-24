@@ -26,10 +26,17 @@ public final class VoiceRuntime {
             HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build(),
             WhisperModel.DOWNLOAD_BASE_URL);
 
+    private static final MicCapture MIC = new MicCapture();
+
     private static WhisperLocalStt current;
     private static String currentModel;
 
     private VoiceRuntime() {}
+
+    /** The one microphone the client records from; the HUD reads its level while recording. */
+    public static MicCapture mic() {
+        return MIC;
+    }
 
     public static WhisperModelManager manager() {
         return MANAGER;

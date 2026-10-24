@@ -28,6 +28,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Test recording" recognizes English speech.
 - [ ] "Test recording" recognizes Russian speech.
 - [ ] Hold **V** in a world and say "mine two logs": the chat shows the voice line, the companion replies and does it.
+- [ ] Hold **V** while speaking: the capsule is centered horizontally above the hotbar, its dot pulses and the bars follow your voice; after release the waiting dots animate while transcribing.
 - [ ] No microphone / no model: the HUD shows a hint and nothing else breaks.
 
 ## Multiplayer

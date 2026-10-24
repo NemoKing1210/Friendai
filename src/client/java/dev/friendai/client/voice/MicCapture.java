@@ -1,5 +1,6 @@
 package dev.friendai.client.voice;
 
+import dev.friendai.voice.AudioLevel;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,7 @@ public final class MicCapture {
     private static final int BYTES_PER_SECOND = 32000;
 
     private volatile boolean recording;
+    private volatile float level;
     private TargetDataLine line;
     private Thread reader;
     private ByteArrayOutputStream buffer;
@@ -54,17 +56,19 @@ public final class MicCapture {
         opened.start();
         line = opened;
         buffer = new ByteArrayOutputStream();
+        level = 0f;
         recording = true;
         int limit = maxSeconds * BYTES_PER_SECOND;
         TargetDataLine source = opened;
         ByteArrayOutputStream sink = buffer;
         reader = new Thread(() -> {
-            byte[] chunk = new byte[4096];
+            byte[] chunk = new byte[1024];
             while (recording && sink.size() < limit) {
                 int n = source.read(chunk, 0, chunk.length);
                 if (n <= 0) {
                     break;
                 }
+                level = AudioLevel.of(chunk, n);
                 synchronized (sink) {
                     sink.write(chunk, 0, n);
                 }
@@ -95,11 +99,17 @@ public final class MicCapture {
         line = null;
         reader = null;
         buffer = null;
+        level = 0f;
         return out;
     }
 
     public boolean isRecording() {
         return recording;
+    }
+
+    /** The loudness of the last chunk, 0..1; what the HUD's bars follow. */
+    public float level() {
+        return level;
     }
 
     /** True once the recording thread has ended on its own (limit reached) and {@link #stop()} is still due. */
