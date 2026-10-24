@@ -226,8 +226,8 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 800)
-    public void goToGathersDirtThenBridges(GameTestHelper h) {
+    /** A 4-deep pit walled in unbreakable planks with a dirt mound on the near side, the only material around. */
+    private static void plankPitWithDirtMound(GameTestHelper h) {
         GameTestSupport.platformAt(h, 1, 16);
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
@@ -238,7 +238,6 @@ public class PathingTests {
                 }
             }
         }
-        // The only material within reach: a dirt mound on the near side.
         for (int x = 2; x <= 4; x++) {
             for (int z = 2; z <= 4; z++) {
                 for (int y = 6; y <= 7; y++) {
@@ -246,6 +245,11 @@ public class PathingTests {
                 }
             }
         }
+    }
+
+    @GameTest(maxTicks = 800)
+    public void goToGathersDirtThenBridges(GameTestHelper h) {
+        plankPitWithDirtMound(h);
         CompanionEntity c = walker(h, 1, 6, 8);
         Outcome out = new Outcome();
         walkTo(c, h, out, 12.5, 6, 8.5);
@@ -314,6 +318,33 @@ public class PathingTests {
             // is what the task promises.
             h.assertTrue(c.inventory().countItem(Items.CHERRY_LOG) >= 1,
                     "logs collected: " + c.inventory().countItem(Items.CHERRY_LOG));
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void gatheringLeavesProtectedBlocks(GameTestHelper h) {
+        plankPitWithDirtMound(h);
+        CompanionEntity c = walker(h, 1, 6, 8);
+        // The mound is protected as a spawn region would be: gathering must leave it alone, so the pit stays uncrossable.
+        BlockPos mound = h.absolutePos(new BlockPos(2, 6, 2));
+        c.hands().overrideProtection(pos -> pos.getX() >= mound.getX() && pos.getX() <= mound.getX() + 2
+                && pos.getZ() >= mound.getZ() && pos.getZ() <= mound.getZ() + 2
+                && pos.getY() >= mound.getY() && pos.getY() <= mound.getY() + 1);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, 6, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.FAILED, "go_to should have refused: " + out.why());
+            int left = 0;
+            for (int x = 2; x <= 4; x++) {
+                for (int z = 2; z <= 4; z++) {
+                    for (int y = 6; y <= 7; y++) {
+                        if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(Blocks.DIRT)) {
+                            left++;
+                        }
+                    }
+                }
+            }
+            h.assertTrue(left == 18, "protected dirt was broken: " + left + " of 18 left");
         });
     }
 

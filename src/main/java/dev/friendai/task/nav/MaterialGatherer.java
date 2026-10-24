@@ -76,6 +76,10 @@ public final class MaterialGatherer {
 
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
+        if (!TaskSettings.pathing.allowBreak()) {
+            // Gathering is digging; a server that forbids breaking forbids this too.
+            return finish(c);
+        }
         if (haveAtStart < 0) {
             haveAtStart = picker.count(companion.inventory());
         }
@@ -123,7 +127,7 @@ public final class MaterialGatherer {
                 navigator.stop(c);
                 navigator = null;
                 BlockPos near = nearestWithinReach(companion);
-                if (near != null) {
+                if (near != null && companion.hands().canInteract(near)) {
                     candidates = without(candidates, near);
                     action = new BreakAction(near);
                 } else {
@@ -196,7 +200,8 @@ public final class MaterialGatherer {
         AABB bounds = companion.pathBounds();
         List<BlockPos> result = new ArrayList<>(found.size());
         for (BlockPos pos : found) {
-            if (avoid.contains(pos)) {
+            if (avoid.contains(pos) || !companion.hands().canInteract(pos)) {
+                // Protected ground, like a spawn region: the block stays where it is.
                 continue;
             }
             if (bounds != null && !bounds.contains(Vec3.atCenterOf(pos))) {
