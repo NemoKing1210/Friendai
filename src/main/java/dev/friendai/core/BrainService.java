@@ -313,6 +313,11 @@ public final class BrainService {
             public void onNotice(String text) {
                 post(owner, new BrainEvent.WorldNotice(text));
             }
+
+            @Override
+            public void onDebug(String text) {
+                debug.logOf(owner).add(LogKind.TASK, text);
+            }
         });
         Entry entry = new Entry(brain, speaker);
         entries.put(owner, entry);

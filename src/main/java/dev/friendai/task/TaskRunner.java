@@ -82,6 +82,13 @@ public final class TaskRunner {
         }
     }
 
+    /** Passes a debug line to the listener, when one is attached. */
+    public void debug(String text) {
+        if (listener != null) {
+            listener.onDebug(text);
+        }
+    }
+
     public Optional<Task> current() {
         return Optional.ofNullable(current).map(Active::task);
     }

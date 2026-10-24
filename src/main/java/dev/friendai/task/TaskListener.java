@@ -7,4 +7,7 @@ public interface TaskListener {
 
     /** Something the companion noticed outside a task, like a furnace finishing. */
     default void onNotice(String text) {}
+
+    /** A line tasks write for the operator's debug tab: pathing decisions, stuck reasons. */
+    default void onDebug(String text) {}
 }

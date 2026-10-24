@@ -1,6 +1,11 @@
 package dev.friendai.test;
 
+import dev.friendai.core.BrainService;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.debug.LogEntry;
+import dev.friendai.debug.LogKind;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CostModel;
@@ -8,10 +13,12 @@ import dev.friendai.pathing.PathingConfig;
 import dev.friendai.task.mining.BreakProgress;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MaterialPicker;
+import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -104,6 +111,21 @@ public class PathingTests {
             }
         }
         h.assertTrue(cellAt(view, h, 2, 2, 2).breakTicks() > 0, "stone outside the wall stays breakable");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void taskDebugReachesLog(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        // The task listener is installed with the owner's brain entry, as it already is for notices.
+        brains.currentPrompt(player.getUUID());
+        c.taskRunner().debug("path test");
+        List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
+        h.assertTrue(log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains("path test")),
+                "debug line must reach the owner's log: " + log);
         h.succeed();
     }
 }
