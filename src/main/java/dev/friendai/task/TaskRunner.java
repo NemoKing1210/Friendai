@@ -25,6 +25,7 @@ public final class TaskRunner {
     private int activeTicks;
     private TaskListener listener;
     private boolean paused;
+    private boolean suspended;
 
     public void setPaused(boolean paused) {
         this.paused = paused;
@@ -32,6 +33,19 @@ public final class TaskRunner {
 
     public boolean paused() {
         return paused;
+    }
+
+    /** Stops progress without cancelling the task, so a saved build can resume after a reload or a relog. */
+    public void suspend() {
+        suspended = true;
+    }
+
+    public void resume() {
+        suspended = false;
+    }
+
+    public boolean suspended() {
+        return suspended;
     }
 
     public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
@@ -98,7 +112,7 @@ public final class TaskRunner {
     }
 
     public void tick() {
-        if (paused) {
+        if (paused || suspended) {
             return;
         }
         if (current == null) {

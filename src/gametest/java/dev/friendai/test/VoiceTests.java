@@ -12,6 +12,7 @@ import dev.friendai.net.VoiceTranscriptHandler;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -47,6 +48,25 @@ public class VoiceTests {
             List<Message> first = recorder.requests.get(0);
             h.assertTrue(first.get(first.size() - 1).text().equals(expected), "message was " + first.get(first.size() - 1).text());
         });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void foreignThreadTrustAnswerIsDeferred(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        UUID target = UUID.randomUUID();
+        state.trust().request(player, target, "Bob", true);
+        Thread caller = new Thread(() -> VoiceTranscriptHandler.handle(player, "yes"), "voice-test-caller");
+        caller.start();
+        try {
+            caller.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        h.assertTrue(!state.memory().book(player.getUUID()).isTrusted(target),
+                "the trust answer was applied on the calling thread");
+        h.succeedWhen(() -> h.assertTrue(state.memory().book(player.getUUID()).isTrusted(target),
+                "the trust answer never reached the server thread"));
     }
 
     @GameTest(maxTicks = 100)

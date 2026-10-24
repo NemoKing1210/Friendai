@@ -3,6 +3,8 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
 import dev.friendai.entity.CompanionEntity;
@@ -33,6 +35,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -377,6 +380,32 @@ public class BuildTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 400)
+    public void ownerLeftKeepsTheBuildForReload(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        Blueprint platform = generator(
+                "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
+        companion.taskRunner().start(
+                new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false),
+                "build_structure");
+        h.runAfterDelay(5, () -> {
+            h.assertTrue(companion.taskRunner().current().isPresent(), "the build must still be running");
+            String saved = companion.taskRunner().current().orElseThrow().saveData();
+            FriendaiServerState.get(server).brains().onOwnerLeft(owner.getUUID());
+            h.assertTrue(saved.equals(companion.taskRunner().current().map(Task::saveData).orElse("")),
+                    "owner leave cancelled the build");
+            h.assertTrue(companion.taskRunner().suspended(), "the runner must pause while the owner is away");
+            FriendaiServerState.get(server).brains().onOwnerJoined(owner.getUUID());
+            h.assertTrue(!companion.taskRunner().suspended(), "the runner must resume when the owner returns");
+            companion.taskRunner().stop("test");
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 4000)
     public void restoreResumes(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -646,13 +675,15 @@ public class BuildTests {
     public void haveCountsChests(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 10));
+        // Birch: no other test stores it, so a neighbouring test's chest inside the 16-block storage
+        // radius cannot change the count (the shared GameTest world places structures 5-6 blocks apart).
+        companion.inventory().addItem(new ItemStack(Items.BIRCH_PLANKS, 10));
         h.setBlock(6, 2, 6, Blocks.CHEST);
         var chest = (net.minecraft.world.level.block.entity.ChestBlockEntity)
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(6, 2, 6)));
-        chest.setItem(0, new ItemStack(Items.OAK_PLANKS, 20));
+        chest.setItem(0, new ItemStack(Items.BIRCH_PLANKS, 20));
         chest.setChanged();
-        equal(30, Materials.have(companion, h.getLevel()).getOrDefault(Items.OAK_PLANKS, 0), "inventory plus chest");
+        equal(30, Materials.have(companion, h.getLevel()).getOrDefault(Items.BIRCH_PLANKS, 0), "inventory plus chest");
         h.succeed();
     }
 
@@ -815,13 +846,15 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         // Four logs on the platform are enough to craft the twelve planks the wall needs; a crafting table is not
         // needed for planks.
-        h.setBlock(2, 2, 10, Blocks.OAK_LOG);
-        h.setBlock(2, 2, 11, Blocks.OAK_LOG);
-        h.setBlock(2, 2, 12, Blocks.OAK_LOG);
-        h.setBlock(2, 2, 13, Blocks.OAK_LOG);
+        // Acacia: no other test stores it, so the build cannot satisfy the wall from a neighbour's chest
+        // and skip the mining this test is about.
+        h.setBlock(2, 2, 10, Blocks.ACACIA_LOG);
+        h.setBlock(2, 2, 11, Blocks.ACACIA_LOG);
+        h.setBlock(2, 2, 12, Blocks.ACACIA_LOG);
+        h.setBlock(2, 2, 13, Blocks.ACACIA_LOG);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:oak_planks\"}");
+                "{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:acacia_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(3, 2, 6));
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
@@ -833,10 +866,10 @@ public class BuildTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.startsWith("built wall at "), "summary was " + result.summary);
             for (int x = 3; x <= 14; x++) {
-                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.OAK_PLANKS),
+                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.ACACIA_PLANKS),
                         "missing plank at " + x + ",2,6: " + h.getBlockState(new BlockPos(x, 2, 6)));
             }
-            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.OAK_LOG).size() < 4, "the logs must be mined");
+            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.ACACIA_LOG).size() < 4, "the logs must be mined");
         });
     }
 
@@ -881,8 +914,9 @@ public class BuildTests {
     public void withoutGatherStillFails(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Dark oak: no other test stores it, so a neighbour's chest cannot supply these planks.
         Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
+                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:dark_oak_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
@@ -893,7 +927,7 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("missing materials: 9 × minecraft:oak_planks"),
+            h.assertTrue(result.summary.equals("missing materials: 9 × minecraft:dark_oak_planks"),
                     "summary was " + result.summary);
             for (int x = 5; x <= 7; x++) {
                 for (int z = 5; z <= 7; z++) {
@@ -964,19 +998,20 @@ public class BuildTests {
     public void takesOnlyShortfall(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 10));
+        // Jungle: no other test stores it, so a foreign chest must not become the "near" source.
+        companion.inventory().addItem(new ItemStack(Items.JUNGLE_PLANKS, 10));
         h.setBlock(1, 2, 4, Blocks.CHEST);
         var near = (net.minecraft.world.level.block.entity.ChestBlockEntity)
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(1, 2, 4)));
-        near.setItem(0, new ItemStack(Items.OAK_PLANKS, 10));
+        near.setItem(0, new ItemStack(Items.JUNGLE_PLANKS, 10));
         near.setChanged();
         h.setBlock(1, 2, 12, Blocks.CHEST);
         var far = (net.minecraft.world.level.block.entity.ChestBlockEntity)
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(1, 2, 12)));
-        far.setItem(0, new ItemStack(Items.OAK_PLANKS, 20));
+        far.setItem(0, new ItemStack(Items.JUNGLE_PLANKS, 20));
         far.setChanged();
         Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:oak_planks\"}");
+                "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:jungle_planks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(platform, h, 5, 2, 5, Direction.SOUTH), "build_structure");
@@ -986,7 +1021,7 @@ public class BuildTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(near.getItem(0).isEmpty(), "the nearest chest must be emptied first: " + near.getItem(0));
             h.assertTrue(far.getItem(0).getCount() == 15, "the far chest keeps 15: " + far.getItem(0));
-            h.assertTrue(h.getBlockState(new BlockPos(9, 2, 9)).is(Blocks.OAK_PLANKS), "the platform is built");
+            h.assertTrue(h.getBlockState(new BlockPos(9, 2, 9)).is(Blocks.JUNGLE_PLANKS), "the platform is built");
         });
     }
 

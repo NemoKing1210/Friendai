@@ -15,11 +15,16 @@ public final class VoiceTranscriptHandler {
     private VoiceTranscriptHandler() {}
 
     public static void handle(ServerPlayer player, String text) {
+        var server = player.level().getServer();
+        if (server != null && !server.isSameThread()) {
+            // Network threads call this directly; all world and memory access belongs to the server thread.
+            server.execute(() -> handle(player, text));
+            return;
+        }
         if (text == null || text.isBlank() || text.length() > VoiceTranscriptC2SPayload.MAX_CHARS) {
             return;
         }
         String clean = text.strip();
-        var server = player.level().getServer();
         // A yes/no answer to a pending trust request is handled before the line reaches any companion.
         if (FriendaiServerState.get(server).trust().answer(player, clean)) {
             return;

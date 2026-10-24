@@ -59,6 +59,7 @@ public class FriendaiMod implements ModInitializer {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             FriendaiServerState state = FriendaiServerState.get(server);
             UUID player = handler.getPlayer().getUUID();
+            state.brains().onOwnerJoined(player);
             state.memory().book(player);
             if (state.memory().takeCorruptionNotice(player)) {
                 handler.getPlayer().sendSystemMessage(Component.translatable("friendai.memory.corrupt"));

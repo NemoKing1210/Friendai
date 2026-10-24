@@ -212,10 +212,15 @@ public final class BrainService {
         }
     }
 
-    /** The owner left the game. */
+    /** The owner left the game: keep the task (a build can resume), but make no progress while they are away. */
     public void onOwnerLeft(UUID owner) {
         cancel(owner);
-        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().stop("owner left"));
+        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().suspend());
+    }
+
+    /** The owner came back to a still-loaded companion. */
+    public void onOwnerJoined(UUID owner) {
+        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().resume());
     }
 
     public void tick() {
