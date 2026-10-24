@@ -8,6 +8,7 @@ import dev.friendai.core.Components;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
+import dev.friendai.voice.VoiceConfig;
 import dev.friendai.voice.tts.CloudTtsEngine;
 import dev.friendai.voice.tts.ElevenLabsSpeechProtocol;
 import dev.friendai.voice.tts.LocalTtsEngine;
@@ -304,6 +305,9 @@ public final class SpeechRuntime {
     }
 
     private static TtsSettings resolve(ClientConfig.TtsSection cfg) {
-        return TtsSettings.from(cfg, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv);
+        return TtsSettings.from(
+                VoiceConfig.resolveTts(
+                        cfg, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv),
+                cfg.volume);
     }
 }

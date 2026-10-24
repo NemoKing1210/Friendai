@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.testutil.MockHttpServer;
 import dev.friendai.text.UserFacingException;
+import dev.friendai.voice.VoiceConfig;
 import java.net.http.HttpClient;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.AfterEach;
@@ -28,16 +29,21 @@ class CloudTtsEngineTest {
     }
 
     private static ClientConfig.TtsSection openAiSection(String baseUrl, String key) {
-        ClientConfig.TtsSection cfg = ClientConfig.defaults().voice.tts;
+        ClientConfig c = ClientConfig.defaults();
+        c.validate();
+        ClientConfig.TtsSection cfg = c.voice.tts;
         cfg.provider = "openai";
-        cfg.openai.baseUrl = baseUrl;
-        cfg.openai.apiKey = key;
+        ClientConfig.CloudSettings cloud = cfg.cloud.get("openai");
+        cloud.baseUrl = baseUrl;
+        cloud.apiKey = key;
         return cfg;
     }
 
     private CloudTtsEngine engine(ClientConfig.TtsSection cfg) {
         return new CloudTtsEngine(
-                TtsSettings.from(cfg, "en_us", name -> ""), new OpenAiSpeechProtocol(), HttpClient.newHttpClient());
+                TtsSettings.from(VoiceConfig.resolveTts(cfg, "en_us", name -> ""), cfg.volume),
+                new OpenAiSpeechProtocol(),
+                HttpClient.newHttpClient());
     }
 
     @Test

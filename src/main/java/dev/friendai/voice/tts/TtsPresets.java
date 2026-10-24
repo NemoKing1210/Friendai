@@ -1,42 +1,63 @@
 package dev.friendai.voice.tts;
 
+import dev.friendai.voice.CloudField;
+import dev.friendai.voice.VoiceAuth;
+import dev.friendai.voice.VoicePreset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
-/** The cloud speech providers the mod knows about. */
+/** Speech-synthesis providers available to a client. */
 public final class TtsPresets {
+    public static final String LOCAL = "local";
+    /** Kept for the protocol adapters, which need the official endpoint even without a config entry. */
     public static final String OPENAI_DEFAULT_BASE = "https://api.openai.com/v1";
     public static final String ELEVENLABS_DEFAULT_BASE = "https://api.elevenlabs.io";
 
-    private static final List<TtsProvider> ALL = List.of(
-            new TtsProvider(
-                    "openai",
-                    "OpenAI",
-                    OPENAI_DEFAULT_BASE,
-                    TtsAuth.BEARER,
-                    "gpt-4o-mini-tts",
-                    "alloy",
-                    "https://platform.openai.com/docs/guides/text-to-speech",
-                    true,
-                    true),
-            new TtsProvider(
-                    "elevenlabs",
-                    "ElevenLabs",
-                    ELEVENLABS_DEFAULT_BASE,
-                    TtsAuth.XI_API_KEY,
-                    "eleven_multilingual_v2",
-                    "21m00Tcm4TlvDq8ikWAM",
-                    "https://elevenlabs.io/docs/api-reference/text-to-speech",
-                    true,
-                    false));
+    private static final List<String> OPENAI_VOICES = List.of(
+            "alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer",
+            "verse", "marin", "cedar");
+    private static final List<String> YANDEX_VOICES = List.of(
+            "alena", "filipp", "ermil", "jane", "omazh", "zahar", "madirus");
+
+    private static final List<VoicePreset> ALL = List.of(
+            new VoicePreset(LOCAL, "Local (Piper)", "local", null, VoiceAuth.NONE,
+                    null, null, null, null, false, null, List.of(), Set.of()),
+            new VoicePreset("openai", "OpenAI", "openai_speech", OPENAI_DEFAULT_BASE,
+                    VoiceAuth.BEARER, "gpt-4o-mini-tts", "alloy", null, "env:OPENAI_API_KEY", true,
+                    "https://platform.openai.com/api-keys", OPENAI_VOICES,
+                    Set.of(CloudField.API_KEY, CloudField.MODEL, CloudField.VOICE, CloudField.BASE_URL)),
+            new VoicePreset("elevenlabs", "ElevenLabs", "elevenlabs_tts", ELEVENLABS_DEFAULT_BASE,
+                    VoiceAuth.ELEVENLABS, "eleven_multilingual_v2", null, null, "env:ELEVENLABS_API_KEY",
+                    true, "https://elevenlabs.io/app/settings/api-keys", List.of(),
+                    Set.of(CloudField.API_KEY, CloudField.MODEL, CloudField.VOICE)),
+            new VoicePreset("yandex", "Yandex SpeechKit", "yandex_tts",
+                    "https://tts.api.cloud.yandex.net", VoiceAuth.YANDEX, null, "alena", "ru-RU",
+                    "env:YANDEX_API_KEY", true, "https://yandex.cloud/ru/docs/speechkit/",
+                    YANDEX_VOICES,
+                    Set.of(CloudField.API_KEY, CloudField.VOICE,
+                            CloudField.FOLDER_ID, CloudField.LANGUAGE)));
 
     private TtsPresets() {}
 
-    public static List<TtsProvider> all() {
+    public static List<VoicePreset> all() {
         return ALL;
     }
 
-    public static Optional<TtsProvider> byId(String id) {
-        return ALL.stream().filter(provider -> provider.id().equals(id)).findFirst();
+    public static List<String> ids() {
+        return ALL.stream().map(VoicePreset::id).toList();
+    }
+
+    public static Optional<VoicePreset> byId(String id) {
+        return ALL.stream().filter(preset -> preset.id().equals(id)).findFirst();
+    }
+
+    /** The preset for an id; an unknown id falls back to local rather than failing a turn. */
+    public static VoicePreset require(String id) {
+        return byId(id).orElse(local());
+    }
+
+    public static VoicePreset local() {
+        return byId(LOCAL).orElseThrow();
     }
 }

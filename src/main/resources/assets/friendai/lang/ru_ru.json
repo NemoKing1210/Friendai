@@ -108,6 +108,8 @@
   "friendai.voice.hud.recording": "Запись…",
   "friendai.voice.hud.transcribing": "Распознаю…",
   "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
+  "friendai.voice.error.no_key": "Для распознавания речи не задан API-ключ.",
+  "friendai.voice.error.unsupported_language": "Выбранный сервис распознавания не поддерживает этот язык.",
   "friendai.voice.error.no_mic": "Микрофон недоступен",
   "friendai.voice.error.failed": "Не удалось распознать речь",
 

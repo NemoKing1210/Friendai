@@ -352,6 +352,7 @@ public final class FriendaiConfigScreen {
 
     private static ConfigCategory voiceCategory(Screen parent, ClientConfig client) {
         var v = client.voice;
+        var s = v.stt;
         var t = v.tts;
         String defaultDevice = tr("friendai.config.voice.device.default").getString();
         List<String> devices = new ArrayList<>();
@@ -363,22 +364,22 @@ public final class FriendaiConfigScreen {
         }
         Option<String> modelOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.model"))
-                .binding("base", () -> v.whisperModel, x -> v.whisperModel = x)
+                .binding("base", () -> s.local.model, x -> s.local.model = x)
                 .controller(o -> DropdownStringControllerBuilder.create(o).values(WHISPER_MODELS).allowAnyValue(false))
                 .build();
         Option<String> languageOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.language"))
-                .binding("auto", () -> v.language, x -> v.language = x.isBlank() ? "auto" : x.strip())
+                .binding("auto", () -> s.language, x -> s.language = x.isBlank() ? "auto" : x.strip())
                 .controller(StringControllerBuilder::create)
                 .build();
         Option<String> deviceOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.device"))
-                .binding(defaultDevice, () -> v.inputDevice == null ? defaultDevice : v.inputDevice,
-                        x -> v.inputDevice = x.equals(defaultDevice) ? null : x)
+                .binding(defaultDevice, () -> s.inputDevice == null ? defaultDevice : s.inputDevice,
+                        x -> s.inputDevice = x.equals(defaultDevice) ? null : x)
                 .controller(o -> DropdownStringControllerBuilder.create(o).values(devices).allowAnyValue(false))
                 .build();
 
-        boolean installed = VoiceRuntime.manager().isInstalled(WhisperModel.byId(v.whisperModel).spec());
+        boolean installed = VoiceRuntime.manager().isInstalled(WhisperModel.byId(s.local.model).spec());
         LabelOption status = LabelOption.create(tr(installed
                 ? "friendai.config.voice.status.installed" : "friendai.config.voice.status.missing"));
         ButtonOption download = ButtonOption.createBuilder()
@@ -406,7 +407,7 @@ public final class FriendaiConfigScreen {
                 .build();
         ButtonOption test = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.test"))
-                .action((screen, button) -> testRecording(v.inputDevice, v.language))
+                .action((screen, button) -> testRecording(s.inputDevice, s.language))
                 .build();
 
         List<Option<?>> tts = new ArrayList<>();
@@ -479,7 +480,7 @@ public final class FriendaiConfigScreen {
 
         var builder = ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.voice"))
-                .option(booleanOption("friendai.config.voice.enabled", true, () -> v.enabled, x -> v.enabled = x))
+                .option(booleanOption("friendai.config.voice.enabled", true, () -> s.enabled, x -> s.enabled = x))
                 .option(modelOpt)
                 .option(status)
                 .option(download)
@@ -556,36 +557,43 @@ public final class FriendaiConfigScreen {
     }
 
     private static List<Option<?>> openAiOptions(Screen parent, ClientConfig.TtsSection t, List<Option<?>> all) {
+        ClientConfig.CloudSettings c = cloud(t, "openai");
         List<Option<?>> options = new ArrayList<>();
-        options.addAll(apiKeyOptions(parent, all, () -> t.openai.apiKey, value -> t.openai.apiKey = value));
+        options.addAll(apiKeyOptions(parent, all, () -> c.apiKey, value -> c.apiKey = value));
         options.add(Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.tts.openai.base_url"))
                 .description(OptionDescription.of(tr("friendai.config.voice.tts.openai.base_url.tooltip")))
-                .binding("", () -> t.openai.baseUrl == null ? "" : t.openai.baseUrl,
-                        x -> t.openai.baseUrl = x.isBlank() ? null : x.strip())
+                .binding("", () -> c.baseUrl == null ? "" : c.baseUrl,
+                        x -> c.baseUrl = x.isBlank() ? null : x.strip())
                 .controller(StringControllerBuilder::create)
                 .build());
         options.add(stringOption("friendai.config.voice.tts.openai.model",
-                () -> t.openai.model, "gpt-4o-mini-tts", x -> t.openai.model = x));
+                () -> c.model, "gpt-4o-mini-tts", x -> c.model = x));
         options.add(stringOption("friendai.config.voice.tts.openai.voice",
-                () -> t.openai.voice, "alloy", x -> t.openai.voice = x));
-        options.add(speedOption(0.5, 2.0, () -> t.openai.speed, x -> t.openai.speed = x));
+                () -> c.voice, "alloy", x -> c.voice = x));
+        options.add(speedOption(0.5, 2.0, () -> c.speed, x -> c.speed = x));
         options.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
         options.add(docsButton("openai"));
         return options;
     }
 
     private static List<Option<?>> elevenLabsOptions(Screen parent, ClientConfig.TtsSection t, List<Option<?>> all) {
+        ClientConfig.CloudSettings c = cloud(t, "elevenlabs");
         List<Option<?>> options = new ArrayList<>();
-        options.addAll(apiKeyOptions(parent, all, () -> t.elevenlabs.apiKey, value -> t.elevenlabs.apiKey = value));
+        options.addAll(apiKeyOptions(parent, all, () -> c.apiKey, value -> c.apiKey = value));
         options.add(stringOption("friendai.config.voice.tts.elevenlabs.model",
-                () -> t.elevenlabs.model, "eleven_multilingual_v2", x -> t.elevenlabs.model = x));
+                () -> c.model, "eleven_multilingual_v2", x -> c.model = x));
         options.add(stringOption("friendai.config.voice.tts.elevenlabs.voice",
-                () -> t.elevenlabs.voice, "", x -> t.elevenlabs.voice = x));
-        options.add(speedOption(0.7, 1.2, () -> t.elevenlabs.speed, x -> t.elevenlabs.speed = x));
+                () -> c.voice, "", x -> c.voice = x));
+        options.add(speedOption(0.7, 1.2, () -> c.speed, x -> c.speed = x));
         options.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
         options.add(docsButton("elevenlabs"));
         return options;
+    }
+
+    /** The entry for one provider; entries are per provider so one key never moves to another. */
+    private static ClientConfig.CloudSettings cloud(ClientConfig.TtsSection t, String provider) {
+        return t.cloud.computeIfAbsent(provider, id -> new ClientConfig.CloudSettings());
     }
 
     private static List<Option<?>> apiKeyOptions(

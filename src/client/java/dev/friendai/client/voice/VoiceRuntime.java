@@ -44,7 +44,7 @@ public final class VoiceRuntime {
 
     /** The recognizer for the configured model, or one that reports "not ready" if the model is not installed. */
     public static synchronized SpeechToText stt() {
-        WhisperModel wanted = WhisperModel.byId(FriendaiClient.clientConfig().voice.whisperModel);
+        WhisperModel wanted = WhisperModel.byId(FriendaiClient.clientConfig().voice.stt.local.model);
         if (current != null && wanted.id().equals(currentModel)) {
             return current;
         }

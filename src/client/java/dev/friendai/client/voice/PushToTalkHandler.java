@@ -51,7 +51,7 @@ public final class PushToTalkHandler {
     private void onPressed(Minecraft mc) {
         // Never record the companion's own voice: a press cuts any reply off before the mic opens.
         SpeechRuntime.stop();
-        ClientConfig.VoiceSection voice = FriendaiClient.clientConfig().voice;
+        ClientConfig.SttSection voice = FriendaiClient.clientConfig().voice.stt;
         pressIgnored = true;
         if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {
             return;
@@ -80,7 +80,7 @@ public final class PushToTalkHandler {
             return;
         }
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
-        String language = FriendaiClient.clientConfig().voice.language;
+        String language = FriendaiClient.clientConfig().voice.stt.language;
         stt.get().transcribe(PcmConverter.toFloat(pcm), language).whenComplete((text, error) -> mc.execute(() -> {
             if (error != null) {
                 FriendaiMod.LOGGER.warn("Speech recognition failed", error);
