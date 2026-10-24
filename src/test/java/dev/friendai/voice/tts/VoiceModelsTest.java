@@ -21,7 +21,7 @@ class VoiceModelsTest {
             assertTrue(model.size() > 0, model.id());
             assertTrue(model.sha256().matches("[0-9a-f]{64}"), model.id());
             assertFalse(model.license().isBlank(), model.id());
-            assertFalse(model.modelFile().isBlank(), model.id());
+            assertEquals(model.id() + ".onnx", model.modelFile(), model.id());
             assertFalse(model.tokensFile().isBlank(), model.id());
             assertFalse(model.dataDir().isBlank(), model.id());
             assertTrue(VoiceModels.byId(model.id()).isPresent(), model.id());

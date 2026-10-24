@@ -72,6 +72,11 @@ dependencies {
 
 test {
 	useJUnitPlatform()
+	// Lets the gated local-TTS spike opt in with -Dfriendai.tts.voice=<installed voice dir>.
+	def ttsVoice = System.getProperty("friendai.tts.voice")
+	if (ttsVoice != null) {
+		systemProperty "friendai.tts.voice", ttsVoice
+	}
 }
 
 processResources {

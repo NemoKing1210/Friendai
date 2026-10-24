@@ -45,17 +45,21 @@ class VoiceModelManagerTest {
     }
 
     @Test
-    void downloadsVerifiesAndExtracts() throws IOException {
+    void downloadsVerifiesAndExtractsARealPipersArchive() throws IOException {
         byte[] archive = tarBz2(files(
-                "model.onnx", new byte[] {1, 2},
-                "tokens.txt", new byte[] {3},
-                "espeak-ng-data/phontab", new byte[] {4}));
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[] {1, 2},
+                "vits-piper-test-voice/test-voice.onnx.json", new byte[] {5},
+                "vits-piper-test-voice/MODEL_CARD", new byte[] {6},
+                "vits-piper-test-voice/tokens.txt", new byte[] {3},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {4}));
         server.enqueue(200, archive);
         VoiceModel model = model(archive);
 
         Path voiceDir = manager.download(model, progress -> {}).join();
 
-        assertTrue(Files.isRegularFile(voiceDir.resolve("model.onnx")));
+        assertTrue(Files.isRegularFile(voiceDir.resolve("test-voice.onnx")));
+        assertFalse(Files.exists(voiceDir.resolve("vits-piper-test-voice")));
         assertTrue(Files.isRegularFile(voiceDir.resolve("tokens.txt")));
         assertTrue(Files.isDirectory(voiceDir.resolve("espeak-ng-data")));
         assertFalse(Files.exists(dir.resolve(model.id() + ".tar.bz2.part")));
@@ -65,11 +69,11 @@ class VoiceModelManagerTest {
 
     @Test
     void hashMismatchCleansUp() throws IOException {
-        byte[] archive = tarBz2(files("model.onnx", new byte[] {1}));
+        byte[] archive = tarBz2(files("test-voice.onnx", new byte[] {1}));
         server.enqueue(200, archive);
         VoiceModel model = new VoiceModel(
                 "test-voice", "Test", "en-US", server.baseUrl() + "/voice.tar.bz2",
-                archive.length, "0".repeat(64), "MIT", "model.onnx", "tokens.txt", "espeak-ng-data");
+                archive.length, "0".repeat(64), "MIT", "test-voice.onnx", "tokens.txt", "espeak-ng-data");
 
         ExecutionException e = assertThrows(ExecutionException.class,
                 () -> manager.download(model, progress -> {}).get());
@@ -84,7 +88,7 @@ class VoiceModelManagerTest {
     void traversalEntriesAreRejected() throws IOException {
         byte[] archive = tarBz2(files(
                 "../escape.txt", new byte[] {1},
-                "model.onnx", new byte[] {2},
+                "test-voice.onnx", new byte[] {2},
                 "tokens.txt", new byte[] {3},
                 "espeak-ng-data/phontab", new byte[] {4}));
         server.enqueue(200, archive);
@@ -103,9 +107,10 @@ class VoiceModelManagerTest {
     @Test
     void installedVoiceIsNotDownloadedAgain() throws IOException {
         byte[] archive = tarBz2(files(
-                "model.onnx", new byte[] {1},
-                "tokens.txt", new byte[] {2},
-                "espeak-ng-data/phontab", new byte[] {3}));
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[] {1},
+                "vits-piper-test-voice/tokens.txt", new byte[] {2},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {3}));
         server.enqueue(200, archive);
         VoiceModel model = model(archive);
 
@@ -124,7 +129,7 @@ class VoiceModelManagerTest {
                 archive.length,
                 sha256(archive),
                 "MIT",
-                "model.onnx",
+                "test-voice.onnx",
                 "tokens.txt",
                 "espeak-ng-data");
     }
@@ -143,9 +148,13 @@ class VoiceModelManagerTest {
             tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
             for (Map.Entry<String, byte[]> file : files.entrySet()) {
                 TarArchiveEntry entry = new TarArchiveEntry(file.getKey());
-                entry.setSize(file.getValue().length);
+                if (!file.getKey().endsWith("/")) {
+                    entry.setSize(file.getValue().length);
+                }
                 tar.putArchiveEntry(entry);
-                tar.write(file.getValue());
+                if (!file.getKey().endsWith("/")) {
+                    tar.write(file.getValue());
+                }
                 tar.closeArchiveEntry();
             }
         }

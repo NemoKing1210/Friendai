@@ -60,6 +60,6 @@ public final class VoiceModels {
             String id, String name, String language, long size, String sha256, String license) {
         return new VoiceModel(
                 id, name, language, BASE + id + ".tar.bz2", size, sha256, license,
-                "model.onnx", "tokens.txt", "espeak-ng-data");
+                id + ".onnx", "tokens.txt", "espeak-ng-data");
     }
 }

@@ -105,8 +105,26 @@ public final class VoiceModelManager {
                 BZip2CompressorInputStream bz = new BZip2CompressorInputStream(in);
                 TarArchiveInputStream tar = new TarArchiveInputStream(bz)) {
             TarArchiveEntry entry;
+            // Piper archives wrap everything in one directory ("vits-piper-<id>/"); flatten it so the voice
+            // directory itself holds the model, the tokens and the data dir where the catalog expects them.
+            String root = null;
+            boolean first = true;
             while ((entry = tar.getNextEntry()) != null) {
-                Path target = partDir.resolve(entry.getName()).normalize();
+                String name = entry.getName();
+                if (first) {
+                    first = false;
+                    if (entry.isDirectory() && name.endsWith("/") && name.indexOf('/') == name.length() - 1) {
+                        root = name;
+                        continue;
+                    }
+                }
+                if (root != null && name.startsWith(root)) {
+                    name = name.substring(root.length());
+                    if (name.isEmpty()) {
+                        continue;
+                    }
+                }
+                Path target = partDir.resolve(name).normalize();
                 if (!target.startsWith(partDir)) {
                     throw corrupt();
                 }
