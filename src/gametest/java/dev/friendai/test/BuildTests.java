@@ -1076,6 +1076,32 @@ public class BuildTests {
     }
 
     @GameTest(maxTicks = 12000)
+    public void cancelRemovesItsScaffold(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        clearAir(h, 16, 2, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
+        companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
+        Blueprint tower = generator(
+                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        TaskRunner runner = runner(companion, new Result());
+        runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
+        boolean[] cancelled = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
+            if (!cancelled[0] && !dirt.isEmpty()) {
+                // The build is standing on its own scaffold: stop it the way "stop all" does.
+                runner.stop("test");
+                cancelled[0] = true;
+            }
+            h.assertTrue(cancelled[0], "the tower never needed a scaffold");
+            h.assertTrue(dirt.isEmpty(), "cancel left scaffold blocks behind at " + dirt);
+        });
+    }
+
+    @GameTest(maxTicks = 12000)
     public void outOfScaffoldCleansUp(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         clearAir(h, 16, 2, 12);

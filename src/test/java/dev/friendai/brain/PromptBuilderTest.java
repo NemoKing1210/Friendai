@@ -61,6 +61,16 @@ class PromptBuilderTest {
     }
 
     @Test
+    void guestsAreNotToldAboutPlayerView() {
+        String guest = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Gus", AccessLevel.GUEST));
+        assertFalse(guest.contains("player_view"), guest);
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Tia", AccessLevel.TRUSTED));
+        assertTrue(trusted.contains("player_view"), trusted);
+    }
+
+    @Test
     void explainsPace() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains("set_pace"));

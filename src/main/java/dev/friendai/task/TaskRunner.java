@@ -87,12 +87,20 @@ public final class TaskRunner {
         begin(task, task.type(), false);
     }
 
-    /** Cancels the current task and falls back to the default activity. */
+    /**
+     * Cancels the current task and falls back to the default activity. A task that leaves work behind when cancelled
+     * (a build's scaffold) hands the runner a cleanup task, which starts before the default activity.
+     */
     public void stop(String reason) {
+        Task cleanup = current == null ? null : current.task().cleanupAfterCancel(context());
         if (current != null) {
             cancelCurrent(reason);
         }
-        startDefault();
+        if (cleanup != null) {
+            begin(cleanup, "scaffold_cleanup", false);
+        } else {
+            startDefault();
+        }
     }
 
     /**

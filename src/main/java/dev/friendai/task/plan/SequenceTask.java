@@ -97,6 +97,12 @@ public final class SequenceTask implements Task {
         return TaskStatus.RUNNING;
     }
 
+    /** A cancelled plan hands the runner its current step's cleanup, such as a build's scaffold. */
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        return active == null ? null : active.cleanupAfterCancel(c);
+    }
+
     @Override
     public void stop(TaskContext c) {
         if (active != null) {

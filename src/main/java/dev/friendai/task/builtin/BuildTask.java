@@ -13,6 +13,7 @@ import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Reach;
 import dev.friendai.task.build.Scaffold;
+import dev.friendai.task.build.ScaffoldCleanupTask;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
@@ -845,6 +846,14 @@ public final class BuildTask implements Task {
     private TaskStatus fail(TaskContext c, String text) {
         summary = text;
         return complete(c, TaskStatus.FAILED);
+    }
+
+    /** Leftover scaffold is the one thing a cancelled build leaves in the world: the runner takes it down next. */
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        return scaffold == null || scaffold.placed().isEmpty()
+                ? null
+                : new ScaffoldCleanupTask(scaffold.placed());
     }
 
     @Override

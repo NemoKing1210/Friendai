@@ -48,6 +48,46 @@ public class TaskTests {
         return r;
     }
 
+    /** A plan step that hands the runner a cleanup task when cancelled, like a build with its scaffold. */
+    private static final class CleanupStep implements Task {
+        private final Task cleanup;
+
+        CleanupStep(Task cleanup) {
+            this.cleanup = cleanup;
+        }
+
+        @Override
+        public String type() {
+            return "cleanup_step";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "cleanup step";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "";
+        }
+
+        @Override
+        public Task cleanupAfterCancel(TaskContext c) {
+            return cleanup;
+        }
+    }
+
     private static void wallIn(GameTestHelper h, int cx, int cz) {
         for (int x = cx - 1; x <= cx + 1; x++) {
             for (int z = cz - 1; z <= cz + 1; z++) {
@@ -132,6 +172,22 @@ public class TaskTests {
             h.assertTrue(runner.stopNamed(name, "x").isPresent(), name + " should stop the plan");
             h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity after " + name);
         }
+        h.succeed();
+    }
+
+    @GameTest
+    public void planCancelRunsTheStepsCleanup(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        TaskRunner runner = runner(c, events, 300, false);
+        Task cleanup = new StayTask();
+        runner.start(new SequenceTask(null, List.of(
+                new PlanEntry("cleanup_step", ctx -> new CleanupStep(cleanup))), () -> 300), "run_plan");
+        runner.tick();
+        runner.stop("x");
+        h.assertTrue(runner.current().isPresent() && runner.current().get() == cleanup,
+                "the plan must hand the runner its step's cleanup, current: "
+                        + runner.current().map(Task::type).orElse("none"));
         h.succeed();
     }
 

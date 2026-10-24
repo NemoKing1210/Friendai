@@ -33,4 +33,12 @@ public interface Task {
     default String saveData() {
         return null;
     }
+
+    /**
+     * A follow-up task that undoes what a cancel cannot undo at once, such as a build's scaffold. The runner starts it
+     * in place of the default activity. Null when the task leaves nothing behind.
+     */
+    default Task cleanupAfterCancel(TaskContext c) {
+        return null;
+    }
 }
