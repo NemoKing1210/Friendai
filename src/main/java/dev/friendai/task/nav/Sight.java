@@ -27,6 +27,15 @@ public final class Sight {
         return canSeeFrom(level, viewer, viewer.getEyePosition(), pos);
     }
 
+    /**
+     * The first block the viewer's ray meets on its way to {@code pos}, or null when {@code pos} itself is what the
+     * ray meets first. This is what a player would have to break before they could see {@code pos}.
+     */
+    public static BlockPos firstBlockOnRay(ServerLevel level, Entity viewer, BlockPos pos) {
+        BlockHitResult hit = raycast(level, viewer, viewer.getEyePosition(), Vec3.atCenterOf(pos));
+        return hit.getType() == HitResult.Type.BLOCK && !hit.getBlockPos().equals(pos) ? hit.getBlockPos() : null;
+    }
+
     /** Whether a ray from {@code eye} meets pos before any other block. */
     public static boolean canSeeFrom(ServerLevel level, Entity viewer, Vec3 eye, BlockPos pos) {
         BlockHitResult hit = raycast(level, viewer, eye, Vec3.atCenterOf(pos));
