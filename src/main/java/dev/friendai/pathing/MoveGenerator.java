@@ -1,11 +1,13 @@
 package dev.friendai.pathing;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Turns one node into the legal neighbouring steps with their costs. World-changing moves are added in
- * {@link #dig(Node, int, int, Consumer)} and friends; everything here only reads the {@link CellView}.
+ * Turns one node into the legal neighbouring steps with their costs: walking, falling, swimming and climbing, plus
+ * the world-changing moves that dig, pillar and bridge.
  */
 public final class MoveGenerator {
 
@@ -22,11 +24,17 @@ public final class MoveGenerator {
     private final CellView view;
     private final CostModel costs;
     private final PathGoal goal;
+    private final double placePrice;
 
     public MoveGenerator(CellView view, CostModel costs, PathGoal goal) {
+        this(view, costs, goal, 1);
+    }
+
+    public MoveGenerator(CellView view, CostModel costs, PathGoal goal, double placePrice) {
         this.view = view;
         this.costs = costs;
         this.goal = goal;
+        this.placePrice = placePrice;
     }
 
     /**
@@ -58,6 +66,11 @@ public final class MoveGenerator {
         descend(from, out);
         swim(from, headUnderwater, out);
         climb(from, out);
+        dig(from, out);
+        digAscend(from, out);
+        digDescend(from, out);
+        pillar(from, placedSoFar, placeable, out);
+        bridge(from, placedSoFar, placeable, out);
     }
 
     private void walkAndJump(Node from, Consumer<PathStep> out) {
@@ -181,6 +194,227 @@ public final class MoveGenerator {
         return view.at(node.pos()).kind() == Cell.Kind.CLIMBABLE
                 || view.at(node.head()).kind() == Cell.Kind.CLIMBABLE
                 || view.at(node.support()).kind() == Cell.Kind.CLIMBABLE;
+    }
+
+    // --- world-changing moves -----------------------------------------------------------------------------------
+
+    /** Dig the cells blocking a horizontal neighbour, then walk in. Breaks are listed head first. */
+    private void dig(Node from, Consumer<PathStep> out) {
+        for (int[] d : DIRECTIONS) {
+            Node to = new Node(from.x() + d[0], from.y(), from.z() + d[1]);
+            if (standable(view, to)) {
+                continue;
+            }
+            List<Pos> blocking = new ArrayList<>();
+            if (!enterable(view.at(to.head()))) {
+                blocking.add(to.head());
+            }
+            if (!enterable(view.at(to.pos()))) {
+                blocking.add(to.pos());
+            }
+            emitDig(from, to, Move.DIG, costs.walk(), blocking, out);
+        }
+    }
+
+    /** Dig the cells above the head and over the neighbour, then step up. */
+    private void digAscend(Node from, Consumer<PathStep> out) {
+        for (int[] d : DIRECTIONS) {
+            Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
+            if (standable(view, to)) {
+                continue;
+            }
+            List<Pos> blocking = new ArrayList<>();
+            Pos aboveHead = from.pos().offset(0, 2, 0);
+            if (!enterable(view.at(aboveHead))) {
+                blocking.add(aboveHead);
+            }
+            if (!enterable(view.at(to.head()))) {
+                blocking.add(to.head());
+            }
+            if (!enterable(view.at(to.pos()))) {
+                blocking.add(to.pos());
+            }
+            emitDig(from, to, Move.DIG_ASCEND, costs.walk() + costs.jump(), blocking, out);
+        }
+    }
+
+    /** Dig a stair one block down into a solid hillside. */
+    private void digDescend(Node from, Consumer<PathStep> out) {
+        for (int[] d : DIRECTIONS) {
+            Node to = new Node(from.x() + d[0], from.y() - 1, from.z() + d[1]);
+            if (standable(view, to)) {
+                continue;
+            }
+            List<Pos> blocking = new ArrayList<>();
+            if (!enterable(view.at(to.head()))) {
+                blocking.add(to.head());
+            }
+            if (!enterable(view.at(to.pos()))) {
+                blocking.add(to.pos());
+            }
+            emitDig(from, to, Move.DIG_DESCEND, costs.walk(), blocking, out);
+        }
+    }
+
+    private void emitDig(Node from, Node to, Move move, double walkCost, List<Pos> blocking, Consumer<PathStep> out) {
+        if (blocking.isEmpty()) {
+            return;
+        }
+        List<Pos> breaks = withFalls(blocking);
+        if (!canBreakAll(breaks, from)) {
+            return;
+        }
+        if (!standsAfter(to, breaks, List.of())) {
+            return;
+        }
+        emit(from, to, move, walkCost + breakCost(breaks), 0, breaks, List.of(), out);
+    }
+
+    /** Jump and place a block under itself; breaking up to two cells above first. */
+    private void pillar(Node from, int placedSoFar, int placeable, Consumer<PathStep> out) {
+        if (placedSoFar + 1 > placeable) {
+            return;
+        }
+        Pos under = from.pos();
+        if (!view.at(under).placeable()) {
+            return;
+        }
+        List<Pos> blocking = new ArrayList<>();
+        for (int i = 1; i <= 2; i++) {
+            Pos p = under.offset(0, i, 0);
+            if (!enterable(view.at(p))) {
+                blocking.add(p);
+            }
+        }
+        List<Pos> breaks = withFalls(blocking);
+        if (!canBreakAll(breaks, from)) {
+            return;
+        }
+        Node to = new Node(from.x(), from.y() + 1, from.z());
+        if (!standsAfter(to, breaks, List.of(under))) {
+            return;
+        }
+        double cost = costs.jump() + costs.place() + placePrice + breakCost(breaks);
+        emit(from, to, Move.PILLAR, cost, 0, breaks, List.of(under), out);
+    }
+
+    /** Place a block in the support cell of a horizontal neighbour and walk onto it. */
+    private void bridge(Node from, int placedSoFar, int placeable, Consumer<PathStep> out) {
+        if (placedSoFar + 1 > placeable) {
+            return;
+        }
+        // The companion stands somewhere, so its support is either solid or a block an earlier step placed; the
+        // static view still reads a placed cell as air, hence the placeable check.
+        Cell under = view.at(from.support());
+        if (!supportsStanding(under) && !under.placeable()) {
+            return;
+        }
+        for (int[] d : DIRECTIONS) {
+            Node to = new Node(from.x() + d[0], from.y(), from.z() + d[1]);
+            if (standable(view, to)) {
+                continue;
+            }
+            if (!enterable(view.at(to.pos())) || !enterable(view.at(to.head()))) {
+                continue;
+            }
+            Pos support = to.support();
+            if (!view.at(support).placeable()) {
+                continue;
+            }
+            if (!standsAfter(to, List.of(), List.of(support))) {
+                continue;
+            }
+            double cost = costs.walk() + costs.place() + placePrice;
+            emit(from, to, Move.BRIDGE, cost, 0, List.of(), List.of(support), out);
+        }
+    }
+
+    private static boolean supportsStanding(Cell cell) {
+        return cell.kind() == Cell.Kind.SOLID || cell.kind() == Cell.Kind.PARTIAL;
+    }
+
+    /** Whether {@code to} can be stood in once {@code breaks} are gone and {@code places} are filled. */
+    private boolean standsAfter(Node to, List<Pos> breaks, List<Pos> places) {
+        boolean footOk = enterable(view.at(to.pos())) || breaks.contains(to.pos());
+        boolean headOk = enterable(view.at(to.head())) || breaks.contains(to.head());
+        boolean supported = places.contains(to.support()) || view.at(to.support()).supports();
+        boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER && !breaks.contains(to.pos());
+        return footOk && headOk && (supported || water);
+    }
+
+    /** Adds the falling blocks a dig brings down on top of it. */
+    private List<Pos> withFalls(List<Pos> blocking) {
+        if (blocking.isEmpty()) {
+            return blocking;
+        }
+        LinkedHashSet<Pos> all = new LinkedHashSet<>(blocking);
+        for (Pos p : blocking) {
+            Pos above = p.offset(0, 1, 0);
+            while (view.at(above).falls() && view.at(above).breakable()) {
+                all.add(above);
+                above = above.offset(0, 1, 0);
+            }
+        }
+        return new ArrayList<>(all);
+    }
+
+    private boolean canBreakAll(List<Pos> cells, Node from) {
+        for (Pos p : cells) {
+            if (!mayBreak(p, from)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean mayBreak(Pos p, Node from) {
+        if (!view.at(p).breakable()) {
+            return false;
+        }
+        if (goal.protects(p)) {
+            return false;
+        }
+        if (p.equals(from.pos()) || p.equals(from.support())) {
+            return false;
+        }
+        for (int[] d : DIRECTIONS) {
+            for (int dy = -1; dy <= 1; dy++) {
+                Pos neighbour = p.offset(d[0], dy, d[1]);
+                if (view.at(neighbour).kind() != Cell.Kind.LAVA) {
+                    continue;
+                }
+                if (!neighbour.equals(from.pos()) && !neighbour.equals(from.head())) {
+                    return false;
+                }
+            }
+        }
+        Pos above = p.offset(0, 1, 0);
+        Pos below = p.offset(0, -1, 0);
+        return view.at(above).kind() != Cell.Kind.LAVA && view.at(below).kind() != Cell.Kind.LAVA;
+    }
+
+    private double breakCost(List<Pos> cells) {
+        double cost = 0;
+        for (Pos p : cells) {
+            Cell cell = view.at(p);
+            cost += Math.max(0, cell.breakTicks()) + costs.breakExtra();
+            if (cell.falls()) {
+                cost += costs.fallingExtra();
+            }
+            if (nextToWater(p)) {
+                cost += costs.waterNearBreak();
+            }
+        }
+        return cost;
+    }
+
+    private boolean nextToWater(Pos p) {
+        for (int[] d : DIRECTIONS) {
+            if (view.at(p.offset(d[0], 0, d[1])).kind() == Cell.Kind.WATER) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void emit(Node from, Node to, Move move, double cost, int headUnderwater, Consumer<PathStep> out) {
