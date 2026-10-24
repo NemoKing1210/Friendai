@@ -2,6 +2,7 @@ package dev.friendai.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,6 +25,20 @@ class ServerConfigTest {
         assertEquals(8, c.brain.maxToolStepsPerTurn);
         assertEquals(30, c.brain.historyMessages);
         assertEquals(32, c.tasks.mineSearchRadius);
+    }
+
+    @Test
+    void nullPathingListsFallBackToDefaults() {
+        // A hand-edited file with "breakBlacklist": null must not crash the server state later on.
+        ServerConfig c = ServerConfig.defaults();
+        c.pathing.breakBlacklist = null;
+        c.pathing.placeBlacklist = null;
+        List<String> problems = c.validate();
+        assertNotNull(c.pathing.breakBlacklist);
+        assertNotNull(c.pathing.placeBlacklist);
+        assertTrue(c.pathing.breakBlacklist.contains("#minecraft:planks"));
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("pathing.breakBlacklist")));
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("pathing.placeBlacklist")));
     }
 
     @Test

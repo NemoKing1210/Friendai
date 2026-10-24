@@ -140,6 +140,14 @@ public class ServerConfig {
             pathing = new PathingSection();
             problems.add("pathing was missing");
         }
+        if (pathing.breakBlacklist == null) {
+            pathing.breakBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.breakBlacklist());
+            problems.add("pathing.breakBlacklist was missing");
+        }
+        if (pathing.placeBlacklist == null) {
+            pathing.placeBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.placeBlacklist());
+            problems.add("pathing.placeBlacklist was missing");
+        }
         pathing.searchBudgetMs = clamp(problems, "pathing.searchBudgetMs", pathing.searchBudgetMs, 1, 10);
         pathing.maxNodes = clamp(problems, "pathing.maxNodes", pathing.maxNodes, 1_000, 100_000);
         pathing.maxGatherBlocks = clamp(problems, "pathing.maxGatherBlocks", pathing.maxGatherBlocks, 0, 256);
