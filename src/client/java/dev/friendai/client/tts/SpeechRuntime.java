@@ -103,7 +103,8 @@ public final class SpeechRuntime {
         WORKER.execute(() -> {
             try {
                 playOne(sample, settings, device, gen);
-                Minecraft.getInstance().execute(() -> ClientToasts.show(Component.translatable("friendai.voice.tts.test_ok")));
+                Minecraft.getInstance().execute(
+                        () -> ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result")));
             } catch (UserFacingException e) {
                 UserMessage message = e.userMessage();
                 Minecraft.getInstance().execute(() -> ClientToasts.show(Components.of(message)));

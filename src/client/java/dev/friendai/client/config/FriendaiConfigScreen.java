@@ -2,6 +2,8 @@ package dev.friendai.client.config;
 
 import dev.friendai.brain.ErrorMessages;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.tts.SpeechPlayback;
+import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.ClientToasts;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.config.ConfigStore;
@@ -14,6 +16,9 @@ import dev.friendai.core.Components;
 import dev.friendai.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
 import dev.friendai.voice.WhisperModel;
+import dev.friendai.voice.tts.TtsPresets;
+import dev.friendai.voice.tts.VoiceModel;
+import dev.friendai.voice.tts.VoiceModels;
 import java.util.concurrent.CompletableFuture;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.llm.LlmClient;
@@ -29,22 +34,33 @@ import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
 import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
+import dev.isxander.yacl3.api.controller.CyclingListControllerBuilder;
 import dev.isxander.yacl3.api.controller.DoubleFieldControllerBuilder;
+import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.DropdownStringControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
+    private static final List<String> TTS_PROVIDERS = List.of("local", "openai", "elevenlabs");
+
+    /** Whether the API key field of the speech settings shows the key itself. */
+    private static boolean ttsRevealKey;
+
+    /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
+    private static boolean ttsApplying;
 
     private FriendaiConfigScreen() {}
 
@@ -114,6 +130,7 @@ public final class FriendaiConfigScreen {
             client.validate();
             FriendaiClient.clientConfigStore().save(client);
             FriendaiClient.setClientConfig(client);
+            SpeechRuntime.invalidate();
         });
         return builder.build().generateScreen(parent);
     }
@@ -335,6 +352,7 @@ public final class FriendaiConfigScreen {
 
     private static ConfigCategory voiceCategory(Screen parent, ClientConfig client) {
         var v = client.voice;
+        var t = v.tts;
         String defaultDevice = tr("friendai.config.voice.device.default").getString();
         List<String> devices = new ArrayList<>();
         devices.add(defaultDevice);
@@ -391,7 +409,75 @@ public final class FriendaiConfigScreen {
                 .action((screen, button) -> testRecording(v.inputDevice, v.language))
                 .build();
 
-        return ConfigCategory.createBuilder()
+        List<Option<?>> tts = new ArrayList<>();
+        Option<Boolean> ttsEnabled =
+                booleanOption("friendai.config.voice.tts.enabled", false, () -> t.enabled, x -> t.enabled = x);
+        Option<String> providerOpt = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.provider"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.provider.tooltip")))
+                .binding("local", () -> t.provider == null ? "local" : t.provider, x -> t.provider = x)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(TTS_PROVIDERS)
+                        .valueFormatter(FriendaiConfigScreen::providerLabel))
+                .build();
+        tts.add(ttsEnabled);
+        tts.add(providerOpt);
+        if ("openai".equals(t.provider)) {
+            tts.addAll(openAiOptions(parent, t, tts));
+        } else if ("elevenlabs".equals(t.provider)) {
+            tts.addAll(elevenLabsOptions(parent, t, tts));
+        } else {
+            tts.addAll(localOptions(parent, t, tts));
+        }
+        Option<Double> volume = Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.volume"))
+                .binding(1.0, () -> t.volume, x -> t.volume = x)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(0.0, 1.0).step(0.05))
+                .build();
+        Option<Integer> maxChars = Option.<Integer>createBuilder()
+                .name(tr("friendai.config.voice.tts.max_chars"))
+                .binding(300, () -> t.maxChars, x -> t.maxChars = x)
+                .controller(o -> IntegerFieldControllerBuilder.create(o).range(20, 500))
+                .build();
+        String defaultOutput = tr("friendai.config.voice.tts.output_device.default").getString();
+        List<String> outputs = new ArrayList<>();
+        outputs.add(defaultOutput);
+        try {
+            outputs.addAll(SpeechPlayback.devices());
+        } catch (RuntimeException e) {
+            // no audio system: only the default entry is offered
+        }
+        Option<String> outputOpt = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.output_device"))
+                .binding(defaultOutput, () -> t.outputDevice == null ? defaultOutput : t.outputDevice,
+                        x -> t.outputDevice = x.equals(defaultOutput) ? null : x)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(outputs).allowAnyValue(false))
+                .build();
+        Option<Boolean> speakGuests = booleanOption(
+                "friendai.config.voice.tts.speak_guests", false, () -> t.speakGuests, x -> t.speakGuests = x);
+        ButtonOption testVoice = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.test"))
+                .action((screen, button) -> {
+                    applyTtsOutputs(tts);
+                    SpeechRuntime.test();
+                })
+                .build();
+        tts.add(volume);
+        tts.add(maxChars);
+        tts.add(outputOpt);
+        tts.add(speakGuests);
+        tts.add(testVoice);
+
+        // Changing the engine swaps the fields below it, so pending edits are written out before the rebuild.
+        providerOpt.addListener((opt, value) -> {
+            if (ttsApplying) {
+                return;
+            }
+            applyTtsOutputs(tts);
+            Minecraft.getInstance().setScreenAndShow(create(parent));
+        });
+
+        var builder = ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.voice"))
                 .option(booleanOption("friendai.config.voice.enabled", true, () -> v.enabled, x -> v.enabled = x))
                 .option(modelOpt)
@@ -400,7 +486,197 @@ public final class FriendaiConfigScreen {
                 .option(languageOpt)
                 .option(deviceOpt)
                 .option(test)
+                .option(LabelOption.create(tr("friendai.config.voice.tts")));
+        for (Option<?> option : tts) {
+            builder.option(option);
+        }
+        return builder.build();
+    }
+
+    private static List<Option<?>> localOptions(Screen parent, ClientConfig.TtsSection t, List<Option<?>> all) {
+        List<String> ids = new ArrayList<>();
+        ids.add("");
+        for (VoiceModel model : VoiceModels.all()) {
+            ids.add(model.id());
+        }
+        VoiceModel effective = effectiveVoice(t);
+        Option<String> voiceOpt = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.local.voice"))
+                .binding("", () -> t.local.voice == null ? "" : t.local.voice,
+                        x -> t.local.voice = x.isBlank() ? null : x)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(ids)
+                        .valueFormatter(FriendaiConfigScreen::localVoiceLabel))
                 .build();
+        boolean installed = SpeechRuntime.models().isInstalled(effective);
+        LabelOption status = LabelOption.create(tr(installed
+                ? "friendai.config.voice.tts.local.status.installed"
+                : "friendai.config.voice.tts.local.status.missing"));
+        LabelOption license = LabelOption.create(
+                Component.translatable("friendai.config.voice.tts.local.license", effective.license()));
+        ButtonOption download = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.download"))
+                .action((screen, button) -> {
+                    applyTtsOutputs(all);
+                    VoiceModel model = effectiveVoice(t);
+                    int[] lastStep = {-1};
+                    SpeechRuntime.models().download(model, fraction -> {
+                        int percent = (int) (fraction * 100);
+                        if (percent / 10 != lastStep[0]) {
+                            lastStep[0] = percent / 10;
+                            Minecraft.getInstance().execute(() -> toast(
+                                    Component.translatable("friendai.config.voice.tts.downloading", percent)));
+                        }
+                    }).whenComplete((path, error) -> Minecraft.getInstance().execute(() -> {
+                        if (error != null) {
+                            toast(Components.of(ErrorMessages.forUser(error)));
+                        } else {
+                            SpeechRuntime.invalidate();
+                            toast(tr("friendai.config.voice.tts.local.status.installed"));
+                            Minecraft.getInstance().setScreenAndShow(create(parent));
+                        }
+                    }));
+                })
+                .build();
+        Option<Double> speed = Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.speed"))
+                .binding(1.0, () -> t.local.speed, x -> t.local.speed = x)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(0.5, 2.0).step(0.05))
+                .build();
+        List<Option<?>> options = List.of(voiceOpt, status, license, download, speed);
+        // The license and the installed label describe one voice, so they are rebuilt when the choice changes.
+        voiceOpt.addListener((opt, value) -> {
+            if (ttsApplying) {
+                return;
+            }
+            applyTtsOutputs(all);
+            Minecraft.getInstance().setScreenAndShow(create(parent));
+        });
+        return options;
+    }
+
+    private static List<Option<?>> openAiOptions(Screen parent, ClientConfig.TtsSection t, List<Option<?>> all) {
+        List<Option<?>> options = new ArrayList<>();
+        options.addAll(apiKeyOptions(parent, all, () -> t.openai.apiKey, value -> t.openai.apiKey = value));
+        options.add(Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.openai.base_url"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.openai.base_url.tooltip")))
+                .binding("", () -> t.openai.baseUrl == null ? "" : t.openai.baseUrl,
+                        x -> t.openai.baseUrl = x.isBlank() ? null : x.strip())
+                .controller(StringControllerBuilder::create)
+                .build());
+        options.add(stringOption("friendai.config.voice.tts.openai.model",
+                () -> t.openai.model, "gpt-4o-mini-tts", x -> t.openai.model = x));
+        options.add(stringOption("friendai.config.voice.tts.openai.voice",
+                () -> t.openai.voice, "alloy", x -> t.openai.voice = x));
+        options.add(speedOption(0.5, 2.0, () -> t.openai.speed, x -> t.openai.speed = x));
+        options.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
+        options.add(docsButton("openai"));
+        return options;
+    }
+
+    private static List<Option<?>> elevenLabsOptions(Screen parent, ClientConfig.TtsSection t, List<Option<?>> all) {
+        List<Option<?>> options = new ArrayList<>();
+        options.addAll(apiKeyOptions(parent, all, () -> t.elevenlabs.apiKey, value -> t.elevenlabs.apiKey = value));
+        options.add(stringOption("friendai.config.voice.tts.elevenlabs.model",
+                () -> t.elevenlabs.model, "eleven_multilingual_v2", x -> t.elevenlabs.model = x));
+        options.add(stringOption("friendai.config.voice.tts.elevenlabs.voice",
+                () -> t.elevenlabs.voice, "", x -> t.elevenlabs.voice = x));
+        options.add(speedOption(0.7, 1.2, () -> t.elevenlabs.speed, x -> t.elevenlabs.speed = x));
+        options.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
+        options.add(docsButton("elevenlabs"));
+        return options;
+    }
+
+    private static List<Option<?>> apiKeyOptions(
+            Screen parent, List<Option<?>> all,
+            java.util.function.Supplier<String> getter, java.util.function.Consumer<String> setter) {
+        boolean reveal = ttsRevealKey;
+        Option<String> keyOpt = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.api_key"))
+                .binding("", () -> SecretResolver.display(getter.get(), reveal), x -> {
+                    // The field may show a placeholder; leaving it untouched must not overwrite the real key.
+                    if (!x.equals(SecretResolver.display(getter.get(), reveal))) {
+                        setter.accept(x);
+                    }
+                })
+                .controller(StringControllerBuilder::create)
+                .build();
+        ButtonOption toggle = ButtonOption.createBuilder()
+                .name(tr(reveal
+                        ? "friendai.config.voice.tts.api_key.hide"
+                        : "friendai.config.voice.tts.api_key.show"))
+                .action((screen, button) -> {
+                    applyTtsOutputs(all);
+                    ttsRevealKey = !ttsRevealKey;
+                    Minecraft.getInstance().setScreenAndShow(create(parent));
+                })
+                .build();
+        return List.of(keyOpt, toggle);
+    }
+
+    private static Option<Double> speedOption(
+            double min, double max,
+            java.util.function.Supplier<Double> getter, java.util.function.Consumer<Double> setter) {
+        return Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.speed"))
+                .binding(1.0, getter::get, setter::accept)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(min, max).step(0.05))
+                .build();
+    }
+
+    private static ButtonOption docsButton(String providerId) {
+        return ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.docs"))
+                .action((screen, button) -> TtsPresets.byId(providerId)
+                        .ifPresent(preset -> ConfirmLinkScreen.confirmLinkNow(screen, URI.create(preset.docsUrl()))))
+                .build();
+    }
+
+    /** Pushes what the widgets show into the shared client config, so a rebuild does not lose it. */
+    private static void applyTtsOutputs(List<Option<?>> options) {
+        ttsApplying = true;
+        try {
+            for (Option<?> option : options) {
+                option.applyValue();
+            }
+        } finally {
+            ttsApplying = false;
+        }
+    }
+
+    private static VoiceModel effectiveVoice(ClientConfig.TtsSection t) {
+        String id = t.local.voice;
+        if (id != null && !id.isBlank()) {
+            for (VoiceModel model : VoiceModels.all()) {
+                if (model.id().equals(id)) {
+                    return model;
+                }
+            }
+        }
+        return VoiceModels.defaultFor(Minecraft.getInstance().getLanguageManager().getSelected());
+    }
+
+    private static Component providerLabel(String id) {
+        if ("openai".equals(id)) {
+            return tr("friendai.config.voice.tts.provider.openai");
+        }
+        if ("elevenlabs".equals(id)) {
+            return tr("friendai.config.voice.tts.provider.elevenlabs");
+        }
+        return tr("friendai.config.voice.tts.provider.local");
+    }
+
+    private static Component localVoiceLabel(String id) {
+        if (id == null || id.isBlank()) {
+            return tr("friendai.config.voice.tts.local.voice.default");
+        }
+        for (VoiceModel model : VoiceModels.all()) {
+            if (model.id().equals(id)) {
+                return Component.literal(model.displayName() + " · " + model.language());
+            }
+        }
+        return Component.literal(id);
     }
 
     /** Records three seconds from the microphone and shows what was recognized. */
