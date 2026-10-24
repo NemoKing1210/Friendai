@@ -59,6 +59,12 @@ dependencies {
 	include "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-jvm:${project.sherpa_onnx_version}"
 	implementation "org.apache.commons:commons-compress:${project.commons_compress_version}"
 	include "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	// commons-compress reads tar entry names and timestamps through these two. The development classpath
+	// gets them transitively, but only what is included here ships, and a voice download extracts a tar.
+	implementation "commons-io:commons-io:${project.commons_io_version}"
+	include "commons-io:commons-io:${project.commons_io_version}"
+	implementation "org.apache.commons:commons-lang3:${project.commons_lang3_version}"
+	include "org.apache.commons:commons-lang3:${project.commons_lang3_version}"
 
 	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-win-x64:${project.sherpa_onnx_version}"
 	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-linux-x64:${project.sherpa_onnx_version}"
