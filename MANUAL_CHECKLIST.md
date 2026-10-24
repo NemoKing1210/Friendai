@@ -153,6 +153,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Ask a real model: "break the block I'm looking at" / "the one I'm standing on" / from behind a wall (it should say it cannot see you, not guess).
 
+## Pathing
+
+- [ ] Walk around a village: movement looks natural (no jitter on block edges, jumps land).
+- [ ] "Mine that tree": the companion pillars up beside a real tree in a forest.
+- [ ] A ravine between it and the owner: it bridges over with material it carries or gathers on the way.
+- [ ] A hillside with stone behind dirt: it tunnels to the stone and mines it.
+- [ ] Two companions pathing at once: no visible server lag.
+
 ## Pace
 
 - [ ] Follow on foot, sprint away: the companion runs and drops back to walking; "run" / "slow down" change it.
