@@ -12,7 +12,12 @@ base {
 repositories {
 	maven { url = 'https://maven.isxander.dev/releases' }
 	maven { url = 'https://maven.terraformersmc.com/releases' }
+	maven { url = 'https://jitpack.io' }
 	mavenCentral()
+}
+
+configurations {
+	sherpaNatives
 }
 
 loom {
@@ -49,6 +54,17 @@ dependencies {
 	implementation "io.github.givimad:whisper-jni:${project.whisper_jni_version}"
 	include "io.github.givimad:whisper-jni:${project.whisper_jni_version}"
 
+	// Local text-to-speech: the JVM bindings ship as a jar, the natives are unpacked into our resources.
+	implementation "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-jvm:${project.sherpa_onnx_version}"
+	include "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-jvm:${project.sherpa_onnx_version}"
+	implementation "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	include "org.apache.commons:commons-compress:${project.commons_compress_version}"
+
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-win-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-linux-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-osx-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-osx-aarch64:${project.sherpa_onnx_version}"
+
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 	testImplementation "com.google.code.gson:gson:2.11.0"
@@ -61,6 +77,10 @@ test {
 processResources {
 	def version = project.version
 	inputs.property "version", version
+
+	from({ configurations.sherpaNatives.collect { zipTree(it) } }) {
+		include "sherpa-onnx/native/**"
+	}
 
 	filesMatching("fabric.mod.json") {
 		expand "version": version
