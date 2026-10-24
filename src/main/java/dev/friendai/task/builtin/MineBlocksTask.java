@@ -6,8 +6,9 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Optional;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 
@@ -17,6 +18,9 @@ public final class MineBlocksTask implements Task {
     private final int count;
     private final int radius;
     private final Set<BlockPos> blacklist = new HashSet<>();
+
+    /** How many of the nearest matching blocks one walk may choose from. */
+    private static final int CANDIDATES = 8;
 
     private BlockBreaker breaker;
     private int mined;
@@ -52,8 +56,17 @@ public final class MineBlocksTask implements Task {
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }
-            case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
-                blacklist.add(breaker.target());
+            case UNREACHABLE -> {
+                // None of the eight can be reached: blacklist them all, or the next search finds them again.
+                blacklist.addAll(breaker.candidates());
+                breaker = null;
+                yield TaskStatus.RUNNING;
+            }
+            case PROTECTED, OUT_OF_SIGHT -> {
+                // Only the block the companion actually stood by: a sibling may still be reachable.
+                if (breaker.target() != null) {
+                    blacklist.add(breaker.target());
+                }
                 breaker = null;
                 yield TaskStatus.RUNNING;
             }
@@ -65,14 +78,17 @@ public final class MineBlocksTask implements Task {
             summary = "mined " + mined + " " + matcher.label();
             return TaskStatus.SUCCESS;
         }
-        Optional<BlockPos> next = BlockSearch.nearest(c.level(), c.companion().blockPosition(), radius, matcher, blacklist);
-        if (next.isEmpty()) {
+        List<BlockPos> candidates = new ArrayList<>(BlockSearch.nearestN(
+                c.level(), c.companion().blockPosition(), radius, matcher, blacklist, CANDIDATES));
+        if (candidates.isEmpty()) {
             summary = mined == 0
                     ? "no " + matcher.label() + " nearby"
                     : "mined " + mined + " of " + count + ", no more " + matcher.label() + " nearby";
             return TaskStatus.FAILED;
         }
-        breaker = new BlockBreaker(next.get(), matcher::test);
+        // The route may pillar up to a block that cannot be reached from the ground, using the material the
+        // companion carries.
+        breaker = new BlockBreaker(candidates, matcher::test, true, true);
         return TaskStatus.RUNNING;
     }
 

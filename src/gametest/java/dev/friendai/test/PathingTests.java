@@ -13,6 +13,8 @@ import dev.friendai.pathing.PathingConfig;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.GoToTask;
+import dev.friendai.task.builtin.MineBlocksTask;
+import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BreakProgress;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MaterialPicker;
@@ -261,6 +263,57 @@ public class PathingTests {
             h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row with gathered dirt");
             h.assertTrue(out.notices.stream().anyMatch(text -> text.startsWith("gathering ")),
                     "no gathering notice, notices: " + out.notices);
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void minesStoneUnderDirt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(8, 2, 8), Blocks.POLISHED_ANDESITE);
+        h.setBlock(new BlockPos(8, 3, 8), Blocks.DIRT);
+        h.setBlock(new BlockPos(8, 4, 8), Blocks.DIRT);
+        CompanionEntity c = walker(h, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        MineBlocksTask task = new MineBlocksTask(
+                BlockMatcher.parse("minecraft:polished_andesite").orElseThrow(), 1, 32);
+        Outcome out = new Outcome();
+        c.taskRunner().setListener(out);
+        c.taskRunner().start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
+            BlockState left = h.getLevel().getBlockState(h.absolutePos(new BlockPos(8, 2, 8)));
+            h.assertTrue(left.isAir(), "andesite still there: " + left);
+            h.assertTrue(c.inventory().countItem(Items.POLISHED_ANDESITE) >= 1,
+                    "andesite collected: " + c.inventory().countItem(Items.POLISHED_ANDESITE));
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void minesWholeLogColumn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 9; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.CHERRY_LOG);
+        }
+        CompanionEntity c = walker(h, 2, 2, 2);
+        // Dirt to pillar up beside the column: the upper logs are out of reach from the ground.
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        MineBlocksTask task = new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
+        Outcome out = new Outcome();
+        c.taskRunner().setListener(out);
+        c.taskRunner().start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
+            int left = 0;
+            for (int y = 2; y <= 9; y++) {
+                if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(8, y, 8))).is(Blocks.CHERRY_LOG)) {
+                    left++;
+                }
+            }
+            h.assertTrue(left == 0, "logs left: " + left);
+            // The drop from the top of the column falls past BreakAction's 4-block collect radius; the mined count
+            // is what the task promises.
+            h.assertTrue(c.inventory().countItem(Items.CHERRY_LOG) >= 1,
+                    "logs collected: " + c.inventory().countItem(Items.CHERRY_LOG));
         });
     }
 

@@ -39,6 +39,8 @@ public final class Approach {
     private enum Phase { WALK, PLAN, LAST_WALK }
 
     private final List<BlockPos> candidates;
+    /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
+    private final boolean mayPlace;
     private Navigator navigator;
     private BlockPos reached;
     private Phase phase;
@@ -52,10 +54,19 @@ public final class Approach {
 
     /** Approaches the nearest of several candidate blocks; {@link #target()} reports the one reached. */
     public Approach(Collection<BlockPos> candidates) {
+        this(candidates, false);
+    }
+
+    /**
+     * @param mayPlace whether reaching the block may pillar or bridge. A block out of reach can be reached that way,
+     *     at the cost of the material in the companion's inventory.
+     */
+    public Approach(Collection<BlockPos> candidates, boolean mayPlace) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
+        this.mayPlace = mayPlace;
     }
 
     /** The block the companion reached, or the first candidate before it got there. */
@@ -79,7 +90,7 @@ public final class Approach {
         }
         if (phase == Phase.PLAN) {
             if (navigator == null) {
-                navigator = new Navigator(companion, false);
+                navigator = new Navigator(companion, mayPlace);
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }
