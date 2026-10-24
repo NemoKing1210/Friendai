@@ -6,7 +6,9 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.MemoryViewers;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.task.TaskSettings;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -103,6 +105,14 @@ public final class FriendaiServerState {
         TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
         TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
         TaskSettings.pathing = cfg.pathing.toPathingConfig();
+        TaskSettings.breakList = BlockList.parse(
+                cfg.pathing.breakBlacklist,
+                entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
+        List<String> placeEntries = new ArrayList<>(cfg.pathing.breakBlacklist);
+        if (cfg.pathing.placeBlacklist != null) {
+            placeEntries.addAll(cfg.pathing.placeBlacklist);
+        }
+        TaskSettings.placeList = BlockList.parse(placeEntries, entry -> {});
     }
 
     private static void logProblems(List<String> problems) {

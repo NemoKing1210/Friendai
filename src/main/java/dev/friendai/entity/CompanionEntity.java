@@ -50,6 +50,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.Nullable;
 
 /** The player's AI companion: a player-looking mob that never despawns and carries its own inventory. */
 public class CompanionEntity extends PathfinderMob {
@@ -81,6 +83,7 @@ public class CompanionEntity extends PathfinderMob {
     private transient CompanionHands hands;
     private transient Blueprint lastPreview;
     private transient PreviewOutline previewOutline;
+    private transient AABB pathBounds;
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
     private int ownerPickupTicks;
@@ -127,6 +130,19 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setLastPreview(Blueprint blueprint) {
         this.lastPreview = blueprint;
+    }
+
+    /**
+     * Test hook: confines pathing to a box, so a GameTest cannot dig or build into a neighbour's structure. Not
+     * saved; null means the whole loaded world is fair game.
+     */
+    public void setPathBounds(@Nullable AABB bounds) {
+        this.pathBounds = bounds;
+    }
+
+    /** The box pathing is confined to, or null when it is not confined. */
+    public @Nullable AABB pathBounds() {
+        return pathBounds;
     }
 
     /** Shows the owner where a structure will go; replaces any earlier outline. Not saved. */
