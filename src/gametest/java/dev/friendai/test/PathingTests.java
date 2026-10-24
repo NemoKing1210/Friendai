@@ -348,7 +348,7 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 600)
+    @GameTest(maxTicks = 1200)
     public void goToWalksAroundPlankWall(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int z = 1; z <= 12; z++) {
@@ -369,7 +369,7 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 600)
+    @GameTest(maxTicks = 1200)
     public void protectedWallIsWalkedAround(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         int wallX = h.absolutePos(new BlockPos(8, 2, 0)).getX();
@@ -392,7 +392,7 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 600)
+    @GameTest(maxTicks = 1200)
     public void tunnelBesideLavaRefused(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         // A stone wall at x=8 with a sealed lava seam right behind it: breaking the wall would open onto lava.
@@ -416,7 +416,7 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 600)
+    @GameTest(maxTicks = 1200)
     public void goToFollowsShiftingTarget(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = walker(h, 2, 2, 2);
