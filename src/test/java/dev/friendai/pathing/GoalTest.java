@@ -2,6 +2,7 @@ package dev.friendai.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,6 +92,16 @@ class GoalTest {
         GoalReach reach = new GoalReach(List.of(new Pos(9, 2, 0), new Pos(2, 2, 0)), 4.0, 1.62, 4.6);
         assertEquals(new Pos(2, 2, 0), reach.reachedTarget(new Node(0, 1, 0), v));
         assertSame(reach.targets().get(1), reach.reachedTarget(new Node(0, 1, 0), v));
+    }
+
+    @Test
+    void reachDoesNotCountStandingInTheTarget() {
+        GridCellView v = new GridCellView("######", "......", "......", "......");
+        GoalReach reach = new GoalReach(List.of(new Pos(3, 2, 0)), 4.0, 1.62, 4.6);
+        // Feet in the target cell, or head in it: either way the block cannot be placed from there.
+        assertNull(reach.reachedTarget(new Node(3, 2, 0), v));
+        assertNull(reach.reachedTarget(new Node(3, 1, 0), v));
+        assertNotNull(reach.reachedTarget(new Node(3, 4, 0), v));
     }
 
     @Test

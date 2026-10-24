@@ -84,6 +84,8 @@ public class CompanionEntity extends PathfinderMob {
     private transient Blueprint lastPreview;
     private transient PreviewOutline previewOutline;
     private transient AABB pathBounds;
+    /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
+    private transient int pathingTicks;
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
     private int ownerPickupTicks;
@@ -145,6 +147,18 @@ public class CompanionEntity extends PathfinderMob {
         return pathBounds;
     }
 
+    /**
+     * Whether the path executor currently drives the movement. Vanilla navigation then stays idle, so it must not be
+     * what decides the companion stopped moving.
+     */
+    public boolean pathing() {
+        return pathingTicks > 0;
+    }
+
+    public void setPathing(boolean pathing) {
+        this.pathingTicks = pathing ? 2 : 0;
+    }
+
     /** Shows the owner where a structure will go; replaces any earlier outline. Not saved. */
     public void showOutline(PreviewOutline outline) {
         this.previewOutline = outline;
@@ -153,6 +167,11 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     public void tick() {
         super.tick();
+        if (pathingTicks > 0) {
+            // The executor refreshes this every tick while it drives the companion; a task that ends or is
+            // cancelled does not stop it, so the flag must expire on its own.
+            pathingTicks--;
+        }
         if (!level().isClientSide() && isAlive()) {
             if (previewOutline != null && !previewOutline.tick((ServerLevel) level())) {
                 previewOutline = null;
@@ -160,7 +179,7 @@ public class CompanionEntity extends PathfinderMob {
             tickHunger((ServerLevel) level());
             combatController.tick();
             taskRunner.tick();
-            if (isSprinting() && (getNavigation().isDone() || !canSprint())) {
+            if (isSprinting() && !pathing() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
             }
             if (++ownerPickupTicks % OWNER_PICKUP_INTERVAL == 0) {

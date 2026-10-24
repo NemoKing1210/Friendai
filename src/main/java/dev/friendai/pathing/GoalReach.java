@@ -24,14 +24,23 @@ public record GoalReach(List<Pos> targets, double reach, double eyeHeight, doubl
         return targets.contains(p);
     }
 
-    /** The first target the companion can act on from {@code n}, or null when there is none. */
+    /**
+     * The first target the companion can act on from {@code n}, or null when there is none. Standing in the target's cell
+     * does not count: the feet or the head would be in the way of whatever the companion wants to do there.
+     */
     public Pos reachedTarget(Node n, CellView view) {
         for (Pos target : targets) {
-            if (distance(n, target) <= reach && LineOfSight.clear(view, eyeX(n), eyeY(n), eyeZ(n), target)) {
+            if (!occupies(n, target)
+                    && distance(n, target) <= reach
+                    && LineOfSight.clear(view, eyeX(n), eyeY(n), eyeZ(n), target)) {
                 return target;
             }
         }
         return null;
+    }
+
+    private static boolean occupies(Node n, Pos target) {
+        return n.x() == target.x() && n.z() == target.z() && (n.y() == target.y() || n.y() + 1 == target.y());
     }
 
     private double distance(Node n, Pos target) {

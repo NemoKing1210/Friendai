@@ -2,6 +2,7 @@ package dev.friendai.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.testutil.GridCellView;
@@ -93,6 +94,13 @@ class MoveGeneratorWalkTest {
         GridCellView view = new GridCellView("#.#", "...", "...", "...");
         PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0);
         assertEquals(Move.JUMP_GAP, step.move());
+    }
+
+    @Test
+    void doesNotJumpOverWalkableGround() {
+        // A running jump is for a gap. Over a walkable cell it is slower than two steps, so no such move is offered.
+        GridCellView view = new GridCellView("###", "...", "...", "...");
+        assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0));
     }
 
     @Test

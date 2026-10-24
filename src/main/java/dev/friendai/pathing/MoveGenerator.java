@@ -91,7 +91,11 @@ public final class MoveGenerator {
                 continue;
             }
             Pos gap = new Pos(from.x() + d[0], from.y(), from.z() + d[1]);
-            if (enterable(view.at(gap)) && enterable(view.at(gap.offset(0, 1, 0)))
+            // Only over a real gap: over walkable ground two steps are faster than a running jump. Water still counts
+            // as a gap, because swimming through it costs more than the jump.
+            boolean walkableGap = standable(view, new Node(gap.x(), gap.y(), gap.z()))
+                    && view.at(gap).kind() != Cell.Kind.WATER;
+            if (!walkableGap && enterable(view.at(gap)) && enterable(view.at(gap.offset(0, 1, 0)))
                     && enterable(view.at(gap.offset(0, 2, 0)))) {
                 emit(from, landing, Move.JUMP_GAP, costs.walk() + costs.jump(), 0, out);
             }

@@ -10,9 +10,14 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.mining.BreakProgress;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MaterialPicker;
+import dev.friendai.task.nav.MoveHelper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -23,8 +28,61 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class PathingTests {
+
+    /** What a finished task reported, so a test can wait for the outcome instead of a position. */
+    private static final class Outcome implements TaskListener {
+        TaskStatus status;
+        String summary = "";
+        /** The last few pathing decisions, so a timed-out test says why it could not walk. */
+        final List<String> debug = new ArrayList<>();
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {
+            this.status = TaskStatus.FAILED;
+            this.summary = "cancelled: " + reason;
+        }
+
+        @Override
+        public void onDebug(String text) {
+            debug.add(text);
+            if (debug.size() > 10) {
+                debug.remove(0);
+            }
+        }
+
+        String why() {
+            return status + " " + summary + " last paths: " + debug;
+        }
+    }
+
+    /** A companion whose pathing may not leave a 16x16 platform. */
+    private static CompanionEntity walker(GameTestHelper h, float x, float y, float z) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, x, y, z);
+        c.setPathBounds(new AABB(
+                h.absoluteVec(new Vec3(-1, -1, -1)), h.absoluteVec(new Vec3(17, 12, 17))));
+        return c;
+    }
+
+    private static void walkTo(CompanionEntity c, GameTestHelper h, Outcome out, double x, double y, double z) {
+        c.taskRunner().setListener(out);
+        c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
+    }
+
+    private static void assertBlock(GameTestHelper h, int x, int y, int z, net.minecraft.world.level.block.Block block,
+            String what) {
+        BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z)));
+        h.assertTrue(state.is(block), what + " at " + x + " " + y + " " + z + " is " + state);
+    }
 
     private static Cell cellAt(LevelCellView view, GameTestHelper h, int x, int y, int z) {
         return cellAt(view, h.absolutePos(new BlockPos(x, y, z)));
@@ -127,5 +185,119 @@ public class PathingTests {
         h.assertTrue(log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains("path test")),
                 "debug line must reach the owner's log: " + log);
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 800)
+    public void goToBridgesPitWithDirt(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 1, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 2; y <= 5; y++) {
+                    boolean pit = x >= 6 && x <= 8;
+                    h.setBlock(x, y, z, pit ? Blocks.AIR : Blocks.STONE);
+                }
+            }
+        }
+        CompanionEntity c = walker(h, 2, 6, 8);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, 6, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            int bridged = 0;
+            for (int x = 6; x <= 8; x++) {
+                for (int z = 7; z <= 9; z++) {
+                    BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, 5, z)));
+                    if (state.is(Blocks.DIRT)) {
+                        bridged++;
+                    }
+                }
+            }
+            // A running jump over the last two cells can save one placement, so two dirt blocks already mean a bridge.
+            h.assertTrue(bridged >= 2, "bridged " + bridged + " cells of the pit row with dirt");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void goToWalksAroundPlankWall(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int z = 1; z <= 12; z++) {
+            for (int y = 2; y <= 4; y++) {
+                h.setBlock(8, y, z, Blocks.OAK_PLANKS);
+            }
+        }
+        CompanionEntity c = walker(h, 2, 2, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, 2, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            for (int z = 1; z <= 12; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    assertBlock(h, 8, y, z, Blocks.OAK_PLANKS, "wall");
+                }
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void protectedWallIsWalkedAround(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        int wallX = h.absolutePos(new BlockPos(8, 2, 0)).getX();
+        for (int z = 1; z <= 12; z++) {
+            for (int y = 2; y <= 4; y++) {
+                h.setBlock(8, y, z, Blocks.STONE);
+            }
+        }
+        CompanionEntity c = walker(h, 2, 2, 8);
+        c.hands().overrideProtection(p -> p.getX() == wallX);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, 2, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            for (int z = 1; z <= 12; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    assertBlock(h, 8, y, z, Blocks.STONE, "protected wall");
+                }
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void tunnelBesideLavaRefused(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // A stone wall at x=8 with a sealed lava seam right behind it: breaking the wall would open onto lava.
+        for (int z = 0; z <= 12; z++) {
+            for (int y = 2; y <= 4; y++) {
+                h.setBlock(8, y, z, Blocks.STONE);
+                h.setBlock(10, y, z, Blocks.STONE);
+            }
+            h.setBlock(9, 3, z, Blocks.STONE);
+            h.setBlock(9, 2, z, z == 0 || z == 12 ? Blocks.STONE : Blocks.LAVA);
+        }
+        CompanionEntity c = walker(h, 2, 2, 8);
+        h.onEachTick(() -> h.assertFalse(c.isOnFire(), "the companion caught fire"));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, 2, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            for (int z = 1; z <= 11; z++) {
+                assertBlock(h, 9, 2, z, Blocks.LAVA, "sealed lava");
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void goToFollowsShiftingTarget(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = walker(h, 2, 2, 2);
+        MoveHelper mover = new MoveHelper(1.0, 1.5);
+        Vec3 finalTarget = h.absoluteVec(new Vec3(14.5, 2, 2.5));
+        h.succeedWhen(() -> {
+            int step = Math.min(4, (int) (h.getTick() / 20));
+            double x = 6 + 2.0 * step;
+            mover.tick(c, h.absoluteVec(new Vec3(x + 0.5, 2, 2.5)));
+            double distance = c.position().distanceTo(finalTarget);
+            h.assertTrue(h.getTick() >= 100 && distance <= 1.75, "still " + distance + " blocks away on tick " + h.getTick());
+        });
     }
 }

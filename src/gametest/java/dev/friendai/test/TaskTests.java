@@ -206,11 +206,11 @@ public class TaskTests {
     @GameTest(maxTicks = 100)
     public void timeoutFails(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        wallIn(h, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
         TaskRunner runner = runner(c, events, 1, false);
-        runner.start(new GoToTask(h.absoluteVec(new Vec3(10.5, 2, 2.5))), "go_to");
+        // Too far to arrive within the one-second timeout, and nothing in the way: the timeout must be what fails it.
+        runner.start(new GoToTask(h.absoluteVec(new Vec3(14.5, 2, 14.5))), "go_to");
         int[] ticks = {0};
         h.succeedWhen(() -> {
             runner.tick();

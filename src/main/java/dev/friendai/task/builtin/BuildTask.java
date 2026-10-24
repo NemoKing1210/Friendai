@@ -548,7 +548,7 @@ public final class BuildTask implements Task {
                         return TaskStatus.RUNNING;
                     }
                     approach = null;
-                    if (state == Approach.State.IN_REACH) {
+                    if (state == Approach.State.IN_REACH && inReach(c.companion(), currentPos)) {
                         continue;
                     }
                 }
