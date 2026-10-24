@@ -26,13 +26,15 @@ public final class TaskRunner {
     private TaskListener listener;
     private boolean paused;
     private boolean suspended;
+    /** How many windows or other holds keep the runner from advancing (an open inventory, for example). */
+    private int holds;
 
     public void setPaused(boolean paused) {
         this.paused = paused;
     }
 
     public boolean paused() {
-        return paused;
+        return paused || holds > 0;
     }
 
     /** Stops progress without cancelling the task, so a saved build can resume after a reload or a relog. */
@@ -46,6 +48,21 @@ public final class TaskRunner {
 
     public boolean suspended() {
         return suspended;
+    }
+
+    /** Holds the runner without cancelling: the companion stands still while someone handles its inventory. */
+    public void hold() {
+        holds++;
+    }
+
+    public void release() {
+        if (holds > 0) {
+            holds--;
+        }
+    }
+
+    public boolean held() {
+        return holds > 0;
     }
 
     public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
@@ -120,7 +137,7 @@ public final class TaskRunner {
     }
 
     public void tick() {
-        if (paused || suspended) {
+        if (paused || suspended || held()) {
             return;
         }
         if (current == null) {
@@ -184,7 +201,7 @@ public final class TaskRunner {
     }
 
     private void startDefault() {
-        if (!paused && current == null && defaultFollow.getAsBoolean()) {
+        if (!paused && !held() && current == null && defaultFollow.getAsBoolean()) {
             begin(new FollowTask(true), "follow", false);
         }
     }

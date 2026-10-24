@@ -6,6 +6,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.DebugStream;
 import dev.friendai.net.FriendaiNetworking;
 import dev.friendai.net.MemoryViewStream;
@@ -31,6 +32,7 @@ public class FriendaiMod implements ModInitializer {
     @Override
     public void onInitialize() {
         FriendaiEntities.register();
+        FriendaiMenus.register();
         FriendaiCommands.register();
         ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
             if (entity instanceof CompanionEntity companion) {

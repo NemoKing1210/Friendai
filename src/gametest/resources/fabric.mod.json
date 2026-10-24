@@ -34,7 +34,8 @@
 			"dev.friendai.test.BuildTests",
 			"dev.friendai.test.OwnerViewTests",
 			"dev.friendai.test.PaceTests",
-			"dev.friendai.test.TrustTests"
+			"dev.friendai.test.TrustTests",
+			"dev.friendai.test.InventoryWindowTests"
 		]
 	},
 	"depends": {

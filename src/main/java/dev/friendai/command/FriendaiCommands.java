@@ -16,8 +16,10 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryReport;
 import dev.friendai.memory.PlayerRecord;
+import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
 import dev.friendai.text.UserMessage;
+import dev.friendai.tool.InventoryAccess;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -39,6 +41,7 @@ public final class FriendaiCommands {
                 .then(Commands.literal("summon").executes(FriendaiCommands::summon))
                 .then(Commands.literal("dismiss").executes(FriendaiCommands::dismiss))
                 .then(Commands.literal("stop").executes(FriendaiCommands::stop))
+                .then(Commands.literal("inventory").executes(FriendaiCommands::inventory))
                 .then(Commands.literal("status").executes(FriendaiCommands::status))
                 .then(Commands.literal("trust")
                         .then(Commands.argument("player", EntityArgument.player())
@@ -98,6 +101,23 @@ public final class FriendaiCommands {
         companion.get().taskRunner().stop("stopped by command");
         FriendaiServerState.get(server).brains().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
+        return 1;
+    }
+
+    private static int inventory(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        var companion = CompanionManager.get(ctx.getSource().getServer()).find(player.getUUID());
+        if (companion.isEmpty()) {
+            ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
+            return 0;
+        }
+        InventoryAccess.Denial denial = FriendaiMenus.open(player, companion.get());
+        if (denial != InventoryAccess.Denial.NONE) {
+            ctx.getSource().sendFailure(Component.translatable(denial == InventoryAccess.Denial.NOT_OWNER
+                    ? "friendai.inventory.not_owner"
+                    : "friendai.inventory.unavailable"));
+            return 0;
+        }
         return 1;
     }
 

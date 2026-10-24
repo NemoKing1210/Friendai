@@ -3,6 +3,7 @@ package dev.friendai.entity;
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.HungerModel;
@@ -18,6 +19,7 @@ import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
+import dev.friendai.tool.InventoryAccess;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +29,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -80,6 +84,8 @@ public class CompanionEntity extends PathfinderMob {
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
     private int ownerPickupTicks;
+    /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
+    private int inventoryViewers;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
@@ -320,6 +326,44 @@ public class CompanionEntity extends PathfinderMob {
 
     public SimpleContainer inventory() {
         return inventory;
+    }
+
+    /** A window showing the inventory opened: the first one stops the companion so its items are not moving. */
+    public void addInventoryViewer() {
+        if (inventoryViewers++ == 0) {
+            taskRunner.hold();
+            getNavigation().stop();
+        }
+    }
+
+    /** A window closed; the companion goes back to whatever it was doing after the last one. */
+    public void removeInventoryViewer() {
+        if (inventoryViewers > 0 && --inventoryViewers == 0) {
+            taskRunner.release();
+        }
+    }
+
+    /** Shift+right-click by the owner opens the inventory window; anyone else is told it is not theirs. */
+    @Override
+    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
+        if (!player.isSecondaryUseActive()) {
+            return super.mobInteract(player, hand);
+        }
+        if (player.level().isClientSide()) {
+            return InteractionResult.SUCCESS;
+        }
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResult.PASS;
+        }
+        InventoryAccess.Denial denial = FriendaiMenus.open(serverPlayer, this);
+        if (denial == InventoryAccess.Denial.NONE) {
+            return InteractionResult.CONSUME;
+        }
+        String key = denial == InventoryAccess.Denial.NOT_OWNER
+                ? "friendai.inventory.not_owner"
+                : "friendai.inventory.unavailable";
+        serverPlayer.sendSystemMessage(Component.translatable(key), true);
+        return InteractionResult.FAIL;
     }
 
     /**

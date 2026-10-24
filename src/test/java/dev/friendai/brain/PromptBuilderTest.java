@@ -71,6 +71,18 @@ class PromptBuilderTest {
     }
 
     @Test
+    void onlyTheOwnerIsToldAboutShowInventory() {
+        String owner = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(owner.contains("show_inventory"), owner);
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Tia", AccessLevel.TRUSTED));
+        assertFalse(trusted.contains("show_inventory"), trusted);
+        String guest = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Gus", AccessLevel.GUEST));
+        assertFalse(guest.contains("show_inventory"), guest);
+    }
+
+    @Test
     void explainsPace() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains("set_pace"));

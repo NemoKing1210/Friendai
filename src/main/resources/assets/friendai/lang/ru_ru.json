@@ -24,6 +24,8 @@
   "friendai.command.summoned": "%s рядом.",
   "friendai.command.dismissed": "%s ушёл.",
   "friendai.command.no_companion": "У тебя нет компаньона. Используй /friendai summon.",
+  "friendai.inventory.not_owner": "Только владелец может открыть инвентарь компаньона.",
+  "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
 
   "friendai.companion.thinking": "%s думает…",

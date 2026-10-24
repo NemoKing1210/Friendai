@@ -13,11 +13,14 @@ import dev.friendai.config.ClientConfig;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.memory.MemoryViewCodec;
+import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.MemoryViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
+import dev.friendai.client.ui.CompanionInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 
 public class FriendaiClient implements ClientModInitializer {
@@ -52,6 +55,7 @@ public class FriendaiClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         EntityRenderers.register(FriendaiEntities.COMPANION, CompanionRenderer::new);
+        MenuScreens.register(FriendaiMenus.TYPE, CompanionInventoryScreen::new);
         clientConfig();
         VoiceHud.register();
         PauseMenuButton.register();

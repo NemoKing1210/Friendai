@@ -2,11 +2,14 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.InventoryAccess;
 import dev.friendai.tool.PlanParser;
 import dev.friendai.tool.PlanStep;
 import dev.friendai.tool.SchemaBuilder;
@@ -20,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import net.minecraft.server.level.ServerPlayer;
 
 /** Control over what the companion is doing. */
 final class ControlTools {
@@ -63,7 +67,28 @@ final class ControlTools {
         return ToolResult.ok(text.toString());
     }
 
+    private static ToolResult showInventory(CompanionEntity c) {
+        ServerPlayer owner = c.owner().orElse(null);
+        if (owner == null) {
+            return ToolResult.error("the owner is offline");
+        }
+        InventoryAccess.Denial denial = FriendaiMenus.open(owner, c);
+        return switch (denial) {
+            case NONE -> ToolResult.ok("opened my inventory for " + owner.getName().getString());
+            case NOT_OWNER -> ToolResult.error("only the owner can open my inventory");
+            case OTHER_DIMENSION -> ToolResult.error("can't open it: the owner is in another dimension");
+            case TOO_FAR -> ToolResult.error("can't open it: the owner is too far away");
+            case GONE -> ToolResult.error("can't open it: I'm not there");
+        };
+    }
+
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
+        registry.register(ToolKit.instantTool(
+                "show_inventory",
+                "Open your inventory and equipment for the owner, so they can take or put items themselves.",
+                AccessLevel.OWNER,
+                (c, a) -> showInventory(c)));
+
         registry.register(ToolKit.instantTool("stop",
                 "Cancel the current task and go back to the default activity. Pass what to stop a specific action by its tool name"
                         + " (for example mine_blocks) or everything (the task, a fight, furnace jobs). To stop following the owner, use stay.",
