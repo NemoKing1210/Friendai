@@ -2,10 +2,12 @@ package dev.friendai.chat;
 
 import dev.friendai.brain.Speaker;
 import dev.friendai.core.Components;
+import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.text.UserMessage;
 import java.util.UUID;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -30,6 +32,31 @@ public final class CompanionSpeaker implements Speaker {
         for (String chunk : ReplySplitter.split(text, maxReplyChars.getAsInt())) {
             server.getPlayerList().broadcastSystemMessage(Component.literal("<" + name.get() + "> " + chunk), false);
         }
+    }
+
+    /**
+     * Broadcasts the chat chunks as usual, then offers the whole reply to clients that installed the mod so
+     * they can speak it. Vanilla clients never see the packet.
+     */
+    @Override
+    public void say(String text, UUID addressee) {
+        say(text);
+        if (text.isBlank()) {
+            return;
+        }
+        CompanionSpeechS2CPayload payload = new CompanionSpeechS2CPayload(
+                clamp(name.get(), CompanionSpeechS2CPayload.MAX_NAME),
+                clamp(text, CompanionSpeechS2CPayload.MAX_TEXT),
+                addressee);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ServerPlayNetworking.canSend(player, CompanionSpeechS2CPayload.TYPE)) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        }
+    }
+
+    private static String clamp(String text, int max) {
+        return text.length() <= max ? text : text.substring(0, max);
     }
 
     @Override
