@@ -33,8 +33,8 @@ public class FriendaiClient implements ClientModInitializer {
                     FabricLoader.getInstance().getConfigDir().resolve("friendai-client.json"),
                     ClientConfig.class,
                     ClientConfig::defaults,
-                    1,
-                    (json, from) -> json);
+                    ClientConfig.CURRENT_VERSION,
+                    ClientConfig::migrate);
         }
         return clientConfigStore;
     }
