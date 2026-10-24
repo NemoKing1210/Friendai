@@ -394,6 +394,8 @@ public class HungerTests {
     @GameTest(maxTicks = 3600)
     public void getFoodHuntsAndCooks(GameTestHelper h) {
         GameTestSupport.platformAt(h, 80, 16);
+        // Walled: a hurt cow panics and would otherwise run off the platform and die in the fall.
+        GameTestSupport.enclose(h, 80, 16, 4);
         h.setBlock(10, 80, 10, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 81, 2);
         h.spawn(EntityTypes.COW, 6, 81, 6);
