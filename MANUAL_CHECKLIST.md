@@ -30,6 +30,17 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Hold **V** in a world and say "mine two logs": the chat shows the voice line, the companion replies and does it.
 - [ ] Hold **V** while speaking: the capsule is centered horizontally above the hotbar, its dot pulses and the bars follow your voice; after release the waiting dots animate while transcribing.
 - [ ] No microphone / no model: the HUD shows a hint and nothing else breaks.
+- [ ] Settings → Voice → Speech synthesis → a local voice → **Download voice**: progress toasts every 10%, then "Voice installed"; the license line matches the voice.
+- [ ] **Test voice** plays the sample through the selected output device; the volume slider changes how loud it is.
+- [ ] In a world, a chat reply is spoken once (not once per chat line); the output device and speed settings take effect.
+- [ ] With "Speak replies addressed to other players" off, a reply to another player stays silent; on, it is spoken too.
+- [ ] OpenAI with a valid key speaks a reply. A wrong key shows one error toast and no storm; speech stays idle until the settings change.
+- [ ] ElevenLabs with a valid key and voice id speaks a reply.
+- [ ] A local OpenAI-compatible server (custom base URL, no key) speaks a reply.
+- [ ] Pressing push-to-talk during a reply stops it; the **Stop speaking** keybind (Controls → Friendai) does the same; nothing is recorded while a reply plays.
+- [ ] Leaving the world stops the audio and rejoining speaks again; the client config keeps the enabled setting.
+- [ ] Every Speech synthesis label is translated in both English and Russian, including the engine and voice names.
+- [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.
 
 ## Multiplayer
 
