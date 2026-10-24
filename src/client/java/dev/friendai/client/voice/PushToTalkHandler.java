@@ -3,6 +3,8 @@ package dev.friendai.client.voice;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.friendai.FriendaiMod;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.tts.SpeechRuntime;
+import dev.friendai.client.ui.ClientKeys;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
@@ -30,8 +32,8 @@ public final class PushToTalkHandler {
     }
 
     public void register() {
-        KeyMapping.Category category = KeyMapping.Category.register(FriendaiMod.id("main"));
-        key = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.friendai.push_to_talk", InputConstants.KEY_V, category));
+        key = KeyMappingHelper.registerKeyMapping(
+                new KeyMapping("key.friendai.push_to_talk", InputConstants.KEY_V, ClientKeys.category()));
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
     }
 
@@ -47,6 +49,8 @@ public final class PushToTalkHandler {
     }
 
     private void onPressed(Minecraft mc) {
+        // Never record the companion's own voice: a press cuts any reply off before the mic opens.
+        SpeechRuntime.stop();
         ClientConfig.VoiceSection voice = FriendaiClient.clientConfig().voice;
         pressIgnored = true;
         if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {

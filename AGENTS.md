@@ -67,7 +67,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | Source set | Path | Contains | Notes |
 |---|---|---|---|
 | `main` | `src/main/java` | Pure layers, Minecraft-layer server/common code, resources | The shipped jar's common half. |
-| `client` | `src/client/java` | Renderer, screens, HUD, keybinds, voice capture, TTS stub | Loaded only on the client. |
+| `client` | `src/client/java` | Renderer, screens, HUD, keybinds, voice capture, speech output | Loaded only on the client. |
 | `test` | `src/test/java` | JUnit tests and reusable fakes | No Minecraft at runtime. |
 | `gametest` | `src/gametest/java` | Fabric GameTest classes plus `GameTestSupport` | Separate mod `friendai-gametest`; entrypoints listed in `src/gametest/resources/fabric.mod.json`. |
 
@@ -88,13 +88,14 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | Networking | `net/FriendaiNetworking` and the handlers/streams in `net/`. |
 | Configuration | `config/ConfigStore`, `config/ServerConfig`, `config/ClientConfig`. |
 | Tests | `src/test/.../testutil` (unit fakes), `src/gametest/.../GameTestSupport` (world helpers). |
+| Speech output | `voice/tts/` (pure: protocols, engines, queue, voices), `client/tts/` (`SpeechRuntime`, `SpeechPlayback`, `SpeechKeybind`); replies leave `chat/CompanionSpeaker` as `CompanionSpeechS2CPayload`. |
 
 ## Architecture
 
 Bottom-up. The dependency rule is per class/module, not per package: **pure classes must not import `net.minecraft.*` or `net.fabricmc.*`**. They are plain Java, unit-tested without the game, and could be extracted as a library. `chat/`, `net/` and `perception/` are mixed packages; only the classes named below are pure.
 
 ```
-client  (render, UI screens/tabs, HUD, voice capture)
+client  (render, UI screens/tabs, HUD, voice capture, speech output)
    |  Fabric payloads (C2S requests, S2C snapshots/prompt/memory views)
 server  (entity, task, core, command, net, menu, perception builders)
    |  calls into pure code with plain data
@@ -108,7 +109,7 @@ pure Java  (llm, brain, tool, memory, crafting, pathing, build, survival,
 - `llm/protocol/` — one class per wire format: `OpenAiChatProtocol`, `OpenAiResponsesProtocol`, `AnthropicMessagesProtocol`, `GeminiProtocol`, `OllamaProtocol`; each has `toWire`/`fromWire`. Anthropic and Gemini must receive consecutive USER/TOOL messages as **one** user message; malformed arguments serialize as `{}`.
 - `llm/provider/` — presets and routing as **data**: `ProviderPreset`, `RoutingRule`, `Route`, `LlmProfile`. First glob match wins; base URL precedence is profile → rule → preset. Protocols and presets are registered in `ProviderRegistry.withBuiltins`.
 - `llm/http/HttpTransport` + `llm/LlmClient` — retries only retryable error kinds, maps HTTP statuses to `LlmErrorKind`, redacts keys; `LlmClient.complete` resolves the route and delegates.
-- `config/` — `ConfigStore` (atomic temp + move, `.bak` on corruption, versioned migrations), `ServerConfig` (schema version 4, clamping validation), `ClientConfig`, `SecretResolver` (`env:NAME`). API keys are never persisted or displayed unredacted.
+- `config/` — `ConfigStore` (atomic temp + move, `.bak` on corruption, versioned migrations), `ServerConfig` (schema version 4, clamping validation), `ClientConfig` (schema version 2 adds `voice.tts`: engine, key, voice, volume and output device), `SecretResolver` (`env:NAME`). API keys are never persisted or displayed unredacted.
 - `text/` — `UserMessage(key, args)` and `UserFacingException`: the only player-facing protocol flowing out of pure layers.
 - `tool/` (except `tool.builtin`) — `Tool`, `ToolRegistry`, `ArgValidator`, `SchemaBuilder`, `AccessLevel`/`Caller`, `PlanParser`, `InventoryAccess`, `StopScope`. `ToolRegistry.run` never throws: unknown/disabled tool, wrong access, bad JSON or schema violation become `ToolResult.error`. Access is ordinal `GUEST < TRUSTED < OWNER`; the default minimum is `TRUSTED`.
 - `brain/` — `CompanionBrain` (the agent loop, one principal per turn), `PromptBuilder`, `ConversationMemory`, `AccessResolver`, `BrainEvent`. Invariants: at most one LLM request per turn; a generation counter silently drops late responses; trimming drops whole leading USER turns so history never starts with a tool result.
@@ -121,6 +122,7 @@ pure Java  (llm, brain, tool, memory, crafting, pathing, build, survival,
 - `movement/` — `PaceMode`, `PacePolicy` (AUTO hysteresis: run above 10 blocks, stop below 5).
 - `chat/` (pure classes only) — `AddressDetector` (prefix/name matching), `CompanionPicker` (own nearby → nearest other with owner online → own anywhere), `ReplySplitter`, `ConfirmationMatcher`.
 - `voice/` — `PcmConverter` (16-bit LE → float), `WhisperModel`/`ModelSpec`, `WhisperModelManager` (size + SHA-256, `.part` then atomic move), `AudioLevel`.
+- `voice/tts/` — speech output without Minecraft: `SpeechText` cleaning and splitting, `TtsClip`, `WavCodec`, `SpeechQueue`, `SpeechGate`, the OpenAI-compatible and ElevenLabs `TtsProtocol`s with `TtsHttp`, `VoiceModels`/`VoiceModelManager` for Piper voices, `TtsSettings`/`TtsPresets`, and the `SpeechEngine` implementations (`LocalTtsEngine`, `CloudTtsEngine`).
 - `debug/` — `DebugLog` (bounded; redacted then truncated), `TaskHistory`, `SecretRedactor`, `DebugAccess`, `CompanionSnapshot` + `SnapshotCodec` (length-prefixed, bounded), `MemoryTabModel`, `PauseRowPlacement`, `RequestType`.
 - `perception/` (pure data only) — `PerceptionSnapshot` and `OwnerFocus`, the surroundings and the speaker's view as prompt text.
 - `net/RateLimiter` — the only pure class in `net/`.
@@ -144,20 +146,20 @@ pure Java  (llm, brain, tool, memory, crafting, pathing, build, survival,
 - `task/survival/` — `HungerWatcher` (automatic food quest).
 - `tool/builtin/` — LLM-facing skills. `FriendaiTools.build` calls 16 group classes (movement, gathering, inventory, building, storage, crafting, cooking, combat, farming, animal, obtain, build, info, memory, trust, control) and returns the registry and the plannable definitions; `ToolKit.add`/`taskTool` builds a task and calls `taskRunner().start`, `instantTool` acts directly, and `callerTool` receives the turn's caller; `TaskToolDef` carries schema, factory, plannable flag and minimum access. 55 tools at the time of writing: movement (`follow_player`, `stay`, `go_to`, `set_pace`), gathering (`mine_blocks`, `mine_block_at`, `pickup_items`), inventory (`give_items`, `drop_items`, `get_inventory`), building (`place_block`, `use_block`, `light_area`), storage (`store_items`, `take_items`, `check_container`), crafting (`craft_item`, `get_recipe`), cooking (`smelt_items`, `cook_food`, `collect_smelted`), combat (`attack`, `attack_player`, `set_combat_mode`, `equip_item`, `eat`, `get_food`), farming (`farm`, `tend_farm`, `use_bonemeal`), animals (`breed_animals`, `shear`, `milk`, `tame_animal`, `lead_animals`, `harvest_honey`, `fish`), obtaining (`obtain_item`, `plan_obtain`), blueprints (`blueprint_help`, `preview_structure`, `build_structure`, `save_blueprint`, `list_blueprints`), info (`look_around`, `find_blocks`, `player_view`), control (`show_inventory`, `stop`, `run_plan`), trust (`trust_player`, `untrust_player`). Memory tools `remember`, `forget`, `recall` are always registered; `enabled()` follows `memory.enabled`.
 - `core/` — `BrainService` (one brain per owner, the shared `LlmClient`, tool registry, debug state, task↔brain events), `FriendaiServerState` (per-server config, memory, brains, trust), `ServerBrainScheduler`, `CompanionPerception`, `TrustConfirmations`, `Components` (`UserMessage` → `Component`).
-- `chat/` — `ChatRouter` (hooks `CHAT_MESSAGE`), `CompanionRouting`, `CompanionSpeaker`, `AddressDetector`, `CompanionPicker`, `ConfirmationMatcher`, `ReplySplitter`.
+- `chat/` — `ChatRouter` (hooks `CHAT_MESSAGE`), `CompanionRouting`, `CompanionSpeaker` (chat lines plus the speech packet), `AddressDetector`, `CompanionPicker`, `ConfirmationMatcher`, `ReplySplitter`.
 - `command/` — `/friendai` tree: `summon`, `dismiss`, `stop`, `inventory`, `status`, `trust`/`untrust`/`trusted`, `pending`/`confirm`/`cancel`, `memory list`/`forget`/`clear`, `reload`.
-- `net/` — `FriendaiNetworking` (payload registration), C2S `CompanionRequestC2SPayload` + `CompanionRequestHandler`, `VoiceTranscriptC2SPayload` + `VoiceTranscriptHandler`, S2C `CompanionSnapshotS2CPayload` + `PromptS2CPayload` + `MemoryViewS2CPayload`, `DebugStream`, `MemoryViewStream`, `SnapshotBuilder`, `Operators`.
+- `net/` — `FriendaiNetworking` (payload registration), C2S `CompanionRequestC2SPayload` + `CompanionRequestHandler`, `VoiceTranscriptC2SPayload` + `VoiceTranscriptHandler`, S2C `CompanionSnapshotS2CPayload` + `PromptS2CPayload` + `MemoryViewS2CPayload` + `CompanionSpeechS2CPayload`, `DebugStream`, `MemoryViewStream`, `SnapshotBuilder`, `Operators`.
 - `menu/` — the companion inventory GUI: `FriendaiMenus` (type + open), `CompanionInventoryMenu`, `CompanionEquipmentContainer` (6 gear slots + 27 inventory slots + viewer inventory).
 - `perception/` — `PerceptionBuilder` (brief radius 8, detailed 16) and `OwnerFocusBuilder`; they fill the pure snapshots on the server thread.
 
 ### Client
 
 - `client/` — `FriendaiClient`: entity renderer, container screen, config load, HUD, pause-menu button, S2C receivers, push-to-talk. Client config is `config/friendai-client.json`.
-- `client/config/` — YACL `FriendaiConfigScreen`, `ModMenuIntegration` (returns `null` when YACL is absent), `ModelCache`.
+- `client/config/` — YACL `FriendaiConfigScreen` (including the Speech synthesis group), `ModMenuIntegration` (returns `null` when YACL is absent), `ModelCache`.
 - `client/render/` — `CompanionRenderer` (humanoid/player model with vanilla skin and armor layer).
-- `client/ui/` — `CompanionControlScreen` and tabs (`ControlTab`, `TasksTab`, `MemoryTab`, `LogTab`, `DebugTab`); `CompanionClientState`, `CompanionRequests`, `CompanionInventoryScreen`, `PauseMenuButton`.
+- `client/ui/` — `CompanionControlScreen` and tabs (`ControlTab`, `TasksTab`, `MemoryTab`, `LogTab`, `DebugTab`); `CompanionClientState`, `CompanionRequests`, `CompanionInventoryScreen`, `PauseMenuButton`, `ClientKeys` (key category), `ClientToasts`.
 - `client/voice/` — `MicCapture` (16 kHz/16-bit/mono), `PushToTalkHandler`, `VoiceRuntime`, `WhisperLocalStt`, `SpeechToText`, `VoiceState`, `VoiceHud`.
-- `client/tts/` — interface only: `SpeechOutput`, `NoOpSpeechOutput` (nothing calls them yet).
+- `client/tts/` — `SpeechRuntime` (queues replies and drives synthesis), `SpeechPlayback` (writes to a `SourceDataLine`, applies the volume and the output device), `SpeechKeybind` (the **Stop speaking** key).
 
 ## Runtime flows
 
@@ -188,16 +190,21 @@ The client subscribes with `CompanionRequestC2SPayload(SUBSCRIBE)`; `CompanionRe
 
 The client captures audio only while push-to-talk is held, checks that the local Whisper model is ready, transcribes on a daemon thread, and sends `VoiceTranscriptC2SPayload(text)` only if the server can receive it. Audio never leaves the machine; the model is downloaded into `<gameDir>/friendai/models/` and verified by size and SHA-256.
 
+### Speech output
+
+`CompanionSpeaker` sends each reply as a `CompanionSpeechS2CPayload` (text plus the addressee). The client's `SpeechRuntime` cleans and splits the text, then either synthesizes locally with sherpa-onnx (`LocalTtsEngine`, a downloaded Piper voice) or calls a cloud engine (`CloudTtsEngine`: OpenAI-compatible or ElevenLabs) on a worker thread; `SpeechPlayback` plays the clip through the chosen device. Synthesis is off by default; the settings live under `voice.tts` in the client config. Push-to-talk and the **Stop speaking** keybind stop playback. Only cloud engines send the reply text off the machine, keys travel in headers only, and paid requests are never retried automatically.
+
 ## Data and persistence
 
 | Data | Location | Notes |
 |---|---|---|
 | Server config | `config/friendai-server.json` | Schema version 4; atomic save, `.bak`, migrations; API keys may be `env:NAME`. |
-| Client config | `config/friendai-client.json` | Voice device/model, UI preferences. |
+| Client config | `config/friendai-client.json` | Schema version 2: voice device/model, speech output settings (`voice.tts`), UI preferences. |
 | Companion state | World save, `CompanionEntity` additional data | Owner, inventory, combat mode, pace mode, food/saturation/exhaustion, saved task. Hands, previews, station leases and furnace jobs are transient. |
 | Memory | `<world>/friendai/memory/<owner-uuid>.json` | One book per owner, format version 1; 5 s debounced flush; `.bak` on corruption. |
 | Blueprints | `<world>/friendai/blueprints/<name>.json` | `size:[w,h,d]`, `blocks:[[x,y,z,state]]`; in-progress builds have their own directory. |
 | Whisper models | `<gameDir>/friendai/models/` | Downloaded `tiny`/`base`/`small`, size + SHA-256 checked. |
+| TTS voices | `<gameDir>/friendai/models/tts/` | Downloaded Piper voices (sherpa-onnx), size + SHA-256 checked. |
 | Translations | `src/main/resources/assets/friendai/lang/` | `en_us.json` is the source of truth; `ru_ru.json` mirrors it. |
 
 ## Network protocol
@@ -211,6 +218,7 @@ All payloads are registered in `net/FriendaiNetworking`.
 | S2C | `CompanionSnapshotS2CPayload` | Menu state and task history; operator-only fields are filtered server-side. |
 | S2C | `PromptS2CPayload` | The current prompt text, operators only. |
 | S2C | `MemoryViewS2CPayload` | What the Memory tab shows; malformed data is dropped by the client. |
+| S2C | `CompanionSpeechS2CPayload` | One reply to speak on the client, with the addressee; the client decides whether to speak it. |
 
 The companion inventory/equipment window uses a vanilla container menu (`menu/FriendaiMenus`), not a custom payload.
 

@@ -53,6 +53,18 @@ The key is never written to logs or chat. "Test connection" in the settings scre
 
 Voice input runs locally with [whisper.cpp](https://github.com/ggerganov/whisper.cpp). Open **Settings → Voice**, pick a model (`tiny`, `base` or `small`) and press **Download model**. Models are stored in `<game dir>/friendai/models/`. Speech is turned into text on your machine; only the text is sent to the server.
 
+### Speech output
+
+The companion can also speak its replies. Synthesis is off by default; turn on **Speak replies** in **Settings → Voice → Speech synthesis** and choose an engine:
+
+- **Local (free, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) runs a Piper voice on your CPU. Pick a voice and press **Download voice**; voices are stored in `<game dir>/friendai/models/tts/` (about 67 MB each). Russian systems get Irina, everything else Lessac; Dmitri and Alba are offered too. The model files are published under MIT; the license line under the dropdown names the training data of the selected voice, which is unknown for a few of them.
+- **OpenAI (paid)** — the OpenAI speech API and an API key. The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
+- **ElevenLabs (paid)** — the ElevenLabs text-to-speech API; a key and a voice id.
+
+Only the reply text leaves your machine, and only for the cloud engines; local voices never do. The key lives in the client config, may reference an environment variable (`env:OPENAI_API_KEY`), travels only in an HTTP header, and never appears in logs, chat or error messages. Friendai never retries a paid request automatically.
+
+Volume, the output device, the maximum length of a spoken phrase and speaking replies addressed to other players are on the same screen. **Test voice** speaks a sample sentence. Pressing push-to-talk or the **Stop speaking** key (unbound by default; set it in Controls) cuts a reply off.
+
 ## Languages
 
 The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).

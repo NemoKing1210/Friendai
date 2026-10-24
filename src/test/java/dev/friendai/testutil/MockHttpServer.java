@@ -24,7 +24,7 @@ public final class MockHttpServer implements AutoCloseable {
         }
     }
 
-    private record Canned(int status, String body) {}
+    private record Canned(int status, byte[] body) {}
 
     private final HttpServer server;
     private final Queue<Canned> queue = new ArrayDeque<>();
@@ -47,9 +47,9 @@ public final class MockHttpServer implements AutoCloseable {
                 canned = queue.poll();
             }
             if (canned == null) {
-                canned = new Canned(500, "{\"error\":\"mock queue empty\"}");
+                canned = new Canned(500, "{\"error\":\"mock queue empty\"}".getBytes(StandardCharsets.UTF_8));
             }
-            byte[] out = canned.body().getBytes(StandardCharsets.UTF_8);
+            byte[] out = canned.body();
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(canned.status(), out.length == 0 ? -1 : out.length);
             if (out.length > 0) {
@@ -71,8 +71,12 @@ public final class MockHttpServer implements AutoCloseable {
     }
 
     public void enqueue(int status, String body) {
+        enqueue(status, body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public void enqueue(int status, byte[] body) {
         synchronized (queue) {
-            queue.add(new Canned(status, body));
+            queue.add(new Canned(status, body.clone()));
         }
     }
 

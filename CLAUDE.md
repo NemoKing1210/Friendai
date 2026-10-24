@@ -39,5 +39,6 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 - Entry points: `FriendaiMod` (common), `FriendaiClient` (client), `ModMenuIntegration` (optional).
 - Tools and skills: `tool/builtin/FriendaiTools.java`, `task/builtin/`.
 - The prompt: `brain/PromptBuilder.java`. The agent loop: `brain/CompanionBrain.java`.
+- Speech output: `voice/tts/` (pure), `client/tts/SpeechRuntime.java` (client playback), sent from `chat/CompanionSpeaker.java`.
 - Provider presets and routing: `llm/provider/ProviderRegistry.java`.
 - Translations: `src/main/resources/assets/friendai/lang/`.

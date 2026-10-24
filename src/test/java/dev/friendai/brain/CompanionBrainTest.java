@@ -356,4 +356,18 @@ class CompanionBrainTest {
         assertEquals(1, gateway.requests.size());
         assertEquals(1, other.requests.size());
     }
+
+    @Test
+    void replyIsAddressedToTheTurnCaller() {
+        gateway.enqueue(text("Hi"));
+        brain.post(said("hi"));
+        assertEquals(List.of(OWNER), speaker.addressees);
+    }
+
+    @Test
+    void guestReplyIsAddressedToTheGuest() {
+        gateway.enqueue(text("Hello"));
+        brain.post(guest("hi"));
+        assertEquals(List.of(GUEST), speaker.addressees);
+    }
 }

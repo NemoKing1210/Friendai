@@ -239,7 +239,7 @@ public final class CompanionBrain {
         }
         if (!response.text().isBlank()) {
             observe(o -> o.onAssistantText(response.text()));
-            speaker.say(response.text());
+            speaker.say(response.text(), turnCaller.uuid());
         }
         List<ToolCall> calls = response.toolCalls();
         if (!response.text().isBlank() || !calls.isEmpty()) {

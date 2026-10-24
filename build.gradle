@@ -12,7 +12,12 @@ base {
 repositories {
 	maven { url = 'https://maven.isxander.dev/releases' }
 	maven { url = 'https://maven.terraformersmc.com/releases' }
+	maven { url = 'https://jitpack.io' }
 	mavenCentral()
+}
+
+configurations {
+	sherpaNatives
 }
 
 loom {
@@ -49,6 +54,23 @@ dependencies {
 	implementation "io.github.givimad:whisper-jni:${project.whisper_jni_version}"
 	include "io.github.givimad:whisper-jni:${project.whisper_jni_version}"
 
+	// Local text-to-speech: the JVM bindings ship as a jar, the natives are unpacked into our resources.
+	implementation "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-jvm:${project.sherpa_onnx_version}"
+	include "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-jvm:${project.sherpa_onnx_version}"
+	implementation "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	include "org.apache.commons:commons-compress:${project.commons_compress_version}"
+	// commons-compress reads tar entry names and timestamps through these two. The development classpath
+	// gets them transitively, but only what is included here ships, and a voice download extracts a tar.
+	implementation "commons-io:commons-io:${project.commons_io_version}"
+	include "commons-io:commons-io:${project.commons_io_version}"
+	implementation "org.apache.commons:commons-lang3:${project.commons_lang3_version}"
+	include "org.apache.commons:commons-lang3:${project.commons_lang3_version}"
+
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-win-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-linux-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-osx-x64:${project.sherpa_onnx_version}"
+	sherpaNatives "com.github.k2-fsa.sherpa-onnx:sherpa-onnx-native-lib-osx-aarch64:${project.sherpa_onnx_version}"
+
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 	testImplementation "com.google.code.gson:gson:2.11.0"
@@ -56,11 +78,20 @@ dependencies {
 
 test {
 	useJUnitPlatform()
+	// Lets the gated local-TTS spike opt in with -Dfriendai.tts.voice=<installed voice dir>.
+	def ttsVoice = System.getProperty("friendai.tts.voice")
+	if (ttsVoice != null) {
+		systemProperty "friendai.tts.voice", ttsVoice
+	}
 }
 
 processResources {
 	def version = project.version
 	inputs.property "version", version
+
+	from({ configurations.sherpaNatives.collect { zipTree(it) } }) {
+		include "sherpa-onnx/native/**"
+	}
 
 	filesMatching("fabric.mod.json") {
 		expand "version": version
