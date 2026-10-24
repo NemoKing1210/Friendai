@@ -1,6 +1,7 @@
 package dev.friendai.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,7 +53,7 @@ class ServerConfigTest {
         assertTrue(c.chat.guestsEnabled);
         assertEquals(16, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
-        assertEquals(3, c.version);
+        assertEquals(4, c.version);
     }
 
     @Test
@@ -62,7 +63,7 @@ class ServerConfigTest {
         assertEquals(160, c.memory.maxFactChars);
         assertEquals(20, c.memory.maxFactsPerPlayer);
         assertEquals(30, c.memory.maxWorldFacts);
-        assertEquals(3, c.version);
+        assertEquals(4, c.version);
         assertEquals(160, c.memory.limits().maxFactChars());
     }
 
@@ -88,7 +89,7 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(160, c.memory.maxFactChars);
         assertTrue(c.memory.enabled);
-        assertTrue(Files.readString(f).contains("\"version\": 3"));
+        assertTrue(Files.readString(f).contains("\"version\": 4"));
     }
 
     @Test
@@ -109,7 +110,7 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(16, c.chat.hearingRadius);
-        assertTrue(Files.readString(f).contains("\"version\": 3"));
+        assertTrue(Files.readString(f).contains("\"version\": 4"));
     }
 
     @Test
@@ -118,5 +119,45 @@ class ServerConfigTest {
         c.activeProfile = "ghost";
         ConfigException e = assertThrows(ConfigException.class, () -> c.toLlmProfile(k -> null));
         assertEquals("friendai.error.config.profile_missing", e.userMessage().key());
+    }
+
+    @Test
+    void defaultsIncludePathing() {
+        var c = ServerConfig.defaults();
+        assertTrue(c.pathing.allowBreak);
+        assertTrue(c.pathing.allowPlace);
+        assertEquals(2, c.pathing.searchBudgetMs);
+        assertEquals(20_000, c.pathing.maxNodes);
+        assertEquals(64, c.pathing.maxGatherBlocks);
+        assertTrue(c.pathing.breakBlacklist.contains("#minecraft:planks"));
+        assertFalse(c.pathing.breakBlacklist.stream().anyMatch(entry -> entry.contains("terracotta")));
+        assertEquals(4, c.version);
+        assertEquals(2, c.pathing.toPathingConfig().searchBudgetMs());
+    }
+
+    @Test
+    void v3FileGetsPathingSection(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":3,\"chat\":{\"hearingRadius\":8}}");
+        var store = new ConfigStore<>(
+                f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ServerConfig c = store.load();
+        assertEquals(8, c.chat.hearingRadius);
+        assertEquals(2, c.pathing.searchBudgetMs);
+        assertTrue(c.pathing.allowBreak);
+        assertEquals(4, c.version);
+        assertTrue(Files.readString(f).contains("\"version\": 4"));
+    }
+
+    @Test
+    void pathingRangesClamped() {
+        var c = ServerConfig.defaults();
+        c.pathing.searchBudgetMs = 50;
+        c.pathing.maxNodes = 10;
+        c.pathing.maxGatherBlocks = -1;
+        c.validate();
+        assertEquals(10, c.pathing.searchBudgetMs);
+        assertEquals(1000, c.pathing.maxNodes);
+        assertEquals(0, c.pathing.maxGatherBlocks);
     }
 }

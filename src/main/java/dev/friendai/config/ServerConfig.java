@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.llm.provider.LlmProfile;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.llm.provider.RoutingRule;
+import dev.friendai.pathing.PathingConfig;
 import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -23,6 +24,7 @@ public class ServerConfig {
     public BrainSection brain = new BrainSection();
     public TasksSection tasks = new TasksSection();
     public MemorySection memory = new MemorySection();
+    public PathingSection pathing = new PathingSection();
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -74,6 +76,28 @@ public class ServerConfig {
         }
     }
 
+    /** How the companion finds its way: what it may dig, place and gather on the way. */
+    public static class PathingSection {
+        public boolean allowBreak = true;
+        public boolean allowPlace = true;
+        public List<String> breakBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.breakBlacklist());
+        public List<String> placeBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.placeBlacklist());
+        public int searchBudgetMs = 2;
+        public int maxNodes = 20_000;
+        public int maxGatherBlocks = 64;
+
+        public PathingConfig toPathingConfig() {
+            return new PathingConfig(
+                    allowBreak,
+                    allowPlace,
+                    breakBlacklist == null ? List.of() : breakBlacklist,
+                    placeBlacklist == null ? List.of() : placeBlacklist,
+                    searchBudgetMs,
+                    maxNodes,
+                    maxGatherBlocks);
+        }
+    }
+
     public static ServerConfig defaults() {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
@@ -112,6 +136,13 @@ public class ServerConfig {
             memory = new MemorySection();
             problems.add("memory was missing");
         }
+        if (pathing == null) {
+            pathing = new PathingSection();
+            problems.add("pathing was missing");
+        }
+        pathing.searchBudgetMs = clamp(problems, "pathing.searchBudgetMs", pathing.searchBudgetMs, 1, 10);
+        pathing.maxNodes = clamp(problems, "pathing.maxNodes", pathing.maxNodes, 1_000, 100_000);
+        pathing.maxGatherBlocks = clamp(problems, "pathing.maxGatherBlocks", pathing.maxGatherBlocks, 0, 256);
         brain.maxToolStepsPerTurn = clamp(problems, "brain.maxToolStepsPerTurn", brain.maxToolStepsPerTurn, 1, 32);
         brain.historyMessages = clamp(problems, "brain.historyMessages", brain.historyMessages, 6, 200);
         brain.requestTimeoutSec = clamp(problems, "brain.requestTimeoutSec", brain.requestTimeoutSec, 5, 600);

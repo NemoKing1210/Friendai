@@ -102,6 +102,7 @@ public final class FriendaiServerState {
         TaskSettings.taskTimeoutSec = cfg.tasks.taskTimeoutSec;
         TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
         TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
+        TaskSettings.pathing = cfg.pathing.toPathingConfig();
     }
 
     private static void logProblems(List<String> problems) {
