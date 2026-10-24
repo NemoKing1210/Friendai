@@ -25,25 +25,39 @@ public final class Equipment {
         return slot < 0 ? ItemStack.EMPTY : companion.inventory().getItem(slot).copy();
     }
 
-    /** Inventory slot of a weapon better than the main hand, or -1. Ties keep the current weapon. */
+    /**
+     * Inventory slot of a weapon better than the main hand, or -1. Ties keep the current weapon.
+     *
+     * <p>Weapons are compared by damage per second, not by a single hit: a shovel of a higher tier can hit harder
+     * than a sword but swings much slower, and a player would still fight with the sword.
+     */
     public static int bestMeleeWeaponSlot(CompanionEntity companion) {
-        double bestDamage = modifier(companion.getMainHandItem(), Attributes.ATTACK_DAMAGE);
-        double bestSpeed = modifier(companion.getMainHandItem(), Attributes.ATTACK_SPEED);
+        double bestDps = meleeDps(companion, companion.getMainHandItem());
         int bestSlot = -1;
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             ItemStack stack = companion.inventory().getItem(i);
             if (stack.isEmpty()) {
                 continue;
             }
-            double damage = modifier(stack, Attributes.ATTACK_DAMAGE);
-            double speed = modifier(stack, Attributes.ATTACK_SPEED);
-            if (damage > bestDamage || (damage == bestDamage && speed > bestSpeed)) {
-                bestDamage = damage;
-                bestSpeed = speed;
+            double dps = meleeDps(companion, stack);
+            if (dps > bestDps) {
+                bestDps = dps;
                 bestSlot = i;
             }
         }
         return bestSlot;
+    }
+
+    /**
+     * Damage per second when {@code stack} is held, using the companion's own base attributes. A held item's
+     * modifier replaces the bare-hand one, so the base value is the right starting point.
+     */
+    public static double meleeDps(CompanionEntity companion, ItemStack stack) {
+        double damage = companion.getAttributeBaseValue(Attributes.ATTACK_DAMAGE)
+                + modifier(stack, Attributes.ATTACK_DAMAGE);
+        double speed = companion.getAttributeBaseValue(Attributes.ATTACK_SPEED)
+                + modifier(stack, Attributes.ATTACK_SPEED);
+        return Math.max(0.0, damage) * Math.max(0.0, speed);
     }
 
     /** Moves the inventory stack to the main hand and puts the previous one back in the inventory. */
