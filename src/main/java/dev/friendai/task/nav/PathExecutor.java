@@ -2,6 +2,7 @@ package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.CostModel;
+import dev.friendai.pathing.MoveGenerator;
 import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
@@ -15,6 +16,8 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -34,6 +37,12 @@ public final class PathExecutor {
     /** How many ticks the companion may take to rise one block after the jump of a pillar. */
     private static final int JUMP_TIMEOUT = 20;
     private static final double MOVE_SPEED = 1.0;
+    private static final int STUCK_WINDOW = 10;
+    private static final double STUCK_PROGRESS = 0.15;
+    private static final double FEET_TOLERANCE = 0.4;
+    private static final double LOOSE_TOLERANCE = 0.7;
+
+    private record FeetTarget(double y, double tolerance) {}
     /** How close a drop must be to be picked up at the feet after a dug cell; a bridge material block is one. */
     private static final double PICKUP_RADIUS = 1.5;
     /** How long the companion picks up after a break: the vanilla pickup delay plus a few ticks to walk onto it. */
@@ -59,6 +68,11 @@ public final class PathExecutor {
     private int pickupTicks;
     private double stepStartY;
     private int lowestY;
+    private double progressX;
+    private double progressY;
+    private double progressZ;
+    private int progressTicks;
+    private int nudges;
 
     public PathExecutor(Path path, MaterialPicker materials, PathingConfig config) {
         this.path = path;
@@ -127,6 +141,11 @@ public final class PathExecutor {
         jumpTicks = 0;
         stepStartY = c.companion().getY();
         lowestY = Math.min(step.from().y(), step.to().y());
+        progressX = c.companion().getX();
+        progressY = c.companion().getY();
+        progressZ = c.companion().getZ();
+        progressTicks = 0;
+        nudges = 0;
         phase = Phase.CHECK;
     }
 
@@ -222,6 +241,10 @@ public final class PathExecutor {
 
     private State move(TaskContext c, PathStep step) {
         CompanionEntity companion = c.companion();
+        LevelCellView current = new LevelCellView(companion, config, CostModel.DEFAULTS);
+        if (!MoveGenerator.standable(current, step.to())) {
+            return fail(c);
+        }
         if (step.move() == Move.DOOR && !doorOpened) {
             doorOpened = true;
             BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
@@ -232,22 +255,73 @@ public final class PathExecutor {
                 companion.hands().use(head);
             }
         }
+        if (step.move() == Move.DOOR) {
+            BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
+            for (BlockPos pos : List.of(foot, foot.above())) {
+                BlockState state = c.level().getBlockState(pos);
+                if (state.hasProperty(BlockStateProperties.OPEN) && !state.getValue(BlockStateProperties.OPEN)) {
+                    return State.RUNNING;
+                }
+            }
+        }
+        FeetTarget target = feetTarget(c, step);
+        boolean climbing = step.move() == Move.CLIMB;
         companion.getMoveControl().setWantedPosition(
-                step.to().x() + 0.5, step.to().y(), step.to().z() + 0.5, MOVE_SPEED);
+                climbing ? companion.getX() : step.to().x() + 0.5,
+                target.y(),
+                climbing ? companion.getZ() : step.to().z() + 0.5,
+                MOVE_SPEED);
+        boolean up = step.to().y() > step.from().y();
+        if (companion.isInWater()) {
+            double dx = step.to().x() + 0.5 - companion.getX();
+            double dz = step.to().z() + 0.5 - companion.getZ();
+            double distance = Math.hypot(dx, dz);
+            var velocity = companion.getDeltaMovement();
+            double horizontal = distance < 1.0e-4 ? 0.0 : 0.12 / distance;
+            companion.setDeltaMovement(dx * horizontal, up ? Math.max(velocity.y, 0.2) : velocity.y, dz * horizontal);
+        }
+        if (up && (step.move() == Move.CLIMB || step.move() == Move.SWIM || step.move() == Move.ASCEND)
+                && (climbing || companion.onClimbable() || companion.isInWater())) {
+            var velocity = companion.getDeltaMovement();
+            // At the top of a scaffold vanilla switches from climbing to a normal jump.  The climb impulse alone
+            // stops at the top collision face, so hand that transition to the mob's jump control below.
+            double vertical = climbing && !companion.onClimbable() ? velocity.y : Math.max(velocity.y, 0.2);
+            companion.setDeltaMovement(climbing ? 0.0 : velocity.x, vertical,
+                    climbing ? 0.0 : velocity.z);
+        }
+        if (++progressTicks >= STUCK_WINDOW) {
+            double dx = companion.getX() - progressX;
+            double dy = companion.getY() - progressY;
+            double dz = companion.getZ() - progressZ;
+            double moved = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (moved < STUCK_PROGRESS) {
+                if (nudges > 0) {
+                    return fail(c);
+                }
+                companion.getJumpControl().jump();
+                nudges = 1;
+            } else {
+                nudges = 0;
+            }
+            progressX = companion.getX();
+            progressY = companion.getY();
+            progressZ = companion.getZ();
+            progressTicks = 0;
+        }
         if (step.move() == Move.ASCEND || step.move() == Move.JUMP_GAP
                 || (step.move() == Move.PILLAR && !jumped)) {
             if (companion.onGround()) {
                 companion.getJumpControl().jump();
             }
         }
-        BlockPos here = companion.blockPosition();
-        if ((here.getX() == step.to().x() && here.getY() == step.to().y() && here.getZ() == step.to().z()
-                        || nearCentre(companion, step))
-                && (companion.onGround() || companion.isInWater())) {
-            companion.getNavigation().stop();
+        if (climbing && !companion.onClimbable() && companion.getY() < target.y() - target.tolerance()) {
+            companion.getJumpControl().jump();
+        }
+        if (arrived(c, step) && (companion.onGround() || companion.isInWater() || companion.onClimbable())) {
             int next = index + 1;
             if (next >= path.steps().size()) {
                 index = next;
+                companion.getNavigation().stop();
                 return State.DONE;
             }
             begin(c, next);
@@ -255,15 +329,47 @@ public final class PathExecutor {
         return State.RUNNING;
     }
 
-    /**
-     * Whether the companion is inside the step's cell. The tolerance stays well under half a block so a companion
-     * standing on the previous cell's centre (a whole block away) does not count as arrived; a jump that crosses the
-     * cell in one tick still gets sampled inside it.
-     */
-    private static boolean nearCentre(CompanionEntity companion, PathStep step) {
-        double dx = companion.getX() - (step.to().x() + 0.5);
-        double dz = companion.getZ() - (step.to().z() + 0.5);
-        return dx * dx + dz * dz <= 0.25 && Math.abs(companion.getY() - step.to().y()) <= 0.5;
+    private FeetTarget feetTarget(TaskContext c, PathStep step) {
+        BlockPos footPos = new BlockPos(step.to().x(), step.to().y(), step.to().z());
+        BlockState foot = c.level().getBlockState(footPos);
+        if (isClimbable(foot) || !foot.getFluidState().isEmpty()) {
+            return new FeetTarget(step.to().y(), LOOSE_TOLERANCE);
+        }
+        BlockPos supportPos = footPos.below();
+        BlockState support = c.level().getBlockState(supportPos);
+        if (isClimbable(support)) {
+            return new FeetTarget(step.to().y(), LOOSE_TOLERANCE);
+        }
+        var shape = support.getCollisionShape(c.level(), supportPos);
+        return shape.isEmpty()
+                ? new FeetTarget(step.to().y(), LOOSE_TOLERANCE)
+                : new FeetTarget(supportPos.getY() + shape.max(Direction.Axis.Y), FEET_TOLERANCE);
+    }
+
+    private static boolean isClimbable(BlockState state) {
+        return state.is(BlockTags.CLIMBABLE) || state.getBlock() instanceof ScaffoldingBlock;
+    }
+
+    private boolean arrived(TaskContext c, PathStep step) {
+        FeetTarget target = feetTarget(c, step);
+        double dx = c.companion().getX() - (step.to().x() + 0.5);
+        double dz = c.companion().getZ() - (step.to().z() + 0.5);
+        double radius = arriveRadius(step);
+        return dx * dx + dz * dz <= radius * radius
+                && Math.abs(c.companion().getY() - target.y()) <= target.tolerance();
+    }
+
+    /** Mid-run, only a collinear plain step may keep the wider arrival radius. */
+    private double arriveRadius(PathStep step) {
+        if (index + 1 >= path.steps().size()) {
+            return 0.5;
+        }
+        PathStep next = path.steps().get(index + 1);
+        boolean plain = (step.move() == Move.WALK || step.move() == Move.WALK_DIAGONAL)
+                && next.move() == step.move() && next.breaks().isEmpty() && next.places().isEmpty()
+                && step.to().x() - step.from().x() == next.to().x() - next.from().x()
+                && step.to().z() - step.from().z() == next.to().z() - next.from().z();
+        return plain ? 0.8 : 0.5;
     }
 
     private State fail(TaskContext c) {

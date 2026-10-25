@@ -1,6 +1,7 @@
 package dev.friendai.entity;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.task.builtin.FollowTask;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -8,11 +9,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /** Keeps track of loaded companions and guarantees one per owner. */
@@ -71,30 +76,74 @@ public final class CompanionManager {
         listeners.add(listener);
     }
 
-    /** Spawns a companion next to the owner, or brings the existing one over. */
+    /** Spawns a companion next to the owner, or calls an existing companion over on foot. */
     public CompanionEntity summon(ServerPlayer owner) {
         ServerLevel level = (ServerLevel) owner.level();
-        Vec3 target = owner.position().add(owner.getLookAngle().multiply(1.5, 0, 1.5));
         Optional<CompanionEntity> existing = find(owner.getUUID());
         if (existing.isPresent()) {
             CompanionEntity companion = existing.get();
             ensureName(companion);
             if (companion.level() == level) {
-                companion.teleportTo(target.x, owner.getY(), target.z);
-            } else {
-                companion.teleport(new TeleportTransition(
-                        level, new Vec3(target.x, owner.getY(), target.z), Vec3.ZERO,
-                        owner.getYRot(), 0.0F, TeleportTransition.DO_NOTHING));
+                companion.taskRunner().start(new FollowTask(false), "follow");
             }
             return companion;
         }
         CompanionEntity companion = FriendaiEntities.COMPANION.create(level, EntitySpawnReason.COMMAND);
         companion.setOwner(owner.getUUID());
         companion.applyName(FriendaiServerState.get(level.getServer()).companionName(owner.getUUID()));
-        companion.snapTo(target.x, owner.getY(), target.z, owner.getYRot() + 180.0F, 0.0F);
+        BlockPos spot = spawnSpot(level, owner);
+        companion.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, owner.getYRot() + 180.0F, 0.0F);
         level.addFreshEntity(companion);
         register(companion);
         return companion;
+    }
+
+    /** Explicitly moves a loaded companion to its owner, preserving the index across dimension changes. */
+    public boolean teleportToOwner(ServerPlayer owner) {
+        Optional<CompanionEntity> found = find(owner.getUUID());
+        if (found.isEmpty()) {
+            return false;
+        }
+        CompanionEntity companion = found.get();
+        ServerLevel level = (ServerLevel) owner.level();
+        BlockPos spot = spawnSpot(level, owner);
+        Vec3 target = new Vec3(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
+        companion.getNavigation().stop();
+        if (companion.level() == level) {
+            companion.teleportTo(target.x, target.y, target.z);
+            return true;
+        }
+        // Detach without notifying removal listeners: the replacement may load before the old entity unloads.
+        byOwner.remove(owner.getUUID());
+        Entity moved = companion.teleport(new TeleportTransition(
+                level, target, Vec3.ZERO, owner.getYRot(), 0.0F, TeleportTransition.DO_NOTHING));
+        if (moved instanceof CompanionEntity next) {
+            register(next);
+            return true;
+        }
+        byOwner.put(owner.getUUID(), companion);
+        return false;
+    }
+
+    /** Tries nearby standing cells before falling back to the owner's own cell. */
+    private static BlockPos spawnSpot(ServerLevel level, ServerPlayer owner) {
+        Vec3 ahead = owner.position().add(owner.getLookAngle().multiply(1.5, 0, 1.5));
+        BlockPos feet = owner.blockPosition();
+        List<BlockPos> candidates = new ArrayList<>();
+        candidates.add(BlockPos.containing(ahead));
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            candidates.add(feet.relative(direction));
+        }
+        candidates.add(feet);
+        for (BlockPos pos : candidates) {
+            BlockPos below = pos.below();
+            if (level.getBlockState(pos).isAir() && level.getBlockState(pos.above()).isAir()
+                    && level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
+                    && level.getEntities(owner, new AABB(pos).expandTowards(0, 1, 0)).isEmpty()) {
+                return pos;
+            }
+        }
+        return feet;
     }
 
     /** A loaded companion keeps the name it was given; an old save without one gets the owner's current name. */

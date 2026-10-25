@@ -223,6 +223,11 @@ public final class BrainService {
         }
     }
 
+    /** The entity instance changed during an explicit cross-dimension teleport; rebuild its bound brain on demand. */
+    public void onCompanionReplaced(UUID owner) {
+        onCompanionRemoved(owner);
+    }
+
     /** The owner left the game: keep the task (a build can resume), but make no progress while they are away. */
     public void onOwnerLeft(UUID owner) {
         cancel(owner);

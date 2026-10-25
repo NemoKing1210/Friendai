@@ -26,13 +26,13 @@ public final class MoveHelper {
     private static final int REPATH_TICKS = 10;
     private static final int STUCK_CHECK_TICKS = 100;
     private static final double MIN_PROGRESS = 0.5;
-    /** How far the target may move before the search is restarted. */
-    private static final double GOAL_TOLERANCE = 1.0;
     private static final double VERTICAL = 3.0;
-    private static final int SNAP_DROP = 16;
 
     private final double speed;
     private final double arriveDistance;
+    private final double goalTolerance;
+    private final int snapDrop;
+    private final boolean mayPlace;
     private int ticks;
     private int sinceCheckpoint;
     private double checkpointDistance;
@@ -40,11 +40,30 @@ public final class MoveHelper {
     private Vec3 lastGoal;
 
     public MoveHelper(double speed, double arriveDistance) {
+        this(speed, arriveDistance, 1.0, 16, true);
+    }
+
+    /** A task-owned positioning route may forbid spending its construction material. */
+    public MoveHelper(double speed, double arriveDistance, boolean mayPlace) {
+        this(speed, arriveDistance, 1.0, 16, mayPlace);
+    }
+
+    public MoveHelper(double speed, double arriveDistance, double goalTolerance, int snapDrop) {
+        this(speed, arriveDistance, goalTolerance, snapDrop, true);
+    }
+
+    private MoveHelper(double speed, double arriveDistance, double goalTolerance, int snapDrop, boolean mayPlace) {
         this.speed = speed;
         this.arriveDistance = arriveDistance;
+        this.goalTolerance = goalTolerance;
+        this.snapDrop = snapDrop;
+        this.mayPlace = mayPlace;
     }
 
     public State tick(PathfinderMob mob, Vec3 target) {
+        if (mob instanceof CompanionEntity companion) {
+            return tickCompanion(companion, target);
+        }
         double dx = target.x - mob.getX();
         double dy = target.y - mob.getY();
         double dz = target.z - mob.getZ();
@@ -52,9 +71,6 @@ public final class MoveHelper {
         if (horizontal <= arriveDistance && Math.abs(dy) <= VERTICAL) {
             mob.getNavigation().stop();
             return State.ARRIVED;
-        }
-        if (mob instanceof CompanionEntity companion) {
-            return tickCompanion(companion, target);
         }
         double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (ticks % REPATH_TICKS == 0) {
@@ -77,15 +93,15 @@ public final class MoveHelper {
     private State tickCompanion(CompanionEntity companion, Vec3 target) {
         companion.pace().update(false, Double.NaN);
         if (navigator == null) {
-            navigator = new Navigator(companion);
+            navigator = new Navigator(companion, mayPlace);
         }
-        if (lastGoal == null || lastGoal.distanceToSqr(target) > GOAL_TOLERANCE * GOAL_TOLERANCE) {
+        if (lastGoal == null || lastGoal.distanceToSqr(target) > goalTolerance * goalTolerance) {
             lastGoal = target;
             navigator.setGoal(goalFor(companion, target));
         }
         TaskContext context = new TaskContext(companion, (ServerLevel) companion.level());
         return switch (navigator.tick(context)) {
-            case ARRIVED -> State.ARRIVED;
+            case ARRIVED -> finishAlignment(companion);
             case UNREACHABLE -> State.STUCK;
             default -> State.MOVING;
         };
@@ -98,15 +114,49 @@ public final class MoveHelper {
                 (int) Math.floor(target.x),
                 (int) Math.floor(target.y),
                 (int) Math.floor(target.z),
-                SNAP_DROP);
+                snapDrop);
         return new GoalPoint(
-                stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL, CostModel.DEFAULTS.walk());
+                stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL);
     }
 
-    public void reset() {
+    /** Node centres approximate a goal band; an exact positioning caller still needs the real feet inside it. */
+    private State finishAlignment(CompanionEntity companion) {
+        GoalPoint point = (GoalPoint) navigator.goal();
+        double dx = point.x() - companion.getX();
+        double dz = point.z() - companion.getZ();
+        double horizontal = Math.hypot(dx, dz);
+        if (horizontal <= arriveDistance) {
+            navigator.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+            return State.ARRIVED;
+        }
+        companion.setPathing(true);
+        companion.getMoveControl().setWantedPosition(point.x(), companion.getY(), point.z(), speed);
+        if (sinceCheckpoint == 0) {
+            checkpointDistance = horizontal;
+        }
+        if (++sinceCheckpoint >= STUCK_CHECK_TICKS) {
+            sinceCheckpoint = 0;
+            if (checkpointDistance - horizontal < Math.min(MIN_PROGRESS, arriveDistance)) {
+                navigator.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+                return State.STUCK;
+            }
+        }
+        return State.MOVING;
+    }
+
+    public void reset(TaskContext c) {
+        if (navigator != null) {
+            navigator.stop(c);
+            navigator = null;
+        }
         ticks = 0;
         sinceCheckpoint = 0;
-        navigator = null;
+        checkpointDistance = 0;
         lastGoal = null;
+    }
+
+    public void stop(TaskContext c) {
+        reset(c);
+        c.companion().getNavigation().stop();
     }
 }

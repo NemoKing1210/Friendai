@@ -15,16 +15,17 @@ import dev.friendai.pathing.SearchOptions;
 import dev.friendai.pathing.SearchResult;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskSettings;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Gets one companion to a {@link PathGoal}: searches with a per-tick time budget, executes the route, re-plans when a
- * step fails, and falls back to vanilla navigation when searching takes too long.
+ * step fails, and executes partial routes when a search reaches its limits.
  *
  * <p>A new goal does not stop the companion: it keeps walking the old route while the new search runs, and switches
  * when the search returns a route. Nothing here touches the world off the server thread.
@@ -34,14 +35,9 @@ public final class Navigator {
 
     /** Re-plans without getting closer than this many ticks of cost are given up after three tries. */
     private static final int REPLAN_LIMIT = 3;
-    /** Total search time for one goal before vanilla navigation takes over. */
-    private static final long FALLBACK_NANOS = 200_000_000L;
     /** How many times one goal may send the companion out to gather before giving up. */
     private static final int GATHER_ROUNDS = 2;
     private static final double PROGRESS = 1.0;
-    private static final int FALLBACK_REPATH_TICKS = 10;
-    private static final int FALLBACK_STUCK_TICKS = 100;
-    private static final double FALLBACK_MIN_PROGRESS = 0.5;
 
     private final CompanionEntity companion;
     /** Whether a route may place blocks. Approaching a block to act on it walks and digs, but never builds. */
@@ -56,10 +52,6 @@ public final class Navigator {
     private long searchNanos;
     private int failedPlans;
     private double bestHeuristic = Double.POSITIVE_INFINITY;
-    private boolean fallback;
-    private int fallbackTicks;
-    private int fallbackCheckpoint;
-    private double fallbackDistance;
     /** Whether the running search is the material probe (2.5), which ignores the inventory. */
     private boolean probing;
     /** How many blocks the inventory held when the probe started; the probe path may want more. */
@@ -119,8 +111,7 @@ public final class Navigator {
         this.goal = goal;
         searchNanos = 0;
         failedPlans = 0;
-        bestHeuristic = goal.heuristic(node());
-        fallback = false;
+        bestHeuristic = goal.heuristic(node(), CostModel.DEFAULTS);
         probing = false;
         gatherRounds = 0;
         startSearch();
@@ -132,9 +123,6 @@ public final class Navigator {
     public State tick(TaskContext c) {
         if (state == State.ARRIVED || state == State.UNREACHABLE) {
             return state;
-        }
-        if (fallback) {
-            return tickFallback(c);
         }
         if (search != null) {
             stepSearch(c);
@@ -165,6 +153,7 @@ public final class Navigator {
         probing = false;
         search = null;
         companion.getNavigation().stop();
+        companion.setPathing(false);
     }
 
     private void tickGathering(TaskContext c) {
@@ -234,8 +223,6 @@ public final class Navigator {
         searchNanos += System.nanoTime() - begin;
         if (result.status() != SearchResult.Status.RUNNING) {
             handleSearchResult(c, result);
-        } else if (searchNanos > FALLBACK_NANOS) {
-            startFallback(c);
         }
     }
 
@@ -262,7 +249,19 @@ public final class Navigator {
             return;
         }
         if (probed) {
-            startGathering(c, path);
+            if (result.status() != SearchResult.Status.PARTIAL) {
+                startGathering(c, path);
+                return;
+            }
+            // A range-limited probe may contain more construction than the inventory can afford.  Walk its
+            // affordable prefix first: it gets the companion closer without committing to gather an unknown
+            // amount.  If construction is the very first move, gather only enough for that first step.
+            Path prefix = affordablePrefix(path, availableAtProbe);
+            if (prefix != null) {
+                beginExecution(c, prefix);
+                return;
+            }
+            startGathering(c, firstUnaffordableStep(path, availableAtProbe));
             return;
         }
         if (result.status() == SearchResult.Status.NO_PATH || path == null || path.steps().isEmpty()) {
@@ -274,12 +273,53 @@ public final class Navigator {
             beginProbe();
             return;
         }
+        beginExecution(c, path);
+    }
+
+    private void beginExecution(TaskContext c, Path path) {
         if (executor != null) {
             executor.stop(c);
         }
         plan = path;
         executor = new PathExecutor(path, new MaterialPicker(config()), config());
         state = State.MOVING;
+    }
+
+    /** Returns the longest prefix whose placements the probe-start inventory can pay for. */
+    private static @Nullable Path affordablePrefix(Path path, int available) {
+        int places = 0;
+        int breaks = 0;
+        double cost = 0.0;
+        List<PathStep> steps = new ArrayList<>();
+        for (PathStep step : path.steps()) {
+            int nextPlaces = places + step.places().size();
+            if (nextPlaces > available) {
+                break;
+            }
+            steps.add(step);
+            places = nextPlaces;
+            breaks += step.breaks().size();
+            cost += step.cost();
+        }
+        return steps.isEmpty() ? null : new Path(steps, cost, breaks, places, true);
+    }
+
+    /** Retains just enough of a probe path to determine the first unavailable construction cost. */
+    private static @Nullable Path firstUnaffordableStep(Path path, int available) {
+        int places = 0;
+        int breaks = 0;
+        double cost = 0.0;
+        List<PathStep> steps = new ArrayList<>();
+        for (PathStep step : path.steps()) {
+            steps.add(step);
+            places += step.places().size();
+            breaks += step.breaks().size();
+            cost += step.cost();
+            if (places > available) {
+                return new Path(steps, cost, breaks, places, true);
+            }
+        }
+        return null;
     }
 
     private State tickExecutor(TaskContext c) {
@@ -296,6 +336,13 @@ public final class Navigator {
         executor.stop(c);
         executor = null;
         if (plan != null && plan.partial()) {
+            // A partial route that did not reduce the admissible distance would otherwise be planned and replayed
+            // forever around an unreachable target.
+            notePlanFailure();
+            if (failedPlans >= REPLAN_LIMIT) {
+                state = State.UNREACHABLE;
+                return state;
+            }
             startSearch();
             state = State.SEARCHING;
             return state;
@@ -320,7 +367,7 @@ public final class Navigator {
     }
 
     private void notePlanFailure() {
-        double heuristic = goal.heuristic(node());
+        double heuristic = goal.heuristic(node(), CostModel.DEFAULTS);
         if (heuristic < bestHeuristic - PROGRESS) {
             bestHeuristic = heuristic;
             failedPlans = 1;
@@ -339,74 +386,6 @@ public final class Navigator {
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
 
-    // --- vanilla navigation fallback ----------------------------------------------------------------------------
-
-    private void startFallback(TaskContext c) {
-        if (executor != null) {
-            executor.stop(c);
-            executor = null;
-        }
-        search = null;
-        fallback = true;
-        fallbackTicks = 0;
-        fallbackCheckpoint = 0;
-        fallbackDistance = Double.POSITIVE_INFINITY;
-        companion.getNavigation().stop();
-        companion.taskRunner().debug("path " + describe(goal)
-                + ": searching took too long, falling back to vanilla navigation");
-    }
-
-    private State tickFallback(TaskContext c) {
-        Vec3 point = fallbackPoint();
-        if (point == null) {
-            state = State.UNREACHABLE;
-            return state;
-        }
-        if (goalHolds()) {
-            companion.getNavigation().stop();
-            state = State.ARRIVED;
-            return state;
-        }
-        double distance = companion.position().distanceTo(point);
-        if (fallbackTicks % FALLBACK_REPATH_TICKS == 0) {
-            companion.getNavigation().moveTo(point.x, point.y, point.z, 1.0);
-        }
-        if (fallbackCheckpoint == 0) {
-            fallbackDistance = distance;
-        }
-        if (++fallbackCheckpoint >= FALLBACK_STUCK_TICKS) {
-            if (fallbackDistance - distance < FALLBACK_MIN_PROGRESS) {
-                state = State.UNREACHABLE;
-                return state;
-            }
-            fallbackCheckpoint = 0;
-        }
-        fallbackTicks++;
-        state = State.MOVING;
-        return state;
-    }
-
-    private Vec3 fallbackPoint() {
-        if (goal instanceof GoalPoint point) {
-            return new Vec3(point.x(), point.y(), point.z());
-        }
-        if (goal instanceof GoalReach reach) {
-            Vec3 here = companion.position();
-            Vec3 best = null;
-            double bestDistance = Double.POSITIVE_INFINITY;
-            for (dev.friendai.pathing.Pos target : reach.targets()) {
-                Vec3 center = new Vec3(target.x() + 0.5, target.y() + 0.5, target.z() + 0.5);
-                double distance = here.distanceToSqr(center);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    best = center;
-                }
-            }
-            return best;
-        }
-        return null;
-    }
-
     private boolean goalHolds() {
         LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
         return goal.isGoal(node(), view);
@@ -414,7 +393,13 @@ public final class Navigator {
 
     private Node node() {
         var pos = companion.blockPosition();
-        return new Node(pos.getX(), pos.getY(), pos.getZ());
+        LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
+        // A partial support physically contains the feet, while the pure grid puts its node above the support.
+        int y = pos.getY();
+        if (companion.onGround() && view.at(pos.getX(), y, pos.getZ()).kind() == dev.friendai.pathing.Cell.Kind.PARTIAL) {
+            y++;
+        }
+        return new Node(pos.getX(), y, pos.getZ());
     }
 
     private static String describe(PathGoal goal) {

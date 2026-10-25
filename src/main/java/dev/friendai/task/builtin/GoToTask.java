@@ -27,7 +27,7 @@ public final class GoToTask implements Task {
 
     @Override
     public void start(TaskContext c) {
-        mover.reset();
+        mover.reset(c);
     }
 
     @Override
@@ -49,6 +49,7 @@ public final class GoToTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        mover.stop(c);
         c.companion().getNavigation().stop();
     }
 

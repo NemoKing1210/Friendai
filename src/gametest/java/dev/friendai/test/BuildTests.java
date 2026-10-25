@@ -20,6 +20,7 @@ import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Site;
+import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.task.builtin.ObtainTask;
 import java.nio.file.Files;
@@ -1056,6 +1057,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
         Blueprint tower = generator(
                 "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        trackDisplacement(h, companion, 0.8);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1345,6 +1347,57 @@ public class BuildTests {
         }
     }
 
+    private static void trackDisplacement(GameTestHelper h, CompanionEntity companion, double limit) {
+        var last = new net.minecraft.world.phys.Vec3[] {companion.position()};
+        h.onEachTick(() -> {
+            double distance = companion.position().distanceTo(last[0]);
+            h.assertTrue(distance < limit, "the companion moved " + distance + " blocks in one tick");
+            last[0] = companion.position();
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void failedScaffoldJumpKeepsItsMaterial(GameTestHelper h) {
+        int floor = 205;
+        GameTestSupport.platformAt(h, floor, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        // Without AI, JumpControl cannot execute the requested jump.
+        companion.setNoAi(true);
+        companion.inventory().setItem(0, new ItemStack(Items.DIRT, 8));
+        Scaffold scaffold = new Scaffold(companion);
+        Scaffold.State[] state = {Scaffold.State.CLIMBING};
+        int targetY = h.absolutePos(new BlockPos(2, floor + 2, 2)).getY();
+        h.onEachTick(() -> {
+            if (state[0] == Scaffold.State.CLIMBING) {
+                state[0] = scaffold.pillarTo(targetY);
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Scaffold.State.FAILED, "waiting for jump timeout");
+            h.assertTrue(companion.inventory().getItem(0).getCount() == 8, "a failed jump spent material");
+            h.assertTrue(scaffold.placed().isEmpty(), "a failed jump placed a support");
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void scaffoldPillarsWithoutTeleport(GameTestHelper h) {
+        int floor = 180;
+        GameTestSupport.platformAt(h, floor, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        companion.inventory().setItem(0, new ItemStack(Items.DIRT, 8));
+        Scaffold scaffold = new Scaffold(companion);
+        trackDisplacement(h, companion, 0.8);
+        h.onEachTick(() -> {
+            Scaffold.State state = scaffold.pillarTo(h.absolutePos(new BlockPos(2, floor + 4, 2)).getY());
+            h.assertTrue(state != Scaffold.State.FAILED, "scaffold failed: " + scaffold.failure());
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(companion.onGround() && companion.getY() >= h.absolutePos(new BlockPos(2, floor + 4, 2)).getY(),
+                    "not standing on the pillar, at " + companion.position());
+            h.assertTrue(scaffold.placed().size() == 3, "must place three blocks before reporting arrival");
+        });
+    }
+
     @GameTest(maxTicks = 2000)
     public void stepsAsideToPlace(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -1352,6 +1405,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 9));
         Blueprint platform = generator(
                 "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
+        trackDisplacement(h, companion, 1.5);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(platform, h, 2, 2, 2, Direction.SOUTH), "build_structure");

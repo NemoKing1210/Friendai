@@ -73,6 +73,10 @@ public final class FriendaiCommands {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         var server = ctx.getSource().getServer();
         CompanionEntity companion = CompanionManager.get(server).summon(player);
+        if (companion.level() != player.level()) {
+            ctx.getSource().sendFailure(Component.translatable("friendai.command.summon_other_dimension"));
+            return 0;
+        }
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.summoned", companion.getName()), false);
         return 1;
     }

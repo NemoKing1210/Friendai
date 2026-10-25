@@ -1,6 +1,8 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.nav.MoveHelper;
+import net.minecraft.world.phys.Vec3;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.Sight;
 import java.util.Collection;
@@ -32,6 +34,10 @@ public final class BlockBreaker {
     /** Whether the companion digs away what hides the target, as a player digging into a hill does. */
     private final boolean digToTarget;
     private final Approach approach;
+    /** A precise stance goal: interaction reach alone does not put the eyes around the obstruction. */
+    private MoveHelper viewApproach;
+    private Vec3 viewPoint;
+    private boolean viewFailed;
 
     /** The candidate the companion reached and is working on, or null before it reached one. */
     private BlockPos target;
@@ -109,6 +115,10 @@ public final class BlockBreaker {
     /** Stops navigation and clears the crack overlay. */
     public void stop(TaskContext c) {
         approach.stop(c.companion());
+        if (viewApproach != null) {
+            viewApproach.stop(c);
+            viewApproach = null;
+        }
         if (action != null) {
             action.stop(c);
         }
@@ -127,14 +137,16 @@ public final class BlockBreaker {
         if (allGone(c)) {
             return State.GONE;
         }
-        switch (approach.tick(companion)) {
-            case UNREACHABLE -> {
-                return State.UNREACHABLE;
+        if (viewApproach == null) {
+            switch (approach.tick(companion)) {
+                case UNREACHABLE -> {
+                    return State.UNREACHABLE;
+                }
+                case MOVING -> {
+                    return State.WORKING;
+                }
+                case IN_REACH -> target = approach.target();
             }
-            case MOVING -> {
-                return State.WORKING;
-            }
-            case IN_REACH -> target = approach.target();
         }
         if (!stillValid.test(c.level().getBlockState(target))) {
             return State.GONE;
@@ -143,10 +155,21 @@ public final class BlockBreaker {
             return State.PROTECTED;
         }
         if (requireSight && !Sight.canSee(c.level(), companion, target)) {
-            BlockPos view = Sight.viewSpot(c.level(), companion, target);
-            if (view != null) {
-                companion.getNavigation().stop();
-                companion.teleportTo(view.getX() + 0.5, view.getY(), view.getZ() + 0.5);
+            if (!viewFailed && viewApproach == null) {
+                BlockPos view = Sight.viewSpot(c.level(), companion, target);
+                if (view != null) {
+                    viewApproach = new MoveHelper(1.0, 0.15, false);
+                    viewPoint = Vec3.atBottomCenterOf(view);
+                }
+            }
+            if (viewApproach != null) {
+                MoveHelper.State state = viewApproach.tick(companion, viewPoint);
+                if (state == MoveHelper.State.MOVING) {
+                    return State.WORKING;
+                }
+                viewApproach.stop(c);
+                viewApproach = null;
+                viewFailed = true;
             }
             if (!Sight.canSee(c.level(), companion, target)) {
                 if (!digToTarget || !dig(c)) {
@@ -154,6 +177,10 @@ public final class BlockBreaker {
                 }
                 return State.WORKING;
             }
+        }
+        if (viewApproach != null) {
+            viewApproach.stop(c);
+            viewApproach = null;
         }
         action = new BreakAction(target);
         phase = Phase.BREAK;

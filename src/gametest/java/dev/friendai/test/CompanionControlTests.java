@@ -20,6 +20,8 @@ import dev.friendai.net.SnapshotBuilder;
 import dev.friendai.debug.LogKind;
 import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.StopReason;
@@ -27,6 +29,10 @@ import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
 import dev.friendai.tool.ToolResult;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.GoToTask;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
@@ -36,9 +42,129 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 public class CompanionControlTests {
+    @GameTest(maxTicks = 200)
+    public void teleportDoesNotReturnToTheCancelledWorkSite(GameTestHelper h) {
+        int floor = 50;
+        GameTestSupport.platformAt(h, floor, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Vec3 workSite = h.absoluteVec(new Vec3(12.5, floor + 1, 12.5));
+        companion.teleportTo(workSite.x, workSite.y, workSite.z);
+        Task cleanup = new GoToTask(workSite);
+        boolean[] stopped = {false};
+        companion.taskRunner().start(new Task() {
+            @Override
+            public String type() { return "work_with_cleanup"; }
+
+            @Override
+            public void start(TaskContext c) {}
+
+            @Override
+            public TaskStatus tick(TaskContext c) { return TaskStatus.RUNNING; }
+
+            @Override
+            public void stop(TaskContext c) { stopped[0] = true; }
+
+            @Override
+            public String describe() { return "working at the old site"; }
+
+            @Override
+            public String resultSummary() { return ""; }
+
+            @Override
+            public Task cleanupAfterCancel(TaskContext c) { return cleanup; }
+        }, "work_with_cleanup");
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        h.assertTrue(stopped[0], "teleport must stop the old task");
+        h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
+        h.assertTrue(companion.taskRunner().current().orElse(null) != cleanup,
+                "teleport must not send the companion back to clean up the old work site");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void teleportAcrossDimensionsKeepsOneCompanion(GameTestHelper h) {
+        var nether = h.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            // Some GameTest configurations have only the overworld.
+            h.succeed();
+            return;
+        }
+        int floor = 40;
+        GameTestSupport.platformAt(h, floor, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        BlockPos far = h.absolutePos(new BlockPos(12, floor + 1, 12));
+        nether.getChunk(far);
+        CompanionEntity original = FriendaiEntities.COMPANION.create(nether, EntitySpawnReason.COMMAND);
+        original.setOwner(player.getUUID());
+        original.snapTo(far.getX() + 0.5, far.getY(), far.getZ() + 0.5, 0, 0);
+        nether.addFreshEntity(original);
+        var manager = CompanionManager.get(h.getLevel().getServer());
+        manager.register(original);
+        Vec3 before = original.position();
+        h.assertTrue(manager.summon(player) == original && original.level() == nether
+                        && original.position().distanceTo(before) < 0.01,
+                "summon must leave a companion in another dimension in place");
+        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        state.brains().currentPrompt(player.getUUID()); // Create entity-bound tools before the replacement.
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        CompanionEntity moved = manager.find(player.getUUID()).orElse(null);
+        h.assertTrue(moved != null && moved.level() == h.getLevel() && !moved.isRemoved(),
+                "teleport must keep a live companion registered in the owner's dimension");
+        h.assertTrue(moved.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
+        h.assertTrue(original.isRemoved(), "old entity must be removed after changing dimensions");
+        h.assertTrue(manager.all().stream().filter(c -> player.getUUID().equals(c.ownerUuid())).count() == 1,
+                "exactly one companion must remain registered");
+        state.brains().runTool(player.getUUID(), "stay", "{}");
+        h.assertTrue(moved.taskRunner().current().map(task -> task.type().equals("stay")).orElse(false),
+                "brain tools must bind to the replacement companion");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void teleportMenuActionMovesTheCompanion(GameTestHelper h) {
+        int floor = 30;
+        GameTestSupport.platformAt(h, floor, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        var server = h.getLevel().getServer();
+        CompanionEntity companion = CompanionManager.get(server).summon(player);
+        BlockPos far = h.absolutePos(new BlockPos(12, floor + 1, 12));
+        companion.teleportTo(far.getX() + 0.5, far.getY(), far.getZ() + 0.5);
+        FriendaiServerState.get(server).brains().runTool(player.getUUID(), "stay", "{}");
+        h.assertTrue(companion.taskRunner().current().map(t -> t.describe().equals("staying in place")).orElse(false),
+                "precondition: companion is staying and far away");
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0,
+                "companion stayed at " + companion.position());
+        h.assertTrue(companion.taskRunner().current().map(t -> !t.type().equals("stay")).orElse(true),
+                "teleport must stop the previous task");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void summonExistingCompanionDoesNotTeleport(GameTestHelper h) {
+        int floor = 20;
+        GameTestSupport.platformAt(h, floor, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 12, floor + 1, 12);
+        companion.setOwner(player.getUUID());
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.register(companion);
+        Vec3 before = companion.position();
+        h.assertTrue(manager.summon(player) == companion, "summon should keep the existing companion");
+        h.assertTrue(companion.position().distanceTo(before) < 0.01,
+                "summon moved the companion from " + before + " to " + companion.position());
+        h.assertTrue(companion.taskRunner().current().map(t -> t.type().equals("follow")).orElse(false),
+                "summon should start the follow task");
+        h.succeed();
+    }
+
     /** Answers from a queue; an exhausted script fails the request. */
     static final class Script implements LlmGateway {
         final Queue<LlmResponse> responses = new ArrayDeque<>();

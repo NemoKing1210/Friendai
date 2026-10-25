@@ -116,6 +116,7 @@ public final class LeadTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        mover.stop(c);
         settle = null;
         c.companion().getNavigation().stop();
     }

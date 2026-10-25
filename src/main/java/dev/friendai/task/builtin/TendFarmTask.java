@@ -81,6 +81,7 @@ public final class TendFarmTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        mover.stop(c);
         if (pass != null) {
             pass.stop(c);
         }

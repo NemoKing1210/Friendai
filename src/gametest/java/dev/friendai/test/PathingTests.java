@@ -9,7 +9,16 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CostModel;
+import dev.friendai.pathing.GoalPoint;
+import dev.friendai.pathing.Move;
+import dev.friendai.pathing.Node;
+import dev.friendai.pathing.Path;
+import dev.friendai.pathing.PathStep;
+import dev.friendai.task.nav.PathExecutor;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.builtin.FollowTask;
+import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.GoToTask;
@@ -19,6 +28,7 @@ import dev.friendai.task.mining.BreakProgress;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MaterialPicker;
 import dev.friendai.task.nav.MoveHelper;
+import dev.friendai.task.nav.Navigator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -111,6 +121,7 @@ public class PathingTests {
         h.setBlock(new BlockPos(2, 2, 5), Blocks.OAK_FENCE);
         h.setBlock(new BlockPos(3, 2, 5), Blocks.SCAFFOLDING);
         h.setBlock(new BlockPos(4, 2, 5), Blocks.OAK_LOG);
+        h.setBlock(new BlockPos(6, 2, 5), Blocks.RAIL);
 
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         LevelCellView bare = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
@@ -123,6 +134,8 @@ public class PathingTests {
         h.assertTrue(cellAt(bare, h, 6, 2, 2).kind() == Cell.Kind.PARTIAL, "slab");
         h.assertTrue(cellAt(bare, h, 2, 2, 5).kind() == Cell.Kind.TALL, "fence");
         h.assertTrue(cellAt(bare, h, 3, 2, 5).kind() == Cell.Kind.CLIMBABLE, "scaffolding");
+
+        h.assertFalse(cellAt(bare, h, 6, 2, 5).placeable(), "a rail is not replaceable");
 
         BlockPos logPos = h.absolutePos(new BlockPos(4, 2, 5));
         BlockState log = h.getLevel().getBlockState(logPos);
@@ -438,6 +451,236 @@ public class PathingTests {
             mover.tick(c, h.absoluteVec(new Vec3(x + 0.5, 2, 2.5)));
             double distance = c.position().distanceTo(finalTarget);
             h.assertTrue(h.getTick() >= 100 && distance <= 1.75, "still " + distance + " blocks away on tick " + h.getTick());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToArrivesOnACarpet(GameTestHelper h) {
+        int floor = 150;
+        GameTestSupport.platformAt(h, floor, 12);
+        for (int x = 6; x <= 8; x++) {
+            h.setBlock(new BlockPos(x, floor + 1, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        Navigator navigator = new Navigator(c);
+        Vec3 target = h.absoluteVec(new Vec3(7.5, floor + 2, 2.5));
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        h.onEachTick(() -> state[0] = navigator.tick(context));
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "not on carpet: " + state[0] + " at " + c.position());
+            h.assertTrue(Math.abs(c.getY() - (target.y - 0.9375)) < 0.1, "feet should rest on the carpet: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 500)
+    public void goToClimbsAClimbableColumn(GameTestHelper h) {
+        int floor = 160;
+        GameTestSupport.platformAt(h, floor, 12);
+        for (int y = floor + 1; y <= floor + 4; y++) {
+            h.setBlock(new BlockPos(8, y, 2), Blocks.SCAFFOLDING);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        Navigator navigator = new Navigator(c);
+        Vec3 target = h.absoluteVec(new Vec3(8.5, floor + 5, 2.5));
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        h.onEachTick(() -> state[0] = navigator.tick(context));
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "did not climb: " + state[0] + " at " + c.position());
+            h.assertTrue(c.getY() >= target.y - 0.5, "did not reach the column top: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 500)
+    public void goToSwimsAcrossPool(GameTestHelper h) {
+        int floor = 170;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+                h.setBlock(new BlockPos(x, floor + 2, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        h.succeedWhen(() -> h.assertTrue(out.status == TaskStatus.SUCCESS,
+                "did not swim across: " + out.why() + " at " + c.blockPosition()));
+    }
+
+    @GameTest(maxTicks = 900)
+    public void followNeverTeleports(GameTestHelper h) {
+        int floor = 140;
+        GameTestSupport.platformAt(h, floor, 32);
+        for (int z = 1; z <= 30; z++) {
+            if (z == 28) {
+                continue;
+            }
+            for (int y = floor + 1; y <= floor + 3; y++) {
+                h.setBlock(new BlockPos(12, y, z), Blocks.STONE);
+            }
+        }
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 28.0, floor + 1, 2.5);
+        owner.setOnGround(true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        c.setOwner(owner.getUUID());
+        c.taskRunner().start(new FollowTask(true), "follow");
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        h.onEachTick(() -> {
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2) + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks in one tick");
+        });
+        h.succeedWhen(() -> h.assertTrue(c.position().distanceTo(owner.position()) <= 5.0,
+                "still " + c.position().distanceTo(owner.position()) + " blocks away"));
+    }
+
+    @GameTest(maxTicks = 600)
+    public void followDoesNotPillarToAnAirborneOwner(GameTestHelper h) {
+        int floor = 90;
+        GameTestSupport.platformAt(h, floor, 20);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 10.5, floor + 20, 10.5);
+        owner.setOnGround(false);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        c.setOwner(owner.getUUID());
+        c.taskRunner().start(new FollowTask(true), "follow");
+        double ceiling = h.absolutePos(new BlockPos(0, floor + 4, 0)).getY();
+        h.onEachTick(() -> h.assertTrue(c.getY() < ceiling,
+                "the companion climbed to " + c.getY() + " toward a flying owner"));
+        h.succeedWhen(() -> {
+            double dx = c.getX() - owner.getX();
+            double dz = c.getZ() - owner.getZ();
+            h.assertTrue(Math.sqrt(dx * dx + dz * dz) <= 5.0,
+                    "not standing under the owner: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void blockBreakerWalksToItsViewSpot(GameTestHelper h) {
+        int floor = 110;
+        GameTestSupport.platformAt(h, floor, 14);
+        h.setBlock(new BlockPos(8, floor + 1, 5), Blocks.DIRT);
+        for (int y = floor + 1; y <= floor + 3; y++) {
+            h.setBlock(new BlockPos(7, y, 5), Blocks.STONE);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 5);
+        BlockBreaker breaker = new BlockBreaker(h.absolutePos(new BlockPos(8, floor + 1, 5)),
+                state -> state.is(Blocks.DIRT), true);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        boolean[] done = {false};
+        h.onEachTick(() -> {
+            BlockBreaker.State state = breaker.tick(context);
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2) + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks to a view spot");
+            h.assertTrue(state == BlockBreaker.State.WORKING || state == BlockBreaker.State.BROKEN
+                            || state == BlockBreaker.State.GONE,
+                    "the breaker gave up: " + state);
+            done[0] = state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE;
+        });
+        h.succeedWhen(() -> h.assertTrue(done[0], "the breaker has not finished"));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToSwimsUpAWaterColumn(GameTestHelper h) {
+        int floor = 175;
+        GameTestSupport.platformAt(h, floor, 12);
+        for (int y = floor + 1; y <= floor + 5; y++) {
+            for (int x = 7; x <= 9; x++) {
+                for (int z = 1; z <= 3; z++) {
+                    h.setBlock(x, y, z, x == 8 && z == 2 ? Blocks.WATER : Blocks.STONE);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, floor + 1, 2);
+        Vec3 min = h.absoluteVec(new Vec3(8, floor, 2));
+        Vec3 max = h.absoluteVec(new Vec3(9, floor + 7, 3));
+        c.setPathBounds(new AABB(min, max));
+        Vec3 target = h.absoluteVec(new Vec3(8.5, floor + 4, 2.5));
+        Navigator navigator = new Navigator(c, false);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.4));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        h.onEachTick(() -> state[0] = navigator.tick(context));
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "did not swim up: " + state[0] + " at " + c.position());
+            h.assertTrue(c.getY() >= target.y - 0.5, "did not reach the upper water cell: " + c.position());
+        });
+    }
+
+    @GameTest
+    public void executorRejectsADestinationBlockedAfterPlanning(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 185, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 186, 2);
+        BlockPos from = h.absolutePos(new BlockPos(2, 186, 2));
+        BlockPos to = from.east();
+        PathStep step = new PathStep(new Node(from.getX(), from.getY(), from.getZ()),
+                new Node(to.getX(), to.getY(), to.getZ()), Move.WALK, List.of(), List.of(), 4.6, 0);
+        PathExecutor executor = new PathExecutor(new Path(List.of(step), step.cost(), 0, 0, false),
+                new MaterialPicker(PathingConfig.DEFAULTS), PathingConfig.DEFAULTS);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        executor.tick(context);
+        h.setBlock(new BlockPos(3, 186, 2), Blocks.STONE);
+        h.assertTrue(executor.tick(context) == PathExecutor.State.FAILED,
+                "an occupied destination must fail before movement starts");
+        h.assertFalse(c.pathing(), "a failed step must clear pathing");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void moveHelperResetStopsTheRoute(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 190, 14);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 191, 2);
+        MoveHelper mover = new MoveHelper(1.0, 0.3);
+        Vec3 target = h.absoluteVec(new Vec3(11.5, 191, 2.5));
+        h.succeedWhen(() -> {
+            mover.tick(c, target);
+            h.assertTrue(c.pathing(), "wait for an executing path");
+            mover.reset(new TaskContext(c, h.getLevel()));
+            h.assertFalse(c.pathing(), "reset must immediately stop the navigator");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void stoppingGoToClearsPathingImmediately(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 195, 14);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 196, 2);
+        c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(11.5, 196, 2.5))), "go_to");
+        h.succeedWhen(() -> {
+            h.assertTrue(c.pathing(), "wait for an executing path");
+            c.taskRunner().stop("test stop");
+            h.assertFalse(c.pathing(), "stopping the task must immediately stop the navigator");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void moveHelperArrivesOnlyWithinItsPhysicalRadius(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 201, 2);
+        Vec3 target = h.absoluteVec(new Vec3(2.5, 201, 2.5));
+        c.setPos(target.x - 0.45, target.y, target.z);
+        MoveHelper mover = new MoveHelper(1.0, 0.1);
+        h.succeedWhen(() -> {
+            MoveHelper.State state = mover.tick(c, target);
+            double distance = Math.hypot(c.getX() - target.x, c.getZ() - target.z);
+            if (state == MoveHelper.State.ARRIVED) {
+                h.assertTrue(distance <= 0.1, "reported arrival " + distance + " blocks from the point");
+            }
+            h.assertTrue(state == MoveHelper.State.ARRIVED, "still centering: " + state + " distance " + distance);
         });
     }
 }

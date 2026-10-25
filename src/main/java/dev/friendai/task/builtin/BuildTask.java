@@ -21,6 +21,7 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
+import dev.friendai.task.nav.MoveHelper;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -131,6 +132,11 @@ public final class BuildTask implements Task {
     /** Whether the current pass placed at least one block; a pass that places nothing is the last. */
     private boolean passProgress;
 
+    private enum Column { ALIGNED, WALKING, NONE }
+    private final MoveHelper pillarMover = new MoveHelper(1.0, 0.3, false);
+    private final MoveHelper asideMover = new MoveHelper(1.0, 0.3, false);
+    private BlockPos asideTarget;
+    private Integer pillarTargetY;
     private Approach approach;
     private BlockSpec current;
     private Placement.PlacedSpec currentPlaced;
@@ -499,6 +505,17 @@ public final class BuildTask implements Task {
 
     private TaskStatus place(TaskContext c) {
         ServerLevel level = c.level();
+        // Finish jump/place before reevaluating reach or moving to another column.
+        if (pillarTargetY != null) {
+            switch (scaffold.pillarTo(pillarTargetY)) {
+                case CLIMBING -> { return TaskStatus.RUNNING; }
+                case FAILED -> {
+                    pillarTargetY = null;
+                    return fail(c, scaffold.failure());
+                }
+                case READY -> pillarTargetY = null;
+            }
+        }
         while (true) {
             if (current == null) {
                 BlockSpec next = nextSpec();
@@ -523,19 +540,24 @@ public final class BuildTask implements Task {
             BlockState world = level.getBlockState(currentPos);
             if (wanted.wanted().isAir()) {
                 current = null;
+                resetMovers(c);
                 advance(c);
                 continue;
             }
             if (world.equals(wanted.wanted())) {
                 current = null;
+                resetMovers(c);
                 advance(c);
                 continue;
             }
             if (taken(level, currentPos, wanted.wanted())) {
                 return fail(c, coords(currentPos) + " is taken by " + blockId(world));
             }
-            if (standsIn(c.companion(), currentPos) && !stepAside(c, currentPos)) {
-                return fail(c, coords(currentPos) + " is blocked by me and there is nowhere to step aside");
+            if (asideTarget != null || standsIn(c.companion(), currentPos)) {
+                if (stepAside(c, currentPos) == TaskStatus.FAILED) {
+                    return fail(c, coords(currentPos) + " is blocked by me and there is nowhere to step aside");
+                }
+                return TaskStatus.RUNNING;
             }
             if (!inReach(c.companion(), currentPos)) {
                 int feetY = pillarFeetY(c.companion(), currentPos);
@@ -552,22 +574,15 @@ public final class BuildTask implements Task {
                         continue;
                     }
                 }
-                alignForPillar(c.level(), c.companion(), currentPos);
+                if (pillarColumn(c, currentPos) == Column.WALKING) {
+                    return TaskStatus.RUNNING;
+                }
                 feetY = pillarFeetY(c.companion(), currentPos);
                 if (feetY < 0) {
                     return fail(c, "can't reach " + coords(currentPos));
                 }
-                switch (scaffold.pillarTo(feetY)) {
-                    case CLIMBING -> {
-                        return TaskStatus.RUNNING;
-                    }
-                    case FAILED -> {
-                        return fail(c, scaffold.failure());
-                    }
-                    case READY -> {
-                    }
-                }
-                continue;
+                pillarTargetY = feetY;
+                return TaskStatus.RUNNING;
             }
             c.companion().getNavigation().stop();
             if (taken(level, currentPos, wanted.wanted())) {
@@ -582,6 +597,7 @@ public final class BuildTask implements Task {
                 // layer is better than scaffold material, and support is only placed once nothing else can help.
                 deferred.add(current);
                 current = null;
+                resetMovers(c);
                 approach = null;
                 continue;
             }
@@ -596,6 +612,7 @@ public final class BuildTask implements Task {
                 placedCount++;
                 passProgress = true;
                 current = null;
+                resetMovers(c);
                 approach = null;
                 advance(c);
                 return TaskStatus.RUNNING;
@@ -662,25 +679,32 @@ public final class BuildTask implements Task {
      * target in a fixed order, rather than wherever pathfinding happened to leave it. Does nothing when no such
      * column is free, so the companion climbs where it stands.
      */
-    private void alignForPillar(ServerLevel level, CompanionEntity companion, BlockPos target) {
+    private Column pillarColumn(TaskContext c, BlockPos target) {
+        CompanionEntity companion = c.companion();
         int feetY = target.getY() - 2;
         BlockPos base = companion.blockPosition();
         if (feetY <= base.getY()) {
-            return;
+            return Column.ALIGNED;
         }
         for (Direction side : PILLAR_SIDES) {
-            BlockPos column = new BlockPos(
-                    target.getX() + side.getStepX(), base.getY(), target.getZ() + side.getStepZ());
-            if (!freeStanding(level, column) || !columnFree(level, column, feetY)) {
+            BlockPos column = new BlockPos(target.getX() + side.getStepX(), base.getY(),
+                    target.getZ() + side.getStepZ());
+            if (!freeStanding(c.level(), column) || !columnFree(c.level(), column, feetY)) {
                 continue;
             }
-            if (column.equals(base)) {
-                return;
-            }
-            companion.getNavigation().stop();
-            companion.teleportTo(column.getX() + 0.5, column.getY(), column.getZ() + 0.5);
-            return;
+            return switch (pillarMover.tick(companion, Vec3.atBottomCenterOf(column))) {
+                case ARRIVED -> {
+                    pillarMover.reset(c);
+                    yield Column.ALIGNED;
+                }
+                case STUCK -> {
+                    pillarMover.reset(c);
+                    yield Column.NONE;
+                }
+                default -> Column.WALKING;
+            };
         }
+        return Column.NONE;
     }
 
     /**
@@ -733,36 +757,56 @@ public final class BuildTask implements Task {
     /**
      * Moves the companion out of a block it is about to fill: a mob standing in the cell makes vanilla refuse the
      * placement, and a companion boxed in by the blocks it has just placed cannot walk out (a one-block pit needs a
-     * jump). The free spot is within reach, so it keeps building. Returns false when there is nowhere to go.
+     * jump). The free spot is within reach, so it keeps building. Walking takes several ticks; an unreachable spot fails.
      */
-    private boolean stepAside(TaskContext c, BlockPos pos) {
+    private TaskStatus stepAside(TaskContext c, BlockPos pos) {
         CompanionEntity companion = c.companion();
-        BlockPos spot = freeSpotNear(c.level(), companion, pos);
-        if (spot == null) {
-            return false;
+        if (asideTarget == null) {
+            asideTarget = freeSpotNear(c.level(), companion, pos);
+            if (asideTarget == null) {
+                return TaskStatus.FAILED;
+            }
+            if (approach != null) {
+                approach.stop(companion);
+                approach = null;
+            }
         }
-        companion.teleportTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5);
-        approach = null;
-        return true;
+        MoveHelper.State state = asideMover.tick(companion, Vec3.atBottomCenterOf(asideTarget));
+        if (state == MoveHelper.State.MOVING) {
+            return TaskStatus.RUNNING;
+        }
+        asideMover.reset(c);
+        asideTarget = null;
+        return state == MoveHelper.State.ARRIVED ? TaskStatus.RUNNING : TaskStatus.FAILED;
     }
 
-    /** The nearest free standing spot within reach of pos at the companion's own height, or null. */
+    /**
+     * The nearest free standing spot within reach of {@code pos}, including a block above or below the companion.
+     * A partially built wall often leaves the companion standing on its top: requiring the old feet height then
+     * rejects every adjacent landing even though it can safely step down or up once.
+     */
     private static BlockPos freeSpotNear(ServerLevel level, CompanionEntity companion, BlockPos pos) {
         int feetY = companion.blockPosition().getY();
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                double distance = Math.sqrt(dx * dx + dz * dz);
-                if (distance < 1.5 || distance > 3.0 || distance >= bestDistance) {
-                    continue;
+        for (int dy = -3; dy <= 3; dy++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    double horizontal = Math.sqrt(dx * dx + dz * dz);
+                    if (horizontal < 1.5 || horizontal > 3.0) {
+                        continue;
+                    }
+                    BlockPos candidate = new BlockPos(pos.getX() + dx, feetY + dy, pos.getZ() + dz);
+                    if (candidate.equals(pos) || !freeStanding(level, candidate)) {
+                        continue;
+                    }
+                    double distance = companion.getEyePosition().distanceTo(Vec3.atCenterOf(candidate));
+                    if (distance > Approach.REACH || distance >= bestDistance) {
+                        continue;
+                    }
+                    best = candidate;
+                    bestDistance = distance;
                 }
-                BlockPos candidate = new BlockPos(pos.getX() + dx, feetY, pos.getZ() + dz);
-                if (candidate.equals(pos) || !freeStanding(level, candidate)) {
-                    continue;
-                }
-                best = candidate;
-                bestDistance = distance;
             }
         }
         return best;
@@ -772,6 +816,12 @@ public final class BuildTask implements Task {
         return level.getBlockState(pos).isAir()
                 && level.getBlockState(pos.above()).isAir()
                 && level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP);
+    }
+
+    private void resetMovers(TaskContext c) {
+        pillarMover.reset(c);
+        asideMover.reset(c);
+        asideTarget = null;
     }
 
     private void advance(TaskContext c) {
@@ -860,6 +910,8 @@ public final class BuildTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        pillarTargetY = null;
+        resetMovers(c);
         if (breaker != null) {
             breaker.stop(c);
         }

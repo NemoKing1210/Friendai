@@ -141,14 +141,14 @@ public final class ExploreTask implements Task {
         switch (mover.tick(companion, waypoint)) {
             case ARRIVED -> {
                 waypoint = null;
-                mover.reset();
+                mover.reset(c);
                 if (found(c.level(), companion)) {
                     return TaskStatus.SUCCESS;
                 }
             }
             case STUCK -> {
                 waypoint = null;
-                mover.reset();
+                mover.reset(c);
             }
             default -> {
             }
@@ -325,6 +325,7 @@ public final class ExploreTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        mover.stop(c);
         c.companion().getNavigation().stop();
         if (breaker != null) {
             breaker.stop(c);

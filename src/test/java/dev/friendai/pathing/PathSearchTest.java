@@ -33,7 +33,7 @@ class PathSearchTest {
     }
 
     private static GoalPoint point(double x, double y, double z) {
-        return new GoalPoint(x, y, z, 0.5, 0.5, COSTS.walk());
+        return new GoalPoint(x, y, z, 0.5, 0.5);
     }
 
     /** A floor with a wall across it at {@code wallX}, open at one row of {@code z}. */
@@ -127,10 +127,11 @@ class PathSearchTest {
     }
 
     @Test
-    void pitWithoutBlocksIsNoPath() {
+    void pitWithoutBlocksWalksToTheEdge() {
         GridCellView view = pit(3, 4);
-        assertEquals(SearchResult.Status.NO_PATH,
-                run(search(view, new Node(1, 1, 0), point(10.5, 1, 0.5), 20_000, 0)).status());
+        SearchResult result = run(search(view, new Node(1, 1, 0), point(10.5, 1, 0.5), 20_000, 0));
+        assertEquals(SearchResult.Status.PARTIAL, result.status());
+        assertEquals(4, result.path().end().x());
 
         Path path = path(view, new Node(1, 1, 0), point(10.5, 1, 0.5), Integer.MAX_VALUE);
         assertEquals(3, path.places());
@@ -144,7 +145,7 @@ class PathSearchTest {
                 "...d#d....",
                 "...ddd....",
                 "..........");
-        GoalReach goal = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62, COSTS.walk());
+        GoalReach goal = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62);
         Path path = path(view, new Node(2, 1, 0), goal, 0);
         assertTrue(hasMove(path, Move.DIG));
         assertFalse(path.steps().stream().anyMatch(step -> step.breaks().contains(new Pos(4, 2, 0))));
@@ -161,7 +162,7 @@ class PathSearchTest {
             layers[y] = "......";
         }
         GridCellView view = new GridCellView(layers);
-        GoalReach goal = new GoalReach(List.of(new Pos(3, 8, 0)), 4.0, 1.62, COSTS.walk());
+        GoalReach goal = new GoalReach(List.of(new Pos(3, 8, 0)), 4.0, 1.62);
         Path path = path(view, new Node(1, 1, 0), goal, 16);
         assertTrue(path.places() >= 3);
         assertTrue(hasMove(path, Move.PILLAR));
@@ -179,7 +180,7 @@ class PathSearchTest {
                 String.join("/", "..........", "..........", "..........", "..........")
         };
         GridCellView view = new GridCellView(layers);
-        GoalReach goal = new GoalReach(List.of(new Pos(5, 1, 3), new Pos(0, 1, 1)), 4.0, 1.62, COSTS.walk());
+        GoalReach goal = new GoalReach(List.of(new Pos(5, 1, 3), new Pos(0, 1, 1)), 4.0, 1.62);
         Path path = path(view, new Node(5, 1, 1), goal, 0);
         assertEquals(0, path.breaks());
     }
@@ -217,16 +218,17 @@ class PathSearchTest {
         assertEquals(SearchResult.Status.PARTIAL, result.status());
         assertNotNull(result.path());
         assertTrue(result.path().partial());
-        double startHeuristic = goal.heuristic(new Node(0, 1, 0));
+        double startHeuristic = goal.heuristic(new Node(0, 1, 0), CostModel.DEFAULTS);
         Node end = result.path().steps().get(result.path().steps().size() - 1).to();
-        assertTrue(goal.heuristic(end) < startHeuristic);
+        assertTrue(goal.heuristic(end, CostModel.DEFAULTS) < startHeuristic);
     }
 
     @Test
-    void unloadedIsImpassable() {
+    void unloadedColumnBlocksTheRouteAndWalksCloser() {
         GridCellView view = new GridCellView("#########", "...?...", "........");
-        assertEquals(SearchResult.Status.NO_PATH,
-                run(search(view, new Node(0, 1, 0), point(6.5, 1, 0.5), 20_000, 0)).status());
+        SearchResult result = run(search(view, new Node(0, 1, 0), point(6.5, 1, 0.5), 20_000, 0));
+        assertEquals(SearchResult.Status.PARTIAL, result.status());
+        assertEquals(2, result.path().end().x());
     }
 
     @Test
@@ -246,7 +248,7 @@ class PathSearchTest {
     @Test
     void escapesPitByPillar() {
         GridCellView view = pitWorld();
-        Path path = path(view, new Node(2, 1, 0), new GoalPoint(2.5, 4, 0.5, 1.5, 0.5, COSTS.walk()), 3);
+        Path path = path(view, new Node(2, 1, 0), new GoalPoint(2.5, 4, 0.5, 1.5, 0.5), 3);
         assertTrue(path.steps().stream().anyMatch(step -> step.move() == Move.PILLAR));
         assertTrue(path.places() >= 2 && path.places() <= 3);
         assertEquals(4, path.end().y());
@@ -255,11 +257,11 @@ class PathSearchTest {
     @Test
     void escapesPitByDigging() {
         GridCellView view = pitWorld();
-        Path path = path(view, new Node(2, 1, 0), new GoalPoint(2.5, 4, 0.5, 1.5, 0.5, COSTS.walk()), 0);
+        Path path = path(view, new Node(2, 1, 0), new GoalPoint(2.5, 4, 0.5, 1.5, 0.5), 0);
         assertTrue(hasMove(path, Move.DIG_ASCEND));
     }
 
-    /** A 1×1 pit three deep in flat ground, the surface at y = 4. */
+    /** A 1Г—1 pit three deep in flat ground, the surface at y = 4. */
     private static GridCellView pitWorld() {
         String[] layers = {
                 "########",
