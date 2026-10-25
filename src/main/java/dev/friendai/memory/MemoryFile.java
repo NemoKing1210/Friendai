@@ -5,8 +5,10 @@ import java.util.List;
 
 /** The on-disk shape of a memory file. Gson POJO; keep field names stable for old saves. */
 public final class MemoryFile {
-    public int version = 2;
+    public int version = 3;
     public int nextId = 1;
+    /** The name the owner gave their companion; null means the configured default. */
+    public String companionName;
     public List<PlayerEntry> players = new ArrayList<>();
     public List<FactEntry> facts = new ArrayList<>();
     public List<FoodRuleEntry> foodRules = new ArrayList<>();

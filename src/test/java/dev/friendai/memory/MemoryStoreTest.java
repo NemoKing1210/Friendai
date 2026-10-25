@@ -105,6 +105,25 @@ class MemoryStoreTest {
     }
 
     @Test
+    void companionNamePersistsAcrossStores() {
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).setCompanionName("Bob");
+        store.flushAll();
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        assertEquals(Optional.of("Bob"), reopened.book(A).companionName());
+    }
+
+    @Test
+    void versionTwoFileLoadsWithoutCompanionName() throws IOException {
+        Files.writeString(dir.resolve(A + ".json"), "{\"version\":2,\"players\":[]}");
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        assertTrue(store.book(A).companionName().isEmpty());
+        store.book(A).setCompanionName("Bob");
+        store.flushAll();
+        assertEquals(Optional.of("Bob"), new MemoryStore(dir, () -> 0).book(A).companionName());
+    }
+
+    @Test
     void writeFailureKeepsBookDirty() throws IOException {
         Path blocker = dir.resolve("file");
         Files.writeString(blocker, "x");

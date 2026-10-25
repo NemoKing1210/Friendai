@@ -1,5 +1,6 @@
 package dev.friendai.entity;
 
+import dev.friendai.core.FriendaiServerState;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,10 @@ public final class CompanionManager {
             return;
         }
         byOwner.put(owner, entity);
+        if (entity.hasCustomName()) {
+            // Saves made before the name tag was shown carry a name but not the visible flag.
+            entity.setCustomNameVisible(true);
+        }
     }
 
     public void unregister(CompanionEntity entity) {
@@ -73,6 +78,7 @@ public final class CompanionManager {
         Optional<CompanionEntity> existing = find(owner.getUUID());
         if (existing.isPresent()) {
             CompanionEntity companion = existing.get();
+            ensureName(companion);
             if (companion.level() == level) {
                 companion.teleportTo(target.x, owner.getY(), target.z);
             } else {
@@ -84,10 +90,21 @@ public final class CompanionManager {
         }
         CompanionEntity companion = FriendaiEntities.COMPANION.create(level, EntitySpawnReason.COMMAND);
         companion.setOwner(owner.getUUID());
+        companion.applyName(FriendaiServerState.get(level.getServer()).companionName(owner.getUUID()));
         companion.snapTo(target.x, owner.getY(), target.z, owner.getYRot() + 180.0F, 0.0F);
         level.addFreshEntity(companion);
         register(companion);
         return companion;
+    }
+
+    /** A loaded companion keeps the name it was given; an old save without one gets the owner's current name. */
+    private static void ensureName(CompanionEntity companion) {
+        if (companion.hasCustomName()) {
+            companion.setCustomNameVisible(true);
+            return;
+        }
+        companion.applyName(
+                FriendaiServerState.get(companion.level().getServer()).companionName(companion.ownerUuid()));
     }
 
     /** Removes the owner's companion, dropping what it carries. Returns false if there was none. */

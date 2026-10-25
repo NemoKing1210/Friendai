@@ -446,6 +446,18 @@ public class CompanionEntity extends PathfinderMob {
         this.ownerUuid = owner;
     }
 
+    /**
+     * Sets the name shown above the head and used in chat. The name tag is visible without a name tag item, so a
+     * name given at summon or by {@code set_name} shows right away.
+     */
+    public void applyName(String name) {
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        setCustomName(Component.literal(name));
+        setCustomNameVisible(true);
+    }
+
     public Optional<ServerPlayer> owner() {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return Optional.empty();

@@ -19,6 +19,8 @@ public final class MemoryBook {
     private final TreeMap<Integer, Fact> facts = new TreeMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
+    /** The name the owner gave the companion; null means the configured default applies. */
+    private String companionName;
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -102,6 +104,27 @@ public final class MemoryBook {
                 .filter(PlayerRecord::trusted)
                 .sorted(Comparator.comparing(PlayerRecord::lastName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    /** The name the owner gave the companion, or empty when the configured default still applies. */
+    public Optional<String> companionName() {
+        return Optional.ofNullable(companionName);
+    }
+
+    /**
+     * Stores the owner's name for the companion. Returns whether it changed. The name is trimmed and checked by
+     * {@link CompanionName#parse}; an unusable name throws with a message written for the model.
+     */
+    public boolean setCompanionName(String name) {
+        String normalized = CompanionName.parse(name)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid companion name. " + CompanionName.PROBLEM));
+        if (normalized.equals(companionName)) {
+            return false;
+        }
+        companionName = normalized;
+        dirty = true;
+        revision++;
+        return true;
     }
 
     /** The owner's rule for one food: true if allowed, false if forbidden; empty when the default applies. */
@@ -305,6 +328,7 @@ public final class MemoryBook {
     public MemoryFile toFile() {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
+        file.companionName = companionName;
         for (Fact fact : facts.values()) {
             MemoryFile.FactEntry entry = new MemoryFile.FactEntry();
             entry.id = fact.id();
@@ -336,6 +360,9 @@ public final class MemoryBook {
     /** Loads a file, skipping entries whose UUID is missing or unparsable. The result is clean. */
     public static MemoryBook fromFile(MemoryFile file) {
         MemoryBook book = new MemoryBook();
+        if (file != null) {
+            CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
+        }
         if (file != null && file.players != null) {
             for (MemoryFile.PlayerEntry entry : file.players) {
                 if (entry == null || entry.uuid == null) {

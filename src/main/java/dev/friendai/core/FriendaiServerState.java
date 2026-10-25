@@ -3,6 +3,7 @@ package dev.friendai.core;
 import dev.friendai.FriendaiMod;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.MemoryViewers;
@@ -11,6 +12,7 @@ import dev.friendai.task.TaskSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
@@ -20,6 +22,7 @@ import net.minecraft.world.level.storage.LevelResource;
 public final class FriendaiServerState {
     private static final Map<MinecraftServer, FriendaiServerState> STATES = new WeakHashMap<>();
 
+    private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final BrainService brains;
     private final MemoryStore memory;
@@ -29,6 +32,7 @@ public final class FriendaiServerState {
     private long lastTrustTick;
 
     private FriendaiServerState(MinecraftServer server) {
+        this.server = server;
         this.store = new ConfigStore<>(
                 FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
                 ServerConfig.class,
@@ -66,9 +70,14 @@ public final class FriendaiServerState {
         return brains;
     }
 
-    /** Per-owner memory books: trust and player records. */
+    /** Per-owner memory books: trust, player records, food rules and the companion's name. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** The name the owner gave their companion, or the configured default. */
+    public String companionName(UUID owner) {
+        return memory.book(owner).companionName().orElse(config.companion.name);
     }
 
     /** Who has the memory tab open, and the last book revision each received. */
@@ -95,9 +104,20 @@ public final class FriendaiServerState {
         List<String> problems = cfg.validate();
         logProblems(problems);
         this.config = cfg;
+        syncCompanionNames(cfg);
         applyTaskSettings(cfg);
         brains.reload(cfg);
         return problems;
+    }
+
+    /** A config name reaches companions that still use the default; a name the owner chose wins. */
+    private void syncCompanionNames(ServerConfig cfg) {
+        for (CompanionEntity companion : CompanionManager.get(server).all()) {
+            UUID owner = companion.ownerUuid();
+            if (owner != null && memory.book(owner).companionName().isEmpty()) {
+                companion.applyName(cfg.companion.name);
+            }
+        }
     }
 
     private static void applyTaskSettings(ServerConfig cfg) {

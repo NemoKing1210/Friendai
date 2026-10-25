@@ -92,6 +92,22 @@ public class BrainServiceTests {
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 
+    @GameTest(maxTicks = 100)
+    public void renamedCompanionAnswersToItsNewName(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        BrainService brains = FriendaiServerState.get(server).brains();
+        Script script = new Script().text("Hi");
+        Said said = new Said();
+        brains.setGatewayOverride(player.getUUID(), script);
+        brains.setSpeakerWrapper(player.getUUID(), real -> said);
+        CompanionManager.get(server).summon(player);
+        h.assertTrue(!brains.runTool(player.getUUID(), "set_name", "{\"name\":\"Bob\"}").error(),
+                "set_name should work for the owner");
+        ChatRouter.onChat(player, "Bob, hi");
+        h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
+    }
+
     @GameTest(maxTicks = 200)
     public void thinkingIsShownOnTheCompanion(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);

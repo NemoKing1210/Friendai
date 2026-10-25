@@ -5,10 +5,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.memory.CompanionName;
 import dev.friendai.crafting.Station;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.cooking.FurnaceJob;
@@ -199,6 +202,56 @@ public class ToolTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 100)
+    public void setNameRenamesCompanionAndUpdatesPrompt(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        FriendaiServerState state = FriendaiServerState.get(server);
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+
+        ToolResult renamed = runAs(tools(companion), "set_name", "{\"name\":\"  Bob  \"}",
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!renamed.error() && renamed.content().equals("my name is now Bob"),
+                "result was " + renamed.content());
+        h.assertTrue(companion.getName().getString().equals("Bob"),
+                "tag name was " + companion.getName().getString());
+        h.assertTrue(companion.isCustomNameVisible(), "the name tag must be visible");
+        h.assertTrue(state.memory().book(owner.getUUID()).companionName().orElseThrow().equals("Bob"),
+                "the name should be kept in the owner's book");
+
+        var prompt = state.brains().currentPrompt(owner.getUUID());
+        h.assertTrue(prompt.isPresent() && prompt.get().contains("You are Bob"), "prompt: " + prompt);
+
+        h.assertTrue(CompanionManager.get(server).dismiss(owner), "the companion should be dismissed");
+        CompanionEntity again = CompanionManager.get(server).summon(owner);
+        h.assertTrue(again.getName().getString().equals("Bob"), "the name should survive a dismiss");
+        h.succeed();
+    }
+
+    @GameTest
+    public void setNameRejectsBadNamesAndGuests(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        ToolExecutor tools = tools(companion);
+
+        ToolResult blank = runAs(tools, "set_name", "{\"name\":\"   \"}",
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(blank.error() && blank.content().equals("Invalid name. " + CompanionName.PROBLEM),
+                "result was " + blank.content());
+
+        ToolResult tooLong = runAs(tools, "set_name",
+                "{\"name\":\"" + "x".repeat(CompanionName.MAX_LENGTH + 1) + "\"}",
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(tooLong.error(), "an over-long name must be rejected");
+
+        ToolResult guest = runAs(tools, "set_name", "{\"name\":\"Bob\"}",
+                new Caller(owner.getUUID(), "guest", AccessLevel.TRUSTED));
+        h.assertTrue(guest.error() && guest.content().contains("not available"), "result was " + guest.content());
+        h.assertTrue(!companion.getName().getString().equals("Bob"), "a guest must not rename the companion");
+        h.succeed();
+    }
+
     @GameTest
     public void getInventoryListsItems(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -241,7 +294,7 @@ public class ToolTests {
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
-                "untrust_player", "show_inventory", "stop", "run_plan")),
+                "untrust_player", "show_inventory", "set_name", "stop", "run_plan")),
                 "names were " + names);
         h.succeed();
     }

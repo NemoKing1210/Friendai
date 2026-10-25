@@ -68,9 +68,7 @@ public final class CompanionRequestHandler {
         MenuStatus memoryStatus = null;
         CompanionManager companions = CompanionManager.get(server);
         switch (type) {
-            case SUMMON -> companions
-                    .summon(player)
-                    .setCustomName(Component.literal(state.config().companion.name));
+            case SUMMON -> companions.summon(player);
             case DISMISS -> companions.dismiss(player);
             case STOP -> companions.find(owner).ifPresent(c -> {
                 c.taskRunner().stop("stopped from menu");

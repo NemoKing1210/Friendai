@@ -76,6 +76,29 @@ class MemoryBookTest {
     }
 
     @Test
+    void companionNameRoundTripsAndMarksDirty() {
+        var b = new MemoryBook();
+        assertTrue(b.companionName().isEmpty());
+        assertTrue(b.setCompanionName("  Bob  "));
+        assertEquals(Optional.of("Bob"), b.companionName());
+        assertTrue(b.isDirty());
+        assertFalse(b.setCompanionName("Bob"));
+
+        var copy = MemoryBook.fromFile(b.toFile());
+        assertEquals(Optional.of("Bob"), copy.companionName());
+        assertFalse(copy.isDirty());
+    }
+
+    @Test
+    void invalidCompanionNameIsRejected() {
+        var b = new MemoryBook();
+        assertEquals(
+                "Invalid companion name. " + CompanionName.PROBLEM,
+                assertThrows(IllegalArgumentException.class, () -> b.setCompanionName("  ")).getMessage());
+        assertTrue(b.companionName().isEmpty());
+    }
+
+    @Test
     void fromFileSkipsBadUuids() {
         var f = new MemoryFile();
         var e = new MemoryFile.PlayerEntry();

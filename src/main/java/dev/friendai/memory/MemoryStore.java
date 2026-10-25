@@ -42,7 +42,7 @@ public final class MemoryStore {
         }
         Path file = dir.resolve(owner + ".json");
         ConfigStore<MemoryFile> store =
-                new ConfigStore<>(file, MemoryFile.class, MemoryFile::new, 2, (json, from) -> json);
+                new ConfigStore<>(file, MemoryFile.class, MemoryFile::new, 3, (json, from) -> json);
         MemoryBook book;
         if (Files.exists(file)) {
             book = MemoryBook.fromFile(store.load());

@@ -24,8 +24,13 @@ public final class ChatRouter {
             return;
         }
         ServerConfig cfg = state.config();
-        AddressDetector detector =
-                new AddressDetector(cfg.companion.name, cfg.chat.prefix, cfg.chat.respondToName, false);
+        // A renamed companion answers to its current name; the configured name stays the default for a summon.
+        String name = CompanionManager.get(server)
+                .find(player.getUUID())
+                .map(companion -> companion.getName().getString())
+                .filter(current -> !current.isBlank())
+                .orElse(cfg.companion.name);
+        AddressDetector detector = new AddressDetector(name, cfg.chat.prefix, cfg.chat.respondToName, false);
         Optional<String> addressed = detector.match(text);
         if (addressed.isPresent()) {
             CompanionRouting.route(player)

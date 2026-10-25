@@ -1,7 +1,9 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.memory.CompanionName;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskSettings;
@@ -82,12 +84,38 @@ final class ControlTools {
         };
     }
 
+    /** Renames this companion for its owner; the name is stored in the owner's book and survives a dismiss. */
+    private static ToolResult setName(CompanionEntity c, String raw) {
+        Optional<String> parsed = CompanionName.parse(raw);
+        if (parsed.isEmpty()) {
+            return ToolResult.error("Invalid name. " + CompanionName.PROBLEM);
+        }
+        if (c.ownerUuid() == null) {
+            return ToolResult.error("I don't have an owner.");
+        }
+        String name = parsed.get();
+        FriendaiServerState.get(c.level().getServer()).memory().book(c.ownerUuid()).setCompanionName(name);
+        c.applyName(name);
+        return ToolResult.ok("my name is now " + name);
+    }
+
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
         registry.register(ToolKit.instantTool(
                 "show_inventory",
                 "Open your inventory and equipment for the owner, so they can take or put items themselves.",
                 AccessLevel.OWNER,
                 (c, a) -> showInventory(c)));
+
+        registry.register(ToolKit.instantTool(
+                "set_name",
+                "Change your own name. Use it when the owner tells you what your name is, or what they will call you. "
+                        + "The name is shown above your head and used in chat; only the owner can change it.",
+                SchemaBuilder.object()
+                        .string("name", "The new name, 1-32 characters")
+                        .required("name")
+                        .build(),
+                AccessLevel.OWNER,
+                (c, a) -> setName(c, a.get("name").getAsString())));
 
         registry.register(ToolKit.instantTool("stop",
                 "Cancel the current task and go back to the default activity. Pass what to stop a specific action by its tool name"

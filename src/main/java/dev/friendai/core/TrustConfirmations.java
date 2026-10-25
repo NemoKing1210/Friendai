@@ -3,6 +3,7 @@ package dev.friendai.core;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.chat.ConfirmationMatcher;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.PendingTrust;
 import dev.friendai.memory.TrustRequest;
@@ -38,7 +39,7 @@ public final class TrustConfirmations {
     /** Opens the owner's request (replacing an older one) and sends them the confirmation message. */
     public TrustRequest request(ServerPlayer owner, UUID target, String name, boolean trust) {
         TrustRequest request = pending.open(owner.getUUID(), target, name, trust, System.currentTimeMillis());
-        send(owner.getUUID(), askMessage(request));
+        send(owner.getUUID(), askMessage(owner, request));
         return request;
     }
 
@@ -80,7 +81,12 @@ public final class TrustConfirmations {
             return false;
         }
         ServerConfig cfg = config.get();
-        ConfirmationMatcher.Answer answer = ConfirmationMatcher.match(text, cfg.companion.name, cfg.chat.prefix);
+        String name = CompanionManager.get(server)
+                .find(player.getUUID())
+                .map(companion -> companion.getName().getString())
+                .filter(companionName -> !companionName.isBlank())
+                .orElse(cfg.companion.name);
+        ConfirmationMatcher.Answer answer = ConfirmationMatcher.match(text, name, cfg.chat.prefix);
         if (answer == ConfirmationMatcher.Answer.NONE) {
             return false;
         }
@@ -113,10 +119,15 @@ public final class TrustConfirmations {
         }
     }
 
-    private static Component askMessage(TrustRequest request) {
+    private Component askMessage(ServerPlayer owner, TrustRequest request) {
+        String name = CompanionManager.get(server)
+                .find(owner.getUUID())
+                .map(companion -> companion.getName().getString())
+                .filter(current -> !current.isBlank())
+                .orElse(config.get().companion.name);
         Component ask = Component.translatable(
                 request.trust() ? "friendai.trust.ask.add" : "friendai.trust.ask.remove", request.targetName());
-        return Component.literal("[Friendai] ")
+        return Component.literal("[" + name + "] ")
                 .append(ask)
                 .append(Component.literal(" "))
                 .append(bracket(button(

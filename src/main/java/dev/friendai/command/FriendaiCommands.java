@@ -73,7 +73,6 @@ public final class FriendaiCommands {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         var server = ctx.getSource().getServer();
         CompanionEntity companion = CompanionManager.get(server).summon(player);
-        companion.setCustomName(Component.literal(FriendaiServerState.get(server).config().companion.name));
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.summoned", companion.getName()), false);
         return 1;
     }
