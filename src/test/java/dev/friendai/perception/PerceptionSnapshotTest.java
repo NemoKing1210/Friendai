@@ -95,4 +95,11 @@ class PerceptionSnapshotTest {
         assertTrue(empty.toPromptText().contains("Threats: none"), empty.toPromptText());
         assertTrue(empty.toPromptText().contains("Landmarks: none nearby"), empty.toPromptText());
     }
+
+    @Test
+    void runningTaskIsMarkedUnfinished() {
+        assertEquals("mining ore (running; no result yet)", PerceptionSnapshot.runningTask("mining ore"));
+        assertEquals("none", PerceptionSnapshot.runningTask(null));
+        assertEquals("none", PerceptionSnapshot.runningTask(" "));
+    }
 }
