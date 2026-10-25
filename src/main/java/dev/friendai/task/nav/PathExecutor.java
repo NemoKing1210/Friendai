@@ -375,8 +375,22 @@ public final class PathExecutor {
         double dx = c.companion().getX() - (step.to().x() + 0.5);
         double dz = c.companion().getZ() - (step.to().z() + 0.5);
         double radius = arriveRadius(step);
-        return dx * dx + dz * dz <= radius * radius
-                && Math.abs(c.companion().getY() - target.y()) <= target.tolerance();
+        boolean level = Math.abs(c.companion().getY() - target.y()) <= target.tolerance();
+        if (dx * dx + dz * dz <= radius * radius) {
+            return level;
+        }
+        if (level && (step.move() == Move.DESCEND || step.move() == Move.WALK)) {
+            // Momentum carried it past the centre (a fall keeps the horizontal speed): going back to the centre
+            // would turn it around, so a companion that is past the centre and still in the cell has arrived.
+            int sx = step.to().x() - step.from().x();
+            int sz = step.to().z() - step.from().z();
+            if (Math.abs(sx) + Math.abs(sz) == 1) {
+                double along = dx * sx + dz * sz;
+                double across = Math.abs(sx == 0 ? dx : dz);
+                return along > 0 && along <= 0.5 && across <= 0.5;
+            }
+        }
+        return false;
     }
 
     /** Mid-run, only a collinear plain step may keep the wider arrival radius. */
