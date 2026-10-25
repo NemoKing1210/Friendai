@@ -83,7 +83,7 @@ public final class BrainService {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
-        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> this.config.tasks.mineSearchRadius, new MemoryAccess() {
+        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> this.config.tasks.mineSearchRadius, () -> this.config.tasks.treeSearchRadius, new MemoryAccess() {
             @Override
             public boolean enabled() {
                 return config != null && config.memory.enabled;

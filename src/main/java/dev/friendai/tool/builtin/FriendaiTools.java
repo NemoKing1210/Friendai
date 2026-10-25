@@ -27,11 +27,24 @@ public final class FriendaiTools {
      * @param memory long-term memory; {@link MemoryAccess#DISABLED} leaves the memory tools out
      */
     public static ToolRegistry<CompanionEntity> create(IntSupplier mineRadius, MemoryAccess memory) {
-        return build(mineRadius, memory).registry();
+        return build(mineRadius, mineRadius, memory).registry();
     }
 
-    /** Builds the registry and the plan-step lookup together. */
+    /** As {@link #create(IntSupplier, MemoryAccess)}, with its own search radius for the tree tools. */
+    public static ToolRegistry<CompanionEntity> create(
+            IntSupplier mineRadius, IntSupplier treeRadius, MemoryAccess memory) {
+        return build(mineRadius, treeRadius, memory).registry();
+    }
+
+    /** Builds the registry and the plan-step lookup together; the tree tools use the mine radius. */
     public static Builtins build(IntSupplier mineRadius, MemoryAccess memory) {
+        return build(mineRadius, mineRadius, memory);
+    }
+
+    /**
+     * @param treeRadius default search radius for {@code find_trees} and {@code fell_tree}, read on every call
+     */
+    public static Builtins build(IntSupplier mineRadius, IntSupplier treeRadius, MemoryAccess memory) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
         MovementTools.register(registry, defs);

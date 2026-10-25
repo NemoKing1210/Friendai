@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 5;
+    public static final int VERSION = 6;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -70,6 +70,11 @@ public class ServerConfig {
         public boolean defaultFollow = true;
         public int mineSearchRadius = 32;
         public int taskTimeoutSec = 300;
+        public int treeSearchRadius = 32;
+        public boolean fellCollectDrops = true;
+        public boolean mineCollectDrops = true;
+        public boolean treePerception = true;
+        public int treePerceptionRadius = 12;
     }
 
     public static class MemorySection {
@@ -173,6 +178,9 @@ public class ServerConfig {
         chat.guestCooldownMs = clamp(problems, "chat.guestCooldownMs", chat.guestCooldownMs, 0, 60_000);
         tasks.mineSearchRadius = clamp(problems, "tasks.mineSearchRadius", tasks.mineSearchRadius, 4, 64);
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
+        tasks.treeSearchRadius = clamp(problems, "tasks.treeSearchRadius", tasks.treeSearchRadius, 4, 64);
+        tasks.treePerceptionRadius =
+                clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);
         memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 500);
         memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 100);
         memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);

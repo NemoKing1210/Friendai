@@ -132,6 +132,11 @@ public final class FriendaiServerState {
         TaskSettings.taskTimeoutSec = cfg.tasks.taskTimeoutSec;
         TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
         TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
+        TaskSettings.treeSearchRadius = cfg.tasks.treeSearchRadius;
+        TaskSettings.fellCollectDrops = cfg.tasks.fellCollectDrops;
+        TaskSettings.mineCollectDrops = cfg.tasks.mineCollectDrops;
+        TaskSettings.treePerception = cfg.tasks.treePerception;
+        TaskSettings.treePerceptionRadius = cfg.tasks.treePerceptionRadius;
         TaskSettings.pathing = cfg.pathing.toPathingConfig();
         TaskSettings.breakList = BlockList.parse(
                 cfg.pathing.breakBlacklist,
