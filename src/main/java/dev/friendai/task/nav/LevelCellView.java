@@ -70,6 +70,22 @@ public final class LevelCellView implements CellView {
     private final PathingConfig config;
     private final CostModel costs;
     private final Map<Long, Cell> cache = new HashMap<>();
+    /** What breaking a block costs, per block state: independent of where the state stands. */
+    private final Map<BlockState, BreakInfo> breakInfo = new HashMap<>();
+
+    /** Digging and placing off: such a view only classifies terrain, so it never asks the protection rules. */
+    private static final PathingConfig TERRAIN_ONLY = PathingConfig.DEFAULTS.withActions(false, false);
+
+    /** The parts of a break time that depend only on the block state and the tools carried. */
+    private record BreakInfo(boolean blacklisted, boolean log, float toolSpeed, boolean correctTool) {}
+
+    /**
+     * A view that only tells what kind of cell each position is: for checks of the terrain around the companion that
+     * never plan a dig or a placement, which skips the protection and tool lookups a search needs.
+     */
+    public static LevelCellView terrain(CompanionEntity companion) {
+        return new LevelCellView(companion, TERRAIN_ONLY, CostModel.DEFAULTS);
+    }
 
     public LevelCellView(CompanionEntity companion, PathingConfig config, CostModel costs) {
         this.companion = companion;
@@ -99,13 +115,14 @@ public final class LevelCellView implements CellView {
             return Cell.UNLOADED;
         }
         BlockState state = level.getBlockState(pos);
+        if (state.isAir()) {
+            return new Cell(Cell.Kind.AIR, -1, false, mayPlaceAt(pos));
+        }
         VoxelShape shape = state.getCollisionShape(level, pos);
         FluidState fluid = state.getFluidState();
         Cell.Kind kind;
         if (shape.isEmpty() && !fluid.isEmpty()) {
             kind = fluid.is(FluidTags.LAVA) ? Cell.Kind.LAVA : Cell.Kind.WATER;
-        } else if (state.isAir()) {
-            kind = Cell.Kind.AIR;
         } else if (HAZARDS.contains(state.getBlock())) {
             kind = Cell.Kind.HAZARD;
         } else if (isClosedDoor(state)) {
@@ -124,9 +141,13 @@ public final class LevelCellView implements CellView {
                 kind = Cell.Kind.SOLID;
             }
         }
-        boolean placeable = config.allowPlace() && companion.hands().canInteract(pos)
-                && (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER);
+        boolean placeable = (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER) && mayPlaceAt(pos);
         return new Cell(kind, breakTicks(pos, state, kind), state.getBlock() instanceof FallingBlock, placeable);
+    }
+
+    /** Whether a block may be placed here: allowed by the settings and not protected. */
+    private boolean mayPlaceAt(BlockPos pos) {
+        return config.allowPlace() && companion.hands().canInteract(pos);
     }
 
     private static boolean isClosedDoor(BlockState state) {
@@ -148,20 +169,25 @@ public final class LevelCellView implements CellView {
         if (hardness < 0) {
             return -1;
         }
-        if (!companion.hands().canInteract(pos)) {
+        BreakInfo info = breakInfo.computeIfAbsent(state, this::breakInfoOf);
+        if (info.blacklisted() || !companion.hands().canInteract(pos)) {
             return -1;
         }
-        Set<String> tags = tagsOf(state);
-        if (TaskSettings.breakList.matches(idOf(state.getBlock()), tags)) {
-            return -1;
-        }
-        ItemStack tool = bestTool(state);
-        boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
-        int ticks = BreakProgress.ticksToBreak(hardness, tool.getDestroySpeed(state), correct);
-        if (tags.contains("minecraft:logs")) {
+        int ticks = BreakProgress.ticksToBreak(hardness, info.toolSpeed(), info.correctTool());
+        if (info.log()) {
             ticks += costs.logPenalty();
         }
         return ticks;
+    }
+
+    private BreakInfo breakInfoOf(BlockState state) {
+        Set<String> tags = tagsOf(state);
+        if (TaskSettings.breakList.matches(idOf(state.getBlock()), tags)) {
+            return new BreakInfo(true, false, 0f, false);
+        }
+        ItemStack tool = bestTool(state);
+        boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
+        return new BreakInfo(false, tags.contains("minecraft:logs"), tool.getDestroySpeed(state), correct);
     }
 
     private static boolean breakableKind(Cell.Kind kind) {

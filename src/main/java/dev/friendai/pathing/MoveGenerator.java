@@ -156,57 +156,45 @@ public final class MoveGenerator {
 
     private void descend(Node from, Consumer<PathStep> out) {
         for (int[] d : DIRECTIONS) {
-            for (int k = 1; k <= MAX_WATER_DROP; k++) {
-                Node to = new Node(from.x() + d[0], from.y() - k, from.z() + d[1]);
-                if (!enterable(view.at(to.pos())) || !columnClear(to, from)) {
-                    break;
-                }
-                if (!standable(view, to)) {
-                    continue;
-                }
-                boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER;
-                if (k <= MAX_SAFE_FALL || water) {
-                    emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
-                }
-                if (!water && k >= MAX_SAFE_FALL) {
-                    break;
-                }
-            }
+            fall(from, d, out);
         }
     }
 
     private void diagonalDescend(Node from, Consumer<PathStep> out) {
         for (int[] d : DIAGONALS) {
-            if (!cornersClear(from, d)) {
-                continue;
-            }
-            for (int k = 1; k <= MAX_WATER_DROP; k++) {
-                Node to = new Node(from.x() + d[0], from.y() - k, from.z() + d[1]);
-                if (!enterable(view.at(to.pos())) || !columnClear(to, from)) {
-                    break;
-                }
-                if (!standable(view, to)) {
-                    continue;
-                }
-                boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER;
-                if (k <= MAX_SAFE_FALL || water) {
-                    emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
-                }
-                if (!water && k >= MAX_SAFE_FALL) {
-                    break;
-                }
+            if (cornersClear(from, d)) {
+                fall(from, d, out);
             }
         }
     }
 
-    /** The cells between a landing and the companion's head level must be open to fall through. */
-    private boolean columnClear(Node landing, Node from) {
-        for (int y = landing.y() + 1; y <= from.y() + 1; y++) {
-            if (!enterable(view.at(landing.x(), y, landing.z()))) {
-                return false;
+    /**
+     * Steps off the edge toward {@code d} and falls down the column beside the companion. The cells between the
+     * landing and the head level must be open to fall through; the column above the first landing is checked once,
+     * because every deeper landing was only reached through a cell already found open.
+     */
+    private void fall(Node from, int[] d, Consumer<PathStep> out) {
+        int x = from.x() + d[0];
+        int z = from.z() + d[1];
+        if (!enterable(view.at(x, from.y(), z)) || !enterable(view.at(x, from.y() + 1, z))) {
+            return;
+        }
+        for (int k = 1; k <= MAX_WATER_DROP; k++) {
+            Node to = new Node(x, from.y() - k, z);
+            if (!enterable(view.at(to.pos()))) {
+                return;
+            }
+            if (!standable(view, to)) {
+                continue;
+            }
+            boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER;
+            if (k <= MAX_SAFE_FALL || water) {
+                emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
+            }
+            if (!water && k >= MAX_SAFE_FALL) {
+                return;
             }
         }
-        return true;
     }
 
     private void swim(Node from, int headUnderwater, Consumer<PathStep> out) {

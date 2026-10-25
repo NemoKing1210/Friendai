@@ -18,6 +18,9 @@ import java.util.function.LongSupplier;
  */
 public final class PathSearch {
 
+    /** How many nodes are expanded between two reads of the clock. */
+    private static final int CLOCK_INTERVAL = 16;
+
     private record Entry(double f, double h, long sequence, Record record) {}
 
     private static final Comparator<Entry> ORDER = Comparator.comparingDouble(Entry::f)
@@ -85,7 +88,16 @@ public final class PathSearch {
             return finished;
         }
         long begin = nanoClock.getAsLong();
-        while (!open.isEmpty() && expanded < options.maxNodes() && nanoClock.getAsLong() - begin < budgetNanos) {
+        int sinceClock = 0;
+        while (!open.isEmpty() && expanded < options.maxNodes()) {
+            // The clock is a system call: read it every few nodes, and always before the first so a budget of 0
+            // expands nothing.
+            if (sinceClock-- == 0) {
+                if (nanoClock.getAsLong() - begin >= budgetNanos) {
+                    break;
+                }
+                sinceClock = CLOCK_INTERVAL - 1;
+            }
             Entry entry = open.poll();
             Record record = entry.record();
             if (record.stale || record.closed) {

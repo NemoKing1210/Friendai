@@ -1,11 +1,9 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.phys.Vec3;
@@ -38,6 +36,8 @@ public final class MoveHelper {
     private double checkpointDistance;
     private Navigator navigator;
     private Vec3 lastGoal;
+    /** Distance to the owner while following, or NaN: the pace policy runs automatic followers by it. */
+    private double ownerDistance = Double.NaN;
 
     public MoveHelper(double speed, double arriveDistance) {
         this(speed, arriveDistance, 1.0, 16, true);
@@ -58,6 +58,14 @@ public final class MoveHelper {
         this.goalTolerance = goalTolerance;
         this.snapDrop = snapDrop;
         this.mayPlace = mayPlace;
+    }
+
+    /**
+     * Tells the next {@link #tick} that the companion is trailing its owner at this distance, so one pace decision per
+     * tick covers it. Call it every tick while following; {@code NaN} (the default) means not following.
+     */
+    public void following(double ownerDistance) {
+        this.ownerDistance = ownerDistance;
     }
 
     public State tick(PathfinderMob mob, Vec3 target) {
@@ -91,7 +99,7 @@ public final class MoveHelper {
     }
 
     private State tickCompanion(CompanionEntity companion, Vec3 target) {
-        companion.pace().update(false, Double.NaN);
+        companion.pace().update(!Double.isNaN(ownerDistance), ownerDistance);
         if (navigator == null) {
             navigator = new Navigator(companion, mayPlace);
         }
@@ -108,7 +116,7 @@ public final class MoveHelper {
     }
 
     private GoalPoint goalFor(CompanionEntity companion, Vec3 target) {
-        LevelCellView view = new LevelCellView(companion, TaskSettings.pathing, CostModel.DEFAULTS);
+        LevelCellView view = LevelCellView.terrain(companion);
         Pos stand = GoalPoint.snapDown(
                 view,
                 (int) Math.floor(target.x),

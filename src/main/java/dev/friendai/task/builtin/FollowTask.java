@@ -1,9 +1,7 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.task.Task;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.TaskContext;
@@ -77,6 +75,7 @@ public final class FollowTask implements Task {
         if (!moving) {
             return TaskStatus.RUNNING;
         }
+        mover.following(distance);
         switch (mover.tick(c.companion(), target)) {
             case ARRIVED -> {
                 mover.stop(c);
@@ -89,8 +88,6 @@ public final class FollowTask implements Task {
             }
             default -> { }
         }
-        // MoveHelper applies the default non-follow pace; following gets the owner's distance and AUTO hysteresis.
-        c.companion().pace().update(true, distance);
         return TaskStatus.RUNNING;
     }
 
@@ -101,7 +98,7 @@ public final class FollowTask implements Task {
         if (grounded) {
             return owner.position();
         }
-        LevelCellView view = new LevelCellView(c.companion(), TaskSettings.pathing, CostModel.DEFAULTS);
+        LevelCellView view = LevelCellView.terrain(c.companion());
         return GoalPoint.groundBelow(view, owner.getBlockX(), owner.getBlockY(), owner.getBlockZ(), 64)
                 .map(pos -> new Vec3(pos.x() + 0.5, pos.y(), pos.z() + 0.5))
                 .orElse(null);

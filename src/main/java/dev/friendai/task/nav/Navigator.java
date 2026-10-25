@@ -38,6 +38,10 @@ public final class Navigator {
     /** How many times one goal may send the companion out to gather before giving up. */
     private static final int GATHER_ROUNDS = 2;
     private static final double PROGRESS = 1.0;
+    /** A partial route starts searching for its continuation when this many steps remain. */
+    private static final int PREFETCH_LEAD = 8;
+    /** How many leading steps of a new route may be skipped when the companion has already walked past them. */
+    private static final int TRIM_LOOKAHEAD = 8;
 
     private final CompanionEntity companion;
     /** Whether a route may place blocks. Approaching a block to act on it walks and digs, but never builds. */
@@ -58,6 +62,9 @@ public final class Navigator {
     private int availableAtProbe;
     private MaterialGatherer gatherer;
     private int gatherRounds;
+    /** The search for what follows the partial route being walked, started before that route ends. */
+    private PathSearch prefetch;
+    private Node prefetchStart;
 
     public Navigator(CompanionEntity companion) {
         this(companion, true, null);
@@ -127,6 +134,9 @@ public final class Navigator {
         if (search != null) {
             stepSearch(c);
         }
+        if (prefetch != null) {
+            stepPrefetch();
+        }
         if (executor != null) {
             return tickExecutor(c);
         }
@@ -152,6 +162,7 @@ public final class Navigator {
         }
         probing = false;
         search = null;
+        prefetch = null;
         companion.getNavigation().stop();
         companion.setPathing(false);
     }
@@ -226,6 +237,52 @@ public final class Navigator {
         }
     }
 
+    /** Spends the per-tick search budget on the continuation of the route being walked. */
+    private void stepPrefetch() {
+        long budget = config().searchBudgetMs() * 1_000_000L;
+        long begin = System.nanoTime();
+        SearchResult result = prefetch.step(budget, System::nanoTime);
+        searchNanos += System.nanoTime() - begin;
+        if (result.status() == SearchResult.Status.NO_PATH) {
+            prefetch = null;
+        }
+    }
+
+    /**
+     * Starts looking for the route onward from the end of the partial route being walked, so the companion need not
+     * stop at its end and wait for a search.
+     */
+    private void startPrefetch() {
+        PathingConfig settings = config();
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
+        MaterialPicker materials = new MaterialPicker(settings);
+        int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
+        double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
+        prefetchStart = plan.end();
+        prefetch = new PathSearch(view, CostModel.DEFAULTS, goal, prefetchStart,
+                new SearchOptions(settings.maxNodes(), 64, placeable, price));
+    }
+
+    /**
+     * Takes over the continuation search when the companion stands where it starts. The search may still be running;
+     * it then goes on as the ordinary search.
+     */
+    private boolean adoptPrefetch() {
+        PathSearch ahead = prefetch;
+        Node start = prefetchStart;
+        prefetch = null;
+        if (ahead == null || start == null) {
+            return false;
+        }
+        Node here = node();
+        if (Math.abs(here.x() - start.x()) > 1 || Math.abs(here.z() - start.z()) > 1
+                || Math.abs(here.y() - start.y()) > 1) {
+            return false;
+        }
+        search = ahead;
+        return true;
+    }
+
     private void handleSearchResult(TaskContext c, SearchResult result) {
         Path path = result.path();
         StringBuilder line = new StringBuilder("path ").append(describe(goal())).append(": ").append(result.status());
@@ -280,8 +337,9 @@ public final class Navigator {
         if (executor != null) {
             executor.stop(c);
         }
-        plan = path;
-        executor = new PathExecutor(path, new MaterialPicker(config()), config());
+        prefetch = null;
+        plan = path.afterNode(node(), TRIM_LOOKAHEAD);
+        executor = new PathExecutor(plan, new MaterialPicker(config()), config());
         state = State.MOVING;
     }
 
@@ -326,6 +384,10 @@ public final class Navigator {
         PathExecutor.State result = executor.tick(c);
         if (result == PathExecutor.State.RUNNING) {
             state = State.MOVING;
+            if (prefetch == null && search == null && plan != null && plan.partial()
+                    && executor.stepIndex() >= plan.steps().size() - PREFETCH_LEAD) {
+                startPrefetch();
+            }
             return state;
         }
         if (result == PathExecutor.State.FAILED) {
@@ -343,8 +405,13 @@ public final class Navigator {
                 state = State.UNREACHABLE;
                 return state;
             }
-            startSearch();
-            state = State.SEARCHING;
+            if (adoptPrefetch()) {
+                // The continuation is already planned, or well on its way: no pause at the end of the route.
+                stepSearch(c);
+            } else {
+                startSearch();
+            }
+            state = executor != null ? State.MOVING : State.SEARCHING;
             return state;
         }
         if (goalHolds()) {
@@ -378,17 +445,17 @@ public final class Navigator {
 
     private void startSearch() {
         PathingConfig settings = config();
-        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
+        prefetch = null;
         MaterialPicker materials = new MaterialPicker(settings);
         int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
         SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price);
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
 
     private boolean goalHolds() {
-        LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
-        return goal.isGoal(node(), view);
+        return goal.isGoal(node(), new LevelCellView(companion, config(), CostModel.DEFAULTS));
     }
 
     private Node node() {

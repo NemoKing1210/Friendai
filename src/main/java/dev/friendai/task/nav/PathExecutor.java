@@ -241,8 +241,7 @@ public final class PathExecutor {
 
     private State move(TaskContext c, PathStep step) {
         CompanionEntity companion = c.companion();
-        LevelCellView current = new LevelCellView(companion, config, CostModel.DEFAULTS);
-        if (!MoveGenerator.standable(current, step.to())) {
+        if (!MoveGenerator.standable(LevelCellView.terrain(companion), step.to())) {
             return fail(c);
         }
         if (step.move() == Move.DOOR && !doorOpened) {
@@ -317,7 +316,7 @@ public final class PathExecutor {
         if (climbing && !companion.onClimbable() && companion.getY() < target.y() - target.tolerance()) {
             companion.getJumpControl().jump();
         }
-        if (arrived(c, step) && (companion.onGround() || companion.isInWater() || companion.onClimbable())) {
+        if (arrived(c, step, target) && (companion.onGround() || companion.isInWater() || companion.onClimbable())) {
             int next = index + 1;
             if (next >= path.steps().size()) {
                 index = next;
@@ -350,8 +349,7 @@ public final class PathExecutor {
         return state.is(BlockTags.CLIMBABLE) || state.getBlock() instanceof ScaffoldingBlock;
     }
 
-    private boolean arrived(TaskContext c, PathStep step) {
-        FeetTarget target = feetTarget(c, step);
+    private boolean arrived(TaskContext c, PathStep step, FeetTarget target) {
         double dx = c.companion().getX() - (step.to().x() + 0.5);
         double dz = c.companion().getZ() - (step.to().z() + 0.5);
         double radius = arriveRadius(step);
