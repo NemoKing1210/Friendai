@@ -106,4 +106,16 @@ class VoiceDraftTest {
         assertTrue(bothShown.sttReveal());
         assertTrue(bothShown.ttsReveal());
     }
+
+    @Test
+    void toStringNeverPrintsAKey() {
+        VoiceDraft draft = new VoiceDraft(
+                "openai", new VoiceDraft.Cloud("sk-openai-secret", "m", null, null, null, null), false,
+                "elevenlabs", new VoiceDraft.Cloud("el-secret", "m", "voice", null, null, null), false);
+
+        assertFalse(draft.toString().contains("sk-openai-secret"));
+        assertFalse(draft.toString().contains("el-secret"));
+        assertTrue(draft.stt().toString().contains("***"));
+        assertTrue(draft.tts().toString().contains("***"));
+    }
 }

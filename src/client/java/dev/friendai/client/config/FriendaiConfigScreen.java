@@ -107,11 +107,11 @@ public final class FriendaiConfigScreen {
         }
         ClientConfig client = FriendaiClient.clientConfig();
         client.validate();
+        // A rebuild only carries the reveal flags. The config already holds the committed edits:
+        // reopen() applies its fresh draft, and the other rebuilds (profile category, download
+        // completion) read the live config. Re-applying a snapshot here would revert anything
+        // committed after it was taken, such as a key applied by a Test button.
         VoiceDraft voice = voiceDraft == null ? VoiceDraft.from(client) : voiceDraft;
-        if (voiceDraft != null) {
-            // A rebuild passed the widgets' values so a provider switch does not lose them.
-            voice.applyTo(client);
-        }
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder().title(tr("friendai.config.title"));
         if (server != null) {

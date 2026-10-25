@@ -15,7 +15,16 @@ public record VoiceDraft(
 
     /** One provider's cloud values. Only the selected provider's entry is written back. */
     public record Cloud(
-            String apiKey, String model, String voice, String folderId, String baseUrl, String language) {}
+            String apiKey, String model, String voice, String folderId, String baseUrl, String language) {
+
+        /** Never prints the key (rule 7). */
+        @Override
+        public String toString() {
+            return "Cloud[apiKey=" + (apiKey == null || apiKey.isBlank() ? "" : "***")
+                    + ", model=" + model + ", voice=" + voice + ", folderId=" + folderId
+                    + ", baseUrl=" + baseUrl + ", language=" + language + "]";
+        }
+    }
 
     public static VoiceDraft from(ClientConfig config) {
         return from(config, config.voice.stt.provider, config.voice.tts.provider);
@@ -38,6 +47,13 @@ public record VoiceDraft(
 
     public VoiceDraft withTtsReveal(boolean reveal) {
         return new VoiceDraft(sttProvider, stt, sttReveal, ttsProvider, tts, reveal);
+    }
+
+    /** Never prints a key (rule 7); {@link Cloud#toString()} redacts it. */
+    @Override
+    public String toString() {
+        return "VoiceDraft[sttProvider=" + sttProvider + ", stt=" + stt + ", sttReveal=" + sttReveal
+                + ", ttsProvider=" + ttsProvider + ", tts=" + tts + ", ttsReveal=" + ttsReveal + "]";
     }
 
     /** Writes the draft into the live config; the save button persists it. */
