@@ -8,7 +8,9 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /** A companion reply as text, for the client to turn into speech. The chat message travels separately. */
-public record CompanionSpeechS2CPayload(String companion, String text, UUID addressee) implements CustomPacketPayload {
+public record CompanionSpeechS2CPayload(
+        String companion, String text, UUID addressee, UUID companionId, int audibleRange)
+        implements CustomPacketPayload {
     public static final int MAX_NAME = 64;
     public static final int MAX_TEXT = 2000;
     public static final CustomPacketPayload.Type<CompanionSpeechS2CPayload> TYPE =
@@ -18,6 +20,8 @@ public record CompanionSpeechS2CPayload(String companion, String text, UUID addr
                             ByteBufCodecs.stringUtf8(MAX_NAME), CompanionSpeechS2CPayload::companion,
                             ByteBufCodecs.stringUtf8(MAX_TEXT), CompanionSpeechS2CPayload::text,
                             UUIDUtil.STREAM_CODEC, CompanionSpeechS2CPayload::addressee,
+                            UUIDUtil.STREAM_CODEC, CompanionSpeechS2CPayload::companionId,
+                            ByteBufCodecs.VAR_INT, CompanionSpeechS2CPayload::audibleRange,
                             CompanionSpeechS2CPayload::new)
                     .cast();
 

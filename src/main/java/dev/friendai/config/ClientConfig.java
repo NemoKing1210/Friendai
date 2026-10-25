@@ -50,6 +50,8 @@ public class ClientConfig {
         public double volume = 1.0;
         public int maxChars = 300;
         public boolean speakGuests = false;
+        /** Replies come from the companion's position; off plays them centred at full volume. */
+        public boolean spatial = true;
         public String outputDevice = null;
         public LocalTts local = new LocalTts();
         public Map<String, CloudSettings> cloud = new LinkedHashMap<>();

@@ -7,8 +7,8 @@ import java.util.UUID;
 
 /**
  * Decides which companion hears a message. Pure: the caller supplies positions, dimensions and owner
- * presence. Order from the design: own companion within hearing, then the nearest other companion whose
- * owner is online, then own companion wherever it is.
+ * presence. Order from the design: the sender's own companion within hearing, then the nearest other
+ * companion within hearing whose owner is online. A companion that cannot hear the sender never answers.
  */
 public final class CompanionPicker {
     private CompanionPicker() {}
@@ -33,9 +33,6 @@ public final class CompanionPicker {
             if (nearest.isPresent()) {
                 return Optional.of(nearest.get().owner());
             }
-        }
-        if (companions.stream().anyMatch(c -> c.owner().equals(sender))) {
-            return Optional.of(sender);
         }
         return Optional.empty();
     }

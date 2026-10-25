@@ -476,9 +476,16 @@ public final class FriendaiConfigScreen {
                     SpeechRuntime.test();
                 })
                 .build();
+        Option<Boolean> spatial = Option.<Boolean>createBuilder()
+                .name(tr("friendai.config.voice.tts.spatial"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.spatial.tooltip")))
+                .binding(true, () -> tts.spatial, value -> tts.spatial = value)
+                .controller(BooleanControllerBuilder::create)
+                .build();
         synthesis.add(volume);
         synthesis.add(maxChars);
         synthesis.add(outputDeviceOption(tts));
+        synthesis.add(spatial);
         synthesis.add(speakGuests);
         synthesis.add(testVoice);
 

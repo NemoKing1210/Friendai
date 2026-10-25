@@ -272,7 +272,9 @@ public final class BrainService {
                 owner,
                 () -> companion.getName().getString(),
                 () -> config.chat.maxReplyChars,
-                companion::setThinking);
+                companion::setThinking,
+                companion::getUUID,
+                () -> config.chat.hearingRadius);
         Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(companion.getName().getString(), config.companion.persona, config.companion.language),

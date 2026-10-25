@@ -27,6 +27,7 @@
   "friendai.inventory.not_owner": "Только владелец может открыть инвентарь компаньона.",
   "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
+  "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
 
   "friendai.command.stopped": "Остановился.",
   "friendai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",
@@ -180,6 +181,8 @@
   "friendai.config.voice.tts.output_device": "Устройство вывода",
   "friendai.config.voice.tts.output_device.default": "Системное по умолчанию",
   "friendai.config.voice.tts.speak_guests": "Озвучивать ответы другим игрокам",
+  "friendai.config.voice.tts.spatial": "Голос идёт от компаньона",
+  "friendai.config.voice.tts.spatial.tooltip": "Проигрывать реплики из позиции компаньона: панорама слева/справа и затухание с расстоянием. Выключено — все реплики звучат по центру на полной громкости.",
   "friendai.config.voice.tts.test": "Проверить голос",
   "friendai.config.voice.tts.test_result": "Воспроизвожу образец.",
   "friendai.config.voice.tts.paid_notice": "Платно: провайдер списывает деньги за символы. Friendai не повторяет запросы автоматически.",

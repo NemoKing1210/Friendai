@@ -4,19 +4,19 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /** A bounded FIFO of utterances waiting to be synthesized and played; the oldest is dropped when full. */
-public final class SpeechQueue {
+public final class SpeechQueue<T> {
     public static final int CAPACITY = 8;
 
-    private final Deque<String> items = new ArrayDeque<>();
+    private final Deque<T> items = new ArrayDeque<>();
 
-    public void add(String text) {
+    public void add(T item) {
         if (items.size() >= CAPACITY) {
             items.removeFirst();
         }
-        items.addLast(text);
+        items.addLast(item);
     }
 
-    public String poll() {
+    public T poll() {
         return items.pollFirst();
     }
 

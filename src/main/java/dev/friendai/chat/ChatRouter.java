@@ -5,7 +5,9 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import java.util.Optional;
+import java.util.UUID;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Sends chat messages addressed to a companion to the companion that should hear them. */
@@ -19,8 +21,10 @@ public final class ChatRouter {
     public static void onChat(ServerPlayer player, String text) {
         var server = player.level().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        // A yes/no answer to a pending trust request is handled before any companion sees the line.
-        if (state.trust().answer(player, text)) {
+        boolean ownNear = CompanionRouting.ownWithinHearing(player);
+        // A yes/no answer to a pending trust request is handled before any companion sees the line,
+        // but only when the companion is close enough to have heard it.
+        if (ownNear && state.trust().answer(player, text)) {
             return;
         }
         ServerConfig cfg = state.config();
@@ -33,13 +37,17 @@ public final class ChatRouter {
         AddressDetector detector = new AddressDetector(name, cfg.chat.prefix, cfg.chat.respondToName, false);
         Optional<String> addressed = detector.match(text);
         if (addressed.isPresent()) {
-            CompanionRouting.route(player)
-                    .ifPresent(owner ->
-                            CompanionRouting.deliver(player, owner, addressed.get(), BrainEvent.Source.CHAT));
+            Optional<UUID> owner = CompanionRouting.route(player);
+            if (owner.isPresent()) {
+                CompanionRouting.deliver(player, owner.get(), addressed.get(), BrainEvent.Source.CHAT);
+            } else if (CompanionManager.get(server).find(player.getUUID()).isPresent()) {
+                player.sendSystemMessage(Component.translatable("friendai.companion.too_far"));
+            }
             return;
         }
-        // Unaddressed lines only reach the speaker's own companion, never someone else's.
-        if (cfg.chat.listenAll && CompanionManager.get(server).find(player.getUUID()).isPresent()) {
+        // Unaddressed lines only reach the speaker's own companion, never someone else's,
+        // and only when that companion is close enough to hear them.
+        if (cfg.chat.listenAll && ownNear) {
             CompanionRouting.deliver(player, player.getUUID(), text, BrainEvent.Source.CHAT);
         }
     }

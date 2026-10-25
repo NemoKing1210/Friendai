@@ -53,6 +53,9 @@ public class VoiceTests {
     @GameTest(maxTicks = 100)
     public void foreignThreadTrustAnswerIsDeferred(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        // Only a companion close enough to hear the answer may consume it; without one the line
+        // becomes an ordinary guest message to whichever companion is nearby.
+        setUp(h, player);
         var state = FriendaiServerState.get(h.getLevel().getServer());
         UUID target = UUID.randomUUID();
         state.trust().request(player, target, "Bob", true);

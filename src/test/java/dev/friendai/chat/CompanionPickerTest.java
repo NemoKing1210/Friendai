@@ -32,8 +32,13 @@ class CompanionPickerTest {
     }
 
     @Test
-    void ownAnywhereWhenNoForeignNearby() {
-        assertEquals(Optional.of(S), pick(S, List.of(c(S, false, 999, true), c(X, true, 30, true)), 16, true));
+    void ownOutOfRangeIsNotHeard() {
+        assertEquals(Optional.empty(), pick(S, List.of(c(S, true, 40, true), c(X, true, 30, true)), 16, true));
+    }
+
+    @Test
+    void ownInAnotherDimensionIsNotHeard() {
+        assertEquals(Optional.empty(), pick(S, List.of(c(S, false, 3, true)), 16, true));
     }
 
     @Test
@@ -47,8 +52,9 @@ class CompanionPickerTest {
     }
 
     @Test
-    void guestsDisabledFallsBackToOwn() {
-        assertEquals(Optional.of(S), pick(S, List.of(c(S, true, 40, true), c(X, true, 2, true)), 16, false));
+    void guestsDisabledStillNeedsOwnWithinHearing() {
+        assertEquals(Optional.of(S), pick(S, List.of(c(S, true, 10, true), c(X, true, 2, true)), 16, false));
+        assertEquals(Optional.empty(), pick(S, List.of(c(S, true, 40, true), c(X, true, 2, true)), 16, false));
         assertEquals(Optional.empty(), pick(S, List.of(c(X, true, 2, true)), 16, false));
     }
 
