@@ -31,16 +31,20 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
     }
 
     private static double horizontalWeight(CostModel costs) {
-        return Math.max(0, Math.min(costs.walk(),
-                Math.min(costs.diagonal() / Math.sqrt(2.0), (costs.walk() + costs.jump()) / 2.0)));
+        double walk = Math.min(costs.walk(), costs.diagonal() / Math.sqrt(2.0));
+        double jump = (costs.walk() + costs.jump()) / 2.0;
+        double descend = (costs.walk() + costs.fall()) / Math.sqrt(2.0);
+        return Math.max(0, Math.min(Math.min(walk, jump), Math.min(descend, costs.swim())));
     }
 
     private static double upWeight(CostModel costs) {
-        return Math.max(0, Math.min(costs.climb(), costs.walk() + costs.jump()));
+        double jump = Math.min(costs.walk() + costs.jump(), costs.jump() + costs.place());
+        return Math.max(0, Math.min(jump, Math.min(costs.climb(), costs.swim())));
     }
 
     private static double downWeight(CostModel costs) {
-        return Math.max(0, costs.fall());
+        // Dig-descend and a descending climb/swim can be cheaper than the configured fall cost.
+        return Math.max(0, Math.min(Math.min(costs.fall(), costs.walk()), Math.min(costs.climb(), costs.swim())));
     }
 
     /**
