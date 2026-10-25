@@ -5,6 +5,14 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
         implements PathGoal {
 
     @Override
+    public boolean protects(Pos p) {
+        int gx = (int) Math.floor(x);
+        int gy = (int) Math.floor(y);
+        int gz = (int) Math.floor(z);
+        return p.x() == gx && p.z() == gz && (p.y() == gy || p.y() == gy - 1);
+    }
+
+    @Override
     public boolean isGoal(Node n, CellView view) {
         double dx = n.x() + 0.5 - x;
         double dz = n.z() + 0.5 - z;

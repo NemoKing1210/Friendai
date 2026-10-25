@@ -14,6 +14,15 @@ import org.junit.jupiter.api.Test;
 class GoalTest {
 
     @Test
+    void pointProtectsItsCellAndSupport() {
+        GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 0.5, 0.5);
+        assertTrue(goal.protects(new Pos(3, 1, 0)));
+        assertTrue(goal.protects(new Pos(3, 0, 0)));
+        assertFalse(goal.protects(new Pos(3, 2, 0)));
+        assertFalse(goal.protects(new Pos(4, 1, 0)));
+    }
+
+    @Test
     void pointWithinTolerance() {
         GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 1.5, 3.0);
         assertTrue(goal.isGoal(new Node(2, 1, 0), null));
