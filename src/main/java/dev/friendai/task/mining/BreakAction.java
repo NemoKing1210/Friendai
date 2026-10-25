@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -16,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
  * returned state means for its own task.
  */
 public final class BreakAction {
-    public enum State { WORKING, BROKEN, GONE }
+    public enum State { WORKING, BROKEN, GONE, BLOCKED }
 
     private static final int SWING_INTERVAL = 5;
 
@@ -42,8 +43,13 @@ public final class BreakAction {
         ServerLevel level = c.level();
         BlockState state = level.getBlockState(pos);
         if (!stillValid.test(state)) {
-            level.destroyBlockProgress(companion.getId(), pos, -1);
+            stop(c);
             return State.GONE;
+        }
+        if (!companion.hands().canInteract(pos) || occupiesSupport(companion, pos)
+                || state.getDestroySpeed(level, pos) < 0) {
+            stop(c);
+            return State.BLOCKED;
         }
         if (breakNeeded == 0) {
             ToolSelector.equipBest(companion, state);
@@ -62,9 +68,16 @@ public final class BreakAction {
             return State.WORKING;
         }
         level.destroyBlockProgress(companion.getId(), pos, -1);
-        if (level.destroyBlock(pos, true, companion)) {
-            companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
+        if (!stillValid.test(level.getBlockState(pos)) || !companion.hands().canInteract(pos)
+                || occupiesSupport(companion, pos)) {
+            stop(c);
+            return State.BLOCKED;
         }
+        if (!level.destroyBlock(pos, true, companion)) {
+            stop(c);
+            return level.getBlockState(pos).isAir() ? State.GONE : State.BLOCKED;
+        }
+        companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
         broken = true;
         return State.BROKEN;
     }
@@ -72,5 +85,13 @@ public final class BreakAction {
     /** Clears the crack overlay; safe to call at any time. */
     public void stop(TaskContext c) {
         c.level().destroyBlockProgress(c.companion().getId(), pos, -1);
+    }
+
+    private static boolean occupiesSupport(CompanionEntity companion, BlockPos pos) {
+        AABB bounds = companion.getBoundingBox();
+        double top = pos.getY() + 1.0;
+        return Math.abs(bounds.minY - top) < 0.2
+                && bounds.maxX > pos.getX() && bounds.minX < pos.getX() + 1.0
+                && bounds.maxZ > pos.getZ() && bounds.minZ < pos.getZ() + 1.0;
     }
 }

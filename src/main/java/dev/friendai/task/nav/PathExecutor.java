@@ -53,6 +53,7 @@ public final class PathExecutor {
     private final Path path;
     private final MaterialPicker materials;
     private final PathingConfig config;
+    private final PathExecutionGuard guard;
 
     private int index = -1;
     private Phase phase = Phase.CHECK;
@@ -75,9 +76,14 @@ public final class PathExecutor {
     private int nudges;
 
     public PathExecutor(Path path, MaterialPicker materials, PathingConfig config) {
+        this(path, materials, config, PathExecutionGuard.DEFAULT);
+    }
+
+    public PathExecutor(Path path, MaterialPicker materials, PathingConfig config, PathExecutionGuard guard) {
         this.path = path;
         this.materials = materials;
         this.config = config;
+        this.guard = guard;
     }
 
     /** How many steps are finished; the step being worked on starts at this index. */
@@ -186,8 +192,15 @@ public final class PathExecutor {
     }
 
     private State breakCell(TaskContext c) {
+        Pos pos = breaks.get(0);
+        PathStep step = path.steps().get(index);
+        if (!guard.allowBreak(c, step, pos)) {
+            if (action != null) {
+                action.stop(c);
+            }
+            return fail(c);
+        }
         if (action == null) {
-            Pos pos = breaks.get(0);
             action = new BreakAction(new BlockPos(pos.x(), pos.y(), pos.z()));
         }
         return switch (action.tick(c, state -> !state.isAir())) {
@@ -199,6 +212,7 @@ public final class PathExecutor {
                 phase = breaks.isEmpty() ? (places.isEmpty() ? Phase.MOVE : Phase.PLACE) : Phase.BREAK;
                 yield State.RUNNING;
             }
+            case BLOCKED -> fail(c);
         };
     }
 
@@ -247,6 +261,9 @@ public final class PathExecutor {
 
     private State move(TaskContext c, PathStep step) {
         CompanionEntity companion = c.companion();
+        if (!guard.allowMove(c, step)) {
+            return fail(c);
+        }
         if (!MoveGenerator.standable(LevelCellView.terrain(companion), step.to())) {
             return fail(c);
         }
@@ -285,7 +302,8 @@ public final class PathExecutor {
             double horizontal = distance < 1.0e-4 ? 0.0 : 0.12 / distance;
             companion.setDeltaMovement(dx * horizontal, up ? Math.max(velocity.y, 0.2) : velocity.y, dz * horizontal);
         }
-        if (up && (step.move() == Move.CLIMB || step.move() == Move.SWIM || step.move() == Move.ASCEND)
+        if (up && (step.move() == Move.CLIMB || step.move() == Move.SWIM || step.move() == Move.ASCEND
+                || step.move() == Move.DIG_ASCEND)
                 && (climbing || companion.onClimbable() || companion.isInWater())) {
             var velocity = companion.getDeltaMovement();
             // At the top of a scaffold vanilla switches from climbing to a normal jump.  The climb impulse alone
@@ -313,7 +331,7 @@ public final class PathExecutor {
             progressZ = companion.getZ();
             progressTicks = 0;
         }
-        if (step.move() == Move.ASCEND || step.move() == Move.JUMP_GAP
+        if (step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND || step.move() == Move.JUMP_GAP
                 || (step.move() == Move.PILLAR && !jumped)) {
             if (companion.onGround() && needsJump(companion, step, target)) {
                 companion.getJumpControl().jump();
@@ -342,7 +360,7 @@ public final class PathExecutor {
         if (step.move() == Move.PILLAR) {
             return true;
         }
-        if (step.move() == Move.ASCEND) {
+        if (step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND) {
             return companion.getY() < target.y() - 0.3;
         }
         double dx = companion.getX() - (step.from().x() + 0.5);

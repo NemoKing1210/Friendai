@@ -173,6 +173,9 @@ public final class MaterialGatherer {
             case GONE -> {
                 // Something else removed it; the inventory growth decides whether it counted.
             }
+            case BLOCKED -> {
+                // A live protection or safety check refused the block; it did not count as gathered material.
+            }
         }
         action = null;
         return State.WORKING;

@@ -216,12 +216,13 @@ public final class BlockBreaker {
             digging = obstruction;
             dug++;
         }
-        if (digAction.tick(c, state -> !state.isAir()) == BreakAction.State.WORKING) {
+        BreakAction.State digState = digAction.tick(c, state -> !state.isAir());
+        if (digState == BreakAction.State.WORKING) {
             return true;
         }
         digAction = null;
         digging = null;
-        return true;
+        return digState != BreakAction.State.BLOCKED;
     }
 
     private boolean allGone(TaskContext c) {
@@ -238,6 +239,7 @@ public final class BlockBreaker {
             case WORKING -> State.WORKING;
             case BROKEN -> State.BROKEN;
             case GONE -> State.GONE;
+            case BLOCKED -> State.PROTECTED;
         };
     }
 }
