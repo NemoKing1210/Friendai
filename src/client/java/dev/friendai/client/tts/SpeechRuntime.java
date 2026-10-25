@@ -57,7 +57,7 @@ public final class SpeechRuntime {
     private static final VoiceModelManager MODELS = new VoiceModelManager(
             FabricLoader.getInstance().getGameDir().resolve("friendai").resolve("models").resolve("tts"), HTTP);
 
-    private static final SpeechQueue QUEUE = new SpeechQueue();
+    private static final SpeechQueue<String> QUEUE = new SpeechQueue<>();
     private static boolean draining;
     private static int generation;
     private static Plan activePlan;

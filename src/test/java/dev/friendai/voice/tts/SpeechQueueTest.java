@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class SpeechQueueTest {
     @Test
     void keepsTheNewestEightInOrder() {
-        SpeechQueue queue = new SpeechQueue();
+        SpeechQueue<String> queue = new SpeechQueue<>();
         for (int i = 0; i < 10; i++) {
             queue.add("u" + i);
         }
@@ -20,7 +20,7 @@ class SpeechQueueTest {
 
     @Test
     void clearEmptiesTheQueue() {
-        SpeechQueue queue = new SpeechQueue();
+        SpeechQueue<String> queue = new SpeechQueue<>();
         queue.add("one");
         queue.add("two");
         queue.clear();
@@ -30,6 +30,15 @@ class SpeechQueueTest {
 
     @Test
     void pollOnEmptyReturnsNull() {
-        assertNull(new SpeechQueue().poll());
+        assertNull(new SpeechQueue<String>().poll());
+    }
+
+    @Test
+    void keepsEntriesOfDifferentPlansInOrder() {
+        SpeechQueue<String> queue = new SpeechQueue<>();
+        queue.add("first");
+        queue.add("second");
+        assertEquals("first", queue.poll());
+        assertEquals("second", queue.poll());
     }
 }
