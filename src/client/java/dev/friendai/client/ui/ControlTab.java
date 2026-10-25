@@ -5,6 +5,7 @@ import dev.friendai.debug.RequestType;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
 /** Companion actions and a short status block. */
@@ -20,15 +21,27 @@ final class ControlTab implements MenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         int y = top + 56;
-        summon = host.add(Button.builder(Component.translatable("friendai.menu.summon"),
-                b -> CompanionRequests.send(RequestType.SUMMON)).bounds(left, y, BUTTON_WIDTH, 20).build());
-        teleport = host.add(Button.builder(Component.translatable("friendai.menu.teleport"),
-                b -> CompanionRequests.send(RequestType.TELEPORT)).bounds(left + BUTTON_WIDTH + GAP, y, BUTTON_WIDTH, 20).build());
-        dismiss = host.add(Button.builder(Component.translatable("friendai.menu.dismiss"),
-                b -> CompanionRequests.send(RequestType.DISMISS)).bounds(left, y + 24, BUTTON_WIDTH, 20).build());
-        stop = host.add(Button.builder(Component.translatable("friendai.menu.stop"),
-                b -> CompanionRequests.send(RequestType.STOP)).bounds(left + BUTTON_WIDTH + GAP, y + 24, BUTTON_WIDTH, 20).build());
+        Component summonLabel = Component.translatable("friendai.menu.summon");
+        Component teleportLabel = Component.translatable("friendai.menu.teleport");
+        Component dismissLabel = Component.translatable("friendai.menu.dismiss");
+        Component stopLabel = Component.translatable("friendai.menu.stop");
+        int labelWidth = Math.max(Math.max(host.font().width(summonLabel), host.font().width(teleportLabel)),
+                Math.max(host.font().width(dismissLabel), host.font().width(stopLabel)));
+        int buttonWidth = Math.min(Math.max(1, (width - GAP) / 2), Math.max(BUTTON_WIDTH, labelWidth + 16));
+        int secondColumn = left + buttonWidth + GAP;
+        summon = addButton(host, summonLabel, RequestType.SUMMON, left, y, buttonWidth);
+        teleport = addButton(host, teleportLabel, RequestType.TELEPORT, secondColumn, y, buttonWidth);
+        dismiss = addButton(host, dismissLabel, RequestType.DISMISS, left, y + 24, buttonWidth);
+        stop = addButton(host, stopLabel, RequestType.STOP, secondColumn, y + 24, buttonWidth);
         tick();
+    }
+
+    private static Button addButton(Host host, Component label, RequestType request, int x, int y, int width) {
+        Button.Builder builder = Button.builder(label, b -> CompanionRequests.send(request)).bounds(x, y, width, 20);
+        if (host.font().width(label) + 16 > width) {
+            builder.tooltip(Tooltip.create(label));
+        }
+        return host.add(builder.build());
     }
 
     @Override
