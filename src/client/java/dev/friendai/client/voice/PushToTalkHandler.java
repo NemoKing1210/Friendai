@@ -56,8 +56,9 @@ public final class PushToTalkHandler {
         if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {
             return;
         }
-        if (!stt.get().isReady()) {
-            VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_model"));
+        VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus();
+        if (!status.ready()) {
+            VoiceState.set(VoiceState.Kind.ERROR, status.problem());
             return;
         }
         try {

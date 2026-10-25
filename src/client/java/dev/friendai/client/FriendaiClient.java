@@ -54,6 +54,9 @@ public class FriendaiClient implements ClientModInitializer {
     /** Replaces the in-memory client config (used by the settings screen after saving). */
     public static synchronized void setClientConfig(ClientConfig config) {
         clientConfig = config;
+        // Both runtimes rebuild their engines lazily, so a changed provider or key takes effect at once.
+        VoiceRuntime.invalidate();
+        SpeechRuntime.invalidate();
     }
 
     @Override
