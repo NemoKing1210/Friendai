@@ -60,6 +60,15 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         }
     }
 
+    /**
+     * The menu is live: the server only sends snapshots and answers requests while it ticks, and a pausing screen
+     * freezes the integrated server, which left every tab empty and every button dead.
+     */
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
     @Override
     public void onClose() {
         minecraft.setScreenAndShow(parent);
@@ -174,7 +183,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private void drawConnection(GuiGraphicsExtractor g) {
-        boolean connected = CompanionRequests.serverSupported() && (minecraft.isPaused() || !CompanionClientState.isStale());
+        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
         Component label = Component.translatable(connected ? "friendai.menu.connected" : "friendai.menu.no_data");
         int color = connected ? Ui.GOOD : Ui.BAD;
         int x = left + contentWidth - font.width(label);
