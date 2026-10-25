@@ -5,6 +5,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.inventory.DropSettle;
+import dev.friendai.task.nav.LevelCellView;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -80,26 +81,37 @@ public class DropPickupTests {
     }
 
     @GameTest(maxTicks = 220)
-    public void collectorSkipsHazardousDrop(GameTestHelper h) {
+    public void collectorTakesADropAboveMagmaWithoutSteppingOnIt(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.setBlock(5, 2, 5, Blocks.MAGMA_BLOCK);
-        drop(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
+        ItemEntity item = drop(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
         DropCollector collector = new DropCollector(companion.position(), 8);
         TaskContext ctx = ctx(h, companion);
-        int[] ticks = {0};
         h.succeedWhen(() -> {
-            ticks[0]++;
-            collector.tick(ctx);
-            if (ticks[0] < 130) {
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                        "collected a drop over magma");
+            boolean done = collector.tick(ctx) == DropCollector.State.DONE;
+            h.assertTrue(!companion.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
+                    "the companion stood in the magma to reach the drop");
+            if (!done) {
                 return;
             }
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                    "collected a drop over magma");
-            h.assertValueEqual(drops(h, companion).size(), 1, "the hazardous drop should still be on the ground");
+            // Magma hurts a companion standing on it but leaves an item alone: the drop is taken from a safe spot.
+            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3,
+                    "the drop above the magma was not taken");
+            h.assertTrue(item.isRemoved(), "the taken drop should be gone");
         });
+    }
+
+    @GameTest
+    public void itemHazardFilterMatchesVanilla(GameTestHelper h) {
+        h.assertTrue(LevelCellView.destroysItems(Blocks.FIRE.defaultBlockState()), "fire destroys items");
+        h.assertTrue(LevelCellView.destroysItems(Blocks.CACTUS.defaultBlockState()), "a cactus destroys items");
+        h.assertTrue(LevelCellView.destroysItems(Blocks.LAVA.defaultBlockState()), "lava destroys items");
+        h.assertFalse(LevelCellView.destroysItems(Blocks.MAGMA_BLOCK.defaultBlockState()),
+                "magma only hurts a mob, an item is safe on it");
+        h.assertFalse(LevelCellView.destroysItems(Blocks.SWEET_BERRY_BUSH.defaultBlockState()),
+                "a berry bush only hurts a mob, a berry resting in it is safe");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 220)

@@ -53,6 +53,18 @@ public final class LevelCellView implements CellView {
         return state.getFluidState().is(FluidTags.LAVA) || HAZARDS.contains(state.getBlock());
     }
 
+    /**
+     * Whether a block or the fluid in it destroys an item lying in it. Fire, lava and a cactus do; the blocks that
+     * only hurt a mob standing there (magma, a berry bush, powder snow, dripstone, a campfire) leave items alone.
+     * A drop resting in one of those is still worth taking, and the walking still keeps out of the cell itself.
+     */
+    public static boolean destroysItems(BlockState state) {
+        return state.getFluidState().is(FluidTags.LAVA)
+                || state.is(Blocks.FIRE)
+                || state.is(Blocks.SOUL_FIRE)
+                || state.is(Blocks.CACTUS);
+    }
+
     private final CompanionEntity companion;
     private final ServerLevel level;
     private final PathingConfig config;

@@ -27,9 +27,9 @@ import org.jetbrains.annotations.Nullable;
  * few at a time and gives up on a drop that is hazardous, sealed away, or out of room in the inventory.
  *
  * <p>A collector never changes the terrain: the route digs and builds nothing. It never takes a drop the companion
- * threw itself, and it leaves anything lying in or on fire, lava or another hazard; a drop still inside the vanilla
- * pickup delay is waited for rather than skipped. A hostile nearby pauses the walking; what lies at its feet is still
- * taken.
+ * threw itself, and it leaves anything lying in fire, lava or a cactus, where the item itself would not survive; a
+ * drop still inside the vanilla pickup delay is waited for rather than skipped. A hostile nearby pauses the walking;
+ * what lies at its feet is still taken.
  *
  * <p>Tick it once per server tick, from a task or a path executor, on the server thread. It stops walking by itself
  * when it is done, when it runs out of time, or through {@link #stop(TaskContext)}.
@@ -166,11 +166,12 @@ public final class DropCollector {
         return e.onGround() || e.isInWater();
     }
 
-    /** A drop that would hurt the companion that walked to it, or destroy itself there. */
+    /**
+     * A drop that is not being destroyed where it lies. The companion's own walk stays out of hazard cells; the drop
+     * itself only needs the cell not to eat it, so a berry that rested in its bush or a steak on a campfire is taken.
+     */
     private static boolean safe(ItemEntity e) {
-        BlockPos pos = e.blockPosition();
-        return !LevelCellView.hazardous(e.level().getBlockState(pos))
-                && !LevelCellView.hazardous(e.level().getBlockState(pos.below()));
+        return !LevelCellView.destroysItems(e.level().getBlockState(e.blockPosition()));
     }
 
     private Set<Pos> positions() {

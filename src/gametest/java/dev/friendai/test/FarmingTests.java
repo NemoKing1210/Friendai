@@ -204,6 +204,26 @@ public class FarmingTests {
     }
 
     @GameTest(maxTicks = 800)
+    public void harvestsSweetBerries(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 1, 4, Blocks.DIRT);
+        h.setBlock(4, 2, 4, Blocks.SWEET_BERRY_BUSH.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE, 3));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        FarmPass pass = pass(h, 4, 2, 4, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(pass.tick(ctx), "pass not done yet");
+            int berries = c.inventory().countItem(Items.SWEET_BERRIES);
+            h.assertTrue(berries > 0, "the berries the bush dropped must be collected: " + pass.report().harvested());
+            h.assertValueEqual(pass.report().harvested().get("minecraft:sweet_berries"), berries,
+                    "the report counts the berries the companion took " + pass.report().harvested());
+            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).getValue(
+                    net.minecraft.world.level.block.SweetBerryBushBlock.AGE) < 3, "the bush was picked");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
     public void plantsGivenCrop(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int x = 4; x <= 5; x++) {

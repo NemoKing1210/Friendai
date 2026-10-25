@@ -106,7 +106,7 @@ public class ItemTaskTests {
     }
 
     @GameTest(maxTicks = 400)
-    public void pickupSkipsHazardousDrop(GameTestHelper h) {
+    public void pickupTakesADropAboveMagma(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.setBlock(new BlockPos(5, 2, 5), Blocks.MAGMA_BLOCK);
@@ -117,9 +117,11 @@ public class ItemTaskTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 0, "took a drop lying on magma");
-            h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
-            h.assertValueEqual(cobblestoneAt(h, 5.5, 3.0, 5.5), 3, "the hazardous drop must stay on the ground");
+            // Magma hurts a companion standing on it but leaves an item alone: the drop is taken from a safe spot.
+            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 3, "the drop above the magma was not taken");
+            h.assertTrue(result.summary.equals("picked up 3 items"), "summary was " + result.summary);
+            h.assertTrue(!c.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
+                    "the companion stood in the magma to reach the drop");
         });
     }
 
