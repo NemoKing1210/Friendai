@@ -19,7 +19,7 @@ The mod must be installed on both the client and the server (the integrated serv
 2. In a world, run `/friendai summon`. Your companion appears next to you.
 3. Talk to it:
    - in chat with a prefix: `@ come here`
-   - in chat by name: `Friendai, mine 10 logs`
+   - in chat by name: `Friendai, mine 10 logs` or `Friendai, chop the tree next to me`
    - by voice: hold **V** (push-to-talk, rebindable in Controls) and speak.
 4. `/friendai stop` cancels what it is doing, `/friendai dismiss` sends it away, `/friendai status` shows the provider and current task.
 

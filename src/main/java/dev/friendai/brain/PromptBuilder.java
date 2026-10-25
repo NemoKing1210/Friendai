@@ -57,6 +57,9 @@ public final class PromptBuilder {
                 + "- For a goal that needs several actions in a row, send them all at once with run_plan instead of one tool per turn. Check facts first with get_inventory or find_blocks when unsure.\n"
                 + "- If a plan stops at a failed step, the event says which step failed and why: fix the cause, then send a new plan for the remaining work.\n"
                 + "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
+                + "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It fells that whole tree from the lowest log up. Pass limit only when the player asks for a few logs or to hurry; pass collect:false only when speed matters more than the drops.\n"
+                + "- When the player says 'near me', near: \"me\" is the default for the tree tools and means their position; near: \"self\" means yours.\n"
+                + "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
                 + "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.\n"
                 + (seesSpeakerView
                         ? "- \"The block I'm looking at / standing on\" means the speaker's: read it from the Owner or Speaker lines or call player_view, then use those coordinates (for example with mine_block_at). If it says out of sight, say you can't see them; never guess.\n"

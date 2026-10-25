@@ -24,6 +24,16 @@ class PromptBuilderTest {
     }
 
     @Test
+    void treeRules() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("To chop a tree"), s);
+        assertTrue(s.contains("find_trees"), s);
+        assertTrue(s.contains("fell_tree"), s);
+        assertTrue(s.contains("near: \"me\""), s);
+        assertTrue(s.contains("limit"), s);
+    }
+
+    @Test
     void languageAutoInstruction() {
         assertTrue(system(new Persona("F", "d", "auto"), "p").contains("Reply in the same language the player uses"));
         assertTrue(system(new Persona("F", "d", "Russian"), "p").contains("Always reply in Russian"));
