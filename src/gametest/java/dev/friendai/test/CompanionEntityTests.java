@@ -127,6 +127,27 @@ public class CompanionEntityTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 100)
+    public void filteredCollectionWaitsForThePickupDelay(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var pos = companion.position();
+        ItemEntity item = new ItemEntity(h.getLevel(), pos.x + 1, pos.y, pos.z, new ItemStack(Items.COBBLESTONE, 2));
+        item.setDefaultPickUpDelay();
+        h.getLevel().addFreshEntity(item);
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            companion.collectNearbyItems(2.0, e -> !e.hasPickUpDelay());
+            if (ticks[0] < 8) {
+                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0, "collected too early");
+            }
+            if (ticks[0] >= 15) {
+                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 2,
+                        "not collected after the delay");
+            }
+        });
+    }
+
     @GameTest
     public void dismissRemovesCompanion(GameTestHelper h) {
         ServerPlayer player = mockPlayerHere(h);

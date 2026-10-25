@@ -48,6 +48,11 @@ public final class LevelCellView implements CellView {
             Blocks.CAMPFIRE,
             Blocks.SOUL_CAMPFIRE);
 
+    /** Whether a block or the fluid in it would hurt a companion that stood there. */
+    public static boolean hazardous(BlockState state) {
+        return state.getFluidState().is(FluidTags.LAVA) || HAZARDS.contains(state.getBlock());
+    }
+
     private final CompanionEntity companion;
     private final ServerLevel level;
     private final PathingConfig config;

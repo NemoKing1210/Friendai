@@ -139,6 +139,16 @@ public class PathingTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 20)
+    public void hazardPredicateCoversLavaAndFire(GameTestHelper h) {
+        h.assertTrue(LevelCellView.hazardous(Blocks.LAVA.defaultBlockState()), "lava");
+        h.assertTrue(LevelCellView.hazardous(Blocks.FIRE.defaultBlockState()), "fire");
+        h.assertTrue(LevelCellView.hazardous(Blocks.CACTUS.defaultBlockState()), "cactus");
+        h.assertFalse(LevelCellView.hazardous(Blocks.STONE.defaultBlockState()), "stone");
+        h.assertFalse(LevelCellView.hazardous(Blocks.WATER.defaultBlockState()), "water");
+        h.succeed();
+    }
+
     @GameTest
     public void materialPickerPrefersDirt(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -547,13 +548,17 @@ public class CompanionEntity extends PathfinderMob {
 
     /** Moves dropped item stacks within {@code radius} into the inventory. Returns the number of items moved. */
     public int collectNearbyItems(double radius) {
+        return collectNearbyItems(radius, entity -> true);
+    }
+
+    /** Moves dropped stacks within {@code radius} that pass {@code filter}; returns the number of items moved. */
+    public int collectNearbyItems(double radius, Predicate<ItemEntity> filter) {
         int moved = 0;
         List<ItemEntity> items = level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(radius));
         for (ItemEntity entity : items) {
-            if (!canCollect(entity)) {
-                continue;
+            if (canCollect(entity) && filter.test(entity)) {
+                moved += storeItem(entity);
             }
-            moved += storeItem(entity);
         }
         return moved;
     }
