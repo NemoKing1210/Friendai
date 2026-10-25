@@ -5,9 +5,9 @@ import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
+import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.mining.BreakAction;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +38,7 @@ public final class PathExecutor {
 
     private final Path path;
     private final MaterialPicker materials;
+    private final PathingConfig config;
 
     private int index = -1;
     private Phase phase = Phase.CHECK;
@@ -52,9 +53,10 @@ public final class PathExecutor {
     private double stepStartY;
     private int lowestY;
 
-    public PathExecutor(Path path, MaterialPicker materials) {
+    public PathExecutor(Path path, MaterialPicker materials, PathingConfig config) {
         this.path = path;
         this.materials = materials;
+        this.config = config;
     }
 
     /** How many steps are finished; the step being worked on starts at this index. */
@@ -118,7 +120,7 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        LevelCellView view = new LevelCellView(c.companion(), TaskSettings.pathing, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);
             BlockState state = stateAt(c, pos);

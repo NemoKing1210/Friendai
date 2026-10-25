@@ -62,4 +62,10 @@ public record PathingConfig(
         breakBlacklist = List.copyOf(breakBlacklist);
         placeBlacklist = List.copyOf(placeBlacklist);
     }
+
+    /** A copy with digging and placing switched; every limit and blacklist is kept. */
+    public PathingConfig withActions(boolean allowBreak, boolean allowPlace) {
+        return new PathingConfig(allowBreak, allowPlace, breakBlacklist, placeBlacklist,
+                searchBudgetMs, maxNodes, maxGatherBlocks);
+    }
 }
