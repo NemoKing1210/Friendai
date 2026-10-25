@@ -10,8 +10,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Walks to one of the blocks it was given, breaks the one it reached and collects the drops. The caller decides what
- * each returned {@link State} means for its own task ({@code mine_blocks} searches again, {@code mine_block_at} fails).
+ * Walks to one of the blocks it was given and breaks the one it reached. The drop falls to the ground where a
+ * player's would, so the caller sweeps it up. The caller decides what each returned {@link State} means for its own
+ * task ({@code mine_blocks} searches again, {@code mine_block_at} fails).
  *
  * <p>Unless the caller says otherwise, the block must be in the companion's line of sight, as vanilla targeting
  * requires for a player: a block behind leaves or a wall cannot be mined through them. When the current stance has

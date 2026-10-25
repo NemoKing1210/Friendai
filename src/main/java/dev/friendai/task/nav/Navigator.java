@@ -20,6 +20,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Gets one companion to a {@link PathGoal}: searches with a per-tick time budget, executes the route, re-plans when a
@@ -45,6 +46,8 @@ public final class Navigator {
     private final CompanionEntity companion;
     /** Whether a route may place blocks. Approaching a block to act on it walks and digs, but never builds. */
     private final boolean mayPlace;
+    /** Settings for this route, or null to read the live server settings on every use. */
+    private final @Nullable PathingConfig override;
     private PathGoal goal;
     private PathSearch search;
     private Path plan;
@@ -65,7 +68,7 @@ public final class Navigator {
     private int gatherRounds;
 
     public Navigator(CompanionEntity companion) {
-        this(companion, true);
+        this(companion, true, null);
     }
 
     /**
@@ -74,8 +77,22 @@ public final class Navigator {
      *     brought for its own work, and a pillar of scaffold blocks would spend both.
      */
     public Navigator(CompanionEntity companion, boolean mayPlace) {
+        this(companion, mayPlace, null);
+    }
+
+    /**
+     * @param override settings for this route only, or null to read the live server settings. A collector that must
+     *     not change the terrain walks with digging and placing switched off.
+     */
+    public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override) {
         this.companion = companion;
         this.mayPlace = mayPlace;
+        this.override = override;
+    }
+
+    /** The settings this route uses: its own, or the live server settings. */
+    private PathingConfig config() {
+        return override != null ? override : TaskSettings.pathing;
     }
 
     public State state() {
@@ -168,12 +185,12 @@ public final class Navigator {
 
     /** Searches once more as if the companion carried every block it needs, to learn how many it is short of. */
     private void beginProbe() {
-        PathingConfig config = TaskSettings.pathing;
-        LevelCellView view = new LevelCellView(companion, config, CostModel.DEFAULTS);
-        availableAtProbe = new MaterialPicker(config).count(companion.inventory());
+        PathingConfig settings = config();
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
+        availableAtProbe = new MaterialPicker(settings).count(companion.inventory());
         probing = true;
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(),
-                new SearchOptions(config.maxNodes(), 64, Integer.MAX_VALUE, 1));
+                new SearchOptions(settings.maxNodes(), 64, Integer.MAX_VALUE, 1));
         state = State.SEARCHING;
     }
 
@@ -184,7 +201,7 @@ public final class Navigator {
         }
         int missing = path.places() - availableAtProbe;
         // A few spare blocks: an extra bridge cell or a pillar is cheaper to gather now than to walk back for.
-        int needed = Math.min(missing + 4, TaskSettings.pathing.maxGatherBlocks());
+        int needed = Math.min(missing + 4, config().maxGatherBlocks());
         gatherer = new MaterialGatherer(needed, avoidCells(path));
         state = State.GATHERING;
     }
@@ -211,7 +228,7 @@ public final class Navigator {
     }
 
     private void stepSearch(TaskContext c) {
-        long budget = TaskSettings.pathing.searchBudgetMs() * 1_000_000L;
+        long budget = config().searchBudgetMs() * 1_000_000L;
         long begin = System.nanoTime();
         SearchResult result = search.step(budget, System::nanoTime);
         searchNanos += System.nanoTime() - begin;
@@ -249,7 +266,7 @@ public final class Navigator {
             return;
         }
         if (result.status() == SearchResult.Status.NO_PATH || path == null || path.steps().isEmpty()) {
-            if (!mayPlace || !TaskSettings.pathing.allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+            if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
                 state = State.UNREACHABLE;
                 return;
             }
@@ -261,7 +278,7 @@ public final class Navigator {
             executor.stop(c);
         }
         plan = path;
-        executor = new PathExecutor(path, new MaterialPicker(TaskSettings.pathing));
+        executor = new PathExecutor(path, new MaterialPicker(config()), config());
         state = State.MOVING;
     }
 
@@ -313,12 +330,12 @@ public final class Navigator {
     }
 
     private void startSearch() {
-        PathingConfig config = TaskSettings.pathing;
-        LevelCellView view = new LevelCellView(companion, config, CostModel.DEFAULTS);
-        MaterialPicker materials = new MaterialPicker(config);
+        PathingConfig settings = config();
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
+        MaterialPicker materials = new MaterialPicker(settings);
         int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
-        SearchOptions options = new SearchOptions(config.maxNodes(), 64, placeable, price);
+        SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price);
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
 
@@ -391,7 +408,7 @@ public final class Navigator {
     }
 
     private boolean goalHolds() {
-        LevelCellView view = new LevelCellView(companion, TaskSettings.pathing, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
         return goal.isGoal(node(), view);
     }
 

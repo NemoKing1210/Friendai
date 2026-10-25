@@ -5,6 +5,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Animals;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.nav.Approach;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,6 +26,8 @@ import net.minecraft.world.phys.Vec3;
 /** Shears ready sheep or mooshrooms and collects the drops. */
 public final class ShearTask implements Task {
     private static final int RADIUS = 16;
+    /** How long the fleece gets to land and leave its pickup delay before the task moves on. */
+    private static final int SETTLE_TICKS = 12;
 
     private final EntityType<?> type;
     private final int count;
@@ -40,6 +43,9 @@ public final class ShearTask implements Task {
     private Animal target;
     private Approach approach;
     private int sheared;
+    /** The wait for a fleece to land, and what the companion carried when the shears were used. */
+    private DropSettle settle;
+    private Map<Item, Integer> settleBefore;
 
     public ShearTask(EntityType<?> type, int count) {
         this.type = type;
@@ -72,6 +78,15 @@ public final class ShearTask implements Task {
                 failed = true;
                 return TaskStatus.FAILED;
             }
+        }
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return TaskStatus.RUNNING;
+            }
+            mergeGained(settleBefore, itemCounts(c.companion()));
+            settle = null;
+            settleBefore = null;
+            return TaskStatus.RUNNING;
         }
         if (sheared >= count) {
             return finish();
@@ -106,10 +121,9 @@ public final class ShearTask implements Task {
             approach = null;
             return finish();
         }
-        Map<Item, Integer> before = itemCounts(c.companion());
+        settleBefore = itemCounts(c.companion());
         InteractionResult result = c.companion().hands().interact(target, shears);
-        c.companion().collectNearbyItems(4.0);
-        mergeGained(before, itemCounts(c.companion()));
+        settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
         if (result.consumesAction()) {
             sheared++;
         } else {
@@ -122,6 +136,7 @@ public final class ShearTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         c.companion().getNavigation().stop();
     }
 

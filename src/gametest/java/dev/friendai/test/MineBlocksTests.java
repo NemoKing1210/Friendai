@@ -11,11 +11,14 @@ import dev.friendai.task.mining.BlockMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class MineBlocksTests {
     private static final class Result implements TaskListener {
@@ -382,5 +385,98 @@ public class MineBlocksTests {
             h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 0, "the log must be mined");
             h.assertTrue(h.getBlockState(new BlockPos(5, 2, 2)).is(Blocks.OAK_LEAVES), "the leaves must stay");
         });
+    }
+
+    /**
+     * A mined block drops its item the way a player's does: it lands on the ground and lies there for the vanilla
+     * pickup delay before the companion takes it, instead of vanishing into the inventory on the break tick.
+     */
+    @GameTest(maxTicks = 600)
+    public void minedDropFallsBeforeItIsCollected(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(6, 2, 2);
+        h.setBlock(log, Blocks.ACACIA_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
+        int[] ticks = {0};
+        int[] brokenAt = {-1};
+        boolean[] sawItem = {false};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            runner.tick();
+            if (h.getLevel().getBlockState(h.absolutePos(log)).isAir()) {
+                if (brokenAt[0] < 0) {
+                    brokenAt[0] = ticks[0];
+                }
+                if (!h.getLevel()
+                        .getEntitiesOfClass(ItemEntity.class, new AABB(h.absolutePos(log)).inflate(2.0))
+                        .isEmpty()) {
+                    sawItem[0] = true;
+                }
+                if (ticks[0] - brokenAt[0] < 8) {
+                    h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 0,
+                            "the drop was taken on the break tick");
+                }
+            }
+            if (result.status != null) {
+                h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+                h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 1, "the mined log must be collected");
+                h.assertTrue(sawItem[0], "no item entity was seen on the ground");
+            }
+        });
+    }
+
+    /**
+     * A drop the companion can never reach must not hold up the job: the mined log still counts and the task still
+     * finishes, leaving the sealed drop where it lies.
+     */
+    @GameTest(maxTicks = 1200)
+    public void pickupDoesNotStallMining(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(6, 2, 2);
+        h.setBlock(log, Blocks.ACACIA_LOG);
+        sealDrop(h, 10, 3, 2);
+        dropItem(h, 10.5, 3.0, 2.5, new ItemStack(Items.COBBLESTONE, 3));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 1, "the mined log must be collected");
+            h.assertValueEqual(sealedItems(h), 3, "the sealed drop must stay on the ground");
+        });
+    }
+
+    /** A stone box around one cell, so a drop inside it can be seen by the search but never reached. */
+    private static void sealDrop(GameTestHelper h, int x, int y, int z) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    h.setBlock(new BlockPos(x + dx, y + dy, z + dz),
+                            dx == 0 && dy == 0 && dz == 0 ? Blocks.AIR : Blocks.STONE);
+                }
+            }
+        }
+    }
+
+    private static int sealedItems(GameTestHelper h) {
+        return h.getLevel()
+                .getEntitiesOfClass(ItemEntity.class, new AABB(h.absolutePos(new BlockPos(10, 3, 2))))
+                .stream()
+                .filter(e -> e.getItem().is(Items.COBBLESTONE))
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
+    }
+
+    private static ItemEntity dropItem(GameTestHelper h, double x, double y, double z, ItemStack stack) {
+        Vec3 p = h.absoluteVec(new Vec3(x, y, z));
+        ItemEntity e = new ItemEntity(h.getLevel(), p.x, p.y, p.z, stack);
+        e.setDeltaMovement(Vec3.ZERO);
+        h.getLevel().addFreshEntity(e);
+        return e;
     }
 }

@@ -11,23 +11,20 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Breaks one block over time: equips the best tool, swings, shows the crack overlay, destroys the block and picks
- * up its drops. The caller decides what each returned state means for its own task.
+ * Breaks one block over time: equips the best tool, swings, shows the crack overlay and destroys the block. The drop
+ * falls to the ground the way a player's does, so collecting it is the caller's job. The caller decides what each
+ * returned state means for its own task.
  */
 public final class BreakAction {
     public enum State { WORKING, BROKEN, GONE }
 
-    private static final int COLLECT_TICKS = 10;
-    private static final double COLLECT_RADIUS = 4.0;
     private static final int SWING_INTERVAL = 5;
 
-    private enum Phase { BREAK, COLLECT, DONE }
-
     private final BlockPos pos;
-    private Phase phase = Phase.BREAK;
+    /** Whether the block is already broken: the action then keeps reporting it, however often it is ticked. */
+    private boolean broken;
     private int breakTicks;
     private int breakNeeded;
-    private int collectTicks;
 
     public BreakAction(BlockPos pos) {
         this.pos = pos;
@@ -38,19 +35,9 @@ public final class BreakAction {
     }
 
     public State tick(TaskContext c, Predicate<BlockState> stillValid) {
-        return switch (phase) {
-            case BREAK -> breakTick(c, stillValid);
-            case COLLECT -> collect(c);
-            case DONE -> State.BROKEN;
-        };
-    }
-
-    /** Clears the crack overlay; safe to call at any time. */
-    public void stop(TaskContext c) {
-        c.level().destroyBlockProgress(c.companion().getId(), pos, -1);
-    }
-
-    private State breakTick(TaskContext c, Predicate<BlockState> stillValid) {
+        if (broken) {
+            return State.BROKEN;
+        }
         var companion = c.companion();
         ServerLevel level = c.level();
         BlockState state = level.getBlockState(pos);
@@ -71,23 +58,19 @@ public final class BreakAction {
         }
         breakTicks++;
         level.destroyBlockProgress(companion.getId(), pos, Math.min(9, breakTicks * 10 / breakNeeded));
-        if (breakTicks >= breakNeeded) {
-            level.destroyBlockProgress(companion.getId(), pos, -1);
-            if (level.destroyBlock(pos, true, companion)) {
-                companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
-            }
-            collectTicks = 0;
-            phase = Phase.COLLECT;
+        if (breakTicks < breakNeeded) {
+            return State.WORKING;
         }
-        return State.WORKING;
+        level.destroyBlockProgress(companion.getId(), pos, -1);
+        if (level.destroyBlock(pos, true, companion)) {
+            companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
+        }
+        broken = true;
+        return State.BROKEN;
     }
 
-    private State collect(TaskContext c) {
-        c.companion().collectNearbyItems(COLLECT_RADIUS);
-        if (++collectTicks >= COLLECT_TICKS) {
-            phase = Phase.DONE;
-            return State.BROKEN;
-        }
-        return State.WORKING;
+    /** Clears the crack overlay; safe to call at any time. */
+    public void stop(TaskContext c) {
+        c.level().destroyBlockProgress(c.companion().getId(), pos, -1);
     }
 }

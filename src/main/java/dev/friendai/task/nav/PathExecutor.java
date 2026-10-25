@@ -5,9 +5,10 @@ import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
+import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
+import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BreakAction;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,11 +34,16 @@ public final class PathExecutor {
     /** How many ticks the companion may take to rise one block after the jump of a pillar. */
     private static final int JUMP_TIMEOUT = 20;
     private static final double MOVE_SPEED = 1.0;
+    /** How close a drop must be to be picked up at the feet after a dug cell; a bridge material block is one. */
+    private static final double PICKUP_RADIUS = 1.5;
+    /** How long the companion picks up after a break: the vanilla pickup delay plus a few ticks to walk onto it. */
+    private static final int PICKUP_TICKS = 15;
 
     private enum Phase { CHECK, BREAK, PLACE, MOVE }
 
     private final Path path;
     private final MaterialPicker materials;
+    private final PathingConfig config;
 
     private int index = -1;
     private Phase phase = Phase.CHECK;
@@ -49,12 +55,15 @@ public final class PathExecutor {
     private int stepTicks;
     private int placeTicks;
     private int jumpTicks;
+    /** Ticks left in which a drop from a dug cell is picked up. Armed only by a break, so walking collects nothing. */
+    private int pickupTicks;
     private double stepStartY;
     private int lowestY;
 
-    public PathExecutor(Path path, MaterialPicker materials) {
+    public PathExecutor(Path path, MaterialPicker materials, PathingConfig config) {
         this.path = path;
         this.materials = materials;
+        this.config = config;
     }
 
     /** How many steps are finished; the step being worked on starts at this index. */
@@ -65,6 +74,10 @@ public final class PathExecutor {
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
         companion.setPathing(true);
+        if (pickupTicks > 0) {
+            pickupTicks--;
+            DropCollector.pickupAtFeet(c, PICKUP_RADIUS, null);
+        }
         if (index < 0) {
             if (path.steps().isEmpty()) {
                 return State.DONE;
@@ -118,7 +131,7 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        LevelCellView view = new LevelCellView(c.companion(), TaskSettings.pathing, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);
             BlockState state = stateAt(c, pos);
@@ -157,6 +170,7 @@ public final class PathExecutor {
             case BROKEN, GONE -> {
                 action = null;
                 breaks.remove(0);
+                pickupTicks = PICKUP_TICKS;
                 phase = breaks.isEmpty() ? (places.isEmpty() ? Phase.MOVE : Phase.PLACE) : Phase.BREAK;
                 yield State.RUNNING;
             }

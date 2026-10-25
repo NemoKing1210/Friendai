@@ -3,6 +3,7 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
@@ -11,8 +12,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
-/** Finds, walks to, breaks and collects N blocks of a kind. */
+/** Finds, walks to, breaks N blocks of a kind and sweeps up what they drop. */
 public final class MineBlocksTask implements Task {
     private final BlockMatcher matcher;
     private final int count;
@@ -21,8 +23,13 @@ public final class MineBlocksTask implements Task {
 
     /** How many of the nearest matching blocks one walk may choose from. */
     private static final int CANDIDATES = 8;
+    /** How far from the last broken block the sweep after a finished tree or job looks for its drops. */
+    private static final int SWEEP_RADIUS = 8;
+    /** How close a drop must be to be taken without walking, while the job goes on. */
+    private static final double FEET_RADIUS = 1.5;
 
     private BlockBreaker breaker;
+    private DropCollector sweep;
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
     private BlockPos lastBroken;
@@ -44,6 +51,13 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
+        if (sweep != null) {
+            if (sweep.tick(c) == DropCollector.State.DONE) {
+                sweep = null;
+            }
+            return TaskStatus.RUNNING;
+        }
         if (breaker == null) {
             return search(c);
         }
@@ -80,12 +94,18 @@ public final class MineBlocksTask implements Task {
 
     private TaskStatus search(TaskContext c) {
         if (mined >= count) {
+            if (startSweep()) {
+                return TaskStatus.RUNNING;
+            }
             summary = "mined " + mined + " " + matcher.label();
             return TaskStatus.SUCCESS;
         }
         List<BlockPos> candidates = treeCandidates(c);
         if (candidates.isEmpty()) {
-            lastBroken = null;
+            if (startSweep()) {
+                // The tree is finished: pick its drops up before going anywhere else.
+                return TaskStatus.RUNNING;
+            }
             candidates = new ArrayList<>(BlockSearch.nearestN(
                     c.level(), c.companion().blockPosition(), radius, matcher, blacklist, CANDIDATES));
             candidates.removeIf(blacklist::contains);
@@ -109,6 +129,16 @@ public final class MineBlocksTask implements Task {
         return TaskStatus.RUNNING;
     }
 
+    /** Starts a round on the drops around the last broken block; false when there is no block to sweep from. */
+    private boolean startSweep() {
+        if (lastBroken == null) {
+            return false;
+        }
+        sweep = new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
+        lastBroken = null;
+        return true;
+    }
+
     /**
      * The blocks of the same tree or vein as the last mined one, so one tree is felled before the next is started.
      * Empty when there is no last block or its surroundings hold nothing of the kind.
@@ -128,6 +158,10 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (sweep != null) {
+            sweep.stop(c);
+            sweep = null;
+        }
         if (breaker != null) {
             breaker.stop(c);
         } else {

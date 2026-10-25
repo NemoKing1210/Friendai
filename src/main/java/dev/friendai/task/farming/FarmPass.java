@@ -2,6 +2,8 @@ package dev.friendai.task.farming;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.inventory.DropSettle;
+import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
@@ -39,6 +41,9 @@ public final class FarmPass {
 
     private static final int TILL_CAP = 16;
     private static final int WATER_RADIUS = 4;
+    /** How long a harvest's drops get to land and leave their pickup delay before the pass moves on. */
+    private static final int SETTLE_TICKS = 12;
+    private static final ItemMatcher BERRIES = ItemMatcher.parse("minecraft:sweet_berries").orElseThrow();
     private static final Item[] SEED_ORDER = {Items.WHEAT_SEEDS, Items.CARROT, Items.POTATO, Items.BEETROOT_SEEDS};
 
     private final BlockPos center;
@@ -58,6 +63,11 @@ public final class FarmPass {
     private Map<String, Integer> breakerDrops;
     private Approach berryApproach;
     private BlockPos berryPos;
+    /** The wait for a just-harvested block's drops, if the pass is in one. */
+    private DropSettle settle;
+    /** What the companion carried before picking berries, and where, to count the gain when the berries land. */
+    private int berryBefore;
+    private BlockPos berrySettling;
 
     private Approach approach;
     private BlockPos actionPos;
@@ -117,6 +127,7 @@ public final class FarmPass {
     /** Stops navigation and any block breaking; the pass is over. */
     public void stop(TaskContext c) {
         stopped = true;
+        settle = null;
         if (breaker != null) {
             breaker.stop(c);
             breaker = null;
@@ -125,6 +136,21 @@ public final class FarmPass {
     }
 
     private Step harvestTick(TaskContext c) {
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return Step.BUSY;
+            }
+            settle = null;
+            if (berrySettling != null) {
+                int gained = c.companion().inventory().countItem(Items.SWEET_BERRIES) - berryBefore;
+                if (gained > 0) {
+                    harvested.merge(itemId(Items.SWEET_BERRIES), gained, Integer::sum);
+                }
+                attempted.add(berrySettling);
+                berrySettling = null;
+            }
+            return Step.BUSY;
+        }
         if (breaker != null) {
             BlockBreaker.State state = breaker.tick(c);
             if (state == BlockBreaker.State.WORKING) {
@@ -140,6 +166,8 @@ public final class FarmPass {
             breaker = null;
             breakerPos = null;
             breakerDrops = null;
+            // The crop's drops lie where it stood: wait for them, so replanting finds the seeds.
+            settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
             return Step.BUSY;
         }
         if (berryPos != null) {
@@ -148,18 +176,16 @@ public final class FarmPass {
                 return Step.BUSY;
             }
             BlockPos pos = berryPos;
-            if (state == Approach.State.IN_REACH && c.companion().hands().canInteract(pos)) {
-                int before = c.companion().inventory().countItem(Items.SWEET_BERRIES);
-                c.companion().hands().use(pos);
-                c.companion().collectNearbyItems(4.0);
-                int gained = c.companion().inventory().countItem(Items.SWEET_BERRIES) - before;
-                if (gained > 0) {
-                    harvested.merge(itemId(Items.SWEET_BERRIES), gained, Integer::sum);
-                }
-            }
-            attempted.add(pos);
             berryPos = null;
             berryApproach = null;
+            if (state == Approach.State.IN_REACH && c.companion().hands().canInteract(pos)) {
+                berryBefore = c.companion().inventory().countItem(Items.SWEET_BERRIES);
+                berrySettling = pos;
+                c.companion().hands().use(pos);
+                settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, BERRIES);
+            } else {
+                attempted.add(pos);
+            }
             return Step.BUSY;
         }
         if (!hasRoom(c.companion())) {
