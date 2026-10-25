@@ -4,6 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.entity.LookAtOwnerGoal;
+import dev.friendai.task.builtin.JumpTask;
 import dev.friendai.task.builtin.StayTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -66,6 +67,22 @@ public class CompanionEntityTests {
         h.assertTrue(player.getUUID().equals(b.ownerUuid()), "owner not restored");
         h.assertTrue(b.inventory().countItem(Items.OAK_LOG) == 5, "inventory not restored");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void jumpTaskLeavesTheGroundAndLands(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        double ground = companion.getY();
+        boolean[] airborne = {false};
+        companion.taskRunner().start(new JumpTask(), "jump");
+        h.succeedWhen(() -> {
+            if (companion.getY() > ground + 0.3) {
+                airborne[0] = true;
+            }
+            h.assertTrue(airborne[0], "the companion should leave the ground, y=" + companion.getY());
+            h.assertTrue(companion.onGround(), "the companion should land again, y=" + companion.getY());
+        });
     }
 
     @GameTest

@@ -90,6 +90,15 @@ class PromptBuilderTest {
     }
 
     @Test
+    void attackConsentIsOnlyExplainedToTheOwner() {
+        String owner = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(owner.contains("call attack_player with their name"), owner);
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Tia", AccessLevel.TRUSTED));
+        assertFalse(trusted.contains("attack_player"), trusted);
+    }
+
+    @Test
     void onlyTheOwnerIsToldAboutShowInventory() {
         String owner = system(new Persona("F", "d", "auto"), "p");
         assertTrue(owner.contains("show_inventory"), owner);

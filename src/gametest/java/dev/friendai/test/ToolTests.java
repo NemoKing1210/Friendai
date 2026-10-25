@@ -63,6 +63,17 @@ public class ToolTests {
     }
 
     @GameTest
+    public void jumpToolStartsTask(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "jump", "{}");
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("jump")).orElse(false),
+                "jump task should be current");
+        h.succeed();
+    }
+
+    @GameTest
     public void mineToolStartsTask(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_blocks", "{\"block\":\"oak_log\",\"count\":3}");
@@ -221,7 +232,7 @@ public class ToolTests {
     @GameTest
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriendaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
-        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "set_pace", "mine_blocks", "mine_block_at", "pickup_items",
+        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
@@ -388,18 +399,27 @@ public class ToolTests {
     }
 
     @GameTest
-    public void attackPlayerRefusesOwnerAndTeam(GameTestHelper h) {
+    public void attackPlayerFollowsOwnerConsentAndTeams(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
-        ServerPlayer owner = mockPlayerNamed(
-                h, "friendai-owner-" + UUID.randomUUID().toString().substring(0, 8), 2, 2, 2);
+        String ownerName = "friendai-owner-" + UUID.randomUUID().toString().substring(0, 8);
+        ServerPlayer owner = mockPlayerNamed(h, ownerName, 2, 2, 2);
         ServerPlayer target = mockPlayerNamed(
                 h, "friendai-target-" + UUID.randomUUID().toString().substring(0, 8), 5, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
         ToolExecutor tools = tools(c);
 
-        ToolResult own = run(tools, "attack_player", "{\"name\":\"" + owner.getName().getString() + "\"}");
-        h.assertTrue(own.error() && own.content().equals("I won't attack you"), "result was " + own.content());
+        ToolResult own = runAs(tools, "attack_player", "{\"name\":\"" + ownerName + "\"}",
+                new Caller(owner.getUUID(), ownerName, AccessLevel.OWNER));
+        h.assertTrue(!own.error() && own.content().startsWith("task #"),
+                "the owner asking for it should start the fight: " + own.content());
+        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("attack_player")).orElse(false),
+                "the attack task should be running");
+
+        ToolResult stranger = runAs(tools, "attack_player", "{\"name\":\"" + ownerName + "\"}",
+                new Caller(UUID.randomUUID(), "Mallory", AccessLevel.OWNER));
+        h.assertTrue(stranger.error() && stranger.content().equals("I won't attack you"),
+                "another caller must not target the owner: " + stranger.content());
 
         PlayerTeam team = h.getLevel().getScoreboard()
                 .addPlayerTeam("friendai_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10));
@@ -412,6 +432,24 @@ public class ToolTests {
                 "result was " + friendly.content());
         h.getLevel().getScoreboard().removePlayerTeam(team);
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void ownerOrderedFightHitsTheOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        String ownerName = "friendai-hit-owner-" + UUID.randomUUID().toString().substring(0, 8);
+        ServerPlayer owner = mockPlayerNamed(h, ownerName, 2, 2, 2);
+        owner.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        ToolResult r = runAs(tools(c), "attack_player", "{\"name\":\"" + ownerName + "\"}",
+                new Caller(owner.getUUID(), ownerName, AccessLevel.OWNER));
+        h.assertTrue(!r.error(), "result was " + r.content());
+        h.succeedWhen(() -> h.assertTrue(owner.getHealth() < owner.getMaxHealth(),
+                "the owner's health is still " + owner.getHealth() + " (mode " + owner.gameMode() + ", state "
+                        + c.combatController().state() + ", distance " + c.distanceTo(owner) + ", task "
+                        + c.taskRunner().current().map(task -> task.type()).orElse("none") + ")"));
     }
 
     @GameTest

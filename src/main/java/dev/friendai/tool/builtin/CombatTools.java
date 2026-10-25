@@ -53,15 +53,15 @@ final class CombatTools {
                         a.get("count").getAsInt(),
                         a.has("radius") && !a.get("radius").isJsonNull() ? a.get("radius").getAsInt() : 16),
                 true));
-        ToolKit.add(registry, defs, new TaskToolDef("attack_player",
-                "Attack a player by name. Only for the owner, only where PvP is allowed.",
+        ToolKit.addCaller(registry, defs, new TaskToolDef("attack_player",
+                "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.",
                 SchemaBuilder.object()
                         .string("name", "Player name")
                         .required("name")
                         .build(),
-                (c, a) -> attackPlayer(c, a.get("name").getAsString()),
+                (c, a) -> attackPlayerTask(c, new Caller(null, "", AccessLevel.OWNER), a.get("name").getAsString()),
                 false,
-                AccessLevel.OWNER));
+                AccessLevel.OWNER), CombatTools::attackPlayerAction);
         registry.register(ToolKit.instantTool("set_combat_mode",
                 "Set how the companion fights: defensive (fight back and protect the owner), guard (also attack hostile mobs near the owner), passive (never attack, run away).",
                 SchemaBuilder.object()
@@ -197,7 +197,19 @@ final class CombatTools {
         return food;
     }
 
-    private static Task attackPlayer(CompanionEntity companion, String name) {
+    private static ToolResult attackPlayerAction(CompanionEntity companion, Caller caller, JsonObject args) {
+        Task task;
+        try {
+            task = attackPlayerTask(companion, caller, args.get("name").getAsString());
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error(e.getMessage());
+        }
+        int id = companion.taskRunner().start(task, "attack_player");
+        return ToolResult.ok("task #" + id + " started: " + task.describe());
+    }
+
+    /** Builds the fight; the owner may order one against themselves, nobody else may target the owner. */
+    private static Task attackPlayerTask(CompanionEntity companion, @Nullable Caller caller, String name) {
         if (!(companion.level() instanceof ServerLevel level)) {
             throw new IllegalArgumentException(name + " is not here");
         }
@@ -207,7 +219,14 @@ final class CombatTools {
         }
         ServerPlayer owner = companion.owner().orElse(null);
         if (owner != null && owner.getUUID().equals(target.getUUID())) {
-            throw new IllegalArgumentException("I won't attack you");
+            // A null uuid is a manual run from the owner's side (the debug menu, a GameTest).
+            boolean ownerAsked = caller != null
+                    && caller.access() == AccessLevel.OWNER
+                    && (caller.uuid() == null || caller.uuid().equals(owner.getUUID()));
+            if (!ownerAsked) {
+                throw new IllegalArgumentException("I won't attack you");
+            }
+            return new AttackPlayerTask(target.getUUID(), name, true);
         }
         if (!Threats.mayFightPlayer(companion, target)) {
             throw new IllegalArgumentException(

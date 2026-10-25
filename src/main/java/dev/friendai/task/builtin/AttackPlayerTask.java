@@ -17,12 +17,19 @@ public final class AttackPlayerTask implements Task {
 
     private final UUID targetId;
     private final String name;
+    /** The owner asked for this fight themselves, so the self-protection and PvP checks do not apply to them. */
+    private final boolean ownerConsent;
     private int ticks;
     private String summary = "";
 
     public AttackPlayerTask(UUID targetId, String name) {
+        this(targetId, name, false);
+    }
+
+    public AttackPlayerTask(UUID targetId, String name, boolean ownerConsent) {
         this.targetId = targetId;
         this.name = name;
+        this.ownerConsent = ownerConsent;
     }
 
     @Override
@@ -51,7 +58,8 @@ public final class AttackPlayerTask implements Task {
         if (c.companion().distanceTo(player) > MAX_DISTANCE) {
             return finish(c, name + " got away", TaskStatus.FAILED);
         }
-        if (!Threats.mayFightPlayer(c.companion(), player)) {
+        boolean consensual = ownerConsent && isOwner(c.companion(), player);
+        if (!consensual && !Threats.mayFightPlayer(c.companion(), player)) {
             return finish(
                     c,
                     level.isPvpAllowed() ? "I can't hurt " + name + " here" : "PvP is off here",
@@ -59,9 +67,13 @@ public final class AttackPlayerTask implements Task {
         }
         CombatController controller = c.companion().combatController();
         if (controller.state() != CombatController.State.FIGHTING) {
-            controller.fight(player);
+            controller.fight(player, consensual);
         }
         return TaskStatus.RUNNING;
+    }
+
+    private static boolean isOwner(CompanionEntity companion, ServerPlayer player) {
+        return companion.owner().map(owner -> owner.getUUID().equals(player.getUUID())).orElse(false);
     }
 
     private TaskStatus finish(TaskContext c, String text, TaskStatus status) {

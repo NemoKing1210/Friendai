@@ -86,6 +86,8 @@ public final class CombatController {
     private int repathTicks;
     private int lastSeenTick;
     private boolean taskDriven;
+    /** The current task-driven fight targets the owner, who asked for it, so the self-protection check is waived. */
+    private boolean ownerConsent;
     private boolean weaponSwapped;
     private ItemStack previousMainHand = ItemStack.EMPTY;
     private boolean usingBow;
@@ -154,14 +156,27 @@ public final class CombatController {
         state = State.IDLE;
         target = null;
         taskDriven = false;
+        ownerConsent = false;
     }
 
     /** Starts a fight on a task's behalf: the runner is not paused and the brain gets no notices. */
     public void fight(LivingEntity enemy) {
+        fight(enemy, false);
+    }
+
+    /**
+     * Starts a fight on a task's behalf. {@code ownerConsent} lets the companion hit its own owner, who asked for
+     * it in the turn; the owner is never a target otherwise.
+     */
+    public void fight(LivingEntity enemy, boolean ownerConsent) {
         if (state != State.IDLE || enemy == null || !enemy.isAlive() || !(companion.level() instanceof ServerLevel level)) {
             return;
         }
-        beginFight(level, new Selection(enemy, Kind.SELF), true);
+        beginFight(level, new Selection(enemy, Kind.SELF), true, ownerConsent && isOwner(enemy));
+    }
+
+    private boolean isOwner(LivingEntity entity) {
+        return companion.owner().map(owner -> owner == entity).orElse(false);
     }
 
     public void tick() {
@@ -513,9 +528,14 @@ public final class CombatController {
     }
 
     private void beginFight(ServerLevel level, Selection selection, boolean ordered) {
+        beginFight(level, selection, ordered, false);
+    }
+
+    private void beginFight(ServerLevel level, Selection selection, boolean ordered, boolean ownerConsent) {
         state = State.FIGHTING;
         target = selection.entity();
         taskDriven = ordered;
+        this.ownerConsent = ownerConsent;
         attackCooldown = 0;
         repathTicks = 0;
         unreachableTicks = 0;
@@ -566,7 +586,9 @@ public final class CombatController {
             endFight(level, enemy);
             return;
         }
-        if (enemy instanceof ServerPlayer player && !Threats.mayFightPlayer(companion, player)) {
+        if (enemy instanceof ServerPlayer player
+                && !Threats.mayFightPlayer(companion, player)
+                && !(ownerConsent && isOwner(player))) {
             endFight(level, enemy);
             return;
         }
@@ -746,6 +768,7 @@ public final class CombatController {
         state = State.IDLE;
         target = null;
         taskDriven = false;
+        ownerConsent = false;
         unreachableTicks = 0;
         lastDistance = Double.MAX_VALUE;
     }
@@ -773,6 +796,7 @@ public final class CombatController {
             companion.taskRunner().setPaused(false);
         }
         taskDriven = false;
+        ownerConsent = false;
     }
 
     private String startNotice(Selection selection) {

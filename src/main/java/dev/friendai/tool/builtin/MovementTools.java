@@ -6,6 +6,7 @@ import dev.friendai.movement.PaceMode;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
+import dev.friendai.task.builtin.JumpTask;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
@@ -31,6 +32,9 @@ final class MovementTools {
                         .enumeration("target", "Use 'owner' to walk to the owner", "owner")
                         .build(),
                 MovementTools::goTo, true));
+        ToolKit.add(registry, defs, new TaskToolDef("jump",
+                "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",
+                SchemaBuilder.object().build(), (c, a) -> new JumpTask(), true));
         registry.register(ToolKit.instantTool("set_pace",
                 "Set how fast the companion travels: auto (runs when the owner is far ahead, walks otherwise), walk (never sprint), run (sprint whenever it can).",
                 SchemaBuilder.object()
