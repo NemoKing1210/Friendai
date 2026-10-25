@@ -315,7 +315,7 @@ public final class PathExecutor {
         }
         if (step.move() == Move.ASCEND || step.move() == Move.JUMP_GAP
                 || (step.move() == Move.PILLAR && !jumped)) {
-            if (companion.onGround()) {
+            if (companion.onGround() && needsJump(companion, step, target)) {
                 companion.getJumpControl().jump();
             }
         }
@@ -332,6 +332,22 @@ public final class PathExecutor {
             begin(c, next);
         }
         return State.RUNNING;
+    }
+
+    /**
+     * Whether a grounded companion still has to leave the ground for this step. Without the check it hops again each
+     * time it lands short of the arrival radius, e.g. on the edge of the block it climbed onto.
+     */
+    private static boolean needsJump(CompanionEntity companion, PathStep step, FeetTarget target) {
+        if (step.move() == Move.PILLAR) {
+            return true;
+        }
+        if (step.move() == Move.ASCEND) {
+            return companion.getY() < target.y() - 0.3;
+        }
+        double dx = companion.getX() - (step.from().x() + 0.5);
+        double dz = companion.getZ() - (step.from().z() + 0.5);
+        return dx * dx + dz * dz <= 1.0;
     }
 
     private FeetTarget feetTarget(TaskContext c, PathStep step) {
