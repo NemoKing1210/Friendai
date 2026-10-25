@@ -39,8 +39,15 @@ public final class CompanionSpeaker implements Speaker {
     @Override
     public void say(String text) {
         for (String chunk : ReplySplitter.split(text, maxReplyChars.getAsInt())) {
-            server.getPlayerList().broadcastSystemMessage(Component.literal("<" + name.get() + "> " + chunk), false);
+            server.getPlayerList().broadcastSystemMessage(chatLine(name.get(), chunk), false);
         }
+    }
+
+    /** The public chat line: only the name carries the derived colour, the reply keeps the default chat colour. */
+    public static Component chatLine(String name, String text) {
+        return Component.literal("<")
+                .append(CompanionNames.styled(name))
+                .append(Component.literal("> " + text));
     }
 
     /**

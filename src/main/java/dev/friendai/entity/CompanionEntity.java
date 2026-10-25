@@ -2,6 +2,7 @@ package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
+import dev.friendai.chat.CompanionNames;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.StationLease;
@@ -450,13 +451,14 @@ public class CompanionEntity extends PathfinderMob {
 
     /**
      * Sets the name shown above the head and used in chat. The name tag is visible without a name tag item, so a
-     * name given at summon or by {@code set_name} shows right away.
+     * name given at summon or by {@code set_name} shows right away. The colour is derived from the name itself,
+     * so a rename changes the colour without storing it.
      */
     public void applyName(String name) {
         if (name == null || name.isBlank()) {
             return;
         }
-        setCustomName(Component.literal(name));
+        setCustomName(CompanionNames.styled(name));
         setCustomNameVisible(true);
     }
 
