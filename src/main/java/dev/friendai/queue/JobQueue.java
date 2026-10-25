@@ -128,6 +128,13 @@ public final class JobQueue {
         jobs.put(id, new Job(job.id(), job.planId(), job.tool(), args, job.priority(), job.priorityExplicit(), job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
         return Result.ok("updated #" + id);
     }
+    public Result merge(long firstId, long secondId, JsonObject args) {
+        Job first = jobs.get(firstId), second = jobs.get(secondId);
+        if (first == null || second == null || first.planId() == 0 || first.planId() != second.planId()) return Result.error("jobs cannot merge");
+        jobs.put(firstId, new Job(first.id(), first.planId(), first.tool(), args, first.priority(), first.priorityExplicit(), first.order(), first.state(), first.guards(), first.onUnmet(), first.onFailure(), first.maxAttempts(), first.attempts(), first.after(), first.result(), first.retryAtTick()));
+        jobs.remove(secondId);
+        return Result.ok("merged #" + firstId + " and #" + secondId);
+    }
     public Result cancelPlan(long planId) { if (!plans.containsKey(planId)) return Result.error("unknown plan #" + planId); for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0); return Result.ok("cancelled plan #" + planId); }
     public Result remove(long id) { return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id); }
     public Result clear() { int pc = plans.size(), jc = jobs.size(); plans.clear(); jobs.clear(); return Result.ok("cleared " + pc + " plans and " + jc + " jobs"); }
