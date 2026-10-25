@@ -2,17 +2,28 @@ package dev.friendai.client.config;
 
 import dev.friendai.brain.ErrorMessages;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.tts.SpeechPlayback;
+import dev.friendai.client.tts.SpeechRuntime;
+import dev.friendai.client.ui.ClientToasts;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.config.SecretResolver;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.config.VoiceDraft;
 import dev.friendai.client.voice.MicCapture;
 import dev.friendai.client.voice.SpeechToText;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.core.Components;
 import dev.friendai.text.UserMessage;
+import dev.friendai.voice.CloudField;
 import dev.friendai.voice.PcmConverter;
+import dev.friendai.voice.VoiceErrors;
+import dev.friendai.voice.VoicePreset;
 import dev.friendai.voice.WhisperModel;
+import dev.friendai.voice.stt.SttPresets;
+import dev.friendai.voice.tts.TtsPresets;
+import dev.friendai.voice.tts.VoiceModel;
+import dev.friendai.voice.tts.VoiceModels;
 import java.util.concurrent.CompletableFuture;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.llm.LlmClient;
@@ -26,26 +37,33 @@ import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.LabelOption;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionDescription;
+import dev.isxander.yacl3.api.OptionGroup;
 import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
+import dev.isxander.yacl3.api.controller.CyclingListControllerBuilder;
 import dev.isxander.yacl3.api.controller.DoubleFieldControllerBuilder;
+import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.DropdownStringControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.toasts.SystemToast;
+import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
-    private static final SystemToast.SystemToastId TOAST = new SystemToast.SystemToastId();
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
+
+    /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
+    private static boolean applying;
 
     private FriendaiConfigScreen() {}
 
@@ -69,13 +87,22 @@ public final class FriendaiConfigScreen {
         ProviderDraft withReveal(boolean reveal) {
             return new ProviderDraft(provider, baseUrl, apiKey, model, temperature, maxTokens, reveal);
         }
+
+        /** Never prints the key (rule 7). */
+        @Override
+        public String toString() {
+            return "ProviderDraft[provider=" + provider + ", baseUrl=" + baseUrl
+                    + ", apiKey=" + (apiKey == null || apiKey.isBlank() ? "" : "***")
+                    + ", model=" + model + ", temperature=" + temperature
+                    + ", maxTokens=" + maxTokens + ", revealKey=" + revealKey + "]";
+        }
     }
 
     public static Screen create(Screen parent) {
-        return create(parent, null);
+        return create(parent, null, null);
     }
 
-    private static Screen create(Screen parent, ProviderDraft draft) {
+    private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
         Minecraft mc = Minecraft.getInstance();
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
 
@@ -88,10 +115,16 @@ public final class FriendaiConfigScreen {
             server.validate();
         }
         ClientConfig client = FriendaiClient.clientConfig();
+        client.validate();
+        // A rebuild only carries the reveal flags. The config already holds the committed edits:
+        // reopen() applies its fresh draft, and the other rebuilds (profile category, download
+        // completion) read the live config. Re-applying a snapshot here would revert anything
+        // committed after it was taken, such as a key applied by a Test button.
+        VoiceDraft voice = voiceDraft == null ? VoiceDraft.from(client) : voiceDraft;
 
         YetAnotherConfigLib.Builder builder = YetAnotherConfigLib.createBuilder().title(tr("friendai.config.title"));
         if (server != null) {
-            builder.category(providerCategory(parent, server, draft));
+            builder.category(providerCategory(parent, server, draft, voice));
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
             builder.category(memoryCategory(server));
@@ -101,7 +134,7 @@ public final class FriendaiConfigScreen {
                     .option(LabelOption.create(tr("friendai.config.server_only")))
                     .build());
         }
-        builder.category(voiceCategory(parent, client));
+        builder.category(voiceCategory(parent, client, voice));
 
         ServerConfig savedServer = server;
         builder.save(() -> {
@@ -112,9 +145,14 @@ public final class FriendaiConfigScreen {
                     integrated.execute(() -> FriendaiServerState.get(integrated).applyConfig(savedServer));
                 }
             }
+            // YACL has already applied every changed option; writing the draft keeps the provider
+            // entries consistent with the widgets even when nothing looked changed.
+            VoiceDraft.from(client).applyTo(client);
             client.validate();
             FriendaiClient.clientConfigStore().save(client);
             FriendaiClient.setClientConfig(client);
+            SpeechRuntime.invalidate();
+            VoiceRuntime.invalidate();
         });
         return builder.build().generateScreen(parent);
     }
@@ -127,7 +165,7 @@ public final class FriendaiConfigScreen {
                 .build();
     }
 
-    private static ConfigCategory providerCategory(Screen parent, ServerConfig server, ProviderDraft draft) {
+    private static ConfigCategory providerCategory(Screen parent, ServerConfig server, ProviderDraft draft, VoiceDraft voiceDraft) {
         ServerConfig.ProfileConfig p = server.profiles.computeIfAbsent(server.activeProfile, k -> new ServerConfig.ProfileConfig());
         boolean revealKey = draft != null && draft.revealKey();
         if (draft != null) {
@@ -227,7 +265,7 @@ public final class FriendaiConfigScreen {
                 if (reportSuccess) {
                     toast(Component.translatable("friendai.config.models_loaded", models.size()));
                 }
-                Minecraft.getInstance().setScreenAndShow(create(parent, draftNow));
+                Minecraft.getInstance().setScreenAndShow(create(parent, draftNow, voiceDraft));
             }));
         };
 
@@ -237,7 +275,7 @@ public final class FriendaiConfigScreen {
             boolean needsKey = registry.preset(newProvider).map(x -> x.authStyle() != AuthStyle.NONE).orElse(false);
             boolean hasKey = !SecretResolver.resolve(draftNow.apiKey(), System::getenv).isBlank();
             if (needsKey && !hasKey) {
-                Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreenAndShow(create(parent, draftNow)));
+                Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreenAndShow(create(parent, draftNow, voiceDraft)));
             } else {
                 loadModelsThenReopen.accept(draftNow, false);
             }
@@ -250,7 +288,7 @@ public final class FriendaiConfigScreen {
         ButtonOption toggleKey = ButtonOption.createBuilder()
                 .name(tr(revealKey ? "friendai.config.api_key.hide" : "friendai.config.api_key.show"))
                 .action((screen, button) ->
-                        Minecraft.getInstance().setScreenAndShow(create(parent, currentDraft.get().withReveal(!revealKey))))
+                        Minecraft.getInstance().setScreenAndShow(create(parent, currentDraft.get().withReveal(!revealKey), voiceDraft)))
                 .build();
         ButtonOption testConnection = ButtonOption.createBuilder()
                 .name(tr("friendai.config.test_connection"))
@@ -334,42 +372,146 @@ public final class FriendaiConfigScreen {
                 .build();
     }
 
-    private static ConfigCategory voiceCategory(Screen parent, ClientConfig client) {
-        var v = client.voice;
-        String defaultDevice = tr("friendai.config.voice.device.default").getString();
-        List<String> devices = new ArrayList<>();
-        devices.add(defaultDevice);
-        try {
-            devices.addAll(MicCapture.devices());
-        } catch (RuntimeException e) {
-            // no audio system: only the default entry is offered
+    private static ConfigCategory voiceCategory(Screen parent, ClientConfig client, VoiceDraft draft) {
+        ClientConfig.SttSection stt = client.voice.stt;
+        ClientConfig.TtsSection tts = client.voice.tts;
+        boolean sttReveal = draft.sttReveal();
+        boolean ttsReveal = draft.ttsReveal();
+        VoicePreset sttPreset = SttPresets.require(stt.provider);
+        VoicePreset ttsPreset = TtsPresets.require(tts.provider);
+
+        List<Option<?>> recognition = new ArrayList<>();
+        List<Option<?>> synthesis = new ArrayList<>();
+
+        Option<Boolean> sttEnabled = booleanOption(
+                "friendai.config.voice.enabled", true, () -> stt.enabled, value -> stt.enabled = value);
+        Option<String> sttProvider = providerOption(
+                "friendai.config.voice.stt.provider", sttPreset.id(), SttPresets.ids(),
+                () -> stt.provider, value -> stt.provider = value,
+                FriendaiConfigScreen::sttProviderLabel);
+        recognition.add(sttEnabled);
+        recognition.add(sttProvider);
+        sttProvider.addListener((option, value) -> {
+            if (!applying) {
+                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+            }
+        });
+
+        if (sttPreset.local()) {
+            recognition.addAll(localRecognitionOptions(
+                    parent, client, stt, recognition, synthesis, sttReveal, ttsReveal));
+        } else {
+            ClientConfig.CloudSettings sttCloud = cloud(stt.cloud, sttPreset);
+            recognition.addAll(cloudOptions(sttPreset, sttCloud, sttReveal,
+                    () -> reopen(parent, client, !sttReveal, ttsReveal, recognition, synthesis)));
+            recognition.add(statusLabel(VoiceRuntime.sttStatus()));
         }
-        Option<String> modelOpt = Option.<String>createBuilder()
-                .name(tr("friendai.config.voice.model"))
-                .binding("base", () -> v.whisperModel, x -> v.whisperModel = x)
-                .controller(o -> DropdownStringControllerBuilder.create(o).values(WHISPER_MODELS).allowAnyValue(false))
-                .build();
-        Option<String> languageOpt = Option.<String>createBuilder()
+
+        Option<String> sttLanguage = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.language"))
-                .binding("auto", () -> v.language, x -> v.language = x.isBlank() ? "auto" : x.strip())
+                .binding("auto", () -> stt.language, value -> stt.language = value.isBlank() ? "auto" : value.strip())
                 .controller(StringControllerBuilder::create)
                 .build();
-        Option<String> deviceOpt = Option.<String>createBuilder()
-                .name(tr("friendai.config.voice.device"))
-                .binding(defaultDevice, () -> v.inputDevice == null ? defaultDevice : v.inputDevice,
-                        x -> v.inputDevice = x.equals(defaultDevice) ? null : x)
-                .controller(o -> DropdownStringControllerBuilder.create(o).values(devices).allowAnyValue(false))
+        Option<Integer> maxRecord = Option.<Integer>createBuilder()
+                .name(tr("friendai.config.voice.max_record"))
+                .binding(30, () -> stt.maxRecordSec, value -> stt.maxRecordSec = value)
+                .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 120))
                 .build();
+        ButtonOption sttTest = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.test"))
+                .action((screen, button) -> testRecording(client, recognition, synthesis))
+                .build();
+        recognition.add(sttLanguage);
+        recognition.add(inputDeviceOption(stt));
+        recognition.add(maxRecord);
+        recognition.add(sttTest);
 
-        boolean installed = VoiceRuntime.manager().isInstalled(WhisperModel.byId(v.whisperModel).spec());
+        Option<Boolean> ttsEnabled = booleanOption(
+                "friendai.config.voice.tts.enabled", false, () -> tts.enabled, value -> tts.enabled = value);
+        Option<String> ttsProvider = providerOption(
+                "friendai.config.voice.tts.provider", ttsPreset.id(), TtsPresets.ids(),
+                () -> tts.provider, value -> tts.provider = value,
+                FriendaiConfigScreen::ttsProviderLabel);
+        synthesis.add(ttsEnabled);
+        synthesis.add(ttsProvider);
+        ttsProvider.addListener((option, value) -> {
+            if (!applying) {
+                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+            }
+        });
+
+        if (ttsPreset.local()) {
+            synthesis.addAll(localSynthesisOptions(
+                    parent, client, tts, recognition, synthesis, sttReveal, ttsReveal));
+        } else {
+            ClientConfig.CloudSettings ttsCloud = cloud(tts.cloud, ttsPreset);
+            synthesis.addAll(cloudOptions(ttsPreset, ttsCloud, ttsReveal,
+                    () -> reopen(parent, client, sttReveal, !ttsReveal, recognition, synthesis)));
+            synthesis.add(cloudSpeedOption(ttsCloud, ttsPreset.id()));
+            if (ttsPreset.paid()) {
+                synthesis.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
+            }
+            if (ttsPreset.docsUrl() != null) {
+                synthesis.add(docsButton(ttsPreset));
+            }
+        }
+
+        Option<Double> volume = Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.volume"))
+                .binding(1.0, () -> tts.volume, value -> tts.volume = value)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(0.0, 1.0).step(0.05))
+                .build();
+        Option<Integer> maxChars = Option.<Integer>createBuilder()
+                .name(tr("friendai.config.voice.tts.max_chars"))
+                .binding(300, () -> tts.maxChars, value -> tts.maxChars = value)
+                .controller(o -> IntegerFieldControllerBuilder.create(o).range(20, 500))
+                .build();
+        Option<Boolean> speakGuests = booleanOption(
+                "friendai.config.voice.tts.speak_guests", false, () -> tts.speakGuests, value -> tts.speakGuests = value);
+        ButtonOption testVoice = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.test"))
+                .action((screen, button) -> {
+                    applyOptions(recognition, synthesis);
+                    SpeechRuntime.test();
+                })
+                .build();
+        synthesis.add(volume);
+        synthesis.add(maxChars);
+        synthesis.add(outputDeviceOption(tts));
+        synthesis.add(speakGuests);
+        synthesis.add(testVoice);
+
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.voice"))
+                .group(OptionGroup.createBuilder()
+                        .name(tr("friendai.config.voice.group.recognition"))
+                        .options(recognition)
+                        .build())
+                .group(OptionGroup.createBuilder()
+                        .name(tr("friendai.config.voice.group.synthesis"))
+                        .options(synthesis)
+                        .build())
+                .build();
+    }
+
+    private static List<Option<?>> localRecognitionOptions(
+            Screen parent, ClientConfig client, ClientConfig.SttSection stt,
+            List<Option<?>> recognition, List<Option<?>> synthesis,
+            boolean sttReveal, boolean ttsReveal) {
+        Option<String> model = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.model"))
+                .binding("base", () -> stt.local.model, value -> stt.local.model = value)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(WHISPER_MODELS).allowAnyValue(false))
+                .build();
+        boolean installed = VoiceRuntime.manager().isInstalled(WhisperModel.byId(stt.local.model).spec());
         LabelOption status = LabelOption.create(tr(installed
                 ? "friendai.config.voice.status.installed" : "friendai.config.voice.status.missing"));
         ButtonOption download = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.download"))
                 .action((screen, button) -> {
-                    WhisperModel model = WhisperModel.byId(modelOpt.pendingValue());
+                    WhisperModel selected = WhisperModel.byId(model.pendingValue());
                     int[] lastStep = {-1};
-                    VoiceRuntime.manager().download(model.spec(), fraction -> {
+                    VoiceRuntime.manager().download(selected.spec(), fraction -> {
                         int percent = (int) (fraction * 100);
                         if (percent / 10 != lastStep[0]) {
                             lastStep[0] = percent / 10;
@@ -382,48 +524,367 @@ public final class FriendaiConfigScreen {
                         } else {
                             VoiceRuntime.invalidate();
                             toast(tr("friendai.config.voice.status.installed"));
-                            Minecraft.getInstance().setScreenAndShow(create(parent));
+                            reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
                         }
                     }));
                 })
                 .build();
-        ButtonOption test = ButtonOption.createBuilder()
-                .name(tr("friendai.config.voice.test"))
-                .action((screen, button) -> testRecording(v.inputDevice, v.language))
-                .build();
+        // The installed label and the download target follow the selection.
+        model.addListener((option, value) -> {
+            if (!applying) {
+                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+            }
+        });
+        return List.of(model, status, download);
+    }
 
-        return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.voice"))
-                .option(booleanOption("friendai.config.voice.enabled", true, () -> v.enabled, x -> v.enabled = x))
-                .option(modelOpt)
-                .option(status)
-                .option(download)
-                .option(languageOpt)
-                .option(deviceOpt)
-                .option(test)
+    private static List<Option<?>> localSynthesisOptions(
+            Screen parent, ClientConfig client, ClientConfig.TtsSection tts,
+            List<Option<?>> recognition, List<Option<?>> synthesis,
+            boolean sttReveal, boolean ttsReveal) {
+        List<String> ids = new ArrayList<>();
+        ids.add("");
+        for (VoiceModel model : VoiceModels.all()) {
+            ids.add(model.id());
+        }
+        VoiceModel effective = effectiveVoice(tts);
+        Option<String> voice = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.local.voice"))
+                .binding("", () -> tts.local.voice == null ? "" : tts.local.voice,
+                        value -> tts.local.voice = value.isBlank() ? null : value)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(ids)
+                        .valueFormatter(FriendaiConfigScreen::localVoiceLabel))
+                .build();
+        LabelOption status = LabelOption.create(tr(SpeechRuntime.models().isInstalled(effective)
+                ? "friendai.config.voice.tts.local.status.installed"
+                : "friendai.config.voice.tts.local.status.missing"));
+        LabelOption license = LabelOption.create(
+                Component.translatable("friendai.config.voice.tts.local.license", effective.license()));
+        ButtonOption download = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.download"))
+                .action((screen, button) -> {
+                    int[] lastStep = {-1};
+                    SpeechRuntime.models().download(effective, fraction -> {
+                        int percent = (int) (fraction * 100);
+                        if (percent / 10 != lastStep[0]) {
+                            lastStep[0] = percent / 10;
+                            Minecraft.getInstance().execute(() -> toast(
+                                    Component.translatable("friendai.config.voice.tts.downloading", percent)));
+                        }
+                    }).whenComplete((path, error) -> Minecraft.getInstance().execute(() -> {
+                        if (error != null) {
+                            toast(Components.of(ErrorMessages.forUser(error)));
+                        } else {
+                            SpeechRuntime.invalidate();
+                            toast(tr("friendai.config.voice.tts.local.status.installed"));
+                            reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                        }
+                    }));
+                })
+                .build();
+        Option<Double> speed = Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.speed"))
+                .binding(1.0, () -> tts.local.speed, value -> tts.local.speed = value)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(0.5, 2.0).step(0.05))
+                .build();
+        // The license and the installed label describe one voice, so they follow the choice.
+        voice.addListener((option, value) -> {
+            if (!applying) {
+                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+            }
+        });
+        return List.of(voice, status, license, download, speed);
+    }
+
+    /** The optional fields a preset declares, in a stable order. */
+    private static List<Option<?>> cloudOptions(
+            VoicePreset preset, ClientConfig.CloudSettings settings, boolean reveal, Runnable toggleReveal) {
+        List<Option<?>> options = new ArrayList<>();
+        if (preset.uses(CloudField.API_KEY)) {
+            options.addAll(keyOptions(settings, reveal, toggleReveal));
+        }
+        if (preset.uses(CloudField.MODEL)) {
+            options.add(stringOption("friendai.config.voice.field.model",
+                    () -> settings.model == null ? preset.defaultModel() : settings.model,
+                    preset.defaultModel(), value -> settings.model = value));
+        }
+        if (preset.uses(CloudField.VOICE)) {
+            options.add(voiceOption(preset, settings));
+        }
+        if (preset.uses(CloudField.FOLDER_ID)) {
+            options.add(Option.<String>createBuilder()
+                    .name(tr("friendai.config.voice.field.folder_id"))
+                    .description(OptionDescription.of(tr("friendai.config.voice.field.folder_id.tooltip")))
+                    .binding("", () -> nullToEmpty(settings.folderId), value -> settings.folderId = blankToNull(value))
+                    .controller(StringControllerBuilder::create)
+                    .build());
+        }
+        if (preset.uses(CloudField.BASE_URL)) {
+            options.add(Option.<String>createBuilder()
+                    .name(tr("friendai.config.voice.field.base_url"))
+                    .description(OptionDescription.of(tr("friendai.config.voice.field.base_url.tooltip")))
+                    .binding("", () -> nullToEmpty(settings.baseUrl), value -> settings.baseUrl = trimmedToNull(value))
+                    .controller(StringControllerBuilder::create)
+                    .build());
+        }
+        if (preset.uses(CloudField.LANGUAGE)) {
+            options.add(Option.<String>createBuilder()
+                    .name(tr("friendai.config.voice.field.language"))
+                    .description(OptionDescription.of(tr("friendai.config.voice.field.language.tooltip")))
+                    .binding("", () -> nullToEmpty(settings.language), value -> settings.language = blankToNull(value))
+                    .controller(StringControllerBuilder::create)
+                    .build());
+        }
+        return options;
+    }
+
+    private static Option<String> voiceOption(VoicePreset preset, ClientConfig.CloudSettings settings) {
+        if (preset.voices().isEmpty()) {
+            return Option.<String>createBuilder()
+                    .name(tr("friendai.config.voice.field.voice_id"))
+                    .binding("", () -> nullToEmpty(settings.voice),
+                            value -> settings.voice = blankToNull(value))
+                    .controller(StringControllerBuilder::create)
+                    .build();
+        }
+        return Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.field.voice"))
+                .binding(preset.defaultVoice(),
+                        () -> settings.voice == null ? preset.defaultVoice() : settings.voice,
+                        value -> settings.voice = value)
+                .controller(o -> DropdownStringControllerBuilder.create(o)
+                        .values(preset.voices()).allowAnyValue(false))
                 .build();
     }
 
+    private static List<Option<?>> keyOptions(
+            ClientConfig.CloudSettings settings, boolean reveal, Runnable toggleReveal) {
+        Option<String> key = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.field.key"))
+                .description(OptionDescription.of(tr("friendai.config.voice.field.key.tooltip")))
+                .binding("", () -> SecretResolver.display(settings.apiKey, reveal), value -> {
+                    // The field may show a placeholder; leaving it untouched must not overwrite the real key.
+                    if (!value.equals(SecretResolver.display(settings.apiKey, reveal))) {
+                        settings.apiKey = value;
+                    }
+                })
+                .controller(StringControllerBuilder::create)
+                .build();
+        ButtonOption toggle = ButtonOption.createBuilder()
+                .name(tr(reveal
+                        ? "friendai.config.voice.field.key.hide"
+                        : "friendai.config.voice.field.key.show"))
+                .action((screen, button) -> toggleReveal.run())
+                .build();
+        ButtonOption copy = ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.field.key.copy"))
+                .action((screen, button) -> {
+                    key.applyValue();
+                    Minecraft.getInstance().keyboardHandler.setClipboard(
+                            settings.apiKey == null ? "" : settings.apiKey);
+                    toast(tr("friendai.config.voice.field.key.copied"));
+                })
+                .build();
+        return List.of(key, toggle, copy);
+    }
+
+    private static Option<String> providerOption(
+            String nameKey, String def, List<String> ids,
+            java.util.function.Supplier<String> getter, java.util.function.Consumer<String> setter,
+            java.util.function.Function<String, Component> label) {
+        return Option.<String>createBuilder()
+                .name(tr(nameKey))
+                .description(OptionDescription.of(tr("friendai.config.voice.provider.tooltip")))
+                .binding(def, getter, setter)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(ids)
+                        .valueFormatter(label))
+                .build();
+    }
+
+    private static Option<String> inputDeviceOption(ClientConfig.SttSection stt) {
+        String defaultDevice = tr("friendai.config.voice.device.default").getString();
+        List<String> devices = new ArrayList<>();
+        devices.add(defaultDevice);
+        try {
+            devices.addAll(MicCapture.devices());
+        } catch (RuntimeException e) {
+            // no audio system: only the default entry is offered
+        }
+        return Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.device"))
+                .binding(defaultDevice, () -> stt.inputDevice == null ? defaultDevice : stt.inputDevice,
+                        value -> stt.inputDevice = value.equals(defaultDevice) ? null : value)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(devices).allowAnyValue(false))
+                .build();
+    }
+
+    private static Option<String> outputDeviceOption(ClientConfig.TtsSection tts) {
+        String defaultDevice = tr("friendai.config.voice.tts.output_device.default").getString();
+        List<String> devices = new ArrayList<>();
+        devices.add(defaultDevice);
+        try {
+            devices.addAll(SpeechPlayback.devices());
+        } catch (RuntimeException e) {
+            // no audio system: only the default entry is offered
+        }
+        return Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.output_device"))
+                .binding(defaultDevice, () -> tts.outputDevice == null ? defaultDevice : tts.outputDevice,
+                        value -> tts.outputDevice = value.equals(defaultDevice) ? null : value)
+                .controller(o -> DropdownStringControllerBuilder.create(o).values(devices).allowAnyValue(false))
+                .build();
+    }
+
+    private static Option<Double> cloudSpeedOption(ClientConfig.CloudSettings settings, String providerId) {
+        double min;
+        double max;
+        switch (providerId) {
+            case "elevenlabs" -> {
+                min = 0.7;
+                max = 1.2;
+            }
+            case "yandex" -> {
+                min = 0.1;
+                max = 3.0;
+            }
+            default -> {
+                min = 0.5;
+                max = 2.0;
+            }
+        }
+        return speedOption(min, max, () -> settings.speed, value -> settings.speed = value);
+    }
+
+    private static Option<Double> speedOption(
+            double min, double max,
+            java.util.function.Supplier<Double> getter, java.util.function.Consumer<Double> setter) {
+        return Option.<Double>createBuilder()
+                .name(tr("friendai.config.voice.tts.speed"))
+                .binding(1.0, getter::get, setter::accept)
+                .controller(o -> DoubleSliderControllerBuilder.create(o).range(min, max).step(0.05))
+                .build();
+    }
+
+    private static ButtonOption docsButton(VoicePreset preset) {
+        return ButtonOption.createBuilder()
+                .name(tr("friendai.config.voice.tts.docs"))
+                .action((screen, button) ->
+                        ConfirmLinkScreen.confirmLinkNow(screen, URI.create(preset.docsUrl())))
+                .build();
+    }
+
+    private static LabelOption statusLabel(VoiceRuntime.SttStatus status) {
+        return LabelOption.create(status.ready()
+                ? tr("friendai.config.voice.stt.status.ready")
+                : Components.of(status.problem()));
+    }
+
+    /** The entry for one provider; entries are per provider so one key never moves to another. */
+    private static ClientConfig.CloudSettings cloud(
+            Map<String, ClientConfig.CloudSettings> cloud, VoicePreset preset) {
+        return cloud.computeIfAbsent(preset.id(), id -> new ClientConfig.CloudSettings());
+    }
+
+    /** Writes every widget's pending value into the config, so a rebuild can read it back. */
+    private static void applyOptions(List<Option<?>> first, List<Option<?>> second) {
+        boolean previous = applying;
+        applying = true;
+        try {
+            for (Option<?> option : first) {
+                option.applyValue();
+            }
+            for (Option<?> option : second) {
+                option.applyValue();
+            }
+        } finally {
+            applying = previous;
+        }
+    }
+
+    /**
+     * Applies pending edits, then rebuilds with the provider whose entry is now selected. The new
+     * provider's own stored values are shown, so a switch never moves the old provider's key or model.
+     */
+    private static void reopen(
+            Screen parent, ClientConfig client, boolean sttReveal, boolean ttsReveal,
+            List<Option<?>> recognition, List<Option<?>> synthesis) {
+        applyOptions(recognition, synthesis);
+        VoiceDraft next = VoiceDraft.from(client, client.voice.stt.provider, client.voice.tts.provider)
+                .withSttReveal(sttReveal)
+                .withTtsReveal(ttsReveal);
+        next.applyTo(client);
+        Minecraft.getInstance().setScreenAndShow(create(parent, null, next));
+    }
+
+    private static VoiceModel effectiveVoice(ClientConfig.TtsSection tts) {
+        String id = tts.local.voice;
+        if (id != null && !id.isBlank()) {
+            for (VoiceModel model : VoiceModels.all()) {
+                if (model.id().equals(id)) {
+                    return model;
+                }
+            }
+        }
+        return VoiceModels.defaultFor(Minecraft.getInstance().getLanguageManager().getSelected());
+    }
+
+    private static Component sttProviderLabel(String id) {
+        return switch (id) {
+            case "openai" -> tr("friendai.config.voice.stt.provider.openai");
+            case "groq" -> tr("friendai.config.voice.stt.provider.groq");
+            case "yandex" -> tr("friendai.config.voice.stt.provider.yandex");
+            default -> tr("friendai.config.voice.stt.provider.local");
+        };
+    }
+
+    private static Component ttsProviderLabel(String id) {
+        return switch (id) {
+            case "openai" -> tr("friendai.config.voice.tts.provider.openai");
+            case "elevenlabs" -> tr("friendai.config.voice.tts.provider.elevenlabs");
+            case "yandex" -> tr("friendai.config.voice.tts.provider.yandex");
+            default -> tr("friendai.config.voice.tts.provider.local");
+        };
+    }
+
+    private static Component localVoiceLabel(String id) {
+        if (id == null || id.isBlank()) {
+            return tr("friendai.config.voice.tts.local.voice.default");
+        }
+        for (VoiceModel model : VoiceModels.all()) {
+            if (model.id().equals(id)) {
+                return Component.literal(model.displayName() + " · " + model.language());
+            }
+        }
+        return Component.literal(id);
+    }
+
     /** Records three seconds from the microphone and shows what was recognized. */
-    private static void testRecording(String device, String language) {
-        SpeechToText stt = VoiceRuntime.stt();
-        if (!stt.isReady()) {
-            toast(Components.of(UserMessage.of("friendai.voice.error.no_model")));
+    private static void testRecording(ClientConfig client, List<Option<?>> recognition, List<Option<?>> synthesis) {
+        applyOptions(recognition, synthesis);
+        VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus();
+        if (!status.ready()) {
+            // The readiness message names the real reason: no key, no folder, unsupported language
+            // or only a missing local model.
+            toast(Components.of(status.problem()));
             return;
         }
+        ClientConfig.SttSection stt = client.voice.stt;
+        SpeechToText recognizer = VoiceRuntime.stt();
         CompletableFuture.runAsync(() -> {
             MicCapture mic = new MicCapture();
             try {
-                mic.start(device, 5);
+                mic.start(stt.inputDevice, 5);
                 Thread.sleep(3_000);
             } catch (Exception e) {
                 Minecraft.getInstance().execute(() -> toast(Components.of(UserMessage.of("friendai.voice.error.no_mic"))));
                 return;
             }
             byte[] pcm = mic.stop();
-            stt.transcribe(PcmConverter.toFloat(pcm), language).whenComplete((text, error) -> Minecraft.getInstance().execute(() ->
-                    toast(error != null
-                            ? Components.of(UserMessage.of("friendai.voice.error.failed"))
+            recognizer.transcribe(PcmConverter.toFloat(pcm), stt.language).whenComplete((text, error) ->
+                    Minecraft.getInstance().execute(() -> toast(error != null
+                            ? Components.of(VoiceErrors.userMessage(error))
                             : Component.translatable("friendai.config.voice.test_result", text))));
         });
     }
@@ -438,7 +899,20 @@ public final class FriendaiConfigScreen {
     }
 
     private static void toast(Component message) {
-        Minecraft mc = Minecraft.getInstance();
-        SystemToast.addOrUpdate(mc.gui.toastManager(), TOAST, tr("friendai.config.title"), message);
+        ClientToasts.show(message);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    /** URLs are pasted with surrounding whitespace; store them the way readiness and the URI builder see them. */
+    private static String trimmedToNull(String value) {
+        String trimmed = value == null ? null : value.strip();
+        return trimmed == null || trimmed.isEmpty() ? null : trimmed;
     }
 }

@@ -2,9 +2,12 @@ package dev.friendai.client;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.client.render.CompanionRenderer;
+import dev.friendai.client.tts.SpeechKeybind;
+import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.CompanionClientState;
 import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.net.CompanionSnapshotS2CPayload;
+import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.net.PromptS2CPayload;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
@@ -18,6 +21,7 @@ import dev.friendai.net.MemoryViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
 import dev.friendai.client.ui.CompanionInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.screens.MenuScreens;
@@ -33,8 +37,8 @@ public class FriendaiClient implements ClientModInitializer {
                     FabricLoader.getInstance().getConfigDir().resolve("friendai-client.json"),
                     ClientConfig.class,
                     ClientConfig::defaults,
-                    1,
-                    (json, from) -> json);
+                    ClientConfig.CURRENT_VERSION,
+                    ClientConfig::migrate);
         }
         return clientConfigStore;
     }
@@ -50,6 +54,9 @@ public class FriendaiClient implements ClientModInitializer {
     /** Replaces the in-memory client config (used by the settings screen after saving). */
     public static synchronized void setClientConfig(ClientConfig config) {
         clientConfig = config;
+        // Both runtimes rebuild their engines lazily, so a changed provider or key takes effect at once.
+        VoiceRuntime.invalidate();
+        SpeechRuntime.invalidate();
     }
 
     @Override
@@ -58,6 +65,7 @@ public class FriendaiClient implements ClientModInitializer {
         MenuScreens.register(FriendaiMenus.TYPE, CompanionInventoryScreen::new);
         clientConfig();
         VoiceHud.register();
+        SpeechKeybind.register();
         PauseMenuButton.register();
         ClientPlayNetworking.registerGlobalReceiver(
                 CompanionSnapshotS2CPayload.TYPE,
@@ -65,6 +73,10 @@ public class FriendaiClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(
                 PromptS2CPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> CompanionClientState.onPrompt(payload.prompt())));
+        ClientPlayNetworking.registerGlobalReceiver(
+                CompanionSpeechS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> SpeechRuntime.onCompanionSpeech(payload)));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> SpeechRuntime.shutdown());
         ClientPlayNetworking.registerGlobalReceiver(MemoryViewS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     try {

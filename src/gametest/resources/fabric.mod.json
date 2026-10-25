@@ -38,7 +38,8 @@
 			"dev.friendai.test.PaceTests",
 			"dev.friendai.test.TrustTests",
 			"dev.friendai.test.InventoryWindowTests",
-			"dev.friendai.test.ToolChoiceTests"
+			"dev.friendai.test.ToolChoiceTests",
+			"dev.friendai.test.SpeechTests"
 		]
 	},
 	"depends": {
