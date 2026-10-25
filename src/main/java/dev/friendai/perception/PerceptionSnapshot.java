@@ -65,7 +65,8 @@ public record PerceptionSnapshot(
         return sb.toString();
     }
 
-    static String number(float value) {
+    /** A whole number without a decimal point, otherwise one decimal, as the prompts want it. */
+    public static String number(float value) {
         return value == Math.rint(value) ? String.valueOf((int) value) : String.format(Locale.ROOT, "%.1f", value);
     }
 

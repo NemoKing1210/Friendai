@@ -4,6 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -34,13 +35,7 @@ public final class OwnerFocusBuilder {
         if (!(c.level() instanceof ServerLevel level)) {
             return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
-        ServerPlayer player = null;
-        if (principal != null) {
-            player = level.getServer().getPlayerList().getPlayer(principal);
-        }
-        if (player == null) {
-            player = c.owner().orElse(null);
-        }
+        ServerPlayer player = resolve(c, principal);
         if (player == null) {
             return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
@@ -50,7 +45,7 @@ public final class OwnerFocusBuilder {
             return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OTHER_DIMENSION, 0);
         }
         double distance = c.distanceTo(player);
-        if (distance > VIEW_RANGE || !c.hasLineOfSight(player)) {
+        if (!inView(c, player, distance)) {
             return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OUT_OF_SIGHT, distance);
         }
         return OwnerFocus.visible(
@@ -68,6 +63,36 @@ public final class OwnerFocusBuilder {
                 player.getFoodData().getFoodLevel(),
                 player.getArmorValue(),
                 bodyState(player));
+    }
+
+    /**
+     * The block {@code principal} (or the owner when the principal is null or offline) is looking at, if that player
+     * is close enough and in sight. Server thread only.
+     */
+    public static Optional<BlockPos> lookedAtBlock(CompanionEntity c, UUID principal) {
+        if (!(c.level() instanceof ServerLevel level)) {
+            return Optional.empty();
+        }
+        ServerPlayer player = resolve(c, principal);
+        if (player == null || player.level() != level || !inView(c, player, c.distanceTo(player))) {
+            return Optional.empty();
+        }
+        HitResult hit = player.pick(LOOK_RANGE, 1.0F, false);
+        return hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK
+                ? Optional.of(blockHit.getBlockPos())
+                : Optional.empty();
+    }
+
+    private static ServerPlayer resolve(CompanionEntity c, UUID principal) {
+        ServerPlayer player = null;
+        if (principal != null && c.level() instanceof ServerLevel level) {
+            player = level.getServer().getPlayerList().getPlayer(principal);
+        }
+        return player != null ? player : c.owner().orElse(null);
+    }
+
+    private static boolean inView(CompanionEntity c, ServerPlayer player, double distance) {
+        return distance <= VIEW_RANGE && c.hasLineOfSight(player);
     }
 
     private static String facing(String towardsCompanion) {
@@ -146,14 +171,15 @@ public final class OwnerFocusBuilder {
         if (!state.requiresCorrectToolForDrops()) {
             return facts.append(", can be dug by hand").toString();
         }
-        String tool = correctTool(companion, state);
+        String tool = toolFor(companion, state);
         return facts.append(tool == null
                         ? ", needs a proper tool (you have none)"
                         : ", needs a proper tool (you have " + tool + ")")
                 .toString();
     }
 
-    private static String correctTool(CompanionEntity companion, BlockState state) {
+    /** The short id of a tool the companion carries that harvests {@code state}, or null when it has none. */
+    public static String toolFor(CompanionEntity companion, BlockState state) {
         String inHand = toolName(companion.getMainHandItem(), state);
         if (inHand != null) {
             return inHand;

@@ -3,6 +3,7 @@ package dev.friendai.tool.builtin;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.perception.PerceptionSnapshot;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.tool.AccessLevel;
@@ -11,10 +12,14 @@ import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Looking at the world: descriptions and searches the LLM uses to plan. */
@@ -62,5 +67,52 @@ final class InfoTools {
                 AccessLevel.TRUSTED,
                 () -> true,
                 (c, caller, a) -> ToolResult.ok(OwnerFocusBuilder.of(c, caller.uuid()).toPromptText())));
+        registry.register(ToolKit.callerTool("describe_block",
+                "Facts about a block: id, hardness, whether it can be dug by hand or needs a proper tool "
+                        + "(and whether you have one), plus the light level there. Omit x, y and z to describe the "
+                        + "block the speaker is looking at.",
+                SchemaBuilder.object()
+                        .integer("x", "Block x coordinate", -30000000, 30000000)
+                        .integer("y", "Block y coordinate", -64, 320)
+                        .integer("z", "Block z coordinate", -30000000, 30000000)
+                        .build(),
+                AccessLevel.TRUSTED,
+                () -> true,
+                (c, caller, a) -> {
+                    Optional<BlockPos> asked = ToolKit.optionalPos(a);
+                    BlockPos pos = asked.orElse(null);
+                    if (pos == null) {
+                        pos = OwnerFocusBuilder.lookedAtBlock(c, caller.uuid()).orElse(null);
+                    }
+                    if (pos == null) {
+                        return ToolResult.error("no block in view; pass x, y and z");
+                    }
+                    ServerLevel level = (ServerLevel) c.level();
+                    if (!level.hasChunkAt(pos)) {
+                        return ToolResult.error("that chunk is not loaded");
+                    }
+                    BlockState state = level.getBlockState(pos);
+                    String at = pos.getX() + " " + pos.getY() + " " + pos.getZ();
+                    int light = level.getMaxLocalRawBrightness(pos);
+                    if (state.isAir()) {
+                        return ToolResult.ok("air at " + at + "; light " + light);
+                    }
+                    String name = shortName(BuiltInRegistries.BLOCK.getKey(state.getBlock()));
+                    float hardness = state.getDestroySpeed(level, pos);
+                    if (hardness < 0) {
+                        return ToolResult.ok(name + " at " + at + ": cannot be broken; light " + light);
+                    }
+                    String facts = name + " at " + at + ": hardness " + PerceptionSnapshot.number(hardness);
+                    if (!state.requiresCorrectToolForDrops()) {
+                        return ToolResult.ok(facts + ", can be dug by hand; light " + light);
+                    }
+                    String tool = OwnerFocusBuilder.toolFor(c, state);
+                    return ToolResult.ok(facts + ", needs a proper tool (you have "
+                            + (tool == null ? "none" : tool) + "); light " + light);
+                }));
+    }
+
+    private static String shortName(Identifier id) {
+        return id.getNamespace().equals("minecraft") ? id.getPath() : id.toString();
     }
 }
