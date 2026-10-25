@@ -174,7 +174,7 @@ public final class Approach {
         List<Pos> targets = candidates.stream()
                 .map(pos -> new Pos(pos.getX(), pos.getY(), pos.getZ()))
                 .toList();
-        return new GoalReach(targets, REACH, companion.getEyeHeight(), CostModel.DEFAULTS.walk());
+        return new GoalReach(targets, REACH, companion.getEyeHeight());
     }
 
     /** The nearest candidate within reach of the eyes right now, or null. */

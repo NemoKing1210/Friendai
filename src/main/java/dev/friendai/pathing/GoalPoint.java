@@ -1,7 +1,7 @@
 package dev.friendai.pathing;
 
 /** A goal near a single point, as {@code MoveHelper} wants: within a horizontal radius and a height band. */
-public record GoalPoint(double x, double y, double z, double horizontal, double vertical, double walkCost)
+public record GoalPoint(double x, double y, double z, double horizontal, double vertical)
         implements PathGoal {
 
     @Override
@@ -12,15 +12,27 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
     }
 
     @Override
-    public double heuristic(Node n) {
-        return Math.max(0, distance(n) - horizontal) * walkCost;
+    public double heuristic(Node n, CostModel costs) {
+        double dx = n.x() + 0.5 - x;
+        double dz = n.z() + 0.5 - z;
+        double horizontalGap = Math.max(0, Math.sqrt(dx * dx + dz * dz) - horizontal);
+        double above = Math.max(0, y - n.y() - vertical);
+        double below = Math.max(0, n.y() - y - vertical);
+        return Math.max(horizontalWeight(costs) * horizontalGap,
+                upWeight(costs) * above + downWeight(costs) * below);
     }
 
-    private double distance(Node n) {
-        double dx = n.x() + 0.5 - x;
-        double dy = n.y() - y;
-        double dz = n.z() + 0.5 - z;
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    private static double horizontalWeight(CostModel costs) {
+        return Math.max(0, Math.min(costs.walk(),
+                Math.min(costs.diagonal() / Math.sqrt(2.0), (costs.walk() + costs.jump()) / 2.0)));
+    }
+
+    private static double upWeight(CostModel costs) {
+        return Math.max(0, Math.min(costs.climb(), costs.walk() + costs.jump()));
+    }
+
+    private static double downWeight(CostModel costs) {
+        return Math.max(0, costs.fall());
     }
 
     /**

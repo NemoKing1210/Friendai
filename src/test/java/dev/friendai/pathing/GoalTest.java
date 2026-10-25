@@ -15,7 +15,7 @@ class GoalTest {
 
     @Test
     void pointWithinTolerance() {
-        GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 1.5, 3.0, 4.6);
+        GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 1.5, 3.0);
         assertTrue(goal.isGoal(new Node(2, 1, 0), null));
         assertTrue(goal.isGoal(new Node(2, 3, 0), null));
         assertFalse(goal.isGoal(new Node(0, 1, 0), null));
@@ -23,10 +23,10 @@ class GoalTest {
 
     @Test
     void pointHeuristicZeroInside() {
-        GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 1.5, 3.0, 4.6);
-        assertEquals(0.0, goal.heuristic(new Node(2, 1, 0)));
-        assertEquals(0.0, goal.heuristic(new Node(3, 1, 0)));
-        assertTrue(goal.heuristic(new Node(0, 1, 0)) > 0);
+        GoalPoint goal = new GoalPoint(3.5, 1.0, 0.5, 1.5, 3.0);
+        assertEquals(0.0, goal.heuristic(new Node(2, 1, 0), CostModel.DEFAULTS));
+        assertEquals(0.0, goal.heuristic(new Node(3, 1, 0), CostModel.DEFAULTS));
+        assertTrue(goal.heuristic(new Node(0, 1, 0), CostModel.DEFAULTS) > 0);
     }
 
     @Test
@@ -66,7 +66,7 @@ class GoalTest {
     @Test
     void reachNeedsDistance() {
         GridCellView v = new GridCellView("######", "......", "......", "......");
-        GoalReach reach = new GoalReach(List.of(new Pos(5, 2, 0)), 4.0, 1.62, 4.6);
+        GoalReach reach = new GoalReach(List.of(new Pos(5, 2, 0)), 4.0, 1.62);
         assertFalse(reach.isGoal(new Node(0, 1, 0), v));
         assertTrue(reach.isGoal(new Node(2, 1, 0), v));
     }
@@ -74,14 +74,14 @@ class GoalTest {
     @Test
     void reachNeedsSight() {
         GridCellView v = new GridCellView("#####", ".....", "...G.", ".....");
-        GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62, 4.6);
+        GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62);
         assertFalse(reach.isGoal(new Node(1, 1, 0), v));
         assertNull(reach.reachedTarget(new Node(1, 1, 0), v));
     }
 
     @Test
     void reachProtectsTargets() {
-        GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62, 4.6);
+        GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62);
         assertTrue(reach.protects(new Pos(4, 2, 0)));
         assertFalse(reach.protects(new Pos(4, 3, 0)));
     }
@@ -89,7 +89,7 @@ class GoalTest {
     @Test
     void reachPicksAnyTarget() {
         GridCellView v = new GridCellView("######", "......", "......", "......");
-        GoalReach reach = new GoalReach(List.of(new Pos(9, 2, 0), new Pos(2, 2, 0)), 4.0, 1.62, 4.6);
+        GoalReach reach = new GoalReach(List.of(new Pos(9, 2, 0), new Pos(2, 2, 0)), 4.0, 1.62);
         assertEquals(new Pos(2, 2, 0), reach.reachedTarget(new Node(0, 1, 0), v));
         assertSame(reach.targets().get(1), reach.reachedTarget(new Node(0, 1, 0), v));
     }
@@ -97,7 +97,7 @@ class GoalTest {
     @Test
     void reachDoesNotCountStandingInTheTarget() {
         GridCellView v = new GridCellView("######", "......", "......", "......");
-        GoalReach reach = new GoalReach(List.of(new Pos(3, 2, 0)), 4.0, 1.62, 4.6);
+        GoalReach reach = new GoalReach(List.of(new Pos(3, 2, 0)), 4.0, 1.62);
         // Feet in the target cell, or head in it: either way the block cannot be placed from there.
         assertNull(reach.reachedTarget(new Node(3, 2, 0), v));
         assertNull(reach.reachedTarget(new Node(3, 1, 0), v));
@@ -107,9 +107,9 @@ class GoalTest {
     @Test
     void reachHeuristicShrinksNearTarget() {
         GridCellView v = new GridCellView("######", "......", "......", "......");
-        GoalReach reach = new GoalReach(List.of(new Pos(5, 2, 0)), 4.0, 1.62, 4.6);
-        double far = reach.heuristic(new Node(1, 1, 0));
-        double near = reach.heuristic(new Node(3, 1, 0));
+        GoalReach reach = new GoalReach(List.of(new Pos(5, 2, 0)), 4.0, 1.62);
+        double far = reach.heuristic(new Node(1, 1, 0), CostModel.DEFAULTS);
+        double near = reach.heuristic(new Node(3, 1, 0), CostModel.DEFAULTS);
         assertTrue(near < far);
         assertTrue(far > 0);
     }

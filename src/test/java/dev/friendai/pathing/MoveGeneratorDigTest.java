@@ -15,7 +15,7 @@ class MoveGeneratorDigTest {
     private static final CostModel COSTS = CostModel.DEFAULTS;
 
     private static List<PathStep> stepsFrom(GridCellView view, Node from) {
-        return stepsFrom(view, from, new GoalPoint(99, 99, 99, 0, 0, COSTS.walk()), 16);
+        return stepsFrom(view, from, new GoalPoint(99, 99, 99, 0, 0), 16);
     }
 
     private static List<PathStep> stepsFrom(GridCellView view, Node from, PathGoal goal, int placeable) {
@@ -81,7 +81,7 @@ class MoveGeneratorDigTest {
     @Test
     void pillarsWhenBlocksAvailable() {
         GridCellView view = new GridCellView("#", ".", ".", ".");
-        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5, 4.6), 3),
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5), 3),
                 0, 2, 0);
         assertEquals(Move.PILLAR, step.move());
         assertEquals(List.of(new Pos(0, 1, 0)), step.places());
@@ -90,14 +90,14 @@ class MoveGeneratorDigTest {
     @Test
     void noPillarWithoutBlocks() {
         GridCellView view = new GridCellView("#", ".", ".", ".");
-        assertTrue(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5, 4.6), 0).stream()
+        assertTrue(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5), 0).stream()
                 .noneMatch(step -> step.move() == Move.PILLAR));
     }
 
     @Test
     void bridgesOverHole() {
         GridCellView view = new GridCellView("#.#", "...", "...");
-        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(2.5, 1, 0.5, 0.5, 0.5, 4.6), 3),
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(2.5, 1, 0.5, 0.5, 0.5), 3),
                 1, 1, 0);
         assertEquals(Move.BRIDGE, step.move());
         assertEquals(List.of(new Pos(1, 0, 0)), step.places());
@@ -106,7 +106,7 @@ class MoveGeneratorDigTest {
     @Test
     void neverBreaksProtectedTarget() {
         GridCellView view = new GridCellView("#####", "..##.", "..##.", ".....");
-        GoalReach goal = new GoalReach(List.of(new Pos(2, 1, 0)), 4.0, 1.62, 4.6);
+        GoalReach goal = new GoalReach(List.of(new Pos(2, 1, 0)), 4.0, 1.62);
         assertNull(stepTo(stepsFrom(view, new Node(1, 1, 0), goal, 0), 2, 1, 0));
     }
 

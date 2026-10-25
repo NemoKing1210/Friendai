@@ -3,7 +3,7 @@ package dev.friendai.pathing;
 import java.util.List;
 
 /** A goal of getting close enough to act on one of several blocks: a log to mine, a chest to open. */
-public record GoalReach(List<Pos> targets, double reach, double eyeHeight, double walkCost) implements PathGoal {
+public record GoalReach(List<Pos> targets, double reach, double eyeHeight) implements PathGoal {
 
     @Override
     public boolean isGoal(Node n, CellView view) {
@@ -11,12 +11,12 @@ public record GoalReach(List<Pos> targets, double reach, double eyeHeight, doubl
     }
 
     @Override
-    public double heuristic(Node n) {
+    public double heuristic(Node n, CostModel costs) {
         double best = Double.POSITIVE_INFINITY;
         for (Pos target : targets) {
-            best = Math.min(best, Math.max(0, distance(n, target) - reach) * walkCost);
+            best = Math.min(best, Math.max(0, distance(n, target) - reach));
         }
-        return best == Double.POSITIVE_INFINITY ? 0 : best;
+        return best == Double.POSITIVE_INFINITY ? 0 : best * Math.max(0, Math.min(1.0, costs.fall()));
     }
 
     @Override

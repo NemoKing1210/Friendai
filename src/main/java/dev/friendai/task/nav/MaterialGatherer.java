@@ -266,7 +266,7 @@ public final class MaterialGatherer {
         for (BlockPos pos : candidates) {
             targets.add(new Pos(pos.getX(), pos.getY(), pos.getZ()));
         }
-        return new GoalReach(targets, REACH, companion.getEyeHeight(), CostModel.DEFAULTS.walk());
+        return new GoalReach(targets, REACH, companion.getEyeHeight());
     }
 
     private BlockPos nearestWithinReach(CompanionEntity companion) {

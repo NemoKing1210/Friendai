@@ -108,7 +108,7 @@ public final class DropCollector {
             goalPositions = positions;
             arrivedTicks = 0;
             navigator(companion).setGoal(new GoalReach(
-                    new ArrayList<>(positions), REACH, companion.getEyeHeight(), CostModel.DEFAULTS.walk()));
+                    new ArrayList<>(positions), REACH, companion.getEyeHeight()));
         }
         tickNavigator(c);
         return State.COLLECTING;

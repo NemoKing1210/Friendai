@@ -68,7 +68,7 @@ public final class PathSearch {
         this.start = start;
         this.options = options;
         this.moves = new MoveGenerator(view, costs, goal, options.placePrice());
-        this.startHeuristic = goal.heuristic(start);
+        this.startHeuristic = goal.heuristic(start, costs);
         this.bestHeuristic = startHeuristic;
         Record root = new Record(start, 0, 0, 0, null);
         records.put(start.pack(), root);
@@ -96,7 +96,7 @@ public final class PathSearch {
                 finished = new SearchResult(SearchResult.Status.FOUND, buildPath(record, false));
                 return finished;
             }
-            double h = goal.heuristic(record.node);
+            double h = goal.heuristic(record.node, costs);
             if (h < bestHeuristic) {
                 bestHeuristic = h;
                 best = record;
@@ -134,7 +134,7 @@ public final class PathSearch {
         }
         Record record = new Record(to, g, placed, step.headUnderwater(), step);
         records.put(to.pack(), record);
-        double h = goal.heuristic(to);
+        double h = goal.heuristic(to, costs);
         open.add(new Entry(g + h, h, sequence++, record));
     }
 

@@ -16,7 +16,7 @@ class MoveGeneratorWalkTest {
 
     private static List<PathStep> stepsFrom(GridCellView view, Node from) {
         List<PathStep> steps = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0, COSTS.walk()))
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
                 .neighbours(from, 0, 0, 0, steps::add);
         return steps;
     }
@@ -115,7 +115,7 @@ class MoveGeneratorWalkTest {
         Node from = new Node(1, 1, 0);
 
         List<PathStep> fresh = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0, COSTS.walk()))
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
                 .neighbours(from, 0, 0, 0, fresh::add);
         PathStep swim = stepTo(fresh, 2, 1, 0);
         assertEquals(Move.SWIM, swim.move());
@@ -123,7 +123,7 @@ class MoveGeneratorWalkTest {
         assertEquals(1, swim.headUnderwater());
 
         List<PathStep> tired = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0, COSTS.walk()))
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
                 .neighbours(from, 0, 0, 8, tired::add);
         assertTrue(tired.stream().noneMatch(step -> step.headUnderwater() > 0));
     }
