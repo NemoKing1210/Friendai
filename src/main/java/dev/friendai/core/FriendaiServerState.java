@@ -3,6 +3,7 @@ package dev.friendai.core;
 import dev.friendai.FriendaiMod;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
@@ -25,6 +26,7 @@ public final class FriendaiServerState {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final BrainService brains;
+    private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
     private final MemoryViewers memoryViewers = new MemoryViewers();
     private final TrustConfirmations trust;
@@ -46,6 +48,7 @@ public final class FriendaiServerState {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
         this.brains = new BrainService(server, config, memory);
+        this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);
     }
@@ -68,6 +71,11 @@ public final class FriendaiServerState {
 
     public BrainService brains() {
         return brains;
+    }
+
+    /** Keeps loaded companions' chunks ticking and restores them on startup. */
+    public CompanionChunkLoader chunkLoader() {
+        return chunkLoader;
     }
 
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */

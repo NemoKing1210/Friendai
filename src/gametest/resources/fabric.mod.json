@@ -9,6 +9,7 @@
 			"dev.friendai.test.FriendaiGameTests",
 			"dev.friendai.test.PathingTests",
 			"dev.friendai.test.CompanionEntityTests",
+			"dev.friendai.test.CompanionChunkLoadingTests",
 			"dev.friendai.test.DropPickupTests",
 			"dev.friendai.test.TaskTests",
 			"dev.friendai.test.ItemTaskTests",

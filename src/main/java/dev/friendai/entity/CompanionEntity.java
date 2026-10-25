@@ -48,6 +48,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Entity.RemovalReason;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -622,6 +623,16 @@ public class CompanionEntity extends PathfinderMob {
         if (!level().isClientSide()) {
             owner().ifPresent(p -> p.sendSystemMessage(Component.translatable("friendai.companion.died", getName())));
         }
+    }
+
+    /** Killing or dismissing the companion drops its anchor; unloading the chunk or changing dimension keeps it. */
+    @Override
+    public void remove(RemovalReason reason) {
+        if (reason.shouldDestroy() && ownerUuid != null && !level().isClientSide()
+                && level() instanceof ServerLevel serverLevel) {
+            FriendaiServerState.get(serverLevel.getServer()).chunkLoader().forget(ownerUuid);
+        }
+        super.remove(reason);
     }
 
     @Override

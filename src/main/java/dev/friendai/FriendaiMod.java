@@ -47,10 +47,13 @@ public class FriendaiMod implements ModInitializer {
         FriendaiNetworking.register();
         ChatRouter.register();
         ServerLifecycleEvents.SERVER_STARTING.register(FriendaiServerState::get);
+        ServerLifecycleEvents.SERVER_STARTED.register(
+                server -> FriendaiServerState.get(server).chunkLoader().restore());
         ServerLifecycleEvents.SERVER_STOPPED.register(FriendaiServerState::close);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriendaiServerState state = FriendaiServerState.get(server);
             state.brains().tick();
+            state.chunkLoader().tick();
             state.tick(System.currentTimeMillis());
             state.memory().flushIfDue();
             DebugStream.tick(server);
