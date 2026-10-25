@@ -15,4 +15,5 @@ public record CompanionSnapshot(
         List<LogEntry> newLog,
         String perception,
         List<String> toolNames,
-        CompanionVitals vitals) {}
+        CompanionVitals vitals,
+        List<QueueRow> queue) {}

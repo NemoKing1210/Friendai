@@ -1,20 +1,36 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.debug.CompanionSnapshot;
+import dev.friendai.debug.QueueRow;
+import dev.friendai.debug.QueueRows;
 import dev.friendai.debug.TaskRecord;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
-/** The task queue as counters and rows, and the history of finished tasks as a coloured list. */
+/**
+ * Every queued job drawn as a chain: plans and single tasks as groups, each job a node on a vertical line with its
+ * tool, arguments, why it waits and what it depends on; the history of finished tasks follows underneath.
+ */
 final class TasksTab implements MenuTab {
     private static final int PAD = 8;
-    private static final int GAP = 6;
+    private static final int GAP = 3;
+    private static final int RAIL = 14;
+    private static final int MAX_NOTE_LINES = 2;
     private static final int MAX_SUMMARY_LINES = 3;
 
-    private final ScrollView history = new ScrollView(false);
+    private final ScrollView view = new ScrollView(false);
+
+    /** One block of the scrolling content: its height and how to draw it at a position. */
+    private record Block(int height, Painter painter) {}
+
+    @FunctionalInterface
+    private interface Painter {
+        void paint(GuiGraphicsExtractor g, int x, int y, int width);
+    }
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {}
@@ -27,58 +43,172 @@ final class TasksTab implements MenuTab {
             return;
         }
         CompanionSnapshot s = snapshot.get();
-        int innerWidth = width - 2 * PAD;
-        String queue = s.present() ? s.currentTask() : "";
-        int queueHeight = QueuePanel.draw(null, font, queue, 0, 0, innerWidth);
-        int cardHeight = Math.min(height / 2, 22 + queueHeight + 4);
-        Ui.card(g, left, top, width, cardHeight);
-        Ui.heading(g, font, Component.translatable("friendai.menu.activity"), left + PAD, top + 6, innerWidth);
-        g.enableScissor(left + 1, top + 18, left + width - 1, top + cardHeight - 1);
-        QueuePanel.draw(g, font, queue, left + PAD, top + 20, innerWidth);
-        g.disableScissor();
+        int contentWidth = width - 6;
+        List<Block> blocks = new ArrayList<>();
+        blocks.add(summaryBlock(font, s, contentWidth));
+        addChain(blocks, font, s.queue(), contentWidth);
+        addHistory(blocks, font, s.history(), contentWidth);
 
-        int listTop = top + cardHeight + GAP;
-        Ui.heading(g, font, Component.translatable("friendai.menu.history"), left, listTop, width);
-        listTop += 14;
-        int listHeight = top + height - listTop;
-        List<TaskRecord> records = s.history();
-        if (records.isEmpty()) {
-            g.text(font, Component.translatable("friendai.menu.history_empty"), left + 2, listTop + 4, Ui.DIM);
+        int total = 0;
+        for (Block block : blocks) {
+            total += block.height() + GAP;
+        }
+        view.begin(g, left, top, width, height, total);
+        int y = view.top();
+        for (Block block : blocks) {
+            if (view.visible(y, block.height())) {
+                block.painter().paint(g, left, y, contentWidth);
+            }
+            y += block.height() + GAP;
+        }
+        view.end(g);
+    }
+
+    private static Block summaryBlock(Font font, CompanionSnapshot s, int width) {
+        String text = s.present() ? s.currentTask() : "";
+        int inner = width - 2 * PAD;
+        int height = 22 + QueuePanel.draw(null, font, text, 0, 0, inner) + 4;
+        return new Block(height, (g, x, y, w) -> {
+            Ui.card(g, x, y, w, height);
+            Ui.heading(g, font, Component.translatable("friendai.menu.activity"), x + PAD, y + 6, inner);
+            QueuePanel.draw(g, font, text, x + PAD, y + 20, inner);
+        });
+    }
+
+    private static void addChain(List<Block> blocks, Font font, List<QueueRow> rows, int width) {
+        blocks.add(new Block(12, (g, x, y, w) ->
+                Ui.heading(g, font, Component.translatable("friendai.menu.chain"), x, y, w)));
+        if (rows.isEmpty()) {
+            blocks.add(new Block(14, (g, x, y, w) ->
+                    g.text(font, Component.translatable("friendai.menu.activity.idle"), x + 2, y + 2, Ui.DIM)));
             return;
         }
-        int rowWidth = width - 6;
-        int[] heights = new int[records.size()];
-        List<List<FormattedCharSequence>> summaries = new java.util.ArrayList<>();
-        int total = 0;
-        for (int i = 0; i < records.size(); i++) {
-            List<FormattedCharSequence> lines = font.split(Component.literal(records.get(i).summary()), rowWidth - 2 * PAD - 4);
-            if (lines.size() > MAX_SUMMARY_LINES) {
-                lines = lines.subList(0, MAX_SUMMARY_LINES);
+        int index = 0;
+        while (index < rows.size()) {
+            long plan = rows.get(index).planId();
+            int end = index;
+            while (end < rows.size() && rows.get(end).planId() == plan) {
+                end++;
             }
-            summaries.add(lines);
-            heights[i] = 18 + lines.size() * (font.lineHeight + 1) + 3;
-            total += heights[i] + 3;
-        }
-        history.begin(g, left, listTop, width, listHeight, total);
-        int y = history.top();
-        for (int i = 0; i < records.size(); i++) {
-            if (history.visible(y, heights[i])) {
-                drawRecord(g, font, records.get(i), summaries.get(i), left, y, rowWidth, heights[i]);
+            List<QueueRow> group = rows.subList(index, end);
+            blocks.add(groupHeader(font, group));
+            for (int i = 0; i < group.size(); i++) {
+                blocks.add(node(font, group.get(i), i == 0, i == group.size() - 1, width));
             }
-            y += heights[i] + 3;
+            index = end;
         }
-        history.end(g);
+        if (rows.size() >= QueueRows.MAX_ROWS) {
+            blocks.add(new Block(14, (g, x, y, w) -> g.text(font,
+                    Component.translatable("friendai.menu.chain.more", QueueRows.MAX_ROWS), x + 2, y + 2, Ui.DIM)));
+        }
+    }
+
+    private static Block groupHeader(Font font, List<QueueRow> group) {
+        QueueRow first = group.getFirst();
+        boolean direct = first.planId() == 0;
+        long done = group.stream().filter(r -> r.state().equals("done") || r.state().equals("skipped")).count();
+        int color = direct ? Ui.ACCENT : planColor(first.planStatus());
+        return new Block(26, (g, x, y, w) -> {
+            Ui.card(g, x, y, w, 26);
+            g.fill(x, y, x + 3, y + 26, color);
+            Component title = direct
+                    ? Component.translatable("friendai.menu.chain.direct")
+                    : Component.literal(first.planGoal().isBlank() ? "#" + first.planId() : first.planGoal());
+            int badgeWidth = 0;
+            if (!direct) {
+                Component status = Component.translatable(planKey(first.planStatus()));
+                badgeWidth = Ui.badgeWidth(font, status.getString());
+                Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
+            }
+            g.text(font, Ui.clip(font, title.getString(), w - badgeWidth - 2 * PAD - 6), x + PAD + 2, y + 5, Ui.TEXT);
+            String progress = Component.translatable("friendai.menu.chain.progress", done, group.size()).getString();
+            g.text(font, progress, x + PAD + 2, y + 15, Ui.DIM);
+            int barX = x + PAD + 2 + font.width(progress) + 6;
+            Ui.bar(g, barX, y + 16, Math.max(10, x + w - PAD - barX), 5, done / (float) group.size(), color);
+        });
+    }
+
+    private static Block node(Font font, QueueRow row, boolean first, boolean last, int width) {
+        int cardX = RAIL;
+        int textWidth = width - cardX - 2 * PAD;
+        List<FormattedCharSequence> note = row.note().isBlank()
+                ? List.of()
+                : limit(font.split(Component.literal(row.note()), textWidth), MAX_NOTE_LINES);
+        String meta = meta(row);
+        boolean hasArgs = !row.args().isBlank() && !row.args().equals("{}");
+        int height = 18 + (hasArgs ? 10 : 0) + note.size() * (font.lineHeight + 1) + (meta.isEmpty() ? 0 : 10) + 4;
+        int color = stateColor(row.state());
+        return new Block(height, (g, x, y, w) -> {
+            int railX = x + RAIL / 2;
+            g.fill(railX, y - (first ? 0 : GAP), railX + 1, y + height + (last ? 0 : GAP), Ui.alpha(Ui.BORDER, 0xFF));
+            Ui.dot(g, railX - 3, y + 6, 7, color);
+            Ui.card(g, x + cardX, y, w - cardX, height);
+            g.fill(x + cardX, y, x + cardX + 2, y + height, color);
+            int tx = x + cardX + PAD;
+            Component state = Component.translatable(jobKey(row.state()));
+            int badgeWidth = Ui.badgeWidth(font, state.getString());
+            Ui.badge(g, font, state.getString(), x + w - badgeWidth - 5, y + 3, color);
+            g.text(font, "#" + row.id(), tx, y + 5, Ui.DIM);
+            int idWidth = font.width("#" + row.id()) + 5;
+            g.text(font, Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14), tx + idWidth, y + 5, Ui.TEXT);
+            int lineY = y + 18;
+            if (hasArgs) {
+                g.text(font, Ui.clip(font, row.args(), textWidth), tx, lineY, Ui.DIM);
+                lineY += 10;
+            }
+            for (FormattedCharSequence line : note) {
+                g.text(font, line, tx, lineY, noteColor(row.state()));
+                lineY += font.lineHeight + 1;
+            }
+            if (!meta.isEmpty()) {
+                g.text(font, Ui.clip(font, meta, textWidth), tx, lineY, Ui.DIM);
+            }
+        });
+    }
+
+    private static String meta(QueueRow row) {
+        List<String> parts = new ArrayList<>();
+        if (!row.after().isEmpty()) {
+            StringBuilder ids = new StringBuilder();
+            for (long id : row.after()) {
+                if (!ids.isEmpty()) {
+                    ids.append(", ");
+                }
+                ids.append('#').append(id);
+            }
+            parts.add(Component.translatable("friendai.menu.chain.after", ids.toString()).getString());
+        }
+        if (row.attempts() > 0 && row.maxAttempts() > 1) {
+            parts.add(Component.translatable("friendai.menu.chain.attempt", row.attempts(), row.maxAttempts()).getString());
+        }
+        return String.join("  ·  ", parts);
+    }
+
+    private static void addHistory(List<Block> blocks, Font font, List<TaskRecord> records, int width) {
+        blocks.add(new Block(12, (g, x, y, w) ->
+                Ui.heading(g, font, Component.translatable("friendai.menu.history"), x, y, w)));
+        if (records.isEmpty()) {
+            blocks.add(new Block(14, (g, x, y, w) ->
+                    g.text(font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
+            return;
+        }
+        for (TaskRecord record : records) {
+            List<FormattedCharSequence> lines =
+                    limit(font.split(Component.literal(record.summary()), width - 2 * PAD - 4), MAX_SUMMARY_LINES);
+            int height = 18 + lines.size() * (font.lineHeight + 1) + 3;
+            blocks.add(new Block(height, (g, x, y, w) -> drawRecord(g, font, record, lines, x, y, w, height)));
+        }
     }
 
     private static void drawRecord(GuiGraphicsExtractor g, Font font, TaskRecord r, List<FormattedCharSequence> summary,
             int x, int y, int w, int h) {
-        int color = statusColor(r.status());
+        int color = historyColor(r.status());
         Ui.card(g, x, y, w, h);
         g.fill(x, y, x + 3, y + h, color);
         int textX = x + PAD + 2;
         g.text(font, "#" + r.id(), textX, y + 5, Ui.DIM);
         int idWidth = font.width("#" + r.id()) + 5;
-        Component status = Component.translatable(statusKey(r.status()));
+        Component status = Component.translatable(historyKey(r.status()));
         int badgeWidth = Ui.badgeWidth(font, status.getString());
         Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
         g.text(font, Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8), textX + idWidth, y + 5, Ui.TEXT);
@@ -89,7 +219,60 @@ final class TasksTab implements MenuTab {
         }
     }
 
-    private static int statusColor(String status) {
+    private static <T> List<T> limit(List<T> list, int max) {
+        return list.size() > max ? list.subList(0, max) : list;
+    }
+
+    private static String jobKey(String state) {
+        return switch (state) {
+            case "running" -> "friendai.menu.job.running";
+            case "ready" -> "friendai.menu.job.ready";
+            case "blocked" -> "friendai.menu.job.blocked";
+            case "done" -> "friendai.menu.job.done";
+            case "failed" -> "friendai.menu.job.failed";
+            case "skipped" -> "friendai.menu.job.skipped";
+            default -> "friendai.menu.job.cancelled";
+        };
+    }
+
+    private static String planKey(String status) {
+        return switch (status) {
+            case "needs_decision" -> "friendai.menu.plan.needs_decision";
+            case "done" -> "friendai.menu.plan.done";
+            case "failed" -> "friendai.menu.plan.failed";
+            default -> "friendai.menu.plan.active";
+        };
+    }
+
+    private static int stateColor(String state) {
+        return switch (state) {
+            case "running" -> Ui.ACCENT;
+            case "ready" -> Ui.PURPLE;
+            case "blocked" -> Ui.WARN;
+            case "done" -> Ui.GOOD;
+            case "failed" -> Ui.BAD;
+            default -> Ui.DIM;
+        };
+    }
+
+    private static int noteColor(String state) {
+        return switch (state) {
+            case "blocked" -> Ui.WARN;
+            case "failed" -> Ui.BAD;
+            default -> Ui.DIM;
+        };
+    }
+
+    private static int planColor(String status) {
+        return switch (status) {
+            case "done" -> Ui.GOOD;
+            case "failed" -> Ui.BAD;
+            case "needs_decision" -> Ui.WARN;
+            default -> Ui.ACCENT;
+        };
+    }
+
+    private static int historyColor(String status) {
         return switch (status) {
             case "SUCCESS" -> Ui.GOOD;
             case "FAILED" -> Ui.BAD;
@@ -97,7 +280,7 @@ final class TasksTab implements MenuTab {
         };
     }
 
-    private static String statusKey(String status) {
+    private static String historyKey(String status) {
         return switch (status) {
             case "SUCCESS" -> "friendai.menu.status.success";
             case "FAILED" -> "friendai.menu.status.failed";
@@ -107,6 +290,6 @@ final class TasksTab implements MenuTab {
 
     @Override
     public boolean scroll(double x, double y, double amount) {
-        return history.contains(x, y) && history.scroll(amount);
+        return view.contains(x, y) && view.scroll(amount);
     }
 }

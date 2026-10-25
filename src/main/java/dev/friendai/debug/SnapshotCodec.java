@@ -54,6 +54,24 @@ public final class SnapshotCodec {
             out.writeInt(v.inventorySlots());
             writeString(out, v.combatMode());
             writeString(out, v.paceMode());
+            out.writeInt(s.queue().size());
+            for (QueueRow r : s.queue()) {
+                out.writeLong(r.id());
+                out.writeLong(r.planId());
+                writeString(out, r.planGoal());
+                writeString(out, r.planStatus());
+                writeString(out, r.tool());
+                writeString(out, r.args());
+                writeString(out, r.state());
+                writeString(out, r.note());
+                out.writeInt(r.after().size());
+                for (long dependency : r.after()) {
+                    out.writeLong(dependency);
+                }
+                out.writeInt(r.attempts());
+                out.writeInt(r.maxAttempts());
+                out.writeInt(r.priority());
+            }
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -95,11 +113,30 @@ public final class SnapshotCodec {
             }
             CompanionVitals vitals = new CompanionVitals(
                     in.readFloat(), in.readFloat(), in.readInt(), in.readInt(), in.readInt(), readString(in), readString(in));
+            int queueSize = readCount(in);
+            List<QueueRow> queue = new ArrayList<>();
+            for (int i = 0; i < queueSize; i++) {
+                long id = in.readLong();
+                long planId = in.readLong();
+                String goal = readString(in);
+                String planStatus = readString(in);
+                String tool = readString(in);
+                String args = readString(in);
+                String state = readString(in);
+                String note = readString(in);
+                int afterSize = readCount(in);
+                List<Long> after = new ArrayList<>();
+                for (int j = 0; j < afterSize; j++) {
+                    after.add(in.readLong());
+                }
+                queue.add(new QueueRow(id, planId, goal, planStatus, tool, args, state, note, after,
+                        in.readInt(), in.readInt(), in.readInt()));
+            }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
-                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals);
+                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals, queue);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

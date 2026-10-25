@@ -34,7 +34,7 @@ public final class SnapshotBuilder {
         List<String> toolNames = operator ? brains.toolNames() : List.of();
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
-                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "", toolNames, CompanionVitals.NONE);
+                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "", toolNames, CompanionVitals.NONE, List.of());
         }
         CompanionEntity c = companion.get();
         return new CompanionSnapshot(
@@ -49,7 +49,8 @@ public final class SnapshotBuilder {
                 log,
                 operator ? PerceptionBuilder.detailed(c).toPromptText() : "",
                 toolNames,
-                vitalsOf(c));
+                vitalsOf(c),
+                c.taskRunner().queueRows());
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

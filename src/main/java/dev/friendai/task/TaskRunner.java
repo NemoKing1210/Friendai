@@ -80,6 +80,7 @@ public final class TaskRunner {
     public Optional<Job> activeJob() { return queue.active(); }
     public int pendingJobs() { return (int)queue.jobs().stream().filter(j->j.state()==JobState.PENDING).count(); }
     public boolean hasWork() { return queue.jobCount()>0 || (current!=null&&!current.defaultActivity()); }
+    public java.util.List<dev.friendai.debug.QueueRow> queueRows() { return queue.jobCount()==0?java.util.List.of():dev.friendai.debug.QueueRows.build(queue,facts(),current==null?null:current.task().describe()); }
     public String queueSummary() { return queue.jobCount()==0?current().map(Task::describe).orElse("none"):QueueText.summary(queue,facts(),current==null?null:current.task().describe()); }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
