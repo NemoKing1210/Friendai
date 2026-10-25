@@ -35,13 +35,6 @@ public final class WavCodec {
         return buffer.array();
     }
 
-    public static int sampleRate(byte[] wav) {
-        if (wav == null || wav.length < 28) {
-            throw new IllegalArgumentException("not a RIFF/WAVE file");
-        }
-        return ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN).getInt(24);
-    }
-
     /** @return the samples as floats in [-1, 1) @throws IllegalArgumentException when the bytes are not 16-bit mono PCM */
     public static float[] decode(byte[] wav) {
         return PcmConverter.toFloat(parse(wav).pcm16le());

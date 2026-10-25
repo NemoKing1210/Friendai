@@ -43,6 +43,17 @@ class VoiceReadinessTest {
     }
 
     @Test
+    void yandexSynthesisNeedsAFolderIdToo() {
+        ResolvedTts yandex = tts("yandex", "key", "https://tts.api.cloud.yandex.net",
+                null, "alena", 1.0, "ru-RU");
+        assertEquals("friendai.voice.error.no_folder", VoiceReadiness.tts(yandex, true).key());
+
+        ResolvedTts withFolder = new ResolvedTts("yandex", "yandex_tts",
+                "https://tts.api.cloud.yandex.net", "key", null, "alena", "ru-RU", "f1", 1.0);
+        assertNull(VoiceReadiness.tts(withFolder, true));
+    }
+
+    @Test
     void localNeedsItsModelAndVoice() {
         assertEquals("friendai.voice.error.no_model",
                 VoiceReadiness.stt(stt("local", "", null, "base", "", null), false).key());

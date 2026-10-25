@@ -87,6 +87,15 @@ public final class FriendaiConfigScreen {
         ProviderDraft withReveal(boolean reveal) {
             return new ProviderDraft(provider, baseUrl, apiKey, model, temperature, maxTokens, reveal);
         }
+
+        /** Never prints the key (rule 7). */
+        @Override
+        public String toString() {
+            return "ProviderDraft[provider=" + provider + ", baseUrl=" + baseUrl
+                    + ", apiKey=" + (apiKey == null || apiKey.isBlank() ? "" : "***")
+                    + ", model=" + model + ", temperature=" + temperature
+                    + ", maxTokens=" + maxTokens + ", revealKey=" + revealKey + "]";
+        }
     }
 
     public static Screen create(Screen parent) {
@@ -615,7 +624,7 @@ public final class FriendaiConfigScreen {
             options.add(Option.<String>createBuilder()
                     .name(tr("friendai.config.voice.field.base_url"))
                     .description(OptionDescription.of(tr("friendai.config.voice.field.base_url.tooltip")))
-                    .binding("", () -> nullToEmpty(settings.baseUrl), value -> settings.baseUrl = blankToNull(value))
+                    .binding("", () -> nullToEmpty(settings.baseUrl), value -> settings.baseUrl = trimmedToNull(value))
                     .controller(StringControllerBuilder::create)
                     .build());
         }
@@ -899,5 +908,11 @@ public final class FriendaiConfigScreen {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /** URLs are pasted with surrounding whitespace; store them the way readiness and the URI builder see them. */
+    private static String trimmedToNull(String value) {
+        String trimmed = value == null ? null : value.strip();
+        return trimmed == null || trimmed.isEmpty() ? null : trimmed;
     }
 }

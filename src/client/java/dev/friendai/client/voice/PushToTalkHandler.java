@@ -56,8 +56,6 @@ public final class PushToTalkHandler {
         SpeechRuntime.stop();
         ClientConfig.SttSection voice = FriendaiClient.clientConfig().voice.stt;
         pressIgnored = true;
-        // Stop accepting the previous recording, however long its cloud call still runs.
-        recording = VoiceRuntime.nextCaptureGeneration();
         if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {
             return;
         }
@@ -68,6 +66,8 @@ public final class PushToTalkHandler {
         }
         try {
             mic.start(voice.inputDevice, voice.maxRecordSec);
+            // Only a real recording supersedes an in-flight transcript; an ignored press keeps it.
+            recording = VoiceRuntime.nextCaptureGeneration();
             pressIgnored = false;
             VoiceState.set(VoiceState.Kind.RECORDING, null);
         } catch (Exception e) {

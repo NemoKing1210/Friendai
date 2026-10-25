@@ -87,6 +87,17 @@ class SttClientTest {
     }
 
     @Test
+    void aMalformedBaseUrlBecomesOnePlayerFacingFailure() {
+        ResolvedStt malformed = new ResolvedStt("openai", OpenAiSttProtocol.ID,
+                "::not a valid base url", KEY, "gpt-transcribe", "ru", null);
+        CompletionException e = assertThrows(CompletionException.class,
+                () -> client.transcribe(malformed, new byte[0], new byte[0]).join());
+        UserFacingException cause = assertInstanceOf(UserFacingException.class, e.getCause());
+        assertEquals("friendai.voice.error.failed", cause.userMessage().key());
+        assertFalse(cause.getMessage().contains("::not a valid base url"));
+    }
+
+    @Test
     void everyPresetHasAProtocolRegisteredInTheClient() throws Exception {
         for (String provider : List.of("openai", "groq", "yandex")) {
             server.enqueue(200, provider.equals("yandex") ? "{\"result\":\"hi\"}" : "{\"text\":\"hi\"}");

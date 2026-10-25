@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
  * and failures never carry the response body or request headers.
  */
 public final class VoiceHttp {
-    /** A provider answer larger than this is treated as a failure rather than buffered forever. */
+    /** An answer larger than this is rejected after it has been read into memory; a size sanity check, not a stream guard. */
     static final int MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
     private final HttpClient client;

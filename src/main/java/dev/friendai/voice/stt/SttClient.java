@@ -35,7 +35,10 @@ public final class SttClient {
         try {
             request = protocol.prepare(settings, wav16k, pcm16k);
         } catch (RuntimeException e) {
-            return CompletableFuture.failedFuture(e);
+            // A malformed base URL throws here; the player sees one recognition failure.
+            return CompletableFuture.failedFuture(e instanceof UserFacingException userFacing
+                    ? userFacing
+                    : new UserFacingException(UserMessage.of("friendai.voice.error.failed")));
         }
         return http.postJson(request).thenApply(protocol::parse);
     }

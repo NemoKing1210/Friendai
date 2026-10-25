@@ -5,7 +5,7 @@
 - **Everything in the repository is English**: code, identifiers, comments, logs, Markdown, commit messages, config defaults, the system prompt, tool descriptions and tool results.
 - **Everything the player sees goes through translation keys.** Add the key to `src/main/resources/assets/friendai/lang/en_us.json` and the same key to every other language file. `LangFilesTest` fails if the key sets differ, a value is empty, the `%s` placeholders do not match, or code refers to a key that does not exist.
 - Not translated: replies from the LLM, text addressed to the LLM (system prompt, tool descriptions/results, task summaries), logs and command literals.
-- `dev.friendai.llm`, `config`, `text`, `tool` (except `tool.builtin`) and `brain` must not import `net.minecraft.*` or `net.fabricmc.*`. They are plain Java so they can be unit-tested without the game. Pure layers return `UserMessage(key, args)`; the Minecraft layer converts it with `Components.of(...)`.
+- `dev.friendai.llm`, `config`, `text`, `tool` (except `tool.builtin`), `voice` and `brain` must not import `net.minecraft.*` or `net.fabricmc.*`. They are plain Java so they can be unit-tested without the game. Pure layers return `UserMessage(key, args)`; the Minecraft layer converts it with `Components.of(...)`.
 - The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back through `server.execute` (`ServerBrainScheduler`); client recognition and synthesis run on worker threads and hop back through `Minecraft.getInstance().execute`, and only the server-side transcript handler uses `server.execute`.
 - API keys must never appear in logs, chat, exception messages or `toString()`.
 

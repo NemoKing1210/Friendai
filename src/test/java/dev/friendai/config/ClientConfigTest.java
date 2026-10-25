@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -91,6 +93,35 @@ class ClientConfigTest {
         assertEquals(2.0, c.voice.tts.cloud.get("openai").speed);
         assertEquals(1.2, c.voice.tts.cloud.get("elevenlabs").speed);
         assertEquals(3.0, c.voice.tts.cloud.get("yandex").speed);
+    }
+
+    @Test
+    void aJsonWithoutVoiceNumbersGetsTheDocumentedDefaults() throws IOException {
+        Path file = dir.resolve("friendai-client.json");
+        Files.writeString(file, """
+            {"version":3,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
+             "tts":{"provider":"local","local":{}}}}""");
+        ConfigStore<ClientConfig> store = new ConfigStore<>(
+                file, ClientConfig.class, ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+
+        ClientConfig c = store.load();
+        c.validate();
+        assertEquals(30, c.voice.stt.maxRecordSec);
+        assertEquals(1.0, c.voice.tts.volume);
+        assertEquals(300, c.voice.tts.maxChars);
+    }
+
+    @Test
+    void zeroVoiceNumbersFallBackToTheDocumentedDefaults() {
+        ClientConfig c = ClientConfig.defaults();
+        c.voice.stt.maxRecordSec = 0;
+        c.voice.tts.volume = 0;
+        c.voice.tts.maxChars = 0;
+        c.validate();
+        assertEquals(30, c.voice.stt.maxRecordSec);
+        assertEquals(1.0, c.voice.tts.volume);
+        assertEquals(300, c.voice.tts.maxChars);
     }
 
     @Test

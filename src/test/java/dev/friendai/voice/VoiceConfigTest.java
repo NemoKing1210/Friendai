@@ -27,6 +27,21 @@ class VoiceConfigTest {
     }
 
     @Test
+    void surroundingWhitespaceInTheBaseUrlIsStripped() {
+        ClientConfig c = ClientConfig.defaults();
+        c.validate();
+        c.voice.stt.provider = "openai";
+        c.voice.stt.cloud.get("openai").baseUrl = "  https://speech.example.test/v1 \n";
+        c.voice.tts.provider = "openai";
+        c.voice.tts.cloud.get("openai").baseUrl = "\thttps://speech.example.test/v1  ";
+
+        ResolvedStt stt = VoiceConfig.resolveStt(c.voice.stt, "en_us", name -> null);
+        ResolvedTts tts = VoiceConfig.resolveTts(c.voice.tts, "en_us", name -> null);
+        assertEquals("https://speech.example.test/v1", stt.baseUrl());
+        assertEquals("https://speech.example.test/v1", tts.baseUrl());
+    }
+
+    @Test
     void providerKeysAreIsolated() {
         ClientConfig c = ClientConfig.defaults();
         c.validate();

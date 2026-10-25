@@ -85,7 +85,9 @@ public final class VoiceConfig {
         return SecretResolver.resolve(reference, env);
     }
 
+    /** A pasted value may carry surrounding whitespace; it is stripped before it reaches a URI builder. */
     private static String pick(String configured, String fallback) {
-        return configured == null || configured.isBlank() ? fallback : configured;
+        String value = configured == null ? null : configured.strip();
+        return value == null || value.isEmpty() ? fallback : value;
     }
 }

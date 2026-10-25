@@ -85,6 +85,17 @@ class ClientConfigMigrationTest {
     }
 
     @Test
+    void librittsrVoiceSurvivesThePrefixStripAndTheCatalogLookup() throws IOException {
+        String old = """
+            {"version":2,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
+             "tts":{"provider":"local","local":{"voice":"vits-piper-en_US-libritts_r-medium"}}}}""";
+        ClientConfig c = load(old);
+        assertEquals("en_US-libritts_r-medium", c.voice.tts.local.voice);
+        c.validate();
+        assertEquals("en_US-libritts_r-medium", c.voice.tts.local.voice);
+    }
+
+    @Test
     void migrationKeepsUnknownKeys() {
         String old = """
             {"version":2,"voice":{"enabled":true,"whisperModel":"tiny","customVoiceFlag":true,

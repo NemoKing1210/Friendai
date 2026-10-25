@@ -229,7 +229,8 @@ public class ClientConfig {
         if (stt.language == null || stt.language.isBlank()) {
             stt.language = "auto";
         }
-        stt.maxRecordSec = Math.max(1, Math.min(120, stt.maxRecordSec));
+        // A stored or hand-edited 0 means the field was never set, not the clamping minimum.
+        stt.maxRecordSec = stt.maxRecordSec <= 0 ? 30 : Math.min(120, stt.maxRecordSec);
         if (stt.cloud == null) {
             stt.cloud = new LinkedHashMap<>();
         }
@@ -258,8 +259,8 @@ public class ClientConfig {
             }
             tts.provider = TtsPresets.LOCAL;
         }
-        tts.volume = clamp(tts.volume, 0.0, 1.0);
-        tts.maxChars = (int) Math.max(20, Math.min(500, tts.maxChars));
+        tts.volume = tts.volume <= 0 ? 1.0 : clamp(tts.volume, 0.0, 1.0);
+        tts.maxChars = tts.maxChars <= 0 ? 300 : Math.max(20, Math.min(500, tts.maxChars));
         if (tts.language == null || tts.language.isBlank()) {
             tts.language = "auto";
         }
@@ -313,7 +314,8 @@ public class ClientConfig {
         settings.model = blankToNull(settings.model);
         settings.voice = blankToNull(settings.voice);
         settings.folderId = blankToNull(settings.folderId);
-        settings.baseUrl = blankToNull(settings.baseUrl);
+        String baseUrl = blankToNull(settings.baseUrl);
+        settings.baseUrl = baseUrl == null ? null : baseUrl.strip();
         settings.language = blankToNull(settings.language);
     }
 

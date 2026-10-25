@@ -16,7 +16,6 @@ class WavCodecTest {
         byte[] wav = WavCodec.encode(new float[] {0f, 0.5f}, 16000);
         assertEquals("RIFF", new String(wav, 0, 4, StandardCharsets.US_ASCII));
         assertEquals("WAVE", new String(wav, 8, 4, StandardCharsets.US_ASCII));
-        assertEquals(16000, WavCodec.sampleRate(wav));
         assertEquals(44 + 2 * 2, wav.length);
 
         float[] back = WavCodec.decode(wav);
