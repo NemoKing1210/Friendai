@@ -1,5 +1,7 @@
 package dev.friendai.voice;
 
+import java.util.Arrays;
+
 public final class PcmConverter {
     private PcmConverter() {}
 
@@ -28,14 +30,47 @@ public final class PcmConverter {
 
     /** Scales every 16-bit sample by {@code gain}, clamping; a trailing odd byte is kept unchanged. */
     public static byte[] withGain(byte[] pcm16le, double gain) {
-        byte[] out = pcm16le.clone();
+        return withGain(pcm16le, 0, pcm16le.length, gain);
+    }
+
+    /** Scales a slice exactly like {@link #withGain(byte[], double)}; a trailing odd byte is kept unchanged. */
+    public static byte[] withGain(byte[] pcm16le, int offset, int length, double gain) {
+        int start = Math.max(0, offset);
+        int end = Math.min(pcm16le.length, start + Math.max(0, length));
+        byte[] out = Arrays.copyOfRange(pcm16le, start, end);
         for (int i = 0; i + 1 < out.length; i += 2) {
             int sample = (short) ((out[i] & 0xFF) | (out[i + 1] << 8));
-            long scaled = Math.round(sample * gain);
-            int value = (int) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, scaled));
+            int value = scaled(sample, gain);
             out[i] = (byte) value;
             out[i + 1] = (byte) (value >> 8);
         }
         return out;
+    }
+
+    /**
+     * Interleaves a slice of mono 16-bit samples into stereo, scaling each channel separately.
+     * Whole samples only: a trailing odd byte in the slice is ignored.
+     */
+    public static byte[] toStereo(byte[] pcm16le, int offset, int length, double leftGain, double rightGain) {
+        int start = Math.max(0, offset);
+        int end = Math.min(pcm16le.length, start + Math.max(0, length));
+        int usable = (end - start) & ~1;
+        byte[] out = new byte[usable * 2];
+        for (int i = 0; i < usable; i += 2) {
+            int sample = (short) ((pcm16le[start + i] & 0xFF) | (pcm16le[start + i + 1] << 8));
+            int left = scaled(sample, leftGain);
+            int right = scaled(sample, rightGain);
+            int o = i * 2;
+            out[o] = (byte) left;
+            out[o + 1] = (byte) (left >> 8);
+            out[o + 2] = (byte) right;
+            out[o + 3] = (byte) (right >> 8);
+        }
+        return out;
+    }
+
+    private static int scaled(int sample, double gain) {
+        long scaled = Math.round(sample * gain);
+        return (int) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, scaled));
     }
 }
