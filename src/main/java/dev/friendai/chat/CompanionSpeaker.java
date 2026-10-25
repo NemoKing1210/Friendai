@@ -22,18 +22,25 @@ public final class CompanionSpeaker implements Speaker {
     private final IntSupplier maxReplyChars;
     /** Passes the thinking state to the entity, whose client draws a thought bubble: no screen text is shown. */
     private final Consumer<Boolean> thinkingSink;
+    /** The speaking entity and how far its voice carries, so clients can place it in the world. */
+    private final Supplier<UUID> companionId;
+    private final IntSupplier audibleRange;
 
     public CompanionSpeaker(
             MinecraftServer server,
             UUID owner,
             Supplier<String> name,
             IntSupplier maxReplyChars,
-            Consumer<Boolean> thinkingSink) {
+            Consumer<Boolean> thinkingSink,
+            Supplier<UUID> companionId,
+            IntSupplier audibleRange) {
         this.server = server;
         this.owner = owner;
         this.name = name;
         this.maxReplyChars = maxReplyChars;
         this.thinkingSink = thinkingSink;
+        this.companionId = companionId;
+        this.audibleRange = audibleRange;
     }
 
     @Override
@@ -63,7 +70,9 @@ public final class CompanionSpeaker implements Speaker {
         CompanionSpeechS2CPayload payload = new CompanionSpeechS2CPayload(
                 clamp(name.get(), CompanionSpeechS2CPayload.MAX_NAME),
                 clamp(text, CompanionSpeechS2CPayload.MAX_TEXT),
-                addressee);
+                addressee,
+                companionId.get(),
+                audibleRange.getAsInt());
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (ServerPlayNetworking.canSend(player, CompanionSpeechS2CPayload.TYPE)) {
                 ServerPlayNetworking.send(player, payload);
