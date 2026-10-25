@@ -75,6 +75,44 @@ public class InventoryWindowTests {
     }
 
     @GameTest(maxTicks = 100)
+    public void menuPlacesSlotsLikeTheVanillaInventory(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        h.assertTrue(FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.NONE, "the owner was denied");
+        AbstractContainerMenu menu = owner.containerMenu;
+
+        // Armor in a column on the left, as in the player inventory.
+        h.assertValueEqual(menu.slots.get(0).x, 8, "helmet x");
+        h.assertValueEqual(menu.slots.get(0).y, 18, "helmet y");
+        h.assertValueEqual(menu.slots.get(3).y, 72, "boots y");
+        // The two hands sit together under the model.
+        h.assertValueEqual(menu.slots.get(4).x, 77, "main hand x");
+        h.assertValueEqual(menu.slots.get(5).x, 95, "off hand x");
+        h.assertValueEqual(menu.slots.get(4).y, 62, "hand y");
+        // The companion grid, the player's grid and the hotbar keep the vanilla offsets.
+        h.assertValueEqual(menu.slots.get(CompanionInventoryMenu.GEAR_SLOTS).y, 104, "companion grid y");
+        int playerStart = CompanionInventoryMenu.GEAR_SLOTS + CompanionInventoryMenu.COMPANION_SLOTS;
+        h.assertValueEqual(menu.slots.get(playerStart).y, 174, "player grid y");
+        h.assertValueEqual(menu.slots.size() - 9, playerStart + 27, "hotbar start");
+        h.assertValueEqual(menu.slots.get(playerStart + 27).y, 232, "hotbar y");
+
+        owner.closeContainer();
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void hungerReachesTheSyncedField(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        companion.hunger().load(7, 0.0f, 0.0f);
+        companion.tick();
+        h.assertValueEqual(companion.syncedFood(), 7, "food must reach the field the client reads");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
     public void goneCompanionCannotBeOpened(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);

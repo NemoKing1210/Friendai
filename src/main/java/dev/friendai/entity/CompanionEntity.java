@@ -70,6 +70,9 @@ public class CompanionEntity extends PathfinderMob {
     /** Synced to the client so it can draw the thought bubble above the head while the brain waits for the model. */
     private static final EntityDataAccessor<Boolean> DATA_THINKING =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
+    /** Synced so the owner's inventory window can show the companion's hunger bar. */
+    private static final EntityDataAccessor<Integer> DATA_FOOD =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -123,6 +126,7 @@ public class CompanionEntity extends PathfinderMob {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(DATA_THINKING, false);
+        builder.define(DATA_FOOD, HungerModel.MAX_FOOD);
     }
 
     /** True while the brain is waiting for the model; the client draws a thought bubble above the head. */
@@ -132,6 +136,11 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setThinking(boolean thinking) {
         entityData.set(DATA_THINKING, thinking);
+    }
+
+    /** The food level as the client sees it; the server ticks the model, the client only reads this field. */
+    public int syncedFood() {
+        return entityData.get(DATA_FOOD);
     }
 
     public TaskRunner taskRunner() {
@@ -307,6 +316,7 @@ public class CompanionEntity extends PathfinderMob {
         if (hungerEffect != null) {
             hunger.addExhaustion(0.005f * (hungerEffect.getAmplifier() + 1));
         }
+        entityData.set(DATA_FOOD, hunger.food());
     }
 
     private static Difficulty survivalDifficulty(net.minecraft.world.Difficulty difficulty) {

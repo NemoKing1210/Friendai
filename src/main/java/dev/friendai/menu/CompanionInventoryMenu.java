@@ -12,6 +12,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.equipment.Equippable;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The companion's inventory window: six equipment slots, its 27 inventory slots and the viewer's own inventory.
@@ -49,21 +50,30 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
         Container gear = live ? new CompanionEquipmentContainer(companion) : new SimpleContainer(GEAR_SLOTS);
         Container items = live ? companion.inventory() : new SimpleContainer(COMPANION_SLOTS);
         for (int slot = 0; slot < GEAR_SLOTS; slot++) {
-            addSlot(new GearSlot(gear, slot, CompanionEquipmentContainer.SLOTS[slot], 8 + slot * 18, 18));
+            // Armor in a column on the left like the player inventory; the two hands together under the model.
+            int x = slot < 4 ? 8 : 77 + (slot - 4) * 18;
+            int y = slot < 4 ? 18 + slot * 18 : 62;
+            addSlot(new GearSlot(gear, slot, CompanionEquipmentContainer.SLOTS[slot], x, y));
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(items, row * 9 + col, 8 + col * 18, 44 + row * 18));
+                addSlot(new Slot(items, row * 9 + col, 8 + col * 18, 104 + row * 18));
             }
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, 9 + row * 9 + col, 8 + col * 18, 120 + row * 18));
+                addSlot(new Slot(playerInventory, 9 + row * 9 + col, 8 + col * 18, 174 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 178));
+            addSlot(new Slot(playerInventory, col, 8 + col * 18, 232));
         }
+    }
+
+    /** The companion this menu shows, or {@code null} on the client when the entity is out of tracking range. */
+    @Nullable
+    public CompanionEntity companion() {
+        return companion;
     }
 
     @Override
