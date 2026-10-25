@@ -9,7 +9,6 @@ import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
@@ -148,16 +147,6 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             return;
         }
         selected.tab().tick();
-    }
-
-    @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0) {
-            if (selected.tab().mouseClicked(event.x(), event.y())) {
-                return true;
-            }
-        }
-        return super.mouseClicked(event, doubleClick);
     }
 
     @Override

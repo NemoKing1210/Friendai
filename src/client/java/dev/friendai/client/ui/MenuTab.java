@@ -20,11 +20,6 @@ interface MenuTab {
 
     default void tick() {}
 
-    /** A left click inside the tab's content area, in screen coordinates. True when the tab handled it. */
-    default boolean mouseClicked(double x, double y) {
-        return false;
-    }
-
     /** A wheel turn with the pointer at ({@code x}, {@code y}). True when the tab scrolled. */
     default boolean scroll(double x, double y, double amount) {
         return false;

@@ -65,6 +65,8 @@ final class LogTab implements MenuTab {
         int copyWidth = 52;
         host.add(new FlatButton(left + width - copyWidth, top, copyWidth, CHIP_HEIGHT,
                 Component.translatable("friendai.menu.log.copy"), Ui.ACCENT, this::copy));
+        int chipsHeight = layoutChips(host.font(), left, top, width);
+        host.add(new HitArea(left, top, width - copyWidth - GAP, chipsHeight, this::clickChip));
     }
 
     private List<LogEntry> visibleEntries() {
@@ -181,18 +183,16 @@ final class LogTab implements MenuTab {
         view.end(g);
     }
 
-    @Override
-    public boolean mouseClicked(double x, double y) {
+    private void clickChip(double x, double y) {
         for (Chip chip : chips) {
             if (x >= chip.x() && x < chip.x() + chip.w() && y >= chip.y() && y < chip.y() + CHIP_HEIGHT) {
                 if (!enabled.add(chip.kind())) {
                     enabled.remove(chip.kind());
                 }
                 rowsKey = "";
-                return true;
+                return;
             }
         }
-        return false;
     }
 
     @Override

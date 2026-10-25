@@ -85,6 +85,8 @@ final class MemoryTab implements MenuTab {
         listWidth = headWidth;
         listHeight = Math.max(LINE, actionY - GAP - listTop);
 
+        host.add(new HitArea(sideLeft, sideTop, sideWidth, sideHeight, this::clickGroup));
+        host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickFact));
         edit = host.add(new FlatButton(headLeft, actionY, 70, ROW,
                 Component.translatable("friendai.menu.memory.edit"), Ui.ACCENT, this::startEdit));
         forget = host.add(new FlatButton(headLeft + 70 + GAP, actionY, 70, ROW,
@@ -413,33 +415,28 @@ final class MemoryTab implements MenuTab {
         g.disableScissor();
     }
 
-    @Override
-    public boolean mouseClicked(double x, double y) {
-        if (groupsView.contains(x, y)) {
-            int index = groupsView.contentY(y) / GROUP_ROW;
-            model.view().ifPresent(view -> {
-                if (index >= 0 && index < view.groups().size()) {
-                    model.selectGroup(view.groups().get(index).key());
-                    factsView.scroll(1000);
-                    sync();
-                }
-            });
-            return true;
-        }
-        if (!factsView.contains(x, y)) {
-            return false;
-        }
+    private void clickGroup(double x, double y) {
+        int index = groupsView.contentY(y) / GROUP_ROW;
+        model.view().ifPresent(view -> {
+            if (index >= 0 && index < view.groups().size()) {
+                model.selectGroup(view.groups().get(index).key());
+                factsView.scroll(1000);
+                sync();
+            }
+        });
+    }
+
+    private void clickFact(double x, double y) {
         int cursor = factsView.contentY(y);
         int running = 0;
         for (Row row : rows) {
             if (cursor >= running && cursor < running + row.height()) {
                 model.select(row.factId());
                 sync();
-                return true;
+                return;
             }
             running += row.height() + GAP;
         }
-        return false;
     }
 
     @Override
