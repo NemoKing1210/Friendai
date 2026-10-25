@@ -4,6 +4,11 @@ import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.FellTreeTask;
+import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
@@ -14,6 +19,8 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 
@@ -40,6 +47,141 @@ public class TreeFellingTests {
     private static ToolResult run(ToolExecutor tools, Caller caller, String name, String json) {
         return tools.execute(
                 new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null), caller);
+    }
+
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary;
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    private static TreeFinder.TreeInfo treeAt(GameTestHelper h, int x, int z) {
+        BlockPos origin = h.absolutePos(new BlockPos(x, 2, z));
+        return TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 1, true).get(0);
+    }
+
+    private static TaskRunner start(CompanionEntity c, Result result, FellTreeTask task) {
+        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        runner.setListener(result);
+        runner.start(task, "fell_tree");
+        return runner;
+    }
+
+    private static BlockMatcher oak() {
+        return BlockMatcher.parse("minecraft:oak_log").orElseThrow();
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void fellsWholeTree(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 6; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+        }
+        leaf(h, 5, 6, 6);
+        leaf(h, 7, 6, 6);
+        leaf(h, 6, 6, 5);
+        leaf(h, 6, 6, 7);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, true));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (int y = 2; y <= 6; y++) {
+                h.assertTrue(h.getBlockState(new BlockPos(6, y, 6)).isAir(), "log left at y " + y);
+            }
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 5, "drops collected");
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void startsAtTheLowestLog(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 10; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.OAK_LOG);
+        }
+        leaf(h, 7, 10, 8);
+        for (int x = 5; x <= 7; x++) {
+            for (int z = 5; z <= 9; z++) {
+                h.setBlock(new BlockPos(x, 8, z), Blocks.STONE);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 9, 8);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 8, 8), oak(), 1, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 8)).isAir(), "the bottom log must be the one cut");
+            h.assertTrue(h.getBlockState(new BlockPos(8, 10, 8)).is(Blocks.OAK_LOG), "the top log must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void limitStopsEarly(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 6; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+        }
+        leaf(h, 5, 6, 6);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 2, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the first log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 3, 6)).isAir(), "the second log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 4, 6)).is(Blocks.OAK_LOG), "the rest must stay");
+            h.assertTrue(result.summary.contains("(limit)"), "summary " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void finishesFloatingLeftovers(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(6, 5, 6), Blocks.OAK_LOG);
+        h.setBlock(new BlockPos(6, 6, 6), Blocks.OAK_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).isAir(), "lower log left");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 6, 6)).isAir(), "upper log left");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void reportsPartialWhenALogIsProtected(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+        }
+        leaf(h, 6, 6, 6);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        BlockPos protectedLog = h.absolutePos(new BlockPos(6, 5, 6));
+        c.hands().overrideProtection(p -> p.equals(protectedLog));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("could not be reached"), "summary " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).is(Blocks.OAK_LOG), "the protected log must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the reachable logs must be cut");
+        });
     }
 
     @GameTest(maxTicks = 400)
