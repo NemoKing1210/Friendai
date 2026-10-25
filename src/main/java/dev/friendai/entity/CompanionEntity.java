@@ -32,6 +32,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -62,6 +65,9 @@ import org.jetbrains.annotations.Nullable;
 /** The player's AI companion: a player-looking mob that never despawns and carries its own inventory. */
 public class CompanionEntity extends PathfinderMob {
     private static final Codec<UUID> UUID_CODEC = UUIDUtil.CODEC;
+    /** Synced to the client so it can draw the thought bubble above the head while the brain waits for the model. */
+    private static final EntityDataAccessor<Boolean> DATA_THINKING =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -109,6 +115,21 @@ public class CompanionEntity extends PathfinderMob {
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
+    }
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(DATA_THINKING, false);
+    }
+
+    /** True while the brain is waiting for the model; the client draws a thought bubble above the head. */
+    public boolean isThinking() {
+        return entityData.get(DATA_THINKING);
+    }
+
+    public void setThinking(boolean thinking) {
+        entityData.set(DATA_THINKING, thinking);
     }
 
     public TaskRunner taskRunner() {

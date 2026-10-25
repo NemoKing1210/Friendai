@@ -60,7 +60,7 @@ import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
 public final class BrainService {
-    private record Entry(CompanionBrain brain, CompanionSpeaker speaker) {}
+    private record Entry(CompanionBrain brain) {}
 
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
@@ -78,7 +78,6 @@ public final class BrainService {
     private LlmGateway current;
     private String activeModel = "";
     private String activeProvider = "";
-    private int tickCounter;
 
     public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
         this.server = server;
@@ -265,18 +264,15 @@ public final class BrainService {
 
     public void tick() {
         scheduler.tick();
-        if (++tickCounter % 20 == 0) {
-            for (Entry entry : entries.values()) {
-                if (entry.brain().isThinking()) {
-                    entry.speaker().showThinking();
-                }
-            }
-        }
     }
 
     private Entry create(UUID owner, CompanionEntity companion) {
         CompanionSpeaker speaker = new CompanionSpeaker(
-                server, owner, () -> config.companion.name, () -> config.chat.maxReplyChars);
+                server,
+                owner,
+                () -> config.companion.name,
+                () -> config.chat.maxReplyChars,
+                companion::setThinking);
         Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(config.companion.name, config.companion.persona, config.companion.language),
@@ -319,7 +315,7 @@ public final class BrainService {
                 debug.logOf(owner).add(LogKind.TASK, text);
             }
         });
-        Entry entry = new Entry(brain, speaker);
+        Entry entry = new Entry(brain);
         entries.put(owner, entry);
         FriendaiMod.LOGGER.debug("Created brain for {}", owner);
         return entry;

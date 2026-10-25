@@ -28,7 +28,6 @@
   "friendai.inventory.unavailable": "The companion's inventory can't be opened right now.",
   "friendai.companion.died": "%s died. Summon again: /friendai summon",
 
-  "friendai.companion.thinking": "%s is thinking…",
   "friendai.command.stopped": "Stopped.",
   "friendai.command.status": "Provider: %s / %s. Task: %s. Thinking: %s.",
   "friendai.common.yes": "yes",

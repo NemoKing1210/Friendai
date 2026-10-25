@@ -92,6 +92,20 @@ public class BrainServiceTests {
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 
+    @GameTest(maxTicks = 200)
+    public void thinkingIsShownOnTheCompanion(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        BrainService brains = FriendaiServerState.get(server).brains();
+        Script script = new Script();
+        script.hang = true;
+        brains.setGatewayOverride(player.getUUID(), script);
+        CompanionEntity companion = CompanionManager.get(server).summon(player);
+        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
+        h.succeedWhen(() -> h.assertTrue(
+                companion.isThinking(), "the companion should carry the thinking flag for the client to draw"));
+    }
+
     // The brain waits brain.cooldownMs (500 ms of real time) between turns, while a gametest tick is far shorter
     // than 50 ms: 900 ticks is only just over two cooldowns, so leave a wide budget.
     @GameTest(maxTicks = 3600)

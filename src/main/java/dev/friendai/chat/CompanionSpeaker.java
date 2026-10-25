@@ -4,6 +4,7 @@ import dev.friendai.brain.Speaker;
 import dev.friendai.core.Components;
 import dev.friendai.text.UserMessage;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
@@ -17,12 +18,20 @@ public final class CompanionSpeaker implements Speaker {
     private final UUID owner;
     private final Supplier<String> name;
     private final IntSupplier maxReplyChars;
+    /** Passes the thinking state to the entity, whose client draws a thought bubble: no screen text is shown. */
+    private final Consumer<Boolean> thinkingSink;
 
-    public CompanionSpeaker(MinecraftServer server, UUID owner, Supplier<String> name, IntSupplier maxReplyChars) {
+    public CompanionSpeaker(
+            MinecraftServer server,
+            UUID owner,
+            Supplier<String> name,
+            IntSupplier maxReplyChars,
+            Consumer<Boolean> thinkingSink) {
         this.server = server;
         this.owner = owner;
         this.name = name;
         this.maxReplyChars = maxReplyChars;
+        this.thinkingSink = thinkingSink;
     }
 
     @Override
@@ -34,17 +43,7 @@ public final class CompanionSpeaker implements Speaker {
 
     @Override
     public void thinking(boolean on) {
-        if (on) {
-            showThinking();
-        }
-    }
-
-    /** Shows (or refreshes) the "is thinking" action bar for the owner. */
-    public void showThinking() {
-        ServerPlayer player = server.getPlayerList().getPlayer(owner);
-        if (player != null) {
-            player.sendSystemMessage(Component.translatable("friendai.companion.thinking", name.get()), true);
-        }
+        thinkingSink.accept(on);
     }
 
     @Override

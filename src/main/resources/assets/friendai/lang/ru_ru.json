@@ -28,7 +28,6 @@
   "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
 
-  "friendai.companion.thinking": "%s думает…",
   "friendai.command.stopped": "Остановился.",
   "friendai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",
   "friendai.common.yes": "да",
