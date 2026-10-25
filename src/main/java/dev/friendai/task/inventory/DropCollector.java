@@ -26,9 +26,10 @@ import org.jetbrains.annotations.Nullable;
  * Collects the drops around a fixed point the way a player would: it takes what lies at its feet, walks to the rest a
  * few at a time and gives up on a drop that is hazardous, sealed away, or out of room in the inventory.
  *
- * <p>A collector never changes the terrain: the route digs and builds nothing. It leaves a drop the companion threw
- * itself, a drop still inside the vanilla pickup delay, and anything lying in or on fire, lava or another hazard. A
- * hostile nearby pauses the walking; what lies at its feet is still taken.
+ * <p>A collector never changes the terrain: the route digs and builds nothing. It never takes a drop the companion
+ * threw itself, and it leaves anything lying in or on fire, lava or another hazard; a drop still inside the vanilla
+ * pickup delay is waited for rather than skipped. A hostile nearby pauses the walking; what lies at its feet is still
+ * taken.
  *
  * <p>Tick it once per server tick, from a task or a path executor, on the server thread. It stops walking by itself
  * when it is done, when it runs out of time, or through {@link #stop(TaskContext)}.
@@ -98,7 +99,8 @@ public final class DropCollector {
         }
         Set<Pos> positions = positions();
         if (positions.isEmpty()) {
-            // Drops are there, but none has come to rest: wait for one to land rather than walk to a guess.
+            // Drops are there, but none is ready: still falling, or inside the vanilla pickup delay. Wait for one
+            // rather than end the round without it or walk to a guess.
             resetNavigation(c);
             return State.COLLECTING;
         }
@@ -140,16 +142,19 @@ public final class DropCollector {
         rescanNow = false;
         drops = companion.level()
                 .getEntitiesOfClass(ItemEntity.class, new AABB(origin, origin).inflate(radius),
-                        e -> eligible(e, companion))
+                        e -> wanted(e, companion))
                 .stream()
                 .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(companion)))
                 .toList();
-        aimed = drops.stream().filter(DropCollector::atRest).limit(MAX_GOALS).toList();
+        aimed = drops.stream()
+                .filter(e -> !e.hasPickUpDelay() && atRest(e))
+                .limit(MAX_GOALS)
+                .toList();
     }
 
-    private boolean eligible(ItemEntity e, CompanionEntity companion) {
+    /** A drop this round means to take, whether or not it is ready to be taken yet. */
+    private boolean wanted(ItemEntity e, CompanionEntity companion) {
         return companion.canCollect(e)
-                && !e.hasPickUpDelay()
                 && (filter == null || filter.test(e.getItem()))
                 && companion.inventory().canAddItem(e.getItem())
                 && safe(e)

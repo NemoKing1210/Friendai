@@ -3,15 +3,21 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /** Mines one specific block and collects its drop. */
 public final class MineBlockAtTask implements Task {
+    /** How far from the block the sweep for its drop looks; the drop lands there or close by. */
+    private static final int SWEEP_RADIUS = 6;
+
     private final BlockPos pos;
     private BlockBreaker breaker;
+    private DropCollector sweep;
     private BlockState startBlock;
     private String summary = "";
 
@@ -31,6 +37,14 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (sweep != null) {
+            if (sweep.tick(c) == DropCollector.State.DONE) {
+                sweep = null;
+                summary = "mined " + blockId() + " at " + coords();
+                return TaskStatus.SUCCESS;
+            }
+            return TaskStatus.RUNNING;
+        }
         if (startBlock.isAir()) {
             summary = "there is no block at " + coords();
             return TaskStatus.FAILED;
@@ -45,8 +59,9 @@ public final class MineBlockAtTask implements Task {
         return switch (breaker.tick(c)) {
             case WORKING -> TaskStatus.RUNNING;
             case BROKEN -> {
-                summary = "mined " + blockId() + " at " + coords();
-                yield TaskStatus.SUCCESS;
+                breaker = null;
+                sweep = new DropCollector(Vec3.atCenterOf(pos), SWEEP_RADIUS);
+                yield TaskStatus.RUNNING;
             }
             case GONE -> {
                 summary = "the block at " + coords() + " changed before I could mine it";
@@ -69,6 +84,10 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (sweep != null) {
+            sweep.stop(c);
+            sweep = null;
+        }
         if (breaker != null) {
             breaker.stop(c);
         }

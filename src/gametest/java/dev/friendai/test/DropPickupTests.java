@@ -64,8 +64,10 @@ public class DropPickupTests {
         int[] ticks = {0};
         h.succeedWhen(() -> {
             ticks[0]++;
-            collector.tick(ctx);
+            DropCollector.State state = collector.tick(ctx);
             if (ticks[0] < 10) {
+                h.assertTrue(state == DropCollector.State.COLLECTING,
+                        "a round must wait for a drop inside its pickup delay, not end");
                 h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
                         "collected before the pickup delay ran out");
                 return;

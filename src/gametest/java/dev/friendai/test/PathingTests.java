@@ -324,8 +324,8 @@ public class PathingTests {
                 }
             }
             h.assertTrue(left == 0, "logs left: " + left);
-            // The drop from the top of the column falls past BreakAction's 4-block collect radius; the mined count
-            // is what the task promises.
+            // The drops of a tall column land on the ground below it, where the mining task's sweep at the last
+            // broken block collects them; the mined count is what the task promises.
             h.assertTrue(c.inventory().countItem(Items.CHERRY_LOG) >= 1,
                     "logs collected: " + c.inventory().countItem(Items.CHERRY_LOG));
         });

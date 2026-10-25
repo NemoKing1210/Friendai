@@ -12,11 +12,13 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -101,6 +103,61 @@ public class ItemTaskTests {
             h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
             h.assertTrue(!far.isRemoved(), "far item should be untouched");
         });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void pickupSkipsHazardousDrop(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(new BlockPos(5, 2, 5), Blocks.MAGMA_BLOCK);
+        dropItem(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new PickupItemsTask(6), "pickup_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 0, "took a drop lying on magma");
+            h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
+            h.assertValueEqual(cobblestoneAt(h, 5.5, 3.0, 5.5), 3, "the hazardous drop must stay on the ground");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void pickupSkipsUnreachableDrop(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (int x = 4; x <= 6; x++) {
+            for (int y = 2; y <= 4; y++) {
+                for (int z = 4; z <= 6; z++) {
+                    h.setBlock(new BlockPos(x, y, z),
+                            x == 5 && y == 3 && z == 5 ? Blocks.AIR : Blocks.STONE);
+                }
+            }
+        }
+        dropItem(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(new PickupItemsTask(6), "pickup_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 0, "took a sealed drop");
+            h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
+            h.assertValueEqual(cobblestoneAt(h, 5.5, 3.0, 5.5), 3, "the sealed drop must stay on the ground");
+        });
+    }
+
+    /**
+     * Cobblestone lying within a block of one test-relative point. A box around the drop, not around the companion:
+     * the platforms are wider than the structures and neighbouring tests run beside this one.
+     */
+    private static int cobblestoneAt(GameTestHelper h, double x, double y, double z) {
+        Vec3 p = h.absoluteVec(new Vec3(x, y, z));
+        return h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(p, p).inflate(1.0)).stream()
+                .filter(e -> e.getItem().is(Items.COBBLESTONE))
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
     }
 
     @GameTest(maxTicks = 400)
