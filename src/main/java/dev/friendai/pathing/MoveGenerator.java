@@ -63,7 +63,9 @@ public final class MoveGenerator {
     public void neighbours(Node from, int placedSoFar, int placeable, int headUnderwater, Consumer<PathStep> out) {
         walkAndJump(from, out);
         ascend(from, out);
+        diagonalAscend(from, out);
         descend(from, out);
+        diagonalDescend(from, out);
         swim(from, headUnderwater, out);
         climb(from, out);
         dig(from, out);
@@ -130,8 +132,49 @@ public final class MoveGenerator {
         }
     }
 
+    private void diagonalAscend(Node from, Consumer<PathStep> out) {
+        if (!enterable(view.at(from.pos().offset(0, 2, 0)))) {
+            return;
+        }
+        for (int[] d : DIAGONALS) {
+            Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
+            if (standable(view, to) && cornersClear(from, d)) {
+                emit(from, to, Move.ASCEND, costs.walk() + costs.jump(), 0, out);
+            }
+        }
+    }
+
+    private boolean cornersClear(Node from, int[] d) {
+        return cornerClear(new Pos(from.x() + d[0], from.y(), from.z()))
+                && cornerClear(new Pos(from.x(), from.y(), from.z() + d[1]));
+    }
+
     private void descend(Node from, Consumer<PathStep> out) {
         for (int[] d : DIRECTIONS) {
+            for (int k = 1; k <= MAX_WATER_DROP; k++) {
+                Node to = new Node(from.x() + d[0], from.y() - k, from.z() + d[1]);
+                if (!enterable(view.at(to.pos())) || !columnClear(to, from)) {
+                    break;
+                }
+                if (!standable(view, to)) {
+                    continue;
+                }
+                boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER;
+                if (k <= MAX_SAFE_FALL || water) {
+                    emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
+                }
+                if (!water && k >= MAX_SAFE_FALL) {
+                    break;
+                }
+            }
+        }
+    }
+
+    private void diagonalDescend(Node from, Consumer<PathStep> out) {
+        for (int[] d : DIAGONALS) {
+            if (!cornersClear(from, d)) {
+                continue;
+            }
             for (int k = 1; k <= MAX_WATER_DROP; k++) {
                 Node to = new Node(from.x() + d[0], from.y() - k, from.z() + d[1]);
                 if (!enterable(view.at(to.pos())) || !columnClear(to, from)) {
@@ -165,11 +208,21 @@ public final class MoveGenerator {
         for (int[] d : DIRECTIONS) {
             swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]), headUnderwater, out);
         }
+        for (int[] d : DIAGONALS) {
+            if (cornersClear(from, d)) {
+                swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]),
+                        headUnderwater, costs.swim() * Math.sqrt(2.0), out);
+            }
+        }
         swimTo(from, new Node(from.x(), from.y() + 1, from.z()), headUnderwater, out);
         swimTo(from, new Node(from.x(), from.y() - 1, from.z()), headUnderwater, out);
     }
 
     private void swimTo(Node from, Node to, int headUnderwater, Consumer<PathStep> out) {
+        swimTo(from, to, headUnderwater, costs.swim(), out);
+    }
+
+    private void swimTo(Node from, Node to, int headUnderwater, double cost, Consumer<PathStep> out) {
         if (view.at(to.pos()).kind() != Cell.Kind.WATER || !standable(view, to)) {
             return;
         }
@@ -177,7 +230,7 @@ public final class MoveGenerator {
         if (headInWater && headUnderwater >= MAX_UNDERWATER_RUN) {
             return;
         }
-        emit(from, to, Move.SWIM, costs.swim(), headInWater ? headUnderwater + 1 : 0, out);
+        emit(from, to, Move.SWIM, cost, headInWater ? headUnderwater + 1 : 0, out);
     }
 
     private void climb(Node from, Consumer<PathStep> out) {
