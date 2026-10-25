@@ -127,10 +127,11 @@ class PathSearchTest {
     }
 
     @Test
-    void pitWithoutBlocksIsNoPath() {
+    void pitWithoutBlocksWalksToTheEdge() {
         GridCellView view = pit(3, 4);
-        assertEquals(SearchResult.Status.NO_PATH,
-                run(search(view, new Node(1, 1, 0), point(10.5, 1, 0.5), 20_000, 0)).status());
+        SearchResult result = run(search(view, new Node(1, 1, 0), point(10.5, 1, 0.5), 20_000, 0));
+        assertEquals(SearchResult.Status.PARTIAL, result.status());
+        assertEquals(4, result.path().end().x());
 
         Path path = path(view, new Node(1, 1, 0), point(10.5, 1, 0.5), Integer.MAX_VALUE);
         assertEquals(3, path.places());
@@ -223,10 +224,11 @@ class PathSearchTest {
     }
 
     @Test
-    void unloadedIsImpassable() {
+    void unloadedColumnBlocksTheRouteAndWalksCloser() {
         GridCellView view = new GridCellView("#########", "...?...", "........");
-        assertEquals(SearchResult.Status.NO_PATH,
-                run(search(view, new Node(0, 1, 0), point(6.5, 1, 0.5), 20_000, 0)).status());
+        SearchResult result = run(search(view, new Node(0, 1, 0), point(6.5, 1, 0.5), 20_000, 0));
+        assertEquals(SearchResult.Status.PARTIAL, result.status());
+        assertEquals(2, result.path().end().x());
     }
 
     @Test

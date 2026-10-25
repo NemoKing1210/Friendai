@@ -4,19 +4,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
  * An incremental A* over block positions. Each {@link #step} call expands nodes until its time budget runs out and
  * keeps its state, so a caller on the server thread can spread one search over several ticks.
  *
- * <p>The closed set is keyed by position only: the same place reached with fewer placed blocks is not searched
- * again. That is an accepted approximation; the executor re-plans when it runs out of material.
+ * <p>Each position keeps the non-dominated states for cost, placed blocks and underwater time, so a cheaper
+ * arrival cannot hide a route that conserves the resources needed to finish.
  */
 public final class PathSearch {
 
@@ -33,13 +31,17 @@ public final class PathSearch {
         final int headUnderwater;
         /** The step that led here; null for the start. */
         final PathStep step;
+        final Record parent;
+        boolean closed;
+        boolean stale;
 
-        Record(Node node, double g, int placed, int headUnderwater, PathStep step) {
+        Record(Node node, double g, int placed, int headUnderwater, PathStep step, Record parent) {
             this.node = node;
             this.g = g;
             this.placed = placed;
             this.headUnderwater = headUnderwater;
             this.step = step;
+            this.parent = parent;
         }
     }
 
@@ -51,8 +53,7 @@ public final class PathSearch {
     private final MoveGenerator moves;
 
     private final PriorityQueue<Entry> open = new PriorityQueue<>(ORDER);
-    private final Map<Long, Record> records = new HashMap<>();
-    private final Set<Long> closed = new HashSet<>();
+    private final Map<Long, List<Record>> recordsByPos = new HashMap<>();
     private final double startHeuristic;
 
     private long sequence;
@@ -70,8 +71,8 @@ public final class PathSearch {
         this.moves = new MoveGenerator(view, costs, goal, options.placePrice());
         this.startHeuristic = goal.heuristic(start, costs);
         this.bestHeuristic = startHeuristic;
-        Record root = new Record(start, 0, 0, 0, null);
-        records.put(start.pack(), root);
+        Record root = new Record(start, 0, 0, 0, null, null);
+        recordsByPos.put(start.pack(), new ArrayList<>(List.of(root)));
         open.add(new Entry(startHeuristic, startHeuristic, sequence++, root));
     }
 
@@ -87,10 +88,10 @@ public final class PathSearch {
         while (!open.isEmpty() && expanded < options.maxNodes() && nanoClock.getAsLong() - begin < budgetNanos) {
             Entry entry = open.poll();
             Record record = entry.record();
-            if (closed.contains(record.node.pack())) {
+            if (record.stale || record.closed) {
                 continue;
             }
-            closed.add(record.node.pack());
+            record.closed = true;
             expanded++;
             if (goal.isGoal(record.node, view)) {
                 finished = new SearchResult(SearchResult.Status.FOUND, buildPath(record, false));
@@ -105,7 +106,7 @@ public final class PathSearch {
                     step -> relax(record, step));
         }
         if (open.isEmpty() || expanded >= options.maxNodes()) {
-            finished = finish(expanded >= options.maxNodes());
+            finished = finish();
         }
         return finished == null ? SearchResult.running() : finished;
     }
@@ -117,9 +118,6 @@ public final class PathSearch {
 
     private void relax(Record parent, PathStep step) {
         Node to = step.to();
-        if (closed.contains(to.pack())) {
-            return;
-        }
         if (Math.max(Math.abs(to.x() - start.x()), Math.abs(to.z() - start.z())) > options.maxRange()) {
             return;
         }
@@ -127,23 +125,31 @@ public final class PathSearch {
         if (placed > options.placeable()) {
             return;
         }
+        int underwater = step.headUnderwater();
         double g = parent.g + step.cost();
-        Record existing = records.get(to.pack());
-        if (existing != null && existing.g <= g) {
-            return;
+        List<Record> at = recordsByPos.computeIfAbsent(to.pack(), k -> new ArrayList<>(2));
+        for (Record existing : at) {
+            if (existing.g <= g && existing.placed <= placed && existing.headUnderwater <= underwater) {
+                return;
+            }
         }
-        Record record = new Record(to, g, placed, step.headUnderwater(), step);
-        records.put(to.pack(), record);
+        at.removeIf(existing -> {
+            boolean dominated = g <= existing.g && placed <= existing.placed
+                    && underwater <= existing.headUnderwater;
+            if (dominated) {
+                existing.stale = true;
+            }
+            return dominated;
+        });
+        Record record = new Record(to, g, placed, underwater, step, parent);
+        at.add(record);
         double h = goal.heuristic(to, costs);
         open.add(new Entry(g + h, h, sequence++, record));
     }
 
-    /**
-     * An exhausted search means the goal cannot be reached from here. Only a hit limit can return a partial route:
-     * the search simply had no time to look further.
-     */
-    private SearchResult finish(boolean limitHit) {
-        if (limitHit && best != null && bestHeuristic < startHeuristic) {
+    /** An exhausted or limited search still returns a route when it made progress toward the goal. */
+    private SearchResult finish() {
+        if (best != null && bestHeuristic < startHeuristic) {
             return new SearchResult(SearchResult.Status.PARTIAL, buildPath(best, true));
         }
         return new SearchResult(SearchResult.Status.NO_PATH, null);
@@ -155,7 +161,7 @@ public final class PathSearch {
         int guard = 0;
         while (current != null && current.step != null && guard++ < 100_000) {
             steps.add(current.step);
-            current = records.get(current.step.from().pack());
+            current = current.parent;
         }
         Collections.reverse(steps);
         double cost = 0;
