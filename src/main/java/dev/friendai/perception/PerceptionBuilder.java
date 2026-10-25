@@ -69,7 +69,7 @@ public final class PerceptionBuilder {
                 focus,
                 selfStatus(c, level, pos),
                 threats(c, level),
-                null);
+                LandmarkScanner.scan(level, pos));
     }
 
     private static List<Threat> threats(CompanionEntity c, ServerLevel level) {

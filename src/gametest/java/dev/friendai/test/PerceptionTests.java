@@ -60,6 +60,45 @@ public class PerceptionTests {
     }
 
     @GameTest
+    public void landmarksFindStationsNearby(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(6, 2, 2, Blocks.CRAFTING_TABLE);
+        h.setBlock(2, 2, 6, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("crafting_table")),
+                p.toPromptText());
+        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("furnace")),
+                p.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
+    public void landmarksAtTheWorldFloorDoNotThrow(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var list = dev.friendai.perception.LandmarkScanner.scan(
+                h.getLevel(), new net.minecraft.core.BlockPos(0, h.getLevel().getMinY(), 0));
+        h.assertTrue(list.size() <= 5, "landmarks: " + list.size());
+        h.succeed();
+    }
+
+    @GameTest
+    public void landmarksAreCappedAtFive(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(1, 2, 1, Blocks.LAVA);
+        h.setBlock(2, 2, 1, Blocks.WATER);
+        h.setBlock(3, 2, 1, Blocks.CRAFTING_TABLE);
+        h.setBlock(4, 2, 1, Blocks.FURNACE);
+        h.setBlock(5, 2, 1, Blocks.ANVIL);
+        h.setBlock(6, 2, 1, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        h.assertTrue(p.landmarks().size() == 5, "landmarks: " + p.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
     public void selfReportsNoSkyUnderARoof(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         for (int x = 0; x < 5; x++) {
