@@ -27,6 +27,7 @@
   "friendai.inventory.not_owner": "Only the owner can open the companion's inventory.",
   "friendai.inventory.unavailable": "The companion's inventory can't be opened right now.",
   "friendai.companion.died": "%s died. Summon again: /friendai summon",
+  "friendai.companion.too_far": "Your companion is too far away to hear you.",
 
   "friendai.command.stopped": "Stopped.",
   "friendai.command.status": "Provider: %s / %s. Task: %s. Thinking: %s.",

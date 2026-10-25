@@ -34,6 +34,17 @@ public final class CompanionRouting {
                 sender.getUUID(), candidates, cfg.chat.hearingRadius, cfg.chat.guestsEnabled);
     }
 
+    /** True when the sender's own companion is loaded, in the same dimension and within hearing. */
+    public static boolean ownWithinHearing(ServerPlayer sender) {
+        var server = sender.level().getServer();
+        ServerConfig cfg = FriendaiServerState.get(server).config();
+        return CompanionManager.get(server)
+                .find(sender.getUUID())
+                .filter(companion -> companion.level() == sender.level())
+                .map(companion -> companion.position().distanceTo(sender.position()) <= cfg.chat.hearingRadius)
+                .orElse(false);
+    }
+
     /** Remembers that the sender spoke and posts the line to the owner's brain. */
     public static void deliver(ServerPlayer sender, UUID owner, String text, BrainEvent.Source source) {
         var server = sender.level().getServer();

@@ -27,6 +27,7 @@
   "friendai.inventory.not_owner": "Только владелец может открыть инвентарь компаньона.",
   "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
+  "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
 
   "friendai.command.stopped": "Остановился.",
   "friendai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",

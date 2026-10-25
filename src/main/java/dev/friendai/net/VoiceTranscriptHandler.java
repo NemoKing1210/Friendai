@@ -3,6 +3,7 @@ package dev.friendai.net;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.chat.CompanionRouting;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionManager;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
@@ -25,8 +26,10 @@ public final class VoiceTranscriptHandler {
             return;
         }
         String clean = text.strip();
-        // A yes/no answer to a pending trust request is handled before the line reaches any companion.
-        if (FriendaiServerState.get(server).trust().answer(player, clean)) {
+        boolean ownNear = CompanionRouting.ownWithinHearing(player);
+        // A yes/no answer to a pending trust request is handled before the line reaches any companion,
+        // but only when the companion is close enough to have heard it.
+        if (ownNear && FriendaiServerState.get(server).trust().answer(player, clean)) {
             return;
         }
         if (!LIMITER.tryAcquire(player.getUUID())) {
@@ -34,7 +37,11 @@ public final class VoiceTranscriptHandler {
         }
         Optional<UUID> owner = CompanionRouting.route(player);
         if (owner.isEmpty()) {
-            player.sendSystemMessage(Component.translatable("friendai.voice.need_companion"));
+            player.sendSystemMessage(Component.translatable(CompanionManager.get(server)
+                            .find(player.getUUID())
+                            .isPresent()
+                    ? "friendai.companion.too_far"
+                    : "friendai.voice.need_companion"));
             return;
         }
         String name = player.getName().getString();
