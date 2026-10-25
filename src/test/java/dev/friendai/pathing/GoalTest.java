@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.testutil.GridCellView;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class GoalTest {
@@ -56,19 +57,19 @@ class GoalTest {
 
     @Test
     void snapDownKeepsGroundTarget() {
-        GridCellView v = new GridCellView("#####", ".....");
+        GridCellView v = new GridCellView("#####", ".....", ".....");
         assertEquals(new Pos(2, 1, 0), GoalPoint.snapDown(v, 2, 1, 0, 16));
     }
 
     @Test
     void snapDownTreatsWaterAsLanding() {
-        GridCellView v = new GridCellView("#####", "..~..");
+        GridCellView v = new GridCellView("#####", "..~..", ".....");
         assertEquals(new Pos(2, 1, 0), GoalPoint.snapDown(v, 2, 10, 0, 16));
     }
 
     @Test
     void snapDownGivesUpAfterMaxDrop() {
-        GridCellView v = new GridCellView("#####", ".....");
+        GridCellView v = new GridCellView("#####", ".....", ".....");
         assertEquals(new Pos(2, 20, 0), GoalPoint.snapDown(v, 2, 20, 0, 3));
     }
 
@@ -121,5 +122,29 @@ class GoalTest {
         double near = reach.heuristic(new Node(3, 1, 0), CostModel.DEFAULTS);
         assertTrue(near < far);
         assertTrue(far > 0);
+    }
+
+    @Test
+    void groundBelowFindsTheSurface() {
+        assertEquals(Optional.of(new Pos(2, 9, 0)), GoalPoint.groundBelow(tallGrid(21, 8), 2, 20, 0, 16));
+    }
+
+    @Test
+    void groundBelowOverTheVoidIsEmpty() {
+        GridCellView view = new GridCellView("........", "........", "........");
+        assertTrue(GoalPoint.groundBelow(view, 2, 10, 0, 16).isEmpty());
+    }
+
+    @Test
+    void groundBelowSkipsASolidFootCell() {
+        GridCellView view = new GridCellView("#####", "..#..", ".....", ".....");
+        assertTrue(GoalPoint.groundBelow(view, 2, 1, 0, 1).isEmpty());
+        assertEquals(Optional.of(new Pos(2, 2, 0)), GoalPoint.groundBelow(view, 2, 3, 0, 4));
+    }
+
+    @Test
+    void groundBelowNeedsHeadClearance() {
+        GridCellView view = new GridCellView("#####", ".....", "..#..", ".....");
+        assertTrue(GoalPoint.groundBelow(view, 2, 1, 0, 1).isEmpty());
     }
 }

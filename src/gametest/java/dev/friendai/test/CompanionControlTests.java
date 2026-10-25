@@ -111,6 +111,8 @@ public class CompanionControlTests {
         h.assertTrue(manager.summon(player) == original && original.level() == nether
                         && original.position().distanceTo(before) < 0.01,
                 "summon must leave a companion in another dimension in place");
+        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        state.brains().currentPrompt(player.getUUID()); // Create entity-bound tools before the replacement.
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
         CompanionEntity moved = manager.find(player.getUUID()).orElse(null);
         h.assertTrue(moved != null && moved.level() == h.getLevel() && !moved.isRemoved(),
@@ -119,6 +121,9 @@ public class CompanionControlTests {
         h.assertTrue(original.isRemoved(), "old entity must be removed after changing dimensions");
         h.assertTrue(manager.all().stream().filter(c -> player.getUUID().equals(c.ownerUuid())).count() == 1,
                 "exactly one companion must remain registered");
+        state.brains().runTool(player.getUUID(), "stay", "{}");
+        h.assertTrue(moved.taskRunner().current().map(task -> task.type().equals("stay")).orElse(false),
+                "brain tools must bind to the replacement companion");
         h.succeed();
     }
 

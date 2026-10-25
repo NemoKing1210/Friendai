@@ -1,5 +1,7 @@
 package dev.friendai.pathing;
 
+import java.util.Optional;
+
 /** A goal near a single point, as {@code MoveHelper} wants: within a horizontal radius and a height band. */
 public record GoalPoint(double x, double y, double z, double horizontal, double vertical)
         implements PathGoal {
@@ -47,22 +49,19 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
         return Math.max(0, Math.min(Math.min(costs.fall(), costs.walk()), Math.min(costs.climb(), costs.swim())));
     }
 
-    /**
-     * The first position at or below {@code (x, y, z)}, at most {@code maxDrop} blocks down, that the companion can
-     * stand in: its support holds it up or it is in water. Returns the input when there is none, so a point in
-     * mid-air the model handed over never makes the companion build a tower to it.
-     */
-    public static Pos snapDown(CellView view, int x, int y, int z, int maxDrop) {
+    /** The highest standable cell in a downward window, or empty over the void or beneath a low ceiling. */
+    public static Optional<Pos> groundBelow(CellView view, int x, int y, int z, int maxDrop) {
         for (int i = 0; i <= maxDrop; i++) {
-            int py = y - i;
-            Cell cell = view.at(x, py, z);
-            if (cell.kind() == Cell.Kind.WATER) {
-                return new Pos(x, py, z);
-            }
-            if (!cell.hazard() && view.at(x, py - 1, z).supports()) {
-                return new Pos(x, py, z);
+            Node node = new Node(x, y - i, z);
+            if (MoveGenerator.standable(view, node)) {
+                return Optional.of(node.pos());
             }
         }
-        return new Pos(x, y, z);
+        return Optional.empty();
+    }
+
+    /** Projects onto nearby ground, preserving an explicit point if no standable surface exists below it. */
+    public static Pos snapDown(CellView view, int x, int y, int z, int maxDrop) {
+        return groundBelow(view, x, y, z, maxDrop).orElse(new Pos(x, y, z));
     }
 }

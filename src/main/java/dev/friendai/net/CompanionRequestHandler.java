@@ -72,7 +72,10 @@ public final class CompanionRequestHandler {
             case TELEPORT -> {
                 companions.find(owner).ifPresent(c -> c.taskRunner().stopWithoutCleanup("teleported to the owner"));
                 brains.cancel(owner);
-                companions.teleportToOwner(player);
+                if (companions.teleportToOwner(player)) {
+                    // Cross-dimension teleports replace the entity, while a brain captures its entity-bound tools.
+                    brains.onCompanionReplaced(owner);
+                }
             }
             case DISMISS -> companions.dismiss(player);
             case STOP -> companions.find(owner).ifPresent(c -> {

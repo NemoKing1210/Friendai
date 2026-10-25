@@ -121,6 +121,11 @@ public final class MoveGenerator {
     }
 
     private void ascend(Node from, Consumer<PathStep> out) {
+        // A climbable column already has the cheaper, physically executable CLIMB move. Treating it as a lateral
+        // jump lets A* leave a ladder or scaffold while rising, which a mob cannot reliably perform.
+        if (onLadderOrVine(from)) {
+            return;
+        }
         if (!enterable(view.at(from.pos().offset(0, 2, 0)))) {
             return;
         }

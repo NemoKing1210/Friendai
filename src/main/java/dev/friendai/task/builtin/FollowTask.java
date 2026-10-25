@@ -1,19 +1,26 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.pathing.CostModel;
+import dev.friendai.pathing.GoalPoint;
 import dev.friendai.task.Task;
+import dev.friendai.task.TaskSettings;
+import dev.friendai.task.nav.LevelCellView;
+import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 
 /** Stays close to the owner. Never finishes by itself. */
 public final class FollowTask implements Task {
     private static final double STOP_DISTANCE = 3.0;
     private static final double START_DISTANCE = 5.0;
-    private static final double TELEPORT_DISTANCE = 24.0;
+    private static final int RETRY_TICKS = 40;
 
     private final boolean quiet;
     private boolean moving;
-    private int ticks;
+    private final MoveHelper mover = new MoveHelper(1.0, STOP_DISTANCE, 4.0, 64);
+    private int retryCooldown;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -32,34 +39,67 @@ public final class FollowTask implements Task {
     public TaskStatus tick(TaskContext c) {
         ServerPlayer owner = c.owner().orElse(null);
         if (owner == null || owner.level() != c.level()) {
-            return TaskStatus.RUNNING;
-        }
-        var companion = c.companion();
-        double distance = companion.distanceTo(owner);
-        if (distance > TELEPORT_DISTANCE && owner.onGround()) {
-            companion.teleportTo(owner.getX(), owner.getY(), owner.getZ());
-            companion.getNavigation().stop();
+            if (moving) {
+                mover.stop(c);
+            }
             moving = false;
             return TaskStatus.RUNNING;
         }
+        if (retryCooldown > 0) {
+            retryCooldown--;
+            return TaskStatus.RUNNING;
+        }
+        Vec3 target = followTarget(c, owner);
+        if (target == null) {
+            mover.stop(c);
+            moving = false;
+            return TaskStatus.RUNNING;
+        }
+        double distance = c.companion().position().distanceTo(target);
         if (moving && distance <= STOP_DISTANCE) {
             moving = false;
-            companion.getNavigation().stop();
-        } else if (!moving && distance > START_DISTANCE) {
+            mover.stop(c);
+            return TaskStatus.RUNNING;
+        }
+        if (!moving && distance > START_DISTANCE) {
             moving = true;
         }
-        if (moving) {
-            companion.pace().update(true, distance);
+        if (!moving) {
+            return TaskStatus.RUNNING;
         }
-        if (moving && ticks++ % 10 == 0) {
-            companion.getNavigation().moveTo(owner, 1.0);
+        switch (mover.tick(c.companion(), target)) {
+            case ARRIVED -> {
+                mover.stop(c);
+                moving = false;
+            }
+            case STUCK -> {
+                mover.stop(c);
+                moving = false;
+                retryCooldown = RETRY_TICKS;
+            }
+            default -> { }
         }
+        // MoveHelper applies the default non-follow pace; following gets the owner's distance and AUTO hysteresis.
+        c.companion().pace().update(true, distance);
         return TaskStatus.RUNNING;
+    }
+
+    /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
+    private static Vec3 followTarget(TaskContext c, ServerPlayer owner) {
+        boolean grounded = owner.onGround() || owner.isInWater() || owner.onClimbable()
+                || owner.getVehicle() != null && owner.getVehicle().onGround();
+        if (grounded) {
+            return owner.position();
+        }
+        LevelCellView view = new LevelCellView(c.companion(), TaskSettings.pathing, CostModel.DEFAULTS);
+        return GoalPoint.groundBelow(view, owner.getBlockX(), owner.getBlockY(), owner.getBlockZ(), 64)
+                .map(pos -> new Vec3(pos.x() + 0.5, pos.y(), pos.z() + 0.5))
+                .orElse(null);
     }
 
     @Override
     public void stop(TaskContext c) {
-        c.companion().getNavigation().stop();
+        mover.stop(c);
     }
 
     @Override

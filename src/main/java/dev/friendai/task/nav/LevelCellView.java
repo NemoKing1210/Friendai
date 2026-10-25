@@ -125,7 +125,7 @@ public final class LevelCellView implements CellView {
             }
         }
         boolean placeable = config.allowPlace() && companion.hands().canInteract(pos)
-                && (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER || kind == Cell.Kind.PASSABLE);
+                && (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER);
         return new Cell(kind, breakTicks(pos, state, kind), state.getBlock() instanceof FallingBlock, placeable);
     }
 
