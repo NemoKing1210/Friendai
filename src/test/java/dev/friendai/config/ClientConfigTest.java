@@ -29,6 +29,7 @@ class ClientConfigTest {
         assertEquals("auto", c.voice.tts.language);
         assertEquals(1.0, c.voice.tts.volume);
         assertEquals(300, c.voice.tts.maxChars);
+        assertTrue(c.voice.tts.spatial);
         assertFalse(c.voice.tts.speakGuests);
         assertNull(c.voice.tts.outputDevice);
         assertNull(c.voice.tts.local.voice);
@@ -175,5 +176,16 @@ class ClientConfigTest {
         c.voice.tts.local.voice = "en_GB-alba-medium";
         c.validate();
         assertEquals("en_GB-alba-medium", c.voice.tts.local.voice);
+    }
+
+    @Test
+    void spatialDefaultsToOnWhenTheFieldIsAbsent() throws IOException {
+        Path file = dir.resolve("friendai-client.json");
+        Files.writeString(file, """
+            {"version":3,"voice":{"stt":{"provider":"local"},"tts":{"provider":"local"}}}""");
+        ConfigStore<ClientConfig> store = new ConfigStore<>(
+                file, ClientConfig.class, ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+        assertTrue(store.load().voice.tts.spatial);
     }
 }
