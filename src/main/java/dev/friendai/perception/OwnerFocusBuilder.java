@@ -10,7 +10,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -23,8 +22,6 @@ public final class OwnerFocusBuilder {
     public static final double VIEW_RANGE = 32.0;
     /** How far along the player's look ray blocks and entities are reported. */
     public static final double LOOK_RANGE = 64.0;
-
-    private static final int GROUND_SCAN = 16;
 
     private OwnerFocusBuilder() {}
 
@@ -69,22 +66,7 @@ public final class OwnerFocusBuilder {
     }
 
     private static String standingOn(ServerLevel level, ServerPlayer player) {
-        if (player.onGround()) {
-            BlockPos under = player.getOnPos();
-            return blockName(level, under) + " at " + coords(under);
-        }
-        BlockPos feet = player.blockPosition();
-        for (int n = 1; n <= GROUND_SCAN; n++) {
-            BlockPos pos = feet.below(n);
-            if (!level.hasChunkAt(pos)) {
-                break;
-            }
-            BlockState state = level.getBlockState(pos);
-            if (!state.getCollisionShape(level, pos).isEmpty()) {
-                return "in the air above " + blockName(level, pos) + " at " + coords(pos) + " (" + n + (n == 1 ? " block" : " blocks") + " below)";
-            }
-        }
-        return "in the air (nothing within " + GROUND_SCAN + " blocks below)";
+        return GroundText.under(level, player);
     }
 
     private static String lookingAt(CompanionEntity companion, ServerLevel level, ServerPlayer player) {

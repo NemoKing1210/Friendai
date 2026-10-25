@@ -61,9 +61,23 @@ public final class PerceptionBuilder {
                 c.equipmentText(),
                 task,
                 focus,
-                null,
+                selfStatus(c, level, pos),
                 null,
                 null);
+    }
+
+    private static SelfStatus selfStatus(CompanionEntity c, ServerLevel level, BlockPos pos) {
+        int headroom = 0;
+        while (headroom < SelfStatus.MAX_HEADROOM) {
+            BlockPos above = pos.above(headroom + 1);
+            if (!level.hasChunkAt(above)
+                    || !level.getBlockState(above).getCollisionShape(level, above).isEmpty()) {
+                break;
+            }
+            headroom++;
+        }
+        return new SelfStatus(c.onGround(), c.isInWater(), c.isInLava(), c.isOnFire(), c.isInWall(),
+                level.canSeeSky(pos), level.getMaxLocalRawBrightness(pos), GroundText.under(level, c), headroom);
     }
 
     private static Map<String, Integer> countBlocks(ServerLevel level, BlockPos center, int radius) {
