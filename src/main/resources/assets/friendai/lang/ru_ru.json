@@ -173,6 +173,7 @@
   "friendai.config.voice.tts.local.status.missing": "Голос не скачан",
   "friendai.config.voice.tts.download": "Скачать голос",
   "friendai.config.voice.tts.downloading": "Скачивание… %s%%",
+  "friendai.config.voice.tts.installing": "Распаковка голоса… %s%%",
   "friendai.config.voice.tts.speed": "Скорость",
   "friendai.config.voice.tts.volume": "Громкость",
   "friendai.config.voice.tts.max_chars": "Максимум символов в фразе",

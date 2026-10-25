@@ -173,6 +173,7 @@
   "friendai.config.voice.tts.local.status.missing": "Voice not downloaded",
   "friendai.config.voice.tts.download": "Download voice",
   "friendai.config.voice.tts.downloading": "Downloading… %s%%",
+  "friendai.config.voice.tts.installing": "Unpacking voice… %s%%",
   "friendai.config.voice.tts.speed": "Speed",
   "friendai.config.voice.tts.volume": "Volume",
   "friendai.config.voice.tts.max_chars": "Max characters per utterance",

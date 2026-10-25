@@ -3,6 +3,7 @@ package dev.friendai.voice.tts;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
 import java.io.IOException;
+import java.io.FilterInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -26,6 +27,19 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
 /** Downloads local voices, verifies size and SHA-256, and extracts them so nothing half-written is visible. */
 public final class VoiceModelManager {
+    /**
+     * The two phases of an install, reported from a background thread. The byte download is quick on a fast
+     * connection; verifying and unpacking the archive takes much longer, so a caller that only listens to
+     * {@link #downloading} would show "100%" and then stay silent for minutes.
+     */
+    public interface DownloadStage {
+        /** @param fraction bytes received, in [0, 1] */
+        void downloading(double fraction);
+
+        /** @param fraction archive consumed while verifying and unpacking, in [0, 1] */
+        void installing(double fraction);
+    }
+
     private final Path dir;
     private final HttpClient http;
 
@@ -47,6 +61,21 @@ public final class VoiceModelManager {
 
     /** @param progress called with a fraction in [0, 1] as bytes arrive, from a background thread */
     public CompletableFuture<Path> download(VoiceModel model, DoubleConsumer progress) {
+        return download(model, new DownloadStage() {
+            @Override
+            public void downloading(double fraction) {
+                progress.accept(fraction);
+            }
+
+            @Override
+            public void installing(double fraction) {
+                // A caller that only asked for download bytes has nothing to show for this phase.
+            }
+        });
+    }
+
+    /** @param stage called with the download and then the unpacking fraction, from a background thread */
+    public CompletableFuture<Path> download(VoiceModel model, DownloadStage stage) {
         if (isInstalled(model)) {
             return CompletableFuture.completedFuture(dir(model));
         }
@@ -56,11 +85,11 @@ public final class VoiceModelManager {
                 closeQuietly(response.body());
                 throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.network"));
             }
-            return save(model, response.body(), progress);
+            return save(model, response.body(), stage);
         });
     }
 
-    private Path save(VoiceModel model, InputStream body, DoubleConsumer progress) {
+    private Path save(VoiceModel model, InputStream body, DownloadStage stage) {
         Path archive = dir.resolve(model.id() + ".tar.bz2");
         Path part = dir.resolve(model.id() + ".tar.bz2.part");
         Path partDir = dir.resolve(model.id() + ".part");
@@ -76,7 +105,7 @@ public final class VoiceModelManager {
                     out.write(buffer, 0, n);
                     digest.update(buffer, 0, n);
                     total += n;
-                    progress.accept(Math.min(1.0, (double) total / Math.max(1L, model.size())));
+                    stage.downloading(Math.min(1.0, (double) total / Math.max(1L, model.size())));
                 }
             }
             if (total != model.size() || !HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(model.sha256())) {
@@ -84,7 +113,7 @@ public final class VoiceModelManager {
             }
             Files.move(part, archive, StandardCopyOption.REPLACE_EXISTING);
             deleteRecursively(partDir);
-            extract(model, archive, partDir);
+            extract(model, archive, partDir, stage);
             validate(model, partDir);
             deleteRecursively(dir(model));
             move(partDir, dir(model));
@@ -99,9 +128,11 @@ public final class VoiceModelManager {
         }
     }
 
-    private static void extract(VoiceModel model, Path archive, Path partDir) throws IOException {
+    private static void extract(VoiceModel model, Path archive, Path partDir, DownloadStage stage)
+            throws IOException {
         Files.createDirectories(partDir);
-        try (InputStream in = Files.newInputStream(archive);
+        long archiveSize = Math.max(1L, Files.size(archive));
+        try (CountingInputStream in = new CountingInputStream(Files.newInputStream(archive));
                 BZip2CompressorInputStream bz = new BZip2CompressorInputStream(in);
                 TarArchiveInputStream tar = new TarArchiveInputStream(bz)) {
             TarArchiveEntry entry;
@@ -109,6 +140,7 @@ public final class VoiceModelManager {
             // directory itself holds the model, the tokens and the data dir where the catalog expects them.
             String root = null;
             boolean first = true;
+            byte[] buffer = new byte[64 * 1024];
             while ((entry = tar.getNextEntry()) != null) {
                 String name = entry.getName();
                 if (first) {
@@ -132,9 +164,48 @@ public final class VoiceModelManager {
                     Files.createDirectories(target);
                 } else {
                     Files.createDirectories(target.getParent());
-                    Files.copy(tar, target, StandardCopyOption.REPLACE_EXISTING);
+                    try (OutputStream out = Files.newOutputStream(target, StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING)) {
+                        int n;
+                        while ((n = tar.read(buffer)) > 0) {
+                            out.write(buffer, 0, n);
+                            stage.installing(Math.min(1.0, (double) in.count() / archiveSize));
+                        }
+                    }
                 }
             }
+        }
+        stage.installing(1.0);
+    }
+
+    /** Counts compressed bytes read from the archive, so unpacking reports real progress. */
+    private static final class CountingInputStream extends FilterInputStream {
+        private long count;
+
+        private CountingInputStream(InputStream in) {
+            super(in);
+        }
+
+        long count() {
+            return count;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) {
+                count++;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            int read = super.read(buffer, offset, length);
+            if (read > 0) {
+                count += read;
+            }
+            return read;
         }
     }
 

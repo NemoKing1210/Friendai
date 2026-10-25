@@ -16,7 +16,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -118,6 +120,38 @@ class VoiceModelManagerTest {
         assertEquals(1, server.requests().size());
         assertEquals(manager.dir(model), manager.download(model, progress -> {}).join());
         assertEquals(1, server.requests().size());
+    }
+
+    @Test
+    void reportsInstallProgressAfterTheDownloadFinishes() throws IOException {
+        byte[] archive = tarBz2(files(
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[4096],
+                "vits-piper-test-voice/tokens.txt", new byte[] {2},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {3}));
+        server.enqueue(200, archive);
+        VoiceModel model = model(archive);
+        List<String> events = new CopyOnWriteArrayList<>();
+
+        manager.download(model, new VoiceModelManager.DownloadStage() {
+            @Override
+            public void downloading(double fraction) {
+                if (fraction >= 1.0) {
+                    events.add("downloaded");
+                }
+            }
+
+            @Override
+            public void installing(double fraction) {
+                events.add("installing " + fraction);
+            }
+        }).join();
+
+        assertEquals("downloaded", events.get(0), events.toString());
+        assertTrue(events.size() > 2, "expected several install reports, got " + events);
+        assertEquals("installing 1.0", events.get(events.size() - 1), events.toString());
+        assertTrue(events.subList(1, events.size()).stream().allMatch(e -> e.startsWith("installing")),
+                events.toString());
     }
 
     private VoiceModel model(byte[] archive) {

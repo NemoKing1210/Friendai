@@ -23,6 +23,7 @@ import dev.friendai.voice.WhisperModel;
 import dev.friendai.voice.stt.SttPresets;
 import dev.friendai.voice.tts.TtsPresets;
 import dev.friendai.voice.tts.VoiceModel;
+import dev.friendai.voice.tts.VoiceModelManager;
 import dev.friendai.voice.tts.VoiceModels;
 import java.util.concurrent.CompletableFuture;
 import dev.friendai.core.FriendaiServerState;
@@ -564,13 +565,19 @@ public final class FriendaiConfigScreen {
         ButtonOption download = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.tts.download"))
                 .action((screen, button) -> {
-                    int[] lastStep = {-1};
-                    SpeechRuntime.models().download(effective, fraction -> {
-                        int percent = (int) (fraction * 100);
-                        if (percent / 10 != lastStep[0]) {
-                            lastStep[0] = percent / 10;
-                            Minecraft.getInstance().execute(() -> toast(
-                                    Component.translatable("friendai.config.voice.tts.downloading", percent)));
+                    int[] lastDownloadStep = {-1};
+                    int[] lastInstallStep = {-1};
+                    SpeechRuntime.models().download(effective, new VoiceModelManager.DownloadStage() {
+                        @Override
+                        public void downloading(double fraction) {
+                            lastDownloadStep[0] = progressToast(
+                                    "friendai.config.voice.tts.downloading", fraction, lastDownloadStep[0]);
+                        }
+
+                        @Override
+                        public void installing(double fraction) {
+                            lastInstallStep[0] = progressToast(
+                                    "friendai.config.voice.tts.installing", fraction, lastInstallStep[0]);
                         }
                     }).whenComplete((path, error) -> Minecraft.getInstance().execute(() -> {
                         if (error != null) {
@@ -900,6 +907,20 @@ public final class FriendaiConfigScreen {
 
     private static void toast(Component message) {
         ClientToasts.show(message);
+    }
+
+    /**
+     * Shows a progress toast once per 10% and returns the step reported, so the next call can throttle.
+     * Called from the download's background thread; only that thread touches {@code lastStep}.
+     */
+    private static int progressToast(String key, double fraction, int lastStep) {
+        int percent = (int) (fraction * 100);
+        int step = Math.min(10, percent / 10);
+        if (step == lastStep) {
+            return lastStep;
+        }
+        Minecraft.getInstance().execute(() -> toast(Component.translatable(key, percent)));
+        return step;
     }
 
     private static String nullToEmpty(String value) {
