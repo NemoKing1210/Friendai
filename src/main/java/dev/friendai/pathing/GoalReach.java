@@ -16,7 +16,17 @@ public record GoalReach(List<Pos> targets, double reach, double eyeHeight) imple
         for (Pos target : targets) {
             best = Math.min(best, Math.max(0, distance(n, target) - reach));
         }
-        return best == Double.POSITIVE_INFINITY ? 0 : best * Math.max(0, Math.min(1.0, costs.fall()));
+        return best == Double.POSITIVE_INFINITY ? 0 : best * perBlock(costs);
+    }
+
+    /** Each move's cost divided by its maximum geometric progress; default costs retain a bound of one. */
+    private static double perBlock(CostModel costs) {
+        double walk = Math.min(costs.walk(), costs.diagonal()) / Math.sqrt(2.0);
+        double jump = Math.min((costs.walk() + costs.jump()) / 2.0, costs.jump() + costs.place());
+        // For any depth k >= 1, (walk + k * fall) / sqrt(k*k + 2) is bounded by these endpoints.
+        double descend = Math.min(costs.fall(), (costs.walk() + costs.fall()) / Math.sqrt(3.0));
+        double vertical = Math.min(costs.swim(), costs.climb());
+        return Math.max(0, Math.min(1.0, Math.min(Math.min(walk, jump), Math.min(descend, vertical))));
     }
 
     @Override

@@ -75,6 +75,51 @@ class GoalHeuristicTest {
         }
     }
 
+    @Test
+    void customPointCostsStayConsistentWithEveryMove() {
+        assertCustomCostsConsistent(false);
+    }
+
+    @Test
+    void customReachCostsStayConsistentWithEveryMove() {
+        assertCustomCostsConsistent(true);
+    }
+
+    private static void assertCustomCostsConsistent(boolean reach) {
+        List<CostModel> models = List.of(
+                new CostModel(4.6, 6.486, 2, 1, 0.05, 6, 4, 2, 5, 40, 20, 5, 20),
+                new CostModel(4.6, 6.486, 0.01, 1, 9, 6, 4, 2, 0.01, 40, 20, 5, 20),
+                new CostModel(4.6, 6.486, 2, 0.01, 9, 6, 4, 2, 5, 40, 20, 5, 20),
+                new CostModel(0.01, 0.01, 0.01, 100, 100, 100, 0, 0, 0.01, 0, 0, 0, 0));
+        for (CostModel costs : models) {
+            List<GridCellView> views = new ArrayList<>(maps());
+            views.add(new GridCellView("###/###/###", "~~~/~~~/~~~", "~~~/~~~/~~~", ".../.../..."));
+            views.add(new GridCellView("###/###/###", ".../.../...", "###/###/##.",
+                    ".../.../...", ".../.../..."));
+            for (GridCellView view : views) {
+                MoveGenerator moves = new MoveGenerator(view, costs, new GoalPoint(99, 99, 99, 0, 0), 0);
+                for (int x = 0; x < view.width(); x++) {
+                    for (int y = 0; y < view.height(); y++) {
+                        for (int z = 0; z < view.depth(); z++) {
+                            Node from = new Node(x, y, z);
+                            List<PathStep> steps = steps(moves, from);
+                            for (int dy : new int[] {-20, 0, 20}) {
+                                PathGoal goal = reach
+                                        ? new GoalReach(List.of(new Pos(x + 20, y + dy, z + 20)), 1, 1.62)
+                                        : new GoalPoint(x + 20.5, y + dy, z + 20.5, 0.5, 0.5);
+                                for (PathStep step : steps) {
+                                    double reduction = goal.heuristic(from, costs) - goal.heuristic(step.to(), costs);
+                                    assertTrue(reduction <= step.cost() + 1e-9,
+                                            () -> goal + " overestimates " + step + " with " + costs);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static List<PathStep> steps(MoveGenerator moves, Node from) {
         List<PathStep> out = new ArrayList<>();
         moves.neighbours(from, 0, 64, 0, out::add);
