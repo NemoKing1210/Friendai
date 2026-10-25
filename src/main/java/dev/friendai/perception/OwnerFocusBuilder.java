@@ -31,7 +31,7 @@ public final class OwnerFocusBuilder {
     /** The view of {@code principal} if that player is online, else of the companion's owner. */
     public static OwnerFocus of(CompanionEntity c, UUID principal) {
         if (!(c.level() instanceof ServerLevel level)) {
-            return new OwnerFocus("Owner", OwnerFocus.Visibility.OFFLINE, 0, null, null, null, null);
+            return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
         ServerPlayer player = null;
         if (principal != null) {
@@ -41,25 +41,31 @@ public final class OwnerFocusBuilder {
             player = c.owner().orElse(null);
         }
         if (player == null) {
-            return new OwnerFocus("Owner", OwnerFocus.Visibility.OFFLINE, 0, null, null, null, null);
+            return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
         boolean isOwner = player.getUUID().equals(c.ownerUuid());
         String label = isOwner ? "Owner" : "Speaker (" + player.getName().getString() + ")";
         if (player.level() != level) {
-            return new OwnerFocus(label, OwnerFocus.Visibility.OTHER_DIMENSION, 0, null, null, null, null);
+            return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OTHER_DIMENSION, 0);
         }
         double distance = c.distanceTo(player);
         if (distance > VIEW_RANGE || !c.hasLineOfSight(player)) {
-            return new OwnerFocus(label, OwnerFocus.Visibility.OUT_OF_SIGHT, distance, null, null, null, null);
+            return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OUT_OF_SIGHT, distance);
         }
-        return new OwnerFocus(
+        return OwnerFocus.visible(
                 label,
-                OwnerFocus.Visibility.VISIBLE,
                 distance,
                 coords(player.blockPosition()),
                 standingOn(level, player),
                 lookingAt(c, level, player),
-                holding(player));
+                holding(player),
+                null,
+                null,
+                0f,
+                0f,
+                0,
+                0,
+                null);
     }
 
     private static String standingOn(ServerLevel level, ServerPlayer player) {

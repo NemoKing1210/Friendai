@@ -60,7 +60,10 @@ public final class PerceptionBuilder {
                 inventory(c),
                 c.equipmentText(),
                 task,
-                focus);
+                focus,
+                null,
+                null,
+                null);
     }
 
     private static Map<String, Integer> countBlocks(ServerLevel level, BlockPos center, int radius) {

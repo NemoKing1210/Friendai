@@ -1,6 +1,7 @@
 package dev.friendai.perception;
 
 import dev.friendai.survival.HungerModel;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,11 +22,17 @@ public record PerceptionSnapshot(
         Map<String, Integer> inventory,
         String equipment,
         String currentTask,
-        OwnerFocus ownerFocus) {
+        OwnerFocus ownerFocus,
+        SelfStatus self,
+        List<Threat> threats,
+        List<Landmark> landmarks) {
 
     public String toPromptText() {
         StringBuilder sb = new StringBuilder();
         sb.append("Position: ").append(position).append(" (").append(dimension).append(")\n");
+        if (self != null) {
+            sb.append(self.toPromptText()).append('\n');
+        }
         sb.append("Health: ").append(number(health)).append('/').append(number(maxHealth)).append('\n');
         sb.append("Hunger: ").append(food).append('/').append(HungerModel.MAX_FOOD).append('\n');
         sb.append("Time: ").append(timeOfDay).append(", weather: ").append(weather).append(", biome: ").append(biome).append('\n');
@@ -36,6 +43,20 @@ public record PerceptionSnapshot(
                     .append(ownerDistance == null ? "not nearby" : String.format(Locale.ROOT, "%.1f blocks away", ownerDistance))
                     .append('\n');
         }
+        if (threats != null) {
+            sb.append("Threats: ")
+                    .append(threats.isEmpty()
+                            ? "none"
+                            : threats.stream().map(Threat::toPromptText).collect(Collectors.joining("; ")))
+                    .append('\n');
+        }
+        if (landmarks != null) {
+            sb.append("Landmarks: ")
+                    .append(landmarks.isEmpty()
+                            ? "none nearby"
+                            : landmarks.stream().map(Landmark::toPromptText).collect(Collectors.joining("; ")))
+                    .append('\n');
+        }
         sb.append("Nearby blocks: ").append(counts(nearbyBlocks, "none")).append('\n');
         sb.append("Nearby entities: ").append(counts(nearbyEntities, "none")).append('\n');
         sb.append("Inventory: ").append(counts(inventory, "empty")).append('\n');
@@ -44,7 +65,7 @@ public record PerceptionSnapshot(
         return sb.toString();
     }
 
-    private static String number(float value) {
+    static String number(float value) {
         return value == Math.rint(value) ? String.valueOf((int) value) : String.format(Locale.ROOT, "%.1f", value);
     }
 
