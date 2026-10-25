@@ -171,4 +171,33 @@ class PromptBuilderTest {
                 new Persona("F", "d", "auto"), "p", new Caller(ID, "Gus", AccessLevel.GUEST));
         assertTrue(!guest.contains("untrust_player"), guest);
     }
+
+    @Test
+    void speechRulesArePresent() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("- Say each thing once."));
+        assertTrue(s.contains("- Give coordinates only when the player asks where something is."));
+        assertTrue(s.contains("- A task that has only started is not finished."));
+    }
+
+    @Test
+    void playerTurnTellsTheModelThePlayerIsHere() {
+        String s = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(s.contains("This turn: the player is talking to you now."));
+        assertFalse(s.contains("This turn: task events or world notices"));
+        assertTrue(s.contains(
+                "When a step only calls a tool and you have nothing to tell the player, reply exactly [silent]."));
+    }
+
+    @Test
+    void eventTurnAllowsSilence() {
+        String s = PromptBuilder.system(
+                new Persona("F", "d", "auto"),
+                "p",
+                new Caller(ID, "", AccessLevel.OWNER),
+                "",
+                TurnKind.EVENT);
+        assertTrue(s.contains("This turn: task events or world notices"));
+        assertTrue(s.contains("reply exactly [silent]"));
+    }
 }

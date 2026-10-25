@@ -65,6 +65,11 @@ public record PerceptionSnapshot(
         return sb.toString();
     }
 
+    /** The current-task prompt line; a running task is not a finished one. */
+    public static String runningTask(String describe) {
+        return describe == null || describe.isBlank() ? "none" : describe + " (running; no result yet)";
+    }
+
     /** A whole number without a decimal point, otherwise one decimal, as the prompts want it. */
     public static String number(float value) {
         return value == Math.rint(value) ? String.valueOf((int) value) : String.format(Locale.ROOT, "%.1f", value);

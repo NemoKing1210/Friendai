@@ -15,14 +15,23 @@ public final class FakeToolExecutor implements ToolExecutor {
     public final List<String> executed = new ArrayList<>();
     public final List<AccessLevel> specAccess = new ArrayList<>();
     public final List<AccessLevel> executeAccess = new ArrayList<>();
+    public final List<ToolSpec> available = new ArrayList<>(List.of(staySpec()));
+    public boolean failSpecs;
+
+    private static ToolSpec staySpec() {
+        JsonObject schema = new JsonObject();
+        schema.addProperty("type", "object");
+        schema.add("properties", new JsonObject());
+        return new ToolSpec("stay", "Stay put", schema);
+    }
 
     @Override
     public List<ToolSpec> specs(AccessLevel access) {
         specAccess.add(access);
-        JsonObject schema = new JsonObject();
-        schema.addProperty("type", "object");
-        schema.add("properties", new JsonObject());
-        return List.of(new ToolSpec("stay", "Stay put", schema));
+        if (failSpecs) {
+            throw new IllegalStateException("spec failure");
+        }
+        return List.copyOf(available);
     }
 
     @Override

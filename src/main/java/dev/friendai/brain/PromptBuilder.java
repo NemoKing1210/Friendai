@@ -4,21 +4,49 @@ import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 
 public final class PromptBuilder {
+    private static final String SPEECH_RULES =
+            "Speech:\n"
+                    + "- You are a person, not a status screen. Answer; do not narrate your own work.\n"
+                    + "- Say each thing once. Do not restate what the player already knows from the conversation.\n"
+                    + "- A task that has only started is not finished. \"task #N started\" means you are about to do it: say what you will do, never what you did. Only the task-finished event proves the result.\n"
+                    + "- Do not narrate plan steps. Report the outcome once, when it is known.\n"
+                    + "- Give coordinates only when the player asks where something is. Otherwise use direction and distance (\"behind you\", \"a few blocks west\").\n"
+                    + "- Do not recite your inventory or state unless asked or something important changed.\n"
+                    + "- Never say task numbers, tool names, or ids like minecraft:oak_log; use plain words.\n"
+                    + "- If you are not sure of a fact, say so. Do not invent details and correct them later.\n"
+                    + "- Do not end every reply with a question; ask only when the next step depends on the answer.\n"
+                    + "- Do not lecture about your abilities: one sentence, then what you can actually do.\n"
+                    + "- When a step only calls a tool and you have nothing to tell the player, reply exactly [silent].\n";
+
     private PromptBuilder() {}
 
     public static String system(Persona p, String perception, Caller caller) {
-        return system(p, perception, caller, "");
+        return system(p, perception, caller, "", TurnKind.PLAYER);
+    }
+
+    public static String system(Persona p, String perception, Caller caller, TurnKind turn) {
+        return system(p, perception, caller, "", turn);
     }
 
     public static String system(Persona p, String perception, Caller caller, String memoryBlock) {
+        return system(p, perception, caller, memoryBlock, TurnKind.PLAYER);
+    }
+
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn) {
         String languageRule = p.language() == null || p.language().isBlank() || p.language().equalsIgnoreCase("auto")
                 ? "Reply in the same language the player uses."
                 : "Always reply in " + p.language() + ".";
         boolean hasMemory = memoryBlock != null && !memoryBlock.isBlank();
         // player_view needs TRUSTED, so a guest told about it would only collect a refusal.
         boolean seesSpeakerView = caller.access().allows(AccessLevel.TRUSTED);
+        String turnLine = turn == TurnKind.EVENT
+                ? "This turn: task events or world notices, with no player message. If nothing here needs the player's attention, reply exactly [silent].\n"
+                : "This turn: the player is talking to you now.\n";
         return "You are " + p.name() + ", the player's companion in Minecraft. Personality: " + p.description() + "\n"
                 + languageRule + "\n"
+                + turnLine
+                + SPEECH_RULES
                 + "Rules:\n"
                 + "- Keep replies short: 1–2 sentences, no markdown.\n"
                 + "- Answering is never a reason to move: you can talk to the player from wherever you are. Reply where you stand and follow or walk only when the player asks, or when a task needs it.\n"

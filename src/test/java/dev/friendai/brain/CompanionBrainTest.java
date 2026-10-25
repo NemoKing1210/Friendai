@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
 import dev.friendai.llm.model.LlmException;
 import dev.friendai.llm.model.LlmErrorKind;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.Role;
+import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
@@ -379,5 +381,139 @@ class CompanionBrainTest {
         gateway.enqueue(text("Hello"));
         brain.post(guest("hi"));
         assertEquals(List.of(GUEST), speaker.addressees);
+    }
+
+    @Test
+    void eventTurnCanStaySilent() {
+        gateway.enqueue(text(ReplyGuard.SILENT));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "mined 3 logs"));
+        assertTrue(speaker.said.isEmpty());
+        assertTrue(gateway.requests.get(0).system().contains("This turn: task events or world notices"));
+        assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void silentTurnIsRememberedAsSentinel() {
+        gateway.enqueue(text(ReplyGuard.SILENT));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "mined 3 logs"));
+        gateway.enqueue(text("Hi"));
+        brain.post(said("hello"));
+        Message assistant = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.ASSISTANT)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ReplyGuard.SILENT, assistant.text());
+    }
+
+    @Test
+    void playerTurnKeepsCoordinatesWhenAsked() {
+        gateway.enqueue(text("The hive is at 1279 68 358."));
+        brain.post(said("where is the hive?"));
+        assertEquals(List.of("The hive is at 1279 68 358."), speaker.said);
+    }
+
+    @Test
+    void playerTurnWithoutQuestionStripsCoordinates() {
+        gateway.enqueue(text("The hive is nearby (1279 68 358)."));
+        brain.post(said("hello"));
+        assertEquals(List.of("The hive is nearby."), speaker.said);
+    }
+
+    @Test
+    void guestQuestionDoesNotUnlockOwnerEventCoordinates() {
+        gateway.enqueue(text("I don't know."));
+        brain.post(guest("where is the hive?"));
+        gateway.enqueue(text("The hive is nearby (1279 68 358)."));
+        brain.post(new BrainEvent.TaskFinished(1, "explore", true, "found the hive"));
+        assertEquals(List.of("I don't know.", "The hive is nearby."), speaker.said);
+    }
+
+    @Test
+    void eventTurnBeforeAnyPlayerMessageHasNoCoordinates() {
+        gateway.enqueue(text("A hive appeared at 1279 68 358."));
+        brain.post(new BrainEvent.WorldNotice("a hive appeared"));
+        assertEquals(List.of("A hive appeared."), speaker.said);
+    }
+
+    @Test
+    void ownerWhereQuestionUnlocksCoordinatesInALaterEventTurn() {
+        gateway.enqueue(text("ok"));
+        brain.post(said("where is the hive?"));
+        gateway.enqueue(text("The hive is at 1279 68 358."));
+        brain.post(new BrainEvent.TaskFinished(1, "explore", true, "found the hive"));
+        assertEquals(List.of("ok", "The hive is at 1279 68 358."), speaker.said);
+    }
+
+    @Test
+    void ownerWhereQuestionExpiresAfterTheWindow() {
+        gateway.enqueue(text("ok"));
+        brain.post(said("where is the hive?"));
+        scheduler.advance(121_000);
+        gateway.enqueue(text("The hive is at 1279 68 358."));
+        brain.post(new BrainEvent.TaskFinished(1, "explore", true, "found the hive"));
+        assertEquals(List.of("ok", "The hive is."), speaker.said);
+    }
+
+    @Test
+    void directAnswerIsNeverSuppressedAsARepeat() {
+        gateway.enqueue(text("Done."));
+        brain.post(said("do it"));
+        gateway.enqueue(text("Done."));
+        brain.post(said("do it again"));
+        assertEquals(List.of("Done.", "Done."), speaker.said);
+    }
+
+    @Test
+    void repeatedEventReplyIsSpokenOnce() {
+        gateway.enqueue(text("Done."));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "done"));
+        gateway.enqueue(text("Done."));
+        brain.post(new BrainEvent.TaskFinished(2, "mine_blocks", true, "done"));
+        assertEquals(List.of("Done."), speaker.said);
+    }
+
+    @Test
+    void eventRepeatIsAllowedAfterTheWindow() {
+        gateway.enqueue(text("Done."));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "done"));
+        scheduler.advance(121_000);
+        gateway.enqueue(text("Done."));
+        brain.post(new BrainEvent.TaskFinished(2, "mine_blocks", true, "done"));
+        assertEquals(List.of("Done.", "Done."), speaker.said);
+    }
+
+    @Test
+    void filteredTextIsWhatHistoryRemembers() {
+        gateway.enqueue(text("The hive is nearby (1279 68 358)."));
+        brain.post(said("hello"));
+        gateway.enqueue(text("ok"));
+        brain.post(said("and?"));
+        List<Message> messages = gateway.requests.get(1).messages();
+        Message assistant = messages.stream()
+                .filter(m -> m.role() == Role.ASSISTANT)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("The hive is nearby.", assistant.text());
+        assertFalse(messages.stream().anyMatch(m -> m.text().contains("1279")));
+    }
+
+    @Test
+    void specFailureIsReportedAndTheBrainRecovers() {
+        tools.failSpecs = true;
+        brain.post(said("go"));
+        assertFalse(brain.isThinking());
+        assertEquals(1, speaker.errors.size());
+        tools.failSpecs = false;
+        gateway.enqueue(text("back"));
+        brain.post(said("again"));
+        assertEquals(List.of("back"), speaker.said);
+    }
+
+    @Test
+    void underscoredToolNamesAreNotSpoken() {
+        tools.available.add(new ToolSpec("run_plan", "Run a plan", new JsonObject()));
+        gateway.enqueue(text("Calling run_plan now."));
+        brain.post(said("go"));
+        assertEquals(List.of("Calling now."), speaker.said);
     }
 }

@@ -3,6 +3,7 @@ package dev.friendai.brain;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
@@ -13,6 +14,8 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -29,6 +32,8 @@ public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
+    /** How long a spoken line and the owner's coordinate question stay relevant. */
+    private static final long SPEECH_WINDOW_MS = 120_000L;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -51,6 +56,13 @@ public final class CompanionBrain {
     private long lastTurnEnd;
     private int generation;
     private int step;
+    private TurnKind turnKind = TurnKind.PLAYER;
+    private final List<String> turnPlayerTexts = new ArrayList<>();
+    private String lastOwnerText;
+    private long lastOwnerAtMillis;
+    private String lastSpoken;
+    private long lastSpokenAtMillis;
+    private Set<String> turnToolNames = Set.of();
 
     public CompanionBrain(
             Supplier<Persona> persona,
@@ -145,7 +157,11 @@ public final class CompanionBrain {
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
         return PromptBuilder.system(
-                persona.get(), perception.describe(turnCaller), turnCaller, memorySource.describe(turnCaller));
+                persona.get(),
+                perception.describe(turnCaller),
+                turnCaller,
+                memorySource.describe(turnCaller),
+                turnKind);
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -186,11 +202,18 @@ public final class CompanionBrain {
             return false;
         });
         String name = "";
+        turnPlayerTexts.clear();
         for (BrainEvent event : batch) {
             if (event instanceof BrainEvent.PlayerSaid said) {
                 name = said.playerName();
+                turnPlayerTexts.add(said.text());
+                if (said.playerUuid().equals(access.owner())) {
+                    lastOwnerText = said.text();
+                    lastOwnerAtMillis = scheduler.nowMillis();
+                }
             }
         }
+        turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         turnCaller = new Caller(principal, name == null ? "" : name, level);
         thinking = true;
@@ -215,11 +238,17 @@ public final class CompanionBrain {
             return;
         }
         step++;
-        String system = PromptBuilder.system(
-                persona.get(), perception.describe(turnCaller), turnCaller, memorySource.describe(turnCaller));
         CompletableFuture<LlmResponse> future;
         try {
-            future = gateway.get().complete(system, memory.snapshot(), tools.specs(turnCaller.access()));
+            List<ToolSpec> specs = tools.specs(turnCaller.access());
+            turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
+            String system = PromptBuilder.system(
+                    persona.get(),
+                    perception.describe(turnCaller),
+                    turnCaller,
+                    memorySource.describe(turnCaller),
+                    turnKind);
+            future = gateway.get().complete(system, memory.snapshot(), specs);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
@@ -237,13 +266,31 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
-        if (!response.text().isBlank()) {
-            observe(o -> o.onAssistantText(response.text()));
-            speaker.say(response.text(), turnCaller.uuid());
+        String raw = response.text();
+        if (!raw.isBlank()) {
+            observe(o -> o.onAssistantText(raw));
+        }
+        String spoken = null;
+        if (!raw.isBlank()) {
+            String lastSpokenForGuard =
+                    turnKind == TurnKind.EVENT
+                                    && lastSpoken != null
+                                    && scheduler.nowMillis() - lastSpokenAtMillis <= SPEECH_WINDOW_MS
+                            ? lastSpoken
+                            : null;
+            Optional<String> guarded =
+                    ReplyGuard.filter(raw, coordinatesAllowed(), lastSpokenForGuard, turnToolNames);
+            if (guarded.isPresent()) {
+                spoken = guarded.get();
+                speaker.say(spoken, turnCaller.uuid());
+                lastSpoken = spoken;
+                lastSpokenAtMillis = scheduler.nowMillis();
+            }
         }
         List<ToolCall> calls = response.toolCalls();
-        if (!response.text().isBlank() || !calls.isEmpty()) {
-            memory.add(Message.assistant(response.text(), calls));
+        if (!raw.isBlank() || !calls.isEmpty()) {
+            String remembered = spoken != null ? spoken : (raw.isBlank() ? raw : ReplyGuard.SILENT);
+            memory.add(Message.assistant(remembered, calls));
         }
         if (calls.isEmpty()) {
             endTurn();
@@ -263,6 +310,20 @@ public final class CompanionBrain {
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
         }
         requestStep(gen);
+    }
+
+    /**
+     * Coordinates are allowed while the player is asking about them: on a player turn, when any message in
+     * the batch asks where; on an event turn, only while the owner's question is still recent. A guest's
+     * question never unlocks coordinates in the owner's background turn.
+     */
+    private boolean coordinatesAllowed() {
+        if (turnKind == TurnKind.PLAYER) {
+            return turnPlayerTexts.stream().anyMatch(ReplyGuard::playerAskedForCoordinates);
+        }
+        return lastOwnerText != null
+                && scheduler.nowMillis() - lastOwnerAtMillis <= SPEECH_WINDOW_MS
+                && ReplyGuard.playerAskedForCoordinates(lastOwnerText);
     }
 
     private void endTurn() {
