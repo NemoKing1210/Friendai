@@ -1,6 +1,8 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -10,6 +12,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -56,13 +60,37 @@ public final class OwnerFocusBuilder {
                 standingOn(level, player),
                 lookingAt(c, level, player),
                 holding(player),
-                null,
-                null,
-                0f,
-                0f,
-                0,
-                0,
-                null);
+                RelativeDirection.relativeTo(c.getYRot(), player.getX() - c.getX(), player.getZ() - c.getZ()),
+                facing(RelativeDirection.relativeTo(
+                        player.getYRot(), c.getX() - player.getX(), c.getZ() - player.getZ())),
+                player.getHealth(),
+                player.getMaxHealth(),
+                player.getFoodData().getFoodLevel(),
+                player.getArmorValue(),
+                bodyState(player));
+    }
+
+    private static String facing(String towardsCompanion) {
+        return switch (towardsCompanion) {
+            case "ahead" -> "looking at you";
+            case "ahead-left", "ahead-right" -> "looking toward you";
+            case "left", "right" -> "facing sideways";
+            default -> "looking away from you";
+        };
+    }
+
+    private static String bodyState(ServerPlayer player) {
+        List<String> parts = new ArrayList<>();
+        if (player.isInWater()) {
+            parts.add("in water");
+        }
+        if (player.isInLava()) {
+            parts.add("in lava");
+        }
+        if (player.isOnFire()) {
+            parts.add("on fire");
+        }
+        return parts.isEmpty() ? "ok" : String.join(", ", parts);
     }
 
     private static String standingOn(ServerLevel level, ServerPlayer player) {
@@ -103,9 +131,46 @@ public final class OwnerFocusBuilder {
         }
         if (blockPos != null) {
             return "block " + blockName(level, blockPos) + " at " + coords(blockPos) + " (" + blocks(blockDistance)
-                    + " blocks)";
+                    + " blocks)" + blockFacts(level, blockPos, companion);
         }
         return "nothing within " + (int) LOOK_RANGE + " blocks";
+    }
+
+    private static String blockFacts(ServerLevel level, BlockPos pos, CompanionEntity companion) {
+        BlockState state = level.getBlockState(pos);
+        float hardness = state.getDestroySpeed(level, pos);
+        if (hardness < 0) {
+            return "; unbreakable";
+        }
+        StringBuilder facts = new StringBuilder("; hardness ").append(PerceptionSnapshot.number(hardness));
+        if (!state.requiresCorrectToolForDrops()) {
+            return facts.append(", can be dug by hand").toString();
+        }
+        String tool = correctTool(companion, state);
+        return facts.append(tool == null
+                        ? ", needs a proper tool (you have none)"
+                        : ", needs a proper tool (you have " + tool + ")")
+                .toString();
+    }
+
+    private static String correctTool(CompanionEntity companion, BlockState state) {
+        String inHand = toolName(companion.getMainHandItem(), state);
+        if (inHand != null) {
+            return inHand;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            String tool = toolName(companion.inventory().getItem(i), state);
+            if (tool != null) {
+                return tool;
+            }
+        }
+        return null;
+    }
+
+    private static String toolName(ItemStack stack, BlockState state) {
+        return !stack.isEmpty() && stack.isCorrectToolForDrops(state)
+                ? shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()))
+                : null;
     }
 
     private static String holding(ServerPlayer player) {
