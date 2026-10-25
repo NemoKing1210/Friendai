@@ -112,6 +112,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A night with zombies in defensive mode: it fights what attacks you or it, not everything around.
 - [ ] "Guard me": it attacks hostile mobs near you; "be passive": it stays out of fights and runs.
 - [ ] It eats when hurt and tells you when it is retreating without food.
+- [ ] While eating, the companion raises the arm holding the food and lowers it afterwards, like a player.
 - [ ] PvP server: "attack <player>" from the owner works when PvP is on and is refused with "PvP is off here" when the pvp gamerule is false; a trusted non-owner cannot order it.
 
 ## Hunger

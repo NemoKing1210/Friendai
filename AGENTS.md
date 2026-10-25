@@ -154,7 +154,7 @@ pure Java  (llm, brain, tool, memory, crafting, pathing, build, survival,
 
 - `client/` — `FriendaiClient`: entity renderer, container screen, config load, HUD, pause-menu button, S2C receivers, push-to-talk. Client config is `config/friendai-client.json`.
 - `client/config/` — YACL `FriendaiConfigScreen`, `ModMenuIntegration` (returns `null` when YACL is absent), `ModelCache`.
-- `client/render/` — `CompanionRenderer` (humanoid/player model with vanilla skin and armor layer).
+- `client/render/` — `CompanionRenderer` (humanoid/player model with vanilla skin, armor layer and the player's arm pose while eating).
 - `client/ui/` — `CompanionControlScreen` and tabs (`ControlTab`, `TasksTab`, `MemoryTab`, `LogTab`, `DebugTab`); `CompanionClientState`, `CompanionRequests`, `CompanionInventoryScreen`, `PauseMenuButton`.
 - `client/voice/` — `MicCapture` (16 kHz/16-bit/mono), `PushToTalkHandler`, `VoiceRuntime`, `WhisperLocalStt`, `SpeechToText`, `VoiceState`, `VoiceHud`.
 - `client/tts/` — interface only: `SpeechOutput`, `NoOpSpeechOutput` (nothing calls them yet).

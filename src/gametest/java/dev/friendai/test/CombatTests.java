@@ -20,10 +20,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.chicken.Chicken;
@@ -38,6 +40,7 @@ import net.minecraft.world.entity.monster.skeleton.Skeleton;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
@@ -456,6 +459,24 @@ public class CombatTests {
                     "status " + notices.finalStatus + " " + notices.finalSummary);
             h.assertValueEqual(
                     c.inventory().countItem(Items.ROTTEN_FLESH), 0, "the allowed rotten flesh must be eaten");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void eatingHoldsFoodInTheUsingHand(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.BREAD));
+        c.taskRunner().start(new EatTask(Items.BREAD), "eat");
+        // The renderer raises the arm from this use state, the same pose a player eating shows.
+        h.runAfterDelay(10, () -> {
+            ItemStack used = c.getUseItem();
+            h.assertTrue(c.isUsingItem(), "the companion is not using an item");
+            h.assertTrue(used.is(Items.BREAD), "the used item is " + used);
+            h.assertTrue(used.get(DataComponents.FOOD) != null, "the used item is not food: " + used);
+            h.assertTrue(used.getUseAnimation() == ItemUseAnimation.EAT, "use animation " + used.getUseAnimation());
+            h.assertTrue(c.getUsedItemHand() == InteractionHand.MAIN_HAND, "used hand " + c.getUsedItemHand());
             h.succeed();
         });
     }

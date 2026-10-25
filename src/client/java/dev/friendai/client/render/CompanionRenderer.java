@@ -12,6 +12,9 @@ import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.phys.Vec3;
 
 /** Renders the companion with the player model and the default Steve skin, plus a thought bubble while it thinks. */
@@ -39,6 +42,27 @@ public class CompanionRenderer
     public void extractRenderState(CompanionEntity companion, CompanionRenderState state, float partialTick) {
         super.extractRenderState(companion, state, partialTick);
         state.thinking = companion.isThinking();
+    }
+
+    /**
+     * Players raise the arm holding the item while eating or drinking; the mob renderer would leave it hanging down.
+     * Reusing the player's own pose keeps the companion's meal looking exactly like theirs.
+     */
+    @Override
+    protected HumanoidModel.ArmPose getArmPose(CompanionEntity companion, HumanoidArm arm) {
+        if (isUsingFood(companion) && companion.getUsedItemHand().asArm(companion.getMainArm()) == arm) {
+            return HumanoidModel.ArmPose.ITEM;
+        }
+        return super.getArmPose(companion, arm);
+    }
+
+    private static boolean isUsingFood(CompanionEntity companion) {
+        if (!companion.isUsingItem()) {
+            return false;
+        }
+        ItemStack used = companion.getUseItem();
+        ItemUseAnimation animation = used.getUseAnimation();
+        return animation == ItemUseAnimation.EAT || animation == ItemUseAnimation.DRINK;
     }
 
     @Override
