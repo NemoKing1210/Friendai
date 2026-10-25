@@ -240,8 +240,8 @@ public class ToolTests {
                 "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
-                "look_around", "find_blocks", "player_view", "trust_player", "untrust_player", "show_inventory",
-                "stop", "run_plan")),
+                "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
+                "untrust_player", "show_inventory", "stop", "run_plan")),
                 "names were " + names);
         h.succeed();
     }
@@ -653,6 +653,81 @@ public class ToolTests {
         ToolResult r = runArgs(tools(c), "build_structure", buildArgs(PLATFORM_3, at));
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
         h.assertTrue(c.taskRunner().current().get().type().equals("build_structure"), "build task should be current");
+        h.succeed();
+    }
+
+    @GameTest
+    public void describeBlockReportsToolNeed(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(6, 2, 2, Blocks.IRON_ORE);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("needs a proper tool (you have none)"), result.content());
+
+        c.inventory().addItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
+        var withTool = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(withTool.content().contains("you have iron_pickaxe"), withTool.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void describeBlockDescribesAir(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(4, 2, 4));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("air at "), result.content());
+        h.assertFalse(result.content().contains("cannot be broken"), result.content());
+        h.assertFalse(result.content().contains("tool"), result.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void describeBlockSeesAnOffhandTool(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(6, 2, 2, Blocks.IRON_ORE);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("you have iron_pickaxe"), result.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void describeBlockHandlesUnbreakableBlocks(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(6, 2, 2, Blocks.BEDROCK);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(result.content().contains("cannot be broken"), result.content());
         h.succeed();
     }
 

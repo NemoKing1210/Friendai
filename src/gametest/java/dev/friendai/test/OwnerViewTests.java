@@ -187,6 +187,64 @@ public class OwnerViewTests {
     }
 
     @GameTest
+    public void viewReportsHealthFoodAndArmor(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        owner.setHealth(14f);
+        owner.getFoodData().setFoodLevel(17);
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(focus.health() == 14f, "health: " + focus.health());
+        h.assertTrue(focus.food() == 17, "food: " + focus.food());
+        h.assertTrue(focus.toPromptText().contains("health: 14/20, food 17/20, armor "),
+                focus.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
+    public void viewReportsFacing(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 6, 2, 2);
+        companion.setOwner(owner.getUUID());
+        companion.setYRot(90F); // face west, toward the owner
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(focus.facing().equals("looking at you"), "facing: " + focus.facing());
+        h.assertTrue(focus.relative().equals("ahead"), "relative: " + focus.relative());
+        h.succeed();
+    }
+
+    @GameTest
+    public void viewBlockSaysWhichToolIsNeeded(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.IRON_ORE);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus withoutTool = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(withoutTool.lookingAt().contains("needs a proper tool (you have none)"),
+                withoutTool.lookingAt());
+
+        companion.inventory().addItem(new ItemStack(Items.IRON_PICKAXE));
+        OwnerFocus withTool = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(withTool.lookingAt().contains("you have iron_pickaxe"),
+                withTool.lookingAt());
+        h.succeed();
+    }
+
+    @GameTest
+    public void guestViewIsTheGuest(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 8.5, 2, 8.5);
+        ServerPlayer guest = lookingEast(h, 2.5, 2, 2.5);
+        guest.setHealth(6f);
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, guest.getUUID());
+        h.assertTrue(focus.label().startsWith("Speaker ("), focus.label());
+        h.assertTrue(focus.health() == 6f, "health: " + focus.health());
+        h.succeed();
+    }
+
+    @GameTest
     public void viewSpeakerLabel(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         ServerPlayer owner = lookingEast(h, 8.5, 2, 8.5);

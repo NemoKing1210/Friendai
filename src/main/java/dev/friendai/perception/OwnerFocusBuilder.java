@@ -1,7 +1,10 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -10,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -24,61 +28,110 @@ public final class OwnerFocusBuilder {
     /** How far along the player's look ray blocks and entities are reported. */
     public static final double LOOK_RANGE = 64.0;
 
-    private static final int GROUND_SCAN = 16;
-
     private OwnerFocusBuilder() {}
 
     /** The view of {@code principal} if that player is online, else of the companion's owner. */
     public static OwnerFocus of(CompanionEntity c, UUID principal) {
         if (!(c.level() instanceof ServerLevel level)) {
-            return new OwnerFocus("Owner", OwnerFocus.Visibility.OFFLINE, 0, null, null, null, null);
+            return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
-        ServerPlayer player = null;
-        if (principal != null) {
-            player = level.getServer().getPlayerList().getPlayer(principal);
-        }
+        ServerPlayer player = resolve(c, principal);
         if (player == null) {
-            player = c.owner().orElse(null);
-        }
-        if (player == null) {
-            return new OwnerFocus("Owner", OwnerFocus.Visibility.OFFLINE, 0, null, null, null, null);
+            return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
         boolean isOwner = player.getUUID().equals(c.ownerUuid());
         String label = isOwner ? "Owner" : "Speaker (" + player.getName().getString() + ")";
         if (player.level() != level) {
-            return new OwnerFocus(label, OwnerFocus.Visibility.OTHER_DIMENSION, 0, null, null, null, null);
+            return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OTHER_DIMENSION, 0);
         }
         double distance = c.distanceTo(player);
-        if (distance > VIEW_RANGE || !c.hasLineOfSight(player)) {
-            return new OwnerFocus(label, OwnerFocus.Visibility.OUT_OF_SIGHT, distance, null, null, null, null);
+        if (!inView(c, player, distance)) {
+            return OwnerFocus.unavailable(label, OwnerFocus.Visibility.OUT_OF_SIGHT, distance);
         }
-        return new OwnerFocus(
+        return OwnerFocus.visible(
                 label,
-                OwnerFocus.Visibility.VISIBLE,
                 distance,
                 coords(player.blockPosition()),
                 standingOn(level, player),
                 lookingAt(c, level, player),
-                holding(player));
+                holding(player),
+                RelativeDirection.relativeTo(c.getYRot(), player.getX() - c.getX(), player.getZ() - c.getZ()),
+                facing(RelativeDirection.relativeTo(
+                        player.getYRot(), c.getX() - player.getX(), c.getZ() - player.getZ())),
+                player.getHealth(),
+                player.getMaxHealth(),
+                player.getFoodData().getFoodLevel(),
+                player.getArmorValue(),
+                bodyState(player));
+    }
+
+    /**
+     * The block {@code principal} (or the owner when the principal is null or offline) is looking at, if that player
+     * is close enough and in sight. Server thread only.
+     */
+    public static Optional<BlockPos> lookedAtBlock(CompanionEntity c, UUID principal) {
+        ServerPlayer player = visibleSpeaker(c, principal);
+        if (player == null) {
+            return Optional.empty();
+        }
+        HitResult hit = player.pick(LOOK_RANGE, 1.0F, false);
+        return hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK
+                ? Optional.of(blockHit.getBlockPos())
+                : Optional.empty();
+    }
+
+    /** The block the speaker stands in, if that player is close enough and in sight. Server thread only. */
+    public static Optional<BlockPos> speakerBlock(CompanionEntity c, UUID principal) {
+        return Optional.ofNullable(visibleSpeaker(c, principal)).map(ServerPlayer::blockPosition);
+    }
+
+    private static ServerPlayer visibleSpeaker(CompanionEntity c, UUID principal) {
+        if (!(c.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        ServerPlayer player = resolve(c, principal);
+        return player != null && player.level() == level && inView(c, player, c.distanceTo(player))
+                ? player
+                : null;
+    }
+
+    private static ServerPlayer resolve(CompanionEntity c, UUID principal) {
+        ServerPlayer player = null;
+        if (principal != null && c.level() instanceof ServerLevel level) {
+            player = level.getServer().getPlayerList().getPlayer(principal);
+        }
+        return player != null ? player : c.owner().orElse(null);
+    }
+
+    private static boolean inView(CompanionEntity c, ServerPlayer player, double distance) {
+        return distance <= VIEW_RANGE && c.hasLineOfSight(player);
+    }
+
+    private static String facing(String towardsCompanion) {
+        return switch (towardsCompanion) {
+            case "ahead" -> "looking at you";
+            case "ahead-left", "ahead-right" -> "looking toward you";
+            case "left", "right" -> "facing sideways";
+            default -> "looking away from you";
+        };
+    }
+
+    private static String bodyState(ServerPlayer player) {
+        List<String> parts = new ArrayList<>();
+        if (player.isInWater()) {
+            parts.add("in water");
+        }
+        if (player.isInLava()) {
+            parts.add("in lava");
+        }
+        if (player.isOnFire()) {
+            parts.add("on fire");
+        }
+        return parts.isEmpty() ? "ok" : String.join(", ", parts);
     }
 
     private static String standingOn(ServerLevel level, ServerPlayer player) {
-        if (player.onGround()) {
-            BlockPos under = player.getOnPos();
-            return blockName(level, under) + " at " + coords(under);
-        }
-        BlockPos feet = player.blockPosition();
-        for (int n = 1; n <= GROUND_SCAN; n++) {
-            BlockPos pos = feet.below(n);
-            if (!level.hasChunkAt(pos)) {
-                break;
-            }
-            BlockState state = level.getBlockState(pos);
-            if (!state.getCollisionShape(level, pos).isEmpty()) {
-                return "in the air above " + blockName(level, pos) + " at " + coords(pos) + " (" + n + (n == 1 ? " block" : " blocks") + " below)";
-            }
-        }
-        return "in the air (nothing within " + GROUND_SCAN + " blocks below)";
+        return GroundText.under(level, player);
     }
 
     private static String lookingAt(CompanionEntity companion, ServerLevel level, ServerPlayer player) {
@@ -115,9 +168,51 @@ public final class OwnerFocusBuilder {
         }
         if (blockPos != null) {
             return "block " + blockName(level, blockPos) + " at " + coords(blockPos) + " (" + blocks(blockDistance)
-                    + " blocks)";
+                    + " blocks)" + blockFacts(level, blockPos, companion);
         }
         return "nothing within " + (int) LOOK_RANGE + " blocks";
+    }
+
+    private static String blockFacts(ServerLevel level, BlockPos pos, CompanionEntity companion) {
+        BlockState state = level.getBlockState(pos);
+        float hardness = state.getDestroySpeed(level, pos);
+        if (hardness < 0) {
+            return "; unbreakable";
+        }
+        StringBuilder facts = new StringBuilder("; hardness ").append(PerceptionSnapshot.number(hardness));
+        if (!state.requiresCorrectToolForDrops()) {
+            return facts.append(", can be dug by hand").toString();
+        }
+        String tool = toolFor(companion, state);
+        return facts.append(tool == null
+                        ? ", needs a proper tool (you have none)"
+                        : ", needs a proper tool (you have " + tool + ")")
+                .toString();
+    }
+
+    /** The short id of a tool the companion carries that harvests {@code state}, or null when it has none. */
+    public static String toolFor(CompanionEntity companion, BlockState state) {
+        String inHand = toolName(companion.getMainHandItem(), state);
+        if (inHand != null) {
+            return inHand;
+        }
+        String offHand = toolName(companion.getOffhandItem(), state);
+        if (offHand != null) {
+            return offHand;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            String tool = toolName(companion.inventory().getItem(i), state);
+            if (tool != null) {
+                return tool;
+            }
+        }
+        return null;
+    }
+
+    private static String toolName(ItemStack stack, BlockState state) {
+        return !stack.isEmpty() && stack.isCorrectToolForDrops(state)
+                ? shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()))
+                : null;
     }
 
     private static String holding(ServerPlayer player) {

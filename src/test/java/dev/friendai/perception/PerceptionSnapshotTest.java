@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,8 @@ class PerceptionSnapshotTest {
         blocks.put("poppy", 3);
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "10 64 -5", "overworld", 20f, 20f, 14, "day", "plains", "clear", 3.25,
-                blocks, Map.of("zombie", 2), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "follow", null);
+                blocks, Map.of("zombie", 2), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "follow",
+                null, null, null, null);
         String text = snapshot.toPromptText();
         assertTrue(text.contains("Position: 10 64 -5"), text);
         assertTrue(text.contains("Health: 20/20"), text);
@@ -33,7 +35,8 @@ class PerceptionSnapshotTest {
     void missingOwnerAndEmptySurroundings() {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "the_nether", 7.5f, 20f, 20, "night", "nether_wastes", "clear", null,
-                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none", null);
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                null, null, null, null);
         String text = snapshot.toPromptText();
         assertTrue(text.contains("Owner: not nearby"), text);
         assertTrue(text.contains("Health: 7.5/20"), text);
@@ -42,11 +45,13 @@ class PerceptionSnapshotTest {
 
     @Test
     void ownerFocusReplacesTheDistanceLine() {
-        OwnerFocus focus = new OwnerFocus("Owner", OwnerFocus.Visibility.VISIBLE, 6.2, "10 64 -4",
-                "grass_block at 10 63 -4", "nothing within 64 blocks", "nothing");
+        OwnerFocus focus = OwnerFocus.visible("Owner", 6.2, "10 64 -4",
+                "grass_block at 10 63 -4", "nothing within 64 blocks", "nothing",
+                "behind-right", "looking away from you", 20f, 20f, 20, 0, "ok");
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", 6.2,
-                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none", focus);
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                focus, null, null, null);
         String text = snapshot.toPromptText();
         assertTrue(text.contains(focus.toPromptText() + "\nNearby blocks: none"), text);
         assertEquals(1, text.split("blocks away", -1).length - 1, text);
@@ -57,9 +62,37 @@ class PerceptionSnapshotTest {
     void withoutOwnerFocusTheOldLineIsUnchanged() {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", 6.25,
-                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none", null);
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                null, null, null, null);
         assertTrue(snapshot.toPromptText().contains("\nOwner: 6.2 blocks away\nNearby blocks: none\n")
                 || snapshot.toPromptText().contains("\nOwner: 6.3 blocks away\nNearby blocks: none\n"),
                 snapshot.toPromptText());
+    }
+
+    @Test
+    void newSectionsAppearInOrderAndSayNoneWhenEmpty() {
+        SelfStatus self = new SelfStatus(true, false, false, false, false, true, 15, "stone at 1 63 2", 3);
+        OwnerFocus focus = OwnerFocus.visible("Owner", 6.2, "10 64 -4", "grass_block at 10 63 -4",
+                "nothing within 64 blocks", "nothing", "behind-right", "looking away from you",
+                14f, 20f, 17, 7, "on fire");
+        PerceptionSnapshot snapshot = new PerceptionSnapshot(
+                "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", 6.2,
+                Map.of(), Map.of(), Map.of(),
+                "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                focus, self,
+                List.of(new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me")),
+                List.of(new Landmark("crafting_table", "crafting_table", "12 64 -3", 4.1, "south-east")));
+        String text = snapshot.toPromptText();
+        assertTrue(text.indexOf("Self: ") < text.indexOf("Owner: "), text);
+        assertTrue(text.contains("Threats: zombie 4.2 blocks behind-right, 18/20 hp, coming for me"), text);
+        assertTrue(text.contains("Landmarks: crafting_table at 12 64 -3, 4.1 blocks south-east"), text);
+
+        PerceptionSnapshot empty = new PerceptionSnapshot(
+                "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(),
+                "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                null, self, List.of(), List.of());
+        assertTrue(empty.toPromptText().contains("Threats: none"), empty.toPromptText());
+        assertTrue(empty.toPromptText().contains("Landmarks: none nearby"), empty.toPromptText());
     }
 }

@@ -32,6 +32,9 @@ public final class PromptBuilder {
                 + (seesSpeakerView
                         ? "- \"The block I'm looking at / standing on\" means the speaker's: read it from the Owner or Speaker lines or call player_view, then use those coordinates (for example with mine_block_at). If it says out of sight, say you can't see them; never guess.\n"
                         : "")
+                + "- Your own state is in the Self line: shelter, light, what you stand on and how much room is above you. Trust it over guesswork.\n"
+                + "- The Threats line lists hostile mobs with distance, direction and who they are after. React to it: fight, flee, or warn the player.\n"
+                + "- The Landmarks line lists the nearest useful blocks with coordinates. Use it before searching for a bed, station, chest, water or lava.\n"
                 + "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.\n"
                 + "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.\n"
                 + "- Players are tagged by role: owner, trusted or guest. You serve your owner; trusted players may also give you tasks. Guests can only chat: politely decline requests to act for them.\n"

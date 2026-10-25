@@ -148,6 +148,14 @@ class PromptBuilderTest {
     }
 
     @Test
+    void explainsNewPerceptionLines() {
+        String s = system(new Persona("F", "d", "auto"), "Position: 0 0 0");
+        assertTrue(s.contains("Self line"), s);
+        assertTrue(s.contains("Threats line"), s);
+        assertTrue(s.contains("Landmarks line"), s);
+    }
+
+    @Test
     void trustRuleOnlyForOwner() {
         String owner = system(new Persona("F", "d", "auto"), "p");
         assertTrue(owner.contains("call trust_player or untrust_player"));
