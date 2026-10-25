@@ -221,8 +221,8 @@ public class ToolTests {
                 "get_food", "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
-                "look_around", "find_blocks", "player_view", "describe_block", "trust_player", "untrust_player",
-                "show_inventory", "stop", "run_plan")),
+                "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
+                "untrust_player", "show_inventory", "stop", "run_plan")),
                 "names were " + names);
         h.succeed();
     }

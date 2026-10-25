@@ -1,6 +1,7 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.perception.AreaMapBuilder;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionSnapshot;
@@ -109,6 +110,19 @@ final class InfoTools {
                     String tool = OwnerFocusBuilder.toolFor(c, state);
                     return ToolResult.ok(facts + ", needs a proper tool (you have "
                             + (tool == null ? "none" : tool) + "); light " + light);
+                }));
+        registry.register(ToolKit.callerTool("survey_area",
+                "Draw a top-down map of the area at your eye level. Legend: @ you, O the speaker, Z hostile, "
+                        + "# solid, ~ water, ^ lava or fire, . air, ? unloaded chunk. Use it to find a way around "
+                        + "walls or to see where a threat stands.",
+                SchemaBuilder.object()
+                        .integer("radius", "Map radius in blocks", 3, 16)
+                        .build(),
+                AccessLevel.TRUSTED,
+                () -> true,
+                (c, caller, a) -> {
+                    int radius = a.has("radius") ? a.get("radius").getAsInt() : 8;
+                    return ToolResult.ok(AreaMapBuilder.of(c, caller.uuid(), radius));
                 }));
     }
 

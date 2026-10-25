@@ -70,17 +70,29 @@ public final class OwnerFocusBuilder {
      * is close enough and in sight. Server thread only.
      */
     public static Optional<BlockPos> lookedAtBlock(CompanionEntity c, UUID principal) {
-        if (!(c.level() instanceof ServerLevel level)) {
-            return Optional.empty();
-        }
-        ServerPlayer player = resolve(c, principal);
-        if (player == null || player.level() != level || !inView(c, player, c.distanceTo(player))) {
+        ServerPlayer player = visibleSpeaker(c, principal);
+        if (player == null) {
             return Optional.empty();
         }
         HitResult hit = player.pick(LOOK_RANGE, 1.0F, false);
         return hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK
                 ? Optional.of(blockHit.getBlockPos())
                 : Optional.empty();
+    }
+
+    /** The block the speaker stands in, if that player is close enough and in sight. Server thread only. */
+    public static Optional<BlockPos> speakerBlock(CompanionEntity c, UUID principal) {
+        return Optional.ofNullable(visibleSpeaker(c, principal)).map(ServerPlayer::blockPosition);
+    }
+
+    private static ServerPlayer visibleSpeaker(CompanionEntity c, UUID principal) {
+        if (!(c.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        ServerPlayer player = resolve(c, principal);
+        return player != null && player.level() == level && inView(c, player, c.distanceTo(player))
+                ? player
+                : null;
     }
 
     private static ServerPlayer resolve(CompanionEntity c, UUID principal) {

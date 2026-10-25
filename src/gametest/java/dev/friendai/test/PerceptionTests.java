@@ -99,6 +99,27 @@ public class PerceptionTests {
     }
 
     @GameTest
+    public void surveyAreaShowsSelfWallAndSpeaker(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        for (int x = 0; x < 8; x++) {
+            h.setBlock(x, 2, 6, Blocks.STONE);
+        }
+        var owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var call = new dev.friendai.llm.model.ToolCall("1", "survey_area",
+                new com.google.gson.JsonObject(), "{}", null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("@"), result.content());
+        h.assertTrue(result.content().contains("#"), result.content());
+        h.assertTrue(result.content().contains("O"), result.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void selfReportsNoSkyUnderARoof(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         for (int x = 0; x < 5; x++) {
