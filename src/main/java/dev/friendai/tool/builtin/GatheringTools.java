@@ -54,16 +54,33 @@ final class GatheringTools {
                         return ToolResult.error(e.getMessage());
                     }
                 });
-        ToolKit.add(registry, defs, new TaskToolDef("mine_blocks", "Mine N blocks of the given block id or #tag near the companion and collect the drops.",
-                SchemaBuilder.object()
-                        .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
-                        .integer("count", "How many blocks to mine", 1, 64)
-                        .required("block", "count")
-                        .build(),
-                (c, a) -> {
-                    BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
-                    return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt());
-                }, true));
+        ToolKit.addCaller(registry, defs,
+                new TaskToolDef("mine_blocks",
+                        "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
+                                + "near: me searches around the speaker.",
+                        SchemaBuilder.object()
+                                .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
+                                .integer("count", "How many blocks to mine", 1, 64)
+                                .enumeration("near", "Search around yourself (self, default) or around the speaker (me)",
+                                        "self", "me")
+                                .integer("x", "Block x coordinate to search around instead of near",
+                                        -30000000, 30000000)
+                                .integer("y", "Block y coordinate to search around instead of near", -64, 320)
+                                .integer("z", "Block z coordinate to search around instead of near",
+                                        -30000000, 30000000)
+                                .bool("collect",
+                                        "Whether to pick up the drops afterwards; default follows the server setting")
+                                .required("block", "count")
+                                .build(),
+                        (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, mineRadius),
+                        true),
+                (c, caller, a) -> {
+                    try {
+                        return ToolKit.startTask(c, "mine_blocks", createMineTask(c, caller, a, mineRadius));
+                    } catch (IllegalArgumentException e) {
+                        return ToolResult.error(e.getMessage());
+                    }
+                });
         ToolKit.add(registry, defs, new TaskToolDef("mine_block_at", "Mine the block at the given coordinates and collect the drops.",
                 SchemaBuilder.object()
                         .integer("x", "Block X coordinate")
@@ -95,6 +112,19 @@ final class GatheringTools {
                                 ? ToolKit.parseItemMatcher(a.get("item").getAsString())
                                 : null),
                 true));
+    }
+
+    private static MineBlocksTask createMineTask(
+            CompanionEntity c, Caller caller, JsonObject a, IntSupplier mineRadius) {
+        BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
+        // Unlike the tree tools, mining searches around the companion unless the speaker or a place is named.
+        boolean named = ToolKit.optionalPos(a).isPresent()
+                || (a.has("near") && !a.get("near").isJsonNull() && a.get("near").getAsString().equals("me"));
+        BlockPos origin = named ? NearResolver.resolve(c, caller, a) : null;
+        boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
+                ? a.get("collect").getAsBoolean()
+                : TaskSettings.mineCollectDrops;
+        return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt(), origin, collect);
     }
 
     /** Picks the tree for a {@code fell_tree} call; throws {@link IllegalArgumentException} with the reason. */

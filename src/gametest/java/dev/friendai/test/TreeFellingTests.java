@@ -238,6 +238,25 @@ public class TreeFellingTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 1600)
+    public void mineBlocksNearTheSpeaker(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(10, 2, 10), Blocks.DARK_PRISMARINE); // next to the speaker
+        h.setBlock(new BlockPos(5, 2, 5), Blocks.DARK_PRISMARINE); // next to the companion
+        var owner = GameTestSupport.mockPlayerAt(h, 9.5, 2, 9.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        var started = run(FriendaiTools.create(() -> 32).bind(c),
+                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), "mine_blocks",
+                "{\"block\":\"minecraft:dark_prismarine\",\"count\":1,\"near\":\"me\"}");
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(h.getBlockState(new BlockPos(10, 2, 10)).isAir(), "the speaker's block must be mined");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.DARK_PRISMARINE),
+                    "the other block must stay");
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void findTreesListsTheNearest(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

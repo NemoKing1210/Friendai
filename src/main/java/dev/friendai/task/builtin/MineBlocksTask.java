@@ -35,10 +35,21 @@ public final class MineBlocksTask implements Task {
     private BlockPos lastBroken;
     private String summary = "";
 
+    /** Where to search from; null means around the companion. */
+    private final BlockPos origin;
+    /** Whether to walk around picking the drops up afterwards; drops at the feet are always taken. */
+    private final boolean collect;
+
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
+        this(matcher, count, radius, null, true);
+    }
+
+    public MineBlocksTask(BlockMatcher matcher, int count, int radius, BlockPos origin, boolean collect) {
         this.matcher = matcher;
         this.count = count;
         this.radius = radius;
+        this.origin = origin;
+        this.collect = collect;
     }
 
     @Override
@@ -107,8 +118,14 @@ public final class MineBlocksTask implements Task {
                 return TaskStatus.RUNNING;
             }
             candidates = new ArrayList<>(BlockSearch.nearestN(
-                    c.level(), c.companion().blockPosition(), radius, matcher, blacklist, CANDIDATES));
+                    c.level(), origin != null ? origin : c.companion().blockPosition(), radius, matcher, blacklist,
+                    CANDIDATES));
             candidates.removeIf(blacklist::contains);
+            if (origin != null && candidates.size() > 1) {
+                // The breaker walks to whichever candidate is nearest to the companion, which would defeat searching
+                // around another place: offer only the block nearest to that place.
+                candidates = new ArrayList<>(candidates.subList(0, 1));
+            }
         }
         if (candidates.isEmpty()) {
             // Say which it is: nothing around, or blocks that were found and could not be reached.
@@ -129,12 +146,19 @@ public final class MineBlocksTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    /** Starts a round on the drops around the last broken block; false when there is no block to sweep from. */
+    /**
+     * Starts a round on the drops around the last broken block; false when there is no block to sweep from or the
+     * drops are not wanted.
+     */
     private boolean startSweep() {
         if (lastBroken == null) {
             return false;
         }
-        sweep = new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
+        if (!collect) {
+            lastBroken = null;
+            return false;
+        }
+        sweep =new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
         lastBroken = null;
         return true;
     }
