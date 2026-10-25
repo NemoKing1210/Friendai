@@ -3,6 +3,8 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.entity.LookAtOwnerGoal;
+import dev.friendai.task.builtin.StayTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -63,6 +65,35 @@ public class CompanionEntityTests {
 
         h.assertTrue(player.getUUID().equals(b.ownerUuid()), "owner not restored");
         h.assertTrue(b.inventory().countItem(Items.OAK_LOG) == 5, "inventory not restored");
+        h.succeed();
+    }
+
+    @GameTest
+    public void workingCompanionDoesNotTurnToTheOwner(GameTestHelper h) {
+        ServerPlayer player = mockPlayerHere(h);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(player.getUUID());
+
+        LookAtOwnerGoal goal = new LookAtOwnerGoal(companion);
+        companion.taskRunner().start(new StayTask(), "stay");
+        for (int tick = 0; tick < 200; tick++) {
+            h.assertFalse(goal.canUse(), "a companion with a task must keep its eyes on the job, not the owner");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void idleCompanionGlancesAtItsOwner(GameTestHelper h) {
+        ServerPlayer player = mockPlayerHere(h);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(player.getUUID());
+
+        LookAtOwnerGoal goal = new LookAtOwnerGoal(companion);
+        boolean glances = false;
+        for (int tick = 0; tick < 500 && !glances; tick++) {
+            glances = goal.canUse();
+        }
+        h.assertTrue(glances, "an idle companion standing next to its owner should look at them now and then");
         h.succeed();
     }
 

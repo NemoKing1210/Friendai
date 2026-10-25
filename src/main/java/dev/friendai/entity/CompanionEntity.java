@@ -47,7 +47,6 @@ import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
-import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -246,8 +245,11 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
-    /** True when the default activity is all the runner is doing, so a quick errand may replace it. */
-    private boolean idle() {
+    /**
+     * True when the default activity is all the runner is doing, so a quick errand may replace it and the companion
+     * may glance at its owner. A real task owns the look, so the companion keeps its eyes on the job instead.
+     */
+    public boolean idle() {
         return taskRunner.current().map(task -> task instanceof FollowTask).orElse(true);
     }
 
@@ -366,7 +368,9 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        // Not the vanilla player-look goal: it runs before the tasks do and would keep turning the companion away
+        // from whatever it is working on toward a player standing nearby.
+        this.goalSelector.addGoal(8, new LookAtOwnerGoal(this));
     }
 
     public UUID ownerUuid() {
