@@ -6,6 +6,7 @@ import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskSettings;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.BreakAction;
@@ -23,7 +24,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Gathers the cheap natural blocks a route needs: walks to the nearest few, breaks them and collects the drops.
+ * Gathers the cheap natural blocks a route needs: walks to the nearest few, breaks them and waits for their drops to
+ * come to rest at its feet.
  *
  * <p>Only blocks whose drops the companion can place are candidates, and stone only when it carries a correct pickaxe
  * (otherwise breaking it drops nothing). A block nothing can reach is dropped one at a time, so one buried candidate
@@ -37,6 +39,10 @@ public final class MaterialGatherer {
     /** How many candidates one walk approaches; more than can be needed in one round. */
     private static final int CANDIDATES = 8;
     private static final double REACH = Approach.REACH;
+    /** How long one gathered block's drop gets to land and leave its pickup delay. */
+    private static final int SETTLE_TICKS = 12;
+    /** How close a gathered block's drop must be to be taken without walking. */
+    private static final double SETTLE_RADIUS = Approach.REACH;
 
     private static final BlockMatcher DIRT = BlockMatcher.parse("#minecraft:dirt").orElseThrow();
     private static final BlockMatcher GRASS = BlockMatcher.parse("minecraft:grass_block").orElseThrow();
@@ -53,6 +59,7 @@ public final class MaterialGatherer {
     private List<BlockPos> candidates = List.of();
     private Navigator navigator;
     private BreakAction action;
+    private DropSettle settle;
     private int haveAtStart = -1;
     private int gathered;
     private boolean noticed;
@@ -82,6 +89,14 @@ public final class MaterialGatherer {
         }
         if (haveAtStart < 0) {
             haveAtStart = picker.count(companion.inventory());
+        }
+        if (settle != null) {
+            // The block just broken drops where it stood: wait for the delay to run out and take it, so the
+            // inventory count below is the truth before the navigator asks for material again.
+            if (!settle.tick(c)) {
+                return State.WORKING;
+            }
+            settle = null;
         }
         if (enough(companion)) {
             return finish(c);
@@ -119,6 +134,7 @@ public final class MaterialGatherer {
             navigator.stop(c);
             navigator = null;
         }
+        settle = null;
     }
 
     private State tickWalk(TaskContext c, CompanionEntity companion) {
@@ -152,7 +168,10 @@ public final class MaterialGatherer {
             case WORKING -> {
                 return State.WORKING;
             }
-            case BROKEN -> gathered++;
+            case BROKEN -> {
+                gathered++;
+                settle = new DropSettle(SETTLE_TICKS, SETTLE_RADIUS, null);
+            }
             case GONE -> {
                 // Something else removed it; the inventory growth decides whether it counted.
             }
