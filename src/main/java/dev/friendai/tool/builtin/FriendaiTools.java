@@ -63,6 +63,7 @@ public final class FriendaiTools {
         MemoryTools.register(registry, memory);
         TrustTools.register(registry);
         ControlTools.register(registry, defs);
+        QueueTools.register(registry, defs);
         Map<String, TaskToolDef> plannable = new LinkedHashMap<>();
         for (TaskToolDef def : defs) {
             if (def.plannable()) {

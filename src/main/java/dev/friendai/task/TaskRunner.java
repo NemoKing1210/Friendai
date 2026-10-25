@@ -6,11 +6,13 @@ import dev.friendai.queue.Job;
 import dev.friendai.queue.JobQueue;
 import dev.friendai.queue.QueuePolicy;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.queue.PlanOptions;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.builtin.FollowTask;
 import java.util.Optional;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import net.minecraft.server.level.ServerLevel;
@@ -114,6 +116,14 @@ public final class TaskRunner {
     }
 
     public int pendingJobs() { return queue.jobCount() - (queue.active().isPresent() ? 1 : 0); }
+
+    public long enqueuePlan(String goal, List<QueuedStep> steps, List<StepFactory> factories, PlanOptions options) {
+        if (steps.size() != factories.size()) throw new IllegalArgumentException("steps and factories differ");
+        JobQueue.Added added = queue.addPlan(goal, steps, options);
+        for (int i = 0; i < factories.size(); i++) queueFactories.put(added.jobIds().get(i), factories.get(i));
+        if (current == null) startNextQueued();
+        return added.planId();
+    }
 
     /**
      * The id of the active task, 0 when idle and for tasks the brain is not told about
