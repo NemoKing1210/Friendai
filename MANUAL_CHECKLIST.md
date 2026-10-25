@@ -30,18 +30,25 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Hold **V** in a world and say "mine two logs": the chat shows the voice line, the companion replies and does it.
 - [ ] Hold **V** while speaking: the capsule is centered horizontally above the hotbar, its dot pulses and the bars follow your voice; after release the waiting dots animate while transcribing.
 - [ ] No microphone / no model: the HUD shows a hint and nothing else breaks.
-- [ ] Settings → Voice → Speech synthesis → a local voice → **Download voice**: progress toasts every 10%, then "Voice installed"; the license line matches the voice.
+- [ ] Local recognition with each Whisper model (`tiny`, `base` and `small`).
+- [ ] OpenAI recognition with a real key (default model `gpt-transcribe`).
+- [ ] Groq recognition with a real key (default model `whisper-large-v3`).
+- [ ] Yandex recognition with a real key and folder ID; a language it does not support shows a clear message.
+- [ ] A local OpenAI-compatible recognition server (custom base URL, no key) transcribes.
+- [ ] Settings → Voice → Synthesis → a local voice → **Download voice**: progress toasts every 10%, then "Voice installed"; the license line matches the voice.
+- [ ] Every catalog voice (Irina, Dmitri, Lessac, LibriTTS-R, Alba) downloads and speaks.
 - [ ] **Test voice** plays the sample through the selected output device; the volume slider changes how loud it is.
 - [ ] In a world, a chat reply is spoken once (not once per chat line); the output device and speed settings take effect.
 - [ ] With "Speak replies addressed to other players" off, a reply to another player stays silent; on, it is spoken too.
 - [ ] OpenAI with a valid key speaks a reply. A wrong key shows one error toast and no storm; speech stays idle until the settings change.
 - [ ] ElevenLabs with a valid key and voice id speaks a reply.
+- [ ] Yandex with a valid key, folder ID and voice speaks a reply.
 - [ ] A local OpenAI-compatible server (custom base URL, no key) speaks a reply.
 - [ ] Pressing push-to-talk during a reply stops it; the **Stop speaking** keybind (Controls → Friendai) does the same; nothing is recorded while a reply plays.
 - [ ] A reply that begins just as push-to-talk is pressed is cut off instead of playing into the recording (the audio device takes a moment to open).
 - [ ] Changing a speech setting while a reply is being synthesized: saving does not freeze the screen, and the next reply uses the new setting.
 - [ ] Leaving the world stops the audio and rejoining speaks again; the client config keeps the enabled setting.
-- [ ] Every Speech synthesis label is translated in both English and Russian, including the engine and voice names.
+- [ ] Every Recognition and Synthesis label is translated in both English and Russian, including the provider, engine and voice names.
 - [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.
 
 ## Multiplayer
