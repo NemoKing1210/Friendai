@@ -21,4 +21,12 @@ class QueueParserTest {
         assertTrue(result.steps().isEmpty());
         assertTrue(result.errors().getFirst().contains("earlier step"));
     }
+    @Test void rejectsTooManyDependenciesAndBadAttemptCount() {
+        String afters = "[1,1,1,1,1,1,1,1,1]";
+        JsonArray many = JsonParser.parseString("[{\"tool\":\"go_to\"},{\"tool\":\"go_to\",\"after\":" + afters + "}]").getAsJsonArray();
+        var result = QueueParser.parse(many, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
+        assertTrue(result.errors().getFirst().contains("at most"));
+        JsonArray attempts = JsonParser.parseString("[{\"tool\":\"go_to\",\"max_attempts\":9}]").getAsJsonArray();
+        assertTrue(!QueueParser.parse(attempts, SCHEMAS, Set.of("go_to"), 32, 8192, 49152).ok());
+    }
 }

@@ -86,9 +86,12 @@ public final class TaskRunner {
         Job job=queue.addDirect(step); factories.put(job.id(),factory); wakeQueue();
         if(current==null || current.defaultActivity()) startNextQueued(); return job.id();
     }
-    public long enqueuePlan(String goal,List<QueuedStep> steps,List<StepFactory> stepFactories,PlanOptions options) {
+    public long enqueuePlan(String goal,List<QueuedStep> steps,List<StepFactory> stepFactories,PlanOptions options) { return enqueuePlan(goal,steps,stepFactories,options,id->{}); }
+    /** {@code prepare} runs with the new plan id after it is queued but before any of its jobs can start. */
+    public long enqueuePlan(String goal,List<QueuedStep> steps,List<StepFactory> stepFactories,PlanOptions options,java.util.function.LongConsumer prepare) {
         if(steps.size()!=stepFactories.size())throw new IllegalArgumentException("steps and factories differ");
         JobQueue.Added added=queue.addPlan(goal,steps,options); for(int i=0;i<stepFactories.size();i++)factories.put(added.jobIds().get(i),stepFactories.get(i));
+        prepare.accept(added.planId());
         wakeQueue(); if(current==null || current.defaultActivity())startNextQueued(); return added.planId();
     }
     public void wakeQueue() { blockedSince=-1; nextPoll=0; factories.keySet().removeIf(id->queue.job(id).isEmpty()); }

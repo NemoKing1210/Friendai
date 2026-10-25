@@ -29,6 +29,7 @@ import java.util.Set;
 
 /** LLM-facing queue operations. */
 final class QueueTools {
+    private static final dev.friendai.queue.QueueLimits LIMITS=dev.friendai.queue.QueueLimits.DEFAULTS;
     private QueueTools() {}
     static void register(ToolRegistry<CompanionEntity> registry,List<TaskToolDef> defs) {
         Map<String,TaskToolDef> all=new LinkedHashMap<>();defs.stream().filter(TaskToolDef::plannable).forEach(d->all.put(d.name(),d));
@@ -48,7 +49,7 @@ final class QueueTools {
     }
     private static ToolResult add(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {
         Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));
-        var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,8192,49152);
+        var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,LIMITS.maxArgsChars(),LIMITS.maxAddChars());
         if(!parsed.ok())return ToolResult.error("Invalid plan: "+String.join("; ",parsed.errors()));
         String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return ToolResult.error("Invalid plan: "+invalidGuard);
         String goal=args.has("goal")?args.get("goal").getAsString():"";int priority=args.has("priority")?args.get("priority").getAsInt():0;
@@ -56,28 +57,32 @@ final class QueueTools {
         if(policy==null)return ToolResult.error("Invalid plan: on_failure must be ask, skip or stop_plan");
         long time=args.has("time_limit_min")?args.get("time_limit_min").getAsLong()*1200L:0;
         List<QueuedStep> steps=parsed.steps();List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),caller,s.args())).toList();
-        long id;try{id=c.taskRunner().enqueuePlan(goal,steps,factories,new PlanOptions(priority,policy,time));}catch(IllegalArgumentException e){return ToolResult.error("Invalid plan: "+e.getMessage());}
-        if(args.has("optimize")&&args.get("optimize").getAsBoolean())QueueOptimizer.apply(c.taskRunner().queue(),id,name->{TaskToolDef d=all.get(name);return d==null?null:d.queueTraits().mergeableCountArg();});
-        registerFactories(c,c.taskRunner().queue().jobsOfPlan(id).stream().map(dev.friendai.queue.Job::id).toList(),allowed,caller);
-        c.taskRunner().wakeQueue();
+        boolean optimize=args.has("optimize")&&args.get("optimize").getAsBoolean();
+        long id;try{id=c.taskRunner().enqueuePlan(goal,steps,factories,new PlanOptions(priority,policy,time),planId->{
+            if(!optimize)return;
+            // Merge before the first job starts, then rebuild the factories so merged counts are used.
+            QueueOptimizer.apply(c.taskRunner().queue(),planId,name->{TaskToolDef d=all.get(name);return d==null?null:d.queueTraits().mergeableCountArg();});
+            registerFactories(c,c.taskRunner().queue().jobsOfPlan(planId).stream().map(dev.friendai.queue.Job::id).toList(),allowed,caller);
+        });}catch(IllegalArgumentException e){return ToolResult.error("Invalid plan: "+e.getMessage());}
         return ToolResult.ok("plan #"+id+(goal.isBlank()?"":" \""+goal+"\"")+" added: "+steps.size()+" jobs");
     }
     private static ToolResult edit(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {
-        String action=args.get("action").getAsString();var runner=c.taskRunner();var q=runner.queue();
+        if(!args.has("action"))return error("queue_edit requires action");String action=args.get("action").getAsString();var runner=c.taskRunner();var q=runner.queue();
         try {
             switch(action) {
                 case "clear" -> { return ToolResult.ok(runner.clearQueue("cleared by the LLM")); }
                 case "cancel" -> { if(args.has("plan"))runner.cancelPlan(args.get("plan").getAsLong(),"cancelled by the LLM");else runner.cancelJob(required(args,"job"),"cancelled by the LLM"); }
                 case "retry" -> { var r=q.retry(required(args,"job"));if(!r.ok())return error(r.text()); }
                 case "skip" -> { var r=runner.skipJob(required(args,"job"));if(!r.ok())return error(r.text()); }
-                case "priority" -> { int p=args.get("priority").getAsInt();var r=args.has("plan")?q.setPlanPriority(args.get("plan").getAsLong(),p):q.setPriority(required(args,"job"),p);if(!r.ok())return error(r.text()); }
+                case "priority" -> { if(!args.has("priority"))return error("queue_edit requires priority");int p=args.get("priority").getAsInt();var r=args.has("plan")?q.setPlanPriority(args.get("plan").getAsLong(),p):q.setPriority(required(args,"job"),p);if(!r.ok())return error(r.text()); }
                 case "move" -> { var r=q.move(required(args,"job"),required(args,"before"));if(!r.ok())return error(r.text()); }
-                case "update" -> { long id=required(args,"job");JobData.validateTool(q.job(id).orElse(null),all,caller);JsonObject obj=JsonParser.parseString(args.get("args").getAsString()).getAsJsonObject();TaskToolDef d=all.get(q.job(id).orElseThrow().tool());var issues=ArgValidator.validate(d.schema(),obj);if(!issues.isEmpty())return error(String.join("; ",issues));var r=q.updateArgs(id,obj);if(!r.ok())return error(r.text());c.taskRunner().registerFactory(id,ctx->createTask(d,ctx.companion(),caller,obj.deepCopy())); }
-                case "replace" -> { long id=required(args,"job");var old=q.job(id).orElse(null);JobData.validateTool(old,all,caller);Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,8192,49152);if(!parsed.ok())return error("Invalid replacement: "+String.join("; ",parsed.errors()));String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return error("Invalid replacement: "+invalidGuard);long firstNewId=q.nextJobId();var r=q.replace(id,parsed.steps());if(!r.ok())return error(r.text());List<QueuedStep> steps=parsed.steps();for(int i=0;i<steps.size();i++){QueuedStep step=steps.get(i);TaskToolDef def=allowed.get(step.tool());c.taskRunner().registerFactory(firstNewId+i,ctx->createTask(def,ctx.companion(),caller,step.args()));} }
+                case "update" -> { if(!args.has("args"))return error("queue_edit requires args");long id=required(args,"job");JobData.validateTool(q.job(id).orElse(null),all,caller);JsonObject obj=JsonParser.parseString(args.get("args").getAsString()).getAsJsonObject();TaskToolDef d=all.get(q.job(id).orElseThrow().tool());var issues=ArgValidator.validate(d.schema(),obj);if(!issues.isEmpty())return error(String.join("; ",issues));var r=q.updateArgs(id,obj);if(!r.ok())return error(r.text());c.taskRunner().registerFactory(id,ctx->createTask(d,ctx.companion(),caller,obj.deepCopy())); }
+                case "replace" -> { if(!args.has("steps"))return error("queue_edit requires steps");long id=required(args,"job");var old=q.job(id).orElse(null);JobData.validateTool(old,all,caller);Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,LIMITS.maxArgsChars(),LIMITS.maxAddChars());if(!parsed.ok())return error("Invalid replacement: "+String.join("; ",parsed.errors()));String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return error("Invalid replacement: "+invalidGuard);long firstNewId=q.nextJobId();var r=q.replace(id,parsed.steps());if(!r.ok())return error(r.text());List<QueuedStep> steps=parsed.steps();for(int i=0;i<steps.size();i++){QueuedStep step=steps.get(i);TaskToolDef def=allowed.get(step.tool());c.taskRunner().registerFactory(firstNewId+i,ctx->createTask(def,ctx.companion(),caller,step.args()));} }
                 case "optimize" -> {Long plan=args.has("plan")?args.get("plan").getAsLong():null;var r=QueueOptimizer.apply(q,plan,n->{TaskToolDef d=all.get(n);return d==null?null:d.queueTraits().mergeableCountArg();});runner.wakeQueue();return ToolResult.ok(r.text());}
                 default -> {return error("unknown queue_edit action: "+action);}
             }
         } catch(IllegalArgumentException e){return error(e.getMessage());}
+        catch(RuntimeException e){return error("invalid queue edit arguments");}
         runner.wakeQueue();return ToolResult.ok("queue updated");
     }
     private static Map<String,TaskToolDef> allowed(Caller caller,Map<String,TaskToolDef> all){Map<String,TaskToolDef> map=new LinkedHashMap<>();all.forEach((n,d)->{if(caller.access().allows(d.minAccess()))map.put(n,d);});return map;}
