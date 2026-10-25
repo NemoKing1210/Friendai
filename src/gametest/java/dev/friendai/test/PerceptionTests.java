@@ -60,6 +60,21 @@ public class PerceptionTests {
     }
 
     @GameTest
+    public void treesAreListedWithTheirKind(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        for (int y = 2; y <= 6; y++) {
+            h.setBlock(5, y, 2, Blocks.CHERRY_LOG);
+        }
+        h.setBlock(5, 7, 2, Blocks.CHERRY_LEAVES.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        h.assertTrue(p.toPromptText().contains("Trees: cherry_log 3 blocks east (5 logs, height 5, standing)"),
+                p.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
     public void landmarksFindStationsNearby(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         h.setBlock(6, 2, 2, Blocks.CRAFTING_TABLE);

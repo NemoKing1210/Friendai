@@ -18,7 +18,7 @@ class PerceptionSnapshotTest {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "10 64 -5", "overworld", 20f, 20f, 14, "day", "plains", "clear", 3.25,
                 blocks, Map.of("zombie", 2), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "follow",
-                null, null, null, null);
+                null, null, null, null, List.of());
         String text = snapshot.toPromptText();
         assertTrue(text.contains("Position: 10 64 -5"), text);
         assertTrue(text.contains("Health: 20/20"), text);
@@ -36,7 +36,7 @@ class PerceptionSnapshotTest {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "the_nether", 7.5f, 20f, 20, "night", "nether_wastes", "clear", null,
                 Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
-                null, null, null, null);
+                null, null, null, null, List.of());
         String text = snapshot.toPromptText();
         assertTrue(text.contains("Owner: not nearby"), text);
         assertTrue(text.contains("Health: 7.5/20"), text);
@@ -51,7 +51,7 @@ class PerceptionSnapshotTest {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", 6.2,
                 Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
-                focus, null, null, null);
+                focus, null, null, null, List.of());
         String text = snapshot.toPromptText();
         assertTrue(text.contains(focus.toPromptText() + "\nNearby blocks: none"), text);
         assertEquals(1, text.split("blocks away", -1).length - 1, text);
@@ -63,7 +63,7 @@ class PerceptionSnapshotTest {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", 6.25,
                 Map.of(), Map.of(), Map.of(), "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
-                null, null, null, null);
+                null, null, null, null, List.of());
         assertTrue(snapshot.toPromptText().contains("\nOwner: 6.2 blocks away\nNearby blocks: none\n")
                 || snapshot.toPromptText().contains("\nOwner: 6.3 blocks away\nNearby blocks: none\n"),
                 snapshot.toPromptText());
@@ -81,7 +81,8 @@ class PerceptionSnapshotTest {
                 "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
                 focus, self,
                 List.of(new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me")),
-                List.of(new Landmark("crafting_table", "crafting_table", "12 64 -3", 4.1, "south-east")));
+                List.of(new Landmark("crafting_table", "crafting_table", "12 64 -3", 4.1, "south-east")),
+                List.of());
         String text = snapshot.toPromptText();
         assertTrue(text.indexOf("Self: ") < text.indexOf("Owner: "), text);
         assertTrue(text.contains("Threats: zombie 4.2 blocks behind-right, 18/20 hp, coming for me"), text);
@@ -91,9 +92,31 @@ class PerceptionSnapshotTest {
                 "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
                 Map.of(), Map.of(), Map.of(),
                 "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
-                null, self, List.of(), List.of());
+                null, self, List.of(), List.of(), List.of());
         assertTrue(empty.toPromptText().contains("Threats: none"), empty.toPromptText());
         assertTrue(empty.toPromptText().contains("Landmarks: none nearby"), empty.toPromptText());
+    }
+
+    @Test
+    void formatsTrees() {
+        PerceptionSnapshot snapshot = new PerceptionSnapshot(
+                "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(),
+                "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                null, null, null, null,
+                List.of(new TreeSummary("oak_log", "standing", "12 64 -3", 14, 12, 6.0, "north-west")));
+        assertTrue(snapshot.toPromptText().contains(
+                "Trees: oak_log 6 blocks north-west (14 logs, height 12, standing)"), snapshot.toPromptText());
+    }
+
+    @Test
+    void omitsTheTreesLineWhenEmpty() {
+        PerceptionSnapshot snapshot = new PerceptionSnapshot(
+                "0 0 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(),
+                "Wearing: nothing; holding: nothing; combat mode: defensive", "none",
+                null, null, null, null, List.of());
+        assertFalse(snapshot.toPromptText().contains("Trees:"), snapshot.toPromptText());
     }
 
     @Test

@@ -2,7 +2,9 @@ package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
+import dev.friendai.task.TaskSettings;
 import dev.friendai.task.combat.Threats;
+import dev.friendai.task.mining.TreeFinder;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +30,9 @@ public final class PerceptionBuilder {
     private static final int TOP = 10;
     private static final double THREAT_RADIUS = 16;
     private static final int MAX_THREATS = 3;
+    private static final int MAX_TREES = 3;
+    private static final int TREE_DOWN = 4;
+    private static final int TREE_UP = 24;
 
     private PerceptionBuilder() {}
 
@@ -72,7 +77,19 @@ public final class PerceptionBuilder {
                 focus,
                 selfStatus(c, level, pos),
                 threats(c, level),
-                LandmarkScanner.scan(level, pos));
+                LandmarkScanner.scan(level, pos),
+                trees(level, pos));
+    }
+
+    /** The nearest tree-like clusters, so the model need not infer a tree from a count of log blocks. */
+    private static List<TreeSummary> trees(ServerLevel level, BlockPos pos) {
+        if (!TaskSettings.treePerception) {
+            return List.of();
+        }
+        return TreeFinder.find(level, pos, TaskSettings.treePerceptionRadius, TREE_DOWN, TREE_UP, null, MAX_TREES, true)
+                .stream()
+                .map(TreeFinder.TreeInfo::summary)
+                .toList();
     }
 
     private static List<Threat> threats(CompanionEntity c, ServerLevel level) {

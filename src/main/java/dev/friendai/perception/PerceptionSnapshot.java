@@ -25,7 +25,8 @@ public record PerceptionSnapshot(
         OwnerFocus ownerFocus,
         SelfStatus self,
         List<Threat> threats,
-        List<Landmark> landmarks) {
+        List<Landmark> landmarks,
+        List<TreeSummary> trees) {
 
     public String toPromptText() {
         StringBuilder sb = new StringBuilder();
@@ -56,6 +57,9 @@ public record PerceptionSnapshot(
                             ? "none nearby"
                             : landmarks.stream().map(Landmark::toPromptText).collect(Collectors.joining("; ")))
                     .append('\n');
+        }
+        if (trees != null && !trees.isEmpty()) {
+            sb.append(TreeText.perceptionLine(trees)).append('\n');
         }
         sb.append("Nearby blocks: ").append(counts(nearbyBlocks, "none")).append('\n');
         sb.append("Nearby entities: ").append(counts(nearbyEntities, "none")).append('\n');
