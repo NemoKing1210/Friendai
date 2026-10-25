@@ -10,7 +10,7 @@ public class SpeechTests {
     public void speechWithoutAChannelStillWritesChat(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionSpeaker speaker = new CompanionSpeaker(
-                h.getLevel().getServer(), player.getUUID(), () -> "Nova", () -> 400);
+                h.getLevel().getServer(), player.getUUID(), () -> "Nova", () -> 400, thinking -> {});
         speaker.say("Hello there", player.getUUID());
         h.succeed();
     }
