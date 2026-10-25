@@ -51,4 +51,25 @@ class JobQueueTest {
         assertThrows(IllegalArgumentException.class, () -> q.addPlan("q", List.of(step("c")), PlanOptions.DEFAULT));
         assertEquals(2, q.jobCount());
     }
+
+    @Test
+    void movePriorityUpdateRetrySkipAndArchiveAreExplicit() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        JobQueue.Added added = q.addPlan("p", List.of(step("a"), step("b")), PlanOptions.DEFAULT);
+        long first = added.jobIds().getFirst();
+        long second = added.jobIds().get(1);
+        assertTrue(q.move(second, first).ok());
+        assertTrue(q.setPriority(first, 7).ok());
+        assertEquals(7, q.job(first).orElseThrow().priority());
+        assertTrue(q.updateArgs(first, new JsonObject()).ok());
+        q.markRunning(first);
+        q.fail(first, "bad");
+        assertTrue(q.retry(first).ok());
+        assertTrue(q.skip(first).ok());
+        q.markRunning(second);
+        q.finish(second, "done");
+        q.archivePlan(added.planId());
+        assertEquals(0, q.jobCount());
+        assertEquals(1, q.archives().size());
+    }
 }

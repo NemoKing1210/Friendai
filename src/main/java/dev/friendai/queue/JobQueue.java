@@ -103,6 +103,31 @@ public final class JobQueue {
         return new FailureOutcome(jobs.get(id), false);
     }
     public Result cancel(long id) { Job job = jobs.get(id); if (job == null) return Result.error("unknown job #" + id); replace(job, JobState.CANCELLED, "cancelled", job.attempts(), 0); return Result.ok("cancelled #" + id); }
+    public Result move(long jobId, long beforeJobId) {
+        Job job = jobs.get(jobId), before = jobs.get(beforeJobId);
+        if (job == null || before == null || job.planId() == 0 || job.planId() != before.planId()) return Result.error("jobs must be in the same plan");
+        long order = before.order() - 1;
+        replace(job, job.state(), job.result(), job.attempts(), job.retryAtTick());
+        Job moved = jobs.get(jobId);
+        jobs.put(jobId, new Job(moved.id(), moved.planId(), moved.tool(), moved.args(), moved.priority(), moved.priorityExplicit(), order, moved.state(), moved.guards(), moved.onUnmet(), moved.onFailure(), moved.maxAttempts(), moved.attempts(), moved.after(), moved.result(), moved.retryAtTick()));
+        return Result.ok("moved #" + jobId + " before #" + beforeJobId);
+    }
+    public Result setPriority(long id, int priority) {
+        Job job = jobs.get(id); if (job == null) return Result.error("unknown job #" + id);
+        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), job.args(), priority, true, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        return Result.ok("#" + id + " priority is now " + priority);
+    }
+    public Result setPlanPriority(long planId, int priority) {
+        PlanRecord plan = plans.get(planId); if (plan == null) return Result.error("unknown plan #" + planId);
+        plans.put(planId, new PlanRecord(plan.id(), plan.goal(), priority, plan.addedTick(), plan.deadlineTick(), plan.onFailure()));
+        for (Job job : jobsOfPlan(planId)) if (job.state() == JobState.PENDING && !job.priorityExplicit()) jobs.put(job.id(), new Job(job.id(), job.planId(), job.tool(), job.args(), priority, false, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        return Result.ok("plan #" + planId + " priority is now " + priority);
+    }
+    public Result updateArgs(long id, JsonObject args) {
+        Job job = jobs.get(id); if (job == null || job.state() != JobState.PENDING) return Result.error("job cannot be updated");
+        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), args, job.priority(), job.priorityExplicit(), job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        return Result.ok("updated #" + id);
+    }
     public Result cancelPlan(long planId) { if (!plans.containsKey(planId)) return Result.error("unknown plan #" + planId); for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0); return Result.ok("cancelled plan #" + planId); }
     public Result remove(long id) { return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id); }
     public Result clear() { int pc = plans.size(), jc = jobs.size(); plans.clear(); jobs.clear(); return Result.ok("cleared " + pc + " plans and " + jc + " jobs"); }
