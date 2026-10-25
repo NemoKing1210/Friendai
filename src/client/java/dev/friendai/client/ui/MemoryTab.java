@@ -13,112 +13,120 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
-/** The memory tab: browse facts by group, add, edit and forget them, and grant or revoke trust. */
+/** The memory tab: who the companion remembers on the left, their facts as cards on the right, with editing. */
 final class MemoryTab implements MenuTab {
     private static final int ROW = 20;
     private static final int GAP = 4;
     private static final int LINE = 10;
-    private static final int BUTTON = 70;
-    private static final int SMALL = 60;
+    private static final int GROUP_ROW = 22;
+    private static final int PAD = 8;
 
     private final MemoryTabModel model = new MemoryTabModel();
+    private final ScrollView groupsView = new ScrollView(false);
+    private final ScrollView factsView = new ScrollView(false);
     private MemoryView lastView;
 
-    private Button previous;
-    private Button next;
-    private Button trust;
-    private Button clear;
-    private Button edit;
-    private Button forget;
-    private CycleButton<Category> category;
+    private FlatButton trust;
+    private FlatButton clear;
+    private FlatButton edit;
+    private FlatButton forget;
+    private FlatButton categoryButton;
     private EditBox text;
-    private Button addOrSave;
-    private Button cancel;
+    private FlatButton addOrSave;
+    private FlatButton cancel;
+    private Category draftCategory = Category.PROFILE;
 
     private List<Row> rows = List.of();
     private List<MemoryView.FactRow> builtFor = List.of();
     private int builtWidth = -1;
-    private int scrollPixels;
+    private int sideLeft;
+    private int sideTop;
+    private int sideWidth;
+    private int sideHeight;
     private int listLeft;
     private int listTop;
     private int listWidth;
     private int listHeight;
-    private boolean wasEditing;
-    private int clearX;
+    private int headLeft;
+    private int headWidth;
     private int trustX;
+    private int clearX;
+    private boolean wasEditing;
 
-    private record Row(int factId, List<FormattedCharSequence> lines, int height) {}
+    private record Row(int factId, MemoryView.FactRow fact, List<FormattedCharSequence> lines, int height) {}
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
-        previous = host.add(Button.builder(Component.literal("<"), b -> {
-                    model.previous();
-                    sync();
-                })
-                .bounds(left, top, ROW, ROW)
-                .build());
-        next = host.add(Button.builder(Component.literal(">"), b -> {
-                    model.next();
-                    sync();
-                })
-                .bounds(left + width - ROW, top, ROW, ROW)
-                .build());
-        clearX = left + width - ROW - GAP - SMALL;
-        clear = host.add(Button.builder(Component.translatable("friendai.menu.memory.clear"), b -> clickClear())
-                .bounds(clearX, top, SMALL, ROW)
-                .build());
-        trustX = clearX - GAP - BUTTON;
-        trust = host.add(Button.builder(Component.translatable("friendai.menu.memory.trust_on"), b -> clickTrust())
-                .bounds(trustX, top, BUTTON, ROW)
-                .build());
+        sideWidth = Math.max(70, Math.min(118, width / 4));
+        sideLeft = left;
+        sideTop = top;
+        sideHeight = height;
+        headLeft = left + sideWidth + GAP * 2;
+        headWidth = width - sideWidth - GAP * 2;
+
+        int clearWidth = 56;
+        int trustWidth = 76;
+        clearX = headLeft + headWidth - clearWidth;
+        trustX = clearX - GAP - trustWidth;
+        clear = host.add(new FlatButton(clearX, top, clearWidth, ROW,
+                Component.translatable("friendai.menu.memory.clear"), Ui.BAD, this::clickClear));
+        trust = host.add(new FlatButton(trustX, top, trustWidth, ROW,
+                Component.translatable("friendai.menu.memory.trust_on"), Ui.GOOD, this::clickTrust));
 
         int statusY = top + height - LINE;
         int formY = statusY - GAP - ROW;
         int actionY = formY - GAP - ROW;
-        listLeft = left;
+        listLeft = headLeft;
         listTop = top + ROW + GAP;
-        listWidth = width;
+        listWidth = headWidth;
         listHeight = Math.max(LINE, actionY - GAP - listTop);
 
-        edit = host.add(Button.builder(Component.translatable("friendai.menu.memory.edit"), b -> startEdit())
-                .bounds(left, actionY, BUTTON, ROW)
-                .build());
-        forget = host.add(Button.builder(Component.translatable("friendai.menu.memory.forget"), b -> clickForget())
-                .bounds(left + BUTTON + GAP, actionY, BUTTON, ROW)
-                .build());
+        edit = host.add(new FlatButton(headLeft, actionY, 70, ROW,
+                Component.translatable("friendai.menu.memory.edit"), Ui.ACCENT, this::startEdit));
+        forget = host.add(new FlatButton(headLeft + 70 + GAP, actionY, 70, ROW,
+                Component.translatable("friendai.menu.memory.forget"), Ui.WARN, this::clickForget));
 
-        int cancelX = left + width - SMALL;
-        int addX = cancelX - GAP - BUTTON;
-        int categoryWidth = 110;
-        int textX = left + categoryWidth + GAP;
+        int cancelWidth = 58;
+        int addWidth = 64;
+        int cancelX = headLeft + headWidth - cancelWidth;
+        int addX = cancelX - GAP - addWidth;
+        int categoryWidth = 92;
+        int textX = headLeft + categoryWidth + GAP;
         int textWidth = Math.max(40, addX - GAP - textX);
-        category = host.add(CycleButton.<Category>builder(c -> Component.literal(c.name()), model.draftCategory())
-                .withValues(List.of(Category.values()))
-                .create(left, formY, categoryWidth, ROW, Component.empty(), (button, value) ->
-                        model.setDraft(value, text == null ? model.draftText() : text.getValue())));
-        text = host.add(new EditBox(
-                host.font(), textX, formY, textWidth, ROW, Component.translatable("friendai.menu.memory.text_hint")));
+        draftCategory = model.draftCategory();
+        categoryButton = host.add(new FlatButton(headLeft, formY, categoryWidth, ROW,
+                categoryLabel(draftCategory), categoryColor(draftCategory), this::cycleCategory));
+        text = host.add(new EditBox(host.font(), textX, formY, textWidth, ROW,
+                Component.translatable("friendai.menu.memory.text_hint")));
         text.setHint(Component.translatable("friendai.menu.memory.text_hint"));
         text.setMaxLength(160);
         text.setValue(model.draftText());
-        text.setResponder(s -> model.setDraft(category.getValue(), s));
-        addOrSave = host.add(Button.builder(Component.translatable("friendai.menu.memory.add"), b -> submit())
-                .bounds(addX, formY, BUTTON, ROW)
-                .build());
-        cancel = host.add(Button.builder(Component.translatable("friendai.menu.memory.cancel"), b -> {
+        text.setResponder(s -> model.setDraft(draftCategory, s));
+        addOrSave = host.add(new FlatButton(addX, formY, addWidth, ROW,
+                Component.translatable("friendai.menu.memory.add"), Ui.GOOD, this::submit));
+        cancel = host.add(new FlatButton(cancelX, formY, cancelWidth, ROW,
+                Component.translatable("friendai.menu.memory.cancel"), Ui.DIM, () -> {
                     model.cancelEdit();
                     text.setValue("");
                     sync();
-                })
-                .bounds(cancelX, formY, SMALL, ROW)
-                .build());
+                }));
         sync();
+    }
+
+    private void cycleCategory() {
+        Category[] all = Category.values();
+        setCategory(all[(draftCategory.ordinal() + 1) % all.length]);
+        model.setDraft(draftCategory, text.getValue());
+    }
+
+    private void setCategory(Category category) {
+        draftCategory = category;
+        categoryButton.setMessage(categoryLabel(category));
+        categoryButton.setColor(categoryColor(category));
     }
 
     @Override
@@ -139,12 +147,10 @@ final class MemoryTab implements MenuTab {
         boolean nowEditing = model.editing().isPresent();
         if (wasEditing && !nowEditing) {
             text.setValue("");
-            category.setValue(Category.PROFILE);
+            setCategory(Category.PROFILE);
         }
         wasEditing = nowEditing;
 
-        previous.active = group.isPresent();
-        next.active = group.isPresent();
         clear.active = group.isPresent() && enabled;
         clear.setMessage(Component.translatable(model.clearArmed(System.currentTimeMillis())
                 ? "friendai.menu.memory.clear_confirm"
@@ -153,15 +159,16 @@ final class MemoryTab implements MenuTab {
             MemoryView.Group current = group.get();
             boolean playerGroup = current.role() == MemoryView.Role.TRUSTED || current.role() == MemoryView.Role.GUEST;
             trust.visible = playerGroup;
-            trust.setMessage(Component.translatable(current.role() == MemoryView.Role.TRUSTED
-                    ? "friendai.menu.memory.trust_on"
-                    : "friendai.menu.memory.trust_off"));
+            boolean trusted = current.role() == MemoryView.Role.TRUSTED;
+            trust.setMessage(Component.translatable(
+                    trusted ? "friendai.menu.memory.trust_on" : "friendai.menu.memory.trust_off"));
+            trust.setColor(trusted ? Ui.GOOD : Ui.DIM);
         } else {
             trust.visible = false;
         }
         edit.visible = enabled;
         forget.visible = enabled;
-        category.visible = enabled;
+        categoryButton.visible = enabled;
         text.visible = enabled;
         addOrSave.visible = enabled;
         cancel.visible = enabled && nowEditing;
@@ -174,7 +181,7 @@ final class MemoryTab implements MenuTab {
 
     private void startEdit() {
         if (model.startEdit()) {
-            category.setValue(model.draftCategory());
+            setCategory(model.draftCategory());
             text.setValue(model.draftText());
             sync();
         }
@@ -185,7 +192,7 @@ final class MemoryTab implements MenuTab {
         if (group.isEmpty()) {
             return;
         }
-        String body = body(category.getValue(), text.getValue());
+        String body = body(draftCategory, text.getValue());
         OptionalInt editing = model.editing();
         if (editing.isPresent()) {
             CompanionRequests.send(RequestType.MEMORY_EDIT, String.valueOf(editing.getAsInt()), body);
@@ -224,57 +231,27 @@ final class MemoryTab implements MenuTab {
         return json.toString();
     }
 
-    @Override
-    public void render(GuiGraphicsExtractor g, Font font, int left, int top, int width, int height) {
-        if (model.view().isEmpty()) {
-            return;
-        }
-        model.group().ifPresent(group -> drawGroupLabel(g, font, group, top));
-        if (!model.view().orElseThrow().enabled()) {
-            g.text(font, Component.translatable("friendai.menu.memory.error.disabled"), left, listTop, 0xFFFF5555);
-            drawStatus(g, font, left, top, width, height);
-            return;
-        }
-        drawFacts(g, font, width);
-        drawStatus(g, font, left, top, width, height);
+    private static Component categoryLabel(Category category) {
+        return Component.translatable(switch (category) {
+            case PROFILE -> "friendai.menu.memory.category.profile";
+            case PREFERENCE -> "friendai.menu.memory.category.preference";
+            case PLACE -> "friendai.menu.memory.category.place";
+            case PROMISE -> "friendai.menu.memory.category.promise";
+            case NOTE -> "friendai.menu.memory.category.note";
+        });
     }
 
-    private void drawGroupLabel(GuiGraphicsExtractor g, Font font, MemoryView.Group group, int top) {
-        MemoryView view = model.view().orElseThrow();
-        int right = (trust.visible ? trustX : clearX) - GAP;
-        int labelX = listLeft + ROW + GAP;
-        Component label = groupLabel(view, group);
-        g.enableScissor(labelX, top, Math.max(labelX, right), top + ROW);
-        g.text(font, label, labelX, top + (ROW - font.lineHeight) / 2, 0xFFFFFFFF);
-        g.disableScissor();
+    private static int categoryColor(Category category) {
+        return Ui.PALETTE[category.ordinal() % Ui.PALETTE.length];
     }
 
-    private static Component groupLabel(MemoryView view, MemoryView.Group group) {
-        int limit = group.role() == MemoryView.Role.WORLD
-                ? view.limits().maxWorldFacts()
-                : view.limits().maxFactsPerPlayer();
-        Component name;
-        if (group.role() == MemoryView.Role.OWNER) {
-            name = Component.translatable("friendai.menu.memory.you", group.name());
-        } else if (group.role() == MemoryView.Role.WORLD) {
-            name = Component.translatable("friendai.menu.memory.world");
-        } else if (group.online()) {
-            name = Component.literal(group.name() + " (")
-                    .append(Component.translatable("friendai.menu.memory.online"))
-                    .append(")");
-        } else {
-            name = Component.literal(group.name());
-        }
-        if (group.role() == MemoryView.Role.WORLD) {
-            return Component.translatable(
-                    "friendai.menu.memory.group_world", name, group.count(), limit);
-        }
-        return Component.translatable(
-                "friendai.menu.memory.group",
-                name,
-                Component.translatable(roleKey(group.role())),
-                group.count(),
-                limit);
+    private static int roleColor(MemoryView.Role role) {
+        return switch (role) {
+            case OWNER -> Ui.GOOD;
+            case TRUSTED -> Ui.ACCENT;
+            case GUEST -> Ui.DIM;
+            case WORLD -> Ui.PURPLE;
+        };
     }
 
     private static String roleKey(MemoryView.Role role) {
@@ -286,91 +263,190 @@ final class MemoryTab implements MenuTab {
         };
     }
 
-    private void drawFacts(GuiGraphicsExtractor g, Font font, int width) {
-        List<MemoryView.FactRow> facts = model.facts();
-        if (!facts.equals(builtFor) || builtWidth != width) {
-            builtFor = facts;
-            builtWidth = width;
-            List<Row> built = new ArrayList<>();
-            for (MemoryView.FactRow fact : facts) {
-                StringBuilder line = new StringBuilder()
-                        .append('[')
-                        .append(fact.id())
-                        .append("] ")
-                        .append(fact.category().name())
-                        .append(": ")
-                        .append(fact.text());
-                if (!fact.authorName().isEmpty()) {
-                    line.append(" (from ").append(fact.authorName()).append(')');
+    private static Component groupName(MemoryView.Group group) {
+        return switch (group.role()) {
+            case OWNER -> Component.translatable("friendai.menu.memory.you", group.name());
+            case WORLD -> Component.translatable("friendai.menu.memory.world");
+            default -> Component.literal(group.name());
+        };
+    }
+
+    @Override
+    public void render(
+            GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
+        Optional<MemoryView> view = model.view();
+        if (view.isEmpty()) {
+            return;
+        }
+        drawSidebar(g, font, view.get(), mouseX, mouseY);
+        model.group().ifPresent(group -> drawHeader(g, font, view.get(), group));
+        if (!view.get().enabled()) {
+            g.text(font, Component.translatable("friendai.menu.memory.error.disabled"), listLeft, listTop + 4, Ui.BAD);
+        } else {
+            drawFacts(g, font);
+        }
+        drawStatus(g, font, top, height);
+    }
+
+    private void drawSidebar(GuiGraphicsExtractor g, Font font, MemoryView view, int mouseX, int mouseY) {
+        Ui.card(g, sideLeft, sideTop, sideWidth, sideHeight, Ui.CARD, Ui.BORDER);
+        List<MemoryView.Group> groups = view.groups();
+        groupsView.begin(g, sideLeft + 1, sideTop + 1, sideWidth - 2, sideHeight - 2, groups.size() * GROUP_ROW + 2);
+        int y = groupsView.top() + 1;
+        String selected = model.group().map(MemoryView.Group::key).orElse("");
+        for (MemoryView.Group group : groups) {
+            if (groupsView.visible(y, GROUP_ROW)) {
+                boolean current = group.key().equals(selected);
+                boolean hot = groupsView.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + GROUP_ROW;
+                if (current) {
+                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(Ui.ACCENT, 0x30));
+                    g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
+                } else if (hot) {
+                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
                 }
-                List<FormattedCharSequence> wrapped =
-                        font.split(Component.literal(line.toString()), Math.max(1, width - 6));
-                built.add(new Row(fact.id(), wrapped, wrapped.size() * LINE + 2));
+                Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, roleColor(group.role()));
+                String count = String.valueOf(group.count());
+                int nameWidth = sideWidth - 8 - 8 - 6 - font.width(count) - 8;
+                g.text(font, Ui.clip(font, groupName(group).getString(), nameWidth), sideLeft + 16,
+                        y + (GROUP_ROW - font.lineHeight) / 2 + 1, current ? Ui.TEXT : Ui.DIM);
+                g.text(font, count, sideLeft + sideWidth - 8 - font.width(count),
+                        y + (GROUP_ROW - font.lineHeight) / 2 + 1, Ui.DIM);
+                if (group.online() && group.role() != MemoryView.Role.WORLD) {
+                    Ui.dot(g, sideLeft + sideWidth - 6, y + 2, 3, Ui.GOOD);
+                }
             }
-            rows = built;
-            scrollPixels = 0;
+            y += GROUP_ROW;
+        }
+        groupsView.end(g);
+    }
+
+    private void drawHeader(GuiGraphicsExtractor g, Font font, MemoryView view, MemoryView.Group group) {
+        int limit = group.role() == MemoryView.Role.WORLD
+                ? view.limits().maxWorldFacts()
+                : view.limits().maxFactsPerPlayer();
+        int right = (trust.visible ? trustX : clearX) - GAP;
+        int y = sideTop + (ROW - font.lineHeight) / 2;
+        String name = groupName(group).getString();
+        String counter = group.count() + "/" + limit;
+        Component role = Component.translatable(roleKey(group.role()));
+        int badgeWidth = group.role() == MemoryView.Role.WORLD ? 0 : Ui.badgeWidth(font, role.getString());
+        int counterWidth = font.width(counter);
+        int nameWidth = Math.max(20, right - headLeft - badgeWidth - counterWidth - 12);
+        String shown = Ui.clip(font, name, nameWidth);
+        g.text(font, shown, headLeft, y, Ui.TEXT);
+        int x = headLeft + font.width(shown) + 6;
+        if (badgeWidth > 0 && x + badgeWidth <= right) {
+            Ui.badge(g, font, role.getString(), x, sideTop + 4, roleColor(group.role()));
+            x += badgeWidth + 6;
+        }
+        if (x + counterWidth <= right) {
+            boolean full = group.count() >= limit;
+            g.text(font, counter, x, y, full ? Ui.WARN : Ui.DIM);
+        }
+    }
+
+    private void rebuildRows(Font font, List<MemoryView.FactRow> facts, int width) {
+        builtFor = facts;
+        builtWidth = width;
+        List<Row> built = new ArrayList<>();
+        for (MemoryView.FactRow fact : facts) {
+            List<FormattedCharSequence> lines =
+                    font.split(Component.literal(fact.text()), Math.max(20, width - 2 * PAD - 8));
+            built.add(new Row(fact.id(), fact, lines, 18 + lines.size() * (font.lineHeight + 1) + 4));
+        }
+        rows = built;
+    }
+
+    private void drawFacts(GuiGraphicsExtractor g, Font font) {
+        List<MemoryView.FactRow> facts = model.facts();
+        if (!facts.equals(builtFor) || builtWidth != listWidth) {
+            rebuildRows(font, facts, listWidth);
         }
         if (facts.isEmpty()) {
-            g.text(font, Component.translatable("friendai.menu.memory.empty_group"), listLeft, listTop, 0xFFAAAAAA);
+            g.text(font, Component.translatable("friendai.menu.memory.empty_group"), listLeft + 2, listTop + 4, Ui.DIM);
             return;
         }
         int total = 0;
         for (Row row : rows) {
-            total += row.height;
+            total += row.height() + GAP;
         }
-        scrollPixels = Math.max(0, Math.min(scrollPixels, Math.max(0, total - listHeight)));
         int selected = model.selected().orElse(-1);
-        g.enableScissor(listLeft, listTop, listLeft + listWidth, listTop + listHeight);
-        int y = listTop - scrollPixels;
+        factsView.begin(g, listLeft, listTop, listWidth, listHeight, total);
+        int y = factsView.top();
+        int cardWidth = listWidth - 6;
         for (Row row : rows) {
-            if (row.factId() == selected) {
-                g.fill(listLeft, y, listLeft + listWidth, y + row.height, 0x40FFFFFF);
+            if (factsView.visible(y, row.height())) {
+                boolean current = row.factId() == selected;
+                Ui.card(g, listLeft, y, cardWidth, row.height(),
+                        current ? Ui.CARD_HOVER : Ui.CARD, current ? Ui.ACCENT : Ui.BORDER);
+                int color = categoryColor(row.fact().category());
+                g.fill(listLeft, y, listLeft + 3, y + row.height(), color);
+                int x = listLeft + PAD;
+                x += Ui.badge(g, font, categoryLabel(row.fact().category()).getString(), x, y + 3, color) + 5;
+                g.text(font, "#" + row.factId(), x, y + 5, Ui.DIM);
+                if (!row.fact().authorName().isEmpty()) {
+                    String from = Component.translatable("friendai.menu.memory.from", row.fact().authorName()).getString();
+                    from = Ui.clip(font, from, cardWidth / 2);
+                    g.text(font, from, listLeft + cardWidth - PAD - font.width(from), y + 5, Ui.DIM);
+                }
+                int lineY = y + 18;
+                for (FormattedCharSequence line : row.lines()) {
+                    g.text(font, line, listLeft + PAD, lineY, Ui.TEXT);
+                    lineY += font.lineHeight + 1;
+                }
             }
-            int color = row.factId() == selected ? 0xFFFFFF55 : 0xFFFFFFFF;
-            int lineY = y + 1;
-            for (FormattedCharSequence line : row.lines()) {
-                g.text(font, line, listLeft + 2, lineY, color);
-                lineY += LINE;
-            }
-            y += row.height;
+            y += row.height() + GAP;
         }
-        g.disableScissor();
+        factsView.end(g);
     }
 
-    private void drawStatus(GuiGraphicsExtractor g, Font font, int left, int top, int width, int height) {
+    private void drawStatus(GuiGraphicsExtractor g, Font font, int top, int height) {
         Optional<MenuStatus> status = model.status();
         if (status.isEmpty()) {
             return;
         }
         Component message = Components.of(status.get().message());
-        int color = status.get().ok() ? 0xFF55FF55 : 0xFFFF5555;
+        int color = status.get().ok() ? Ui.GOOD : Ui.BAD;
         int y = top + height - LINE;
-        g.enableScissor(left, y, left + width, y + LINE + 2);
-        g.text(font, message, left, y, color);
+        g.enableScissor(headLeft, y, headLeft + headWidth, y + LINE + 2);
+        g.text(font, message, headLeft, y + 1, color);
         g.disableScissor();
     }
 
     @Override
     public boolean mouseClicked(double x, double y) {
-        if (x < listLeft || x >= listLeft + listWidth || y < listTop || y >= listTop + listHeight) {
+        if (groupsView.contains(x, y)) {
+            int index = groupsView.contentY(y) / GROUP_ROW;
+            model.view().ifPresent(view -> {
+                if (index >= 0 && index < view.groups().size()) {
+                    model.selectGroup(view.groups().get(index).key());
+                    factsView.scroll(1000);
+                    sync();
+                }
+            });
+            return true;
+        }
+        if (!factsView.contains(x, y)) {
             return false;
         }
-        int cursor = (int) (y - listTop + scrollPixels);
+        int cursor = factsView.contentY(y);
         int running = 0;
         for (Row row : rows) {
-            if (cursor >= running && cursor < running + row.height) {
+            if (cursor >= running && cursor < running + row.height()) {
                 model.select(row.factId());
                 sync();
                 return true;
             }
-            running += row.height;
+            running += row.height() + GAP;
         }
         return false;
     }
 
     @Override
-    public boolean scroll(double amount) {
-        scrollPixels -= (int) Math.round(amount * 12);
-        return true;
+    public boolean scroll(double x, double y, double amount) {
+        if (groupsView.contains(x, y)) {
+            return groupsView.scroll(amount);
+        }
+        return factsView.contains(x, y) && factsView.scroll(amount);
     }
 }

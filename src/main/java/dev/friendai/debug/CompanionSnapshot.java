@@ -14,4 +14,5 @@ public record CompanionSnapshot(
         List<TaskRecord> history,
         List<LogEntry> newLog,
         String perception,
-        List<String> toolNames) {}
+        List<String> toolNames,
+        CompanionVitals vitals) {}

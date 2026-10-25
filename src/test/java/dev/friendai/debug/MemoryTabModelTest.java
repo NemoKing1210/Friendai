@@ -190,4 +190,16 @@ class MemoryTabModelTest {
         assertFalse(model.clearArmed(3001));
         assertFalse(model.clickClear(3001));
     }
+
+    @Test
+    void selectGroupSwitchesAndDropsSelection() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), bob()), List.of(fact(1, O.toString(), "a")), Optional.empty()));
+        model.select(1);
+        model.selectGroup(B.toString());
+        assertEquals(B.toString(), model.group().orElseThrow().key());
+        assertTrue(model.selected().isEmpty());
+        model.selectGroup("nobody");
+        assertEquals(B.toString(), model.group().orElseThrow().key());
+    }
 }

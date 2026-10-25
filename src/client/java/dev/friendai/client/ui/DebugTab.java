@@ -2,83 +2,138 @@ package dev.friendai.client.ui;
 
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.RequestType;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
 /** What the companion sees, its prompt, and manual message and tool runs. */
 final class DebugTab implements MenuTab {
-    private static final int ROW = 22;
+    private static final int FIELD = 20;
+    private static final int HEADING = 12;
+    private static final int GAP = 4;
 
-    private final ScrollText panel = new ScrollText(false);
+    private final ScrollView view = new ScrollView(false);
     private boolean showPrompt;
     private String selectedTool = "";
     private String messageText = "";
     private String argsText = "";
     private EditBox message;
     private EditBox args;
+    private FlatButton perceptionButton;
+    private FlatButton promptButton;
+    private FlatButton toolButton;
+    private List<String> toolNames = List.of();
+
+    private String wrappedFor = "";
+    private int wrappedWidth = -1;
+    private List<FormattedCharSequence> wrapped = List.of();
+    private int bodyBottomOffset;
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         int bottom = top + height;
         int sendWidth = 70;
-        message = host.add(new EditBox(host.font(), left, bottom - 2 * ROW, width - sendWidth - 6, 20,
+        int toolY = bottom - FIELD;
+        int messageY = toolY - HEADING - FIELD - GAP;
+        bodyBottomOffset = bottom - (messageY - HEADING - GAP);
+
+        message = host.add(new EditBox(host.font(), left, messageY, width - sendWidth - GAP, FIELD,
                 Component.translatable("friendai.menu.debug.message_hint")));
         message.setMaxLength(500);
         message.setHint(Component.translatable("friendai.menu.debug.message_hint"));
         message.setValue(messageText);
         message.setResponder(s -> messageText = s);
-        host.add(Button.builder(Component.translatable("friendai.menu.debug.send"), b -> {
-            CompanionRequests.send(RequestType.SEND_MESSAGE, message.getValue(), "");
-            message.setValue("");
-        }).bounds(left + width - sendWidth, bottom - 2 * ROW, sendWidth, 20).build());
+        host.add(new FlatButton(left + width - sendWidth, messageY, sendWidth, FIELD,
+                Component.translatable("friendai.menu.debug.send"), Ui.GOOD, () -> {
+                    CompanionRequests.send(RequestType.SEND_MESSAGE, message.getValue(), "");
+                    message.setValue("");
+                }));
 
-        int toolWidth = 130;
+        int toolWidth = Math.min(140, width / 3);
         int runWidth = 60;
-        List<String> toolNames = CompanionClientState.snapshot().map(CompanionSnapshot::toolNames).orElse(List.of());
+        toolNames = CompanionClientState.snapshot().map(CompanionSnapshot::toolNames).orElse(List.of());
         if (!toolNames.contains(selectedTool)) {
             selectedTool = toolNames.isEmpty() ? "" : toolNames.get(0);
         }
-        if (!toolNames.isEmpty()) {
-            host.add(CycleButton.<String>builder(name -> Component.translatable("friendai.menu.debug.tool", name), selectedTool)
-                    .withValues(toolNames)
-                    .create(left, bottom - ROW, toolWidth, 20, Component.empty(), (button, value) -> selectedTool = value));
-        }
-        args = host.add(new EditBox(host.font(), left + toolWidth + 6, bottom - ROW, width - toolWidth - runWidth - 12, 20,
-                Component.translatable("friendai.menu.debug.args_hint")));
+        toolButton = host.add(new FlatButton(left, toolY, toolWidth, FIELD, toolLabel(), Ui.PURPLE, this::nextTool));
+        toolButton.active = !toolNames.isEmpty();
+        args = host.add(new EditBox(host.font(), left + toolWidth + GAP, toolY,
+                width - toolWidth - runWidth - 2 * GAP, FIELD, Component.translatable("friendai.menu.debug.args_hint")));
         args.setMaxLength(2000);
         args.setHint(Component.translatable("friendai.menu.debug.args_hint"));
         args.setValue(argsText);
         args.setResponder(s -> argsText = s);
-        host.add(Button.builder(Component.translatable("friendai.menu.debug.run"),
-                b -> CompanionRequests.send(RequestType.RUN_TOOL, selectedTool, args.getValue()))
-                .bounds(left + width - runWidth, bottom - ROW, runWidth, 20).build());
-        host.add(Button.builder(Component.translatable("friendai.menu.debug.show_prompt"), b -> {
-            showPrompt = true;
-            CompanionRequests.send(RequestType.REQUEST_PROMPT);
-        }).bounds(left, top, 120, 16).build());
+        host.add(new FlatButton(left + width - runWidth, toolY, runWidth, FIELD,
+                Component.translatable("friendai.menu.debug.run"), Ui.WARN,
+                () -> CompanionRequests.send(RequestType.RUN_TOOL, selectedTool, args.getValue())));
+
+        int segment = Math.min(120, (width - GAP) / 2);
+        perceptionButton = host.add(new FlatButton(left, top, segment, 16,
+                Component.translatable("friendai.menu.debug.perception"), Ui.ACCENT, () -> showPrompt = false));
+        promptButton = host.add(new FlatButton(left + segment + GAP, top, segment, 16,
+                Component.translatable("friendai.menu.debug.show_prompt"), Ui.ACCENT, () -> {
+                    showPrompt = true;
+                    CompanionRequests.send(RequestType.REQUEST_PROMPT);
+                }));
     }
 
-    @Override
-    public void render(GuiGraphicsExtractor g, Font font, int left, int top, int width, int height) {
-        var snapshot = CompanionClientState.snapshot();
-        String body;
-        if (showPrompt && !CompanionClientState.prompt().isEmpty()) {
-            body = CompanionClientState.prompt();
-        } else {
-            g.text(font, Component.translatable("friendai.menu.debug.perception"), left + 128, top + 4, 0xFFAAAAAA);
-            body = snapshot.map(CompanionSnapshot::perception).orElse("");
+    private Component toolLabel() {
+        return Component.translatable("friendai.menu.debug.tool", selectedTool);
+    }
+
+    private void nextTool() {
+        if (toolNames.isEmpty()) {
+            return;
         }
-        panel.setLines(List.of(body.split("\n", -1)));
-        panel.render(g, font, left, top + 22, width, height - 22 - 2 * ROW - 4);
+        selectedTool = toolNames.get((toolNames.indexOf(selectedTool) + 1) % toolNames.size());
+        toolButton.setMessage(toolLabel());
     }
 
     @Override
-    public boolean scroll(double amount) {
-        return panel.scroll(amount);
+    public void render(
+            GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
+        int bottom = top + height;
+        int toolY = bottom - FIELD;
+        int messageY = toolY - HEADING - FIELD - GAP;
+        g.text(font, Component.translatable("friendai.menu.debug.tool_section"), left, toolY - HEADING + 2, Ui.DIM);
+        g.text(font, Component.translatable("friendai.menu.debug.message_hint"), left, messageY - HEADING + 2, Ui.DIM);
+        perceptionButton.setColor(showPrompt ? Ui.DIM : Ui.ACCENT);
+        promptButton.setColor(showPrompt ? Ui.ACCENT : Ui.DIM);
+
+        int bodyTop = top + 16 + GAP;
+        int bodyHeight = bottom - bodyBottomOffset - bodyTop;
+        Ui.card(g, left, bodyTop, width, bodyHeight, Ui.alpha(Ui.TRACK, 0xA0), Ui.BORDER);
+        String body = showPrompt && !CompanionClientState.prompt().isEmpty()
+                ? CompanionClientState.prompt()
+                : CompanionClientState.snapshot().map(CompanionSnapshot::perception).orElse("");
+        int textWidth = width - 16;
+        if (wrappedWidth != textWidth || !body.equals(wrappedFor)) {
+            List<FormattedCharSequence> out = new ArrayList<>();
+            for (String line : body.split("\n", -1)) {
+                out.addAll(font.split(Component.literal(line), textWidth));
+            }
+            wrapped = out;
+            wrappedFor = body;
+            wrappedWidth = textWidth;
+        }
+        int lineHeight = font.lineHeight + 1;
+        view.begin(g, left + 1, bodyTop + 1, width - 2, bodyHeight - 2, wrapped.size() * lineHeight + 8);
+        int y = view.top() + 4;
+        for (FormattedCharSequence line : wrapped) {
+            if (view.visible(y, lineHeight)) {
+                g.text(font, line, left + 8, y, Ui.TEXT);
+            }
+            y += lineHeight;
+        }
+        view.end(g);
+    }
+
+    @Override
+    public boolean scroll(double x, double y, double amount) {
+        return view.contains(x, y) && view.scroll(amount);
     }
 }

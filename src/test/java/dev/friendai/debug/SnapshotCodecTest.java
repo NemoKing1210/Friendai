@@ -14,7 +14,8 @@ class SnapshotCodecTest {
                 true, true, "Friendai", "anthropic", "claude-x", true, "follow",
                 List.of(new TaskRecord(1, "stay", "SUCCESS", "ok"), new TaskRecord(2, "go_to", "FAILED", "no path")),
                 List.of(new LogEntry(7, 123456789L, LogKind.TOOL_CALL, "stay {}")),
-                "perception text\nline 2", List.of("stay", "go_to"));
+                "perception text\nline 2", List.of("stay", "go_to"),
+                new CompanionVitals(17.5f, 20f, 14, 5, 27, "defensive", "auto"));
     }
 
     @Test
@@ -25,7 +26,7 @@ class SnapshotCodecTest {
 
     @Test
     void roundTripsEmptyLists() {
-        CompanionSnapshot s = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(), List.of(), "", List.of());
+        CompanionSnapshot s = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(), List.of(), "", List.of(), CompanionVitals.NONE);
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
     }
 
@@ -44,7 +45,7 @@ class SnapshotCodecTest {
             entries.add(new LogEntry(i, i, LogKind.TOOL_RESULT, "é".repeat(2000)));
         }
         CompanionSnapshot s = new CompanionSnapshot(
-                true, true, "n", "p", "m", false, "t", List.of(), entries, "", List.of());
+                true, true, "n", "p", "m", false, "t", List.of(), entries, "", List.of(), CompanionVitals.NONE);
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
     }
 }

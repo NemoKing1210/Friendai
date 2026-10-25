@@ -3,6 +3,7 @@ package dev.friendai.net;
 import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.CompanionSnapshot;
+import dev.friendai.debug.CompanionVitals;
 import dev.friendai.debug.LogEntry;
 import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionEntity;
@@ -33,7 +34,7 @@ public final class SnapshotBuilder {
         List<String> toolNames = operator ? brains.toolNames() : List.of();
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
-                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "", toolNames);
+                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "", toolNames, CompanionVitals.NONE);
         }
         CompanionEntity c = companion.get();
         return new CompanionSnapshot(
@@ -47,6 +48,24 @@ public final class SnapshotBuilder {
                 history,
                 log,
                 operator ? PerceptionBuilder.detailed(c).toPromptText() : "",
-                toolNames);
+                toolNames,
+                vitalsOf(c));
+    }
+
+    private static CompanionVitals vitalsOf(CompanionEntity c) {
+        int used = 0;
+        for (int i = 0; i < c.inventory().getContainerSize(); i++) {
+            if (!c.inventory().getItem(i).isEmpty()) {
+                used++;
+            }
+        }
+        return new CompanionVitals(
+                c.getHealth(),
+                c.getMaxHealth(),
+                c.hunger().food(),
+                used,
+                c.inventory().getContainerSize(),
+                c.combatMode().name().toLowerCase(java.util.Locale.ROOT),
+                c.paceMode().label());
     }
 }

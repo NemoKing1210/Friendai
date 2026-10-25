@@ -95,6 +95,18 @@ public final class MemoryTabModel {
         statusVisible = false;
     }
 
+    /** Switches to the group with this key; a no-op for the current or an unknown group. */
+    public void selectGroup(String key) {
+        if (view == null || key.equals(groupKey) || view.groups().stream().noneMatch(g -> g.key().equals(key))) {
+            return;
+        }
+        groupKey = key;
+        selectedId = null;
+        cancelEdit();
+        clearArmedAt = -1;
+        statusVisible = false;
+    }
+
     public void select(int factId) {
         selectedId = factId;
     }

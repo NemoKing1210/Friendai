@@ -46,6 +46,14 @@ public final class SnapshotCodec {
             for (String name : s.toolNames()) {
                 writeString(out, name);
             }
+            CompanionVitals v = s.vitals();
+            out.writeFloat(v.health());
+            out.writeFloat(v.maxHealth());
+            out.writeInt(v.food());
+            out.writeInt(v.inventoryUsed());
+            out.writeInt(v.inventorySlots());
+            writeString(out, v.combatMode());
+            writeString(out, v.paceMode());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -85,11 +93,13 @@ public final class SnapshotCodec {
             for (int i = 0; i < toolCount; i++) {
                 tools.add(readString(in));
             }
+            CompanionVitals vitals = new CompanionVitals(
+                    in.readFloat(), in.readFloat(), in.readInt(), in.readInt(), in.readInt(), readString(in), readString(in));
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
-                    present, operator, name, provider, model, thinking, task, history, log, perception, tools);
+                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

@@ -16,7 +16,7 @@ interface MenuTab {
 
     void init(Host host, int left, int top, int width, int height);
 
-    void render(GuiGraphicsExtractor g, Font font, int left, int top, int width, int height);
+    void render(GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY);
 
     default void tick() {}
 
@@ -25,7 +25,8 @@ interface MenuTab {
         return false;
     }
 
-    default boolean scroll(double amount) {
+    /** A wheel turn with the pointer at ({@code x}, {@code y}). True when the tab scrolled. */
+    default boolean scroll(double x, double y, double amount) {
         return false;
     }
 }
