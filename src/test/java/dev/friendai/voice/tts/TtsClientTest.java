@@ -84,6 +84,19 @@ class TtsClientTest {
         assertFalse(request.toString().contains("sk-secret-123"));
     }
 
+    @Test
+    void anInvalidBaseUrlBecomesTheOnePlayerFacingFailure() {
+        ResolvedTts settings = new ResolvedTts("elevenlabs", "elevenlabs_tts", "not a uri",
+                "key", "m", "voice", "", null, 1.0);
+
+        CompletionException e = assertThrows(CompletionException.class,
+                () -> client.synthesize(settings, "Hi").join());
+
+        assertInstanceOf(UserFacingException.class, e.getCause());
+        assertEquals("friendai.voice.tts.error.failed", ((UserFacingException) e.getCause()).userMessage().key());
+        assertEquals(0, server.requests().size());
+    }
+
     private ResolvedTts openAi(String key) {
         return new ResolvedTts("openai", "openai_speech", server.baseUri() + "/v1",
                 key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);

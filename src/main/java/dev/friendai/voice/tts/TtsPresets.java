@@ -10,8 +10,9 @@ import java.util.Set;
 /** Speech-synthesis providers available to a client. */
 public final class TtsPresets {
     public static final String LOCAL = "local";
-    /** Kept for the protocol adapters, which need the official endpoint even without a config entry. */
+    /** The OpenAI preset's base URL; a blank configured base URL falls back to it. */
     public static final String OPENAI_DEFAULT_BASE = "https://api.openai.com/v1";
+    /** The ElevenLabs preset's base URL; a blank configured base URL falls back to it. */
     public static final String ELEVENLABS_DEFAULT_BASE = "https://api.elevenlabs.io";
 
     private static final List<String> OPENAI_VOICES = List.of(

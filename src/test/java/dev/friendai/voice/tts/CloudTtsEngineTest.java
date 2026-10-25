@@ -93,7 +93,19 @@ class CloudTtsEngineTest {
 
         assertInstanceOf(UserFacingException.class, error.getCause());
         UserFacingException cause = (UserFacingException) error.getCause();
-        assertEquals("friendai.voice.error.auth", cause.userMessage().key());
+        assertEquals("friendai.voice.tts.error.auth", cause.userMessage().key());
         assertFalse(cause.getMessage().contains("sk-secret"), cause.getMessage());
+    }
+
+    @Test
+    void aServerErrorReadsAsASynthesisFailure() {
+        server.enqueue(500, "boom");
+
+        ExecutionException error = assertThrows(ExecutionException.class,
+                () -> engine(openAi(server.baseUrl() + "/v1", "key")).synthesize("Hi").get());
+
+        assertInstanceOf(UserFacingException.class, error.getCause());
+        assertEquals("friendai.voice.tts.error.failed",
+                ((UserFacingException) error.getCause()).userMessage().key());
     }
 }

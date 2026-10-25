@@ -36,7 +36,10 @@ public final class TtsClient {
         try {
             request = protocol.prepare(settings, text);
         } catch (RuntimeException e) {
-            return CompletableFuture.failedFuture(e);
+            // A malformed base URL or voice id throws here; the player sees one synthesis failure.
+            return CompletableFuture.failedFuture(e instanceof UserFacingException userFacing
+                    ? userFacing
+                    : new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
         }
         return http.postBytes(request).thenApply(body -> protocol.parse(body, settings));
     }

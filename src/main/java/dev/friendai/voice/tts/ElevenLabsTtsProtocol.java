@@ -8,6 +8,7 @@ import dev.friendai.voice.PreparedRequest;
 import dev.friendai.voice.ResolvedTts;
 import dev.friendai.voice.VoiceAuth;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,8 +30,9 @@ public final class ElevenLabsTtsProtocol implements TtsProtocol {
         body.addProperty("model_id", settings.model());
         body.add("voice_settings", voiceSettings);
         Map<String, String> headers = new HashMap<>(VoiceAuth.ELEVENLABS.headers(settings.apiKey()));
-        URI uri = URI.create(OpenAiTtsProtocol.join(settings.baseUrl(),
-                "/v1/text-to-speech/" + settings.voice()) + "?output_format=pcm_24000");
+        String voice = URLEncoder.encode(settings.voice(), StandardCharsets.UTF_8).replace("+", "%20");
+        URI uri = OpenAiTtsProtocol.join(settings.baseUrl(),
+                "/v1/text-to-speech/" + voice + "?output_format=pcm_24000");
         return new PreparedRequest(uri, headers, body.toString().getBytes(StandardCharsets.UTF_8),
                 "application/json");
     }

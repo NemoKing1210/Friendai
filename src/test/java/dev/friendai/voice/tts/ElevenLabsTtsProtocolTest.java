@@ -45,6 +45,14 @@ class ElevenLabsTtsProtocolTest {
     }
 
     @Test
+    void theVoiceIdIsUrlEncodedAsOnePathSegment() {
+        PreparedRequest r = new ElevenLabsTtsProtocol()
+                .prepare(tts("key", "model", "voice/with space?", 1.0), "Hi");
+
+        assertEquals("/v1/text-to-speech/voice%2Fwith%20space%3F", r.uri().getRawPath());
+    }
+
+    @Test
     void rawPcmIsReturnedAsAClip() {
         byte[] pcm = {1, 0, 2, 0};
 

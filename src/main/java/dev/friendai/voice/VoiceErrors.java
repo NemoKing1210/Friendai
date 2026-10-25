@@ -33,7 +33,7 @@ public final class VoiceErrors {
         return new UserFacingException(UserMessage.of(key));
     }
 
-    public static UserFacingException network(Throwable cause) {
+    public static UserFacingException network() {
         return new UserFacingException(UserMessage.of("friendai.voice.error.network"));
     }
 }

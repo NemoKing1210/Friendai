@@ -59,7 +59,7 @@ public final class VoiceHttp {
         return client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofByteArray())
                 .handle((response, error) -> {
                     if (error != null) {
-                        throw VoiceErrors.network(error);
+                        throw VoiceErrors.network();
                     }
                     if (response.statusCode() / 100 != 2) {
                         throw VoiceErrors.forStatus(response.statusCode());
