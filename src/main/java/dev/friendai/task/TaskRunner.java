@@ -5,6 +5,7 @@ import dev.friendai.queue.GuardFacts;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobQueue;
 import dev.friendai.queue.QueuePolicy;
+import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.task.plan.StepFactory;
@@ -117,6 +118,11 @@ public final class TaskRunner {
     }
 
     public int pendingJobs() { return queue.jobCount() - (queue.active().isPresent() ? 1 : 0); }
+
+    public String queueSummary() {
+        return queue.jobCount() == 0 ? current().map(Task::describe).orElse("none")
+                : QueueText.summary(queue, new CompanionGuardFacts(companion), current().map(Task::describe).orElse(null));
+    }
 
     public long enqueuePlan(String goal, List<QueuedStep> steps, List<StepFactory> factories, PlanOptions options) {
         if (steps.size() != factories.size()) throw new IllegalArgumentException("steps and factories differ");

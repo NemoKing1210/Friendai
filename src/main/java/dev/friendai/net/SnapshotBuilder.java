@@ -43,7 +43,7 @@ public final class SnapshotBuilder {
                 brains.activeProvider(),
                 brains.activeModel(),
                 brains.brainOf(owner).map(b -> b.isThinking()).orElse(false),
-                c.taskRunner().current().map(Task::describe).orElse("none"),
+                c.taskRunner().queueSummary(),
                 history,
                 log,
                 operator ? PerceptionBuilder.detailed(c).toPromptText() : "",

@@ -55,10 +55,7 @@ public final class PerceptionBuilder {
         String biome = level.getBiome(pos).unwrapKey().map(k -> k.identifier().getPath()).orElse("unknown");
         String weather = level.isThundering() ? "thunder" : level.isRaining() ? "rain" : "clear";
         Double ownerDistance = c.owner().filter(o -> o.level() == level).map(o -> (double) c.distanceTo(o)).orElse(null);
-        String task = c.taskRunner().current()
-                .map(Task::describe)
-                .map(PerceptionSnapshot::runningTask)
-                .orElse("none");
+        String task = c.taskRunner().queueSummary();
         return new PerceptionSnapshot(
                 pos.getX() + " " + pos.getY() + " " + pos.getZ(),
                 level.dimension().identifier().getPath(),

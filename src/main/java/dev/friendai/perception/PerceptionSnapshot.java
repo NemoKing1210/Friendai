@@ -65,7 +65,11 @@ public record PerceptionSnapshot(
         sb.append("Nearby entities: ").append(counts(nearbyEntities, "none")).append('\n');
         sb.append("Inventory: ").append(counts(inventory, "empty")).append('\n');
         sb.append(equipment).append('\n');
-        sb.append("Current task: ").append(currentTask);
+        if (currentTask != null && currentTask.startsWith("Task queue:")) {
+            sb.append(currentTask);
+        } else {
+            sb.append("Current task: ").append(currentTask);
+        }
         return sb.toString();
     }
 

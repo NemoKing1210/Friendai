@@ -61,10 +61,12 @@ class PromptBuilderTest {
     }
 
     @Test
-    void planRules() {
+    void queueRules() {
         String s = system(new Persona("F", "d", "auto"), "p");
-        assertTrue(s.contains("send them all at once with run_plan"));
-        assertTrue(s.contains("If a plan stops at a failed step"));
+        assertTrue(s.contains("You own a task queue"));
+        assertTrue(s.contains("Use queue_add"));
+        assertTrue(s.contains("Use queue_show"));
+        assertTrue(!s.contains("run_plan"));
     }
 
     @Test
