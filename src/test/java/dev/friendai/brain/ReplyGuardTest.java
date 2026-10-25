@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -83,6 +84,34 @@ class ReplyGuardTest {
     void exactRepeatIsSilence() {
         assertNull(filter("Done.", false, "done"));
         assertEquals("Done again.", filter("Done again.", false, "Done."));
+    }
+
+    @Test
+    void paraphraseOfARecentLineIsSilence() {
+        assertNull(ReplyGuard.filter(
+                        "Держи, три котлеты твои.",
+                        false,
+                        List.of("Даю тебе три жареные котлеты — три оставлю себе."),
+                        TOOLS)
+                .orElse(null));
+        assertNull(ReplyGuard.filter(
+                        "Here, the three cutlets are yours.",
+                        false,
+                        List.of("Something else first.", "I'm giving you three cutlets."),
+                        TOOLS)
+                .orElse(null));
+    }
+
+    @Test
+    void aReplyWithNewInformationIsKept() {
+        assertEquals(
+                "Топливо закончилось, пять котлет остались в печи.",
+                ReplyGuard.filter(
+                                "Топливо закончилось, пять котлет остались в печи.",
+                                false,
+                                List.of("Жарю пять котлет на досках."),
+                                TOOLS)
+                        .orElse(null));
     }
 
     @Test

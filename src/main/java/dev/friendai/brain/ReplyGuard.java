@@ -1,6 +1,6 @@
 package dev.friendai.brain;
 
-import java.util.Locale;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -32,7 +32,6 @@ public final class ReplyGuard {
     private static final Pattern SPACE_BEFORE_PUNCT = Pattern.compile("\\s+([,.!?;:])");
     private static final Pattern LEADING_PUNCT = Pattern.compile("^[\\s,;:.!?]+");
     private static final Pattern PUNCT_ONLY = Pattern.compile("[\\s\\p{Punct}]*");
-    private static final Pattern NORMALIZE_PUNCT = Pattern.compile("\\p{Punct}");
     private static final Pattern COORDINATE_CUES = Pattern.compile(
             "(?iu)(?<![\\p{L}])(?:where|coords|coordinates|location|locate|position)(?![\\p{L}])"
                     + "|(?<![\\p{L}])где(?![\\p{L}])|координат|местоположен");
@@ -48,6 +47,19 @@ public final class ReplyGuard {
      */
     public static Optional<String> filter(
             String reply, boolean coordinatesAllowed, String lastSpoken, Set<String> internalNames) {
+        return filter(
+                reply,
+                coordinatesAllowed,
+                lastSpoken == null ? List.of() : List.of(lastSpoken),
+                internalNames);
+    }
+
+    /**
+     * @param recentSpoken the lines the player just heard, newest first; a reply that only restates one of
+     *                     them is dropped
+     */
+    public static Optional<String> filter(
+            String reply, boolean coordinatesAllowed, List<String> recentSpoken, Set<String> internalNames) {
         try {
             if (reply == null) {
                 return Optional.empty();
@@ -90,7 +102,7 @@ public final class ReplyGuard {
             if (text.isEmpty() || PUNCT_ONLY.matcher(text).matches()) {
                 return Optional.empty();
             }
-            if (lastSpoken != null && normalize(text).equals(normalize(lastSpoken))) {
+            if (recentSpoken != null && SpeechRepeat.repeatsAny(text, recentSpoken)) {
                 return Optional.empty();
             }
             return Optional.of(text);
@@ -102,10 +114,5 @@ public final class ReplyGuard {
     /** True when the player's message asks where something is. */
     public static boolean playerAskedForCoordinates(String message) {
         return message != null && !message.isBlank() && COORDINATE_CUES.matcher(message).find();
-    }
-
-    private static String normalize(String text) {
-        String lower = text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").strip();
-        return NORMALIZE_PUNCT.matcher(lower).replaceAll("");
     }
 }

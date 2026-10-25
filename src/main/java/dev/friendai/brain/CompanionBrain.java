@@ -34,6 +34,8 @@ public final class CompanionBrain {
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
     private static final long SPEECH_WINDOW_MS = 120_000L;
+    /** How many recent lines an event turn is checked against before it speaks again. */
+    private static final int RECENT_SPEECH_LINES = 4;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -60,9 +62,19 @@ public final class CompanionBrain {
     private final List<String> turnPlayerTexts = new ArrayList<>();
     private String lastOwnerText;
     private long lastOwnerAtMillis;
-    private String lastSpoken;
-    private long lastSpokenAtMillis;
+    /** What the player just heard, newest first: an event turn repeats none of it. */
+    private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
     private Set<String> turnToolNames = Set.of();
+
+    private static final class SpokenLine {
+        private final String text;
+        private final long atMillis;
+
+        private SpokenLine(String text, long atMillis) {
+            this.text = text;
+            this.atMillis = atMillis;
+        }
+    }
 
     public CompanionBrain(
             Supplier<Persona> persona,
@@ -272,19 +284,12 @@ public final class CompanionBrain {
         }
         String spoken = null;
         if (!raw.isBlank()) {
-            String lastSpokenForGuard =
-                    turnKind == TurnKind.EVENT
-                                    && lastSpoken != null
-                                    && scheduler.nowMillis() - lastSpokenAtMillis <= SPEECH_WINDOW_MS
-                            ? lastSpoken
-                            : null;
             Optional<String> guarded =
-                    ReplyGuard.filter(raw, coordinatesAllowed(), lastSpokenForGuard, turnToolNames);
+                    ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
             if (guarded.isPresent()) {
                 spoken = guarded.get();
                 speaker.say(spoken, turnCaller.uuid());
-                lastSpoken = spoken;
-                lastSpokenAtMillis = scheduler.nowMillis();
+                rememberSpoken(spoken);
             }
         }
         List<ToolCall> calls = response.toolCalls();
@@ -324,6 +329,32 @@ public final class CompanionBrain {
         return lastOwnerText != null
                 && scheduler.nowMillis() - lastOwnerAtMillis <= SPEECH_WINDOW_MS
                 && ReplyGuard.playerAskedForCoordinates(lastOwnerText);
+    }
+
+    /**
+     * The lines the player just heard, newest first. Only an event turn is held to them: answering the
+     * player again is legitimate even when the answer sounds like the last one.
+     */
+    private List<String> recentSpeech() {
+        if (turnKind != TurnKind.EVENT || recentSpeech.isEmpty()) {
+            return List.of();
+        }
+        long now = scheduler.nowMillis();
+        List<String> lines = new ArrayList<>(recentSpeech.size());
+        for (SpokenLine line : recentSpeech) {
+            if (now - line.atMillis > SPEECH_WINDOW_MS) {
+                break;
+            }
+            lines.add(line.text);
+        }
+        return lines;
+    }
+
+    private void rememberSpoken(String spoken) {
+        recentSpeech.addFirst(new SpokenLine(spoken, scheduler.nowMillis()));
+        while (recentSpeech.size() > RECENT_SPEECH_LINES) {
+            recentSpeech.removeLast();
+        }
     }
 
     private void endTurn() {

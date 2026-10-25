@@ -176,6 +176,7 @@ class PromptBuilderTest {
     void speechRulesArePresent() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains("- Say each thing once."));
+        assertTrue(s.contains("- Other words are still a repeat"));
         assertTrue(s.contains("- Give coordinates only when the player asks where something is."));
         assertTrue(s.contains("- A task that has only started is not finished."));
     }

@@ -473,6 +473,26 @@ class CompanionBrainTest {
     }
 
     @Test
+    void eventReplyThatRestatesTheLastAnswerInOtherWordsIsDropped() {
+        gateway.enqueue(text("Даю тебе три жареные котлеты — три оставлю себе."));
+        brain.post(said("дай мне мяса"));
+        gateway.enqueue(text("Держи, три котлеты твои."));
+        brain.post(new BrainEvent.TaskFinished(1, "give_items", true, "gave 3 minecraft:cooked_porkchop"));
+        assertEquals(List.of("Даю тебе три жареные котлеты — три оставлю себе."), speaker.said);
+    }
+
+    @Test
+    void eventReplyWithNewsIsStillSpokenAfterAParaphrase() {
+        gateway.enqueue(text("Жарю пять котлет на досках."));
+        brain.post(said("приготовь мяса"));
+        gateway.enqueue(text("Топливо закончилось, пять котлет остались в печи."));
+        brain.post(new BrainEvent.TaskFinished(1, "smelt_items", false, "ran out of fuel"));
+        assertEquals(
+                List.of("Жарю пять котлет на досках.", "Топливо закончилось, пять котлет остались в печи."),
+                speaker.said);
+    }
+
+    @Test
     void eventRepeatIsAllowedAfterTheWindow() {
         gateway.enqueue(text("Done."));
         brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "done"));

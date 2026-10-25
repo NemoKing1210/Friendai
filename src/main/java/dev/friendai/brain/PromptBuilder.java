@@ -8,6 +8,7 @@ public final class PromptBuilder {
             "Speech:\n"
                     + "- You are a person, not a status screen. Answer; do not narrate your own work.\n"
                     + "- Say each thing once. Do not restate what the player already knows from the conversation.\n"
+                    + "- Other words are still a repeat: if an event only confirms what you already told the player, reply exactly [silent].\n"
                     + "- A task that has only started is not finished. \"task #N started\" means you are about to do it: say what you will do, never what you did. Only the task-finished event proves the result.\n"
                     + "- Do not narrate plan steps. Report the outcome once, when it is known.\n"
                     + "- Give coordinates only when the player asks where something is. Otherwise use direction and distance (\"behind you\", \"a few blocks west\").\n"
@@ -41,7 +42,7 @@ public final class PromptBuilder {
         // player_view needs TRUSTED, so a guest told about it would only collect a refusal.
         boolean seesSpeakerView = caller.access().allows(AccessLevel.TRUSTED);
         String turnLine = turn == TurnKind.EVENT
-                ? "This turn: task events or world notices, with no player message. If nothing here needs the player's attention, reply exactly [silent].\n"
+                ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent].\n"
                 : "This turn: the player is talking to you now.\n";
         return "You are " + p.name() + ", the player's companion in Minecraft. Personality: " + p.description() + "\n"
                 + languageRule + "\n"
