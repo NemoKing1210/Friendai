@@ -109,7 +109,13 @@ public final class PathExecutor {
             return fail(c);
         }
         return switch (phase) {
-            case CHECK -> check(c);
+            case CHECK -> {
+                State checked = check(c);
+                if (checked == State.RUNNING && phase == Phase.MOVE && step.move() == Move.WALK) {
+                    yield move(c, step);
+                }
+                yield checked;
+            }
             case BREAK -> breakCell(c);
             case PLACE -> place(c, step);
             case MOVE -> move(c, step);

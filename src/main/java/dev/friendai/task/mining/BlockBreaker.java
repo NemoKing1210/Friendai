@@ -27,6 +27,8 @@ public final class BlockBreaker {
 
     /** How many blocks one target may have dug away before it is given up as hidden. */
     private static final int MAX_DUG = 12;
+    /** How many ticks the companion may spend centring itself on a view spot it has reached without a view. */
+    private static final int SETTLE_TICKS = 5;
 
     private final List<BlockPos> candidates;
     private final Predicate<BlockState> stillValid;
@@ -41,6 +43,7 @@ public final class BlockBreaker {
 
     /** The candidate the companion reached and is working on, or null before it reached one. */
     private BlockPos target;
+    private int settleTicks;
     private Phase phase = Phase.WALK;
     private BreakAction action;
     /** The block hiding the target that is being dug away right now, and how many were dug for this target. */
@@ -165,6 +168,13 @@ public final class BlockBreaker {
             if (viewApproach != null) {
                 MoveHelper.State state = viewApproach.tick(companion, viewPoint);
                 if (state == MoveHelper.State.MOVING) {
+                    return State.WORKING;
+                }
+                if (settleTicks < SETTLE_TICKS && !Sight.canSee(c.level(), companion, target)) {
+                    // Arrival is judged within a tolerance, but the view spot may be only as wide as the
+                    // companion: settle onto its centre before deciding there is no view from it.
+                    settleTicks++;
+                    companion.getMoveControl().setWantedPosition(viewPoint.x, viewPoint.y, viewPoint.z, 1.0);
                     return State.WORKING;
                 }
                 viewApproach.stop(c);

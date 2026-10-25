@@ -1,6 +1,7 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -117,12 +118,15 @@ public final class MoveHelper {
 
     private GoalPoint goalFor(CompanionEntity companion, Vec3 target) {
         LevelCellView view = LevelCellView.terrain(companion);
-        Pos stand = GoalPoint.snapDown(
-                view,
-                (int) Math.floor(target.x),
-                (int) Math.floor(target.y),
-                (int) Math.floor(target.z),
-                snapDrop);
+        int tx = (int) Math.floor(target.x);
+        int ty = (int) Math.floor(target.y);
+        int tz = (int) Math.floor(target.z);
+        // A target inside a solid block or a fence (a post to tie to, a block to reach) has no ground under it to
+        // snap to: searching downward would pass through the floor it stands on and send the companion beneath it.
+        Cell.Kind inside = view.at(tx, ty, tz).kind();
+        Pos stand = inside == Cell.Kind.SOLID || inside == Cell.Kind.TALL
+                ? new Pos(tx, ty, tz)
+                : GoalPoint.snapDown(view, tx, ty, tz, snapDrop);
         return new GoalPoint(
                 stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL);
     }
