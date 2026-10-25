@@ -801,9 +801,10 @@ public class CookingTests {
                 Optional.of(campfire),
                 "the lit campfire");
         h.setBlock(6, 2, 2, Blocks.CAMPFIRE.defaultBlockState().setValue(net.minecraft.world.level.block.CampfireBlock.LIT, false));
-        h.assertValueEqual(
-                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE),
-                Optional.empty(),
+        // Batches share one structure position, so a campfire another test left behind can sit within the search
+        // radius: assert that this campfire is not found, not that no campfire is found anywhere.
+        h.assertTrue(
+                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE).filter(campfire::equals).isEmpty(),
                 "an unlit campfire is not usable");
         h.succeed();
     }

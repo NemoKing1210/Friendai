@@ -5,6 +5,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Animals;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.MoveHelper;
 import java.util.ArrayList;
@@ -31,8 +32,10 @@ public final class LeadTask implements Task {
     private static final int FENCE_RADIUS = 3;
     private static final int WAIT_LIMIT = 100;
     private static final double BEHIND_DISTANCE = 6.0;
+    /** How long a released leash gets to land and leave its pickup delay before the task reports. */
+    private static final int SETTLE_TICKS = 12;
 
-    private enum Stage { ATTACH, WALK, DONE }
+    private enum Stage { ATTACH, WALK, COLLECT, DONE }
 
     private final EntityType<?> type;
     private final int count;
@@ -54,6 +57,9 @@ public final class LeadTask implements Task {
     private Approach approach;
     private int waitTicks;
     private int lost;
+    /** The wait for the freed leashes to land, and the summary to report when it is over. */
+    private DropSettle settle;
+    private String pendingSummary = "";
 
     public LeadTask(EntityType<?> type, int count, BlockPos destination, boolean tie) {
         this.type = type;
@@ -103,12 +109,14 @@ public final class LeadTask implements Task {
         return switch (stage) {
             case ATTACH -> attach(c);
             case WALK -> walk(c);
+            case COLLECT -> collect(c);
             case DONE -> TaskStatus.SUCCESS;
         };
     }
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         c.companion().getNavigation().stop();
     }
 
@@ -196,8 +204,6 @@ public final class LeadTask implements Task {
     }
 
     private TaskStatus finishTying(TaskContext c, Optional<BlockPos> fence) {
-        stage = Stage.DONE;
-        finished = true;
         int led = leashed.size();
         boolean tied = false;
         BlockPos fencePos = fence.orElse(null);
@@ -211,7 +217,6 @@ public final class LeadTask implements Task {
             for (Animal animal : leashed) {
                 ((Leashable) animal).dropLeash();
             }
-            c.companion().collectNearbyItems(4.0);
         }
         StringBuilder text = new StringBuilder("led ").append(led).append(' ').append(id)
                 .append(" to ").append(coords(destination));
@@ -223,7 +228,28 @@ public final class LeadTask implements Task {
         if (lost > 0) {
             text.append("; lost ").append(lost).append(" on the way");
         }
+        if (!tied) {
+            // The freed leashes lie on the ground: take them before the task reports.
+            pendingSummary = text.toString();
+            settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
+            stage = Stage.COLLECT;
+            return TaskStatus.RUNNING;
+        }
         summary = text.toString();
+        stage = Stage.DONE;
+        finished = true;
+        return TaskStatus.SUCCESS;
+    }
+
+    private TaskStatus collect(TaskContext c) {
+        if (!settle.tick(c)) {
+            return TaskStatus.RUNNING;
+        }
+        settle = null;
+        summary = pendingSummary;
+        pendingSummary = "";
+        stage = Stage.DONE;
+        finished = true;
         return TaskStatus.SUCCESS;
     }
 

@@ -5,6 +5,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.Stations;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.mining.BlockBreaker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Block;
@@ -17,12 +18,11 @@ import net.minecraft.world.level.block.Block;
 public final class CollectStationTask implements Task {
     /** How long the companion waits for the station's drop to appear and be picked up after the block breaks. */
     private static final int SETTLE_TICKS = 20;
-    private static final double PICKUP_RADIUS = 4.0;
 
     private final Station station;
     private final BlockPos pos;
     private BlockBreaker breaker;
-    private int settleTicks;
+    private DropSettle settle;
     private String summary = "";
 
     public CollectStationTask(Station station, BlockPos pos) {
@@ -42,6 +42,14 @@ public final class CollectStationTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return TaskStatus.RUNNING;
+            }
+            settle = null;
+            summary = "put the " + station.noun() + " back";
+            return TaskStatus.SUCCESS;
+        }
         Block block = Stations.block(station);
         if (breaker == null) {
             if (block == null || !c.level().getBlockState(pos).is(block)) {
@@ -51,17 +59,15 @@ public final class CollectStationTask implements Task {
             breaker = new BlockBreaker(pos, state -> state.is(block));
         }
         BlockBreaker.State state = breaker.tick(c);
-        if (state == BlockBreaker.State.BROKEN) {
-            // The drop lands a tick or two after the block breaks: stay until it is in the inventory.
-            c.companion().collectNearbyItems(PICKUP_RADIUS);
-            if (++settleTicks < SETTLE_TICKS) {
-                return TaskStatus.RUNNING;
-            }
-            summary = "put the " + station.noun() + " back";
-            return TaskStatus.SUCCESS;
-        }
         return switch (state) {
             case WORKING -> TaskStatus.RUNNING;
+            case BROKEN -> {
+                // The drop lands after the vanilla pickup delay: stay until it is in the inventory.
+                breaker.stop(c);
+                breaker = null;
+                settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
+                yield TaskStatus.RUNNING;
+            }
             case GONE -> {
                 summary = "the " + station.noun() + " at " + coords() + " is gone";
                 yield TaskStatus.SUCCESS;
@@ -78,7 +84,6 @@ public final class CollectStationTask implements Task {
                 summary = "the " + station.noun() + " at " + coords() + " is protected";
                 yield TaskStatus.FAILED;
             }
-            case BROKEN -> throw new IllegalStateException("handled above");
         };
     }
 
@@ -87,6 +92,7 @@ public final class CollectStationTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         if (breaker != null) {
             breaker.stop(c);
             breaker = null;

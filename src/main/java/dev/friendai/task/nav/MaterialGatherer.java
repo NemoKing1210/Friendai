@@ -41,8 +41,6 @@ public final class MaterialGatherer {
     private static final double REACH = Approach.REACH;
     /** How long one gathered block's drop gets to land and leave its pickup delay. */
     private static final int SETTLE_TICKS = 12;
-    /** How close a gathered block's drop must be to be taken without walking. */
-    private static final double SETTLE_RADIUS = Approach.REACH;
 
     private static final BlockMatcher DIRT = BlockMatcher.parse("#minecraft:dirt").orElseThrow();
     private static final BlockMatcher GRASS = BlockMatcher.parse("minecraft:grass_block").orElseThrow();
@@ -170,7 +168,7 @@ public final class MaterialGatherer {
             }
             case BROKEN -> {
                 gathered++;
-                settle = new DropSettle(SETTLE_TICKS, SETTLE_RADIUS, null);
+                settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
             }
             case GONE -> {
                 // Something else removed it; the inventory growth decides whether it counted.

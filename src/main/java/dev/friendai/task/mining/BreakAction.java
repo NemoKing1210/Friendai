@@ -21,6 +21,8 @@ public final class BreakAction {
     private static final int SWING_INTERVAL = 5;
 
     private final BlockPos pos;
+    /** Whether the block is already broken: the action then keeps reporting it, however often it is ticked. */
+    private boolean broken;
     private int breakTicks;
     private int breakNeeded;
 
@@ -33,6 +35,9 @@ public final class BreakAction {
     }
 
     public State tick(TaskContext c, Predicate<BlockState> stillValid) {
+        if (broken) {
+            return State.BROKEN;
+        }
         var companion = c.companion();
         ServerLevel level = c.level();
         BlockState state = level.getBlockState(pos);
@@ -60,6 +65,7 @@ public final class BreakAction {
         if (level.destroyBlock(pos, true, companion)) {
             companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
         }
+        broken = true;
         return State.BROKEN;
     }
 

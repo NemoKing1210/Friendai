@@ -14,6 +14,7 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.PlaceSpot;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
@@ -69,6 +70,9 @@ public final class CraftTask implements Task {
     /** How far a station the companion places is looked for. */
     private static final int PLACE_RADIUS = 4;
 
+    /** How long a taken-back station gets to land and leave its pickup delay before the next one. */
+    private static final int SETTLE_TICKS = 20;
+
     /** What the current station step is doing: nothing, walking to a block, or walking to a placement spot. */
     private enum StationPhase { NONE, APPROACH_EXISTING, APPROACH_SPOT }
 
@@ -96,6 +100,8 @@ public final class CraftTask implements Task {
     private boolean leavingStarted;
     private int takeIndex;
     private BlockBreaker breaker;
+    /** The wait for a taken-back station's drop to land, ticked before moving on to the next one. */
+    private DropSettle settle;
 
     public CraftTask(String item, int count, StationPolicy policy) {
         if (item == null || item.isBlank()) {
@@ -183,6 +189,7 @@ public final class CraftTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         c.companion().getNavigation().stop();
         if (breaker != null) {
             breaker.stop(c);
@@ -466,6 +473,14 @@ public final class CraftTask implements Task {
         if (!leavingStarted) {
             planLeaving(c);
         }
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return TaskStatus.RUNNING;
+            }
+            settle = null;
+            takeIndex++;
+            return TaskStatus.RUNNING;
+        }
         if (takeIndex < takeBacks.size()) {
             Station station = takeBacks.get(takeIndex);
             BlockPos pos = placedStations.get(station);
@@ -480,6 +495,11 @@ public final class CraftTask implements Task {
             if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
                 breaker = null;
                 stationNotes.add("placed a " + station.noun() + " at " + coords(pos) + " and took it back");
+                if (state == BlockBreaker.State.BROKEN) {
+                    // The drop lands after the vanilla pickup delay: take it before moving on.
+                    settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
+                    return TaskStatus.RUNNING;
+                }
             } else {
                 breaker.stop(c);
                 breaker = null;

@@ -3,6 +3,8 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.DropSettle;
+import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.nav.Approach;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -22,6 +24,10 @@ import org.jetbrains.annotations.Nullable;
 /** Collects honey from a smoked, full beehive with a bottle or shears. */
 public final class HoneyTask implements Task {
     private static final int RADIUS = 16;
+    /** How long the honey gets to land and leave its pickup delay before the task moves on. */
+    private static final int SETTLE_TICKS = 12;
+    private static final ItemMatcher HONEY_BOTTLES = ItemMatcher.parse("minecraft:honey_bottle").orElseThrow();
+    private static final ItemMatcher HONEYCOMBS = ItemMatcher.parse("minecraft:honeycomb").orElseThrow();
 
     private final boolean bottle;
     private final @Nullable BlockPos hive;
@@ -32,6 +38,9 @@ public final class HoneyTask implements Task {
     private String summary = "";
     private BlockPos target;
     private Approach approach;
+    /** The wait for the honey to land, and what the companion carried when it took from the hive. */
+    private DropSettle settle;
+    private int before;
 
     public HoneyTask(boolean bottle, @Nullable BlockPos hive) {
         this.bottle = bottle;
@@ -52,6 +61,22 @@ public final class HoneyTask implements Task {
             return TaskStatus.FAILED;
         }
         if (finished) {
+            return TaskStatus.SUCCESS;
+        }
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return TaskStatus.RUNNING;
+            }
+            settle = null;
+            int gained = c.companion().inventory().countItem(bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB) - before;
+            if (gained <= 0) {
+                summary = "the hive at " + coords(target) + " didn't give any honey";
+                failed = true;
+                return TaskStatus.FAILED;
+            }
+            Item got = bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB;
+            summary = "got " + gained + " " + BuiltInRegistries.ITEM.getKey(got) + " from the hive at " + coords(target);
+            finished = true;
             return TaskStatus.SUCCESS;
         }
         if (!preflightDone) {
@@ -109,23 +134,15 @@ public final class HoneyTask implements Task {
             failed = true;
             return TaskStatus.FAILED;
         }
-        int before = c.companion().inventory().countItem(bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB);
+        before = c.companion().inventory().countItem(bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB);
         c.companion().hands().place(stack, target, Direction.UP);
-        c.companion().collectNearbyItems(4.0);
-        int gained = c.companion().inventory().countItem(bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB) - before;
-        if (gained <= 0) {
-            summary = "the hive at " + coords(target) + " didn't give any honey";
-            failed = true;
-            return TaskStatus.FAILED;
-        }
-        Item got = bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB;
-        summary = "got " + gained + " " + BuiltInRegistries.ITEM.getKey(got) + " from the hive at " + coords(target);
-        finished = true;
-        return TaskStatus.SUCCESS;
+        settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, bottle ? HONEY_BOTTLES : HONEYCOMBS);
+        return TaskStatus.RUNNING;
     }
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         c.companion().getNavigation().stop();
     }
 

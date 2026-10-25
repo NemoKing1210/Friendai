@@ -12,6 +12,7 @@ import dev.friendai.task.cooking.FurnaceSlots;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.PlaceSpot;
+import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -50,6 +51,9 @@ public final class SmeltTask implements Task {
 
     /** How far a station the companion places is looked for. */
     private static final int PLACE_RADIUS = 4;
+
+    /** How long a taken-back station gets to land and leave its pickup delay before the next one. */
+    private static final int SETTLE_TICKS = 20;
 
     private enum Phase { CRAFT_STATION, SEEK_SPOT, APPROACH_SPOT, PLACE_STATION, APPROACH_STATION, LOAD, WAIT, LEAVING, DONE }
 
@@ -90,6 +94,8 @@ public final class SmeltTask implements Task {
     private final List<String> stationNotes = new ArrayList<>();
     private int takeBackIndex;
     private BlockBreaker breaker;
+    /** The wait for a taken-back station's drop to land, ticked before moving on to the next one. */
+    private DropSettle settle;
     private int loadedCount;
     private int stationsLoaded;
     private String outputId;
@@ -161,6 +167,7 @@ public final class SmeltTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        settle = null;
         c.companion().getNavigation().stop();
         if (craftTask != null) {
             craftTask.stop(c);
@@ -759,7 +766,8 @@ public final class SmeltTask implements Task {
         boolean allDone = true;
         for (Target target : targets) {
             if (kind == Station.CAMPFIRE) {
-                collected += c.companion().collectNearbyItems(3.0);
+                // A campfire throws its results out with the vanilla pickup delay; WAIT_INTERVAL is longer than it.
+                collected += c.companion().collectNearbyItems(3.0, e -> !e.hasPickUpDelay());
                 if (campfireCooking(c.level(), target.pos())) {
                     allDone = false;
                 }
@@ -862,6 +870,14 @@ public final class SmeltTask implements Task {
     }
 
     private TaskStatus tickLeaving(TaskContext c) {
+        if (settle != null) {
+            if (!settle.tick(c)) {
+                return TaskStatus.RUNNING;
+            }
+            settle = null;
+            takeBackIndex++;
+            return TaskStatus.RUNNING;
+        }
         if (takeBackIndex >= takeBacks.size()) {
             finishWait();
             return TaskStatus.SUCCESS;
@@ -877,6 +893,11 @@ public final class SmeltTask implements Task {
         breaker = null;
         if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
             stationNotes.add("placed a " + kind.noun() + " at " + coords(pos) + " and took it back");
+            if (state == BlockBreaker.State.BROKEN) {
+                // The drop lands after the vanilla pickup delay: take it before moving on.
+                settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, null);
+                return TaskStatus.RUNNING;
+            }
         } else {
             stationNotes.add("placed a " + kind.noun() + " at " + coords(pos)
                     + " but couldn't take it back: " + reason(state));
