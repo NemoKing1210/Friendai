@@ -27,7 +27,7 @@ The same controls are in the **pause menu (Esc)**: the companion icon next to th
 
 What it can do: follow you, stay, go to a point, pick up items, give you items, look around, show its inventory, stop, and mine N blocks of a kind.
 
-The companion keeps the chunks around itself loaded, so it keeps working when you walk away, and it resumes at its last position after a server restart. Turn this off with `companion.chunkLoading.enabled` in `config/friendai-server.json`; `companion.chunkLoading.radius` sets how many chunks around it keep ticking (0–4).
+The companion keeps the chunks around itself loaded, so it keeps working when you walk away, and it resumes at its last position after a server restart. `companion.chunkLoading.radius` sets how many chunks around it keep ticking (0–4); the default of 1 keeps a 3×3 area ticking inside a 5×5 loaded area, and the dimension itself stays active. Turn this off with `companion.chunkLoading.enabled` in `config/friendai-server.json`.
 
 ## Setting up a provider
 

@@ -1,5 +1,6 @@
 package dev.friendai.entity;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.config.ServerConfig;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,12 +19,17 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
-/** Keeps each loaded companion's chunk ticking and restores their chunks when the server starts. */
+/**
+ * Keeps each loaded companion's chunk ticking, restores their chunks when the server starts, and
+ * re-arms a saved anchor whose chunk is not in memory yet.
+ */
 public final class CompanionChunkLoader {
     /** Ticket level 33 is a full chunk; 31 is entity-ticking, so a radius counts ticking chunks from 2 further out. */
     private static final int TICKING_OFFSET = ChunkLevel.byStatus(FullChunkStatus.FULL)
             - ChunkLevel.byStatus(FullChunkStatus.ENTITY_TICKING);
-    /** How long an anchor may wait for its companion to appear before it is treated as stale. */
+    /** How long an anchor may wait for its chunk to load before it is treated as broken. */
+    private static final int LOAD_TIMEOUT_TICKS = 1200;
+    /** How long a loaded anchor may wait for its companion to appear before it is treated as stale. */
     private static final int RESTORE_GRACE_TICKS = 100;
     /** Runtime-only: never persisted (no {@code FLAG_PERSIST}), so it cannot leak into the world save. */
     private static final TicketType COMPANION_TICKET = new TicketType(
@@ -43,21 +49,25 @@ public final class CompanionChunkLoader {
         this.config = config;
     }
 
-    /** Loads the chunk of every saved anchor so its companion wakes up without a player nearby. */
+    /** Arms the chunk of every saved anchor so its companion wakes up without a player nearby. */
     public void restore() {
         if (!enabled()) {
             return;
         }
         CompanionAnchors anchors = anchors();
+        int armed = 0;
         for (Map.Entry<UUID, CompanionAnchors.Anchor> entry : anchors.all().entrySet()) {
             CompanionAnchors.Anchor anchor = entry.getValue();
-            ServerLevel level = server.getLevel(anchor.dimension());
-            if (level == null) {
+            if (server.getLevel(anchor.dimension()) == null) {
                 anchors.remove(entry.getKey());
                 continue;
             }
-            pending.put(entry.getKey(), new Pending(anchor.dimension(), anchor.chunk(), ticks + RESTORE_GRACE_TICKS));
-            level.getChunk(anchor.chunk().x(), anchor.chunk().z());
+            pending.putIfAbsent(entry.getKey(),
+                    new Pending(anchor.dimension(), anchor.chunk(), ticks + LOAD_TIMEOUT_TICKS));
+            armed++;
+        }
+        if (armed > 0) {
+            FriendaiMod.LOGGER.info("Arming {} companion chunk anchor(s) for restore", armed);
         }
     }
 
@@ -76,6 +86,17 @@ public final class CompanionChunkLoader {
                 desired.add(key(level, chunk, radius()));
                 anchors.put(companion.ownerUuid(), new CompanionAnchors.Anchor(level.dimension(), chunk));
             }
+            // Self-heal: an anchor whose companion is not loaded re-arms itself, so a configuration
+            // reload (enabled false -> true) recovers without a restart and without a blocking load.
+            for (Map.Entry<UUID, CompanionAnchors.Anchor> entry : anchors.all().entrySet()) {
+                if (manager.find(entry.getKey()).isPresent()) {
+                    pending.remove(entry.getKey());
+                    continue;
+                }
+                CompanionAnchors.Anchor anchor = entry.getValue();
+                pending.putIfAbsent(entry.getKey(),
+                        new Pending(anchor.dimension(), anchor.chunk(), ticks + LOAD_TIMEOUT_TICKS));
+            }
             Iterator<Map.Entry<UUID, Pending>> iterator = pending.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<UUID, Pending> entry = iterator.next();
@@ -85,7 +106,20 @@ public final class CompanionChunkLoader {
                 }
                 Pending pendingAnchor = entry.getValue();
                 ServerLevel level = server.getLevel(pendingAnchor.dimension());
-                if (level == null || ticks >= pendingAnchor.deadline()) {
+                if (level == null) {
+                    anchors.remove(entry.getKey());
+                    iterator.remove();
+                    continue;
+                }
+                // The grace period starts once the chunk is in memory: a cold chunk at a distance
+                // can take a while to generate, and dropping its anchor early would lose the companion.
+                if (level.getChunkSource().getChunkNow(pendingAnchor.chunk().x(), pendingAnchor.chunk().z()) != null
+                        && pendingAnchor.deadline() > ticks + RESTORE_GRACE_TICKS) {
+                    pendingAnchor = new Pending(pendingAnchor.dimension(), pendingAnchor.chunk(),
+                            ticks + RESTORE_GRACE_TICKS);
+                    entry.setValue(pendingAnchor);
+                }
+                if (ticks >= pendingAnchor.deadline()) {
                     anchors.remove(entry.getKey());
                     iterator.remove();
                     continue;
