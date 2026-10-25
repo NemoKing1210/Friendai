@@ -8,6 +8,7 @@ import dev.friendai.queue.QueuePolicy;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.task.plan.StepFactory;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import dev.friendai.task.builtin.FollowTask;
 import java.util.Optional;
 import java.util.HashMap;
@@ -259,14 +260,7 @@ public final class TaskRunner {
     }
 
     private boolean startNextQueued() {
-        GuardFacts facts = new GuardFacts() {
-            @Override public int countItems(String id) { return 0; }
-            @Override public int emptySlots() { return 0; }
-            @Override public float healthFraction() { return 1; }
-            @Override public int ownerDistance() { return -1; }
-            @Override public int countBlocks(String id, int radius) { return 0; }
-            @Override public String dimension() { return ""; }
-        };
+        GuardFacts facts = new CompanionGuardFacts(companion);
         Optional<Job> next = QueuePolicy.next(queue, facts);
         if (next.isEmpty()) return false;
         Job job = next.get(); StepFactory factory = queueFactories.get(job.id());
