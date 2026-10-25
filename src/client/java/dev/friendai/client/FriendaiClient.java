@@ -21,6 +21,7 @@ import dev.friendai.net.MemoryViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
 import dev.friendai.client.ui.CompanionInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -66,6 +67,7 @@ public class FriendaiClient implements ClientModInitializer {
         clientConfig();
         VoiceHud.register();
         SpeechKeybind.register();
+        ClientTickEvents.END_CLIENT_TICK.register(client -> SpeechRuntime.tick());
         PauseMenuButton.register();
         ClientPlayNetworking.registerGlobalReceiver(
                 CompanionSnapshotS2CPayload.TYPE,

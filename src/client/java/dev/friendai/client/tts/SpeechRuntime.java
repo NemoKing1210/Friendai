@@ -5,10 +5,12 @@ import dev.friendai.client.ui.ClientToasts;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.core.Components;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
 import dev.friendai.voice.ResolvedTts;
+import dev.friendai.voice.SpatialAudio;
 import dev.friendai.voice.VoiceConfig;
 import dev.friendai.voice.VoiceHttp;
 import dev.friendai.voice.VoiceReadiness;
@@ -26,6 +28,7 @@ import dev.friendai.voice.tts.VoiceModels;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -33,12 +36,16 @@ import java.util.concurrent.Executors;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The client's speech output: one worker synthesizes and plays replies in order. The render thread only
  * resolves the settings, enqueues text, and shows toasts; everything else happens on the worker.
+ * Spatial replies sample the world on the client tick and the worker reads the volatile mix snapshot.
  */
 public final class SpeechRuntime {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/tts");
@@ -57,19 +64,24 @@ public final class SpeechRuntime {
     private static final VoiceModelManager MODELS = new VoiceModelManager(
             FabricLoader.getInstance().getGameDir().resolve("friendai").resolve("models").resolve("tts"), HTTP);
 
-    private static final SpeechQueue<String> QUEUE = new SpeechQueue<>();
+    private static final SpeechQueue<Chunk> QUEUE = new SpeechQueue<>();
     private static boolean draining;
     private static int generation;
-    private static Plan activePlan;
     private static SpeechEngine cachedEngine;
     private static String cachedKey;
     private static long lastToastAt;
     private static String lastToastKey;
+    private static volatile Plan playingPlan;
+    private static volatile SpatialAudio.Mix mix = SpatialAudio.CENTER;
 
     private SpeechRuntime() {}
 
-    /** One resolved reply's settings: the provider configuration, the volume and the output device. */
-    private record Plan(ResolvedTts settings, double volume, String device) {}
+    /** One resolved reply's settings, including which companion speaks and how far its voice carries. */
+    private record Plan(
+            ResolvedTts settings, double volume, String device, boolean spatial, UUID companionId, int range) {}
+
+    /** One queued utterance; the plan travels with it so a newer reply cannot repoint older chunks. */
+    private record Chunk(String text, Plan plan) {}
 
     /** Where local voices are downloaded to and loaded from. */
     public static VoiceModelManager models() {
@@ -86,7 +98,7 @@ public final class SpeechRuntime {
         if (chunks.isEmpty()) {
             return;
         }
-        enqueue(chunks, resolve(cfg));
+        enqueue(chunks, resolve(cfg, false, null, 0));
     }
 
     /** Speaks the localized sample sentence, whether or not speech is enabled, and reports the outcome. */
@@ -96,11 +108,10 @@ public final class SpeechRuntime {
             return;
         }
         stop();
-        Plan plan = resolve(cfg);
+        Plan plan = resolve(cfg, false, null, 0);
         String sample = Component.translatable("friendai.voice.tts.sample").getString();
         int gen;
         synchronized (LOCK) {
-            activePlan = plan;
             gen = generation;
         }
         WORKER.execute(() -> {
@@ -125,6 +136,8 @@ public final class SpeechRuntime {
             generation++;
             QUEUE.clear();
         }
+        playingPlan = null;
+        mix = SpatialAudio.CENTER;
         PLAYBACK.stop();
     }
 
@@ -161,16 +174,53 @@ public final class SpeechRuntime {
         }
         boolean speak = SpeechGate.shouldSpeak(
                 payload.addressee(), minecraft.player.getUUID(), cfg.speakGuests, VoiceRuntime.mic().isRecording());
-        if (speak) {
-            speak(payload.text());
+        if (!speak) {
+            return;
         }
+        Entity source = null;
+        if (cfg.spatial) {
+            source = minecraft.level.getEntity(payload.companionId());
+            if (!(source instanceof CompanionEntity)) {
+                // The companion is not in this level: the reply must not be heard here.
+                return;
+            }
+        }
+        List<String> chunks = SpeechText.cleanAndSplit(payload.text(), cfg.maxChars);
+        if (chunks.isEmpty()) {
+            return;
+        }
+        int range = Math.max(1, Math.min(128, payload.audibleRange()));
+        if (source != null) {
+            mix = mixFor(minecraft.player, source, range);
+        } else {
+            mix = SpatialAudio.CENTER;
+        }
+        enqueue(chunks, resolve(cfg, source != null, source != null ? payload.companionId() : null, range));
+    }
+
+    /**
+     * Keeps a playing spatial reply aligned with the player and the companion. Runs on the client thread;
+     * the playback worker only reads the volatile {@link #mix} snapshot this writes.
+     */
+    public static void tick() {
+        Plan plan = playingPlan;
+        if (plan == null || !plan.spatial()) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null) {
+            return;
+        }
+        if (!(minecraft.level.getEntity(plan.companionId()) instanceof CompanionEntity source)) {
+            return;
+        }
+        mix = mixFor(minecraft.player, source, plan.range());
     }
 
     private static void enqueue(List<String> chunks, Plan plan) {
         synchronized (LOCK) {
-            activePlan = plan;
             for (String chunk : chunks) {
-                QUEUE.add(chunk);
+                QUEUE.add(new Chunk(chunk, plan));
             }
             if (draining) {
                 return;
@@ -183,19 +233,17 @@ public final class SpeechRuntime {
     private static void drain() {
         try {
             while (true) {
-                String text;
-                Plan plan;
+                Chunk chunk;
                 int gen;
                 synchronized (LOCK) {
-                    text = QUEUE.poll();
-                    if (text == null) {
+                    chunk = QUEUE.poll();
+                    if (chunk == null) {
                         return;
                     }
-                    plan = activePlan;
                     gen = generation;
                 }
                 try {
-                    playOne(text, plan, gen);
+                    playOne(chunk.text(), chunk.plan(), gen);
                 } catch (UserFacingException e) {
                     synchronized (LOCK) {
                         QUEUE.clear();
@@ -255,7 +303,25 @@ public final class SpeechRuntime {
                 return;
             }
         }
-        PLAYBACK.play(clip, plan.volume(), plan.device());
+        playingPlan = plan;
+        try {
+            PLAYBACK.play(
+                    clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null);
+        } finally {
+            playingPlan = null;
+        }
+    }
+
+    private static SpatialAudio.Mix currentMix() {
+        SpatialAudio.Mix current = mix;
+        return current == null ? SpatialAudio.CENTER : current;
+    }
+
+    private static SpatialAudio.Mix mixFor(Player player, Entity source, int range) {
+        Vec3 ears = player.getEyePosition();
+        Vec3 mouth = source.getEyePosition();
+        return SpatialAudio.mix(
+                ears.x, ears.y, ears.z, player.getYRot(), mouth.x, mouth.y, mouth.z, range);
     }
 
     private static SpeechEngine engine(ResolvedTts settings) {
@@ -308,11 +374,14 @@ public final class SpeechRuntime {
         return config == null || config.voice == null ? null : config.voice.tts;
     }
 
-    private static Plan resolve(ClientConfig.TtsSection cfg) {
+    private static Plan resolve(ClientConfig.TtsSection cfg, boolean spatial, UUID companionId, int range) {
         return new Plan(
                 VoiceConfig.resolveTts(
                         cfg, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv),
                 cfg.volume,
-                cfg.outputDevice);
+                cfg.outputDevice,
+                spatial,
+                companionId,
+                range);
     }
 }
