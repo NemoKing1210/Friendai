@@ -185,6 +185,60 @@ public class TreeFellingTests {
     }
 
     @GameTest(maxTicks = 400)
+    public void doesNotFellALogStructure(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 9; x <= 11; x++) {
+            for (int z = 10; z <= 12; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG);
+                }
+            }
+        }
+        // A small radius keeps other tests' trees out of the search in the shared world.
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        var tools = FriendaiTools.create(() -> 32).bind(c);
+        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
+        h.assertTrue(run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":4}").error(),
+                "a structure must be refused");
+        h.assertTrue(
+                run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":4,\"type\":\"#minecraft:logs\"}")
+                        .error(),
+                "a tag must not pick a structure");
+        var named = run(tools, anonymous, "fell_tree",
+                "{\"near\":\"self\",\"radius\":4,\"type\":\"minecraft:oak_log\"}");
+        h.assertTrue(!named.error() && named.content().startsWith("task #"), named.content());
+        h.assertTrue(c.taskRunner().current().map(t -> t.type().equals("fell_tree")).orElse(false), "task should start");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void fellsTreeNearTheSpeaker(GameTestHelper h) {
+        GameTestSupport.platform(h, 20);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(16, y, 16), Blocks.OAK_LOG);
+        }
+        leaf(h, 16, 6, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(2, y, 2), Blocks.OAK_LOG);
+        }
+        leaf(h, 2, 6, 2);
+        var owner = GameTestSupport.mockPlayerAt(h, 15.5, 2, 15.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        c.setOwner(owner.getUUID());
+        BlockPos speakers = h.absolutePos(new BlockPos(16, 2, 16));
+        BlockPos nearCompanion = h.absolutePos(new BlockPos(2, 2, 2));
+        var result = run(FriendaiTools.create(() -> 32).bind(c),
+                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
+                "fell_tree", "{\"near\":\"me\",\"radius\":6}");
+        h.assertTrue(!result.error(), result.content());
+        String task = c.taskRunner().current().orElseThrow().describe();
+        h.assertTrue(task.contains(speakers.getX() + " " + speakers.getY() + " " + speakers.getZ()), task);
+        h.assertTrue(!task.contains(nearCompanion.getX() + " " + nearCompanion.getY() + " " + nearCompanion.getZ()),
+                task);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
     public void findTreesListsTheNearest(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int y = 2; y <= 5; y++) {

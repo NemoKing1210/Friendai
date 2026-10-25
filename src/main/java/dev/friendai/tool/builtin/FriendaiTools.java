@@ -48,7 +48,7 @@ public final class FriendaiTools {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
         MovementTools.register(registry, defs);
-        GatheringTools.register(registry, defs, mineRadius);
+        GatheringTools.register(registry, defs, mineRadius, treeRadius);
         InventoryTools.register(registry, defs);
         BuildingTools.register(registry, defs);
         StorageTools.register(registry, defs);

@@ -44,9 +44,14 @@ final class ToolKit {
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
-            int id = c.taskRunner().start(task, def.name());
-            return ToolResult.ok("task #" + id + " started: " + task.describe());
+            return startTask(c, def.name(), task);
         });
+    }
+
+    /** Starts a task the tool has already built and reports its id. */
+    static ToolResult startTask(CompanionEntity c, String name, Task task) {
+        int id = c.taskRunner().start(task, name);
+        return ToolResult.ok("task #" + id + " started: " + task.describe());
     }
 
     static Tool<CompanionEntity> instantTool(String name, String description, JsonObject schema, Action action) {

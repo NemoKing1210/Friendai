@@ -286,7 +286,7 @@ public class ToolTests {
     @GameTest
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriendaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
-        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "mine_blocks", "mine_block_at", "pickup_items",
+        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "fell_tree", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",

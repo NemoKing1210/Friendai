@@ -1,21 +1,59 @@
 package dev.friendai.tool.builtin;
 
+import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.task.TaskSettings;
+import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.builtin.PickupItemsTask;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.mining.TreeFinder;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
+import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 
 /** Getting resources: mining blocks and picking up what is lying around. */
 final class GatheringTools {
     private GatheringTools() {}
 
-    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, IntSupplier mineRadius) {
+    static void register(
+            ToolRegistry<CompanionEntity> registry,
+            List<TaskToolDef> defs,
+            IntSupplier mineRadius,
+            IntSupplier treeRadius) {
+        var fellSchema = SchemaBuilder.object()
+                .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs. "
+                        + "Naming one block id also allows felling a log structure of that wood")
+                .enumeration("near", "Fell a tree near the speaker (me, default) or near yourself (self)",
+                        "me", "self")
+                .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
+                .integer("y", "Block y coordinate to search around instead of near", -64, 320)
+                .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
+                .integer("radius", "Search radius in blocks", 4, 64)
+                .integer("limit", "Cut at most this many logs and stop; omit to fell the whole tree", 1, 256)
+                .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
+                .build();
+        String fellDescription = "Fell one whole tree from the lowest log up and collect the logs. Picks the "
+                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; a log "
+                + "structure such as a cabin is never felled unless its block id is named. Use find_trees first "
+                + "when the choice matters.";
+        ToolKit.addCaller(registry, defs,
+                new TaskToolDef("fell_tree", fellDescription, fellSchema,
+                        (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true),
+                (c, caller, a) -> {
+                    try {
+                        return ToolKit.startTask(c, "fell_tree", createFellTask(c, caller, a, treeRadius));
+                    } catch (IllegalArgumentException e) {
+                        return ToolResult.error(e.getMessage());
+                    }
+                });
         ToolKit.add(registry, defs, new TaskToolDef("mine_blocks", "Mine N blocks of the given block id or #tag near the companion and collect the drops.",
                 SchemaBuilder.object()
                         .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
@@ -57,5 +95,40 @@ final class GatheringTools {
                                 ? ToolKit.parseItemMatcher(a.get("item").getAsString())
                                 : null),
                 true));
+    }
+
+    /** Picks the tree for a {@code fell_tree} call; throws {@link IllegalArgumentException} with the reason. */
+    private static FellTreeTask createFellTask(
+            CompanionEntity c, Caller caller, JsonObject a, IntSupplier treeRadius) {
+        BlockPos origin = NearResolver.resolve(c, caller, a);
+        int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
+        BlockMatcher matcher = a.has("type") && !a.get("type").isJsonNull()
+                ? ToolKit.parseBlockMatcher(a.get("type").getAsString())
+                : null;
+        // A named block id is the player's explicit word; a tag or no type must never pick a log structure.
+        boolean treesOnly = matcher == null || matcher.label().startsWith("#");
+        ServerLevel level = (ServerLevel) c.level();
+        List<TreeFinder.TreeInfo> found = TreeFinder.find(level, origin, radius, 16, 32, matcher, 1, treesOnly);
+        if (found.isEmpty()) {
+            String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
+            String hint = "";
+            if (treesOnly) {
+                List<TreeFinder.TreeInfo> structures =
+                        TreeFinder.find(level, origin, radius, 16, 32, matcher, 1, false);
+                if (!structures.isEmpty()) {
+                    TreeFinder.TreeInfo s = structures.get(0);
+                    hint = "; the nearest " + s.type() + " is a log structure at " + s.base().getX() + " "
+                            + s.base().getY() + " " + s.base().getZ();
+                }
+            }
+            throw new IllegalArgumentException("no tree within " + radius + " blocks of " + where + hint
+                    + "; use mine_blocks to take named blocks");
+        }
+        int limit = a.has("limit") ? a.get("limit").getAsInt() : 0;
+        boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
+                ? a.get("collect").getAsBoolean()
+                : TaskSettings.fellCollectDrops;
+        BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
+        return new FellTreeTask(found.get(0), logs, limit, collect);
     }
 }
