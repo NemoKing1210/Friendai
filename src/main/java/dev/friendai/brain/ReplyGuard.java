@@ -21,6 +21,12 @@ public final class ReplyGuard {
             "(?iu)(?<![\\p{L}\\d])(?:at|near|around|в|на|около)\\s+-?\\d+(?:[ ,]+-?\\d+){2}(?![\\d])");
     private static final Pattern XYZ_TRIPLE = Pattern.compile(
             "(?iu)\\bx\\s*=\\s*-?\\d+\\s*[,;]?\\s*y\\s*=\\s*-?\\d+\\s*[,;]?\\s*z\\s*=\\s*-?\\d+");
+    private static final Pattern LABEL_TRIPLE = Pattern.compile(
+            "(?iu)(?<![\\p{L}])"
+                    + "(?:(?:your|my|тво\\p{L}*|мо\\p{L}*)\\s+)?"
+                    + "(?:coordinates?|coords?|position|location|координат\\p{L}*|позици\\p{L}*)"
+                    + "(?:\\s+\\p{L}{1,12}){0,3}\\s*:?\\s*"
+                    + "-?\\d+(?:[ ,]+-?\\d+){2}[.!?]?(?![\\d])");
     private static final Pattern EMPTY_BRACKETS = Pattern.compile("\\(\\s*\\)");
     private static final Pattern MULTI_SPACE = Pattern.compile("\\s{2,}");
     private static final Pattern SPACE_BEFORE_PUNCT = Pattern.compile("\\s+([,.!?;:])");
@@ -71,6 +77,7 @@ public final class ReplyGuard {
             if (!coordinatesAllowed) {
                 text = PAREN_TRIPLE.matcher(text).replaceAll(" ");
                 text = CONTEXT_TRIPLE.matcher(text).replaceAll(" ");
+                text = LABEL_TRIPLE.matcher(text).replaceAll(" ");
                 text = XYZ_TRIPLE.matcher(text).replaceAll(" ");
             }
 

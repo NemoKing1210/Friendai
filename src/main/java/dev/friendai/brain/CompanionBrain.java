@@ -238,16 +238,16 @@ public final class CompanionBrain {
             return;
         }
         step++;
-        List<ToolSpec> specs = tools.specs(turnCaller.access());
-        turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-        String system = PromptBuilder.system(
-                persona.get(),
-                perception.describe(turnCaller),
-                turnCaller,
-                memorySource.describe(turnCaller),
-                turnKind);
         CompletableFuture<LlmResponse> future;
         try {
+            List<ToolSpec> specs = tools.specs(turnCaller.access());
+            turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
+            String system = PromptBuilder.system(
+                    persona.get(),
+                    perception.describe(turnCaller),
+                    turnCaller,
+                    memorySource.describe(turnCaller),
+                    turnKind);
             future = gateway.get().complete(system, memory.snapshot(), specs);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);

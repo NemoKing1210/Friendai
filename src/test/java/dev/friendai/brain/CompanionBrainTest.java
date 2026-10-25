@@ -498,6 +498,18 @@ class CompanionBrainTest {
     }
 
     @Test
+    void specFailureIsReportedAndTheBrainRecovers() {
+        tools.failSpecs = true;
+        brain.post(said("go"));
+        assertFalse(brain.isThinking());
+        assertEquals(1, speaker.errors.size());
+        tools.failSpecs = false;
+        gateway.enqueue(text("back"));
+        brain.post(said("again"));
+        assertEquals(List.of("back"), speaker.said);
+    }
+
+    @Test
     void underscoredToolNamesAreNotSpoken() {
         tools.available.add(new ToolSpec("run_plan", "Run a plan", new JsonObject()));
         gateway.enqueue(text("Calling run_plan now."));

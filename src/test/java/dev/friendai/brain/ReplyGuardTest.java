@@ -52,11 +52,21 @@ class ReplyGuardTest {
     @Test
     void coordinatesStayWhenThePlayerAsked() {
         assertEquals("The hive is at 1279 68 358.", filter("The hive is at 1279 68 358.", true, null));
+        assertEquals("Coordinates: 1279 68 358.", filter("Coordinates: 1279 68 358.", true, null));
     }
 
     @Test
     void bareTripleIsNotTreatedAsCoordinates() {
         assertEquals("Wait 5 10 15 seconds.", filter("Wait 5 10 15 seconds.", false, null));
+    }
+
+    @Test
+    void labelledCoordinatesAreStrippedWhenNotAsked() {
+        assertEquals("Hive found.", filter("Hive found. Coordinates: 1279 68 358.", false, null));
+        assertEquals("Hive found.", filter("Hive found. Location is 1279 68 358.", false, null));
+        assertEquals("Found it.", filter("Found it. Your position is 1279 68 358.", false, null));
+        assertEquals("Улей рядом.", filter("Улей рядом. Координаты: 1279 68 358.", false, null));
+        assertNull(filter("Coordinates: 1279 68 358.", false, null));
     }
 
     @Test
