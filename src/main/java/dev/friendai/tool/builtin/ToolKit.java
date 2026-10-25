@@ -3,6 +3,8 @@ package dev.friendai.tool.builtin;
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
@@ -44,7 +46,10 @@ final class ToolKit {
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
-            return startTask(c, def.name(), task);
+            long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT, null, 1, List.of()),
+                    ctx -> def.factory().create(ctx.companion(), args));
+            boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
+            return ToolResult.ok(active ? "task #" + id + " started: " + task.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
         });
     }
 

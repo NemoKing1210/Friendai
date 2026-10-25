@@ -1,8 +1,16 @@
 package dev.friendai.task;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.queue.GuardFacts;
+import dev.friendai.queue.Job;
+import dev.friendai.queue.JobQueue;
+import dev.friendai.queue.QueuePolicy;
+import dev.friendai.queue.QueuedStep;
+import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.builtin.FollowTask;
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import net.minecraft.server.level.ServerLevel;
@@ -13,11 +21,13 @@ import org.slf4j.LoggerFactory;
 public final class TaskRunner {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
 
-    private record Active(int id, String toolName, Task task, boolean emit, int startActiveTick) {}
+    private record Active(int id, long jobId, String toolName, Task task, boolean emit, int startActiveTick) {}
 
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
     private final BooleanSupplier defaultFollow;
+    private final JobQueue queue = new JobQueue(TaskSettings.queueLimits());
+    private final Map<Long, StepFactory> queueFactories = new HashMap<>();
 
     private Active current;
     private int nextId = 1;
@@ -93,6 +103,18 @@ public final class TaskRunner {
         return Optional.ofNullable(current).map(Active::task);
     }
 
+    public JobQueue queue() { return queue; }
+
+    /** Adds a direct task call without cancelling work already in progress. */
+    public long enqueue(QueuedStep step, StepFactory factory) {
+        Job job = queue.addDirect(step);
+        queueFactories.put(job.id(), factory);
+        if (current == null) startNextQueued();
+        return job.id();
+    }
+
+    public int pendingJobs() { return queue.jobCount() - (queue.active().isPresent() ? 1 : 0); }
+
     /**
      * The id of the active task, 0 when idle and for tasks the brain is not told about
      * (the default Follow, restored tasks). A change means someone started a new task.
@@ -123,7 +145,7 @@ public final class TaskRunner {
         if (cleanup != null) {
             begin(cleanup, "scaffold_cleanup", false);
         } else {
-            startDefault();
+            if (!startNextQueued()) startDefault();
         }
     }
 
@@ -180,10 +202,15 @@ public final class TaskRunner {
         }
         if (status != TaskStatus.RUNNING) {
             current = null;
+            if (active.jobId() != 0) {
+                if (status == TaskStatus.SUCCESS) queue.finish(active.jobId(), summary != null ? summary : active.task().resultSummary());
+                else queue.fail(active.jobId(), summary != null ? summary : active.task().resultSummary());
+                queue.remove(active.jobId()); queueFactories.remove(active.jobId());
+            }
             if (active.emit() && listener != null) {
                 listener.onFinished(active.id(), active.toolName(), status, summary != null ? summary : active.task().resultSummary());
             }
-            startDefault();
+            if (!startNextQueued()) startDefault();
         }
     }
 
@@ -192,7 +219,7 @@ public final class TaskRunner {
             cancelCurrent("replaced by a new task");
         }
         // Only tasks the brain hears about get a number, so "task #1" is the first thing the LLM started.
-        Active active = new Active(emit ? nextId++ : 0, toolName, task, emit, activeTicks);
+        Active active = new Active(emit ? nextId++ : 0, 0, toolName, task, emit, activeTicks);
         current = active;
         try {
             task.start(context());
@@ -219,6 +246,26 @@ public final class TaskRunner {
         if (!paused && !held() && current == null && defaultFollow.getAsBoolean()) {
             begin(new FollowTask(true), "follow", false);
         }
+    }
+
+    private boolean startNextQueued() {
+        GuardFacts facts = new GuardFacts() {
+            @Override public int countItems(String id) { return 0; }
+            @Override public int emptySlots() { return 0; }
+            @Override public float healthFraction() { return 1; }
+            @Override public int ownerDistance() { return -1; }
+            @Override public int countBlocks(String id, int radius) { return 0; }
+            @Override public String dimension() { return ""; }
+        };
+        Optional<Job> next = QueuePolicy.next(queue, facts);
+        if (next.isEmpty()) return false;
+        Job job = next.get(); StepFactory factory = queueFactories.get(job.id());
+        if (factory == null) { queue.fail(job.id(), "task factory is unavailable"); return false; }
+        try {
+            Task task = factory.create(context()); queue.markRunning(job.id());
+            Active active = new Active((int) job.id(), job.id(), job.tool(), task, true, activeTicks);
+            current = active; task.start(context()); return true;
+        } catch (RuntimeException e) { queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName()); return false; }
     }
 
     private void safeStop(Task task, TaskContext ctx) {
