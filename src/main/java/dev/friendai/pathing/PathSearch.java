@@ -53,6 +53,7 @@ public final class PathSearch {
     private final PathGoal goal;
     private final Node start;
     private final SearchOptions options;
+    private final PathPolicy policy;
     private final MoveGenerator moves;
 
     private final PriorityQueue<Entry> open = new PriorityQueue<>(ORDER);
@@ -66,11 +67,17 @@ public final class PathSearch {
     private SearchResult finished;
 
     public PathSearch(CellView view, CostModel costs, PathGoal goal, Node start, SearchOptions options) {
+        this(view, costs, goal, start, options, PathPolicy.DEFAULT);
+    }
+
+    public PathSearch(CellView view, CostModel costs, PathGoal goal, Node start, SearchOptions options,
+            PathPolicy policy) {
         this.view = view;
         this.costs = costs;
         this.goal = goal;
         this.start = start;
         this.options = options;
+        this.policy = policy;
         this.moves = new MoveGenerator(view, costs, goal, options.placePrice());
         this.startHeuristic = goal.heuristic(start, costs);
         this.bestHeuristic = startHeuristic;
@@ -115,7 +122,7 @@ public final class PathSearch {
                 best = record;
             }
             moves.neighbours(record.node, record.placed, options.placeable(), record.headUnderwater,
-                    step -> relax(record, step));
+                    step -> prepareAndRelax(record, step));
         }
         if (open.isEmpty() || expanded >= options.maxNodes()) {
             finished = finish();
@@ -126,6 +133,21 @@ public final class PathSearch {
     /** How many nodes have been expanded so far, across all calls. */
     public int expanded() {
         return expanded;
+    }
+
+    private void prepareAndRelax(Record parent, PathStep step) {
+        var prepared = policy.prepare(view, step);
+        if (prepared == null || prepared.isEmpty()) {
+            return;
+        }
+        PathStep candidate = prepared.get();
+        if (!candidate.from().equals(step.from()) || !candidate.to().equals(step.to())
+                || candidate.move() != step.move() || candidate.headUnderwater() != step.headUnderwater()
+                || !candidate.places().equals(step.places()) || !Double.isFinite(candidate.cost())
+                || candidate.cost() < step.cost()) {
+            return;
+        }
+        relax(parent, candidate);
     }
 
     private void relax(Record parent, PathStep step) {
