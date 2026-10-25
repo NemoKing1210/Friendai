@@ -196,6 +196,10 @@ public final class OwnerFocusBuilder {
         if (inHand != null) {
             return inHand;
         }
+        String offHand = toolName(companion.getOffhandItem(), state);
+        if (offHand != null) {
+            return offHand;
+        }
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             String tool = toolName(companion.inventory().getItem(i), state);
             if (tool != null) {

@@ -581,6 +581,43 @@ public class ToolTests {
     }
 
     @GameTest
+    public void describeBlockDescribesAir(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(4, 2, 4));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("air at "), result.content());
+        h.assertFalse(result.content().contains("cannot be broken"), result.content());
+        h.assertFalse(result.content().contains("tool"), result.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void describeBlockSeesAnOffhandTool(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(6, 2, 2, Blocks.IRON_ORE);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
+        var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
+        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
+        var result = tools.execute(call, new dev.friendai.tool.Caller(
+                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("you have iron_pickaxe"), result.content());
+        h.succeed();
+    }
+
+    @GameTest
     public void describeBlockHandlesUnbreakableBlocks(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         h.setBlock(6, 2, 2, Blocks.BEDROCK);
