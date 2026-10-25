@@ -339,7 +339,7 @@ public final class FriendaiConfigScreen {
                 .option(booleanOption("friendai.config.chat.guests_enabled", true, () -> c.guestsEnabled, v -> c.guestsEnabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.chat.hearing_radius"))
-                        .binding(16, () -> c.hearingRadius, v -> c.hearingRadius = v)
+                        .binding(32, () -> c.hearingRadius, v -> c.hearingRadius = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(4, 64))
                         .build())
                 .option(Option.<Integer>createBuilder()

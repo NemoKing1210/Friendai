@@ -66,7 +66,7 @@ class ServerConfigTest {
     void guestDefaults() {
         var c = ServerConfig.defaults();
         assertTrue(c.chat.guestsEnabled);
-        assertEquals(16, c.chat.hearingRadius);
+        assertEquals(32, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
         assertEquals(5, c.version);
     }
@@ -124,7 +124,7 @@ class ServerConfigTest {
         var store = new ConfigStore<>(f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
-        assertEquals(16, c.chat.hearingRadius);
+        assertEquals(32, c.chat.hearingRadius);
         assertTrue(Files.readString(f).contains("\"version\": 5"));
     }
 

@@ -55,7 +55,7 @@ public class ServerConfig {
         public boolean listenAll = false;
         public int maxReplyChars = 256;
         public boolean guestsEnabled = true;
-        public int hearingRadius = 16;
+        public int hearingRadius = 32;
         public int guestCooldownMs = 5000;
     }
 
