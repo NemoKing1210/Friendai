@@ -2,10 +2,15 @@ package dev.friendai.task;
 
 import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.queue.QueueLimits;
 
 /** Live task limits, updated whenever the server config is applied. */
 public final class TaskSettings {
     public static volatile int taskTimeoutSec = 300;
+    public static volatile int queueMaxJobs = 64;
+    public static volatile int queueMaxPlans = 8;
+    public static volatile int queueBlockedNoticeSec = 30;
+    public static volatile int queueMaxStepsPerAdd = 32;
     public static volatile boolean defaultFollow = true;
     public static volatile int mineSearchRadius = 32;
     public static volatile int treeSearchRadius = 32;
@@ -22,4 +27,10 @@ public final class TaskSettings {
             BlockList.parse(PathingConfig.DEFAULTS.placeBlacklist(), entry -> {});
 
     private TaskSettings() {}
+
+    public static QueueLimits queueLimits() {
+        return new QueueLimits(queueMaxJobs, queueMaxPlans, queueMaxStepsPerAdd, 8192, 5);
+    }
+
+    public static int queueBlockedNoticeTicks() { return queueBlockedNoticeSec * 20; }
 }

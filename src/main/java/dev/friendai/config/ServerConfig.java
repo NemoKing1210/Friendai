@@ -75,6 +75,10 @@ public class ServerConfig {
         public boolean mineCollectDrops = true;
         public boolean treePerception = true;
         public int treePerceptionRadius = 12;
+        public int queueMaxJobs = 64;
+        public int queueMaxPlans = 8;
+        public int queueBlockedNoticeSec = 30;
+        public int queueMaxStepsPerAdd = 32;
     }
 
     public static class MemorySection {
@@ -178,6 +182,10 @@ public class ServerConfig {
         chat.guestCooldownMs = clamp(problems, "chat.guestCooldownMs", chat.guestCooldownMs, 0, 60_000);
         tasks.mineSearchRadius = clamp(problems, "tasks.mineSearchRadius", tasks.mineSearchRadius, 4, 64);
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
+        tasks.queueMaxJobs = clamp(problems, "tasks.queueMaxJobs", tasks.queueMaxJobs, 1, 128);
+        tasks.queueMaxPlans = clamp(problems, "tasks.queueMaxPlans", tasks.queueMaxPlans, 1, 16);
+        tasks.queueBlockedNoticeSec = clamp(problems, "tasks.queueBlockedNoticeSec", tasks.queueBlockedNoticeSec, 5, 600);
+        tasks.queueMaxStepsPerAdd = clamp(problems, "tasks.queueMaxStepsPerAdd", tasks.queueMaxStepsPerAdd, 1, 64);
         tasks.treeSearchRadius = clamp(problems, "tasks.treeSearchRadius", tasks.treeSearchRadius, 4, 64);
         tasks.treePerceptionRadius =
                 clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);

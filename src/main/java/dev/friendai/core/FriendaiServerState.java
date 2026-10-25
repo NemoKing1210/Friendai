@@ -130,6 +130,10 @@ public final class FriendaiServerState {
 
     private static void applyTaskSettings(ServerConfig cfg) {
         TaskSettings.taskTimeoutSec = cfg.tasks.taskTimeoutSec;
+        TaskSettings.queueMaxJobs = cfg.tasks.queueMaxJobs;
+        TaskSettings.queueMaxPlans = cfg.tasks.queueMaxPlans;
+        TaskSettings.queueBlockedNoticeSec = cfg.tasks.queueBlockedNoticeSec;
+        TaskSettings.queueMaxStepsPerAdd = cfg.tasks.queueMaxStepsPerAdd;
         TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
         TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
         TaskSettings.treeSearchRadius = cfg.tasks.treeSearchRadius;
