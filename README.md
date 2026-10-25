@@ -53,7 +53,7 @@ The key is never written to logs or chat. "Test connection" in the settings scre
 
 Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where speech is turned into text:
 
-- **Local (free, offline)** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runs one of the `tiny`, `base` or `small` models on your CPU. Press **Download model**; models are stored in `<game dir>/friendai/models/`.
+- **Local (Whisper, offline)** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runs one of the `tiny`, `base` or `small` models on your CPU, free of charge. Press **Download model**; models are stored in `<game dir>/friendai/models/`.
 - **OpenAI (paid)** — an OpenAI-compatible transcription API (`gpt-transcribe` by default). The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **Groq (paid)** — the same API through Groq (`whisper-large-v3` by default).
 - **Yandex SpeechKit (paid)** — an API key, the cloud folder id and a concrete language tag.
@@ -67,7 +67,7 @@ The companion can also speak its replies. Synthesis is off by default; turn on *
 - **Local (free, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) runs a Piper voice on your CPU. Five voices are offered: Irina and Dmitri (Russian), Lessac and LibriTTS-R (English) and Alba (British English). Pick one and press **Download voice**; voices are stored in `<game dir>/friendai/models/tts/` (about 67–82 MB each). Russian systems get Irina, everything else Lessac. Each voice carries its own license, shown under the dropdown: the model files are mostly MIT, the LibriTTS-R voice is CC BY 4.0, and the training-data terms vary.
 - **OpenAI (paid)** — the OpenAI speech API with a key, a voice and a speed. The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **ElevenLabs (paid)** — the ElevenLabs text-to-speech API; a key, a voice id and a speed.
-- **Yandex SpeechKit (paid)** — an API key, the cloud folder id, a voice, a language tag and a speed.
+- **Yandex SpeechKit (paid)** — an API key, the cloud folder id, a voice, a language tag, a speed and 16 kHz PCM output.
 
 Only the reply text leaves your machine, and only for cloud synthesis; local voices never send it anywhere. For cloud recognition only the recording leaves. Keys are client-side for both directions: they live in the client config, may reference an environment variable (`env:OPENAI_API_KEY`), travel only in an HTTP header, and never appear in logs, chat or error messages. Friendai never retries a paid request automatically.
 
