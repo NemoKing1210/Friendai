@@ -259,7 +259,8 @@ public class ClientConfig {
             }
             tts.provider = TtsPresets.LOCAL;
         }
-        tts.volume = tts.volume <= 0 ? 1.0 : clamp(tts.volume, 0.0, 1.0);
+        // Volume 0 is a real mute, not an unset field: the slider offers it and a mute is useful.
+        tts.volume = clamp(tts.volume, 0.0, 1.0);
         tts.maxChars = tts.maxChars <= 0 ? 300 : Math.max(20, Math.min(500, tts.maxChars));
         if (tts.language == null || tts.language.isBlank()) {
             tts.language = "auto";
@@ -286,7 +287,7 @@ public class ClientConfig {
                 settings = new CloudSettings();
                 entry.setValue(settings);
             }
-            // Gson does not run field initializers, so a missing speed arrives as 0.0.
+            // An explicit 0 (hand-edited or written by older code) means the default speed.
             settings.speed = clampSpeed(entry.getKey(), settings.speed <= 0 ? 1.0 : settings.speed);
             blankToNull(settings);
         }

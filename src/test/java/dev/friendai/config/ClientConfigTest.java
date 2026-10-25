@@ -113,15 +113,29 @@ class ClientConfigTest {
     }
 
     @Test
-    void zeroVoiceNumbersFallBackToTheDocumentedDefaults() {
+    void zeroRecordLengthAndMaxCharsFallBackToTheDocumentedDefaults() {
         ClientConfig c = ClientConfig.defaults();
         c.voice.stt.maxRecordSec = 0;
-        c.voice.tts.volume = 0;
         c.voice.tts.maxChars = 0;
         c.validate();
         assertEquals(30, c.voice.stt.maxRecordSec);
-        assertEquals(1.0, c.voice.tts.volume);
         assertEquals(300, c.voice.tts.maxChars);
+    }
+
+    @Test
+    void zeroVolumeIsAMuteThatSurvivesSaveAndReload() {
+        ConfigStore<ClientConfig> store = new ConfigStore<>(
+                dir.resolve("friendai-client.json"), ClientConfig.class, ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+        ClientConfig c = store.load();
+        c.voice.tts.volume = 0.0;
+        c.validate();
+        assertEquals(0.0, c.voice.tts.volume);
+
+        store.save(c);
+        ClientConfig again = store.load();
+        again.validate();
+        assertEquals(0.0, again.voice.tts.volume);
     }
 
     @Test
