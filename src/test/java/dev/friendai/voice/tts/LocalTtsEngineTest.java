@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.text.UserFacingException;
+import dev.friendai.voice.WavCodec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,7 +55,7 @@ class LocalTtsEngineTest {
             assertTrue(clip.pcm16le().length > 10_000);
             assertTrue(clip.sampleRate() > 0);
             Files.createDirectories(Path.of("build"));
-            Files.write(Path.of("build/tts-smoke.wav"), WavCodec.encode(clip));
+            Files.write(Path.of("build/tts-smoke.wav"), WavCodec.encode(clip.pcm16le(), clip.sampleRate()));
         }
     }
 }

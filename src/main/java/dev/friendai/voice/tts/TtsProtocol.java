@@ -1,8 +1,12 @@
 package dev.friendai.voice.tts;
 
-/** A speech provider's wire format: how to ask for speech and how to read the answer. */
-public interface TtsProtocol {
-    TtsHttpRequest build(TtsRequest request);
+import dev.friendai.voice.PcmAudio;
+import dev.friendai.voice.PreparedRequest;
+import dev.friendai.voice.ResolvedTts;
 
-    TtsClip parse(byte[] response);
+/** One speech-synthesis wire format. */
+public interface TtsProtocol {
+    PreparedRequest prepare(ResolvedTts settings, String text);
+
+    PcmAudio parse(byte[] body, ResolvedTts settings);
 }

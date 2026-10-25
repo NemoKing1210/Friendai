@@ -8,22 +8,23 @@ import dev.friendai.core.Components;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
+import dev.friendai.voice.ResolvedTts;
 import dev.friendai.voice.VoiceConfig;
+import dev.friendai.voice.VoiceHttp;
+import dev.friendai.voice.VoiceReadiness;
 import dev.friendai.voice.tts.CloudTtsEngine;
-import dev.friendai.voice.tts.ElevenLabsSpeechProtocol;
 import dev.friendai.voice.tts.LocalTtsEngine;
-import dev.friendai.voice.tts.OpenAiSpeechProtocol;
 import dev.friendai.voice.tts.SpeechEngine;
 import dev.friendai.voice.tts.SpeechGate;
 import dev.friendai.voice.tts.SpeechQueue;
 import dev.friendai.voice.tts.SpeechText;
+import dev.friendai.voice.tts.TtsClient;
 import dev.friendai.voice.tts.TtsClip;
-import dev.friendai.voice.tts.TtsSettings;
 import dev.friendai.voice.tts.VoiceModel;
 import dev.friendai.voice.tts.VoiceModelManager;
 import dev.friendai.voice.tts.VoiceModels;
 import java.net.http.HttpClient;
-import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
@@ -51,6 +52,7 @@ public final class SpeechRuntime {
     });
     private static final HttpClient HTTP =
             HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+    private static final TtsClient TTS = TtsClient.withBuiltins(new VoiceHttp(HTTP, Duration.ofSeconds(20)));
     private static final SpeechPlayback PLAYBACK = new SpeechPlayback();
     private static final VoiceModelManager MODELS = new VoiceModelManager(
             FabricLoader.getInstance().getGameDir().resolve("friendai").resolve("models").resolve("tts"), HTTP);
@@ -58,14 +60,16 @@ public final class SpeechRuntime {
     private static final SpeechQueue QUEUE = new SpeechQueue();
     private static boolean draining;
     private static int generation;
-    private static TtsSettings activeSettings;
-    private static String activeDevice;
+    private static Plan activePlan;
     private static SpeechEngine cachedEngine;
     private static String cachedKey;
     private static long lastToastAt;
     private static String lastToastKey;
 
     private SpeechRuntime() {}
+
+    /** One resolved reply's settings: the provider configuration, the volume and the output device. */
+    private record Plan(ResolvedTts settings, double volume, String device) {}
 
     /** Where local voices are downloaded to and loaded from. */
     public static VoiceModelManager models() {
@@ -82,7 +86,7 @@ public final class SpeechRuntime {
         if (chunks.isEmpty()) {
             return;
         }
-        enqueue(chunks, resolve(cfg), cfg.outputDevice);
+        enqueue(chunks, resolve(cfg));
     }
 
     /** Speaks the localized sample sentence, whether or not speech is enabled, and reports the outcome. */
@@ -92,18 +96,16 @@ public final class SpeechRuntime {
             return;
         }
         stop();
-        TtsSettings settings = resolve(cfg);
-        String device = cfg.outputDevice;
+        Plan plan = resolve(cfg);
         String sample = Component.translatable("friendai.voice.tts.sample").getString();
         int gen;
         synchronized (LOCK) {
-            activeSettings = settings;
-            activeDevice = device;
+            activePlan = plan;
             gen = generation;
         }
         WORKER.execute(() -> {
             try {
-                playOne(sample, settings, device, gen);
+                playOne(sample, plan, gen);
                 Minecraft.getInstance().execute(
                         () -> ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result")));
             } catch (UserFacingException e) {
@@ -164,10 +166,9 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void enqueue(List<String> chunks, TtsSettings settings, String device) {
+    private static void enqueue(List<String> chunks, Plan plan) {
         synchronized (LOCK) {
-            activeSettings = settings;
-            activeDevice = device;
+            activePlan = plan;
             for (String chunk : chunks) {
                 QUEUE.add(chunk);
             }
@@ -183,20 +184,18 @@ public final class SpeechRuntime {
         try {
             while (true) {
                 String text;
-                TtsSettings settings;
-                String device;
+                Plan plan;
                 int gen;
                 synchronized (LOCK) {
                     text = QUEUE.poll();
                     if (text == null) {
                         return;
                     }
-                    settings = activeSettings;
-                    device = activeDevice;
+                    plan = activePlan;
                     gen = generation;
                 }
                 try {
-                    playOne(text, settings, device, gen);
+                    playOne(text, plan, gen);
                 } catch (UserFacingException e) {
                     synchronized (LOCK) {
                         QUEUE.clear();
@@ -224,11 +223,18 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void playOne(String text, TtsSettings settings, String device, int gen) {
-        if (settings == null) {
+    private static void playOne(String text, Plan plan, int gen) {
+        if (plan == null) {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
         }
-        UserMessage readiness = settings.readinessError();
+        ResolvedTts settings = plan.settings();
+        boolean installed = true;
+        if (settings.local()) {
+            VoiceModel model = VoiceModels.byId(settings.voice())
+                    .orElseThrow(() -> new UserFacingException(UserMessage.of("friendai.voice.tts.error.no_voice")));
+            installed = MODELS.isInstalled(model);
+        }
+        UserMessage readiness = VoiceReadiness.tts(settings, installed);
         if (readiness != null) {
             throw new UserFacingException(readiness);
         }
@@ -249,18 +255,18 @@ public final class SpeechRuntime {
                 return;
             }
         }
-        PLAYBACK.play(clip, settings.volume(), device);
+        PLAYBACK.play(clip, plan.volume(), plan.device());
     }
 
-    private static SpeechEngine engine(TtsSettings settings) {
-        String key = settings.cacheKey();
+    private static SpeechEngine engine(ResolvedTts settings) {
+        String key = VoiceConfig.ttsCacheKey(settings);
         synchronized (LOCK) {
             if (cachedEngine != null && key.equals(cachedKey)) {
                 return cachedEngine;
             }
             closeCachedLocked();
             SpeechEngine built;
-            if (settings.isLocal()) {
+            if (settings.local()) {
                 VoiceModel model = VoiceModels.byId(settings.voice())
                         .orElseThrow(() -> new UserFacingException(UserMessage.of("friendai.voice.tts.error.no_voice")));
                 if (!MODELS.isInstalled(model)) {
@@ -268,10 +274,8 @@ public final class SpeechRuntime {
                 }
                 // Runs inline on the speech worker, which is already off the client thread.
                 built = new LocalTtsEngine(model, MODELS.dir(model), settings.speed(), Runnable::run);
-            } else if (settings.isOpenAi()) {
-                built = new CloudTtsEngine(settings, new OpenAiSpeechProtocol(), HTTP);
             } else {
-                built = new CloudTtsEngine(settings, new ElevenLabsSpeechProtocol(), HTTP);
+                built = new CloudTtsEngine(settings, TTS);
             }
             cachedEngine = built;
             cachedKey = key;
@@ -304,10 +308,11 @@ public final class SpeechRuntime {
         return config == null || config.voice == null ? null : config.voice.tts;
     }
 
-    private static TtsSettings resolve(ClientConfig.TtsSection cfg) {
-        return TtsSettings.from(
+    private static Plan resolve(ClientConfig.TtsSection cfg) {
+        return new Plan(
                 VoiceConfig.resolveTts(
                         cfg, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv),
-                cfg.volume);
+                cfg.volume,
+                cfg.outputDevice);
     }
 }

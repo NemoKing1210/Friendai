@@ -3,13 +3,17 @@ package dev.friendai.voice.tts;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.config.ClientConfig;
 import dev.friendai.testutil.MockHttpServer;
 import dev.friendai.text.UserFacingException;
-import dev.friendai.voice.VoiceConfig;
+import dev.friendai.voice.ResolvedTts;
+import dev.friendai.voice.VoiceHttp;
+import dev.friendai.voice.WavCodec;
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,63 +32,68 @@ class CloudTtsEngineTest {
         server.close();
     }
 
-    private static ClientConfig.TtsSection openAiSection(String baseUrl, String key) {
-        ClientConfig c = ClientConfig.defaults();
-        c.validate();
-        ClientConfig.TtsSection cfg = c.voice.tts;
-        cfg.provider = "openai";
-        ClientConfig.CloudSettings cloud = cfg.cloud.get("openai");
-        cloud.baseUrl = baseUrl;
-        cloud.apiKey = key;
-        return cfg;
+    private CloudTtsEngine engine(ResolvedTts settings) {
+        return new CloudTtsEngine(settings,
+                TtsClient.withBuiltins(new VoiceHttp(HttpClient.newHttpClient(), Duration.ofSeconds(5))));
     }
 
-    private CloudTtsEngine engine(ClientConfig.TtsSection cfg) {
-        return new CloudTtsEngine(
-                TtsSettings.from(VoiceConfig.resolveTts(cfg, "en_us", name -> ""), cfg.volume),
-                new OpenAiSpeechProtocol(),
-                HttpClient.newHttpClient());
+    private ResolvedTts openAi(String baseUrl, String key) {
+        return new ResolvedTts("openai", "openai_speech", baseUrl,
+                key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);
     }
 
     @Test
     void synthesizesThroughACustomCompatibleEndpoint() {
-        byte[] wav = WavCodec.encode(new TtsClip(new byte[] {1, 0, 2, 0}, 24000));
-        server.enqueue(200, wav);
-        TtsClip clip = engine(openAiSection(server.baseUrl() + "/v1", "")).synthesize("Hello").join();
-        assertArrayEquals(new byte[] {1, 0, 2, 0}, clip.pcm16le());
+        byte[] pcm = {1, 0, 2, 0};
+        server.enqueue(200, WavCodec.encode(pcm, 24000));
+
+        TtsClip clip = engine(openAi(server.baseUrl() + "/v1", "")).synthesize("Hello").join();
+
+        assertArrayEquals(pcm, clip.pcm16le());
         assertEquals(24000, clip.sampleRate());
         assertFalse(server.requests().get(0).headers().containsKey("authorization"));
     }
 
     @Test
     void keyTravelsInAHeader() {
-        server.enqueue(200, WavCodec.encode(new TtsClip(new byte[] {1, 0}, 24000)));
-        try (CloudTtsEngine engine = engine(openAiSection(server.baseUrl() + "/v1", "sk-secret"))) {
+        server.enqueue(200, WavCodec.encode(new byte[] {1, 0}, 24000));
+        try (CloudTtsEngine engine = engine(openAi(server.baseUrl() + "/v1", "sk-secret"))) {
             engine.synthesize("Hi").join();
         }
         assertEquals("Bearer sk-secret", server.requests().get(0).header("authorization"));
+        assertFalse(server.requests().get(0).path().contains("sk-secret"));
     }
 
     @Test
-    void withoutAKeyItIsNotReadyAndSaysWhy() throws Exception {
-        CloudTtsEngine engine = engine(openAiSection(null, null));
-        assertFalse(engine.isReady());
-        ExecutionException error =
-                assertThrows(ExecutionException.class, () -> engine.synthesize("Hi").get());
-        assertEquals(
-                "friendai.voice.tts.error.no_key",
-                ((UserFacingException) error.getCause()).userMessage().key());
-    }
-
-    @Test
-    void afterCloseItRefuses() throws Exception {
-        CloudTtsEngine engine = engine(openAiSection(server.baseUrl() + "/v1", ""));
+    void isReadyUntilClosed() {
+        CloudTtsEngine engine = engine(openAi(server.baseUrl() + "/v1", "key"));
+        assertTrue(engine.isReady());
         engine.close();
         assertFalse(engine.isReady());
-        ExecutionException error =
-                assertThrows(ExecutionException.class, () -> engine.synthesize("Hi").get());
-        assertEquals(
-                "friendai.voice.tts.error.failed",
+    }
+
+    @Test
+    void afterCloseItRefuses() {
+        CloudTtsEngine engine = engine(openAi(server.baseUrl() + "/v1", ""));
+        engine.close();
+
+        ExecutionException error = assertThrows(ExecutionException.class, () -> engine.synthesize("Hi").get());
+
+        assertInstanceOf(UserFacingException.class, error.getCause());
+        assertEquals("friendai.voice.tts.error.failed",
                 ((UserFacingException) error.getCause()).userMessage().key());
+    }
+
+    @Test
+    void aRejectedKeyIsReportedWithoutLeakingIt() {
+        server.enqueue(401, "the key sk-secret is invalid");
+
+        ExecutionException error = assertThrows(ExecutionException.class,
+                () -> engine(openAi(server.baseUrl() + "/v1", "sk-secret")).synthesize("Hi").get());
+
+        assertInstanceOf(UserFacingException.class, error.getCause());
+        UserFacingException cause = (UserFacingException) error.getCause();
+        assertEquals("friendai.voice.error.auth", cause.userMessage().key());
+        assertFalse(cause.getMessage().contains("sk-secret"), cause.getMessage());
     }
 }

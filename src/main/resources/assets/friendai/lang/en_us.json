@@ -112,6 +112,9 @@
   "friendai.voice.error.unsupported_language": "This language is not supported by the selected speech provider.",
   "friendai.voice.error.no_mic": "Microphone unavailable",
   "friendai.voice.error.failed": "Speech recognition failed",
+  "friendai.voice.error.auth": "The speech service rejected the API key.",
+  "friendai.voice.error.quota": "The speech service is busy or the quota is exhausted. Try again later.",
+  "friendai.voice.error.network": "Could not reach the speech service.",
 
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Summon your companion first: /friendai summon",

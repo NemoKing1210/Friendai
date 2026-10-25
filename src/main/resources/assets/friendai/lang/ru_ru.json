@@ -112,6 +112,9 @@
   "friendai.voice.error.unsupported_language": "Выбранный сервис распознавания не поддерживает этот язык.",
   "friendai.voice.error.no_mic": "Микрофон недоступен",
   "friendai.voice.error.failed": "Не удалось распознать речь",
+  "friendai.voice.error.auth": "Сервис речи отклонил API-ключ.",
+  "friendai.voice.error.quota": "Сервис речи занят или лимит исчерпан. Попробуй позже.",
+  "friendai.voice.error.network": "Не удалось связаться с сервисом речи.",
 
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Сначала призови компаньона: /friendai summon",
