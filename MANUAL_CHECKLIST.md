@@ -201,3 +201,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Walk through the settings screen, commands, HUD and key bindings with the game language set to English: no raw keys anywhere.
 - [ ] The same with the game language set to Русский.
+
+## Chunk loading
+
+- [ ] The owner walks beyond view distance: the companion keeps working, and `/forceload query` stays unchanged.
+- [ ] Stop the server while nobody is near the companion, restart: it resumes its saved task at its last position.
+- [ ] Dismiss the companion, restart: no companion chunk is loaded.
+- [ ] `companion.chunkLoading.enabled: false` in `config/friendai-server.json`, `/friendai reload`: the companion unloads when the owner walks away.
+- [ ] The companion follows the owner through a nether portal: the old dimension's chunk unloads and the new one stays loaded.
