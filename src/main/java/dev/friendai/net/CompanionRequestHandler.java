@@ -70,7 +70,7 @@ public final class CompanionRequestHandler {
         switch (type) {
             case SUMMON -> companions.summon(player);
             case TELEPORT -> {
-                companions.find(owner).ifPresent(c -> c.taskRunner().stop("teleported to the owner"));
+                companions.find(owner).ifPresent(c -> c.taskRunner().stopWithoutCleanup("teleported to the owner"));
                 brains.cancel(owner);
                 companions.teleportToOwner(player);
             }

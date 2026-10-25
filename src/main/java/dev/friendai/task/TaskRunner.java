@@ -127,6 +127,14 @@ public final class TaskRunner {
         }
     }
 
+    /** Cancels work without returning to its old site, as when explicitly teleporting away. */
+    public void stopWithoutCleanup(String reason) {
+        if (current != null) {
+            cancelCurrent(reason);
+        }
+        startDefault();
+    }
+
     /**
      * Cancels the current task only when {@code name} is the tool it was started under or the task says it matches,
      * then falls back to the default activity.

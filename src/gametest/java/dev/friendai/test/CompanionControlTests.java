@@ -29,6 +29,10 @@ import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
 import dev.friendai.tool.ToolResult;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.GoToTask;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
@@ -44,6 +48,46 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public class CompanionControlTests {
+    @GameTest(maxTicks = 200)
+    public void teleportDoesNotReturnToTheCancelledWorkSite(GameTestHelper h) {
+        int floor = 50;
+        GameTestSupport.platformAt(h, floor, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Vec3 workSite = h.absoluteVec(new Vec3(12.5, floor + 1, 12.5));
+        companion.teleportTo(workSite.x, workSite.y, workSite.z);
+        Task cleanup = new GoToTask(workSite);
+        boolean[] stopped = {false};
+        companion.taskRunner().start(new Task() {
+            @Override
+            public String type() { return "work_with_cleanup"; }
+
+            @Override
+            public void start(TaskContext c) {}
+
+            @Override
+            public TaskStatus tick(TaskContext c) { return TaskStatus.RUNNING; }
+
+            @Override
+            public void stop(TaskContext c) { stopped[0] = true; }
+
+            @Override
+            public String describe() { return "working at the old site"; }
+
+            @Override
+            public String resultSummary() { return ""; }
+
+            @Override
+            public Task cleanupAfterCancel(TaskContext c) { return cleanup; }
+        }, "work_with_cleanup");
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        h.assertTrue(stopped[0], "teleport must stop the old task");
+        h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
+        h.assertTrue(companion.taskRunner().current().orElse(null) != cleanup,
+                "teleport must not send the companion back to clean up the old work site");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 200)
     public void teleportAcrossDimensionsKeepsOneCompanion(GameTestHelper h) {
         var nether = h.getLevel().getServer().getLevel(Level.NETHER);
