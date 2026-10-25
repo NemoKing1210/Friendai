@@ -6,7 +6,13 @@ import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.TaskListener;
 import dev.friendai.task.builtin.GetFoodTask;
+import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.survival.HungerWatcher;
+import dev.friendai.queue.FailurePolicy;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.survival.HungerModel;
@@ -33,6 +39,31 @@ import net.minecraft.world.phys.Vec3;
 
 /** Hunger on the entity: exhaustion sources, eating, owner throws, starvation, no passive regen, texts and save data. */
 public class HungerTests {
+    @GameTest(maxTicks = 500)
+    public void queueFreezesForFoodAndResumes(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 260, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 261, 2);
+        c.hunger().load(3, 0.0f, 0.0f);
+        c.hungerWatcher().setAutoDelayTicks(0);
+        boolean[] foodInterrupted = {false};
+        c.taskRunner().setListener(new TaskListener() {
+            @Override public void onFinished(int id, String tool, TaskStatus status, String summary) {
+                if (tool.equals(HungerWatcher.GET_FOOD_TOOL)) foodInterrupted[0] = true;
+            }
+            @Override public void onCancelled(int id, String tool, String reason) {}
+        });
+        c.taskRunner().enqueue(new QueuedStep("stay", new com.google.gson.JsonObject(), null, List.of(),
+                GuardAction.WAIT, FailurePolicy.ASK, 1, List.of()), ctx -> new StayTask());
+        h.succeedWhen(() -> {
+            h.assertTrue(foodInterrupted[0], "the starvation task did not interrupt the queued job");
+            h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("stay")).orElse(false),
+                    "the queued task did not resume: " + c.taskRunner().current().map(dev.friendai.task.Task::type).orElse("none"));
+            h.assertTrue(c.taskRunner().queue().jobCount() == 1, "the queued job was dropped");
+            h.assertTrue(c.taskRunner().queue().jobs().getFirst().state() == dev.friendai.queue.JobState.RUNNING,
+                    "the queued job did not return to RUNNING");
+        });
+    }
+
     private static void assertClose(GameTestHelper h, float actual, float expected, String what) {
         h.assertTrue(Math.abs(actual - expected) < 1e-4f, what + " was " + actual + ", expected " + expected);
     }

@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.queue.FailurePolicy;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
@@ -22,20 +23,36 @@ import net.minecraft.core.BlockPos;
 final class ToolKit {
     private ToolKit() {}
 
-    /** Registers a task tool and contributes its definition, so {@code run_plan} can reuse its schema and factory. */
+    /** Registers a task tool and contributes its definition to the task registry. */
     static void add(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def) {
         defs.add(def);
         registry.register(taskTool(def));
     }
 
     /**
-     * Registers a task tool that needs the caller of the turn, and still contributes its definition so
-     * {@code run_plan} can reuse its schema and factory.
+     * Registers a task tool that needs the caller of the turn and contributes its definition to the task registry.
      */
     static void addCaller(
             ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def, CallerAction action) {
         defs.add(def);
-        registry.register(callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, action));
+        CallerAction routed = def.callerFactory() == null ? action : (c, caller, args) -> {
+            Task task;
+            try { task = def.callerFactory().create(c, caller, args.deepCopy()); }
+            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
+            if (def.queueTraits().interrupts()) {
+                c.taskRunner().interrupt(task, def.name());
+                return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
+            }
+            try {
+                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
+                                FailurePolicy.STOP_PLAN, 1, List.of()),
+                        ctx -> def.callerFactory().create(ctx.companion(), caller, args.deepCopy()));
+                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
+                return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
+                        : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
+            } catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
+        };
+        registry.register(callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, routed));
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
@@ -46,10 +63,17 @@ final class ToolKit {
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
-            long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT, null, 1, List.of()),
-                    ctx -> def.factory().create(ctx.companion(), args));
+            if (def.queueTraits().interrupts()) {
+                c.taskRunner().interrupt(task, def.name());
+                return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
+            }
+            Task preview = task;
+            long id;
+            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT, FailurePolicy.STOP_PLAN, 1, List.of()),
+                    ctx -> def.factory().create(ctx.companion(), args.deepCopy())); }
+            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
             boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
-            return ToolResult.ok(active ? "task #" + id + " started: " + task.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
+            return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
         });
     }
 

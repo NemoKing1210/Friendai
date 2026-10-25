@@ -1,17 +1,27 @@
 package dev.friendai.tool.builtin;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.PlanOptions;
+import dev.friendai.queue.QueueOptimizer;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.plan.StepFactory;
+import dev.friendai.task.queue.CompanionGuardFacts;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.ArgValidator;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.QueueParser;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
+import dev.friendai.queue.Guard;
+import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.task.mining.BlockMatcher;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,37 +30,61 @@ import java.util.Set;
 /** LLM-facing queue operations. */
 final class QueueTools {
     private QueueTools() {}
-    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        Map<String, TaskToolDef> all = new LinkedHashMap<>(); defs.stream().filter(TaskToolDef::plannable).forEach(d -> all.put(d.name(), d));
-        JsonObject item = SchemaBuilder.object().string("tool", "Task tool name").string("args", "JSON object arguments").required("tool").build();
-        registry.register(ToolKit.callerTool("queue_add", "Add a durable multi-step plan to the task queue.", SchemaBuilder.object().string("goal", "Short goal").array("steps", "Queue steps", item, 1, 64).required("steps").build(), dev.friendai.tool.AccessLevel.TRUSTED,
-                () -> true, (c, caller, args) -> add(c, caller, args, all)));
-        registry.register(ToolKit.instantTool("queue_show", "Show queued work, running work and blocked jobs.", (c, args) -> ToolResult.ok(QueueText.show(c.taskRunner().queue(), emptyFacts(), null, 20, false))));
-        registry.register(ToolKit.instantTool("queue_edit", "Change queued work: retry, skip, cancel, clear, or change priority.", SchemaBuilder.object()
-                .enumeration("action", "Queue change", "priority", "cancel", "retry", "skip", "clear")
-                .integer("job", "Job id").integer("plan", "Plan id").integer("priority", "Priority", -10, 10).required("action").build(),
-                (c, args) -> edit(c, args)));
+    static void register(ToolRegistry<CompanionEntity> registry,List<TaskToolDef> defs) {
+        Map<String,TaskToolDef> all=new LinkedHashMap<>();defs.stream().filter(TaskToolDef::plannable).forEach(d->all.put(d.name(),d));
+        JsonObject stepSchema=stepSchema(all);
+        registry.register(ToolKit.callerTool("queue_add","Add a durable multi-step plan. Use guards for world conditions and after only when priority changes must not bypass a dependency.",
+                SchemaBuilder.object().string("goal","Short goal").array("steps","Steps to run",stepSchema,1,64).integer("priority","Default priority",-10,10).enumeration("on_failure","Default failure policy","ask","skip","stop_plan").integer("time_limit_min","Optional plan time limit; zero means none",0,1440).bool("optimize","Merge adjacent compatible count steps").required("steps").build(),AccessLevel.TRUSTED,()->true,(c,caller,args)->add(c,caller,args,all)));
+        registry.register(ToolKit.instantTool("queue_show","Show queued jobs, plan status, waiting reasons and archives.",SchemaBuilder.object().integer("plan","Optional plan id").integer("limit","Maximum jobs",1,50).bool("include_done","Include terminal jobs").build(),AccessLevel.TRUSTED,(c,args)->ToolResult.ok(QueueText.show(c.taskRunner().queue(),new CompanionGuardFacts(c),args.has("plan")?args.get("plan").getAsLong():null,args.has("limit")?args.get("limit").getAsInt():20,args.has("include_done")&&args.get("include_done").getAsBoolean()))));
+        registry.register(ToolKit.callerTool("queue_edit","Move, reprioritize, update, replace, retry, skip or cancel queued work.",
+                SchemaBuilder.object().enumeration("action","Queue edit","move","priority","update","cancel","retry","skip","replace","optimize","clear").integer("job","Job id").integer("plan","Plan id").integer("before","Move before this job id").integer("priority","Priority",-10,10).string("args","Replacement JSON arguments").array("steps","Replacement steps",stepSchema,1,64).required("action").build(),AccessLevel.TRUSTED,()->true,(c,caller,args)->edit(c,caller,args,all)));
     }
-    private static ToolResult add(CompanionEntity c, Caller caller, JsonObject args, Map<String, TaskToolDef> all) {
-        Map<String, TaskToolDef> allowed = new LinkedHashMap<>(); all.forEach((name, def) -> { if (caller.access().allows(def.minAccess())) allowed.put(name, def); });
-        Map<String, JsonObject> schemas = new LinkedHashMap<>(); allowed.forEach((name, def) -> schemas.put(name, def.schema()));
-        var parsed = QueueParser.parse(args.getAsJsonArray("steps"), schemas, all.keySet(), TaskSettings.queueMaxStepsPerAdd, 8192, 49152);
-        if (!parsed.ok()) return ToolResult.error("Invalid plan: " + String.join("; ", parsed.errors()));
-        List<QueuedStep> steps = parsed.steps(); List<StepFactory> factories = steps.stream().map(s -> (StepFactory) ctx -> allowed.get(s.tool()).factory().create(ctx.companion(), s.args())).toList();
-        String goal = args.has("goal") ? args.get("goal").getAsString() : ""; long id = c.taskRunner().enqueuePlan(goal, steps, factories, PlanOptions.DEFAULT);
-        return ToolResult.ok("plan #" + id + " \"" + goal + "\" added: " + steps.size() + " jobs");
+    private static JsonObject stepSchema(Map<String,TaskToolDef> tools) {
+        JsonObject schema=SchemaBuilder.object().enumeration("tool","Task tool",tools.keySet().toArray(String[]::new)).string("args","JSON object arguments").integer("priority","Priority",-10,10).enumeration("on_unmet","Guard behavior","wait","skip").enumeration("on_failure","Failure policy","ask","skip","stop_plan").integer("max_attempts","Attempts",1,3).build();
+        JsonObject props=schema.getAsJsonObject("properties"); JsonObject guard=new JsonObject();guard.addProperty("type","object");JsonObject gp=new JsonObject();for(String n:List.of("type","item","block","dimension")){JsonObject p=new JsonObject();p.addProperty("type","string");gp.add(n,p);}for(String n:List.of("count","slots","percent","blocks","radius")){JsonObject p=new JsonObject();p.addProperty("type","integer");gp.add(n,p);}guard.add("properties",gp);
+        JsonObject when=new JsonObject();when.addProperty("type","array");when.add("items",guard);props.add("when",when);
+        JsonObject after=new JsonObject();after.addProperty("type","array");JsonObject ai=new JsonObject();ai.addProperty("type","integer");after.add("items",ai);props.add("after",after);
+        JsonArray required=schema.has("required")?schema.getAsJsonArray("required"):new JsonArray();if(!schema.has("required"))schema.add("required",required);required.add("tool");return schema;
     }
-    private static ToolResult edit(CompanionEntity c, JsonObject args) {
-        String action = args.get("action").getAsString(); var queue = c.taskRunner().queue();
-        return switch (action) {
-            case "clear" -> ToolResult.ok(queue.clear().text());
-            case "retry" -> result(queue.retry(args.get("job").getAsLong()));
-            case "skip" -> result(queue.skip(args.get("job").getAsLong()));
-            case "cancel" -> args.has("plan") ? result(queue.cancelPlan(args.get("plan").getAsLong())) : result(queue.cancel(args.get("job").getAsLong()));
-            case "priority" -> args.has("plan") ? result(queue.setPlanPriority(args.get("plan").getAsLong(), args.get("priority").getAsInt())) : result(queue.setPriority(args.get("job").getAsLong(), args.get("priority").getAsInt()));
-            default -> ToolResult.error("unknown queue_edit action: " + action);
-        };
+    private static ToolResult add(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {
+        Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));
+        var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,8192,49152);
+        if(!parsed.ok())return ToolResult.error("Invalid plan: "+String.join("; ",parsed.errors()));
+        String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return ToolResult.error("Invalid plan: "+invalidGuard);
+        String goal=args.has("goal")?args.get("goal").getAsString():"";int priority=args.has("priority")?args.get("priority").getAsInt():0;
+        FailurePolicy policy=args.has("on_failure")?QueueParser.policy(args.get("on_failure").getAsString()).orElse(null):FailurePolicy.ASK;
+        if(policy==null)return ToolResult.error("Invalid plan: on_failure must be ask, skip or stop_plan");
+        long time=args.has("time_limit_min")?args.get("time_limit_min").getAsLong()*1200L:0;
+        List<QueuedStep> steps=parsed.steps();List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),caller,s.args())).toList();
+        long id;try{id=c.taskRunner().enqueuePlan(goal,steps,factories,new PlanOptions(priority,policy,time));}catch(IllegalArgumentException e){return ToolResult.error("Invalid plan: "+e.getMessage());}
+        if(args.has("optimize")&&args.get("optimize").getAsBoolean())QueueOptimizer.apply(c.taskRunner().queue(),id,name->{TaskToolDef d=all.get(name);return d==null?null:d.queueTraits().mergeableCountArg();});
+        registerFactories(c,c.taskRunner().queue().jobsOfPlan(id).stream().map(dev.friendai.queue.Job::id).toList(),allowed,caller);
+        c.taskRunner().wakeQueue();
+        return ToolResult.ok("plan #"+id+(goal.isBlank()?"":" \""+goal+"\"")+" added: "+steps.size()+" jobs");
     }
-    private static ToolResult result(dev.friendai.queue.JobQueue.Result result) { return result.ok() ? ToolResult.ok(result.text()) : ToolResult.error(result.text()); }
-    private static dev.friendai.queue.GuardFacts emptyFacts() { return new dev.friendai.queue.GuardFacts() { public int countItems(String id){return 0;} public int emptySlots(){return 0;} public float healthFraction(){return 1;} public int ownerDistance(){return -1;} public int countBlocks(String id,int r){return 0;} public String dimension(){return "";} }; }
+    private static ToolResult edit(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {
+        String action=args.get("action").getAsString();var runner=c.taskRunner();var q=runner.queue();
+        try {
+            switch(action) {
+                case "clear" -> { return ToolResult.ok(runner.clearQueue("cleared by the LLM")); }
+                case "cancel" -> { if(args.has("plan"))runner.cancelPlan(args.get("plan").getAsLong(),"cancelled by the LLM");else runner.cancelJob(required(args,"job"),"cancelled by the LLM"); }
+                case "retry" -> { var r=q.retry(required(args,"job"));if(!r.ok())return error(r.text()); }
+                case "skip" -> { var r=runner.skipJob(required(args,"job"));if(!r.ok())return error(r.text()); }
+                case "priority" -> { int p=args.get("priority").getAsInt();var r=args.has("plan")?q.setPlanPriority(args.get("plan").getAsLong(),p):q.setPriority(required(args,"job"),p);if(!r.ok())return error(r.text()); }
+                case "move" -> { var r=q.move(required(args,"job"),required(args,"before"));if(!r.ok())return error(r.text()); }
+                case "update" -> { long id=required(args,"job");JobData.validateTool(q.job(id).orElse(null),all,caller);JsonObject obj=JsonParser.parseString(args.get("args").getAsString()).getAsJsonObject();TaskToolDef d=all.get(q.job(id).orElseThrow().tool());var issues=ArgValidator.validate(d.schema(),obj);if(!issues.isEmpty())return error(String.join("; ",issues));var r=q.updateArgs(id,obj);if(!r.ok())return error(r.text());c.taskRunner().registerFactory(id,ctx->createTask(d,ctx.companion(),caller,obj.deepCopy())); }
+                case "replace" -> { long id=required(args,"job");var old=q.job(id).orElse(null);JobData.validateTool(old,all,caller);Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,8192,49152);if(!parsed.ok())return error("Invalid replacement: "+String.join("; ",parsed.errors()));String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return error("Invalid replacement: "+invalidGuard);long firstNewId=q.nextJobId();var r=q.replace(id,parsed.steps());if(!r.ok())return error(r.text());List<QueuedStep> steps=parsed.steps();for(int i=0;i<steps.size();i++){QueuedStep step=steps.get(i);TaskToolDef def=allowed.get(step.tool());c.taskRunner().registerFactory(firstNewId+i,ctx->createTask(def,ctx.companion(),caller,step.args()));} }
+                case "optimize" -> {Long plan=args.has("plan")?args.get("plan").getAsLong():null;var r=QueueOptimizer.apply(q,plan,n->{TaskToolDef d=all.get(n);return d==null?null:d.queueTraits().mergeableCountArg();});runner.wakeQueue();return ToolResult.ok(r.text());}
+                default -> {return error("unknown queue_edit action: "+action);}
+            }
+        } catch(IllegalArgumentException e){return error(e.getMessage());}
+        runner.wakeQueue();return ToolResult.ok("queue updated");
+    }
+    private static Map<String,TaskToolDef> allowed(Caller caller,Map<String,TaskToolDef> all){Map<String,TaskToolDef> map=new LinkedHashMap<>();all.forEach((n,d)->{if(caller.access().allows(d.minAccess()))map.put(n,d);});return map;}
+    private static void registerFactories(CompanionEntity c,List<Long> ids,Map<String,TaskToolDef> allowed,Caller caller){for(long id:ids){var job=c.taskRunner().queue().job(id).orElse(null);if(job==null)continue;TaskToolDef def=allowed.get(job.tool());if(def!=null){JsonObject savedArgs=job.args();c.taskRunner().registerFactory(id,ctx->createTask(def,ctx.companion(),caller,savedArgs.deepCopy()));}}}
+    private static dev.friendai.task.Task createTask(TaskToolDef def,CompanionEntity c,Caller caller,JsonObject args){return def.callerFactory()==null?def.factory().create(c,args.deepCopy()):def.callerFactory().create(c,caller,args.deepCopy());}
+    private static String validateGuards(List<QueuedStep> steps){for(int i=0;i<steps.size();i++)for(var guard:steps.get(i).guards()){if(guard instanceof Guard.HasItem g&&ItemMatcher.parse(g.item()).isEmpty())return "step "+(i+1)+": unknown item '"+g.item()+"'";if(guard instanceof Guard.BlockWithin g&&BlockMatcher.parse(g.block()).isEmpty())return "step "+(i+1)+": unknown block '"+g.block()+"'";}return null;}
+    private static long required(JsonObject a,String key){if(!a.has(key))throw new IllegalArgumentException("queue_edit requires "+key);return a.get(key).getAsLong();}
+    private static ToolResult error(String text){return ToolResult.error(text==null?"invalid queue edit":text);}
+    private static final class JobData { static void validateTool(dev.friendai.queue.Job job,Map<String,TaskToolDef> all,Caller caller){if(job==null)throw new IllegalArgumentException("unknown job");TaskToolDef def=all.get(job.tool());if(def==null)throw new IllegalArgumentException("job #"+job.id()+"'s tool is no longer available");if(!caller.access().allows(def.minAccess()))throw new IllegalArgumentException("job #"+job.id()+"'s tool is not available to this caller");} }
 }

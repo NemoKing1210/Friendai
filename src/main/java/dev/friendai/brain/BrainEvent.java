@@ -46,6 +46,20 @@ public sealed interface BrainEvent {
         }
     }
 
+    record PlanFinished(long planId, String goal, boolean success, String summary) implements BrainEvent {
+        @Override public String toPromptLine() {
+            return "[event] plan #" + planId + " " + goal + (success ? " finished: " : " failed: ") + summary;
+        }
+    }
+
+    record PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining)
+            implements BrainEvent {
+        @Override public String toPromptLine() {
+            return "[event] plan #" + planId + " needs a decision at job #" + jobId + " (" + toolName
+                    + "): " + reason + "; " + remaining + " step(s) remain. Use queue_edit to repair the plan.";
+        }
+    }
+
     /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
     record WorldNotice(String text) implements BrainEvent {
         @Override

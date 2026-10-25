@@ -23,7 +23,10 @@ public final class QueuePolicy {
         if (jobs.isEmpty()) return PlanStatus.FAILED;
         if (jobs.stream().anyMatch(j -> j.state() == JobState.FAILED && j.onFailure() == FailurePolicy.ASK)
                 || jobs.stream().anyMatch(j -> j.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(j.result()))) return PlanStatus.NEEDS_DECISION;
-        if (jobs.stream().allMatch(JobQueue::terminal)) return jobs.stream().anyMatch(j -> j.state() == JobState.DONE) ? PlanStatus.DONE : PlanStatus.FAILED;
+        if (jobs.stream().allMatch(JobQueue::terminal)) {
+            return jobs.stream().anyMatch(j -> j.state() == JobState.FAILED || j.state() == JobState.CANCELLED)
+                    ? PlanStatus.FAILED : PlanStatus.DONE;
+        }
         return PlanStatus.ACTIVE;
     }
     public static String notReadyReason(JobQueue queue, Job job, GuardFacts facts) {

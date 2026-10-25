@@ -320,10 +320,12 @@ public class AnimalTests {
     public void leadsPigsAndTiesThem(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.taskRunner().setPaused(true);
         Pig first = h.spawn(EntityTypes.PIG, 4, 2, 3);
         Pig second = h.spawn(EntityTypes.PIG, 5, 2, 3);
         h.setBlock(10, 2, 2, Blocks.OAK_FENCE);
         c.inventory().addItem(new ItemStack(Items.LEAD, 2));
+        c.inventory().addItem(new ItemStack(Items.BREAD, 4));
         BlockPos destination = h.absolutePos(new BlockPos(10, 2, 2));
         Result result = new Result();
         TaskRunner runner = runner(c, result);

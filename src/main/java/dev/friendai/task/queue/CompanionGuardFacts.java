@@ -7,18 +7,34 @@ import dev.friendai.task.mining.BlockMatcher;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import java.util.HashMap;
+import java.util.Map;
 
 /** One server-thread facts pass for queue guards. */
 public final class CompanionGuardFacts implements GuardFacts {
     private final CompanionEntity companion;
+    private final Map<String, Integer> itemCounts = new HashMap<>();
+    private final Map<String, Boolean> blockFacts = new HashMap<>();
+    private Integer emptySlots, ownerDistance;
+    private Float healthFraction;
+    private String dimension;
     public CompanionGuardFacts(CompanionEntity companion) { this.companion = companion; }
     @Override public int countItems(String id) {
+        if (itemCounts.containsKey(id)) return itemCounts.get(id);
         var matcher = ItemMatcher.parse(id).orElse(null); if (matcher == null) return 0; int count=matcher.test(companion.getMainHandItem())?companion.getMainHandItem().getCount():0;
-        for(int i=0;i<companion.inventory().getContainerSize();i++){ItemStack stack=companion.inventory().getItem(i);if(matcher.test(stack))count+=stack.getCount();} return count;
+        for(int i=0;i<companion.inventory().getContainerSize();i++){ItemStack stack=companion.inventory().getItem(i);if(matcher.test(stack))count+=stack.getCount();} itemCounts.put(id,count); return count;
     }
-    @Override public int emptySlots() { int n=0;for(int i=0;i<companion.inventory().getContainerSize();i++)if(companion.inventory().getItem(i).isEmpty())n++;return n; }
-    @Override public float healthFraction() { return companion.getHealth()/Math.max(1f,companion.getMaxHealth()); }
-    @Override public int ownerDistance() { ServerPlayer owner=companion.owner().orElse(null); return owner==null||owner.level()!=companion.level()?-1:(int)Math.round(Math.sqrt(companion.distanceToSqr(owner))); }
+    @Override public int emptySlots() { if(emptySlots==null){int n=0;for(int i=0;i<companion.inventory().getContainerSize();i++)if(companion.inventory().getItem(i).isEmpty())n++;emptySlots=n;}return emptySlots; }
+    @Override public float healthFraction() { if(healthFraction==null)healthFraction=companion.getHealth()/Math.max(1f,companion.getMaxHealth());return healthFraction; }
+    @Override public int ownerDistance() { if(ownerDistance==null){ServerPlayer owner=companion.owner().orElse(null);ownerDistance=owner==null||owner.level()!=companion.level()?-1:(int)Math.round(Math.sqrt(companion.distanceToSqr(owner)));}return ownerDistance; }
     @Override public int countBlocks(String id,int radius) { var matcher=BlockMatcher.parse(id).orElse(null);if(matcher==null)return 0;int n=0;BlockPos p=companion.blockPosition();for(int x=-radius;x<=radius;x++)for(int y=-radius;y<=radius;y++)for(int z=-radius;z<=radius;z++){BlockPos at=p.offset(x,y,z);if(companion.level().hasChunkAt(at)&&matcher.test(companion.level().getBlockState(at)))n++;}return n; }
-    @Override public String dimension() { return companion.level().dimension().identifier().toString(); }
+    @Override public String dimension() { if(dimension==null)dimension=companion.level().dimension().identifier().toString();return dimension; }
+    @Override public boolean hasBlocks(String id,int radius,int count) {
+        String key=id+":"+radius+":"+count; if(blockFacts.containsKey(key))return blockFacts.get(key);
+        var matcher=BlockMatcher.parse(id).orElse(null);if(matcher==null)return false;int found=0;BlockPos p=companion.blockPosition();
+        for(int x=-radius;x<=radius;x++)for(int y=-radius;y<=radius;y++)for(int z=-radius;z<=radius;z++){
+            BlockPos at=p.offset(x,y,z);if(companion.level().hasChunkAt(at)&&matcher.test(companion.level().getBlockState(at))&&++found>=count){blockFacts.put(key,true);return true;}
+        }
+        blockFacts.put(key,false);return false;
+    }
 }

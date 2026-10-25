@@ -3,51 +3,95 @@ package dev.friendai.queue;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 /** Bounded versioned queue serialization; malformed saves are deliberately dropped. */
 public final class QueueSave {
     public static final String PREFIX = "queue:v1:";
+    public static final int MAX_SAVE_CHARS = 1_000_000;
+    public static final int MAX_FIELD_CHARS = 8_192;
     private QueueSave() {}
     public record Decoded(JobQueue queue, long activeJobId, String activeTaskSave) {}
 
     public static String encode(JobQueue queue, String activeTaskSave) {
-        JsonObject root = new JsonObject(); root.addProperty("clock", queue.clock());
+        JsonObject root = new JsonObject();
+        root.addProperty("clock", queue.clock()); root.addProperty("nextJob", queue.nextJobId());
+        root.addProperty("nextPlan", queue.nextPlanId()); root.addProperty("nextOrder", queue.nextOrder());
         JsonArray plans = new JsonArray();
-        for (PlanRecord p : queue.plans()) { JsonObject o = new JsonObject(); o.addProperty("id", p.id()); o.addProperty("goal", p.goal()); o.addProperty("priority", p.priority()); o.addProperty("deadline", p.deadlineTick()); o.addProperty("onFailure", p.onFailure().name()); plans.add(o); }
+        for (PlanRecord p : queue.plans()) {
+            JsonObject o = new JsonObject(); o.addProperty("id", p.id()); o.addProperty("goal", bounded(p.goal(), 300));
+            o.addProperty("priority", p.priority()); o.addProperty("added", p.addedTick());
+            o.addProperty("deadline", p.deadlineTick()); o.addProperty("onFailure", p.onFailure().name()); plans.add(o);
+        }
         root.add("plans", plans);
         JsonArray jobs = new JsonArray();
-        for (Job j : queue.jobs()) { JsonObject o = new JsonObject(); o.addProperty("id", j.id()); o.addProperty("plan", j.planId()); o.addProperty("tool", j.tool()); o.add("args", j.args()); o.addProperty("priority", j.priority()); o.addProperty("explicit", j.priorityExplicit()); o.addProperty("state", j.state().name()); o.addProperty("onUnmet", j.onUnmet().name()); o.addProperty("onFailure", j.onFailure().name()); o.addProperty("maxAttempts", j.maxAttempts()); o.addProperty("attempts", j.attempts()); o.addProperty("result", j.result()); o.addProperty("retryAt", j.retryAtTick()); JsonArray guards = new JsonArray(); j.guards().forEach(g -> guards.add(g.toJson())); o.add("guards", guards); jobs.add(o); }
-        root.add("jobs", jobs); long active = queue.active().map(Job::id).orElse(0L); root.addProperty("active", active); if (activeTaskSave != null && !activeTaskSave.isBlank()) root.addProperty("activeTask", activeTaskSave);
-        return PREFIX + root;
+        for (Job j : queue.jobs()) {
+            JsonObject o = new JsonObject(); o.addProperty("id", j.id()); o.addProperty("plan", j.planId());
+            o.addProperty("tool", bounded(j.tool(), 128)); o.add("args", j.args()); o.addProperty("priority", j.priority());
+            o.addProperty("explicit", j.priorityExplicit()); o.addProperty("order", j.order());
+            o.addProperty("state", j.state().name()); o.addProperty("onUnmet", j.onUnmet().name());
+            o.addProperty("onFailure", j.onFailure().name()); o.addProperty("maxAttempts", j.maxAttempts());
+            o.addProperty("attempts", j.attempts()); o.addProperty("result", bounded(j.result(), 200));
+            o.addProperty("retryAt", j.retryAtTick());
+            JsonArray guards = new JsonArray(); j.guards().forEach(g -> guards.add(g.toJson())); o.add("guards", guards);
+            JsonArray after = new JsonArray(); j.after().forEach(after::add); o.add("after", after); jobs.add(o);
+        }
+        root.add("jobs", jobs);
+        JsonArray archives = new JsonArray();
+        for (PlanArchive a : queue.archives()) {
+            JsonObject o = new JsonObject(); o.addProperty("id", a.id()); o.addProperty("goal", bounded(a.goal(), 300));
+            o.addProperty("success", a.success()); o.addProperty("steps", a.stepCount());
+            o.addProperty("summary", bounded(a.summary(), 200)); o.addProperty("finished", a.finishedTick()); archives.add(o);
+        }
+        root.add("archives", archives);
+        long active = queue.active().map(Job::id).orElse(0L); root.addProperty("active", active);
+        if (activeTaskSave != null && !activeTaskSave.isBlank()) root.addProperty("activeTask", bounded(activeTaskSave, 8_192));
+        String result = PREFIX + root;
+        if (result.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS) throw new IllegalStateException("queue save exceeds size limit");
+        return result;
     }
+
     public static Optional<Decoded> decode(String text, QueueLimits limits) {
-        if (text == null || !text.startsWith(PREFIX)) return Optional.empty();
+        if (text == null || text.length() > MAX_SAVE_CHARS || text.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS || !text.startsWith(PREFIX)) return Optional.empty();
         try {
             JsonObject root = JsonParser.parseString(text.substring(PREFIX.length())).getAsJsonObject();
-            JobQueue queue = new JobQueue(limits); JsonArray planArray = root.getAsJsonArray("plans"); JsonArray jobArray = root.getAsJsonArray("jobs");
-            if (planArray == null || jobArray == null) return Optional.empty();
-            for (var planElement : planArray) {
-                JsonObject p = planElement.getAsJsonObject(); long id = p.get("id").getAsLong();
-                List<QueuedStep> steps = new ArrayList<>();
-                for (var jobElement : jobArray) { JsonObject j = jobElement.getAsJsonObject(); if (j.get("plan").getAsLong() != id) continue; steps.add(step(j)); }
-                if (steps.isEmpty()) continue;
-                queue.addPlan(p.get("goal").getAsString(), steps, new PlanOptions(p.get("priority").getAsInt(), FailurePolicy.valueOf(p.get("onFailure").getAsString()), 0));
-            }
-            for (var jobElement : jobArray) { JsonObject j = jobElement.getAsJsonObject(); if (j.get("plan").getAsLong() == 0) queue.addDirect(step(j)); }
-            long active = root.has("active") ? root.get("active").getAsLong() : 0;
-            // Saved ids are stable when rows were written in insertion order; reject a mismatched active id safely.
-            if (active != 0 && queue.job(active).isEmpty()) active = 0;
-            if (active != 0) queue.markRunning(active);
-            return Optional.of(new Decoded(queue, active, root.has("activeTask") ? root.get("activeTask").getAsString() : ""));
+            JsonArray planRows = root.getAsJsonArray("plans"), jobRows = root.getAsJsonArray("jobs"), archiveRows = root.getAsJsonArray("archives");
+            if (planRows == null || jobRows == null || archiveRows == null) return Optional.empty();
+            List<PlanRecord> plans = new ArrayList<>();
+            for (var e : planRows) { JsonObject p=e.getAsJsonObject(); plans.add(new PlanRecord(p.get("id").getAsLong(), field(p,"goal"), p.get("priority").getAsInt(), p.get("added").getAsLong(), p.get("deadline").getAsLong(), FailurePolicy.valueOf(p.get("onFailure").getAsString()))); }
+            List<Job> jobs = new ArrayList<>();
+            for (var e : jobRows) { JsonObject j=e.getAsJsonObject(); jobs.add(readJob(j)); }
+            List<PlanArchive> archives = new ArrayList<>();
+            for (var e : archiveRows) { JsonObject a=e.getAsJsonObject(); archives.add(new PlanArchive(a.get("id").getAsLong(), field(a,"goal"), a.get("success").getAsBoolean(), a.get("steps").getAsInt(), field(a,"summary"), a.get("finished").getAsLong())); }
+            int argumentChars = jobs.stream().mapToInt(j -> j.args().toString().length()).sum();
+            if (jobs.size() > limits.maxJobs() || plans.size() > limits.maxPlans() || archives.size() > limits.maxArchives()
+                    || argumentChars > limits.maxQueueArgsChars()
+                    || jobs.stream().anyMatch(j -> j.args().toString().length() > limits.maxArgsChars())) return Optional.empty();
+            long active = root.get("active").getAsLong();
+            long runningCount = jobs.stream().filter(j -> j.state() == JobState.RUNNING).count();
+            if (runningCount > 1) return Optional.empty();
+            boolean activeFound = false;
+            for (Job job : jobs) if (job.id() == active && job.state() == JobState.RUNNING) activeFound = true;
+            if (active != 0 && !activeFound) active = 0;
+            if (active == 0 && runningCount == 1) return Optional.empty();
+            JobQueue q = JobQueue.restore(limits, root.get("clock").getAsLong(), root.get("nextJob").getAsLong(), root.get("nextPlan").getAsLong(), root.get("nextOrder").getAsLong(), plans, jobs, archives);
+            return Optional.of(new Decoded(q, active, root.has("activeTask") ? field(root,"activeTask") : ""));
         } catch (RuntimeException ignored) { return Optional.empty(); }
     }
-    private static QueuedStep step(JsonObject job) {
-        List<Guard> guards = new ArrayList<>(); if (job.has("guards")) for (var e : job.getAsJsonArray("guards")) guards.add(Guard.parse(e.getAsJsonObject()).orElseThrow());
-        return new QueuedStep(job.get("tool").getAsString(), job.getAsJsonObject("args"), job.has("priority") ? job.get("priority").getAsInt() : null, guards,
-                GuardAction.valueOf(job.get("onUnmet").getAsString()), FailurePolicy.valueOf(job.get("onFailure").getAsString()), job.get("maxAttempts").getAsInt(), List.of());
+
+    private static Job readJob(JsonObject j) {
+        List<Guard> guards = new ArrayList<>(); for (var e : j.getAsJsonArray("guards")) guards.add(Guard.parse(e.getAsJsonObject()).orElseThrow());
+        List<Long> after = new ArrayList<>(); for (var e : j.getAsJsonArray("after")) after.add(e.getAsLong());
+        return new Job(j.get("id").getAsLong(), j.get("plan").getAsLong(), field(j,"tool"), j.getAsJsonObject("args"),
+                j.get("priority").getAsInt(), j.get("explicit").getAsBoolean(), j.get("order").getAsLong(),
+                JobState.valueOf(j.get("state").getAsString()), guards, GuardAction.valueOf(j.get("onUnmet").getAsString()),
+                FailurePolicy.valueOf(j.get("onFailure").getAsString()), j.get("maxAttempts").getAsInt(), j.get("attempts").getAsInt(),
+                after, field(j,"result"), j.get("retryAt").getAsLong());
     }
+    private static String bounded(String value) { return bounded(value, MAX_FIELD_CHARS); }
+    private static String bounded(String value, int max) { return value == null ? "" : value.substring(0, Math.min(value.length(), max)); }
+    private static String field(JsonObject object, String name) { String value=object.get(name).getAsString(); if(value.length()>MAX_FIELD_CHARS)throw new IllegalArgumentException("field too long"); return value; }
 }

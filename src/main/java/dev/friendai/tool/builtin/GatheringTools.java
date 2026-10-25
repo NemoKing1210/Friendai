@@ -46,7 +46,9 @@ final class GatheringTools {
                 + "when the choice matters.";
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("fell_tree", fellDescription, fellSchema,
-                        (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true),
+                        (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true,
+                        AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+                        (c, caller, a) -> createFellTask(c, caller, a, treeRadius)),
                 (c, caller, a) -> {
                     try {
                         return ToolKit.startTask(c, "fell_tree", createFellTask(c, caller, a, treeRadius));
@@ -73,7 +75,8 @@ final class GatheringTools {
                                 .required("block", "count")
                                 .build(),
                         (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, mineRadius),
-                        true),
+                        true, AccessLevel.TRUSTED, new TaskToolDef.QueueTraits(false, "count"),
+                        (c, caller, a) -> createMineTask(c, caller, a, mineRadius)),
                 (c, caller, a) -> {
                     try {
                         return ToolKit.startTask(c, "mine_blocks", createMineTask(c, caller, a, mineRadius));

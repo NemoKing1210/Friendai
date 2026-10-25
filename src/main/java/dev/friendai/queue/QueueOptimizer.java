@@ -16,11 +16,16 @@ public final class QueueOptimizer {
             List<Job> jobs = queue.jobsOfPlan(plan.id()).stream().filter(j -> j.state() == JobState.PENDING).sorted(Comparator.comparingLong(Job::order)).toList();
             for (int i = 1; i < jobs.size(); i++) {
                 Job first = jobs.get(i - 1), second = jobs.get(i); String key = policy.countArgument(first.tool());
-                if (key == null || !first.tool().equals(second.tool()) || !first.guards().equals(second.guards()) || !first.after().isEmpty() || !second.after().isEmpty()) continue;
+                if (key == null || !first.tool().equals(second.tool()) || !first.guards().equals(second.guards()) || !first.after().isEmpty() || !second.after().isEmpty() || !sameExceptCount(first.args(), second.args(), key)) continue;
                 try { int count = first.args().get(key).getAsInt() + second.args().get(key).getAsInt(); if (count <= 64) result.add(new Merge(first.id(), second.id(), first.tool(), count)); } catch (RuntimeException ignored) { }
             }
         }
         return List.copyOf(result);
+    }
+    private static boolean sameExceptCount(JsonObject first, JsonObject second, String key) {
+        JsonObject a = first.deepCopy(), b = second.deepCopy();
+        a.remove(key); b.remove(key);
+        return a.equals(b);
     }
     public static JobQueue.Result apply(JobQueue queue, Long planId, MergePolicy policy) {
         List<String> text = new ArrayList<>();

@@ -125,7 +125,7 @@ public class BrainServiceTests {
     // The brain waits brain.cooldownMs (500 ms of real time) between turns, while a gametest tick is far shorter
     // than 50 ms: 900 ticks is only just over two cooldowns, so leave a wide budget.
     @GameTest(maxTicks = 3600)
-    public void toolCallStartsTaskAndFinishEventReturns(GameTestHelper h) {
+    public void toolCallStartsQueuedTaskWithoutPerJobBrainEvent(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos log = new BlockPos(4, 2, 2);
         h.setBlock(log, Blocks.MANGROVE_LOG);
@@ -140,12 +140,9 @@ public class BrainServiceTests {
         CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
-            h.assertTrue(script.requests.size() >= 3, "requests so far: " + script.requests.size());
-            List<Message> third = script.requests.get(2);
-            Message last = third.get(third.size() - 1);
-            h.assertTrue(last.role() == Role.USER && last.text().contains("[event] task #1 mine_blocks finished"),
-                    "last message was " + last.text());
             h.assertTrue(h.getLevel().getBlockState(h.absolutePos(log)).isAir(), "log should be mined");
+            h.assertTrue(script.requests.size() == 2,
+                    "a successful queue job must not generate a brain event: " + script.requests.size());
         });
     }
 

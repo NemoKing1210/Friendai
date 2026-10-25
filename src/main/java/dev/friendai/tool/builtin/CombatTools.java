@@ -51,7 +51,8 @@ final class CombatTools {
                         .required("target", "count")
                         .build(),
                 (c, a) -> huntTask(a, false),
-                true),
+                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, a) -> huntTask(a, caller != null && caller.access() == AccessLevel.OWNER)),
                 CombatTools::attack);
         ToolKit.addCaller(registry, defs, new TaskToolDef("attack_player",
                 "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.",
@@ -61,7 +62,8 @@ final class CombatTools {
                         .build(),
                 (c, a) -> attackPlayerTask(c, new Caller(null, "", AccessLevel.OWNER), a.get("name").getAsString()),
                 false,
-                AccessLevel.OWNER), CombatTools::attackPlayerAction);
+                AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, a) -> attackPlayerTask(c, caller, a.get("name").getAsString())), CombatTools::attackPlayerAction);
         registry.register(ToolKit.instantTool("set_combat_mode",
                 "Set how the companion fights: defensive (fight back and protect the owner), guard (also attack hostile mobs near the owner), passive (never attack, run away).",
                 SchemaBuilder.object()
@@ -88,7 +90,8 @@ final class CombatTools {
                         .string("item", "Food item id like minecraft:bread")
                         .build(),
                 (c, a) -> new EatTask(optionalItem(a)),
-                true), CombatTools::eat);
+                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, a) -> eatTask(c, caller, a)), CombatTools::eat);
         ToolKit.add(registry, defs, new TaskToolDef("get_food",
                 "Get food the most efficient way: cook what I carry, take it from chests, bake bread, harvest, hunt or fish.",
                 SchemaBuilder.object()
@@ -146,6 +149,18 @@ final class CombatTools {
         EatTask task = new EatTask(food);
         int taskId = companion.taskRunner().start(task, "eat");
         return ToolResult.ok(note + "task #" + taskId + " started: " + task.describe());
+    }
+
+    private static EatTask eatTask(CompanionEntity companion, Caller caller, JsonObject args) {
+        Item food = optionalItem(args);
+        if (food != null && caller != null && caller.access() == AccessLevel.OWNER) {
+            ItemStack stack = food.getDefaultInstance();
+            String id = BuiltInRegistries.ITEM.getKey(food).toString();
+            if (stack.get(DataComponents.FOOD) != null && !Food.isSafe(companion, stack, true)) {
+                companion.setFoodRule(id, true);
+            }
+        }
+        return new EatTask(food);
     }
 
     private static @Nullable Item optionalItem(JsonObject args) {

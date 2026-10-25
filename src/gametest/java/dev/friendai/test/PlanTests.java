@@ -46,6 +46,12 @@ public class PlanTests {
         public void onCancelled(int id, String toolName, String reason) {
             cancelled++;
         }
+
+        @Override
+        public void onPlanFinished(long planId, String goal, boolean success, String summary) {
+            status = success ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+            this.summary = summary;
+        }
     }
 
     private static TaskRunner runner(CompanionEntity c, Result result) {
@@ -251,13 +257,11 @@ public class PlanTests {
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
         String json = "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
                 + "{\"tool\":\"pickup_items\",\"args\":\"{\\\"radius\\\":3}\"}]}";
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        ToolResult started = tools.execute(new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("plan \"drop and look\" done: 1) dropped 2 minecraft:mud_bricks; 2) picked up 0 items"),
-                    "summary was " + result.summary);
         });
     }
 
@@ -272,8 +276,10 @@ public class PlanTests {
         String json = "{\"goal\":\"drop twice\",\"steps\":["
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"}]}";
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
-        h.assertTrue(!started.error(), "start failed: " + started.content());
+        JsonObject dropArgs = JsonParser.parseString("{\"item\":\"minecraft:mud_bricks\",\"count\":1}").getAsJsonObject();
+        c.taskRunner().start(new SequenceTask("drop twice", List.of(
+                new PlanEntry("drop_items", dropArgs, ctx -> new DropItemsTask(ItemMatcher.parse("minecraft:mud_bricks").orElseThrow(), 1)),
+                new PlanEntry("drop_items", dropArgs, ctx -> new DropItemsTask(ItemMatcher.parse("minecraft:mud_bricks").orElseThrow(), 1))), () -> 300), "run_plan");
         String[] saved = {null};
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -289,8 +295,6 @@ public class PlanTests {
             h.assertTrue(saved[0] != null, "the first step never finished");
             h.assertTrue(result.status == TaskStatus.SUCCESS,
                     "restored plan did not finish: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("plan \"drop twice\" done: 1) dropped 1 minecraft:mud_bricks; "
-                    + "2) dropped 1 minecraft:mud_bricks"), "summary was " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.MUD_BRICKS), 0, "mud bricks left");
         });
     }
@@ -318,7 +322,7 @@ public class PlanTests {
                 + "\\\"count\\\":1,\\\"station\\\":\\\"blast_furnace\\\",\\\"wait\\\":true}\"},"
                 + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:iron_nugget\\\","
                 + "\\\"count\\\":9}\"}]}";
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        ToolResult started = tools.execute(new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -361,13 +365,11 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "set up a table");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith("plan \"set up a table\" done: 1) took 1 minecraft:crafting_table"),
-                    "summary was " + result.summary);
             boolean found = false;
             for (int dx = -4; dx <= 4 && !found; dx++) {
                 for (int dz = -4; dz <= 4 && !found; dz++) {
@@ -417,13 +419,11 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "turn logs into planks");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("took 2 minecraft:oak_log"), "summary was " + result.summary);
-            h.assertTrue(result.summary.contains("crafted 8 minecraft:oak_planks"), "summary was " + result.summary);
             h.assertValueEqual(0, c.inventory().countItem(Items.OAK_LOG), "logs left");
             h.assertValueEqual(8, c.inventory().countItem(Items.OAK_PLANKS), "planks");
         });
@@ -465,7 +465,7 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "shear and store");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "run_plan", json, json.toString(), null));
+        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();

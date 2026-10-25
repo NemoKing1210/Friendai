@@ -41,6 +41,11 @@ import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.plan.StepFactory;
+import dev.friendai.queue.Job;
+import dev.friendai.queue.JobState;
+import dev.friendai.queue.QueueSave;
+import dev.friendai.task.TaskSettings;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.plan.SequenceTask;
@@ -72,6 +77,7 @@ public final class BrainService {
     private final ToolRegistry<CompanionEntity> tools;
     /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
     private final Map<String, TaskToolDef> planTools;
+    private final Map<String, TaskToolDef> taskTools;
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
     private ServerConfig config;
@@ -101,6 +107,7 @@ public final class BrainService {
         });
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
+        this.taskTools = builtins.taskTools();
         reload(initial);
     }
 
@@ -239,6 +246,36 @@ public final class BrainService {
         CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().resume());
     }
 
+    /** Restore a durable task queue after the companion's saved owner and tools are available. */
+    public void restoreQueue(CompanionEntity companion, String saved) {
+        if (saved == null || companion.ownerUuid() == null) return;
+        Optional<QueueSave.Decoded> decoded = QueueSave.decode(saved, TaskSettings.queueLimits());
+        if (decoded.isEmpty()) {
+            FriendaiMod.LOGGER.warn("Discarding malformed task queue for {}", companion.ownerUuid());
+            return;
+        }
+        entryFor(companion.ownerUuid()); // Attach the listener before emitting restore notices.
+        Map<Long, StepFactory> factories = new HashMap<>();
+        for (Job job : decoded.get().queue().jobs()) {
+            TaskToolDef def = taskTools.get(job.tool());
+            if (def == null) {
+                if (job.state() == JobState.PENDING || job.state() == JobState.RUNNING || job.state() == JobState.FAILED) {
+                    decoded.get().queue().markMissingTool(job.id());
+                    FriendaiMod.LOGGER.warn("Queued tool {} is unavailable after reload", job.tool());
+                }
+                continue;
+            }
+            JsonObject args = job.args().deepCopy();
+            factories.put(job.id(), ctx -> def.factory().create(ctx.companion(), args.deepCopy()));
+        }
+        companion.taskRunner().restoreQueue(decoded.get(), factories);
+        for (Job job : companion.taskRunner().queue().jobs()) {
+            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
+                companion.taskRunner().notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool() + " is no longer available");
+            }
+        }
+    }
+
     /**
      * Rebuilds a plan saved with the world. The steps come from this server's tools, so a plan is only resumed when
      * every tool it used still exists and is still plannable. A build step that saved itself keeps its progress and
@@ -310,6 +347,24 @@ public final class BrainService {
             public void onCancelled(int id, String toolName, String reason) {
                 debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
                 post(owner, new BrainEvent.TaskCancelled(id, toolName, reason));
+            }
+
+            @Override
+            public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
+                if (planId != 0 || status == TaskStatus.SUCCESS) {
+                    debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName,
+                            status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
+                }
+            }
+
+            @Override
+            public void onPlanFinished(long planId, String goal, boolean success, String summary) {
+                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary));
+            }
+
+            @Override
+            public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
+                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining));
             }
 
             @Override

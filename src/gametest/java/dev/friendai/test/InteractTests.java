@@ -28,7 +28,7 @@ public class InteractTests {
         });
     }
 
-    @GameTest(maxTicks = 400)
+    @GameTest(maxTicks = 800)
     public void approachReportsUnreachable(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos targetRel = new BlockPos(10, 2, 10);

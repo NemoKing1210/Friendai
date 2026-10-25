@@ -38,7 +38,6 @@ public final class HungerWatcher {
     private int lastStage;
     private boolean pending;
     private int waitStartTick;
-    private int waitTaskId;
     private int readyAtTick;
     private boolean questRunning;
 
@@ -70,7 +69,6 @@ public final class HungerWatcher {
             questRunning = false;
             pending = true;
             waitStartTick = now;
-            waitTaskId = runner.currentId();
             readyAtTick = now + coolDownTicks;
         }
 
@@ -81,7 +79,6 @@ public final class HungerWatcher {
             lastStage = stage;
             if (!hasFood) {
                 waitStartTick = now;
-                waitTaskId = runner.currentId();
                 readyAtTick = 0;
                 pending = stage >= STAGE_THREE;
                 runner.notice(hungerNotice(food));
@@ -95,17 +92,15 @@ public final class HungerWatcher {
         if (!pending) {
             return;
         }
-        if (runner.currentId() != 0 && runner.currentId() != waitTaskId) {
-            // Someone started a task of their own: the companion is being looked after.
-            pending = false;
+        if (runner.current().map(task -> task.type().equals(GET_FOOD_TOOL)).orElse(false)) {
+            // Never start two food quests at once, including one explicitly requested by the brain.
             return;
         }
         if (!questRunning && stage >= STAGE_THREE && !hasFood
                 && now - waitStartTick >= autoDelayTicks && now >= readyAtTick && !peaceful()) {
             pending = false;
             questRunning = true;
-            runner.stop("starving");
-            runner.start(new GetFoodTask(2), GET_FOOD_TOOL);
+            runner.interrupt(new GetFoodTask(2), GET_FOOD_TOOL);
             runner.notice(AUTO_QUEST_NOTICE);
         }
     }

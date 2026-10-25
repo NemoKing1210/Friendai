@@ -24,8 +24,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Friendai, chop the tree next to me" while the companion stands elsewhere: the tree at your position is felled, not the one at the companion.
 - [ ] The same in Russian ("Friendai, сруби дерево рядом со мной"): the companion answers in Russian and fells the tree.
 - [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friendai status`).
-- [ ] "Friendai, drop all your cobblestone and then mine 3 logs": the companion sends one run_plan with both steps and reports the plan result.
-- [ ] A plan that cannot finish (e.g. mine a block that is not nearby): the companion explains the failed step and proposes or sends a new plan.
+- [ ] "Friendai, drop all your cobblestone and then mine 3 logs": the companion adds both actions to its queue and reports the plan result.
+- [ ] A plan that cannot finish (e.g. mine a block that is not nearby): the companion explains the blocked step and repairs the queue with `queue_edit`.
+- [ ] A real provider drives a 20+ step plan and moves or reprioritizes a pending job while it is running.
+- [ ] A failed step produces a plan decision event and the companion repairs it with `queue_edit` without resending the whole plan.
+- [ ] Reload a world mid-plan: ready work resumes, and a job whose tool disappeared reports that it needs repair.
+- [ ] `queue_show` remains readable with 50+ jobs and truncates long arguments and results.
+- [ ] A fight and a starving entry each interrupt the running queue job and resume it afterwards.
+- [ ] Cancel a build with `queue_edit cancel`: scaffold cleanup finishes before the next job starts.
 
 ## Voice
 

@@ -45,7 +45,7 @@ final class ControlTools {
 
     private static ToolResult stopEverything(CompanionEntity c) {
         String task = c.taskRunner().current().map(Task::describe).orElse("no task");
-        c.taskRunner().stop(STOP_REASON);
+        c.taskRunner().stopAll(STOP_REASON);
         StringBuilder text = new StringBuilder("stopped everything: ").append(task);
         CombatController.State before = c.combatController().state();
         c.combatController().stopFight();
@@ -108,8 +108,7 @@ final class ControlTools {
                 (c, a) -> setName(c, a.get("name").getAsString())));
 
         registry.register(ToolKit.instantTool("stop",
-                "Cancel the current task and go back to the default activity. Pass what to stop a specific action by its tool name"
-                        + " (for example mine_blocks) or everything (the task, a fight, furnace jobs). To stop following the owner, use stay.",
+                "Cancel current work and go back to the default activity. Pass a tool name to stop one action, or all to clear queued work, end a fight and cancel furnace jobs. To stop following the owner, use stay.",
                 SchemaBuilder.object()
                         .string("what", "current (default), a tool name like mine_blocks, or all")
                         .build(),

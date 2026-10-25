@@ -116,6 +116,7 @@ public class TreeFellingTests {
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 9, 8);
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        c.inventory().addItem(new ItemStack(Items.BREAD, 4));
         Result result = new Result();
         TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 8, 8), oak(), 1, false));
         h.succeedWhen(() -> {

@@ -25,15 +25,25 @@ public final class QueueParser {
         int total = 0;
         for (int index=0; index<input.size(); index++) {
             int number=index+1; if (!input.get(index).isJsonObject()) { errors.add("step "+number+": must be an object with a 'tool' string"); continue; }
-            JsonObject obj=input.get(index).getAsJsonObject(); if (!obj.has("tool") || !obj.get("tool").isJsonPrimitive()) { errors.add("step "+number+": must be an object with a 'tool' string"); continue; }
-            String tool=obj.get("tool").getAsString(); if (!allTools.contains(tool)) { errors.add("step "+number+": unknown tool '"+tool+"'"); continue; } if (!schemas.containsKey(tool)) { errors.add("step "+number+": '"+tool+"' cannot be used in a plan"); continue; }
-            JsonObject args=new JsonObject(); try { if(obj.has("args")&&!obj.get("args").getAsString().isBlank()) args=JsonParser.parseString(obj.get("args").getAsString()).getAsJsonObject(); } catch(RuntimeException e){ errors.add("step "+number+": args is not a JSON object"); continue; }
-            int size=args.toString().length(); total+=size; if(size>maxArgs){errors.add("step "+number+": arguments are too large (max "+maxArgs+" characters)");continue;}
-            List<Guard> guards=new ArrayList<>(); if(obj.has("when")) try { for(var g:obj.getAsJsonArray("when")) guards.add(Guard.parse(g.getAsJsonObject()).orElseThrow()); } catch(RuntimeException e){errors.add("step "+number+": invalid guard");continue;}
-            List<Integer> after=new ArrayList<>(); if(obj.has("after")) try { for(var a:obj.getAsJsonArray("after")){int value=a.getAsInt();if(value<1||value>index)throw new IllegalArgumentException();after.add(value);} }catch(RuntimeException e){errors.add("step "+number+": after may only name an earlier step");continue;}
-            GuardAction action=obj.has("on_unmet")&&"skip".equals(obj.get("on_unmet").getAsString())?GuardAction.SKIP:GuardAction.WAIT;
-            FailurePolicy policy=obj.has("on_failure")?policy(obj.get("on_failure").getAsString()).orElse(null):null;
-            steps.add(new QueuedStep(tool,args,obj.has("priority")?obj.get("priority").getAsInt():null,guards,action,policy,obj.has("max_attempts")?obj.get("max_attempts").getAsInt():1,after));
+            try {
+                JsonObject obj=input.get(index).getAsJsonObject();
+                if (!obj.has("tool") || !obj.get("tool").isJsonPrimitive() || !obj.get("tool").getAsJsonPrimitive().isString()) { errors.add("step "+number+": must be an object with a 'tool' string"); continue; }
+                String tool=obj.get("tool").getAsString(); if (!allTools.contains(tool)) { errors.add("step "+number+": unknown tool '"+tool+"'"); continue; } if (!schemas.containsKey(tool)) { errors.add("step "+number+": '"+tool+"' cannot be used in a plan"); continue; }
+                JsonObject args=new JsonObject();
+                if(obj.has("args")) {
+                    if (!obj.get("args").isJsonPrimitive() || !obj.get("args").getAsJsonPrimitive().isString()) { errors.add("step "+number+": args must be a JSON object string"); continue; }
+                    String raw=obj.get("args").getAsString(); if(!raw.isBlank()) { var parsed=JsonParser.parseString(raw); if(!parsed.isJsonObject()) { errors.add("step "+number+": args is not a JSON object"); continue; } args=parsed.getAsJsonObject().deepCopy(); }
+                }
+                int size=args.toString().length(); total+=size; if(size>maxArgs){errors.add("step "+number+": arguments are too large (max "+maxArgs+" characters)");continue;}
+                List<String> issues=ArgValidator.validate(schemas.get(tool),args); if(!issues.isEmpty()){errors.add("step "+number+": "+String.join("; ",issues));continue;}
+                List<Guard> guards=new ArrayList<>(); if(obj.has("when")) { if(!obj.get("when").isJsonArray()) {errors.add("step "+number+": invalid guard");continue;} try{for(var g:obj.getAsJsonArray("when")) guards.add(Guard.parse(g.getAsJsonObject()).orElseThrow());}catch(RuntimeException e){errors.add("step "+number+": invalid guard");continue;} }
+                List<Integer> after=new ArrayList<>(); if(obj.has("after")) { if(!obj.get("after").isJsonArray()) {errors.add("step "+number+": after may only name an earlier step");continue;} try{for(var a:obj.getAsJsonArray("after")){int value=a.getAsInt();if(value<1||value>index)throw new IllegalArgumentException();after.add(value);}}catch(RuntimeException e){errors.add("step "+number+": after may only name an earlier step");continue;} }
+                GuardAction action=GuardAction.WAIT; if(obj.has("on_unmet")){String raw=obj.get("on_unmet").getAsString();if(raw.equals("skip"))action=GuardAction.SKIP;else if(!raw.equals("wait"))throw new IllegalArgumentException();}
+                FailurePolicy failure=obj.has("on_failure")?policy(obj.get("on_failure").getAsString()).orElseThrow():null;
+                Integer priority=obj.has("priority")?obj.get("priority").getAsInt():null; if(priority!=null&&(priority < -10||priority>10))throw new IllegalArgumentException();
+                int attempts=obj.has("max_attempts")?obj.get("max_attempts").getAsInt():1;
+                steps.add(new QueuedStep(tool,args,priority,guards,action,failure,attempts,after));
+            } catch(RuntimeException e) { errors.add("step "+number+": contains invalid arguments or queue options"); }
         }
         if(total>maxTotal) errors.add("the plan is too large (max "+maxTotal+" characters of arguments)");
         return errors.isEmpty()?new Result(List.copyOf(steps),List.of()):new Result(List.of(),List.copyOf(errors));
