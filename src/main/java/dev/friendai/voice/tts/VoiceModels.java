@@ -32,6 +32,13 @@ public final class VoiceModels {
                     "9e3febfacf0abf4270172d2958bcec246032b7e88efc2720840cc80c93de334e",
                     "MIT model / Blizzard 2013 dataset license"),
             model(
+                    "en_US-libritts_r-medium",
+                    "LibriTTS-R",
+                    "en-US",
+                    82_038_311L,
+                    "10dc268f3e371696d721486123e2705a9fc1faa113491979fde4d88dba1f1b1c",
+                    "CC BY 4.0"),
+            model(
                     "en_GB-alba-medium",
                     "Alba",
                     "en-GB",

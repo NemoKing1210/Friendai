@@ -29,6 +29,18 @@ class VoiceModelsTest {
     }
 
     @Test
+    void offersFiveVoicesIncludingLibriTts() {
+        assertEquals(5, VoiceModels.all().size());
+        VoiceModel libri = VoiceModels.byId("en_US-libritts_r-medium").orElseThrow();
+        assertEquals(82_038_311L, libri.size());
+        assertEquals("10dc268f3e371696d721486123e2705a9fc1faa113491979fde4d88dba1f1b1c", libri.sha256());
+        assertEquals("en_US-libritts_r-medium.onnx", libri.modelFile());
+        assertEquals("CC BY 4.0", libri.license());
+        assertEquals("ru_RU-irina-medium", VoiceModels.defaultFor("ru_ru").id());
+        assertEquals("en_US-lessac-medium", VoiceModels.defaultFor("en_us").id());
+    }
+
+    @Test
     void defaultVoiceFollowsTheGameLanguage() {
         assertEquals("ru_RU-irina-medium", VoiceModels.defaultFor("ru_ru").id());
         assertEquals("en_US-lessac-medium", VoiceModels.defaultFor("de_de").id());
