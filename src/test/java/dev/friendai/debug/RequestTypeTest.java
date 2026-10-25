@@ -24,6 +24,8 @@ class RequestTypeTest {
         assertEquals(5, RequestType.REQUEST_PROMPT.ordinal());
         assertEquals(6, RequestType.SEND_MESSAGE.ordinal());
         assertEquals(7, RequestType.RUN_TOOL.ordinal());
+        assertEquals(15, RequestType.TELEPORT.ordinal());
+        assertEquals(16, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
     }
 
@@ -43,6 +45,7 @@ class RequestTypeTest {
         assertEquals(Optional.of(DebugAccess.Action.VIEW_STATUS), RequestType.SUBSCRIBE.action());
         assertEquals(Optional.of(DebugAccess.Action.VIEW_STATUS), RequestType.UNSUBSCRIBE.action());
         assertEquals(Optional.of(DebugAccess.Action.SUMMON), RequestType.SUMMON.action());
+        assertEquals(Optional.of(DebugAccess.Action.TELEPORT), RequestType.TELEPORT.action());
         assertEquals(Optional.of(DebugAccess.Action.DISMISS), RequestType.DISMISS.action());
         assertEquals(Optional.of(DebugAccess.Action.STOP), RequestType.STOP.action());
         assertEquals(Optional.of(DebugAccess.Action.VIEW_PROMPT), RequestType.REQUEST_PROMPT.action());

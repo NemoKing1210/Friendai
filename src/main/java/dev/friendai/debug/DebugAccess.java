@@ -4,6 +4,7 @@ package dev.friendai.debug;
 public final class DebugAccess {
     public enum Action {
         SUMMON,
+        TELEPORT,
         DISMISS,
         STOP,
         VIEW_STATUS,
@@ -19,7 +20,7 @@ public final class DebugAccess {
 
     public static boolean allowed(Action action, boolean operator) {
         return switch (action) {
-            case SUMMON, DISMISS, STOP, VIEW_STATUS, VIEW_MEMORY, EDIT_MEMORY -> true;
+            case SUMMON, TELEPORT, DISMISS, STOP, VIEW_STATUS, VIEW_MEMORY, EDIT_MEMORY -> true;
             case VIEW_LOG, VIEW_PROMPT, SEND_MESSAGE, RUN_TOOL -> operator;
         };
     }

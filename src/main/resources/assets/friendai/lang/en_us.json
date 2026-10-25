@@ -22,6 +22,7 @@
 
   "entity.friendai.companion": "Companion",
   "friendai.command.summoned": "%s is here.",
+  "friendai.command.summon_other_dimension": "Your companion is in another dimension. Use \"Teleport to me\" in the companion menu to bring it here.",
   "friendai.command.dismissed": "%s has left.",
   "friendai.command.no_companion": "You don't have a companion. Use /friendai summon.",
   "friendai.inventory.not_owner": "Only the owner can open the companion's inventory.",
@@ -200,6 +201,7 @@
   "friendai.menu.state.thinking": "Thinking…",
   "friendai.menu.state.idle": "Idle",
   "friendai.menu.summon": "Summon",
+  "friendai.menu.teleport": "Teleport to me",
   "friendai.menu.dismiss": "Dismiss",
   "friendai.menu.stop": "Stop",
   "friendai.menu.current_task": "Current task: %s",

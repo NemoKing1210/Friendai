@@ -69,6 +69,11 @@ public final class CompanionRequestHandler {
         CompanionManager companions = CompanionManager.get(server);
         switch (type) {
             case SUMMON -> companions.summon(player);
+            case TELEPORT -> {
+                companions.find(owner).ifPresent(c -> c.taskRunner().stop("teleported to the owner"));
+                brains.cancel(owner);
+                companions.teleportToOwner(player);
+            }
             case DISMISS -> companions.dismiss(player);
             case STOP -> companions.find(owner).ifPresent(c -> {
                 c.taskRunner().stop("stopped from menu");

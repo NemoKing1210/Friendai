@@ -19,6 +19,7 @@ public enum RequestType {
     MEMORY_FORGET(DebugAccess.Action.EDIT_MEMORY),
     MEMORY_CLEAR(DebugAccess.Action.EDIT_MEMORY),
     MEMORY_TRUST(DebugAccess.Action.EDIT_MEMORY),
+    TELEPORT(DebugAccess.Action.TELEPORT),
     INVALID(null);
 
     private final DebugAccess.Action action;

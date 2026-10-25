@@ -7,12 +7,13 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
-/** Summon, dismiss and stop, plus a short status block. */
+/** Companion actions and a short status block. */
 final class ControlTab implements MenuTab {
     private static final int BUTTON_WIDTH = 90;
     private static final int GAP = 6;
 
     private Button summon;
+    private Button teleport;
     private Button dismiss;
     private Button stop;
 
@@ -21,10 +22,12 @@ final class ControlTab implements MenuTab {
         int y = top + 56;
         summon = host.add(Button.builder(Component.translatable("friendai.menu.summon"),
                 b -> CompanionRequests.send(RequestType.SUMMON)).bounds(left, y, BUTTON_WIDTH, 20).build());
+        teleport = host.add(Button.builder(Component.translatable("friendai.menu.teleport"),
+                b -> CompanionRequests.send(RequestType.TELEPORT)).bounds(left + BUTTON_WIDTH + GAP, y, BUTTON_WIDTH, 20).build());
         dismiss = host.add(Button.builder(Component.translatable("friendai.menu.dismiss"),
-                b -> CompanionRequests.send(RequestType.DISMISS)).bounds(left + BUTTON_WIDTH + GAP, y, BUTTON_WIDTH, 20).build());
+                b -> CompanionRequests.send(RequestType.DISMISS)).bounds(left, y + 24, BUTTON_WIDTH, 20).build());
         stop = host.add(Button.builder(Component.translatable("friendai.menu.stop"),
-                b -> CompanionRequests.send(RequestType.STOP)).bounds(left + 2 * (BUTTON_WIDTH + GAP), y, BUTTON_WIDTH, 20).build());
+                b -> CompanionRequests.send(RequestType.STOP)).bounds(left + BUTTON_WIDTH + GAP, y + 24, BUTTON_WIDTH, 20).build());
         tick();
     }
 
@@ -33,6 +36,7 @@ final class ControlTab implements MenuTab {
         boolean present = CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
         boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
         summon.active = connected && !present;
+        teleport.active = connected && present;
         dismiss.active = connected && present;
         stop.active = connected && present;
     }

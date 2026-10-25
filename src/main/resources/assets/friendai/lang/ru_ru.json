@@ -22,6 +22,7 @@
 
   "entity.friendai.companion": "Компаньон",
   "friendai.command.summoned": "%s рядом.",
+  "friendai.command.summon_other_dimension": "Ваш компаньон в другом измерении. Используйте «Телепортировать ко мне» в меню компаньона, чтобы перенести его сюда.",
   "friendai.command.dismissed": "%s ушёл.",
   "friendai.command.no_companion": "У тебя нет компаньона. Используй /friendai summon.",
   "friendai.inventory.not_owner": "Только владелец может открыть инвентарь компаньона.",
@@ -200,6 +201,7 @@
   "friendai.menu.state.thinking": "Думает…",
   "friendai.menu.state.idle": "Свободен",
   "friendai.menu.summon": "Призвать",
+  "friendai.menu.teleport": "Телепортировать ко мне",
   "friendai.menu.dismiss": "Отпустить",
   "friendai.menu.stop": "Стоп",
   "friendai.menu.current_task": "Текущая задача: %s",
