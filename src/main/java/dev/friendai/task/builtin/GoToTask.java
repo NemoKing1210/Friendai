@@ -10,10 +10,17 @@ import net.minecraft.world.phys.Vec3;
 public final class GoToTask implements Task {
     private final Vec3 target;
     private final MoveHelper mover = new MoveHelper(1.0, 1.5);
+    private final SneakScope sneak;
     private String summary = "";
 
     public GoToTask(Vec3 target) {
+        this(target, false);
+    }
+
+    /** @param sneak whether to crouch for the walk, which is slower but quieter */
+    public GoToTask(Vec3 target, boolean sneak) {
         this.target = target;
+        this.sneak = new SneakScope(sneak);
     }
 
     private String coords() {
@@ -28,6 +35,7 @@ public final class GoToTask implements Task {
     @Override
     public void start(TaskContext c) {
         mover.reset(c);
+        sneak.enter(c);
     }
 
     @Override
@@ -51,6 +59,7 @@ public final class GoToTask implements Task {
     public void stop(TaskContext c) {
         mover.stop(c);
         c.companion().getNavigation().stop();
+        sneak.exit(c);
     }
 
     @Override

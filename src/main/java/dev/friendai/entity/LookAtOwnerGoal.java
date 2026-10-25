@@ -78,6 +78,9 @@ public final class LookAtOwnerGoal extends Goal {
 
     /** True when the companion has nothing else to attend to: no task beyond the default follow, and no fight. */
     private boolean canGlance() {
-        return companion.idle() && companion.combatController().state() == CombatController.State.IDLE;
+        return companion.body().idleLook()
+                && !companion.body().looking()
+                && companion.idle()
+                && companion.combatController().state() == CombatController.State.IDLE;
     }
 }

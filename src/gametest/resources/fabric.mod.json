@@ -31,6 +31,7 @@
 			"dev.friendai.test.CookingTests",
 			"dev.friendai.test.CombatTests",
 			"dev.friendai.test.HungerTests",
+			"dev.friendai.test.QueueTests",
 			"dev.friendai.test.AnimalTests",
 			"dev.friendai.test.FarmingTests",
 			"dev.friendai.test.ObtainTests",
@@ -42,7 +43,8 @@
 			"dev.friendai.test.InventoryWindowTests",
 			"dev.friendai.test.ToolChoiceTests",
 			"dev.friendai.test.SpeechTests",
-			"dev.friendai.test.TreeFellingTests"
+			"dev.friendai.test.TreeFellingTests",
+			"dev.friendai.test.BodyLanguageTests"
 		]
 	},
 	"depends": {

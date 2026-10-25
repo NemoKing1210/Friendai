@@ -13,13 +13,14 @@ import net.minecraft.world.phys.Vec3;
 
 /** Stays close to the owner. Never finishes by itself. */
 public final class FollowTask implements Task {
-    private static final double STOP_DISTANCE = 3.0;
-    private static final double START_DISTANCE = 5.0;
+    /** The gap between where the companion stops and where it sets off again. */
+    private static final double START_MARGIN = 2.0;
     private static final int RETRY_TICKS = 40;
 
     private final boolean quiet;
     private boolean moving;
-    private final MoveHelper mover = new MoveHelper(1.0, STOP_DISTANCE, 4.0, 64);
+    private MoveHelper mover;
+    private double stopDistance = -1.0;
     private int retryCooldown;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
@@ -37,6 +38,15 @@ public final class FollowTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        double wanted = c.companion().body().followDistance();
+        if (mover == null || wanted != stopDistance) {
+            if (mover != null) {
+                mover.stop(c);
+            }
+            stopDistance = wanted;
+            mover = new MoveHelper(1.0, stopDistance, 4.0, 64);
+            moving = false;
+        }
         ServerPlayer owner = c.owner().orElse(null);
         if (owner == null || owner.level() != c.level()) {
             if (moving) {
@@ -56,12 +66,12 @@ public final class FollowTask implements Task {
             return TaskStatus.RUNNING;
         }
         double distance = c.companion().position().distanceTo(target);
-        if (moving && distance <= STOP_DISTANCE) {
+        if (moving && distance <= stopDistance) {
             moving = false;
             mover.stop(c);
             return TaskStatus.RUNNING;
         }
-        if (!moving && distance > START_DISTANCE) {
+        if (!moving && distance > stopDistance + START_MARGIN) {
             moving = true;
         }
         if (!moving) {
@@ -99,7 +109,9 @@ public final class FollowTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
-        mover.stop(c);
+        if (mover != null) {
+            mover.stop(c);
+        }
     }
 
     @Override

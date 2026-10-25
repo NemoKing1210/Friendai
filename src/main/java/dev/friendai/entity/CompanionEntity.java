@@ -120,6 +120,7 @@ public class CompanionEntity extends PathfinderMob {
     private CombatMode combatMode = CombatMode.DEFENSIVE;
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
+    private final CompanionBody body = new CompanionBody(this);
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -234,6 +235,7 @@ public class CompanionEntity extends PathfinderMob {
             tickHunger((ServerLevel) level());
             combatController.tick();
             taskRunner.tick();
+            body.tick();
             if (isSprinting() && !pathing() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
             }
@@ -427,6 +429,11 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setPaceMode(PaceMode mode) {
         this.paceMode = mode == null ? PaceMode.AUTO : mode;
+    }
+
+    /** Crouching, sitting, held gaze and idle preferences; transient, not saved. */
+    public CompanionBody body() {
+        return body;
     }
 
     /** Decides between walking and running; the movement code calls it before it starts a path. */
@@ -659,7 +666,12 @@ public class CompanionEntity extends PathfinderMob {
         output.putInt("Food", hunger.food());
         output.putFloat("Saturation", hunger.saturation());
         output.putFloat("Exhaustion", hunger.exhaustion());
-        taskRunner.current().map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
+        Optional<String> savedQueue = taskRunner.savedQueue();
+        savedQueue.ifPresent(saved -> output.putString("SavedQueue", saved));
+        if (savedQueue.isEmpty()) {
+            taskRunner.current().filter(task -> !task.type().equals("follow"))
+                    .map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
+        }
     }
 
     @Override
@@ -674,9 +686,14 @@ public class CompanionEntity extends PathfinderMob {
                 input.getFloatOr("Saturation", STARTING_SATURATION),
                 input.getFloatOr("Exhaustion", 0.0f));
         if (level() instanceof ServerLevel serverLevel) {
-            input.getString("SavedTask")
-                    .flatMap(saved -> restoreTask(saved, serverLevel))
-                    .ifPresent(taskRunner::restore);
+            Optional<String> savedQueue = input.getString("SavedQueue");
+            if (savedQueue.isPresent()) {
+                FriendaiServerState.get(serverLevel.getServer()).brains().restoreQueue(this, savedQueue.get());
+            } else {
+                input.getString("SavedTask")
+                        .flatMap(saved -> restoreTask(saved, serverLevel))
+                        .ifPresent(taskRunner::restore);
+            }
         }
     }
 

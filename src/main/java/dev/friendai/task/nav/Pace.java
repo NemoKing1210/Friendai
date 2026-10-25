@@ -18,7 +18,8 @@ public final class Pace {
      * @param ownerDistance distance to the owner in blocks, or NaN when not following
      */
     public void update(boolean following, double ownerDistance) {
-        boolean run = PacePolicy.shouldRun(
+        boolean crouched = companion.body().sneaking() || companion.body().sitting();
+        boolean run = !crouched && PacePolicy.shouldRun(
                 companion.paceMode(), following, ownerDistance, companion.canSprint(), companion.isSprinting());
         if (run != companion.isSprinting()) {
             companion.setSprinting(run);

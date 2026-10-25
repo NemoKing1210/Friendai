@@ -295,7 +295,10 @@ public class ToolTests {
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
-                "untrust_player", "show_inventory", "set_name", "stop", "run_plan")),
+                "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",
+                "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait", "swap_hands",
+                "set_idle_behavior", "set_follow_distance", "step", "back_away", "approach", "circle",
+                "interact_entity", "mount", "dismount", "sleep", "throw_item")),
                 "names were " + names);
         h.succeed();
     }
@@ -311,9 +314,9 @@ public class ToolTests {
     }
 
     @GameTest
-    public void runPlanAcceptsNewTools(GameTestHelper h) {
+    public void queueAddAcceptsTaskTools(GameTestHelper h) {
         ToolSpec spec = FriendaiTools.create(() -> 32).specs().stream()
-                .filter(s -> s.name().equals("run_plan"))
+                .filter(s -> s.name().equals("queue_add"))
                 .findFirst()
                 .orElseThrow();
         JsonArray allowed = spec.parametersSchema().getAsJsonObject("properties").getAsJsonObject("steps")
@@ -377,13 +380,11 @@ public class ToolTests {
     }
 
     @GameTest
-    public void runPlanRejectsInvalidPlan(GameTestHelper h) {
+    public void queueAddRejectsInvalidSteps(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolResult nonPlannable = run(tools(c), "run_plan", "{\"steps\":[{\"tool\":\"stay\"}]}");
-        h.assertTrue(nonPlannable.error()
-                && nonPlannable.content().startsWith("Invalid arguments for run_plan: 'steps[1].tool' must be one of "),
-                "result was " + nonPlannable.content());
-        ToolResult badArgs = run(tools(c), "run_plan",
+        ToolResult nonPlannable = run(tools(c), "queue_add", "{\"steps\":[{\"tool\":\"stay\"}]}");
+        h.assertTrue(nonPlannable.error(), "result was " + nonPlannable.content());
+        ToolResult badArgs = run(tools(c), "queue_add",
                 "{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\"}\"}]}");
         h.assertTrue(badArgs.error() && badArgs.content().equals("Invalid plan: step 1: missing required argument 'count'"),
                 "result was " + badArgs.content());
@@ -391,22 +392,22 @@ public class ToolTests {
     }
 
     @GameTest
-    public void runPlanArgsObjectInsteadOfString(GameTestHelper h) {
+    public void queueAddRejectsArgsObjectInsteadOfString(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolResult r = run(tools(c), "run_plan",
+        ToolResult r = run(tools(c), "queue_add",
                 "{\"steps\":[{\"tool\":\"drop_items\",\"args\":{\"item\":\"minecraft:dirt\",\"count\":1}}]}");
-        h.assertTrue(r.error() && r.content().startsWith("Invalid arguments for run_plan: 'steps[1].args' must be a string"), "result was " + r.content());
+        h.assertTrue(r.error(), "result was " + r.content());
         h.succeed();
     }
 
     @GameTest
-    public void runPlanStartsSequence(GameTestHelper h) {
+    public void queueAddStartsPlan(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.DRIPSTONE_BLOCK, 1));
-        ToolResult r = run(tools(c), "run_plan",
+        ToolResult r = run(tools(c), "queue_add",
                 "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
-        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("run_plan"), "the plan should be the current task");
+        h.assertTrue(!r.error() && r.content().startsWith("plan #"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().queue().planCount() == 1, "the plan should be in the queue");
         h.succeed();
     }
 

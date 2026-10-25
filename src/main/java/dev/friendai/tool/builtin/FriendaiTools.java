@@ -10,11 +10,9 @@ import java.util.function.IntSupplier;
 
 /** The companion's skills as tools the LLM can call, grouped by domain. */
 public final class FriendaiTools {
-    /**
-     * A built registry plus the tools {@code run_plan} may use as steps, by name. The plan tools keep their
-     * factories, so a saved plan can be rebuilt after a reload.
-     */
-    public record Builtins(ToolRegistry<CompanionEntity> registry, Map<String, TaskToolDef> plannable) {}
+    /** A built registry plus task definitions used to restore saved queue jobs. */
+    public record Builtins(ToolRegistry<CompanionEntity> registry, Map<String, TaskToolDef> plannable,
+                           Map<String, TaskToolDef> taskTools) {}
 
     private FriendaiTools() {}
 
@@ -64,12 +62,17 @@ public final class FriendaiTools {
         TrustTools.register(registry);
         ControlTools.register(registry, defs);
         QueueTools.register(registry, defs);
+        BodyTools.register(registry, defs);
+        RelativeMovementTools.register(registry, defs);
+        InteractionTools.register(registry, defs);
         Map<String, TaskToolDef> plannable = new LinkedHashMap<>();
         for (TaskToolDef def : defs) {
             if (def.plannable()) {
                 plannable.put(def.name(), def);
             }
         }
-        return new Builtins(registry, Map.copyOf(plannable));
+        Map<String, TaskToolDef> taskTools = new LinkedHashMap<>();
+        for (TaskToolDef def : defs) taskTools.put(def.name(), def);
+        return new Builtins(registry, Map.copyOf(plannable), Map.copyOf(taskTools));
     }
 }
