@@ -49,6 +49,7 @@ public final class VoiceRuntime {
     private static String currentModel;
     private static CloudStt currentCloud;
     private static String currentCloudKey;
+    private static int captureGeneration;
 
     private VoiceRuntime() {}
 
@@ -71,7 +72,13 @@ public final class VoiceRuntime {
         if (current != null && wanted.id().equals(currentModel)) {
             return current;
         }
-        invalidate();
+        // Rebuild only the local engine; an external invalidate() bumps the capture generation,
+        // but loading a model for the current press must not invalidate that press.
+        if (current != null) {
+            current.close();
+            current = null;
+            currentModel = null;
+        }
         if (!MANAGER.isInstalled(wanted.spec())) {
             return NOT_READY;
         }
@@ -93,15 +100,29 @@ public final class VoiceRuntime {
         if (problem != null) {
             return new SttStatus(false, problem);
         }
-        if (!stt().isReady()) {
-            // The model is on disk but the native library could not be loaded.
+        // Readiness is the single authority for cloud providers; only the local engine can fail
+        // to load after its model was verified on disk.
+        if (resolved.local() && !stt().isReady()) {
             return new SttStatus(false, UserMessage.of("friendai.voice.error.no_model"));
         }
         return new SttStatus(true, null);
     }
 
+    /**
+     * A token for the next recording. Starting a recording or invalidating the runtime bumps it, so
+     * a transcript that arrives late (cloud calls may take a minute) can be recognised as stale.
+     */
+    public static synchronized int nextCaptureGeneration() {
+        return ++captureGeneration;
+    }
+
+    public static synchronized int captureGeneration() {
+        return captureGeneration;
+    }
+
     /** Drops the loaded recognizer so the next use picks up a changed provider, key or model. */
     public static synchronized void invalidate() {
+        captureGeneration++;
         if (current != null) {
             current.close();
             current = null;
@@ -112,13 +133,12 @@ public final class VoiceRuntime {
     }
 
     private static SpeechToText cloudStt(ResolvedStt resolved) {
-        if (!resolved.hasKey()) {
-            return NOT_READY;
-        }
         String key = cloudKey(resolved);
         if (currentCloud != null && key.equals(currentCloudKey)) {
             return currentCloud;
         }
+        // No key gate here: VoiceReadiness already allows a keyless explicit base URL, and
+        // VoiceAuth simply omits the header for a blank key.
         currentCloud = new CloudStt(resolved, STT);
         currentCloudKey = key;
         return currentCloud;

@@ -87,6 +87,6 @@ class OpenAiSttProtocolTest {
     }
 
     private static String protocol(String provider) {
-        return provider.equals("yandex") ? "yandex_stt" : OpenAiSttProtocol.ID;
+        return provider.equals("yandex") ? YandexSttProtocol.ID : OpenAiSttProtocol.ID;
     }
 }

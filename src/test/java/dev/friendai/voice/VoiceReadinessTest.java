@@ -28,6 +28,18 @@ class VoiceReadinessTest {
 
         ResolvedStt yandex = stt("yandex", "", "https://stt.api.cloud.yandex.net", null, "ru-RU", null);
         assertEquals("friendai.voice.error.no_key", VoiceReadiness.stt(yandex, true).key());
+
+        ResolvedStt localSttServer = stt("openai", "", "http://localhost:8080/v1", "whisper", "", null);
+        assertNull(VoiceReadiness.stt(localSttServer, true));
+    }
+
+    @Test
+    void yandexNeedsAFolderId() {
+        ResolvedStt yandex = stt("yandex", "key", "https://stt.api.cloud.yandex.net", null, "ru-RU", null);
+        assertEquals("friendai.voice.error.no_folder", VoiceReadiness.stt(yandex, true).key());
+
+        ResolvedStt withFolder = stt("yandex", "key", "https://stt.api.cloud.yandex.net", null, "ru-RU", "f1");
+        assertNull(VoiceReadiness.stt(withFolder, true));
     }
 
     @Test

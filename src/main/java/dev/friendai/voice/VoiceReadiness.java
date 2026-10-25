@@ -23,6 +23,10 @@ public final class VoiceReadiness {
         if ("yandex".equals(preset.id()) && blank(settings.language())) {
             return UserMessage.of("friendai.voice.error.unsupported_language");
         }
+        // Yandex rejects Api-Key requests without a folder, so catch it before recording starts.
+        if ("yandex".equals(preset.id()) && blank(settings.folderId())) {
+            return UserMessage.of("friendai.voice.error.no_folder");
+        }
         return null;
     }
 

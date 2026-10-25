@@ -109,6 +109,7 @@
   "friendai.voice.hud.transcribing": "Transcribing…",
   "friendai.voice.error.no_model": "Speech model not downloaded — Settings → Voice",
   "friendai.voice.error.no_key": "No API key is set for speech recognition.",
+  "friendai.voice.error.no_folder": "No Yandex folder ID is set for speech recognition.",
   "friendai.voice.error.unsupported_language": "This language is not supported by the selected speech provider.",
   "friendai.voice.error.no_mic": "Microphone unavailable",
   "friendai.voice.error.failed": "Speech recognition failed",

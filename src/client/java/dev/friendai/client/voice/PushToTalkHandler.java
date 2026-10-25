@@ -8,6 +8,7 @@ import dev.friendai.client.ui.ClientKeys;
 import dev.friendai.config.ClientConfig;
 import dev.friendai.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
+import dev.friendai.voice.VoiceErrors;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -25,6 +26,8 @@ public final class PushToTalkHandler {
     private KeyMapping key;
     private boolean held;
     private boolean pressIgnored;
+    /** The capture generation this handler last started; a completion from an older one is dropped. */
+    private int recording;
 
     public PushToTalkHandler(Supplier<SpeechToText> stt, Consumer<String> onTranscript) {
         this.stt = stt;
@@ -53,6 +56,8 @@ public final class PushToTalkHandler {
         SpeechRuntime.stop();
         ClientConfig.SttSection voice = FriendaiClient.clientConfig().voice.stt;
         pressIgnored = true;
+        // Stop accepting the previous recording, however long its cloud call still runs.
+        recording = VoiceRuntime.nextCaptureGeneration();
         if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {
             return;
         }
@@ -81,11 +86,20 @@ public final class PushToTalkHandler {
             return;
         }
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
+        final int generation = recording;
         String language = FriendaiClient.clientConfig().voice.stt.language;
         stt.get().transcribe(PcmConverter.toFloat(pcm), language).whenComplete((text, error) -> mc.execute(() -> {
+            if (generation != VoiceRuntime.captureGeneration()) {
+                // A newer press owns the HUD state; if only a config change bumped the generation,
+                // nobody else will clear the "transcribing" indicator.
+                if (recording == generation) {
+                    VoiceState.set(VoiceState.Kind.IDLE, null);
+                }
+                return;
+            }
             if (error != null) {
                 FriendaiMod.LOGGER.warn("Speech recognition failed", error);
-                VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.failed"));
+                VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
             } else {
                 VoiceState.set(VoiceState.Kind.IDLE, null);
                 if (text != null && !text.isBlank()) {
