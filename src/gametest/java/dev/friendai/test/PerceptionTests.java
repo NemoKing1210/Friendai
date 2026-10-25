@@ -35,6 +35,31 @@ public class PerceptionTests {
     }
 
     @GameTest
+    public void threatsAreNamedWithTarget(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var zombie = h.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, 6, 2, 2);
+        zombie.setTarget(c);
+        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        h.assertTrue(p.threats().size() == 1, p.toPromptText());
+        h.assertTrue(p.threats().get(0).type().equals("zombie"), p.toPromptText());
+        h.assertTrue(p.threats().get(0).target().equals("me"), p.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
+    public void threatsAreCappedAtThree(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (int i = 0; i < 4; i++) {
+            h.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, 5 + i, 2, 5);
+        }
+        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        h.assertTrue(p.threats().size() == 3, "threats: " + p.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
     public void selfReportsNoSkyUnderARoof(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         for (int x = 0; x < 5; x++) {

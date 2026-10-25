@@ -2,6 +2,7 @@ package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
+import dev.friendai.task.combat.Threats;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +13,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 
 public final class PerceptionBuilder {
@@ -22,6 +26,8 @@ public final class PerceptionBuilder {
     private static final int DETAILED_RADIUS = 16;
     private static final int ENTITY_RADIUS = 16;
     private static final int TOP = 10;
+    private static final double THREAT_RADIUS = 16;
+    private static final int MAX_THREATS = 3;
 
     private PerceptionBuilder() {}
 
@@ -62,8 +68,36 @@ public final class PerceptionBuilder {
                 task,
                 focus,
                 selfStatus(c, level, pos),
-                null,
+                threats(c, level),
                 null);
+    }
+
+    private static List<Threat> threats(CompanionEntity c, ServerLevel level) {
+        return Threats.hostilesNear(level, c.position(), THREAT_RADIUS).stream()
+                .limit(MAX_THREATS)
+                .map(e -> new Threat(
+                        shortName(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType())),
+                        c.distanceTo(e),
+                        RelativeDirection.relativeTo(c.getYRot(), e.getX() - c.getX(), e.getZ() - c.getZ()),
+                        e.getHealth(),
+                        e.getMaxHealth(),
+                        targetOf(c, e)))
+                .toList();
+    }
+
+    private static String targetOf(CompanionEntity c, LivingEntity entity) {
+        if (!(entity instanceof Mob mob)) {
+            return "nothing";
+        }
+        LivingEntity target = mob.getTarget();
+        if (target == null) {
+            return "nothing";
+        }
+        if (target == c) {
+            return "me";
+        }
+        ServerPlayer owner = c.owner().orElse(null);
+        return owner != null && target == owner ? "owner" : "someone else";
     }
 
     private static SelfStatus selfStatus(CompanionEntity c, ServerLevel level, BlockPos pos) {
