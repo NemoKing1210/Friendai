@@ -17,6 +17,7 @@ public final class JobQueue {
     private final LinkedHashMap<Long, Job> jobs = new LinkedHashMap<>();
     private final LinkedHashMap<Long, PlanRecord> plans = new LinkedHashMap<>();
     private final List<PlanArchive> archives = new ArrayList<>();
+    private static final int MAX_STORED_RESULT = 300;
     private long nextJob = 1, nextPlan = 1, nextOrder = 100, clock;
 
     public JobQueue(QueueLimits limits) { this.limits = limits == null ? QueueLimits.DEFAULTS : limits; }
@@ -111,17 +112,26 @@ public final class JobQueue {
         jobs.put(old.id(), new Job(old.id(), old.planId(), old.tool(), old.args(), old.priority(), old.priorityExplicit(), old.order(), state,
                 old.guards(), old.onUnmet(), old.onFailure(), old.maxAttempts(), attempts, old.after(), result, retryAt));
     }
+    /** Returns a job that was running when the world saved, but has no live task, to the pending pool. */
+    public void requeue(long id) { Job job = require(id); if (job.state() == JobState.RUNNING) replace(job, JobState.PENDING, job.result(), job.attempts(), 0); }
     public void markRunning(long id) { Job job = require(id); replace(job, JobState.RUNNING, job.result(), job.attempts(), job.retryAtTick()); }
-    public void finish(long id, String summary) { Job job = require(id); replace(job, JobState.DONE, summary, job.attempts(), 0); }
+    public void finish(long id, String summary) { Job job = require(id); replace(job, JobState.DONE, bound(summary), job.attempts(), 0); }
     public FailureOutcome fail(long id, String reason) {
         Job job = require(id); int attempts = job.attempts() + 1;
-        if (attempts < job.maxAttempts()) { replace(job, JobState.PENDING, reason, attempts, clock + 20L * attempts); return new FailureOutcome(jobs.get(id), true); }
+        if (attempts < job.maxAttempts()) { replace(job, JobState.PENDING, bound(reason), attempts, clock + 20L * attempts); return new FailureOutcome(jobs.get(id), true); }
         JobState state = job.onFailure() == FailurePolicy.SKIP ? JobState.SKIPPED : JobState.FAILED;
-        replace(job, state, reason, attempts, 0);
+        replace(job, state, bound(reason), attempts, 0);
         if (job.onFailure() == FailurePolicy.STOP_PLAN && job.planId() != 0) cancelPlan(job.planId());
         return new FailureOutcome(jobs.get(id), false);
     }
-    public Result cancel(long id) { Job job = jobs.get(id); if (job == null) return Result.error("unknown job #" + id); replace(job, JobState.CANCELLED, "cancelled", job.attempts(), 0); return Result.ok("cancelled #" + id); }
+    public Result cancel(long id) { return cancel(id, "cancelled"); }
+    public Result cancel(long id, String reason) {
+        Job job = jobs.get(id);
+        if (job == null) return Result.error("unknown job #" + id);
+        if (terminal(job)) return Result.error("#" + id + " is already " + job.state().name().toLowerCase());
+        replace(job, JobState.CANCELLED, bound(reason), job.attempts(), 0);
+        return Result.ok("cancelled #" + id);
+    }
     public Result markMissingTool(long id) {
         Job job = jobs.get(id);
         if (job == null) return Result.error("unknown job #" + id);
@@ -133,10 +143,10 @@ public final class JobQueue {
         if (job == null || before == null || job.planId() == 0 || job.planId() != before.planId()) return Result.error("jobs must be in the same plan");
         if (job.state() != JobState.PENDING || before.state() != JobState.PENDING) return Result.error("only pending jobs can move");
         if (jobId == beforeJobId) return Result.error("a job cannot move before itself");
-        long order = before.order() - 1;
-        replace(job, job.state(), job.result(), job.attempts(), job.retryAtTick());
-        Job moved = jobs.get(jobId);
-        jobs.put(jobId, new Job(moved.id(), moved.planId(), moved.tool(), moved.args(), moved.priority(), moved.priorityExplicit(), order, moved.state(), moved.guards(), moved.onUnmet(), moved.onFailure(), moved.maxAttempts(), moved.attempts(), moved.after(), moved.result(), moved.retryAtTick()));
+        List<Long> order = new ArrayList<>(idsByOrder());
+        order.remove(jobId);
+        order.add(order.indexOf(beforeJobId), jobId);
+        applyOrder(order);
         return Result.ok("moved #" + jobId + " before #" + beforeJobId);
     }
     public Result setPriority(long id, int priority) {
@@ -161,32 +171,75 @@ public final class JobQueue {
     public Result merge(long firstId, long secondId, JsonObject args) {
         Job first = jobs.get(firstId), second = jobs.get(secondId);
         if (first == null || second == null || first.planId() == 0 || first.planId() != second.planId()) return Result.error("jobs cannot merge");
-        jobs.put(firstId, new Job(first.id(), first.planId(), first.tool(), args, first.priority(), first.priorityExplicit(), first.order(), first.state(), first.guards(), first.onUnmet(), first.onFailure(), first.maxAttempts(), first.attempts(), first.after(), first.result(), first.retryAtTick()));
+        if (first.state() != JobState.PENDING || second.state() != JobState.PENDING || first.order() >= second.order()
+                || !(second.after().isEmpty() || second.after().equals(List.of(firstId)))) return Result.error("jobs cannot merge");
+        jobs.put(firstId, copy(first, args == null ? first.args() : args, first.priority(), first.priorityExplicit(), first.order(), first.state(), first.after(), first.result(), first.retryAtTick()));
         jobs.remove(secondId);
+        repointDependents(secondId, firstId, List.of());
         return Result.ok("merged #" + firstId + " and #" + secondId);
     }
     public Result replace(long oldId, List<QueuedStep> steps) {
-        Job old=jobs.get(oldId); if(old==null||old.planId()==0||old.state()==JobState.RUNNING)return Result.error("job cannot be replaced");
-        if(steps==null||steps.isEmpty())return Result.error("replacement needs at least one step");
-        if(steps.size()>limits.maxStepsPerAdd())return Result.error("too many replacement steps");
-        try { validateBudget(steps, oldId); if (jobs.size() - 1 + steps.size() > limits.maxJobs()) throw new IllegalArgumentException("queue has too many jobs"); }
-        catch(IllegalArgumentException e){return Result.error(e.getMessage());}
-        for(int i=0;i<steps.size();i++)for(int after:steps.get(i).afterSteps())if(after<1||after>i)return Result.error("after may only name an earlier step");
-        List<Long> ids=new ArrayList<>();for(int i=0;i<steps.size();i++)ids.add(nextJob++);
-        PlanRecord plan=plans.get(old.planId());
-        for(int i=0;i<steps.size();i++)putNew(ids.get(i),old.planId(),steps.get(i),new PlanOptions(plan.priority(),plan.onFailure(),0),ids);
-        Job first=jobs.get(ids.getFirst()); jobs.put(first.id(),copy(first,first.args(),first.priority(),first.priorityExplicit(),first.order(),first.state(),old.after(),first.result(),first.retryAtTick()));
-        long last=ids.getLast();
-        for(Job job:new ArrayList<>(jobs.values()))if(job.after().contains(oldId)){List<Long> deps=job.after().stream().map(id->id==oldId?last:id).toList();jobs.put(job.id(),copy(job,job.args(),job.priority(),job.priorityExplicit(),job.order(),job.state(),deps,job.result(),job.retryAtTick()));}
+        Job old = jobs.get(oldId);
+        if (old == null || old.planId() == 0 || (old.state() != JobState.PENDING && old.state() != JobState.FAILED && old.state() != JobState.CANCELLED)) return Result.error("job cannot be replaced");
+        if (steps == null || steps.isEmpty()) return Result.error("replacement needs at least one step");
+        if (steps.size() > limits.maxStepsPerAdd()) return Result.error("too many replacement steps");
+        try {
+            validateBudget(steps, oldId);
+            if (jobs.size() - 1 + steps.size() > limits.maxJobs()) throw new IllegalArgumentException("queue has too many jobs");
+        } catch (IllegalArgumentException e) { return Result.error(e.getMessage()); }
+        for (int i = 0; i < steps.size(); i++) for (int after : steps.get(i).afterSteps()) if (after < 1 || after > i) return Result.error("after may only name an earlier step");
+        List<Long> ids = new ArrayList<>();
+        for (int i = 0; i < steps.size(); i++) ids.add(nextJob++);
+        PlanRecord plan = plans.get(old.planId());
+        PlanOptions options = new PlanOptions(plan.priority(), plan.onFailure(), 0);
+        for (int i = 0; i < steps.size(); i++) putNew(ids.get(i), old.planId(), steps.get(i), options, ids);
+        for (int i = 0; i < ids.size(); i++) {
+            Job job = jobs.get(ids.get(i));
+            List<Long> deps = new ArrayList<>(i == 0 ? old.after() : job.after());
+            if (i > 0 && !deps.contains(ids.get(i - 1))) deps.add(ids.get(i - 1));
+            jobs.put(job.id(), copy(job, job.args(), job.priority(), job.priorityExplicit(), job.order(), job.state(), deps, job.result(), job.retryAtTick()));
+        }
+        repointDependents(oldId, ids.getLast(), ids);
+        List<Long> order = new ArrayList<>();
+        for (long id : idsByOrder()) {
+            if (ids.contains(id)) continue;
+            if (id == oldId) order.addAll(ids); else order.add(id);
+        }
         jobs.remove(oldId);
-        return Result.ok("replaced #"+oldId+" with "+ids.size()+" jobs ("+ids.stream().map(id->"#"+id).collect(java.util.stream.Collectors.joining(", "))+")");
+        applyOrder(order);
+        return Result.ok("replaced #" + oldId + " with " + ids.size() + " jobs (" + ids.stream().map(id -> "#" + id).collect(java.util.stream.Collectors.joining(", ")) + ")");
     }
+    private void repointDependents(long from, long to, List<Long> skip) {
+        for (Job job : new ArrayList<>(jobs.values())) {
+            if (!job.after().contains(from) || skip.contains(job.id())) continue;
+            List<Long> deps = new ArrayList<>();
+            for (long dep : job.after()) { long target = dep == from ? to : dep; if (!deps.contains(target)) deps.add(target); }
+            jobs.put(job.id(), copy(job, job.args(), job.priority(), job.priorityExplicit(), job.order(), job.state(), deps, job.result(), job.retryAtTick()));
+        }
+    }
+    private List<Long> idsByOrder() { return jobs.values().stream().sorted(Comparator.comparingLong(Job::order)).map(Job::id).toList(); }
+    /** Renumbers every job 100, 200, ... in the given sequence, so positions never collide. */
+    private void applyOrder(List<Long> sequence) {
+        long order = 100;
+        for (long id : sequence) {
+            Job job = jobs.get(id);
+            jobs.put(id, copy(job, job.args(), job.priority(), job.priorityExplicit(), order, job.state(), job.after(), job.result(), job.retryAtTick()));
+            order += 100;
+        }
+        nextOrder = order;
+    }
+    private static String bound(String text) { return text == null ? "" : text.length() <= MAX_STORED_RESULT ? text : text.substring(0, MAX_STORED_RESULT); }
     private static Job copy(Job j,JsonObject args,int priority,boolean explicit,long order,JobState state,List<Long> after,String result,long retryAt){return new Job(j.id(),j.planId(),j.tool(),args,priority,explicit,order,state,j.guards(),j.onUnmet(),j.onFailure(),j.maxAttempts(),j.attempts(),after,result,retryAt);}
     public Result cancelPlan(long planId) { if (!plans.containsKey(planId)) return Result.error("unknown plan #" + planId); for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0); return Result.ok("cancelled plan #" + planId); }
     public Result remove(long id) { return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id); }
-    public Result clear() { int pc = plans.size(), jc = jobs.size(); plans.clear(); jobs.clear(); return Result.ok("cleared " + pc + " plans and " + jc + " jobs"); }
+    public Result clear() {
+        int pc = plans.size(), jc = jobs.size();
+        if (jc == 0 && pc == 0) return Result.ok("queue is already empty");
+        plans.clear(); jobs.clear();
+        return Result.ok("cleared " + pc + (pc == 1 ? " plan and " : " plans and ") + jc + (jc == 1 ? " job" : " jobs"));
+    }
     public Result retry(long id) { Job j = jobs.get(id); if (j == null || j.state() != JobState.FAILED) return Result.error("job cannot retry"); replace(j, JobState.PENDING, "", 0, 0); return Result.ok("#" + id + " will retry"); }
-    public Result skip(long id) { Job j = jobs.get(id); if (j == null) return Result.error("unknown job #" + id); if(j.state()!=JobState.PENDING&&j.state()!=JobState.FAILED)return Result.error("job cannot be skipped"); replace(j, JobState.SKIPPED, "skipped", j.attempts(), 0); return Result.ok("skipped #" + id); }
+    public Result skip(long id) { Job j = jobs.get(id); if (j == null) return Result.error("unknown job #" + id); if(j.state()!=JobState.PENDING&&j.state()!=JobState.FAILED&&j.state()!=JobState.CANCELLED)return Result.error("job cannot be skipped"); replace(j, JobState.SKIPPED, "skipped", j.attempts(), 0); return Result.ok("skipped #" + id); }
     public List<Long> expiredPlans() { return plans.values().stream().filter(p -> p.deadlineTick() > 0 && p.deadlineTick() <= clock).map(PlanRecord::id).toList(); }
     public void archivePlan(long id) { PlanRecord p=plans.get(id);if(p==null)return;List<Job> planJobs=jobsOfPlan(id);boolean success=planJobs.stream().allMatch(j->j.state()==JobState.DONE||j.state()==JobState.SKIPPED);archivePlan(id,success,success?"finished":"failed"); }
     public void archivePlan(long id,boolean success,String summary) { PlanRecord p = plans.remove(id); if (p == null) return; List<Job> planJobs = jobsOfPlan(id); archives.add(new PlanArchive(id, p.goal(), success, planJobs.size(), summary, clock)); planJobs.forEach(j -> jobs.remove(j.id())); while (archives.size() > limits.maxArchives()) archives.removeFirst(); }

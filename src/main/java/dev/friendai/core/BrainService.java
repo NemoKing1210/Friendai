@@ -30,6 +30,8 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.tool.Caller;
+import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.MemoryAccess;
 import java.util.ArrayList;
@@ -266,7 +268,10 @@ public final class BrainService {
                 continue;
             }
             JsonObject args = job.args().deepCopy();
-            factories.put(job.id(), ctx -> def.factory().create(ctx.companion(), args.deepCopy()));
+            Caller owner = new Caller(companion.ownerUuid(), "", AccessLevel.OWNER);
+            factories.put(job.id(), ctx -> def.callerFactory() == null
+                    ? def.factory().create(ctx.companion(), args.deepCopy())
+                    : def.callerFactory().create(ctx.companion(), owner, args.deepCopy()));
         }
         companion.taskRunner().restoreQueue(decoded.get(), factories);
         for (Job job : companion.taskRunner().queue().jobs()) {
@@ -351,7 +356,7 @@ public final class BrainService {
 
             @Override
             public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
-                if (planId != 0 || status == TaskStatus.SUCCESS) {
+                if (planId != 0) { // direct jobs are recorded through onFinished/onCancelled
                     debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName,
                             status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
                 }

@@ -18,7 +18,15 @@ public final class CompanionGuardFacts implements GuardFacts {
     private Integer emptySlots, ownerDistance;
     private Float healthFraction;
     private String dimension;
+    private long blockStamp = Long.MIN_VALUE;
+    private static final long BLOCK_TTL_TICKS = 40;
     public CompanionGuardFacts(CompanionEntity companion) { this.companion = companion; }
+    /** Starts a new pass: cheap facts are re-read, the expensive block scans are reused for a short while. */
+    public void refresh() {
+        itemCounts.clear(); emptySlots = null; ownerDistance = null; healthFraction = null; dimension = null;
+        long now = companion.level().getGameTime();
+        if (now - blockStamp >= BLOCK_TTL_TICKS || now < blockStamp) { blockFacts.clear(); blockStamp = now; }
+    }
     @Override public int countItems(String id) {
         if (itemCounts.containsKey(id)) return itemCounts.get(id);
         var matcher = ItemMatcher.parse(id).orElse(null); if (matcher == null) return 0; int count=matcher.test(companion.getMainHandItem())?companion.getMainHandItem().getCount():0;

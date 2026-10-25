@@ -17,6 +17,8 @@ public final class QueueOptimizer {
             for (int i = 1; i < jobs.size(); i++) {
                 Job first = jobs.get(i - 1), second = jobs.get(i); String key = policy.countArgument(first.tool());
                 if (key == null || !first.tool().equals(second.tool()) || !first.guards().equals(second.guards()) || !first.after().isEmpty() || !second.after().isEmpty() || !sameExceptCount(first.args(), second.args(), key)) continue;
+                if (first.priority() != second.priority() || first.onFailure() != second.onFailure() || first.onUnmet() != second.onUnmet()
+                        || first.maxAttempts() != second.maxAttempts() || first.retryAtTick() > 0 || second.retryAtTick() > 0) continue;
                 try { int count = first.args().get(key).getAsInt() + second.args().get(key).getAsInt(); if (count <= 64) result.add(new Merge(first.id(), second.id(), first.tool(), count)); } catch (RuntimeException ignored) { }
             }
         }

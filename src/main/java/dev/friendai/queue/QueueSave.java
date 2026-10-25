@@ -14,7 +14,18 @@ public final class QueueSave {
     public static final int MAX_SAVE_CHARS = 1_000_000;
     public static final int MAX_FIELD_CHARS = 8_192;
     private QueueSave() {}
+    /** Largest piece stored as one NBT string; NBT strings are capped at 65535 bytes, a char takes at most 3. */
+    public static final int CHUNK_CHARS = 16_000;
     public record Decoded(JobQueue queue, long activeJobId, String activeTaskSave) {}
+
+    /** Splits a save into pieces that each fit one NBT string. */
+    public static List<String> split(String text) {
+        List<String> parts = new ArrayList<>();
+        for (int at = 0; at < text.length(); at += CHUNK_CHARS) parts.add(text.substring(at, Math.min(text.length(), at + CHUNK_CHARS)));
+        return parts;
+    }
+
+    public static String join(List<String> parts) { return String.join("", parts); }
 
     public static String encode(JobQueue queue, String activeTaskSave) {
         JsonObject root = new JsonObject();

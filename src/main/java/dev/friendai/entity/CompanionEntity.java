@@ -27,6 +27,8 @@ import dev.friendai.task.nav.Pace;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.tool.InventoryAccess;
+import dev.friendai.queue.QueueSave;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -667,7 +669,12 @@ public class CompanionEntity extends PathfinderMob {
         output.putFloat("Saturation", hunger.saturation());
         output.putFloat("Exhaustion", hunger.exhaustion());
         Optional<String> savedQueue = taskRunner.savedQueue();
-        savedQueue.ifPresent(saved -> output.putString("SavedQueue", saved));
+        savedQueue.ifPresent(saved -> {
+            // One NBT string holds at most 65535 bytes, so a long queue is stored in pieces.
+            List<String> parts = QueueSave.split(saved);
+            output.putInt("SavedQueueParts", parts.size());
+            for (int i = 0; i < parts.size(); i++) output.putString("SavedQueue" + i, parts.get(i));
+        });
         if (savedQueue.isEmpty()) {
             taskRunner.current().filter(task -> !task.type().equals("follow"))
                     .map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
@@ -686,7 +693,7 @@ public class CompanionEntity extends PathfinderMob {
                 input.getFloatOr("Saturation", STARTING_SATURATION),
                 input.getFloatOr("Exhaustion", 0.0f));
         if (level() instanceof ServerLevel serverLevel) {
-            Optional<String> savedQueue = input.getString("SavedQueue");
+            Optional<String> savedQueue = readSavedQueue(input);
             if (savedQueue.isPresent()) {
                 FriendaiServerState.get(serverLevel.getServer()).brains().restoreQueue(this, savedQueue.get());
             } else {
@@ -695,6 +702,19 @@ public class CompanionEntity extends PathfinderMob {
                         .ifPresent(taskRunner::restore);
             }
         }
+    }
+
+    /** Reads the chunked queue save, falling back to the single-string key written by older versions. */
+    private static Optional<String> readSavedQueue(ValueInput input) {
+        int parts = input.getInt("SavedQueueParts").orElse(0);
+        if (parts <= 0) return input.getString("SavedQueue");
+        List<String> pieces = new ArrayList<>();
+        for (int i = 0; i < parts; i++) {
+            Optional<String> piece = input.getString("SavedQueue" + i);
+            if (piece.isEmpty()) return Optional.empty();
+            pieces.add(piece.get());
+        }
+        return Optional.of(QueueSave.join(pieces));
     }
 
     /** Plans are rebuilt with the server's tool set; every other task restores on its own. */
