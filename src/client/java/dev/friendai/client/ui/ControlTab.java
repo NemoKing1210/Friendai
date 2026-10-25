@@ -47,7 +47,8 @@ final class ControlTab implements MenuTab {
     @Override
     public void tick() {
         boolean present = CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+        boolean connected = CompanionRequests.serverSupported()
+                && (net.minecraft.client.Minecraft.getInstance().isPaused() || !CompanionClientState.isStale());
         summon.active = connected && !present;
         teleport.active = connected && present;
         dismiss.active = connected && present;

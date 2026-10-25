@@ -122,6 +122,11 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         // Five tabs no longer fit at small GUI scales, so they share the width they have.
         tabWidth = Math.min(contentWidth / shownTabs.size(), 96);
         tabBarLeft = left;
+        for (int i = 0; i < shownTabs.size(); i++) {
+            Entry entry = shownTabs.get(i);
+            addRenderableWidget(new FlatButton(tabBarLeft + i * tabWidth, 24, tabWidth, TAB_HEIGHT,
+                    Component.translatable(entry.titleKey()), Ui.ACCENT, () -> select(entry)).asTab(entry == selected));
+        }
         addRenderableWidget(new FlatButton(width / 2 - 60, height - 28, 120, 20,
                 CommonComponents.GUI_DONE, Ui.ACCENT, this::onClose));
         selected.tab().init(this, left, top, contentWidth, contentHeight);
@@ -139,11 +144,6 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == 0) {
-            Entry hit = tabAt(event.x(), event.y());
-            if (hit != null) {
-                select(hit);
-                return true;
-            }
             if (selected.tab().mouseClicked(event.x(), event.y())) {
                 return true;
             }
@@ -156,53 +156,29 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         return selected.tab().scroll(mouseX, mouseY, scrollY) || super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
-    private Entry tabAt(double x, double y) {
-        if (y < 24 || y >= 24 + TAB_HEIGHT || x < tabBarLeft || x >= tabBarLeft + tabWidth * shownTabs.size()) {
-            return null;
-        }
-        return shownTabs.get((int) ((x - tabBarLeft) / tabWidth));
-    }
-
     @Override
-    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractRenderState(g, mouseX, mouseY, partialTick);
+    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractBackground(g, mouseX, mouseY, partialTick);
         int panelLeft = left - PANEL_PAD;
         int panelTop = 6;
         Ui.panel(g, panelLeft, panelTop, contentWidth + 2 * PANEL_PAD, height - 36 - panelTop);
         g.text(font, title, left, 12, Ui.TEXT);
         drawConnection(g);
-        drawTabs(g, mouseX, mouseY);
+        g.fill(tabBarLeft, 24 + TAB_HEIGHT - 1, left + contentWidth, 24 + TAB_HEIGHT, Ui.BORDER);
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(g, mouseX, mouseY, partialTick);
         selected.tab().render(g, font, left, top, contentWidth, contentHeight, mouseX, mouseY);
     }
 
     private void drawConnection(GuiGraphicsExtractor g) {
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+        boolean connected = CompanionRequests.serverSupported() && (minecraft.isPaused() || !CompanionClientState.isStale());
         Component label = Component.translatable(connected ? "friendai.menu.connected" : "friendai.menu.no_data");
         int color = connected ? Ui.GOOD : Ui.BAD;
         int x = left + contentWidth - font.width(label);
         g.text(font, label, x, 12, color);
         Ui.dot(g, x - 8, 14, 4, color);
-    }
-
-    private void drawTabs(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-        int y = 24;
-        g.fill(tabBarLeft, y + TAB_HEIGHT - 1, left + contentWidth, y + TAB_HEIGHT, Ui.BORDER);
-        for (int i = 0; i < shownTabs.size(); i++) {
-            Entry entry = shownTabs.get(i);
-            int x = tabBarLeft + i * tabWidth;
-            boolean current = entry == selected;
-            boolean hot = tabAt(mouseX, mouseY) == entry;
-            if (current) {
-                g.fill(x, y, x + tabWidth, y + TAB_HEIGHT - 1, Ui.alpha(Ui.ACCENT, 0x28));
-            } else if (hot) {
-                g.fill(x, y, x + tabWidth, y + TAB_HEIGHT - 1, Ui.alpha(0xFFFFFF, 0x10));
-            }
-            Component label = Component.translatable(entry.titleKey());
-            String text = Ui.clip(font, label.getString(), tabWidth - 6);
-            g.text(font, text, x + (tabWidth - font.width(text)) / 2, y + 6, current ? Ui.TEXT : Ui.DIM);
-            if (current) {
-                g.fill(x, y + TAB_HEIGHT - 2, x + tabWidth, y + TAB_HEIGHT, Ui.ACCENT);
-            }
-        }
     }
 }
