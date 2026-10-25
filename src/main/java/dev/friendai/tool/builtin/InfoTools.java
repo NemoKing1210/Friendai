@@ -5,8 +5,11 @@ import dev.friendai.perception.AreaMapBuilder;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionSnapshot;
+import dev.friendai.perception.TreeSummary;
+import dev.friendai.perception.TreeText;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.task.mining.TreeFinder;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
@@ -27,7 +30,45 @@ import net.minecraft.world.phys.Vec3;
 final class InfoTools {
     private InfoTools() {}
 
-    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, IntSupplier mineRadius) {
+    static void register(
+            ToolRegistry<CompanionEntity> registry,
+            List<TaskToolDef> defs,
+            IntSupplier mineRadius,
+            IntSupplier treeRadius) {
+        registry.register(ToolKit.callerTool("find_trees",
+                "List the nearest trees with their kind, height, log count, distance and direction. A log structure "
+                        + "has no leaves and is not felled automatically. Use it to choose a tree before fell_tree.",
+                SchemaBuilder.object()
+                        .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
+                        .enumeration("near", "Search around the speaker (me, default) or around yourself (self)",
+                                "me", "self")
+                        .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
+                        .integer("y", "Block y coordinate to search around instead of near", -64, 320)
+                        .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
+                        .integer("radius", "Search radius in blocks", 4, 64)
+                        .integer("limit", "How many trees to list", 1, 10)
+                        .build(),
+                AccessLevel.TRUSTED,
+                () -> true,
+                (c, caller, a) -> {
+                    BlockPos origin = NearResolver.resolve(c, caller, a);
+                    BlockMatcher matcher = a.has("type") && !a.get("type").isJsonNull()
+                            ? ToolKit.parseBlockMatcher(a.get("type").getAsString())
+                            : null;
+                    int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
+                    int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
+                    List<TreeFinder.TreeInfo> found =
+                            TreeFinder.find((ServerLevel) c.level(), origin, radius, matcher, limit, false);
+                    List<TreeSummary> trees = found.stream()
+                            .filter(t -> t.kind() != TreeFinder.Kind.LOG_STRUCTURE)
+                            .map(TreeFinder.TreeInfo::summary)
+                            .toList();
+                    List<TreeSummary> structures = found.stream()
+                            .filter(t -> t.kind() == TreeFinder.Kind.LOG_STRUCTURE)
+                            .map(TreeFinder.TreeInfo::summary)
+                            .toList();
+                    return ToolResult.ok(TreeText.toolListing(trees, structures, radius));
+                }));
         registry.register(ToolKit.instantTool("look_around", "Describe the surroundings in detail.",
                 AccessLevel.GUEST,
                 (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText())));

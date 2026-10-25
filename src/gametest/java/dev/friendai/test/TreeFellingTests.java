@@ -1,6 +1,15 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonParser;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.llm.model.ToolCall;
 import dev.friendai.task.mining.TreeFinder;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
+import dev.friendai.tool.ToolExecutor;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -26,6 +35,57 @@ public class TreeFellingTests {
 
     private static TreeFinder.Kind kindOf(List<TreeFinder.TreeInfo> found, String type) {
         return found.stream().filter(t -> t.type().equals(type)).findFirst().orElseThrow().kind();
+    }
+
+    private static ToolResult run(ToolExecutor tools, Caller caller, String name, String json) {
+        return tools.execute(
+                new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null), caller);
+    }
+
+    @GameTest(maxTicks = 400)
+    public void findTreesListsTheNearest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.MANGROVE_LOG);
+        }
+        leaf(h, 6, 6, 6);
+        for (int y = 2; y <= 4; y++) {
+            h.setBlock(new BlockPos(12, y, 12), Blocks.DARK_OAK_LOG);
+        }
+        leaf(h, 12, 5, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult result = run(FriendaiTools.create(() -> 32).bind(c), new Caller(null, "", AccessLevel.TRUSTED),
+                "find_trees", "{\"near\":\"self\",\"radius\":16}");
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("mangrove_log at "), result.content());
+        h.assertTrue(result.content().contains("dark_oak_log at "), result.content());
+        h.assertTrue(result.content().indexOf("mangrove_log") < result.content().indexOf("dark_oak_log"),
+                result.content());
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void findTreesAroundTheSpeaker(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(13, y, 13), Blocks.MANGROVE_LOG);
+        }
+        leaf(h, 13, 6, 13);
+        for (int y = 2; y <= 4; y++) {
+            h.setBlock(new BlockPos(2, y, 2), Blocks.DARK_OAK_LOG);
+        }
+        leaf(h, 2, 5, 2);
+        var owner = GameTestSupport.mockPlayerAt(h, 12.5, 2, 12.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        c.setOwner(owner.getUUID());
+        BlockPos mangrove = h.absolutePos(new BlockPos(13, 2, 13));
+        ToolResult result = run(FriendaiTools.create(() -> 32).bind(c),
+                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
+                "find_trees", "{\"near\":\"me\",\"radius\":8,\"limit\":1}");
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("mangrove_log at "
+                + mangrove.getX() + " " + mangrove.getY() + " " + mangrove.getZ()), result.content());
+        h.succeed();
     }
 
     @GameTest(maxTicks = 400)
