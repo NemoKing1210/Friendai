@@ -2,6 +2,8 @@ package dev.friendai.task.combat;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.survival.HungerModel;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.inventory.DropCollector;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -56,7 +58,8 @@ public final class CombatController {
     private static final double GUARD_RADIUS = 12.0;
     private static final double FIGHT_DROPOFF = 24.0;
     private static final int OUT_OF_SIGHT_TICKS = 100;
-    private static final double DROP_COLLECT_RADIUS = 4.0;
+    /** How far from the kill the controller looks for the drops of the fight it just ended. */
+    private static final double LOOT_RADIUS = 8.0;
     private static final double RANGED_DISTANCE = 6.0;
     private static final int BOW_DRAW_TICKS = 20;
     private static final float ARROW_SPEED = 3.0F;
@@ -81,6 +84,8 @@ public final class CombatController {
 
     private State state = State.IDLE;
     private LivingEntity target;
+    /** The round that walks to the drops of the last fight, ticked while idle. */
+    private DropCollector loot;
     private int nextScan;
     private int attackCooldown;
     private int repathTicks;
@@ -120,6 +125,26 @@ public final class CombatController {
     /** True once a fight the tasks asked for has ended; also true while no such fight is running. */
     public boolean fightOver() {
         return state == State.IDLE;
+    }
+
+    /** True while the controller is walking to the drops of the last fight. */
+    public boolean looting() {
+        return loot != null;
+    }
+
+    /** Drops the loot round, leaving whatever is on the ground where it lies. */
+    public void stopLooting() {
+        stopLootRound();
+    }
+
+    private void stopLootRound() {
+        if (loot == null) {
+            return;
+        }
+        if (companion.level() instanceof ServerLevel level) {
+            loot.stop(new TaskContext(companion, level));
+        }
+        loot = null;
     }
 
     /** True while the controller is eating. */
@@ -217,6 +242,11 @@ public final class CombatController {
         }
         if (state != State.IDLE) {
             return;
+        }
+        // Walk to what the last fight dropped before looking for the next one. Passively too: the companion still
+        // wants the loot of a fight it fought back in. A new fight ends the round through beginFight.
+        if (loot != null && loot.tick(new TaskContext(companion, level)) == DropCollector.State.DONE) {
+            loot = null;
         }
         if (companion.combatMode() == CombatMode.PASSIVE) {
             List<LivingEntity> passiveThreats = ruleOneThreats(level).stream()
@@ -386,6 +416,7 @@ public final class CombatController {
 
     private void beginRetreat(ServerLevel level, List<LivingEntity> threats, boolean fromCreeper) {
         interruptEating(level);
+        stopLootRound();
         if (state == State.FIGHTING) {
             abandonFight();
         }
@@ -533,6 +564,7 @@ public final class CombatController {
 
     private void beginFight(ServerLevel level, Selection selection, boolean ordered, boolean ownerConsent) {
         state = State.FIGHTING;
+        stopLootRound();
         target = selection.entity();
         taskDriven = ordered;
         this.ownerConsent = ownerConsent;
@@ -781,7 +813,8 @@ public final class CombatController {
         if (ended != null && (ended.isDeadOrDying() || ended.isRemoved())) {
             kills.merge(nameOf(ended), 1, Integer::sum);
         }
-        companion.collectNearbyItems(DROP_COLLECT_RADIUS);
+        // The loot is on the ground where the fight ended: walk to it once the fight is over.
+        loot = new DropCollector(companion.position(), (int) LOOT_RADIUS);
         companion.getNavigation().stop();
         companion.stopUsingItem();
         usingBow = false;

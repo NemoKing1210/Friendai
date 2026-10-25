@@ -58,6 +58,11 @@ public final class HuntTask implements Task {
         if (controller.state() == CombatController.State.FIGHTING) {
             return TaskStatus.RUNNING;
         }
+        // The kill's drops are on the ground: stay until the controller has walked them into the inventory, so the
+        // task never reports a kill whose loot it left behind.
+        if (controller.looting()) {
+            return TaskStatus.RUNNING;
+        }
         if (target != null) {
             if (target.isRemoved() || target.isDeadOrDying()) {
                 kills++;
@@ -124,6 +129,7 @@ public final class HuntTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        c.companion().combatController().stopLooting();
         c.companion().combatController().stopFight();
         c.companion().getNavigation().stop();
     }
