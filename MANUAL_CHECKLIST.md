@@ -55,13 +55,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.
 - [ ] Spatial speech on: a reply is louder and clearer on the side the companion stands; walking away fades it to silence at the hearing radius.
 - [ ] Turning the head during a reply moves the balance.
-- [ ] Chat and voice at 30 blocks from the companion get no reply and the "too far" notice.
+- [ ] Chat and voice at 40 blocks from the companion get no reply and the "too far" notice.
 - [ ] Two replies from different companions in a row each sound from their own position.
 - [ ] A mono output device still fades with distance (no crash, no panning).
 
 ## Multiplayer
 
-- [ ] LAN with two clients: each player has their own companion; addressing by name reaches your own companion when it is within 16 blocks, otherwise the nearest other companion.
+- [ ] LAN with two clients: each player has their own companion; addressing by name reaches your own companion when it is within 32 blocks, otherwise the nearest other companion within that radius.
 - [ ] A guest next to another player's companion chats with it; asking it to act is politely declined.
 - [ ] `/friendai trust <guest>`: the guest's request now runs; `/friendai untrust` takes effect on the next message.
 - [ ] `/friendai trusted` and the trust messages read correctly in English and Russian.

@@ -62,7 +62,7 @@ Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where
 
 The transcript is sent to the server as a chat message. Local recognition keeps the audio on your machine; a cloud provider uploads the recording, and only while that provider is selected.
 
-Both typed chat and push-to-talk only reach a companion in the same dimension within the server's hearing radius (16 blocks by default, `chat.hearingRadius`). Farther away the companion neither hears you nor answers, and says so instead of staying silent.
+Both typed chat and push-to-talk only reach a companion in the same dimension within the server's hearing radius (32 blocks by default, `chat.hearingRadius`). Farther away the companion neither hears you nor answers, and says so instead of staying silent.
 
 ### Speech output
 
