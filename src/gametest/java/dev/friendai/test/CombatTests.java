@@ -570,6 +570,27 @@ public class CombatTests {
         });
     }
 
+    @GameTest(maxTicks = 200)
+    public void ownerOrderedHuntAttacksGolem(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var golem = h.spawn(EntityTypes.IRON_GOLEM, 5, 2, 2);
+        h.assertTrue(Threats.isProtected(golem, c), "a golem is off limits without an order");
+        h.assertFalse(Threats.isProtected(golem, c, true), "the owner's order lifts the golem rule");
+        c.taskRunner().start(
+                new HuntTask(type -> type == EntityTypes.IRON_GOLEM, "minecraft:iron_golem", 1, 16, true), "attack");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    c.combatController().target().filter(target -> target == golem).isPresent(),
+                    "the ordered golem was not targeted: state " + c.combatController().state()
+                            + ", target " + c.combatController().target()
+                            + ", task " + c.taskRunner().current().map(task -> task.type()).orElse("none"));
+            // Leave nothing fighting behind in the shared test world.
+            golem.kill(h.getLevel());
+            c.taskRunner().stop("test");
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void huntSkipsNamedMob(GameTestHelper h) {
         GameTestSupport.platform(h, 15);

@@ -24,6 +24,7 @@ import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
@@ -430,15 +431,32 @@ public class ToolTests {
     public void attackToolRefusals(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
-        ToolResult villager = run(tools, "attack", "{\"target\":\"minecraft:villager\",\"count\":1}");
+        ToolResult villager = runAs(tools, "attack", "{\"target\":\"minecraft:villager\",\"count\":1}",
+                new Caller(UUID.randomUUID(), "Trusted", AccessLevel.TRUSTED));
         h.assertTrue(villager.error() && villager.content().equals("I won't attack minecraft:villager"),
-                "result was " + villager.content());
+                "a trusted player's order must not lift the rule: " + villager.content());
         ToolResult player = run(tools, "attack", "{\"target\":\"minecraft:player\",\"count\":1}");
         h.assertTrue(player.error() && player.content().equals("use attack_player for players"),
                 "result was " + player.content());
         ToolResult unknown = run(tools, "attack", "{\"target\":\"nonsense:mob\",\"count\":1}");
         h.assertTrue(unknown.error() && unknown.content().equals("unknown mob: nonsense:mob"),
                 "result was " + unknown.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void ownerOrderAttacksProtectedSpecies(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        ToolResult golem = run(tools, "attack", "{\"target\":\"minecraft:iron_golem\",\"count\":1}");
+        h.assertTrue(!golem.error() && golem.content().startsWith("task #"),
+                "the owner's order should start the hunt: " + golem.content());
+        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("attack")).orElse(false),
+                "the hunt task should be running");
+        c.taskRunner().stop("test");
+        ToolResult companion = run(tools, "attack",
+                "{\"target\":\"" + BuiltInRegistries.ENTITY_TYPE.getKey(FriendaiEntities.COMPANION) + "\",\"count\":1}");
+        h.assertTrue(companion.error(), "a companion must stay off limits: " + companion.content());
         h.succeed();
     }
 

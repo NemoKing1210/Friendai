@@ -33,10 +33,19 @@ public final class Threats {
     }
 
     /**
-     * Entities the companion never attacks on its own or on the {@code attack} order: the owner, other players,
-     * other companions, someone else's pets and named mobs, villagers, golems. Fighting back is decided elsewhere.
+     * Entities the companion never attacks on its own: the owner, other players, other companions, someone else's
+     * pets and named mobs, villagers, golems. Fighting back is decided elsewhere.
      */
     public static boolean isProtected(LivingEntity entity, CompanionEntity companion) {
+        return isProtected(entity, companion, false);
+    }
+
+    /**
+     * The same rule with the owner's explicit order taken into account. {@code ownerOrder} lifts only the species
+     * rule (villagers, wandering traders and golems), because the owner asking for it is the permission; it never
+     * lifts the rest — another player, their pets and their named mobs stay off limits.
+     */
+    public static boolean isProtected(LivingEntity entity, CompanionEntity companion, boolean ownerOrder) {
         if (entity == companion || entity instanceof CompanionEntity) {
             return true;
         }
@@ -47,8 +56,8 @@ public final class Threats {
         if (entity instanceof Player) {
             return true;
         }
-        if (entity instanceof Villager || entity instanceof WanderingTrader
-                || entity instanceof IronGolem || entity instanceof SnowGolem) {
+        if (!ownerOrder && (entity instanceof Villager || entity instanceof WanderingTrader
+                || entity instanceof IronGolem || entity instanceof SnowGolem)) {
             return true;
         }
         LivingEntity entityOwner = entity instanceof OwnableEntity ownable ? ownable.getOwner() : null;

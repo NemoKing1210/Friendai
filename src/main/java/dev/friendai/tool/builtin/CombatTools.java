@@ -39,20 +39,20 @@ final class CombatTools {
     private CombatTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(registry, defs, new TaskToolDef("attack",
-                "Hunt and kill mobs of a type near the companion, then collect the drops. Not for villagers, golems, pets or players.",
+        ToolKit.addCaller(registry, defs, new TaskToolDef("attack",
+                "Hunt and kill mobs of a type near the companion, then collect the drops. Use attack_player for"
+                        + " players. Villagers, wandering traders and golems are off limits on your own initiative;"
+                        + " when the owner explicitly orders one hit or killed, that order is the permission, so"
+                        + " call attack with its type and do it.",
                 SchemaBuilder.object()
                         .string("target", "Entity type id like minecraft:cow, or a tag like #minecraft:skeletons")
                         .integer("count", "How many to hunt", 1, 16)
                         .integer("radius", "Search radius in blocks", 1, 32)
                         .required("target", "count")
                         .build(),
-                (c, a) -> new HuntTask(
-                        matcher(a.get("target").getAsString()),
-                        targetLabel(a.get("target").getAsString()),
-                        a.get("count").getAsInt(),
-                        a.has("radius") && !a.get("radius").isJsonNull() ? a.get("radius").getAsInt() : 16),
-                true));
+                (c, a) -> huntTask(a, false),
+                true),
+                CombatTools::attack);
         ToolKit.addCaller(registry, defs, new TaskToolDef("attack_player",
                 "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.",
                 SchemaBuilder.object()
@@ -197,6 +197,32 @@ final class CombatTools {
         return food;
     }
 
+    /**
+     * Starts the hunt. The owner's explicit order also covers the species the companion leaves alone on its own —
+     * villagers, wandering traders and golems; a trusted speaker's request does not.
+     */
+    private static ToolResult attack(CompanionEntity companion, Caller caller, JsonObject args) {
+        boolean ownerOrder = caller != null && caller.access() == AccessLevel.OWNER;
+        Task task;
+        try {
+            task = huntTask(args, ownerOrder);
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error(e.getMessage());
+        }
+        int id = companion.taskRunner().start(task, "attack");
+        return ToolResult.ok("task #" + id + " started: " + task.describe());
+    }
+
+    private static Task huntTask(JsonObject args, boolean ownerOrder) {
+        String target = args.get("target").getAsString();
+        return new HuntTask(
+                matcher(target, ownerOrder),
+                targetLabel(target),
+                args.get("count").getAsInt(),
+                args.has("radius") && !args.get("radius").isJsonNull() ? args.get("radius").getAsInt() : 16,
+                ownerOrder);
+    }
+
     private static ToolResult attackPlayerAction(CompanionEntity companion, Caller caller, JsonObject args) {
         Task task;
         try {
@@ -235,7 +261,7 @@ final class CombatTools {
         return new AttackPlayerTask(target.getUUID(), name);
     }
 
-    private static Predicate<EntityType<?>> matcher(String text) {
+    private static Predicate<EntityType<?>> matcher(String text, boolean ownerOrder) {
         if (text.startsWith("#")) {
             Identifier id = Identifier.tryParse(text.substring(1));
             if (id == null) {
@@ -248,9 +274,9 @@ final class CombatTools {
         if (type == EntityTypes.PLAYER) {
             throw new IllegalArgumentException("use attack_player for players");
         }
-        if (type == EntityTypes.VILLAGER || type == EntityTypes.WANDERING_TRADER
-                || type == EntityTypes.IRON_GOLEM || type == EntityTypes.SNOW_GOLEM
-                || type == FriendaiEntities.COMPANION) {
+        if (type == FriendaiEntities.COMPANION
+                || (!ownerOrder && (type == EntityTypes.VILLAGER || type == EntityTypes.WANDERING_TRADER
+                        || type == EntityTypes.IRON_GOLEM || type == EntityTypes.SNOW_GOLEM))) {
             throw new IllegalArgumentException("I won't attack " + BuiltInRegistries.ENTITY_TYPE.getKey(type));
         }
         return candidate -> candidate == type;

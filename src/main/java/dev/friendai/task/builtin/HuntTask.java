@@ -22,6 +22,8 @@ public final class HuntTask implements Task {
     private final String label;
     private final int count;
     private final int radius;
+    /** The owner asked for this hunt by name, so villagers and golems are fair game (see {@link Threats}). */
+    private final boolean ownerOrdered;
     private final Set<UUID> skipped = new HashSet<>();
     private final Set<UUID> unreachable = new HashSet<>();
 
@@ -31,10 +33,15 @@ public final class HuntTask implements Task {
     private String summary = "";
 
     public HuntTask(Predicate<EntityType<?>> matcher, String label, int count, int radius) {
+        this(matcher, label, count, radius, false);
+    }
+
+    public HuntTask(Predicate<EntityType<?>> matcher, String label, int count, int radius, boolean ownerOrdered) {
         this.matcher = matcher;
         this.label = label;
         this.count = count;
         this.radius = radius;
+        this.ownerOrdered = ownerOrdered;
     }
 
     @Override
@@ -96,7 +103,7 @@ public final class HuntTask implements Task {
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity : nearby) {
-            if (Threats.isProtected(entity, companion)) {
+            if (Threats.isProtected(entity, companion, ownerOrdered)) {
                 skipped.add(entity.getUUID());
                 continue;
             }

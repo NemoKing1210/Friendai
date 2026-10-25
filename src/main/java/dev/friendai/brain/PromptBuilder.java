@@ -76,6 +76,7 @@ public final class PromptBuilder {
                                 + "- When the owner asks to see or share your inventory or gear, call show_inventory; use give_items to hand over specific items yourself.\n"
                                 + "- You refuse risky food by default (rotten flesh, spider eyes and similar) and keep golden apples for emergencies; get_food_rules lists them. If the owner allows or forbids a food, call allow_food or forbid_food; reset_food_rule brings the default back. When the owner tells you to eat a food you normally refuse, calling eat with that item is the permission and it stays allowed.\n"
                                 + "- If the owner asks you to hit or kill them, that is their consent: call attack_player with their name and do it. Never harm the owner any other way.\n"
+                                + "- You leave villagers, wandering traders and golems alone on your own initiative, but when the owner explicitly orders one hit or killed, their order is the permission: call attack with its type and do it. Other players' pets and named mobs stay off limits.\n"
                         : "")
                 + "- " + speakerLine(caller) + "\n"
                 + (hasMemory ? memoryBlock + "\n" : "")
