@@ -68,7 +68,7 @@ class ServerConfigTest {
         assertTrue(c.chat.guestsEnabled);
         assertEquals(16, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
-        assertEquals(4, c.version);
+        assertEquals(5, c.version);
     }
 
     @Test
@@ -78,7 +78,7 @@ class ServerConfigTest {
         assertEquals(160, c.memory.maxFactChars);
         assertEquals(20, c.memory.maxFactsPerPlayer);
         assertEquals(30, c.memory.maxWorldFacts);
-        assertEquals(4, c.version);
+        assertEquals(5, c.version);
         assertEquals(160, c.memory.limits().maxFactChars());
     }
 
@@ -104,7 +104,7 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(160, c.memory.maxFactChars);
         assertTrue(c.memory.enabled);
-        assertTrue(Files.readString(f).contains("\"version\": 4"));
+        assertTrue(Files.readString(f).contains("\"version\": 5"));
     }
 
     @Test
@@ -125,7 +125,7 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(16, c.chat.hearingRadius);
-        assertTrue(Files.readString(f).contains("\"version\": 4"));
+        assertTrue(Files.readString(f).contains("\"version\": 5"));
     }
 
     @Test
@@ -146,7 +146,7 @@ class ServerConfigTest {
         assertEquals(64, c.pathing.maxGatherBlocks);
         assertTrue(c.pathing.breakBlacklist.contains("#minecraft:planks"));
         assertFalse(c.pathing.breakBlacklist.stream().anyMatch(entry -> entry.contains("terracotta")));
-        assertEquals(4, c.version);
+        assertEquals(5, c.version);
         assertEquals(2, c.pathing.toPathingConfig().searchBudgetMs());
     }
 
@@ -160,8 +160,38 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(2, c.pathing.searchBudgetMs);
         assertTrue(c.pathing.allowBreak);
-        assertEquals(4, c.version);
-        assertTrue(Files.readString(f).contains("\"version\": 4"));
+        assertEquals(5, c.version);
+        assertTrue(Files.readString(f).contains("\"version\": 5"));
+    }
+
+    @Test
+    void chunkLoadingDefaultsOnWithOneChunk() {
+        var c = ServerConfig.defaults();
+        assertTrue(c.companion.chunkLoading.enabled);
+        assertEquals(1, c.companion.chunkLoading.radius);
+        assertEquals(5, c.version);
+    }
+
+    @Test
+    void validateClampsChunkLoadingRadius() {
+        var c = ServerConfig.defaults();
+        c.companion.chunkLoading.radius = 99;
+        c.validate();
+        assertEquals(4, c.companion.chunkLoading.radius);
+        c.companion.chunkLoading.radius = -3;
+        c.validate();
+        assertEquals(0, c.companion.chunkLoading.radius);
+    }
+
+    @Test
+    void missingChunkLoadingSectionIsFilled() {
+        var c = ServerConfig.defaults();
+        c.companion.chunkLoading = null;
+        var problems = c.validate();
+        assertNotNull(c.companion.chunkLoading);
+        assertTrue(c.companion.chunkLoading.enabled);
+        assertEquals(1, c.companion.chunkLoading.radius);
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("companion.chunkLoading")));
     }
 
     @Test

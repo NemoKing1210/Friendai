@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -40,6 +40,13 @@ public class ServerConfig {
         public String name = "Friendai";
         public String persona = "A friendly and resourceful Minecraft companion. Keeps answers short and helpful.";
         public String language = "auto";
+        public ChunkLoadingSection chunkLoading = new ChunkLoadingSection();
+    }
+
+    /** Whether the companion keeps its chunk loaded, and how many chunks around it tick. */
+    public static class ChunkLoadingSection {
+        public boolean enabled = true;
+        public int radius = 1;
     }
 
     public static class ChatSection {
@@ -120,6 +127,12 @@ public class ServerConfig {
             companion = new CompanionSection();
             problems.add("companion was missing");
         }
+        if (companion.chunkLoading == null) {
+            companion.chunkLoading = new ChunkLoadingSection();
+            problems.add("companion.chunkLoading was missing");
+        }
+        companion.chunkLoading.radius = clamp(
+                problems, "companion.chunkLoading.radius", companion.chunkLoading.radius, 0, 4);
         if (chat == null) {
             chat = new ChatSection();
             problems.add("chat was missing");
