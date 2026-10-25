@@ -8,6 +8,7 @@ import dev.friendai.pathing.PathGoal;
 import dev.friendai.pathing.Pos;
 import java.util.List;
 import java.util.Set;
+import java.util.Optional;
 
 /** Reach goal that only accepts safe, dry stances around explicitly selected resource blocks. */
 public final class MiningGoal implements PathGoal {
@@ -26,13 +27,18 @@ public final class MiningGoal implements PathGoal {
 
     @Override
     public boolean isGoal(Node node, CellView view) {
+        return targetAt(node, view).isPresent();
+    }
+
+    /** First target that is safe and visible from this stance, if any. */
+    public Optional<Pos> targetAt(Node node, CellView view) {
         for (Pos target : targets) {
             if (MiningSafety.canBreak(view, node, target, protectedSupports)
                     && new GoalReach(List.of(target), reach, eyeHeight).reachedTarget(node, view) != null) {
-                return true;
+                return Optional.of(target);
             }
         }
-        return false;
+        return Optional.empty();
     }
 
     @Override

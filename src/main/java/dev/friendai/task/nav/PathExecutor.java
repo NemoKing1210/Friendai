@@ -74,6 +74,7 @@ public final class PathExecutor {
     private double progressZ;
     private int progressTicks;
     private int nudges;
+    private int brokenBlocks;
 
     public PathExecutor(Path path, MaterialPicker materials, PathingConfig config) {
         this(path, materials, config, PathExecutionGuard.DEFAULT);
@@ -89,6 +90,11 @@ public final class PathExecutor {
     /** How many steps are finished; the step being worked on starts at this index. */
     public int stepIndex() {
         return Math.max(0, index);
+    }
+
+    /** Number of blocks this executor actually destroyed; vanished blocks do not count. */
+    public int brokenBlocks() {
+        return brokenBlocks;
     }
 
     public State tick(TaskContext c) {
@@ -205,10 +211,17 @@ public final class PathExecutor {
         }
         return switch (action.tick(c, state -> !state.isAir())) {
             case WORKING -> State.RUNNING;
-            case BROKEN, GONE -> {
+            case BROKEN -> {
+                brokenBlocks++;
                 action = null;
                 breaks.remove(0);
                 pickupTicks = PICKUP_TICKS;
+                phase = breaks.isEmpty() ? (places.isEmpty() ? Phase.MOVE : Phase.PLACE) : Phase.BREAK;
+                yield State.RUNNING;
+            }
+            case GONE -> {
+                action = null;
+                breaks.remove(0);
                 phase = breaks.isEmpty() ? (places.isEmpty() ? Phase.MOVE : Phase.PLACE) : Phase.BREAK;
                 yield State.RUNNING;
             }
