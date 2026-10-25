@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -80,6 +81,27 @@ class MemoryStoreTest {
         assertEquals(1, store.book(A)
                 .addFact(Subject.WORLD, Category.NOTE, "first", A, "Steve", 0, MemoryLimits.DEFAULTS)
                 .id());
+    }
+
+    @Test
+    void foodRulesPersistAcrossStores() {
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).setFoodRule("minecraft:rotten_flesh", true);
+        store.book(A).setFoodRule("minecraft:bread", false);
+        store.flushAll();
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        assertEquals(Optional.of(true), reopened.book(A).foodRule("minecraft:rotten_flesh"));
+        assertEquals(Optional.of(false), reopened.book(A).foodRule("minecraft:bread"));
+    }
+
+    @Test
+    void versionOneFileAcceptsFoodRules() throws IOException {
+        Files.writeString(dir.resolve(A + ".json"), "{\"version\":1,\"players\":[]}");
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).setFoodRule("minecraft:rotten_flesh", true);
+        store.flushAll();
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        assertEquals(Optional.of(true), reopened.book(A).foodRule("minecraft:rotten_flesh"));
     }
 
     @Test

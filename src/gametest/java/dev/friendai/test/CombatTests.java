@@ -11,12 +11,14 @@ import dev.friendai.task.builtin.EatTask;
 import dev.friendai.task.builtin.EquipTask;
 import dev.friendai.task.builtin.HuntTask;
 import dev.friendai.task.combat.CombatController;
+import dev.friendai.task.combat.Food;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.core.registries.Registries;
@@ -420,6 +422,40 @@ public class CombatTests {
         h.runAfterDelay(120, () -> {
             h.assertValueEqual(c.hunger().food(), 10, "food changed without safe food");
             h.assertValueEqual(c.inventory().countItem(Items.SPIDER_EYE), 1, "the spider eye must be kept");
+            h.succeed();
+        });
+    }
+
+    @GameTest
+    public void foodChoiceFollowsTheOwnerRules(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        c.hunger().load(10, 0.0F, 0.0F);
+        c.inventory().addItem(new ItemStack(Items.BREAD));
+        c.inventory().addItem(new ItemStack(Items.SPIDER_EYE));
+        c.setFoodRule("minecraft:bread", false);
+        c.setFoodRule("minecraft:spider_eye", true);
+        int slot = Food.choose(c, false).orElseThrow();
+        h.assertTrue(c.inventory().getItem(slot).is(Items.SPIDER_EYE),
+                "the chosen food was " + c.inventory().getItem(slot));
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 300)
+    public void eatTaskEatsFoodTheOwnerAllowed(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        Notices notices = listen(c);
+        c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+        c.setFoodRule("minecraft:rotten_flesh", true);
+        c.taskRunner().start(new EatTask(Items.ROTTEN_FLESH), "eat");
+        h.runAfterDelay(100, () -> {
+            h.assertTrue(notices.finalStatus == TaskStatus.SUCCESS,
+                    "status " + notices.finalStatus + " " + notices.finalSummary);
+            h.assertValueEqual(
+                    c.inventory().countItem(Items.ROTTEN_FLESH), 0, "the allowed rotten flesh must be eaten");
             h.succeed();
         });
     }

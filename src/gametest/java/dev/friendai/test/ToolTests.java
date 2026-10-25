@@ -12,7 +12,9 @@ import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.crafting.Station;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.cooking.FurnaceJob;
+import dev.friendai.task.combat.Food;
 import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
@@ -38,6 +40,11 @@ public class ToolTests {
 
     private static ToolExecutor tools(CompanionEntity c) {
         return FriendaiTools.create(() -> 32).bind(c);
+    }
+
+    private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {
+        JsonObject args = JsonParser.parseString(json).getAsJsonObject();
+        return tools.execute(new ToolCall("1", name, args, json, null), caller);
     }
 
     /** A mock player with a unique name, because the stock helper names every player "test-mock-player". */
@@ -218,7 +225,8 @@ public class ToolTests {
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
-                "get_food", "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
+                "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
+                "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "look_around", "find_blocks", "player_view", "trust_player", "untrust_player", "show_inventory",
@@ -543,6 +551,58 @@ public class ToolTests {
         h.assertTrue(!r.error(), "error: " + r.content());
         h.assertTrue(r.content().contains("structure"), "content was " + r.content());
         h.assertTrue(r.content().contains("gather"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void ownerEatOfRefusedFoodAllowsIt(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+        ToolResult r = run(tools(c), "eat", "{\"item\":\"minecraft:rotten_flesh\"}");
+        h.assertTrue(!r.error(), "result was " + r.content());
+        h.assertTrue(c.foodRule("minecraft:rotten_flesh").orElse(false), "the owner naming it should allow it");
+        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("eat")).orElse(false),
+                "the eat task should be running");
+        h.succeed();
+    }
+
+    @GameTest
+    public void trustedPlayerCannotChangeFoodRules(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+        Caller guest = new Caller(UUID.randomUUID(), "Bob", AccessLevel.TRUSTED);
+        ToolResult eaten = runAs(tools(c), "eat", "{\"item\":\"minecraft:rotten_flesh\"}", guest);
+        h.assertTrue(!eaten.error(), "eat result was " + eaten.content());
+        h.assertTrue(c.foodRule("minecraft:rotten_flesh").isEmpty(),
+                "a trusted player must not change the owner's rules");
+        ToolResult allowed = runAs(tools(c), "allow_food", "{\"item\":\"minecraft:spider_eye\"}", guest);
+        h.assertTrue(allowed.error(), "allow_food is owner-only, got " + allowed.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void foodRulesCanBeSetListedAndReset(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        ToolResult forbid = run(tools(c), "forbid_food", "{\"item\":\"minecraft:bread\"}");
+        h.assertTrue(!forbid.error(), "forbid result was " + forbid.content());
+        h.assertTrue(!Food.isSafe(c, new ItemStack(Items.BREAD), true), "forbidden bread must not be eaten");
+
+        ToolResult allow = run(tools(c), "allow_food", "{\"item\":\"minecraft:spider_eye\"}");
+        h.assertTrue(!allow.error(), "allow result was " + allow.content());
+        h.assertTrue(Food.isSafe(c, new ItemStack(Items.SPIDER_EYE), false), "allowed spider eye must be eaten");
+
+        ToolResult listed = run(tools(c), "get_food_rules", "{}");
+        h.assertTrue(
+                listed.content().contains("minecraft:bread") && listed.content().contains("minecraft:spider_eye"),
+                "rules text was " + listed.content());
+
+        ToolResult reset = run(tools(c), "reset_food_rule", "{\"item\":\"minecraft:bread\"}");
+        h.assertTrue(!reset.error(), "reset result was " + reset.content());
+        h.assertTrue(c.foodRule("minecraft:bread").isEmpty(), "bread should be back to the default");
+        h.assertTrue(Food.isSafe(c, new ItemStack(Items.BREAD), true), "bread is safe by default");
         h.succeed();
     }
 

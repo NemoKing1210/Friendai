@@ -91,7 +91,7 @@ public final class EatTask implements Task {
                 summary = id + " is not food";
                 return TaskStatus.FAILED;
             }
-            if (!Food.isSafe(stack, true)) {
+            if (!Food.isSafe(companion, stack, true)) {
                 summary = "I won't eat " + id;
                 return TaskStatus.FAILED;
             }

@@ -42,6 +42,7 @@ public final class PromptBuilder {
                 + (caller.access() == AccessLevel.OWNER
                         ? "- If the owner asks to trust or stop trusting a player, call trust_player or untrust_player; the owner then confirms it themselves.\n"
                                 + "- When the owner asks to see or share your inventory or gear, call show_inventory; use give_items to hand over specific items yourself.\n"
+                                + "- You refuse risky food by default (rotten flesh, spider eyes and similar) and keep golden apples for emergencies; get_food_rules lists them. If the owner allows or forbids a food, call allow_food or forbid_food; reset_food_rule brings the default back. When the owner tells you to eat a food you normally refuse, calling eat with that item is the permission and it stays allowed.\n"
                         : "")
                 + "- " + speakerLine(caller) + "\n"
                 + (hasMemory ? memoryBlock + "\n" : "")

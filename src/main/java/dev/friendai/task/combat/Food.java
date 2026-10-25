@@ -2,15 +2,18 @@ package dev.friendai.task.combat;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.survival.HungerModel;
+import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Which food the companion may eat, and which one is best. */
+/** Which food the companion may eat, which one is best, and the owner's rules that override the defaults. */
 public final class Food {
     private static final Set<Item> UNSAFE = Set.of(
             Items.ROTTEN_FLESH,
@@ -23,15 +26,36 @@ public final class Food {
 
     private Food() {}
 
-    /** Safe food heals; golden apples are kept for emergencies. */
-    public static boolean isSafe(ItemStack stack, boolean goldenAllowed) {
+    /**
+     * Safe food heals; golden apples are kept for emergencies. An explicit rule from the owner wins over
+     * both: an allowed food is eaten even when it is risky, a forbidden one is never eaten.
+     */
+    public static boolean isSafe(CompanionEntity companion, ItemStack stack, boolean goldenAllowed) {
         if (stack.isEmpty() || stack.get(DataComponents.FOOD) == null) {
             return false;
+        }
+        Optional<Boolean> rule = companion.foodRule(id(stack.getItem()));
+        if (rule.isPresent()) {
+            return rule.get();
         }
         if (UNSAFE.contains(stack.getItem())) {
             return false;
         }
         return goldenAllowed || !GOLDEN.contains(stack.getItem());
+    }
+
+    /** Item ids the companion refuses by default; the owner can allow them one by one. */
+    public static List<String> defaultForbiddenIds() {
+        return UNSAFE.stream().map(Food::id).sorted().toList();
+    }
+
+    /** Item ids kept for emergencies unless the owner allows them. */
+    public static List<String> emergencyIds() {
+        return GOLDEN.stream().map(Food::id).sorted().toList();
+    }
+
+    private static String id(Item item) {
+        return BuiltInRegistries.ITEM.getKey(item).toString();
     }
 
     /**
@@ -47,7 +71,7 @@ public final class Food {
         boolean bestFits = false;
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             ItemStack stack = companion.inventory().getItem(i);
-            if (!isSafe(stack, goldenAllowed)) {
+            if (!isSafe(companion, stack, goldenAllowed)) {
                 continue;
             }
             FoodProperties food = stack.get(DataComponents.FOOD);

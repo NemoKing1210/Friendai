@@ -1,5 +1,6 @@
 package dev.friendai.memory;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,12 +11,14 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Everything one owner's companion remembers: player records with trust, and facts about players and the
- * world. Pure Java; the store decides when to persist.
+ * Everything one owner's companion remembers: player records with trust, facts about players and the
+ * world, and the owner's food rules. Pure Java; the store decides when to persist.
  */
 public final class MemoryBook {
     private final Map<UUID, PlayerRecord> players = new LinkedHashMap<>();
     private final TreeMap<Integer, Fact> facts = new TreeMap<>();
+    /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
+    private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -99,6 +102,45 @@ public final class MemoryBook {
                 .filter(PlayerRecord::trusted)
                 .sorted(Comparator.comparing(PlayerRecord::lastName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    /** The owner's rule for one food: true if allowed, false if forbidden; empty when the default applies. */
+    public Optional<Boolean> foodRule(String itemId) {
+        return Optional.ofNullable(foodRules.get(itemId));
+    }
+
+    /** Every food rule, sorted by item id. */
+    public Map<String, Boolean> foodRules() {
+        return Collections.unmodifiableMap(new TreeMap<>(foodRules));
+    }
+
+    /** Sets or replaces the rule for one food. Returns whether the stored value changed. */
+    public boolean setFoodRule(String itemId, boolean allowed) {
+        checkItemId(itemId);
+        Boolean previous = foodRules.put(itemId, allowed);
+        if (previous != null && previous == allowed) {
+            return false;
+        }
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** Removes the rule for one food, so the default applies again. Returns whether a rule was removed. */
+    public boolean clearFoodRule(String itemId) {
+        checkItemId(itemId);
+        if (foodRules.remove(itemId) == null) {
+            return false;
+        }
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    private static void checkItemId(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            throw new IllegalArgumentException("A food rule needs an item id.");
+        }
     }
 
     public Optional<Fact> fact(int id) {
@@ -282,6 +324,12 @@ public final class MemoryBook {
             entry.lastSeen = record.lastSeen();
             file.players.add(entry);
         }
+        foodRules.forEach((item, allowed) -> {
+            MemoryFile.FoodRuleEntry entry = new MemoryFile.FoodRuleEntry();
+            entry.item = item;
+            entry.allowed = allowed;
+            file.foodRules.add(entry);
+        });
         return file;
     }
 
@@ -327,6 +375,14 @@ public final class MemoryBook {
                 maxId = Math.max(maxId, entry.id);
             }
             book.nextId = Math.max(file.nextId, maxId + 1);
+        }
+        if (file != null && file.foodRules != null) {
+            for (MemoryFile.FoodRuleEntry entry : file.foodRules) {
+                if (entry == null || entry.item == null || entry.item.isBlank()) {
+                    continue;
+                }
+                book.foodRules.put(entry.item, entry.allowed);
+            }
         }
         book.dirty = false;
         return book;

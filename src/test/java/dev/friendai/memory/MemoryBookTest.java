@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -289,5 +291,49 @@ class MemoryBookTest {
         assertEquals(r, b.revision());
         b.setTrusted(B, "Bob", true, 0);
         assertEquals(++r, b.revision());
+    }
+
+    @Test
+    void foodRulesChangeRevisionAndMarkDirty() {
+        var b = new MemoryBook();
+        assertTrue(b.foodRule("minecraft:rotten_flesh").isEmpty());
+        assertTrue(b.setFoodRule("minecraft:rotten_flesh", true));
+        assertEquals(Optional.of(true), b.foodRule("minecraft:rotten_flesh"));
+        assertTrue(b.isDirty());
+        long r = b.revision();
+        assertFalse(b.setFoodRule("minecraft:rotten_flesh", true), "the same value is not a change");
+        assertEquals(r, b.revision());
+        assertTrue(b.setFoodRule("minecraft:bread", false));
+        assertEquals(Optional.of(false), b.foodRule("minecraft:bread"));
+        assertEquals(++r, b.revision());
+        b.foodRules();
+        assertEquals(r, b.revision());
+        assertTrue(b.clearFoodRule("minecraft:bread"));
+        assertFalse(b.clearFoodRule("minecraft:bread"));
+        assertTrue(b.foodRule("minecraft:bread").isEmpty());
+        assertEquals(r + 1, b.revision());
+    }
+
+    @Test
+    void foodRulesRoundTripThroughTheFile() {
+        var b = new MemoryBook();
+        b.setFoodRule("minecraft:spider_eye", true);
+        b.setFoodRule("minecraft:bread", false);
+        var copy = MemoryBook.fromFile(b.toFile());
+        assertEquals(
+                Map.of("minecraft:bread", false, "minecraft:spider_eye", true), copy.foodRules());
+        assertFalse(copy.isDirty());
+    }
+
+    @Test
+    void foodRulesSkipBadEntriesAndRejectBlankIds() {
+        var f = new MemoryFile();
+        var bad = new MemoryFile.FoodRuleEntry();
+        bad.item = "  ";
+        f.foodRules.add(bad);
+        f.foodRules.add(null);
+        assertTrue(MemoryBook.fromFile(f).foodRules().isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> new MemoryBook().setFoodRule("", true));
+        assertThrows(IllegalArgumentException.class, () -> new MemoryBook().clearFoodRule(null));
     }
 }

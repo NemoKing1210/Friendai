@@ -26,6 +26,16 @@ final class ToolKit {
         registry.register(taskTool(def));
     }
 
+    /**
+     * Registers a task tool that needs the caller of the turn, and still contributes its definition so
+     * {@code run_plan} can reuse its schema and factory.
+     */
+    static void addCaller(
+            ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def, CallerAction action) {
+        defs.add(def);
+        registry.register(callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, action));
+    }
+
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
         return tool(def.name(), def.description(), def.schema(), def.minAccess(), (c, args) -> {
             Task task;

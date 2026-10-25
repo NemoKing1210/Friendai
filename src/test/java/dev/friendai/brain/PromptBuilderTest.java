@@ -81,6 +81,15 @@ class PromptBuilderTest {
     }
 
     @Test
+    void foodRulesAreOnlyExplainedToTheOwner() {
+        String owner = system(new Persona("F", "d", "auto"), "p");
+        assertTrue(owner.contains("call allow_food or forbid_food"), owner);
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Tia", AccessLevel.TRUSTED));
+        assertFalse(trusted.contains("allow_food"), trusted);
+    }
+
+    @Test
     void onlyTheOwnerIsToldAboutShowInventory() {
         String owner = system(new Persona("F", "d", "auto"), "p");
         assertTrue(owner.contains("show_inventory"), owner);

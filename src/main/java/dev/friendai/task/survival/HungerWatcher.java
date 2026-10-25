@@ -113,11 +113,11 @@ public final class HungerWatcher {
     private boolean hasSafeFood() {
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
             ItemStack stack = companion.inventory().getItem(slot);
-            if (Food.isSafe(stack, false)) {
+            if (Food.isSafe(companion, stack, false)) {
                 return true;
             }
         }
-        return Food.isSafe(companion.getMainHandItem(), false);
+        return Food.isSafe(companion, companion.getMainHandItem(), false);
     }
 
     private boolean peaceful() {

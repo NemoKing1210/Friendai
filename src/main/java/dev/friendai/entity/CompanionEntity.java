@@ -5,6 +5,7 @@ import dev.friendai.build.Blueprint;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.StationLease;
+import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.survival.Difficulty;
@@ -26,6 +27,7 @@ import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.tool.InventoryAccess;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -439,6 +441,36 @@ public class CompanionEntity extends PathfinderMob {
             return Optional.empty();
         }
         return Optional.ofNullable(serverLevel.getServer().getPlayerList().getPlayer(ownerUuid));
+    }
+
+    /**
+     * The owner's rule for one food, read from the owner's memory book: true if the owner allowed a food
+     * that would otherwise be refused, false if the owner forbade it. Empty means the default applies.
+     */
+    public Optional<Boolean> foodRule(String itemId) {
+        return foodBook().flatMap(book -> book.foodRule(itemId));
+    }
+
+    /** Every explicit food rule the owner set, sorted by item id. */
+    public Map<String, Boolean> foodRules() {
+        return foodBook().map(MemoryBook::foodRules).orElse(Map.of());
+    }
+
+    /** Stores a food rule in the owner's book. Returns false when there is no owner or no server to keep it. */
+    public boolean setFoodRule(String itemId, boolean allowed) {
+        return foodBook().map(book -> book.setFoodRule(itemId, allowed)).isPresent();
+    }
+
+    /** Drops an explicit food rule, so the default applies again. Returns whether one was removed. */
+    public boolean clearFoodRule(String itemId) {
+        return foodBook().map(book -> book.clearFoodRule(itemId)).orElse(false);
+    }
+
+    private Optional<MemoryBook> foodBook() {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return Optional.empty();
+        }
+        return Optional.of(FriendaiServerState.get(serverLevel.getServer()).memory().book(ownerUuid));
     }
 
     public SimpleContainer inventory() {

@@ -10,13 +10,17 @@ import dev.friendai.task.builtin.EquipTask;
 import dev.friendai.task.builtin.GetFoodTask;
 import dev.friendai.task.builtin.HuntTask;
 import dev.friendai.task.combat.CombatMode;
+import dev.friendai.task.combat.Food;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -27,6 +31,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 /** Fighting, hunting, equipment and food. */
@@ -77,15 +82,13 @@ final class CombatTools {
                         .build(),
                 (c, a) -> new EquipTask(item(a.get("item").getAsString()), slot(a)),
                 true));
-        ToolKit.add(registry, defs, new TaskToolDef("eat",
-                "Eat food from the inventory to heal. Without item, picks the best safe food.",
+        ToolKit.addCaller(registry, defs, new TaskToolDef("eat",
+                "Eat food from the inventory to heal. Without item, picks the best safe food. When the owner names a food you normally refuse, eating it is their permission: it is remembered.",
                 SchemaBuilder.object()
                         .string("item", "Food item id like minecraft:bread")
                         .build(),
-                (c, a) -> new EatTask(a.has("item") && !a.get("item").isJsonNull()
-                        ? item(a.get("item").getAsString())
-                        : null),
-                true));
+                (c, a) -> new EatTask(optionalItem(a)),
+                true), CombatTools::eat);
         ToolKit.add(registry, defs, new TaskToolDef("get_food",
                 "Get food the most efficient way: cook what I carry, take it from chests, bake bread, harvest, hunt or fish.",
                 SchemaBuilder.object()
@@ -95,6 +98,103 @@ final class CombatTools {
                         ? a.get("count").getAsInt()
                         : 4),
                 true));
+        registry.register(ToolKit.instantTool("allow_food",
+                "Owner only. Let the companion eat a food it normally refuses, such as rotten flesh, or one it keeps for emergencies. The rule is remembered across sessions.",
+                SchemaBuilder.object()
+                        .string("item", "Food item id like minecraft:rotten_flesh")
+                        .required("item")
+                        .build(),
+                AccessLevel.OWNER,
+                (c, a) -> setFoodRule(c, a.get("item").getAsString(), true)));
+        registry.register(ToolKit.instantTool("forbid_food",
+                "Owner only. Never let the companion eat a food, even one it would otherwise eat. The rule is remembered across sessions.",
+                SchemaBuilder.object()
+                        .string("item", "Food item id like minecraft:bread")
+                        .required("item")
+                        .build(),
+                AccessLevel.OWNER,
+                (c, a) -> setFoodRule(c, a.get("item").getAsString(), false)));
+        registry.register(ToolKit.instantTool("reset_food_rule",
+                "Owner only. Drop the owner's rule for one food, so the default applies again.",
+                SchemaBuilder.object()
+                        .string("item", "Food item id like minecraft:rotten_flesh")
+                        .required("item")
+                        .build(),
+                AccessLevel.OWNER,
+                (c, a) -> resetFoodRule(c, a.get("item").getAsString())));
+        registry.register(ToolKit.instantTool("get_food_rules",
+                "List the foods the owner allowed or forbade, the foods refused by default, and the ones kept for emergencies.",
+                (c, a) -> describeFoodRules(c)));
+    }
+
+    /**
+     * Starts the eat task, and when the owner names a food the companion would refuse, treats it as the
+     * owner's permission and remembers it. A trusted player's request grants nothing.
+     */
+    private static ToolResult eat(CompanionEntity companion, Caller caller, JsonObject args) {
+        Item food = optionalItem(args);
+        String note = "";
+        if (food != null && caller != null && caller.access() == AccessLevel.OWNER) {
+            ItemStack stack = food.getDefaultInstance();
+            String id = BuiltInRegistries.ITEM.getKey(food).toString();
+            if (stack.get(DataComponents.FOOD) != null
+                    && !Food.isSafe(companion, stack, true)
+                    && companion.setFoodRule(id, true)) {
+                note = "the owner allowed " + id + " from now on; ";
+            }
+        }
+        EatTask task = new EatTask(food);
+        int taskId = companion.taskRunner().start(task, "eat");
+        return ToolResult.ok(note + "task #" + taskId + " started: " + task.describe());
+    }
+
+    private static @Nullable Item optionalItem(JsonObject args) {
+        return args.has("item") && !args.get("item").isJsonNull() ? item(args.get("item").getAsString()) : null;
+    }
+
+    private static ToolResult setFoodRule(CompanionEntity companion, String itemText, boolean allowed) {
+        Item food = foodItem(itemText);
+        String id = BuiltInRegistries.ITEM.getKey(food).toString();
+        if (!companion.setFoodRule(id, allowed)) {
+            return ToolResult.error("I have no owner to remember food rules for.");
+        }
+        return ToolResult.ok((allowed ? "I may eat " : "I won't eat ") + id + " from now on; the rule is remembered.");
+    }
+
+    private static ToolResult resetFoodRule(CompanionEntity companion, String itemText) {
+        Item food = foodItem(itemText);
+        String id = BuiltInRegistries.ITEM.getKey(food).toString();
+        if (!companion.clearFoodRule(id)) {
+            return ToolResult.ok("I had no rule for " + id + "; the default applies.");
+        }
+        return ToolResult.ok("Rule for " + id + " removed; the default applies again.");
+    }
+
+    private static ToolResult describeFoodRules(CompanionEntity companion) {
+        Map<String, Boolean> rules = companion.foodRules();
+        List<String> allowed = rules.entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(Map.Entry::getKey)
+                .toList();
+        List<String> forbidden = rules.entrySet().stream()
+                .filter(entry -> !entry.getValue())
+                .map(Map.Entry::getKey)
+                .toList();
+        return ToolResult.ok("Food rules. The owner allows: " + list(allowed) + ". The owner forbids: "
+                + list(forbidden) + ". I refuse by default: " + String.join(", ", Food.defaultForbiddenIds())
+                + ". I keep for emergencies: " + String.join(", ", Food.emergencyIds()) + ".");
+    }
+
+    private static String list(List<String> items) {
+        return items.isEmpty() ? "nothing" : String.join(", ", items);
+    }
+
+    private static Item foodItem(String text) {
+        Item food = item(text);
+        if (food.getDefaultInstance().get(DataComponents.FOOD) == null) {
+            throw new IllegalArgumentException(text + " is not food");
+        }
+        return food;
     }
 
     private static Task attackPlayer(CompanionEntity companion, String name) {

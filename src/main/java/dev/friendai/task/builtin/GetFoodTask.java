@@ -266,7 +266,7 @@ public final class GetFoodTask implements Task {
             }
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
                 ItemStack stack = container.getItem(slot);
-                if (!isReadyFood(stack)) {
+                if (!isReadyFood(c.companion(), stack)) {
                     continue;
                 }
                 FoodProperties food = stack.get(DataComponents.FOOD);
@@ -391,18 +391,18 @@ public final class GetFoodTask implements Task {
         int total = 0;
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
             ItemStack stack = companion.inventory().getItem(slot);
-            if (isReadyFood(stack)) {
+            if (isReadyFood(companion, stack)) {
                 total += stack.getCount();
             }
         }
-        if (isReadyFood(companion.getMainHandItem())) {
+        if (isReadyFood(companion, companion.getMainHandItem())) {
             total += companion.getMainHandItem().getCount();
         }
         return total;
     }
 
-    private static boolean isReadyFood(ItemStack stack) {
-        return Food.isSafe(stack, false) && !RAW_FOOD.contains(stack.getItem());
+    private static boolean isReadyFood(CompanionEntity companion, ItemStack stack) {
+        return Food.isSafe(companion, stack, false) && !RAW_FOOD.contains(stack.getItem());
     }
 
     private static String idOf(ItemStack stack) {
@@ -414,11 +414,11 @@ public final class GetFoodTask implements Task {
         LinkedHashSet<String> kinds = new LinkedHashSet<>();
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
             ItemStack stack = companion.inventory().getItem(slot);
-            if (isReadyFood(stack)) {
+            if (isReadyFood(companion, stack)) {
                 kinds.add(idOf(stack));
             }
         }
-        if (isReadyFood(companion.getMainHandItem())) {
+        if (isReadyFood(companion, companion.getMainHandItem())) {
             kinds.add(idOf(companion.getMainHandItem()));
         }
         summary = kinds.isEmpty()
