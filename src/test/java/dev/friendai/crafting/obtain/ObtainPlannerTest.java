@@ -90,6 +90,38 @@ class ObtainPlannerTest {
     }
 
     @Test
+    void planksTagExploresAnyWood() {
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(STONE, 8), true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(ObtainStep.Explore.class, plan.steps().get(0).getClass(), plan.steps().toString());
+        ObtainStep.Explore explore = (ObtainStep.Explore) plan.steps().get(0);
+        assertEquals("#minecraft:logs", explore.block());
+        assertFalse(explore.down());
+        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore other
+                && !other.block().startsWith("#")), plan.steps().toString());
+    }
+
+    @Test
+    void specificLogItemExploresTheSpecies() {
+        ObtainPlan plan = plan(OAK_LOG, 1, Map.of(), world(Map.of(ACACIA_LOG, 6), true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(OAK_LOG, ((ObtainStep.Explore) plan.steps().get(0)).block());
+    }
+
+    @Test
+    void woodTagIngredientDoesNotExplorePerSpecies() {
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(STONE, 8), true));
+
+        List<ObtainStep> explores = plan.steps().stream()
+                .filter(ObtainStep.Explore.class::isInstance)
+                .toList();
+        assertEquals(1, explores.size(), plan.steps().toString());
+        assertEquals("#minecraft:logs", ((ObtainStep.Explore) explores.get(0)).block());
+    }
+
+    @Test
     void conditionalSiteIsUsedOnlyWhenNoLocalPlanExists() {
         ResourceCandidate remembered = new ResourceCandidate(41, ACACIA_LOG, "minecraft:overworld",
                 new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
