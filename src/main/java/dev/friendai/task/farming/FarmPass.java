@@ -1,13 +1,20 @@
 package dev.friendai.task.farming;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.farming.CropBook;
+import dev.friendai.farming.FarmGoal;
+import dev.friendai.farming.FarmPlan;
+import dev.friendai.farming.FarmPlanner;
+import dev.friendai.farming.FarmStep;
+import dev.friendai.farming.FieldCell;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +24,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionResult;
@@ -24,39 +32,50 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BonemealSource;
+import net.minecraft.world.level.block.BonemealableBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One pass over a farm: harvest, replant, sow empty farmland and optionally till soil next to water.
- * A tickable unit used by both the one-shot {@code farm} task and the open-ended {@code tend_farm}.
+ * One pass over a farm: the planner decides what to harvest, replant, sow, till and bone meal, and this class walks
+ * those steps tick by tick. A step whose precondition no longer holds (a crop was broken, the soil changed) marks its
+ * cell and asks for a fresh plan, a few times at most. A tickable unit used by both the one-shot {@code farm} task
+ * and the open-ended {@code tend_farm}.
  */
 public final class FarmPass {
-    private enum Phase { HARVEST, REPLANT, PLANT, TILL, DONE }
-
     private enum Step { BUSY, IDLE }
 
-    private enum Action { REPLANT, PLANT, TILL }
-
-    private static final int TILL_CAP = 16;
+    /** Fresh plans allowed after the first one, whether the world disagreed or the queue ran dry. */
+    private static final int MAX_REPLANS = 3;
+    private static final int BONEMEAL_CAP = 8;
     /** How long a harvest's drops get to land and leave their pickup delay before the pass moves on. */
     private static final int SETTLE_TICKS = 12;
     private static final ItemMatcher BERRIES = ItemMatcher.parse("minecraft:sweet_berries").orElseThrow();
-    private static final Item[] SEED_ORDER = {Items.WHEAT_SEEDS, Items.CARROT, Items.POTATO, Items.BEETROOT_SEEDS};
 
     private final BlockPos center;
     private final int radius;
     private final @Nullable Item crop;
     private final boolean till;
+    private final boolean boneMeal;
 
     private final Map<String, Integer> harvested = new LinkedHashMap<>();
-    private final Map<BlockPos, Item> replantQueue = new LinkedHashMap<>();
     private final Set<BlockPos> attempted = new HashSet<>();
-    private final List<BlockPos> tillQueue = new ArrayList<>();
-    private int tillIndex;
+    /** Cells whose harvest was skipped for lack of room, so their replant is skipped too. */
+    private final Set<BlockPos> skippedHarvest = new HashSet<>();
+    /** Cells that could not be tilled, so the sow planned after the till is skipped. */
+    private final Set<BlockPos> failedTill = new HashSet<>();
+    private final Deque<FarmStep> queue = new ArrayDeque<>();
 
-    private Phase phase = Phase.HARVEST;
+    private CropBook book;
+    private boolean planned;
+    private boolean replanRequested;
+    private boolean workedSincePlan;
+    private int replans;
+    private int lastUnsown;
+    private List<FarmStep.NeedSeeds> shortfall = List.of();
+    private FarmStep current;
+
     private BlockBreaker breaker;
     private BlockPos breakerPos;
     private Map<String, Integer> breakerDrops;
@@ -69,9 +88,7 @@ public final class FarmPass {
     private BlockPos berrySettling;
 
     private Approach approach;
-    private BlockPos actionPos;
-    private Action action;
-    private Item actionSeed;
+    private int meals;
 
     private int replanted;
     private int planted;
@@ -79,41 +96,38 @@ public final class FarmPass {
     private int noSeeds;
     private boolean noHoe;
     private boolean stopped;
+    private boolean done;
     private FarmReport report;
 
     public FarmPass(BlockPos center, int radius, @Nullable Item crop, boolean till) {
+        this(center, radius, crop, till, false);
+    }
+
+    public FarmPass(BlockPos center, int radius, @Nullable Item crop, boolean till, boolean boneMeal) {
         this.center = center.immutable();
         this.radius = Math.max(1, Math.min(16, radius));
         this.crop = crop;
         this.till = till;
+        this.boneMeal = boneMeal;
     }
 
     /** Works a little each tick; true when the pass is over. */
     public boolean tick(TaskContext c) {
-        if (stopped || phase == Phase.DONE) {
+        if (stopped || done) {
             return true;
         }
-        while (phase != Phase.DONE) {
-            Step step = switch (phase) {
-                case HARVEST -> harvestTick(c);
-                case REPLANT -> replantTick(c);
-                case PLANT -> plantTick(c);
-                case TILL -> tillTick(c);
-                case DONE -> Step.IDLE;
-            };
-            if (step == Step.BUSY) {
+        while (true) {
+            if (current == null && !nextStep(c)) {
+                finish();
+                done = true;
+                return true;
+            }
+            if (run(c, current) == Step.BUSY) {
                 return false;
             }
-            phase = switch (phase) {
-                case HARVEST -> Phase.REPLANT;
-                case REPLANT -> Phase.PLANT;
-                case PLANT -> till ? Phase.TILL : Phase.DONE;
-                case TILL -> Phase.DONE;
-                case DONE -> Phase.DONE;
-            };
+            current = null;
+            workedSincePlan = true;
         }
-        finish();
-        return true;
     }
 
     public FarmReport report() {
@@ -134,7 +148,67 @@ public final class FarmPass {
         c.companion().getNavigation().stop();
     }
 
-    private Step harvestTick(TaskContext c) {
+    /** Takes the next step off the queue, planning first when there is no plan or the world disagreed. */
+    private boolean nextStep(TaskContext c) {
+        boolean wanted = !planned || (replanRequested && replans < MAX_REPLANS)
+                || (queue.isEmpty() && workedSincePlan && replans < MAX_REPLANS);
+        if (wanted) {
+            if (planned) {
+                replans++;
+            }
+            plan(c);
+        }
+        current = queue.poll();
+        return current != null;
+    }
+
+    private void plan(TaskContext c) {
+        if (book == null) {
+            book = CropIndex.of(c.level());
+        }
+        FarmPlan plan = FarmPlanner.plan(
+                FarmSnapshotBuilder.build(c, center, radius, attempted),
+                new FarmGoal(crop == null ? null : itemId(crop), till, boneMeal, 0, FarmGoal.DEFAULT_MAX_STEPS),
+                book);
+        queue.clear();
+        List<FarmStep.NeedSeeds> needs = new ArrayList<>();
+        for (FarmStep step : plan.steps()) {
+            if (step instanceof FarmStep.NeedSeeds need) {
+                needs.add(need);
+            } else {
+                queue.add(step);
+            }
+        }
+        shortfall = needs;
+        lastUnsown = plan.unsown();
+        noHoe |= plan.notes().contains("missing hoe");
+        planned = true;
+        replanRequested = false;
+        workedSincePlan = false;
+    }
+
+    private Step run(TaskContext c, FarmStep step) {
+        return switch (step) {
+            case FarmStep.Harvest harvest -> harvestTick(c, at(harvest.cell()));
+            case FarmStep.Replant replant -> replantTick(c, at(replant.cell()), itemOf(replant.seed()));
+            case FarmStep.Sow sow -> sowTick(c, at(sow.cell()), itemOf(sow.seed()));
+            case FarmStep.Till tillStep -> tillTick(c, at(tillStep.cell()));
+            case FarmStep.Bonemeal bonemeal -> bonemealTick(c, at(bonemeal.cell()));
+            case FarmStep.NeedSeeds need -> Step.IDLE;
+        };
+    }
+
+    private BlockPos at(FieldCell cell) {
+        return center.offset(cell.dx(), cell.dy(), cell.dz()).immutable();
+    }
+
+    /** The world disagreed with the plan at this cell: leave it out of later plans and plan again. */
+    private void fail(BlockPos pos) {
+        attempted.add(pos);
+        replanRequested = true;
+    }
+
+    private Step harvestTick(TaskContext c, BlockPos pos) {
         if (settle != null) {
             if (!settle.tick(c)) {
                 return Step.BUSY;
@@ -148,7 +222,7 @@ public final class FarmPass {
                 attempted.add(berrySettling);
                 berrySettling = null;
             }
-            return Step.BUSY;
+            return Step.IDLE;
         }
         if (breaker != null) {
             BlockBreaker.State state = breaker.tick(c);
@@ -174,149 +248,124 @@ public final class FarmPass {
             if (state == Approach.State.MOVING) {
                 return Step.BUSY;
             }
-            BlockPos pos = berryPos;
+            BlockPos berries = berryPos;
             berryPos = null;
             berryApproach = null;
-            if (state == Approach.State.IN_REACH && c.companion().hands().canInteract(pos)) {
+            if (state == Approach.State.IN_REACH && c.companion().hands().canInteract(berries)) {
                 berryBefore = c.companion().inventory().countItem(Items.SWEET_BERRIES);
-                berrySettling = pos;
-                c.companion().hands().use(pos);
+                berrySettling = berries;
+                c.companion().hands().use(berries);
                 settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, BERRIES);
-            } else {
-                attempted.add(pos);
+                return Step.BUSY;
             }
-            return Step.BUSY;
+            fail(berries);
+            return Step.IDLE;
         }
         if (!hasRoom(c.companion())) {
+            skippedHarvest.add(pos);
+            attempted.add(pos);
             return Step.IDLE;
         }
-        BlockPos target = nearestHarvestable(c);
-        if (target == null) {
-            return Step.IDLE;
-        }
-        Optional<Harvestable> found = Crops.harvestable(c.level(), target);
+        Optional<Harvestable> found = Crops.harvestable(c.level(), pos);
         if (found.isEmpty()) {
-            attempted.add(target);
+            fail(pos);
+            return Step.IDLE;
+        }
+        if (found.get().kind() == Harvestable.Kind.BERRIES) {
+            berryPos = pos;
+            berryApproach = new Approach(pos);
             return Step.BUSY;
         }
-        Harvestable harvestable = found.get();
-        if (harvestable.kind() == Harvestable.Kind.BERRIES) {
-            berryPos = target;
-            berryApproach = new Approach(target);
-            return Step.BUSY;
-        }
-        BlockState state = c.level().getBlockState(target);
-        breakerDrops = countDrops(c.level(), target, state, c.companion());
-        breaker = new BlockBreaker(target, current -> Crops.harvestable(c.level(), target).isPresent());
-        breakerPos = target;
-        if (harvestable.replant() != null
-                && (harvestable.kind() == Harvestable.Kind.CROP || harvestable.kind() == Harvestable.Kind.NETHER_WART)) {
-            replantQueue.put(target, harvestable.replant());
-        }
+        BlockState state = c.level().getBlockState(pos);
+        breakerDrops = countDrops(c.level(), pos, state, c.companion());
+        breaker = new BlockBreaker(pos, current -> Crops.harvestable(c.level(), pos).isPresent());
+        breakerPos = pos;
         return Step.BUSY;
     }
 
-    private Step replantTick(TaskContext c) {
-        if (action != Action.REPLANT) {
-            actionPos = nextReplant();
-            if (actionPos == null) {
+    private Step replantTick(TaskContext c, BlockPos pos, Item seedItem) {
+        BlockPos below = pos.below();
+        if (approach == null) {
+            if (skippedHarvest.contains(pos)) {
                 return Step.IDLE;
             }
-            action = Action.REPLANT;
-            actionSeed = replantQueue.get(actionPos);
-            approach = new Approach(actionPos.below());
+            approach = new Approach(below);
         }
         Approach.State state = approach.tick(c.companion());
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
-        BlockPos pos = actionPos;
-        BlockPos below = pos.below();
         if (state == Approach.State.IN_REACH
                 && c.companion().hands().canInteract(below)
                 && c.level().getBlockState(pos).isAir()
-                && Crops.isReplantSurface(c.level().getBlockState(below), actionSeed)) {
-            ItemStack seed = takeOne(c.companion(), actionSeed);
+                && Crops.isReplantSurface(c.level().getBlockState(below), seedItem)) {
+            ItemStack seed = takeOne(c.companion(), seedItem);
             if (seed.isEmpty()) {
                 noSeeds++;
-                attempted.add(pos);
+                fail(pos);
             } else {
                 InteractionResult result = c.companion().hands().place(seed, below, Direction.UP);
                 if (result.consumesAction() && Crops.isCrop(c.level().getBlockState(pos))) {
                     replanted++;
                 }
             }
+        } else {
+            fail(pos);
         }
-        replantQueue.remove(pos);
         attempted.add(pos);
         clearAction();
-        return Step.BUSY;
+        return Step.IDLE;
     }
 
-    private Step plantTick(TaskContext c) {
-        if (action != Action.PLANT) {
-            actionPos = nextEmptyFarmland(c);
-            if (actionPos == null) {
+    private Step sowTick(TaskContext c, BlockPos pos, Item seedItem) {
+        if (approach == null) {
+            if (failedTill.contains(pos)) {
                 return Step.IDLE;
             }
-            action = Action.PLANT;
-            attempted.add(actionPos);
-            actionSeed = chooseSeed(c.level(), actionPos, c.companion());
-            if (actionSeed == null) {
-                noSeeds++;
-                clearAction();
-                return Step.BUSY;
-            }
-            approach = new Approach(actionPos);
+            approach = new Approach(pos);
         }
         Approach.State state = approach.tick(c.companion());
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
-        BlockPos pos = actionPos;
         if (state == Approach.State.IN_REACH
                 && c.companion().hands().canInteract(pos)
-                && c.level().getBlockState(pos).is(Blocks.FARMLAND)
+                && Crops.isReplantSurface(c.level().getBlockState(pos), seedItem)
                 && c.level().getBlockState(pos.above()).isAir()) {
-            ItemStack seed = takeOne(c.companion(), actionSeed);
-            if (!seed.isEmpty()) {
+            ItemStack seed = takeOne(c.companion(), seedItem);
+            if (seed.isEmpty()) {
+                noSeeds++;
+                replanRequested = true;
+            } else {
                 InteractionResult result = c.companion().hands().place(seed, pos, Direction.UP);
                 if (result.consumesAction() && Crops.isCrop(c.level().getBlockState(pos.above()))) {
                     planted++;
                 }
             }
+        } else {
+            fail(pos);
         }
+        attempted.add(pos);
         clearAction();
-        return Step.BUSY;
+        return Step.IDLE;
     }
 
-    private Step tillTick(TaskContext c) {
-        if (tillQueue.isEmpty() && tillIndex == 0 && !hasHoe(c.companion())) {
-            noHoe = true;
-            return Step.IDLE;
-        }
-        if (tillQueue.isEmpty() && tillIndex == 0) {
-            buildTillQueue(c);
-        }
-        if (tillIndex >= tillQueue.size() || tilled >= TILL_CAP) {
-            return Step.IDLE;
-        }
-        if (action != Action.TILL) {
-            actionPos = tillQueue.get(tillIndex++);
-            action = Action.TILL;
-            approach = new Approach(actionPos);
+    private Step tillTick(TaskContext c, BlockPos pos) {
+        if (approach == null) {
+            approach = new Approach(pos);
         }
         Approach.State state = approach.tick(c.companion());
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
-        BlockPos pos = actionPos;
         if (state == Approach.State.IN_REACH
                 && c.companion().hands().canInteract(pos)
-                && isTillCandidate(c.level(), pos)) {
+                && FarmSnapshotBuilder.isTillCandidate(c.level(), pos)) {
             ItemStack hoe = takeHoe(c.companion());
             if (hoe.isEmpty()) {
                 noHoe = true;
+                failedTill.add(pos);
+                fail(pos);
                 clearAction();
                 return Step.IDLE;
             }
@@ -329,163 +378,63 @@ public final class FarmPass {
             }
             if (c.level().getBlockState(pos).is(Blocks.FARMLAND)) {
                 tilled++;
-                plantTilled(c, pos);
+            } else {
+                failedTill.add(pos);
+                fail(pos);
             }
+        } else {
+            failedTill.add(pos);
+            fail(pos);
         }
+        attempted.add(pos);
         clearAction();
+        return Step.IDLE;
+    }
+
+    private Step bonemealTick(TaskContext c, BlockPos pos) {
+        if (approach == null) {
+            if (!growing(c.level(), pos)) {
+                fail(pos);
+                return Step.IDLE;
+            }
+            approach = new Approach(pos);
+            meals = 0;
+        }
+        Approach.State state = approach.tick(c.companion());
+        if (state == Approach.State.MOVING) {
+            return Step.BUSY;
+        }
+        if (state != Approach.State.IN_REACH || !c.companion().hands().canInteract(pos)) {
+            fail(pos);
+            clearAction();
+            return Step.IDLE;
+        }
+        if (!growing(c.level(), pos) || meals >= BONEMEAL_CAP) {
+            attempted.add(pos);
+            clearAction();
+            return Step.IDLE;
+        }
+        ItemStack meal = takeOne(c.companion(), Items.BONE_MEAL);
+        if (meal.isEmpty()) {
+            fail(pos);
+            clearAction();
+            return Step.IDLE;
+        }
+        c.companion().hands().place(meal, pos, Direction.UP);
+        meals++;
         return Step.BUSY;
     }
 
-    private void plantTilled(TaskContext c, BlockPos farmland) {
-        Item seedItem = chooseSeed(c.level(), farmland, c.companion());
-        if (seedItem == null) {
-            noSeeds++;
-            attempted.add(farmland);
-            return;
-        }
-        ItemStack seed = takeOne(c.companion(), seedItem);
-        if (seed.isEmpty()) {
-            noSeeds++;
-            return;
-        }
-        InteractionResult result = c.companion().hands().place(seed, farmland, Direction.UP);
-        if (result.consumesAction() && Crops.isCrop(c.level().getBlockState(farmland.above()))) {
-            planted++;
-        }
-        attempted.add(farmland);
-    }
-
-    private BlockPos nearestHarvestable(TaskContext c) {
-        Vec3 at = c.companion().position();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radius * radius) {
-                    continue;
-                }
-                for (int dy = -2; dy <= 2; dy++) {
-                    BlockPos pos = center.offset(dx, dy, dz).immutable();
-                    if (attempted.contains(pos) || Crops.harvestable(c.level(), pos).isEmpty()) {
-                        continue;
-                    }
-                    double distance = Vec3.atCenterOf(pos).distanceToSqr(at);
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        best = pos;
-                    }
-                }
-            }
-        }
-        return best;
-    }
-
-    private BlockPos nextReplant() {
-        for (BlockPos pos : replantQueue.keySet()) {
-            return pos;
-        }
-        return null;
-    }
-
-    private BlockPos nextEmptyFarmland(TaskContext c) {
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radius * radius) {
-                    continue;
-                }
-                for (int dy = -2; dy <= 2; dy++) {
-                    BlockPos pos = center.offset(dx, dy, dz).immutable();
-                    if (attempted.contains(pos) || !c.level().getBlockState(pos).is(Blocks.FARMLAND)
-                            || !c.level().getBlockState(pos.above()).isAir()) {
-                        continue;
-                    }
-                    double distance = Vec3.atCenterOf(pos).distanceToSqr(c.companion().position());
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        best = pos;
-                    }
-                }
-            }
-        }
-        return best;
-    }
-
-    private @Nullable Item chooseSeed(ServerLevel level, BlockPos farmland, CompanionEntity companion) {
-        if (crop != null) {
-            return carried(companion, crop) ? crop : null;
-        }
-        Item common = mostCommonNeighbourSeed(level, farmland);
-        if (common != null && carried(companion, common)) {
-            return common;
-        }
-        for (Item seed : SEED_ORDER) {
-            if (carried(companion, seed)) {
-                return seed;
-            }
-        }
-        return null;
-    }
-
-    private static @Nullable Item mostCommonNeighbourSeed(ServerLevel level, BlockPos pos) {
-        Map<Item, Integer> counts = new LinkedHashMap<>();
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                if (dx == 0 && dz == 0) {
-                    continue;
-                }
-                Crops.seedFor(level.getBlockState(pos.offset(dx, 0, dz)))
-                        .ifPresent(seed -> counts.merge(seed, 1, Integer::sum));
-            }
-        }
-        return counts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(null);
-    }
-
-    private void buildTillQueue(TaskContext c) {
-        List<BlockPos> candidates = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radius * radius) {
-                    continue;
-                }
-                for (int dy = -2; dy <= 2; dy++) {
-                    BlockPos pos = center.offset(dx, dy, dz).immutable();
-                    if (isTillCandidate(c.level(), pos)) {
-                        candidates.add(pos);
-                    }
-                }
-            }
-        }
-        candidates.sort(Comparator.<BlockPos>comparingDouble(pos -> Vec3.atCenterOf(pos).distanceToSqr(c.companion().position()))
-                .thenComparingInt(BlockPos::getX)
-                .thenComparingInt(BlockPos::getY)
-                .thenComparingInt(BlockPos::getZ));
-        tillQueue.addAll(candidates);
-    }
-
-    private static boolean isTillCandidate(ServerLevel level, BlockPos pos) {
-        return FarmSnapshotBuilder.isTillCandidate(level, pos);
+    private static boolean growing(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return Crops.isCrop(state)
+                && state.getBlock() instanceof BonemealableBlock bonemealable
+                && bonemealable.isValidBonemealTarget(level, pos, state, BonemealSource.INTERACTION);
     }
 
     private static boolean hasRoom(CompanionEntity companion) {
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
             if (companion.inventory().getItem(slot).isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasHoe(CompanionEntity companion) {
-        if (companion.getMainHandItem().is(ItemTags.HOES)) {
-            return true;
-        }
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            if (companion.inventory().getItem(slot).is(ItemTags.HOES)) {
                 return true;
             }
         }
@@ -507,15 +456,6 @@ public final class FarmPass {
             return hand;
         }
         return ItemStack.EMPTY;
-    }
-
-    private static boolean carried(CompanionEntity companion, Item item) {
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            if (companion.inventory().getItem(slot).is(item)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static ItemStack takeOne(CompanionEntity companion, Item item) {
@@ -547,16 +487,18 @@ public final class FarmPass {
         return BuiltInRegistries.ITEM.getKey(item).toString();
     }
 
+    private static Item itemOf(String id) {
+        return BuiltInRegistries.ITEM.getValue(Identifier.parse(id));
+    }
+
     private void clearAction() {
         approach = null;
-        actionPos = null;
-        action = null;
-        actionSeed = null;
     }
 
     private void finish() {
         if (report == null) {
-            report = new FarmReport(new LinkedHashMap<>(harvested), replanted, planted, tilled, noSeeds, noHoe);
+            report = new FarmReport(new LinkedHashMap<>(harvested), replanted, planted, tilled,
+                    noSeeds + lastUnsown, noHoe);
         }
     }
 }

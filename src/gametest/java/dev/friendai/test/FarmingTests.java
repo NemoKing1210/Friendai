@@ -529,4 +529,71 @@ public class FarmingTests {
         h.assertValueEqual(snapshot.inventory().get("minecraft:wheat_seeds"), 2, "seed count");
         h.succeed();
     }
+
+    @GameTest(maxTicks = 1200)
+    public void farmReplansWhenCropRemoved(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] ring = plot(h);
+        for (int index : new int[] {0, 1}) {
+            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
+        FarmPass pass = pass(h, 5, 2, 5, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        boolean[] removed = {false};
+        h.succeedWhen(() -> {
+            boolean done = pass.tick(ctx);
+            if (!removed[0]) {
+                removed[0] = true;
+                h.setBlock(ring[1].getX(), 2, ring[1].getZ(), Blocks.AIR);
+            }
+            h.assertTrue(done, "pass not done yet");
+            FarmReport report = pass.report();
+            h.assertValueEqual(report.harvested().get("minecraft:wheat"), 1, "harvested wheat " + report.harvested());
+            h.assertValueEqual(report.replanted(), 1, "replanted");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void farmStopsHarvestingWhenInventoryFull(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] ring = plot(h);
+        for (int index : new int[] {0, 1, 2}) {
+            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        FarmPass pass = pass(h, 5, 2, 5, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(pass.tick(ctx), "pass not done yet");
+            h.assertTrue(pass.report().harvested().isEmpty(), "harvested " + pass.report().harvested());
+            h.assertValueEqual(age(h, ring[0].getX(), 2, ring[0].getZ()), 7, "crop untouched");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void farmPrefersFoodCropWhenHungry(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 7; x++) {
+            h.setBlock(x, 1, 4, Blocks.FARMLAND);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.hunger().load(10, 0.0F, 0.0F);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
+        // Beetroot seeds, not carrots: a hungry companion eats carrots from its bag before it can plant them.
+        c.inventory().addItem(new ItemStack(Items.BEETROOT_SEEDS, 4));
+        FarmPass pass = pass(h, 5, 2, 4, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(pass.tick(ctx), "pass not done yet");
+            for (int x = 4; x <= 7; x++) {
+                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 4)).is(Blocks.BEETROOTS),
+                        "beetroots at x=" + x + ", was " + h.getBlockState(new BlockPos(x, 2, 4)));
+            }
+        });
+    }
 }

@@ -67,7 +67,8 @@ public final class FarmSnapshotBuilder {
             }
             inventory.merge(CropIndex.id(stack.getItem()), stack.getCount(), Integer::sum);
             hasHoe |= stack.is(ItemTags.HOES);
-            carriesFood |= Food.isSafe(companion, stack, false);
+            // Carrots and potatoes in the bag are planting stock, not a meal the companion counts on.
+            carriesFood |= !Crops.isPlantableSeed(stack.getItem()) && Food.isSafe(companion, stack, false);
             if (stack.is(Items.BONE_MEAL)) {
                 boneMeal += stack.getCount();
             }
