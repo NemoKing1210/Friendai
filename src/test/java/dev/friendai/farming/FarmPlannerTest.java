@@ -2,6 +2,7 @@ package dev.friendai.farming;
 
 import static dev.friendai.farming.FarmFixtures.WHEAT_SEEDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -181,5 +182,78 @@ class FarmPlannerTest {
         assertEquals(1, count(plan, FarmStep.Replant.class));
         assertEquals(1, sows(plan).size());
         assertEquals(0, plan.unsown());
+    }
+
+    private static FarmPlan plan(FarmSnapshot snapshot, boolean till, boolean boneMeal) {
+        return FarmPlanner.plan(snapshot, new FarmGoal(null, till, boneMeal, 0, 512), FarmFixtures.book());
+    }
+
+    @Test
+    void tillsOnlyWithHoeAndGoal() {
+        FarmSnapshot noHoe = FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), "ttt");
+        assertTrue(plan(FarmFixtures.withHoe(noHoe, true), false, false).steps().isEmpty());
+        FarmPlan blocked = plan(noHoe, true, false);
+        assertTrue(blocked.steps().isEmpty());
+        assertTrue(blocked.notes().contains("missing hoe"));
+        FarmPlan tilled = plan(FarmFixtures.withHoe(noHoe, true), true, false);
+        assertEquals(6, tilled.steps().size());
+        for (int i = 0; i < 6; i += 2) {
+            assertInstanceOf(FarmStep.Till.class, tilled.steps().get(i));
+            assertInstanceOf(FarmStep.Sow.class, tilled.steps().get(i + 1));
+        }
+    }
+
+    @Test
+    void tillCapIs16() {
+        FarmSnapshot field = FarmFixtures.withHoe(
+                FarmFixtures.field(Map.of(WHEAT_SEEDS, 20), "t".repeat(20)), true);
+        assertEquals(16, count(plan(field, true, false), FarmStep.Till.class));
+    }
+
+    @Test
+    void tilledCellWithoutSeedsIsUnsown() {
+        FarmPlan plan = plan(FarmFixtures.withHoe(FarmFixtures.field(Map.of(), "t"), true), true, false);
+        assertEquals(1, count(plan, FarmStep.Till.class));
+        assertTrue(sows(plan).isEmpty());
+        assertEquals(1, plan.unsown());
+        assertEquals(1, needs(plan).size());
+    }
+
+    @Test
+    void bonemealOrdersByAgeDescending() {
+        FarmSnapshot field = FarmFixtures.withBoneMeal(FarmFixtures.field(Map.of(), "153"), 2);
+        List<FieldCell> c = field.cells();
+        FarmPlan plan = plan(field, false, true);
+        assertEquals(List.of(new FarmStep.Bonemeal(c.get(1)), new FarmStep.Bonemeal(c.get(2))), plan.steps());
+    }
+
+    @Test
+    void bonemealOnlyWhenRequested() {
+        FarmSnapshot field = FarmFixtures.withBoneMeal(FarmFixtures.field(Map.of(), "153"), 2);
+        assertEquals(0, count(plan(field, false, false), FarmStep.Bonemeal.class));
+        FarmPlan none = plan(FarmFixtures.withBoneMeal(field, 0), false, true);
+        assertEquals(0, count(none, FarmStep.Bonemeal.class));
+        assertTrue(none.notes().contains("no bone meal"));
+    }
+
+    @Test
+    void stepOrderIsHarvestSowTillBonemeal() {
+        FarmSnapshot field = FarmFixtures.withBoneMeal(FarmFixtures.withHoe(
+                FarmFixtures.field(Map.of(WHEAT_SEEDS, 9), "R.t3"), true), 1);
+        List<FarmStep> steps = plan(field, true, true).steps();
+        List<Class<?>> order = List.of(FarmStep.Harvest.class, FarmStep.Sow.class, FarmStep.Till.class,
+                FarmStep.Bonemeal.class);
+        int last = -1;
+        for (Class<?> type : order) {
+            int first = -1;
+            for (int i = 0; i < steps.size(); i++) {
+                if (type.isInstance(steps.get(i))) {
+                    first = i;
+                    break;
+                }
+            }
+            assertTrue(first > last, type.getSimpleName() + " out of order in " + steps);
+            last = first;
+        }
     }
 }

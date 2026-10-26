@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.Objects;
 import java.util.TreeSet;
 
@@ -14,6 +15,9 @@ import java.util.TreeSet;
  * and where to use bone meal. Pure and deterministic; the executor re-plans when the world disagrees.
  */
 public final class FarmPlanner {
+    /** At most this many cells are tilled in one plan. */
+    static final int TILL_CAP = 16;
+
     private FarmPlanner() {}
 
     public static FarmPlan plan(FarmSnapshot snapshot, FarmGoal goal, CropBook crops) {
@@ -52,29 +56,62 @@ public final class FarmPlanner {
         }
 
         int unsown = 0;
-        for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.EMPTY_SOIL))) {
-            List<CropInfo> options = options(crops, goal, cell.soil());
+        List<String> notes = new ArrayList<>();
+        Comparator<CropInfo> preference = preference(snapshot.foodNeed(), represented, crops);
+        Comparator<CropInfo> wanted = wanted(snapshot.foodNeed(), crops);
+        // Picks a seed for one cell, spending the budget; null when none is free (the shortfall is recorded).
+        Function<Soil, String> sow = soil -> {
+            List<CropInfo> options = options(crops, goal, soil);
             if (options.isEmpty()) {
-                unsown++;
-                continue;
+                return null;
             }
-            Comparator<CropInfo> preference = preference(snapshot.foodNeed(), represented, crops);
             CropInfo pick = options.stream().filter(info -> free.getOrDefault(info.seed(), 0) > 0)
                     .min(preference).orElse(null);
             if (pick == null) {
-                unsown++;
-                shortfall.merge(options.stream().min(wanted(snapshot.foodNeed(), crops)).orElseThrow().seed(), 1, Integer::sum);
-                continue;
+                shortfall.merge(options.stream().min(wanted).orElseThrow().seed(), 1, Integer::sum);
+                return null;
             }
             free.merge(pick.seed(), -1, Integer::sum);
             represented.merge(pick.crop(), 1, Integer::sum);
-            steps.add(new FarmStep.Sow(cell, pick.seed()));
+            return pick.seed();
+        };
+        for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.EMPTY_SOIL))) {
+            String seed = sow.apply(cell.soil());
+            if (seed == null) {
+                unsown++;
+            } else {
+                steps.add(new FarmStep.Sow(cell, seed));
+            }
+        }
+        if (goal.till()) {
+            if (!snapshot.hasHoe()) {
+                notes.add("missing hoe");
+            } else {
+                for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.TILLABLE)).stream().limit(TILL_CAP).toList()) {
+                    steps.add(new FarmStep.Till(cell));
+                    String seed = sow.apply(Soil.FARMLAND);
+                    if (seed == null) {
+                        unsown++;
+                    } else {
+                        steps.add(new FarmStep.Sow(cell, seed));
+                    }
+                }
+            }
+        }
+        if (goal.useBoneMeal()) {
+            if (snapshot.boneMeal() <= 0) {
+                notes.add("no bone meal");
+            } else {
+                List<FieldCell> growing = serpentine(ofKind(snapshot, CellKind.GROWING));
+                growing.stream().sorted(Comparator.comparingInt(FieldCell::age).reversed()).limit(snapshot.boneMeal())
+                        .forEach(cell -> steps.add(new FarmStep.Bonemeal(cell)));
+            }
         }
 
         List<FarmStep> capped = new ArrayList<>(
                 steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps);
         shortfall.forEach((item, count) -> capped.add(new FarmStep.NeedSeeds(item, count)));
-        return new FarmPlan(capped, unsown, List.of());
+        return new FarmPlan(capped, unsown, notes);
     }
 
     /** Crops that may go on this soil: only the goal's crop when one is set. */
