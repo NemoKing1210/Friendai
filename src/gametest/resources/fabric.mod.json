@@ -58,7 +58,8 @@
 			"dev.friendai.test.StructureTests",
 			"dev.friendai.test.SkinRenameTests",
 			"dev.friendai.test.GoalTests",
-			"dev.friendai.test.RecoveryTests"
+			"dev.friendai.test.RecoveryTests",
+			"dev.friendai.test.ToolCatalogTests"
 		]
 	},
 	"depends": {
