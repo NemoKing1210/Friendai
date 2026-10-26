@@ -108,6 +108,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Trust toggle on an online stranger; the trust shows up in `/friendai trusted`.
 - [ ] Memory turned off on the server: the tab shows the notice and the trust toggle still works.
 - [ ] On a dedicated server, a non-operator sees the Memory tab and only their own memory.
+- [ ] Memory tab → Personality: pick each preset, press Save, and the next reply changes tone; the tab shows the **Custom** badge.
+- [ ] Type your own text (up to 300 characters) and Save; reopen the world: it is still there. Reset brings back the server default and removes the badge.
+- [ ] Personality pane at GUI scales 1–4 in English and Russian: presets, box and buttons do not overlap.
+- [ ] Two players with their own companions set different personalities: each companion keeps its own.
 
 ## Companion inventory window
 
