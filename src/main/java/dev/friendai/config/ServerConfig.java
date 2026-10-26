@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -25,6 +25,7 @@ public class ServerConfig {
     public TasksSection tasks = new TasksSection();
     public MemorySection memory = new MemorySection();
     public PathingSection pathing = new PathingSection();
+    public StructuresSection structures = new StructuresSection();
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -47,6 +48,12 @@ public class ServerConfig {
     public static class ChunkLoadingSection {
         public boolean enabled = true;
         public int radius = 1;
+    }
+
+    /** Special structures (golems, portals). */
+    public static class StructuresSection {
+        /** How many mobs of a structure's kind may already stand near the site before another is built. */
+        public int maxNearbySpawned = 4;
     }
 
     public static class ChatSection {
@@ -162,6 +169,11 @@ public class ServerConfig {
             pathing = new PathingSection();
             problems.add("pathing was missing");
         }
+        if (structures == null) {
+            structures = new StructuresSection();
+            problems.add("structures was missing");
+        }
+        structures.maxNearbySpawned = clamp(problems, "structures.maxNearbySpawned", structures.maxNearbySpawned, 1, 16);
         if (pathing.breakBlacklist == null) {
             pathing.breakBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.breakBlacklist());
             problems.add("pathing.breakBlacklist was missing");
