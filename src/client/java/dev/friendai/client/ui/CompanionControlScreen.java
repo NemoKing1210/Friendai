@@ -27,6 +27,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry control = new Entry("friendai.menu.tab.control", new ControlTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
+    private final Entry appearance = new Entry("friendai.menu.tab.appearance", new AppearanceTab());
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
@@ -93,7 +94,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory));
+        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, appearance));
         if (operator()) {
             tabs.add(log);
             tabs.add(debug);

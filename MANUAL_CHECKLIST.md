@@ -265,3 +265,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] With a real provider, ask it to repair, combine or rename an item at an anvil: the levels are spent and the result stays in its inventory.
 - [ ] With a real provider, ask it to strip an enchanted item at a grindstone: the enchantments go and its experience grows.
 - [ ] Save and reload the world: the companion keeps its level and progress.
+
+## Companion skin and name
+
+- [ ] Appearance tab: type a new name and press **Rename**; the name tag, the Control tab and chat replies use it, in English and in Русский.
+- [ ] Appearance tab: **Choose a PNG file...** with a real 64x64 skin; the companion changes for you and for a second player on a LAN or server.
+- [ ] A skin chosen by Minecraft username (wide and slim accounts) applies with the right arm model.
+- [ ] A skin from an `https://` link applies; an `http://` link, a non-image link and a 128x128 image each show an error and change nothing.
+- [ ] **Slim** / **Wide** switch the arm model of the current skin; **Reset** restores the default look.
+- [ ] Dismiss and summon, then save and reload the world: the skin and the slim flag come back.
+- [ ] Worn armor still looks right on a slim companion (known gap: armor keeps wide arm shapes).
+- [ ] On macOS and Linux the file dialog opens, or the tab says that no dialog is available.
