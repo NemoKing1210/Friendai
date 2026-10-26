@@ -1,6 +1,7 @@
 package dev.friendai.core;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.GoalService;
 import dev.friendai.config.ConfigStore;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionChunkLoader;
@@ -34,6 +35,7 @@ public final class FriendaiServerState {
     private final BrainService brains;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final GoalService goals;
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final ObservationScheduler observations;
@@ -57,6 +59,7 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
+        this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
         this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
@@ -98,6 +101,11 @@ public final class FriendaiServerState {
     /** Per-owner auto-respawn preferences and bed checkpoints. */
     public CompanionLifeData companionLife() {
         return CompanionLifeData.get(server);
+    }
+
+    /** The owners' goal boards, kept in their memory books. */
+    public GoalService goals() {
+        return goals;
     }
 
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */

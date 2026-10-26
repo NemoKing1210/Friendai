@@ -82,8 +82,16 @@ public final class BrainService {
     private final Map<String, TaskToolDef> taskTools;
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
+    private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
+    private final Map<UUID, Long> lastGoalTick = new HashMap<>();
+    /** Unanswered goal nudges per owner; reset when the owner speaks or the companion starts working. */
+    private final Map<UUID, Integer> nudgeStreak = new HashMap<>();
+    private long lastAgentCheck;
+    private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
     private LlmGateway current;
+    /** The model that drafts plans when {@code agent.planner} names a profile; null means the main one. */
+    private LlmGateway plannerGateway;
     private String activeModel = "";
     private String activeProvider = "";
 
@@ -126,6 +134,39 @@ public final class BrainService {
         } catch (ConfigException e) {
             current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
         }
+        plannerGateway = null;
+        String plannerProfile = cfg.agent.planner;
+        if (plannerProfile != null && !plannerProfile.isBlank()) {
+            if (cfg.profiles.containsKey(plannerProfile)) {
+                try {
+                    plannerGateway = new LlmClient(
+                            ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(plannerProfile, System::getenv));
+                } catch (ConfigException e) {
+                    FriendaiMod.LOGGER.warn("The planner profile is unusable; the main profile plans instead");
+                }
+            } else {
+                FriendaiMod.LOGGER.warn("agent.planner names an unknown profile; the main profile plans instead");
+            }
+        }
+    }
+
+    /** Test hook: use this planner instead of the model-backed one for one owner. */
+    public void setPlannerOverride(UUID owner, dev.friendai.agent.plan.Planner planner) {
+        plannerOverrides.put(owner, planner);
+    }
+
+    private dev.friendai.agent.plan.Planner plannerFor(UUID owner) {
+        dev.friendai.agent.plan.Planner override = plannerOverrides.get(owner);
+        if (override != null) {
+            return override;
+        }
+        return new dev.friendai.agent.plan.LlmPlanner(
+                () -> plannerGateway != null ? plannerGateway : gatewayOverrides.getOrDefault(owner, current),
+                plannerRedactor,
+                config.agent.plannerTimeoutSec,
+                Math.min(12, TaskSettings.queueMaxStepsPerAdd),
+                8192,
+                49152);
     }
 
     public String activeProvider() {
@@ -194,6 +235,9 @@ public final class BrainService {
     }
 
     public void post(UUID owner, BrainEvent event) {
+        if (event instanceof BrainEvent.PlayerSaid) {
+            nudgeStreak.remove(owner);
+        }
         entryFor(owner).ifPresent(entry -> entry.brain().post(event));
     }
 
@@ -311,6 +355,227 @@ public final class BrainService {
 
     public void tick() {
         scheduler.tick();
+        agentTick();
+    }
+
+    /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
+    private void agentTick() {
+        long now = server.getTickCount() * 50L;
+        if (now - lastAgentCheck < 1_000L) {
+            return;
+        }
+        lastAgentCheck = now;
+        dev.friendai.brain.AgentSettings.Autonomy autonomy =
+                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy);
+        if (autonomy == dev.friendai.brain.AgentSettings.Autonomy.PASSIVE) {
+            return;
+        }
+        var goals = FriendaiServerState.get(server).goals();
+        for (Map.Entry<UUID, Entry> entry : new ArrayList<>(entries.entrySet())) {
+            UUID owner = entry.getKey();
+            CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
+            if (companion == null) {
+                continue;
+            }
+            var board = goals.board(owner);
+            var primary = board.primary();
+            boolean active = primary.isPresent()
+                    && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
+            long last = lastGoalTick.computeIfAbsent(owner, id -> now);
+            boolean idle = queueIdleOrBlocked(companion);
+            if (!idle) {
+                nudgeStreak.remove(owner); // working again: the next idle spell starts with a fresh interval
+            }
+            int streak = nudgeStreak.getOrDefault(owner, 0);
+            if (dev.friendai.agent.tick.NudgeBackoff.exhausted(streak)) {
+                continue;
+            }
+            var facts = new dev.friendai.agent.tick.TickFacts(
+                    active,
+                    idle,
+                    companion.owner().isPresent(),
+                    companion.taskRunner().paused() || companion.taskRunner().suspended()
+                            || companion.isSleeping() || companion.getTarget() != null,
+                    entry.getValue().brain().isThinking(),
+                    now,
+                    last,
+                    autonomy,
+                    dev.friendai.agent.tick.NudgeBackoff.intervalSec(config.agent.goalTickSec, streak));
+            if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
+                lastGoalTick.put(owner, now);
+                nudgeStreak.merge(owner, 1, Integer::sum);
+                post(owner, new BrainEvent.IdleNudge());
+            } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
+                lastGoalTick.put(owner, now);
+                nudgeStreak.merge(owner, 1, Integer::sum);
+                var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                guard.refresh();
+                post(owner, new BrainEvent.GoalTick(primary.get().text(),
+                        board.unmet(primary.get().id(), guard).stream()
+                                .map(dev.friendai.agent.goal.Criterion::text).toList()));
+            }
+        }
+    }
+
+    /** Nothing runs and no plan moves by itself; a plan waiting for a decision counts as blocked. */
+    private static boolean queueIdleOrBlocked(CompanionEntity companion) {
+        var runner = companion.taskRunner();
+        var queue = runner.queue();
+        if (queue.jobCount() == 0) {
+            return !runner.hasWork();
+        }
+        if (queue.active().isPresent()) {
+            return false;
+        }
+        boolean directWork = queue.jobs().stream()
+                .anyMatch(job -> job.planId() == 0 && !dev.friendai.queue.JobQueue.terminal(job));
+        boolean planMoving = queue.plans().stream()
+                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.queue.PlanStatus.ACTIVE);
+        return !directWork && !planMoving;
+    }
+
+    /** Lets one companion's brain consult the planner and queue what it proposes. */
+    private final class GamePlannerPort implements dev.friendai.brain.PlannerPort {
+        private final UUID owner;
+        private final CompanionEntity companion;
+        /** Plans the planner cancels itself; their end is not news and must not trigger another replan. */
+        private final java.util.Set<Long> replaced;
+
+        GamePlannerPort(UUID owner, CompanionEntity companion, java.util.Set<Long> replaced) {
+            this.owner = owner;
+            this.companion = companion;
+            this.replaced = replaced;
+        }
+
+        @Override
+        public boolean ownsPlan(long planId) {
+            return FriendaiServerState.get(server).goals().board(owner).primary()
+                    .map(goal -> goal.planId() == planId)
+                    .orElse(false);
+        }
+
+        @Override
+        public Optional<dev.friendai.agent.plan.PlannerInput> input(Caller caller, String failure) {
+            var board = FriendaiServerState.get(server).goals().board(owner);
+            var primary = board.primary();
+            if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
+                return Optional.empty();
+            }
+            Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
+            StringBuilder digest = new StringBuilder();
+            taskTools.forEach((name, def) -> {
+                if (caller.access().allows(def.minAccess())) {
+                    schemas.put(name, def.schema());
+                    digest.append("- ").append(describeTool(def)).append('\n');
+                }
+            });
+            var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+            facts.refresh();
+            String queue = dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), facts, null, 20, false);
+            return Optional.of(new dev.friendai.agent.plan.PlannerInput(
+                    primary.get(),
+                    new CompanionPerception(companion).describe(caller),
+                    digest.toString(),
+                    "",
+                    Optional.of(queue),
+                    primary.get().lessons(),
+                    failure,
+                    schemas,
+                    taskTools.keySet()));
+        }
+
+        @Override
+        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(dev.friendai.agent.plan.PlannerInput input) {
+            return plannerFor(owner).propose(input);
+        }
+
+        @Override
+        public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanProposal proposal) {
+            var goals = FriendaiServerState.get(server).goals();
+            var board = goals.board(owner);
+            var primary = board.primary();
+            var executor = tools.bind(companion);
+            if (primary.isPresent() && primary.get().planId() != 0
+                    && companion.taskRunner().queue().plan(primary.get().planId()).isPresent()) {
+                long oldPlan = primary.get().planId();
+                // Unlink first and silence the plan's end event: cancelling must not count as a failure.
+                board.linkPlan(primary.get().id(), 0);
+                replaced.add(oldPlan);
+                JsonObject cancel = new JsonObject();
+                cancel.addProperty("action", "cancel");
+                cancel.addProperty("plan", oldPlan);
+                executor.execute(new ToolCall("planner", "queue_edit", cancel, cancel.toString(), null), caller);
+            }
+            // queue_add links a new plan only to a goal that has none.
+            primary.ifPresent(goal -> board.linkPlan(goal.id(), 0));
+            JsonObject add = new JsonObject();
+            add.addProperty("goal", primary.map(dev.friendai.agent.goal.Goal::text).orElse("planned work"));
+            add.add("steps", proposal.stepsJson());
+            ToolResult result = executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
+            goals.save(owner);
+            return result;
+        }
+
+        /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
+        private static String describeTool(TaskToolDef def) {
+            JsonObject schema = def.schema();
+            java.util.Set<String> required = new java.util.HashSet<>();
+            if (schema.has("required")) {
+                schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
+            }
+            java.util.List<String> args = new ArrayList<>();
+            if (schema.has("properties")) {
+                for (String arg : schema.getAsJsonObject("properties").keySet()) {
+                    args.add(arg + (required.contains(arg) ? "*" : ""));
+                }
+            }
+            String description = def.description() == null ? "" : def.description();
+            int stop = description.indexOf(". ");
+            String first = stop > 0 ? description.substring(0, stop + 1) : description;
+            return def.name() + "(" + String.join(", ", args) + "): "
+                    + (first.length() > 200 ? first.substring(0, 200) : first);
+        }
+    }
+
+    /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
+    private final class AgentEvents {
+        private final UUID owner;
+        private final CompanionEntity companion;
+        private final dev.friendai.agent.recover.FailureHandler handler =
+                new dev.friendai.agent.recover.FailureHandler(new dev.friendai.agent.recover.RecoveryAdvisor());
+        private dev.friendai.agent.verify.WorldSnapshot last;
+
+        AgentEvents(UUID owner, CompanionEntity companion) {
+            this.owner = owner;
+            this.companion = companion;
+            this.last = OutcomeFacts.snapshot(companion);
+        }
+
+        /** The text to append to an event line; empty when there is nothing verified to add. */
+        String extra(boolean success, long planId, String tool, String text) {
+            try {
+                dev.friendai.agent.verify.WorldSnapshot after = OutcomeFacts.snapshot(companion);
+                String factsLine = dev.friendai.agent.verify.OutcomeChecker
+                        .check(last, after, success, java.util.List.of(), new dev.friendai.task.queue.CompanionGuardFacts(companion))
+                        .factsLine();
+                last = after;
+                var goals = FriendaiServerState.get(server).goals();
+                var board = goals.board(owner);
+                String extra;
+                if (success) {
+                    var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                    facts.refresh();
+                    extra = handler.onSuccess(board, planId, factsLine, facts);
+                } else {
+                    extra = handler.onFailure(board, planId, tool, text, factsLine);
+                }
+                goals.save(owner);
+                return extra;
+            } catch (RuntimeException e) {
+                FriendaiMod.LOGGER.warn("Could not build event facts", e);
+                return "";
+            }
+        }
     }
 
     private Entry create(UUID owner, CompanionEntity companion) {
@@ -343,12 +608,39 @@ public final class BrainService {
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
+        java.util.Set<Long> replaced = new java.util.HashSet<>();
+        brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
+        brain.setAgentSettings(() -> new dev.friendai.brain.AgentSettings(
+                config.agent.toolRouting,
+                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy),
+                config.agent.maxReplans,
+                config.agent.goalTickSec,
+                config.agent.promptBudget,
+                config.agent.plannerTimeoutSec));
+        brain.setGoalSource(caller -> {
+            var board = FriendaiServerState.get(server).goals().board(owner);
+            var primary = board.primary();
+            String plan = "";
+            if (primary.isPresent() && primary.get().planId() != 0) {
+                long planId = primary.get().planId();
+                plan = companion.taskRunner().queue().plan(planId).isPresent()
+                        ? "plan #" + planId + " " + companion.taskRunner().queue().planStatus(planId).name()
+                                .toLowerCase(java.util.Locale.ROOT).replace('_', ' ')
+                        : "plan #" + planId + " is no longer queued";
+            }
+            var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+            facts.refresh();
+            return board.view(plan, facts);
+        });
+        AgentEvents agent = new AgentEvents(owner, companion);
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 debug.historyOf(owner).add(new TaskRecord(
                         id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
-                post(owner, new BrainEvent.TaskFinished(id, toolName, status == TaskStatus.SUCCESS, summary));
+                boolean ok = status == TaskStatus.SUCCESS;
+                post(owner, new BrainEvent.TaskFinished(id, toolName, ok, summary,
+                        agent.extra(ok, 0, toolName, summary)));
             }
 
             @Override
@@ -367,12 +659,20 @@ public final class BrainService {
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
-                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary));
+                if (replaced.remove(planId)) {
+                    return;
+                }
+                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary,
+                        agent.extra(success, planId, goal, summary)));
             }
 
             @Override
             public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
-                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining));
+                if (replaced.contains(planId)) {
+                    return;
+                }
+                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining,
+                        agent.extra(false, planId, toolName, reason)));
             }
 
             @Override

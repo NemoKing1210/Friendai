@@ -1,0 +1,10 @@
+{
+  "name": "missing_materials_recovers",
+  "access": "owner",
+  "event": "plan #3 armor failed: missing materials: 3 x minecraft:iron_ingot diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot",
+  "replies": [
+    {"text": "", "tools": ["obtain_item"]},
+    {"text": "[silent]", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["obtain_item"], "nothingSpoken": true}
+}

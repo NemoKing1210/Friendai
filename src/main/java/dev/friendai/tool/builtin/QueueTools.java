@@ -64,6 +64,7 @@ final class QueueTools {
             QueueOptimizer.apply(c.taskRunner().queue(),planId,name->{TaskToolDef d=all.get(name);return d==null?null:d.queueTraits().mergeableCountArg();});
             registerFactories(c,c.taskRunner().queue().jobsOfPlan(planId).stream().map(dev.friendai.queue.Job::id).toList(),allowed,caller);
         });}catch(IllegalArgumentException e){return ToolResult.error("Invalid plan: "+e.getMessage());}
+        GoalTools.linkPlan(c,id);
         return ToolResult.ok("plan #"+id+(goal.isBlank()?"":" \""+goal+"\"")+" added: "+steps.size()+" jobs");
     }
     private static ToolResult edit(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {

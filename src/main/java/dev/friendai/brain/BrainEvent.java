@@ -13,6 +13,11 @@ public sealed interface BrainEvent {
         return toPromptLine();
     }
 
+    /** The suffix an event line gets when the agent layer has facts or a diagnosis to add. */
+    private static String withExtra(String extra) {
+        return extra == null || extra.isBlank() ? "" : " " + extra;
+    }
+
     enum Source {
         CHAT,
         VOICE
@@ -32,10 +37,17 @@ public sealed interface BrainEvent {
         }
     }
 
-    record TaskFinished(int taskId, String toolName, boolean success, String summary) implements BrainEvent {
+    /** @param extra verified facts and diagnosis appended to the line, or empty */
+    record TaskFinished(int taskId, String toolName, boolean success, String summary, String extra)
+            implements BrainEvent {
+        public TaskFinished(int taskId, String toolName, boolean success, String summary) {
+            this(taskId, toolName, success, summary, "");
+        }
+
         @Override
         public String toPromptLine() {
-            return "[event] task #" + taskId + " " + toolName + (success ? " finished: " : " failed: ") + summary;
+            return "[event] task #" + taskId + " " + toolName + (success ? " finished: " : " failed: ") + summary
+                    + withExtra(extra);
         }
     }
 
@@ -46,17 +58,54 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlanFinished(long planId, String goal, boolean success, String summary) implements BrainEvent {
+    record PlanFinished(long planId, String goal, boolean success, String summary, String extra)
+            implements BrainEvent {
+        public PlanFinished(long planId, String goal, boolean success, String summary) {
+            this(planId, goal, success, summary, "");
+        }
+
         @Override public String toPromptLine() {
-            return "[event] plan #" + planId + " " + goal + (success ? " finished: " : " failed: ") + summary;
+            return "[event] plan #" + planId + " " + goal + (success ? " finished: " : " failed: ") + summary
+                    + withExtra(extra);
         }
     }
 
-    record PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining)
-            implements BrainEvent {
+    record PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining,
+                       String extra) implements BrainEvent {
+        public PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
+            this(planId, goal, jobId, toolName, reason, remaining, "");
+        }
+
         @Override public String toPromptLine() {
             return "[event] plan #" + planId + " needs a decision at job #" + jobId + " (" + toolName
-                    + "): " + reason + "; " + remaining + " step(s) remain. Use queue_edit to repair the plan.";
+                    + "): " + reason + "; " + remaining + " step(s) remain. Use queue_edit to repair the plan."
+                    + withExtra(extra);
+        }
+    }
+
+    /** The queue is idle but the goal is not finished: a nudge to continue or to say what blocks it. */
+    record GoalTick(String goal, java.util.List<String> unmet) implements BrainEvent {
+        public GoalTick {
+            unmet = java.util.List.copyOf(unmet);
+        }
+
+        @Override
+        public String toPromptLine() {
+            String state = unmet.isEmpty()
+                    ? "nothing is confirmed missing, check whether it is done"
+                    : "unmet: " + String.join("; ", unmet);
+            return "[event] goal \"" + goal + "\" is not finished; " + state
+                    + "; the queue is idle. Continue it or say what blocks you.";
+        }
+    }
+
+    /** An autonomous companion with nothing to do: it may ask its owner what is next, but must not act on its own. */
+    record IdleNudge() implements BrainEvent {
+        @Override
+        public String toPromptLine() {
+            return "[event] you have no goal and nothing queued. If something useful comes to mind, ask your owner "
+                    + "one short question about what to do next; do not start any work without an answer, and if "
+                    + "there is nothing worth asking reply exactly [silent].";
         }
     }
 

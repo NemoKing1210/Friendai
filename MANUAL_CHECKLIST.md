@@ -280,3 +280,17 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dismiss and summon, then save and reload the world: the skin and the slim flag come back.
 - [ ] Worn armor still looks right on a slim companion (known gap: armor keeps wide arm shapes).
 - [ ] On macOS and Linux the file dialog opens, or the tab says that no dialog is available.
+
+## Live agent evaluation
+
+- [ ] Run `./gradlew test --tests "*LiveScenarioRunner" -Dfriendai.live=true -Dfriendai.live.config=<path to friendai-server.json>` on the configured provider and read `build/eval/<timestamp>.md`.
+- [ ] Compare the report with the previous one: requests per scenario must not grow, and no scenario may start to fail.
+
+## Goals, planner and initiative
+
+- [ ] With a real provider say "build a small house and bring me ten logs": the companion records a goal (check the Mission block in the Debug prompt), a plan is queued and it reports once when done.
+- [ ] Make a step fail on purpose (take away the materials): the next event carries facts and a diagnosis, the companion tries one different remedy, and after `agent.maxReplans` failures it asks you for help.
+- [ ] Kill the companion with a goal active and let it respawn: the goal is still there.
+- [ ] Ask a plain question ("where are you?") with `agent.toolRouting` on: it answers without walking anywhere; ask for work afterwards and it still has its tools (check `request_tools` in the log if it needed one).
+- [ ] `agent.autonomy` = `passive`: an idle companion with a goal stays silent; `assistive`: it reports or continues after `agent.goalTickSec`; `autonomous`: with no goal it may ask what to do next but never starts work unasked.
+- [ ] Set `agent.planner` to a second profile and confirm the planner call uses it (the main profile sees no planner request).

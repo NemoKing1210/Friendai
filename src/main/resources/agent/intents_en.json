@@ -1,0 +1,30 @@
+{
+  "question_markers": ["what", "where", "how", "why", "who", "when", "which", "whose", "tell me", "do you know", "are you", "is there", "can you tell"],
+  "action_verbs": {
+    "mine": ["GATHERING"], "dig": ["GATHERING"], "gather": ["GATHERING"], "collect": ["GATHERING"], "chop": ["GATHERING"], "fell": ["GATHERING"],
+    "build": ["BLUEPRINT", "BUILDING"], "construct": ["BLUEPRINT", "BUILDING"],
+    "craft": ["CRAFTING"], "make": ["CRAFTING"],
+    "smelt": ["COOKING"], "cook": ["COOKING"], "bake": ["COOKING"],
+    "fight": ["COMBAT"], "attack": ["COMBAT"], "kill": ["COMBAT"], "hunt": ["COMBAT"], "eat": ["COMBAT"], "equip": ["COMBAT"],
+    "farm": ["FARMING"], "plant": ["FARMING"], "harvest": ["FARMING"], "sow": ["FARMING"],
+    "breed": ["ANIMALS"], "shear": ["ANIMALS"], "milk": ["ANIMALS"], "tame": ["ANIMALS"], "fish": ["ANIMALS"],
+    "bring": ["OBTAIN"], "obtain": ["OBTAIN"], "fetch": ["OBTAIN"], "get": ["OBTAIN"],
+    "store": ["STORAGE"],
+    "enchant": ["ENCHANT"],
+    "follow": ["MOVEMENT"], "come": ["MOVEMENT"], "walk": ["MOVEMENT"], "run": ["MOVEMENT"], "stay": ["MOVEMENT"], "wait": ["MOVEMENT"],
+    "sleep": ["INTERACTION"], "ride": ["INTERACTION"], "mount": ["INTERACTION"],
+    "place": ["BUILDING"], "light": ["BUILDING"],
+    "explore": ["RESOURCE"], "search": ["RESOURCE"], "locate": ["RESOURCE"],
+    "trust": ["TRUST"], "rename": ["CONTROL"],
+    "give": ["INVENTORY"], "drop": ["INVENTORY"]
+  },
+  "topic_words": {
+    "wood": ["GATHERING"], "logs": ["GATHERING"], "tree": ["GATHERING"], "ore": ["GATHERING"], "stone": ["GATHERING"],
+    "house": ["BLUEPRINT"], "tower": ["BLUEPRINT"], "wall": ["BLUEPRINT"], "bridge": ["BLUEPRINT"],
+    "crops": ["FARMING"], "wheat": ["FARMING"],
+    "iron": ["OBTAIN"], "diamond": ["OBTAIN"], "gold": ["OBTAIN"],
+    "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"]
+  },
+  "complex_markers": ["and then", "after that", "afterwards", "first", "then", "once you", "when you are done", "before you"],
+  "plan_request_markers": ["plan", "step by step", "make a plan", "organize", "organise", "figure out how"]
+}

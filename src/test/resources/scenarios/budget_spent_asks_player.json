@@ -1,0 +1,9 @@
+{
+  "name": "budget_spent_asks_player",
+  "access": "owner",
+  "event": "plan #3 armor failed: can't reach 1 2 3 diagnosis: UNREACHABLE target not reachable; replan budget spent: tell the player what is blocking you and ask for help",
+  "replies": [
+    {"text": "I can't get to the spot you wanted. Can you point me somewhere else?", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "toolsNotCalled": ["queue_add"], "spokenContains": ["spot"]}
+}
