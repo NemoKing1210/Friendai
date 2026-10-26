@@ -273,9 +273,14 @@ public class ServerConfig {
     }
 
     public LlmProfile toLlmProfile(Function<String, String> env) {
-        ProfileConfig p = profiles == null ? null : profiles.get(activeProfile);
+        return toLlmProfile(activeProfile, env);
+    }
+
+    /** The named profile as an LLM profile; the planner may use a different one from the main brain. */
+    public LlmProfile toLlmProfile(String profileName, Function<String, String> env) {
+        ProfileConfig p = profiles == null ? null : profiles.get(profileName);
         if (p == null) {
-            throw new ConfigException(UserMessage.of("friendai.error.config.profile_missing", activeProfile));
+            throw new ConfigException(UserMessage.of("friendai.error.config.profile_missing", profileName));
         }
         return new LlmProfile(
                 p.provider,

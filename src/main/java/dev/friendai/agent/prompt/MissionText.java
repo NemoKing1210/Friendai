@@ -10,20 +10,33 @@ public final class MissionText {
     private MissionText() {}
 
     public static String render(GoalView view) {
-        if (view == null || view.isEmpty()) {
+        return render(view, "");
+    }
+
+    /** @param plannerNote what the planner just did for this turn, or empty */
+    public static String render(GoalView view, String plannerNote) {
+        boolean hasGoal = view != null && !view.isEmpty();
+        boolean hasNote = plannerNote != null && !plannerNote.isBlank();
+        if (!hasGoal && !hasNote) {
             return "";
         }
-        StringBuilder out = new StringBuilder("Mission:\n- Goal: ").append(view.text());
-        List<String> unmet = view.unmet();
-        if (!unmet.isEmpty()) {
-            out.append("\n- Not yet confirmed: ")
-                    .append(String.join("; ", unmet.subList(0, Math.min(MAX_UNMET_SHOWN, unmet.size()))));
+        StringBuilder out = new StringBuilder("Mission:");
+        if (hasGoal) {
+            out.append("\n- Goal: ").append(view.text());
+            List<String> unmet = view.unmet();
+            if (!unmet.isEmpty()) {
+                out.append("\n- Not yet confirmed: ")
+                        .append(String.join("; ", unmet.subList(0, Math.min(MAX_UNMET_SHOWN, unmet.size()))));
+            }
+            if (!view.planStatus().isBlank()) {
+                out.append("\n- Plan: ").append(view.planStatus());
+            }
+            if (!view.lastLesson().isBlank()) {
+                out.append("\n- Lesson learned: ").append(view.lastLesson());
+            }
         }
-        if (!view.planStatus().isBlank()) {
-            out.append("\n- Plan: ").append(view.planStatus());
-        }
-        if (!view.lastLesson().isBlank()) {
-            out.append("\n- Lesson learned: ").append(view.lastLesson());
+        if (hasNote) {
+            out.append("\n- Planner: ").append(plannerNote.strip());
         }
         return out.toString();
     }

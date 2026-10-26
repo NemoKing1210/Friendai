@@ -1,5 +1,8 @@
 package dev.friendai.brain;
 
+import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlannerInput;
+import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.route.IntentVocabulary;
 import dev.friendai.agent.route.RouteDecision;
 import dev.friendai.agent.route.RouteSignals;
@@ -39,6 +42,8 @@ import org.slf4j.LoggerFactory;
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
     private static final String REQUEST_TOOLS = "request_tools";
+    /** The marker the failure handler puts in an event when no replans are left. */
+    private static final String BUDGET_SPENT = FailureHandler.BUDGET_SPENT;
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
@@ -58,6 +63,10 @@ public final class CompanionBrain {
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
+    private PlannerPort plannerPort = PlannerPort.NONE;
+    private boolean plannedThisTurn;
+    /** What the planner just did; shown once in the next request's Mission block. */
+    private String plannerNote = "";
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
@@ -190,12 +199,16 @@ public final class CompanionBrain {
         this.goalSource = java.util.Objects.requireNonNull(goalSource);
     }
 
-    /** The system prompt the next request would carry. */
-    public String currentSystemPrompt() {
-        return buildSystemPrompt();
+    public void setPlannerPort(PlannerPort plannerPort) {
+        this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
     }
 
-    private String buildSystemPrompt() {
+    /** The system prompt the next request would carry. */
+    public String currentSystemPrompt() {
+        return buildSystemPrompt(plannerNote);
+    }
+
+    private String buildSystemPrompt(String note) {
         return PromptBuilder.system(
                 persona.get(),
                 perception.describe(turnCaller),
@@ -204,7 +217,8 @@ public final class CompanionBrain {
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
-                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)));
+                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)),
+                note);
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -279,7 +293,61 @@ public final class CompanionBrain {
         }
         memory.add(Message.user(lines));
         step = 0;
-        requestStep(generation);
+        plannedThisTurn = false;
+        plannerNote = "";
+        // A failed plan that still has replans left is worked out by the planner before the model answers.
+        if (decision.mode() == TurnMode.RECOVERY && decision.wantPlanner() && !lines.contains(BUDGET_SPENT)) {
+            plan(generation, lines);
+        } else {
+            requestStep(generation);
+        }
+    }
+
+    /**
+     * One planner consultation per turn. The reply is applied on the scheduler thread and shown to the model once,
+     * in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the generation, so a
+     * late proposal is dropped without touching the queue (rule 5).
+     */
+    private void plan(int gen, String failure) {
+        plannedThisTurn = true;
+        Optional<PlannerInput> input;
+        try {
+            input = plannerPort.input(turnCaller, failure);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Planner input failed", e);
+            input = Optional.empty();
+        }
+        if (input.isEmpty()) {
+            requestStep(gen);
+            return;
+        }
+        CompletableFuture<PlanProposal> future;
+        try {
+            future = plannerPort.propose(input.get());
+        } catch (RuntimeException e) {
+            future = CompletableFuture.failedFuture(e);
+        }
+        future.whenComplete((proposal, error) -> scheduler.execute(() -> {
+            if (gen != generation) {
+                return;
+            }
+            if (error != null || proposal == null) {
+                LOGGER.info("Planner gave no plan: {}", error == null ? "empty" : error.getClass().getSimpleName());
+                plannerNote = "no plan was drafted (the planner is unavailable); work out the next step yourself";
+            } else {
+                ToolResult applied;
+                try {
+                    applied = plannerPort.apply(turnCaller, proposal);
+                } catch (RuntimeException e) {
+                    applied = ToolResult.error("could not queue the plan");
+                }
+                plannerNote = applied.error()
+                        ? "the planner's plan could not be queued (" + applied.content() + "); plan it yourself"
+                        : "a plan was queued (" + applied.content() + "): " + proposal.rationale()
+                                + (proposal.expectedOutcome().isBlank() ? "" : "; expected: " + proposal.expectedOutcome());
+            }
+            requestStep(gen);
+        }));
     }
 
     private void requestStep(int gen) {
@@ -297,7 +365,8 @@ public final class CompanionBrain {
             // Speech is checked against every tool this caller has, not just the routed subset.
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             List<ToolSpec> sent = agentSettings.get().toolRouting() ? catalog.filter(specs, visibleGroups) : specs;
-            String system = buildSystemPrompt();
+            String system = buildSystemPrompt(plannerNote);
+            plannerNote = "";
             future = gateway.get().complete(system, memory.snapshot(), sent);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
@@ -339,6 +408,8 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
+        boolean goalSet = false;
+        boolean queuedByModel = false;
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
@@ -351,6 +422,13 @@ public final class CompanionBrain {
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
+            goalSet |= !result.error() && "set_goal".equals(call.name());
+            queuedByModel |= !result.error() && "queue_add".equals(call.name());
+        }
+        if (goalSet && !queuedByModel && !plannedThisTurn
+                && decision.mode() == TurnMode.GOAL && decision.wantPlanner()) {
+            plan(gen, "");
+            return;
         }
         requestStep(gen);
     }

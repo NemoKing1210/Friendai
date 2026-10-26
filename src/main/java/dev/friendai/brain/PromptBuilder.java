@@ -51,7 +51,14 @@ public final class PromptBuilder {
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
             int budget, List<String> toolHints) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, "");
+    }
+
+    /** @param plannerNote what the planner just did for this turn, shown once in the Mission block */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget, List<String> toolHints, String plannerNote) {
         return PromptAssembler.defaults(budget).assemble(new TurnContext(
-                p, perception, caller, memoryBlock, turn, MissionText.render(goal), toolHints));
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints));
     }
 }
