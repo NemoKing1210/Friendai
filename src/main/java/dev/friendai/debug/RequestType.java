@@ -24,8 +24,8 @@ public enum RequestType {
     MOVE_DEBUG_OFF(DebugAccess.Action.VIEW_MOVEMENT),
     RENAME(DebugAccess.Action.RENAME),
     PERSONA_SET(DebugAccess.Action.EDIT_MEMORY),
-    INVALID(null),
-    SET_AUTO_RESPAWN(DebugAccess.Action.SET_AUTO_RESPAWN);
+    SET_AUTO_RESPAWN(DebugAccess.Action.SET_AUTO_RESPAWN),
+    INVALID(null);
 
     private final DebugAccess.Action action;
 

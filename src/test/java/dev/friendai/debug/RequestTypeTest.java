@@ -29,7 +29,8 @@ class RequestTypeTest {
         assertEquals(17, RequestType.MOVE_DEBUG_OFF.ordinal());
         assertEquals(18, RequestType.RENAME.ordinal());
         assertEquals(19, RequestType.PERSONA_SET.ordinal());
-        assertEquals(20, RequestType.INVALID.ordinal());
+        assertEquals(20, RequestType.SET_AUTO_RESPAWN.ordinal());
+        assertEquals(21, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
     }
 
