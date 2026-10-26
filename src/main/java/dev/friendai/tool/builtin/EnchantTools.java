@@ -1,7 +1,9 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.task.builtin.AnvilItemTask;
 import dev.friendai.task.builtin.EnchantItemTask;
+import dev.friendai.task.builtin.GrindstoneItemTask;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import java.util.List;
@@ -24,6 +26,42 @@ final class EnchantTools {
                 (c, a) -> new EnchantItemTask(
                         ToolKit.parseItemMatcher(a.get("item").getAsString()),
                         a.get("option").getAsInt(),
+                        ToolKit.optionalPos(a).orElse(null)),
+                true));
+        ToolKit.add(registry, defs, new TaskToolDef("anvil_item",
+                "Use an anvil: repair an item with its material, combine it with another item or enchanted book, or rename it. Costs experience levels; the result is kept in the inventory. Give 'with' to repair or combine, 'rename' to rename, or both.",
+                SchemaBuilder.object()
+                        .string("item", "The item to work on, like minecraft:iron_pickaxe")
+                        .string("with", "The second item: repair material, another item or an enchanted book")
+                        .string("rename", "A new name for the item")
+                        .integer("x", "Anvil x")
+                        .integer("y", "Anvil y")
+                        .integer("z", "Anvil z")
+                        .required("item")
+                        .build(),
+                (c, a) -> new AnvilItemTask(
+                        ToolKit.parseItemMatcher(a.get("item").getAsString()),
+                        a.has("with") && !a.get("with").isJsonNull()
+                                ? ToolKit.parseItemMatcher(a.get("with").getAsString())
+                                : null,
+                        a.has("rename") && !a.get("rename").isJsonNull() ? a.get("rename").getAsString() : null,
+                        ToolKit.optionalPos(a).orElse(null)),
+                true));
+        ToolKit.add(registry, defs, new TaskToolDef("grindstone_item",
+                "Use a grindstone: strip the enchantments from an item (curses stay) and collect the experience that comes out, or merge two damaged items into one.",
+                SchemaBuilder.object()
+                        .string("item", "The item to grind, like minecraft:diamond_sword")
+                        .string("with", "A second item of the same kind to merge, optional")
+                        .integer("x", "Grindstone x")
+                        .integer("y", "Grindstone y")
+                        .integer("z", "Grindstone z")
+                        .required("item")
+                        .build(),
+                (c, a) -> new GrindstoneItemTask(
+                        ToolKit.parseItemMatcher(a.get("item").getAsString()),
+                        a.has("with") && !a.get("with").isJsonNull()
+                                ? ToolKit.parseItemMatcher(a.get("with").getAsString())
+                                : null,
                         ToolKit.optionalPos(a).orElse(null)),
                 true));
     }

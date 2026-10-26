@@ -48,7 +48,9 @@
 			"dev.friendai.test.BodyLanguageTests",
 			"dev.friendai.test.ExperienceTests",
 			"dev.friendai.test.MenuHandsTests",
-			"dev.friendai.test.EnchantSkillTests"
+			"dev.friendai.test.EnchantSkillTests",
+			"dev.friendai.test.AnvilSkillTests",
+			"dev.friendai.test.GrindstoneSkillTests"
 		]
 	},
 	"depends": {
