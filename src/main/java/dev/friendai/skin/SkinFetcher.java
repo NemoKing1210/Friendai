@@ -26,7 +26,13 @@ import java.util.regex.Pattern;
 public final class SkinFetcher {
     public static final int MAX_BODY = 1024 * 1024;
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
-    private static final String ERROR = "friendai.skin.error.";
+    public static final String BAD_NAME = "friendai.skin.error.bad_name";
+    public static final String UNKNOWN_USER = "friendai.skin.error.unknown_user";
+    public static final String NO_SKIN = "friendai.skin.error.no_skin";
+    public static final String HOST = "friendai.skin.error.host";
+    public static final String NOT_HTTPS = "friendai.skin.error.not_https";
+    public static final String TOO_LARGE = "friendai.skin.error.too_large";
+    public static final String NETWORK = "friendai.skin.error.network";
 
     private final HttpClient client;
     private final Duration timeout;
@@ -70,22 +76,22 @@ public final class SkinFetcher {
 
     public FetchedSkin byUsername(String name) {
         if (name == null || !NAME.matcher(name).matches()) {
-            throw error("bad_name");
+            throw error(BAD_NAME);
         }
-        JsonObject account = getJson(apiBase.resolve("/users/profiles/minecraft/" + name), "unknown_user");
+        JsonObject account = getJson(apiBase.resolve("/users/profiles/minecraft/" + name), UNKNOWN_USER);
         String id = string(account, "id");
         if (id == null) {
-            throw error("unknown_user");
+            throw error(UNKNOWN_USER);
         }
-        JsonObject profile = getJson(sessionBase.resolve("/session/minecraft/profile/" + id), "unknown_user");
+        JsonObject profile = getJson(sessionBase.resolve("/session/minecraft/profile/" + id), UNKNOWN_USER);
         JsonObject skin = skinEntry(profile);
         String url = skin == null ? null : string(skin, "url");
         if (url == null) {
-            throw error("no_skin");
+            throw error(NO_SKIN);
         }
         URI texture = parse(url);
         if (texture == null || !textureAllowed.test(texture)) {
-            throw error("host");
+            throw error(HOST);
         }
         boolean slim = skin.has("metadata")
                 && skin.get("metadata").isJsonObject()
@@ -96,7 +102,7 @@ public final class SkinFetcher {
     public byte[] byUrl(String url) {
         URI uri = url == null ? null : parse(url.strip());
         if (uri == null || !urlAllowed.test(uri)) {
-            throw error("not_https");
+            throw error(NOT_HTTPS);
         }
         return get(uri);
     }
@@ -131,12 +137,12 @@ public final class SkinFetcher {
         try {
             return JsonParser.parseString(new String(body, StandardCharsets.UTF_8)).getAsJsonObject();
         } catch (RuntimeException e) {
-            throw error("network");
+            throw error(NETWORK);
         }
     }
 
     private byte[] get(URI uri) {
-        return request(uri, "network");
+        return request(uri, NETWORK);
     }
 
     /** One GET with a hard body cap. A 404 or 204 maps to {@code notFoundKey}; any other non-200 is a network error. */
@@ -150,19 +156,19 @@ public final class SkinFetcher {
                     throw error(notFoundKey);
                 }
                 if (status != 200) {
-                    throw error("network");
+                    throw error(NETWORK);
                 }
                 byte[] body = in.readNBytes(MAX_BODY + 1);
                 if (body.length > MAX_BODY) {
-                    throw error("too_large");
+                    throw error(TOO_LARGE);
                 }
                 return body;
             }
         } catch (IOException e) {
-            throw error("network");
+            throw error(NETWORK);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw error("network");
+            throw error(NETWORK);
         }
     }
 
@@ -180,7 +186,7 @@ public final class SkinFetcher {
         return element != null && element.isJsonPrimitive() ? element.getAsString() : null;
     }
 
-    private static UserFacingException error(String suffix) {
-        return new UserFacingException(UserMessage.of(ERROR + suffix));
+    private static UserFacingException error(String key) {
+        return new UserFacingException(UserMessage.of(key));
     }
 }

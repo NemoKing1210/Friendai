@@ -32,4 +32,9 @@ class DebugAccessTest {
         assertTrue(DebugAccess.allowed(DebugAccess.Action.VIEW_MEMORY, false));
         assertTrue(DebugAccess.allowed(DebugAccess.Action.EDIT_MEMORY, false));
     }
+
+    @Test
+    void renameIsAllowedForEveryone() {
+        assertTrue(DebugAccess.allowed(DebugAccess.Action.RENAME, false));
+    }
 }

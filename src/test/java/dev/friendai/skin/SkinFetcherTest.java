@@ -80,7 +80,7 @@ class SkinFetcherTest {
     void unknownUsernameFails() {
         server.enqueue(404, "{\"errorMessage\":\"not found\"}");
 
-        assertEquals("friendai.skin.error.unknown_user", keyOf(() -> fetcher.byUsername("Nobody")));
+        assertEquals(SkinFetcher.UNKNOWN_USER, keyOf(() -> fetcher.byUsername("Nobody")));
     }
 
     @Test

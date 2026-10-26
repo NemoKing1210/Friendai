@@ -22,6 +22,7 @@ public enum RequestType {
     TELEPORT(DebugAccess.Action.TELEPORT),
     MOVE_DEBUG_ON(DebugAccess.Action.VIEW_MOVEMENT),
     MOVE_DEBUG_OFF(DebugAccess.Action.VIEW_MOVEMENT),
+    RENAME(DebugAccess.Action.RENAME),
     INVALID(null);
 
     private final DebugAccess.Action action;
