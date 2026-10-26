@@ -302,7 +302,7 @@ public final class ResourceSearchDriver implements Task {
 
     private boolean targetVisible(TaskContext context) {
         return FriendaiServerState.get(context.level().getServer()).resources()
-                .currentVisible(context.companion(), 16).stream().anyMatch(observation -> targetBlocks.contains(observation.blockId()));
+                .confirmedRecent(context.companion(), 16).stream().anyMatch(observation -> targetBlocks.contains(observation.blockId()));
     }
 
     private List<SearchPlanner.Frontier> frontiers() {

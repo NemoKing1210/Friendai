@@ -312,7 +312,7 @@ public final class GetFoodTask implements Task {
 
     private static Optional<BlockPos> nearestMatureCrop(TaskContext c) {
         var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
-        return evidence.currentVisible(c.companion(), CROP_RADIUS).stream()
+        return evidence.confirmedRecent(c.companion(), CROP_RADIUS).stream()
                 .map(observation -> observation.location().pos())
                 .map(pos -> new BlockPos(pos.x(), pos.y(), pos.z()))
                 .filter(pos -> Crops.harvestable(c.level(), pos).isPresent())

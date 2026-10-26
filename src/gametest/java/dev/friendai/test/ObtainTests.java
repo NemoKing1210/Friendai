@@ -192,6 +192,27 @@ public class ObtainTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 100)
+    public void worldScanCountsRecentlyObservedLogs(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos log = h.absolutePos(new BlockPos(4, 2, 4));
+        h.setBlock(4, 2, 4, Blocks.ACACIA_LOG);
+        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var level = h.getLevel();
+        state.resources().observe(c, new dev.friendai.knowledge.ResourceObservation("minecraft:acacia_log",
+                new dev.friendai.knowledge.ResourceObservation.Location(
+                        level.dimension().identifier().toString(),
+                        new dev.friendai.pathing.Pos(log.getX(), log.getY(), log.getZ())),
+                new dev.friendai.pathing.Pos(2, 2, 2), level.getServer().overworld().getGameTime()));
+        h.runAfterDelay(20, () -> {
+            WorldFacts world = WorldScan.scan(level, c, 32, false, false);
+            h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:acacia_log", 0), 1,
+                    "a log seen 20 ticks ago should still count as nearby");
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void surfaceExploreFindsLogs(GameTestHelper h) {
         GameTestSupport.platformAt(h, 240, 32);
