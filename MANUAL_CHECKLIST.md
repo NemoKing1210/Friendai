@@ -236,3 +236,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dismiss the companion, restart: no companion chunk is loaded.
 - [ ] `companion.chunkLoading.enabled: false` in `config/friendai-server.json`, `/friendai reload`: the companion unloads when the owner walks away.
 - [ ] The companion follows the owner through a nether portal: the old dimension's chunk unloads and the new one stays loaded.
+
+## Experience
+
+- [ ] The companion picks up experience orbs near it and its level and bar appear in the companion menu, in English and in Русский.
+- [ ] With a real provider, ask the companion to enchant an item at an enchanting table: levels and lapis are spent and the item is enchanted.
+- [ ] With a real provider, ask it to repair, combine or rename an item at an anvil: the levels are spent and the result stays in its inventory.
+- [ ] With a real provider, ask it to strip an enchanted item at a grindstone: the enchantments go and its experience grows.
+- [ ] Save and reload the world: the companion keeps its level and progress.

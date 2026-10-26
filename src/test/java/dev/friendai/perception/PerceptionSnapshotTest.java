@@ -11,6 +11,16 @@ import org.junit.jupiter.api.Test;
 
 class PerceptionSnapshotTest {
     @Test
+    void reportsExperienceLevel() {
+        PerceptionSnapshot snapshot = new PerceptionSnapshot(
+                "0 64 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing", "follow",
+                null, null, null, null, List.of(), 17);
+        String text = snapshot.toPromptText();
+        assertTrue(text.contains("Hunger: 20/20\nExperience level: 17\n"), text);
+    }
+
+    @Test
     void formatsAllSections() {
         Map<String, Integer> blocks = new LinkedHashMap<>();
         blocks.put("oak_log", 12);

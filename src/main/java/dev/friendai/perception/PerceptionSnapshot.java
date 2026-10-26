@@ -26,7 +26,19 @@ public record PerceptionSnapshot(
         SelfStatus self,
         List<Threat> threats,
         List<Landmark> landmarks,
-        List<TreeSummary> trees) {
+        List<TreeSummary> trees,
+        int experienceLevel) {
+
+    /** A snapshot of a companion with no experience levels. */
+    public PerceptionSnapshot(
+            String position, String dimension, float health, float maxHealth, int food, String timeOfDay,
+            String biome, String weather, Double ownerDistance, Map<String, Integer> nearbyBlocks,
+            Map<String, Integer> nearbyEntities, Map<String, Integer> inventory, String equipment,
+            String currentTask, OwnerFocus ownerFocus, SelfStatus self, List<Threat> threats,
+            List<Landmark> landmarks, List<TreeSummary> trees) {
+        this(position, dimension, health, maxHealth, food, timeOfDay, biome, weather, ownerDistance, nearbyBlocks,
+                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees, 0);
+    }
 
     public String toPromptText() {
         StringBuilder sb = new StringBuilder();
@@ -36,6 +48,7 @@ public record PerceptionSnapshot(
         }
         sb.append("Health: ").append(number(health)).append('/').append(number(maxHealth)).append('\n');
         sb.append("Hunger: ").append(food).append('/').append(HungerModel.MAX_FOOD).append('\n');
+        sb.append("Experience level: ").append(experienceLevel).append('\n');
         sb.append("Time: ").append(timeOfDay).append(", weather: ").append(weather).append(", biome: ").append(biome).append('\n');
         if (ownerFocus != null) {
             sb.append(ownerFocus.toPromptText()).append('\n');

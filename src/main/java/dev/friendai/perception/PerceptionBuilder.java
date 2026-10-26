@@ -75,7 +75,8 @@ public final class PerceptionBuilder {
                 selfStatus(c, level, pos),
                 threats(c, level),
                 LandmarkScanner.scan(level, pos),
-                trees(level, pos));
+                trees(level, pos),
+                c.experience().level());
     }
 
     /** The nearest tree-like clusters, so the model need not infer a tree from a count of log blocks. */
