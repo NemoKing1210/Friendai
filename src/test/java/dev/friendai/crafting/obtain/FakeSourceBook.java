@@ -18,6 +18,7 @@ final class FakeSourceBook implements SourceBook {
         ToolNeed stonePickaxe = new ToolNeed(ToolKind.PICKAXE, Tier.STONE);
         return new FakeSourceBook()
                 .add("minecraft:oak_log", new Source.Mine("minecraft:oak_log", ToolNeed.HAND, 1, true, 0))
+                .add("minecraft:acacia_log", new Source.Mine("minecraft:acacia_log", ToolNeed.HAND, 1, true, 0))
                 .add("minecraft:cobblestone", new Source.Mine("minecraft:stone", woodenPickaxe, 1, true, 0))
                 .add("minecraft:raw_iron", new Source.Mine("minecraft:iron_ore", stonePickaxe, 1, false, 16))
                 .add("minecraft:raw_gold", new Source.Mine("minecraft:gold_ore",

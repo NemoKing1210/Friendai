@@ -23,6 +23,8 @@ import java.util.Set;
 public final class ObtainPlanner {
     /** How many nested obtain steps the search may chain. */
     public static final int MAX_DEPTH = 8;
+    /** Upper bound on recursive provider evaluations in one plan, so many ingredient alternatives cannot stall. */
+    private static final int MAX_PROVIDER_EVALUATIONS = 20_000;
 
     /** Items the planner will burn; the first obtainable one is used. */
     private static final List<String> FUELS = List.of(
@@ -231,6 +233,7 @@ public final class ObtainPlanner {
         private final RecipeBook book;
         private final SourceBook sources;
         private final WorldFacts world;
+        private int evaluations;
 
         Search(RecipeBook book, SourceBook sources, WorldFacts world) {
             this.book = book;
@@ -247,6 +250,10 @@ public final class ObtainPlanner {
             Attempt total = new Attempt();
             qty -= sim.take(item, qty);
             if (qty <= 0) {
+                return total;
+            }
+            if (++evaluations > MAX_PROVIDER_EVALUATIONS) {
+                total.missing.merge(item, qty, Integer::sum);
                 return total;
             }
             if (depth > MAX_DEPTH || path.contains(item)) {
@@ -518,22 +525,33 @@ public final class ObtainPlanner {
                     }
                 }
             }
+            Choice best = null;
             for (String id : ingredient.items()) {
                 Sim copy = sim.copy();
                 Attempt planned = need(id, qty, depth + 1, path, copy, false);
-                if (planned.conditional) {
-                    attempt.merge(planned);
-                    sim.adopt(copy);
-                    return false;
+                if (!planned.ok() && !planned.conditional) {
+                    continue;
                 }
-                if (planned.ok()) {
-                    attempt.merge(planned);
-                    sim.adopt(copy);
-                    return true;
+                if (best == null || betterIngredient(planned, best.attempt)) {
+                    best = new Choice(planned, copy);
                 }
             }
+            if (best == null) {
+                return false;
+            }
+            attempt.merge(best.attempt);
+            sim.adopt(best.sim);
+            return !best.attempt.conditional;
+        }
+
+        private static boolean betterIngredient(Attempt candidate, Attempt best) {
+            if (candidate.conditional != best.conditional) return !candidate.conditional;
+            if (candidate.cost != best.cost) return candidate.cost < best.cost;
+            if (candidate.steps.size() != best.steps.size()) return candidate.steps.size() < best.steps.size();
             return false;
         }
+
+        private record Choice(Attempt attempt, Sim sim) {}
 
         private final class ContainerProvider implements Provider {
             private final String item;

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class ObtainPlannerTest {
     private static final String OAK_LOG = "minecraft:oak_log";
+    private static final String ACACIA_LOG = "minecraft:acacia_log";
     private static final String STONE = "minecraft:stone";
     private static final String IRON_ORE = "minecraft:iron_ore";
     private static final String COAL_ORE = "minecraft:coal_ore";
@@ -79,6 +80,31 @@ class ObtainPlannerTest {
     }
 
     @Test
+    void localWoodBeatsExploringForTheFirstSpecies() {
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(ACACIA_LOG, 6), true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore),
+                plan.steps().toString());
+        assertEquals(ACACIA_LOG, ((ObtainStep.Mine) plan.steps().get(0)).block());
+    }
+
+    @Test
+    void conditionalSiteIsUsedOnlyWhenNoLocalPlanExists() {
+        ResourceCandidate remembered = new ResourceCandidate(41, ACACIA_LOG, "minecraft:overworld",
+                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
+        WorldFacts facts = new WorldFacts(Map.of(ACACIA_LOG, 6), Map.of(), Map.of(), Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(remembered));
+
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.VisitResource),
+                plan.steps().toString());
+        assertEquals(ACACIA_LOG, ((ObtainStep.Mine) plan.steps().get(0)).block());
+    }
+
+    @Test
     void rememberedResourceProducesConditionalVisitPrefix() {
         ResourceCandidate candidate = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
                 new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
@@ -87,7 +113,7 @@ class ObtainPlannerTest {
         WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
                 Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(tied, candidate));
 
-        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+        ObtainPlan plan = plan("minecraft:oak_planks", 1, Map.of(), facts);
 
         assertFalse(plan.ok());
         assertTrue(plan.conditional());
@@ -119,7 +145,7 @@ class ObtainPlannerTest {
         WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
                 Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(first, second), Set.of(), Set.of(41L));
 
-        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+        ObtainPlan plan = plan("minecraft:oak_planks", 1, Map.of(), facts);
 
         assertEquals(new ObtainStep.VisitResource(42, "minecraft:overworld", OAK_LOG), plan.steps().get(0));
     }

@@ -24,7 +24,8 @@ public class FakeRecipeBook implements RecipeBook {
 
     /** The recipes the planner tests reason about, ordered like a vanilla book. */
     public static FakeRecipeBook vanillaLike() {
-        Ingredient planks = Ingredient.tag("minecraft:planks", "minecraft:oak_planks", "minecraft:birch_planks");
+        Ingredient planks = Ingredient.tag("minecraft:planks", "minecraft:oak_planks", "minecraft:birch_planks",
+                "minecraft:acacia_planks");
         Ingredient ironIngot = Ingredient.of("minecraft:iron_ingot");
         Ingredient stick = Ingredient.of("minecraft:stick");
         return new FakeRecipeBook()
@@ -32,6 +33,8 @@ public class FakeRecipeBook implements RecipeBook {
                         List.of(Ingredient.of("minecraft:oak_log")), Station.INVENTORY))
                 .add(new Recipe("minecraft:birch_planks", "minecraft:birch_planks", 4,
                         List.of(Ingredient.of("minecraft:birch_log")), Station.INVENTORY))
+                .add(new Recipe("minecraft:acacia_planks", "minecraft:acacia_planks", 4,
+                        List.of(Ingredient.of("minecraft:acacia_log")), Station.INVENTORY))
                 .add(new Recipe("minecraft:stick", "minecraft:stick", 4,
                         List.of(planks, planks), Station.INVENTORY))
                 .add(new Recipe("minecraft:crafting_table", "minecraft:crafting_table", 1,
