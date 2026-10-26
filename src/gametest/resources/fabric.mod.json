@@ -45,7 +45,8 @@
 			"dev.friendai.test.ToolChoiceTests",
 			"dev.friendai.test.SpeechTests",
 			"dev.friendai.test.TreeFellingTests",
-			"dev.friendai.test.BodyLanguageTests"
+			"dev.friendai.test.BodyLanguageTests",
+			"dev.friendai.test.ExperienceTests"
 		]
 	},
 	"depends": {

@@ -10,6 +10,7 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.survival.Difficulty;
+import dev.friendai.survival.ExperienceModel;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
@@ -51,7 +52,9 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity.RemovalReason;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -78,6 +81,11 @@ public class CompanionEntity extends PathfinderMob {
     /** Synced so the owner's inventory window can show the companion's hunger bar. */
     private static final EntityDataAccessor<Integer> DATA_FOOD =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
+    /** Synced so the inventory window and the HUD can show the level and the progress bar. */
+    private static final EntityDataAccessor<Integer> DATA_XP_LEVEL =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Float> DATA_XP_PROGRESS =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.FLOAT);
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -92,6 +100,9 @@ public class CompanionEntity extends PathfinderMob {
     /** How often, and how far, the companion takes items the owner threw: "here, take this". */
     private static final int OWNER_PICKUP_INTERVAL = 10;
     private static final double OWNER_PICKUP_RADIUS = 3.0;
+    /** Experience orbs inside the pull radius drift toward the companion; inside the pickup radius they are absorbed. */
+    public static final double XP_PULL_RADIUS = 8.0;
+    public static final double XP_PICKUP_RADIUS = 1.0;
 
     /** How often the companion looks for stations it left out, and how far it will walk back for one. */
     private static final int STATION_WATCH_INTERVAL = 20;
@@ -100,6 +111,7 @@ public class CompanionEntity extends PathfinderMob {
     private UUID ownerUuid;
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final HungerModel hunger = new HungerModel();
+    private final ExperienceModel experience = new ExperienceModel();
     private final TaskRunner taskRunner =
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
     private final CombatController combatController = new CombatController(this);
@@ -136,6 +148,66 @@ public class CompanionEntity extends PathfinderMob {
         super.defineSynchedData(builder);
         builder.define(DATA_THINKING, false);
         builder.define(DATA_FOOD, HungerModel.MAX_FOOD);
+        builder.define(DATA_XP_LEVEL, 0);
+        builder.define(DATA_XP_PROGRESS, 0.0f);
+    }
+
+    /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
+    public ExperienceModel experience() {
+        return experience;
+    }
+
+    /** The experience level as the client sees it. */
+    public int syncedXpLevel() {
+        return entityData.get(DATA_XP_LEVEL);
+    }
+
+    /** The progress through the current level (0 to 1) as the client sees it. */
+    public float syncedXpProgress() {
+        return entityData.get(DATA_XP_PROGRESS);
+    }
+
+    /** Adds experience points and refreshes the synced fields. */
+    public void addExperience(int points) {
+        experience.add(points);
+        syncExperience();
+    }
+
+    /** Copies the model into the synced fields the client reads. */
+    public void syncExperience() {
+        entityData.set(DATA_XP_LEVEL, experience.level());
+        entityData.set(DATA_XP_PROGRESS, experience.progress());
+    }
+
+    /** Pulls orbs in the pull radius toward the chest, like vanilla does for a player, and absorbs those in reach. */
+    private void collectExperienceOrbs() {
+        List<ExperienceOrb> orbs = level().getEntitiesOfClass(ExperienceOrb.class, getBoundingBox().inflate(XP_PULL_RADIUS));
+        if (orbs.isEmpty()) {
+            return;
+        }
+        net.minecraft.world.phys.Vec3 target = position().add(0.0, getBbHeight() / 2.0, 0.0);
+        boolean absorbed = false;
+        for (ExperienceOrb orb : orbs) {
+            if (orb.isRemoved()) {
+                continue;
+            }
+            net.minecraft.world.phys.Vec3 toward = target.subtract(orb.position());
+            double distance = toward.length();
+            if (distance <= XP_PICKUP_RADIUS || orb.getBoundingBox().intersects(getBoundingBox())) {
+                experience.add(orb.getValue());
+                orb.discard();
+                absorbed = true;
+                continue;
+            }
+            double pull = 1.0 - distance / XP_PULL_RADIUS;
+            if (pull > 0.0) {
+                orb.setDeltaMovement(orb.getDeltaMovement().add(toward.normalize().scale(pull * pull * 0.1)));
+            }
+        }
+        if (absorbed) {
+            syncExperience();
+            playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.1f, 0.5f + random.nextFloat() * 0.5f);
+        }
     }
 
     /** True while the brain is waiting for the model; the client draws a thought bubble above the head. */
@@ -248,6 +320,7 @@ public class CompanionEntity extends PathfinderMob {
                 previewOutline = null;
             }
             tickHunger((ServerLevel) level());
+            collectExperienceOrbs();
             combatController.tick();
             taskRunner.tick();
             body.tick();
@@ -681,6 +754,7 @@ public class CompanionEntity extends PathfinderMob {
         output.putInt("Food", hunger.food());
         output.putFloat("Saturation", hunger.saturation());
         output.putFloat("Exhaustion", hunger.exhaustion());
+        output.putInt("XpPoints", experience.points());
         Optional<String> savedQueue = taskRunner.savedQueue();
         savedQueue.ifPresent(saved -> {
             // One NBT string holds at most 65535 bytes, so a long queue is stored in pieces.
@@ -705,6 +779,8 @@ public class CompanionEntity extends PathfinderMob {
                 input.getInt("Food").orElse(HungerModel.MAX_FOOD),
                 input.getFloatOr("Saturation", STARTING_SATURATION),
                 input.getFloatOr("Exhaustion", 0.0f));
+        experience.load(input.getInt("XpPoints").orElse(0));
+        syncExperience();
         if (level() instanceof ServerLevel serverLevel) {
             Optional<String> savedQueue = readSavedQueue(input);
             if (savedQueue.isPresent()) {
