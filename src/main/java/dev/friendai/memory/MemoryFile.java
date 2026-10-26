@@ -9,6 +9,8 @@ public final class MemoryFile {
     public int nextId = 1;
     /** The name the owner gave their companion; null means the configured default. */
     public String companionName;
+    /** The personality the owner gave their companion; null means the configured default. */
+    public String persona;
     public List<PlayerEntry> players = new ArrayList<>();
     public List<FactEntry> facts = new ArrayList<>();
     public List<FoodRuleEntry> foodRules = new ArrayList<>();

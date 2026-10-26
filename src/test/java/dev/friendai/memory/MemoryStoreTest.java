@@ -114,10 +114,27 @@ class MemoryStoreTest {
     }
 
     @Test
+    void personaPersistsAcrossStores() {
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).setPersona("Calm guide");
+        store.flushAll();
+        assertEquals(Optional.of("Calm guide"), new MemoryStore(dir, () -> 0).book(A).persona());
+    }
+
+    @Test
+    void unparsablePersonaInFileIsDropped() throws IOException {
+        Files.writeString(
+                dir.resolve(A + ".json"),
+                "{\"version\":3,\"persona\":\"" + "x".repeat(400) + "\",\"players\":[]}");
+        assertTrue(new MemoryStore(dir, () -> 0).book(A).persona().isEmpty());
+    }
+
+    @Test
     void versionTwoFileLoadsWithoutCompanionName() throws IOException {
         Files.writeString(dir.resolve(A + ".json"), "{\"version\":2,\"players\":[]}");
         MemoryStore store = new MemoryStore(dir, () -> 0);
         assertTrue(store.book(A).companionName().isEmpty());
+        assertTrue(store.book(A).persona().isEmpty());
         store.book(A).setCompanionName("Bob");
         store.flushAll();
         assertEquals(Optional.of("Bob"), new MemoryStore(dir, () -> 0).book(A).companionName());

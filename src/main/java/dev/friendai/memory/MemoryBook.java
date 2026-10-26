@@ -21,6 +21,8 @@ public final class MemoryBook {
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
     /** The name the owner gave the companion; null means the configured default applies. */
     private String companionName;
+    /** The personality the owner gave the companion; null means the configured default applies. */
+    private String persona;
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -122,6 +124,40 @@ public final class MemoryBook {
             return false;
         }
         companionName = normalized;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** The personality the owner gave the companion, or empty when the configured default still applies. */
+    public Optional<String> persona() {
+        return Optional.ofNullable(persona);
+    }
+
+    /**
+     * Stores the owner's personality text. Returns whether it changed. The text is cleaned by
+     * {@link PersonaText#parse}; an unusable text throws and leaves the old value.
+     */
+    public boolean setPersona(String text) {
+        String normalized = PersonaText.parse(text)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Invalid persona. Use 1-" + PersonaText.MAX_LENGTH
+                                + " characters, without formatting codes."));
+        if (normalized.equals(persona)) {
+            return false;
+        }
+        persona = normalized;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** Returns to the configured default. True when a personality was set. */
+    public boolean clearPersona() {
+        if (persona == null) {
+            return false;
+        }
+        persona = null;
         dirty = true;
         revision++;
         return true;
@@ -329,6 +365,7 @@ public final class MemoryBook {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
         file.companionName = companionName;
+        file.persona = persona;
         for (Fact fact : facts.values()) {
             MemoryFile.FactEntry entry = new MemoryFile.FactEntry();
             entry.id = fact.id();
@@ -362,6 +399,7 @@ public final class MemoryBook {
         MemoryBook book = new MemoryBook();
         if (file != null) {
             CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
+            PersonaText.parse(file.persona).ifPresent(text -> book.persona = text);
         }
         if (file != null && file.players != null) {
             for (MemoryFile.PlayerEntry entry : file.players) {

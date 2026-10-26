@@ -76,6 +76,42 @@ class MemoryBookTest {
     }
 
     @Test
+    void personaRoundTripsAndMarksDirty() {
+        var b = new MemoryBook();
+        assertTrue(b.persona().isEmpty());
+        assertTrue(b.setPersona("  Calm  guide "));
+        assertEquals(Optional.of("Calm guide"), b.persona());
+        assertTrue(b.isDirty());
+        assertFalse(b.setPersona("Calm guide"));
+
+        var copy = MemoryBook.fromFile(b.toFile());
+        assertEquals(Optional.of("Calm guide"), copy.persona());
+        assertFalse(copy.isDirty());
+    }
+
+    @Test
+    void invalidPersonaIsRejectedAndKeepsOldValue() {
+        var b = new MemoryBook();
+        b.setPersona("Calm guide");
+        assertThrows(IllegalArgumentException.class, () -> b.setPersona("§x"));
+        assertThrows(IllegalArgumentException.class, () -> b.setPersona("  "));
+        assertEquals(Optional.of("Calm guide"), b.persona());
+    }
+
+    @Test
+    void clearPersonaResetsAndReportsChange() {
+        var b = new MemoryBook();
+        b.setPersona("Calm guide");
+        long before = b.revision();
+        assertTrue(b.clearPersona());
+        assertTrue(b.persona().isEmpty());
+        assertTrue(b.revision() > before);
+        long after = b.revision();
+        assertFalse(b.clearPersona());
+        assertEquals(after, b.revision());
+    }
+
+    @Test
     void companionNameRoundTripsAndMarksDirty() {
         var b = new MemoryBook();
         assertTrue(b.companionName().isEmpty());
