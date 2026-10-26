@@ -497,8 +497,12 @@ public final class FarmPass {
 
     private void finish() {
         if (report == null) {
+            Map<String, Integer> missing = new LinkedHashMap<>();
+            for (FarmStep.NeedSeeds need : shortfall) {
+                missing.merge(need.item(), need.count(), Integer::sum);
+            }
             report = new FarmReport(new LinkedHashMap<>(harvested), replanted, planted, tilled,
-                    noSeeds + lastUnsown, noHoe);
+                    noSeeds + lastUnsown, noHoe, missing, lastUnsown);
         }
     }
 }

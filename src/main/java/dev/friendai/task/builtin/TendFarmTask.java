@@ -200,7 +200,11 @@ public final class TendFarmTask implements Task {
     private void updateSeedNotice(TaskContext c) {
         boolean outOfSeeds = lastReport != null && lastReport.noSeeds() > 0;
         if (outOfSeeds) {
-            notice(c, seedsNotified, "I'm out of seeds for the farm at " + coords());
+            StringBuilder need = new StringBuilder();
+            lastReport.seedShortfall().forEach((item, count) -> need.append(need.isEmpty() ? "" : ", ")
+                    .append("need ").append(count).append(' ').append(item));
+            notice(c, seedsNotified, "I'm out of seeds for the farm at " + coords()
+                    + (need.isEmpty() ? "" : " (" + need + ")"));
             seedsNotified = true;
         } else {
             seedsNotified = false;
