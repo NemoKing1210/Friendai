@@ -83,6 +83,22 @@ public sealed interface BrainEvent {
         }
     }
 
+    /** The queue is idle but the goal is not finished: a nudge to continue or to say what blocks it. */
+    record GoalTick(String goal, java.util.List<String> unmet) implements BrainEvent {
+        public GoalTick {
+            unmet = java.util.List.copyOf(unmet);
+        }
+
+        @Override
+        public String toPromptLine() {
+            String state = unmet.isEmpty()
+                    ? "nothing is confirmed missing, check whether it is done"
+                    : "unmet: " + String.join("; ", unmet);
+            return "[event] goal \"" + goal + "\" is not finished; " + state
+                    + "; the queue is idle. Continue it or say what blocks you.";
+        }
+    }
+
     /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
     record WorldNotice(String text) implements BrainEvent {
         @Override

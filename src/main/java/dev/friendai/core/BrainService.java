@@ -83,6 +83,8 @@ public final class BrainService {
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
 
     private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
+    private final Map<UUID, Long> lastGoalTick = new HashMap<>();
+    private long lastAgentCheck;
     private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
     private LlmGateway current;
@@ -348,6 +350,70 @@ public final class BrainService {
 
     public void tick() {
         scheduler.tick();
+        agentTick();
+    }
+
+    /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
+    private void agentTick() {
+        long now = server.getTickCount() * 50L;
+        if (now - lastAgentCheck < 1_000L) {
+            return;
+        }
+        lastAgentCheck = now;
+        dev.friendai.brain.AgentSettings.Autonomy autonomy =
+                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy);
+        if (autonomy == dev.friendai.brain.AgentSettings.Autonomy.PASSIVE) {
+            return;
+        }
+        var goals = FriendaiServerState.get(server).goals();
+        for (Map.Entry<UUID, Entry> entry : new ArrayList<>(entries.entrySet())) {
+            UUID owner = entry.getKey();
+            CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
+            if (companion == null) {
+                continue;
+            }
+            var board = goals.board(owner);
+            var primary = board.primary();
+            boolean active = primary.isPresent()
+                    && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
+            long last = lastGoalTick.computeIfAbsent(owner, id -> now);
+            var facts = new dev.friendai.agent.tick.TickFacts(
+                    active,
+                    queueIdleOrBlocked(companion),
+                    companion.owner().isPresent(),
+                    companion.taskRunner().paused() || companion.taskRunner().suspended()
+                            || companion.isSleeping() || companion.getTarget() != null,
+                    entry.getValue().brain().isThinking(),
+                    now,
+                    last,
+                    autonomy,
+                    config.agent.goalTickSec);
+            if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
+                lastGoalTick.put(owner, now);
+                var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                guard.refresh();
+                post(owner, new BrainEvent.GoalTick(primary.get().text(),
+                        board.unmet(primary.get().id(), guard).stream()
+                                .map(dev.friendai.agent.goal.Criterion::text).toList()));
+            }
+        }
+    }
+
+    /** Nothing runs and no plan moves by itself; a plan waiting for a decision counts as blocked. */
+    private static boolean queueIdleOrBlocked(CompanionEntity companion) {
+        var runner = companion.taskRunner();
+        var queue = runner.queue();
+        if (queue.jobCount() == 0) {
+            return !runner.hasWork();
+        }
+        if (queue.active().isPresent()) {
+            return false;
+        }
+        boolean directWork = queue.jobs().stream()
+                .anyMatch(job -> job.planId() == 0 && !dev.friendai.queue.JobQueue.terminal(job));
+        boolean planMoving = queue.plans().stream()
+                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.queue.PlanStatus.ACTIVE);
+        return !directWork && !planMoving;
     }
 
     /** Lets one companion's brain consult the planner and queue what it proposes. */
