@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -79,6 +79,16 @@ public class ServerConfig {
         public int queueMaxPlans = 8;
         public int queueBlockedNoticeSec = 30;
         public int queueMaxStepsPerAdd = 32;
+        public ResourceSection resources = new ResourceSection();
+    }
+
+    public static class ResourceSection {
+        public boolean allowExpeditions = false;
+        public int localRadius = 64;
+        public int localTicks = 2_400;
+        public int expeditionRadius = 512;
+        public int expeditionTicks = 12_000;
+        public int observationRadius = 16;
     }
 
     public static class MemorySection {
@@ -154,6 +164,18 @@ public class ServerConfig {
             tasks = new TasksSection();
             problems.add("tasks was missing");
         }
+        if (tasks.resources == null) {
+            tasks.resources = new ResourceSection();
+            problems.add("tasks.resources was missing");
+        }
+        tasks.resources.localRadius = clamp(problems, "tasks.resources.localRadius", tasks.resources.localRadius, 16, 128);
+        tasks.resources.expeditionRadius = clamp(problems, "tasks.resources.expeditionRadius",
+                tasks.resources.expeditionRadius, tasks.resources.localRadius, 2_048);
+        tasks.resources.localTicks = clamp(problems, "tasks.resources.localTicks", tasks.resources.localTicks, 200, 12_000);
+        tasks.resources.expeditionTicks = clamp(problems, "tasks.resources.expeditionTicks",
+                tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
+        tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
+                tasks.resources.observationRadius, 4, 32);
         if (memory == null) {
             memory = new MemorySection();
             problems.add("memory was missing");

@@ -59,9 +59,18 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
             return deadlineReached() ? 0 : MAX_CELLS_PER_TICK - cellsUsed;
         }
 
+        /** Hard-cap allowance for the round-robin first observer when the soft deadline just expired. */
+        public int availableCellsIgnoringDeadline() { return MAX_CELLS_PER_TICK - cellsUsed; }
+
         public int availableRays(UUID companion) {
             Objects.requireNonNull(companion, "companion");
             if (deadlineReached()) return 0;
+            return availableRaysIgnoringDeadline(companion);
+        }
+
+        /** Hard-cap allowance for one first-observer progress step after the soft deadline. */
+        public int availableRaysIgnoringDeadline(UUID companion) {
+            Objects.requireNonNull(companion, "companion");
             return Math.max(0, Math.min(MAX_RAYS_PER_COMPANION - raysByCompanion.getOrDefault(companion, 0),
                     MAX_RAYS_PER_TICK - raysUsed));
         }
@@ -82,9 +91,5 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
 
         private boolean deadlineReached() { return nanoClock.getAsLong() >= deadlineNanos; }
 
-        private int availableRaysIgnoringDeadline(UUID companion) {
-            return Math.max(0, Math.min(MAX_RAYS_PER_COMPANION - raysByCompanion.getOrDefault(companion, 0),
-                    MAX_RAYS_PER_TICK - raysUsed));
-        }
     }
 }

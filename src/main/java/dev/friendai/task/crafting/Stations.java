@@ -72,7 +72,8 @@ public final class Stations {
             @Override
             public boolean test(BlockState state) {
                 if (station == Station.CAMPFIRE) {
-                    return state.is(BlockTags.CAMPFIRES);
+                    return state.is(BlockTags.CAMPFIRES) && state.hasProperty(CampfireBlock.LIT)
+                            && state.getValue(CampfireBlock.LIT);
                 }
                 return state.is(block);
             }

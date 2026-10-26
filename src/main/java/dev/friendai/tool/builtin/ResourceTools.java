@@ -9,10 +9,13 @@ import dev.friendai.knowledge.ResourceQuery;
 import dev.friendai.knowledge.ResourceKnowledgeText;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.obtain.ResourceResolver;
+import dev.friendai.task.builtin.SearchResourceTask;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
+import dev.friendai.core.FriendaiServerState;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerLevel;
 
 /** Bounded queries over the owner's remembered resource evidence. */
@@ -24,6 +27,24 @@ final class ResourceTools {
     private ResourceTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, java.util.List<TaskToolDef> defs) {
+        JsonObject searchSchema = SchemaBuilder.object()
+                .string("resource", "Block, block tag or item to search for")
+                .enumeration("strategy", "Permitted search strategy", "auto", "surface", "cave", "mine")
+                .enumeration("scope", "Search budget", "local", "expedition")
+                .enumeration("heading", "Initial compass heading", "north", "east", "south", "west")
+                .required("resource")
+                .build();
+        TaskToolDef search = new TaskToolDef("search_resource",
+                "Search for a resource using bounded, resource-specific strategies. Unknown locations are not assumed.",
+                searchSchema,
+                (companion, args) -> new SearchResourceTask(args.get("resource").getAsString(),
+                        args.has("strategy") ? args.get("strategy").getAsString() : "auto",
+                        args.has("scope") ? args.get("scope").getAsString() : "local",
+                        args.has("heading") ? args.get("heading").getAsString() : null, null),
+                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+                ResourceTools::callerSearch);
+        ToolKit.addCaller(registry, defs, search, (companion, caller, args) ->
+                ToolResult.error("resource search requires caller authorization"));
         registry.register(ToolKit.instantTool("known_resources",
                 "Query remembered resource sites for a block, block tag or item source. Results are historical evidence "
                         + "in the current dimension; they are not a guarantee that blocks or inventory remain there.",
@@ -36,6 +57,23 @@ final class ResourceTools {
                         .build(),
                 AccessLevel.TRUSTED,
                 (companion, args) -> query(companion, args)));
+    }
+
+    private static SearchResourceTask callerSearch(CompanionEntity companion, dev.friendai.tool.Caller caller,
+            JsonObject args) {
+        String scope = args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString() : "local";
+        if (!scope.equals("local") && !scope.equals("expedition"))
+            throw new IllegalArgumentException("scope must be local or expedition");
+        if (scope.equals("expedition")) {
+            var config = FriendaiServerState.get(((ServerLevel) companion.level()).getServer()).config();
+            if (caller.access() != AccessLevel.OWNER || !config.tasks.resources.allowExpeditions
+                    || !config.companion.chunkLoading.enabled)
+                throw new IllegalArgumentException("expeditions are disabled or owner-only");
+        }
+        return new SearchResourceTask(args.get("resource").getAsString(),
+                args.has("strategy") ? args.get("strategy").getAsString() : "auto", scope,
+                args.has("heading") ? args.get("heading").getAsString() : null, caller);
     }
 
     private static ToolResult query(CompanionEntity companion, JsonObject args) {

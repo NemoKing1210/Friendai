@@ -24,10 +24,15 @@ import net.minecraft.world.phys.Vec3;
 
 /** Shared access to direct visible evidence and remembered resource sites. */
 public final class ResourceCandidates {
+    private static final long CAVE_ENTRANCE_TTL = 6_000;
+    private static final int MAX_CAVE_ENTRANCES = 32;
+
     public enum Verification { PENDING, PRESENT, ABSENT, OCCLUDED, UNLOADED }
 
     private final KnowledgeStore knowledge;
+    /** Current sight is attached to the observing entity; only durable history is owner scoped. */
     private final Map<UUID, List<ResourceObservation>> visibleNow = new HashMap<>();
+    private final Map<UUID, List<ScopedCaveEntrance>> observedCaveEntrances = new HashMap<>();
     private ObservationScheduler observations;
 
     public ResourceCandidates(KnowledgeStore knowledge) { this.knowledge = knowledge; }
@@ -36,13 +41,55 @@ public final class ResourceCandidates {
 
     public void observe(CompanionEntity companion, ResourceObservation observation) {
         UUID owner = companion.ownerUuid();
-        if (owner == null) return;
-        ResourceKnowledge book = knowledge.book(owner);
-        book.observe(observation, observation.blockId());
-        List<ResourceObservation> current = visibleNow.computeIfAbsent(owner, ignored -> new ArrayList<>());
+        if (owner != null) knowledge.book(owner).observe(observation, observation.blockId());
+        List<ResourceObservation> current = visibleNow.computeIfAbsent(companion.getUUID(), ignored -> new ArrayList<>());
         current.removeIf(previous -> previous.observedTick() != observation.observedTick());
         if (current.stream().noneMatch(previous -> previous.location().equals(observation.location()))) current.add(observation);
     }
+
+    /** Retains a short-lived owner-scoped entrance sighting without reading the world. */
+    public void observeCaveEntrance(CompanionEntity companion, CaveEntranceObservation entrance) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null || !(companion.level() instanceof ServerLevel level)
+                || !entrance.dimension().equals(level.dimension().identifier().toString())) return;
+        long now = logicalTick(level);
+        List<ScopedCaveEntrance> entries = observedCaveEntrances.computeIfAbsent(companion.getUUID(), ignored -> new ArrayList<>());
+        entries.removeIf(entry -> !entry.owner().equals(owner) || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL
+                || sameOpening(entry.entrance(), entrance));
+        entries.add(new ScopedCaveEntrance(owner, entrance));
+        entries.sort(Comparator.comparingLong((ScopedCaveEntrance entry) -> entry.entrance().observedTick()).reversed());
+        if (entries.size() > MAX_CAVE_ENTRANCES) entries.subList(MAX_CAVE_ENTRANCES, entries.size()).clear();
+    }
+
+    /** Recently observed openings in this owner's current dimension, nearest first. */
+    public List<CaveEntranceObservation> observedCaveEntrances(CompanionEntity companion) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null || !(companion.level() instanceof ServerLevel level)) return List.of();
+        long now = logicalTick(level);
+        String dimension = level.dimension().identifier().toString();
+        List<ScopedCaveEntrance> entries = observedCaveEntrances.get(companion.getUUID());
+        if (entries == null) return List.of();
+        entries.removeIf(entry -> now < entry.entrance().observedTick()
+                || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL);
+        return entries.stream()
+                .filter(entry -> entry.owner().equals(owner))
+                .map(ScopedCaveEntrance::entrance)
+                .filter(entrance -> entrance.dimension().equals(dimension))
+                .sorted(Comparator.comparingDouble((CaveEntranceObservation entrance) -> distanceSquared(companion, entrance.approach()))
+                        .thenComparing(Comparator.comparingLong(CaveEntranceObservation::observedTick).reversed()))
+                .limit(MAX_CAVE_ENTRANCES)
+                .toList();
+    }
+
+    private static boolean sameOpening(CaveEntranceObservation left, CaveEntranceObservation right) {
+        return left.dimension().equals(right.dimension()) && left.opening().equals(right.opening());
+    }
+
+    private static double distanceSquared(CompanionEntity companion, Pos pos) {
+        return companion.position().distanceToSqr(Vec3.atCenterOf(new BlockPos(pos.x(), pos.y(), pos.z())));
+    }
+
+    private record ScopedCaveEntrance(UUID owner, CaveEntranceObservation entrance) {}
 
     /** Returns only evidence observed in the current world tick and still locally loaded. */
     public List<BlockPos> visible(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
@@ -66,10 +113,10 @@ public final class ResourceCandidates {
 
     /** Direct observations from the current tick, bounded to the companion's visible radius. */
     public List<ResourceObservation> currentVisible(CompanionEntity companion, int radius) {
-        if (!(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null || radius < 0) return List.of();
-        long now = level.getGameTime();
+        if (!(companion.level() instanceof ServerLevel level) || radius < 0) return List.of();
+        long now = logicalTick(level);
         double radiusSquared = (double) radius * radius;
-        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream()
+        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream()
                 .filter(observation -> observation.observedTick() == now)
                 .filter(observation -> observation.location().dimension().equals(level.dimension().identifier().toString()))
                 .filter(observation -> distanceSquared(companion, observation) <= radiusSquared)
@@ -106,10 +153,10 @@ public final class ResourceCandidates {
     }
 
     public boolean currentlyVisible(CompanionEntity companion, BlockPos pos) {
-        if (!(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null) return false;
+        if (!(companion.level() instanceof ServerLevel level)) return false;
         String dimension = level.dimension().identifier().toString();
-        long tick = level.getGameTime();
-        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream().anyMatch(observation ->
+        long tick = logicalTick(level);
+        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream().anyMatch(observation ->
                 observation.observedTick() == tick && observation.location().dimension().equals(dimension)
                         && observation.location().pos().x() == pos.getX()
                         && observation.location().pos().y() == pos.getY()
@@ -153,10 +200,11 @@ public final class ResourceCandidates {
                 .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
                 .collect(java.util.stream.Collectors.toSet());
         Map<String, ResourceCandidate> result = new java.util.LinkedHashMap<>();
+        long now = logicalTick(level);
         for (String blockId : blockIds) {
             ResourceQuery.Request request = new ResourceQuery.Request(Set.of(blockId), dimension,
                     new Pos(origin.getX(), origin.getY(), origin.getZ()), 30_000_000, limitPerBlock, true);
-            for (ResourceQuery.Result found : ResourceQuery.find(book, request, level.getGameTime())) {
+            for (ResourceQuery.Result found : ResourceQuery.find(book, request, now)) {
                 ResourceSite site = found.site();
                 Pos approach = site.approach();
                 double dx = approach.x() - companion.getX();
@@ -164,8 +212,8 @@ public final class ResourceCandidates {
                 double dy = Math.abs(approach.y() - companion.getY());
                 boolean fresh = site.availability() == ResourceSite.Availability.OBSERVED;
                 double cost = 4.6 * Math.hypot(dx, dz) + 10 * dy + (fresh ? 0 : 200);
-                boolean visible = site.members().stream().anyMatch(pos -> visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream()
-                        .anyMatch(observation -> observation.observedTick() == level.getGameTime()
+                boolean visible = site.members().stream().anyMatch(pos -> visibleNow.getOrDefault(companion.getUUID(), List.of()).stream()
+                        .anyMatch(observation -> observation.observedTick() == now
                                 && observation.location().pos().equals(pos)));
                 ResourceCandidate candidate = new ResourceCandidate(site.id(), blockId, site.dimension(),
                         site.representative(), approach, found.lastObservedBlocks(), found.ageTicks(), visible,
@@ -181,7 +229,7 @@ public final class ResourceCandidates {
     public Verification verify(CompanionEntity companion, long siteId) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return Verification.UNLOADED;
         ResourceKnowledge book = knowledge.book(companion.ownerUuid());
-        ResourceSite site = book.site(siteId, level.getGameTime()).orElse(null);
+        ResourceSite site = book.site(siteId, logicalTick(level)).orElse(null);
         if (site == null) return Verification.ABSENT;
         if (site.members().isEmpty()) return Verification.PENDING;
         ResourceObserver observer = observations.observer(companion);
@@ -191,15 +239,20 @@ public final class ResourceCandidates {
 
     public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return java.util.Optional.empty();
-        return java.util.Optional.ofNullable(knowledge.book(companion.ownerUuid()).site(siteId, level.getGameTime()).orElse(null));
+        return java.util.Optional.ofNullable(knowledge.book(companion.ownerUuid()).site(siteId, logicalTick(level)).orElse(null));
+    }
+
+    public dev.friendai.knowledge.travel.TrailGraph trails(CompanionEntity companion) {
+        return companion.ownerUuid() == null ? new dev.friendai.knowledge.travel.TrailGraph()
+                : knowledge.book(companion.ownerUuid()).trails();
     }
 
     public boolean siteVisible(CompanionEntity companion, long siteId) {
         ResourceSite site = site(companion, siteId).orElse(null);
         if (site == null) return false;
         String dimension = ((ServerLevel) companion.level()).dimension().identifier().toString();
-        long tick = ((ServerLevel) companion.level()).getGameTime();
-        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream().anyMatch(observation ->
+        long tick = logicalTick((ServerLevel) companion.level());
+        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream().anyMatch(observation ->
                 observation.observedTick() == tick && observation.location().dimension().equals(dimension)
                         && site.members().contains(observation.location().pos())
                         && site.family().equals(observation.blockId()));
@@ -210,7 +263,11 @@ public final class ResourceCandidates {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
         ResourceObservation.Location location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
-        knowledge.book(companion.ownerUuid()).extracted(location, level.getGameTime());
+        knowledge.book(companion.ownerUuid()).extracted(location, logicalTick(level));
         observations.observer(companion).changed(pos);
+    }
+
+    private static long logicalTick(ServerLevel level) {
+        return level.getServer().overworld().getGameTime();
     }
 }

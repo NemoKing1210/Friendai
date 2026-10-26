@@ -25,6 +25,7 @@ public final class SearchLedger {
         Key key = new Key(owner, dimension, normalized);
         SearchSession prior = sessions.get(key);
         if (prior != null && now >= prior.snapshot().lastTick() && now - prior.snapshot().lastTick() <= REUSE_TICKS) {
+            prior.resumeForNewRequest(now);
             return prior;
         }
         SearchSession created = new SearchSession(UUID.randomUUID(), dimension, normalized, origin, requested, now);
@@ -38,6 +39,13 @@ public final class SearchLedger {
     }
 
     public synchronized int size() { return sessions.size(); }
+    public synchronized java.util.List<SearchSession.Snapshot> snapshot() {
+        return sessions.values().stream().map(SearchSession::snapshot).toList();
+    }
+    public synchronized void interrupt(UUID sessionId) {
+        sessions.values().stream().filter(session -> session.snapshot().id().equals(sessionId)).forEach(SearchSession::interrupt);
+    }
+    public synchronized void interruptActive() { sessions.values().stream().filter(session -> !session.terminal()).forEach(SearchSession::interrupt); }
     public synchronized long logicalTick() {
         return sessions.values().stream().mapToLong(session -> session.snapshot().lastTick()).max().orElse(0);
     }

@@ -144,8 +144,11 @@ final class GatheringTools {
         boolean treesOnly = matcher == null || matcher.label().startsWith("#");
         ServerLevel level = (ServerLevel) c.level();
         var resources = FriendaiServerState.get(level.getServer()).resources();
+        // The sight cache is companion-centred, but a call may search around its speaker. Expand only
+        // the evidence radius here; the exact requested radius is applied around origin below.
+        int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
         BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
-        var observed = resources.visibleBlockIds(c, radius).entrySet().stream()
+        var observed = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
                 .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                 .filter(entry -> {
                     var id = net.minecraft.resources.Identifier.tryParse(entry.getValue());
@@ -155,7 +158,7 @@ final class GatheringTools {
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
         var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
-        Set<BlockPos> leaves = resources.visible(c, leavesMatcher, radius, 1024).stream()
+        Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
                 .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         List<TreeFinder.TreeInfo> found = TreeFinder.findObserved(level, origin, observed, leaves, 1).stream()

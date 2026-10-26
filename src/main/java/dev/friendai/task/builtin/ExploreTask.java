@@ -119,6 +119,11 @@ public final class ExploreTask implements Task {
         return down ? digTick(c) : surfaceTick(c);
     }
 
+    /** Number of blocks actually removed by this bounded exploration leg. */
+    public int excavationBlocks() {
+        return blocksDug;
+    }
+
     private TaskStatus surfaceTick(TaskContext c) {
         CompanionEntity companion = c.companion();
         if (companion.blockPosition().equals(previousFoot)) {

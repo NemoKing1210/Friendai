@@ -54,6 +54,28 @@ class ServerConfigTest {
     }
 
     @Test
+    void resourcePolicyDefaultsAndCapsAreSafe() {
+        ServerConfig c = ServerConfig.defaults();
+        assertFalse(c.tasks.resources.allowExpeditions);
+        assertEquals(64, c.tasks.resources.localRadius);
+        assertEquals(2_400, c.tasks.resources.localTicks);
+        assertEquals(512, c.tasks.resources.expeditionRadius);
+        assertEquals(12_000, c.tasks.resources.expeditionTicks);
+        assertEquals(16, c.tasks.resources.observationRadius);
+        c.tasks.resources.localRadius = 1;
+        c.tasks.resources.expeditionRadius = 1;
+        c.tasks.resources.localTicks = 1;
+        c.tasks.resources.expeditionTicks = 1;
+        c.tasks.resources.observationRadius = 100;
+        c.validate();
+        assertEquals(16, c.tasks.resources.localRadius);
+        assertEquals(16, c.tasks.resources.expeditionRadius);
+        assertEquals(200, c.tasks.resources.localTicks);
+        assertEquals(200, c.tasks.resources.expeditionTicks);
+        assertEquals(32, c.tasks.resources.observationRadius);
+    }
+
+    @Test
     void toLlmProfileResolvesEnvKey() {
         ServerConfig c = ServerConfig.defaults();
         LlmProfile p = c.toLlmProfile(Map.of("ANTHROPIC_API_KEY", "secret")::get);
@@ -68,7 +90,7 @@ class ServerConfigTest {
         assertTrue(c.chat.guestsEnabled);
         assertEquals(32, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
-        assertEquals(6, c.version);
+        assertEquals(7, c.version);
     }
 
     @Test
@@ -78,7 +100,7 @@ class ServerConfigTest {
         assertEquals(160, c.memory.maxFactChars);
         assertEquals(20, c.memory.maxFactsPerPlayer);
         assertEquals(30, c.memory.maxWorldFacts);
-        assertEquals(6, c.version);
+        assertEquals(7, c.version);
         assertEquals(160, c.memory.limits().maxFactChars());
     }
 
@@ -104,7 +126,7 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(160, c.memory.maxFactChars);
         assertTrue(c.memory.enabled);
-        assertTrue(Files.readString(f).contains("\"version\": 6"));
+        assertTrue(Files.readString(f).contains("\"version\": 7"));
     }
 
     @Test
@@ -125,7 +147,21 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(32, c.chat.hearingRadius);
-        assertTrue(Files.readString(f).contains("\"version\": 6"));
+        assertTrue(Files.readString(f).contains("\"version\": 7"));
+    }
+
+    @Test
+    void version6FileMigratesWithResourceDefaults(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":6,\"chat\":{\"hearingRadius\":12},\"companion\":{\"chunkLoading\":{\"enabled\":false}}}");
+        var store = new ConfigStore<>(f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ServerConfig c = store.load();
+        assertEquals(12, c.chat.hearingRadius);
+        assertFalse(c.companion.chunkLoading.enabled);
+        assertFalse(c.tasks.resources.allowExpeditions);
+        assertEquals(64, c.tasks.resources.localRadius);
+        assertEquals(2_400, c.tasks.resources.localTicks);
+        assertTrue(Files.readString(f).contains("\"version\": 7"));
     }
 
     @Test
@@ -146,7 +182,7 @@ class ServerConfigTest {
         assertEquals(64, c.pathing.maxGatherBlocks);
         assertTrue(c.pathing.breakBlacklist.contains("#minecraft:planks"));
         assertFalse(c.pathing.breakBlacklist.stream().anyMatch(entry -> entry.contains("terracotta")));
-        assertEquals(6, c.version);
+        assertEquals(7, c.version);
         assertEquals(2, c.pathing.toPathingConfig().searchBudgetMs());
     }
 
@@ -160,8 +196,8 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(2, c.pathing.searchBudgetMs);
         assertTrue(c.pathing.allowBreak);
-        assertEquals(6, c.version);
-        assertTrue(Files.readString(f).contains("\"version\": 6"));
+        assertEquals(7, c.version);
+        assertTrue(Files.readString(f).contains("\"version\": 7"));
     }
 
     @Test
@@ -169,7 +205,7 @@ class ServerConfigTest {
         var c = ServerConfig.defaults();
         assertTrue(c.companion.chunkLoading.enabled);
         assertEquals(1, c.companion.chunkLoading.radius);
-        assertEquals(6, c.version);
+        assertEquals(7, c.version);
     }
 
     @Test
@@ -214,7 +250,7 @@ class ServerConfigTest {
         assertTrue(c.tasks.mineCollectDrops);
         assertTrue(c.tasks.treePerception);
         assertEquals(12, c.tasks.treePerceptionRadius);
-        assertEquals(6, c.version);
+        assertEquals(7, c.version);
     }
 
     @Test
@@ -235,7 +271,7 @@ class ServerConfigTest {
         var store = new ConfigStore<>(
                 f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
         var config = store.load();
-        assertEquals(6, config.version);
+        assertEquals(7, config.version);
         assertEquals(20, config.tasks.mineSearchRadius);
         assertEquals(32, config.tasks.treeSearchRadius);
         assertTrue(config.tasks.treePerception);

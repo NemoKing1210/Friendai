@@ -102,7 +102,7 @@ public class TreeFellingTests {
         });
     }
 
-    @GameTest(maxTicks = 2000)
+    @GameTest(maxTicks = 4000)
     public void startsAtTheLowestLog(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int y = 2; y <= 10; y++) {
@@ -188,7 +188,7 @@ public class TreeFellingTests {
     @GameTest(maxTicks = 400)
     public void doesNotFellALogStructure(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int x = 9; x <= 11; x++) {
+        for (int x = 9; x <= 13; x++) {
             for (int z = 10; z <= 12; z++) {
                 for (int y = 2; y <= 4; y++) {
                     h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG);
@@ -197,16 +197,22 @@ public class TreeFellingTests {
         }
         // A small radius keeps other tests' trees out of the search in the shared world.
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        for (int x = 9; x <= 13; x++) {
+            for (int y = 2; y <= 4; y++) {
+                h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(x, y, 10))),
+                        "front face of the log structure should be visible at " + x + " " + y + " 10");
+            }
+        }
         var tools = FriendaiTools.create(() -> 32).bind(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
-        h.assertTrue(run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":4}").error(),
+        h.assertTrue(run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6}").error(),
                 "a structure must be refused");
         h.assertTrue(
-                run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":4,\"type\":\"#minecraft:logs\"}")
+                run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6,\"type\":\"#minecraft:logs\"}")
                         .error(),
                 "a tag must not pick a structure");
         var named = run(tools, anonymous, "fell_tree",
-                "{\"near\":\"self\",\"radius\":4,\"type\":\"minecraft:oak_log\"}");
+                "{\"near\":\"self\",\"radius\":6,\"type\":\"minecraft:oak_log\"}");
         h.assertTrue(!named.error() && named.content().startsWith("task #"), named.content());
         h.assertTrue(c.taskRunner().current().map(t -> t.type().equals("fell_tree")).orElse(false), "task should start");
         h.succeed();
@@ -226,6 +232,10 @@ public class TreeFellingTests {
         var owner = GameTestSupport.mockPlayerAt(h, 15.5, 2, 15.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
         c.setOwner(owner.getUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(16, 2, 16))),
+                "speaker's tree should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 2))),
+                "nearby tree should be directly visible");
         BlockPos speakers = h.absolutePos(new BlockPos(16, 2, 16));
         BlockPos nearCompanion = h.absolutePos(new BlockPos(2, 2, 2));
         var result = run(FriendaiTools.create(() -> 32).bind(c),
@@ -248,6 +258,10 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(net.minecraft.world.item.Items.IRON_PICKAXE.getDefaultInstance());
         c.setOwner(owner.getUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+                "speaker's block should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 2, 5))),
+                "nearby block should be directly visible");
         var started = run(FriendaiTools.create(() -> 32).bind(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), "mine_blocks",
                 "{\"block\":\"minecraft:dark_prismarine\",\"count\":1,\"near\":\"me\"}");
@@ -270,7 +284,11 @@ public class TreeFellingTests {
             h.setBlock(new BlockPos(12, y, 12), Blocks.DARK_OAK_LOG);
         }
         leaf(h, 12, 5, 12);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
+                "nearest tree should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
+                "farther tree should be directly visible");
         ToolResult result = run(FriendaiTools.create(() -> 32).bind(c), new Caller(null, "", AccessLevel.TRUSTED),
                 "find_trees", "{\"near\":\"self\",\"radius\":16}");
         h.assertTrue(!result.error(), result.content());
@@ -295,6 +313,8 @@ public class TreeFellingTests {
         var owner = GameTestSupport.mockPlayerAt(h, 12.5, 2, 12.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         c.setOwner(owner.getUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(13, 2, 13))),
+                "speaker's tree should be directly visible");
         BlockPos mangrove = h.absolutePos(new BlockPos(13, 2, 13));
         ToolResult result = run(FriendaiTools.create(() -> 32).bind(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),

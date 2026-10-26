@@ -194,10 +194,14 @@ public class ToolTests {
     @GameTest
     public void lookAroundListsNearbyLogs(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int i = 0; i < 4; i++) {
-            h.setBlock(4 + i, 2, 3, Blocks.OAK_LOG);
-        }
+        List<BlockPos> logs = List.of(new BlockPos(4, 2, 3), new BlockPos(5, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(10, 2, 8));
+        logs.forEach(pos -> h.setBlock(pos, Blocks.OAK_LOG));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos relative : logs) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+                    "fixture log should be visible at " + relative);
+        }
         ToolResult r = run(tools(c), "look_around", "{}");
         h.assertTrue(r.content().contains("oak_log"), "result was " + r.content());
         h.succeed();
@@ -293,6 +297,7 @@ public class ToolTests {
                 "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
                 "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
+                "search_resource", "known_resources",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
                 "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",
@@ -357,10 +362,14 @@ public class ToolTests {
         h.setBlock(9, 2, 2, Blocks.IRON_BLOCK);
         h.setBlock(5, 2, 2, Blocks.IRON_BLOCK);
         h.setBlock(12, 2, 2, Blocks.IRON_BLOCK);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        for (BlockPos relative : List.of(new BlockPos(5, 2, 2), new BlockPos(9, 2, 2), new BlockPos(12, 2, 2))) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+                    "fixture iron block should be directly visible at " + relative);
+        }
         ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:iron_block\",\"limit\":2}");
         h.assertTrue(!r.error(), "error: " + r.content());
-        h.assertTrue(r.content().startsWith("2 x minecraft:iron_block nearest first: "), "content was " + r.content());
+        h.assertTrue(r.content().startsWith("2 observed/remembered minecraft:iron_block nearest first: "), "content was " + r.content());
         String nearest = coords(h.absolutePos(new BlockPos(5, 2, 2))) + " (";
         String second = coords(h.absolutePos(new BlockPos(9, 2, 2))) + " (";
         String cut = coords(h.absolutePos(new BlockPos(12, 2, 2))) + " (";
@@ -734,6 +743,7 @@ public class ToolTests {
         h.setBlock(6, 2, 2, Blocks.IRON_ORE);
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
@@ -762,9 +772,7 @@ public class ToolTests {
         var result = tools.execute(call, new dev.friendai.tool.Caller(
                 java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
-        h.assertTrue(result.content().contains("air at "), result.content());
-        h.assertFalse(result.content().contains("cannot be broken"), result.content());
-        h.assertFalse(result.content().contains("tool"), result.content());
+        h.assertTrue(result.content().contains("unknown at "), result.content());
         h.succeed();
     }
 
@@ -776,6 +784,7 @@ public class ToolTests {
         c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
@@ -793,6 +802,7 @@ public class ToolTests {
         h.setBlock(6, 2, 2, Blocks.BEDROCK);
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "bedrock fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",

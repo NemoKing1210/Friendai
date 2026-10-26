@@ -23,13 +23,20 @@ public final class BreakAction {
     private static final int SWING_INTERVAL = 5;
 
     private final BlockPos pos;
+    /** Whether this is a cleanup break of a block placed directly under the companion. */
+    private final boolean allowBreakingSupport;
     /** Whether the block is already broken: the action then keeps reporting it, however often it is ticked. */
     private boolean broken;
     private int breakTicks;
     private int breakNeeded;
 
     public BreakAction(BlockPos pos) {
+        this(pos, false);
+    }
+
+    public BreakAction(BlockPos pos, boolean allowBreakingSupport) {
         this.pos = pos;
+        this.allowBreakingSupport = allowBreakingSupport;
     }
 
     public BlockPos pos() {
@@ -47,7 +54,7 @@ public final class BreakAction {
             stop(c);
             return State.GONE;
         }
-        if (!companion.hands().canInteract(pos) || occupiesSupport(companion, pos)
+        if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
                 || state.getDestroySpeed(level, pos) < 0) {
             stop(c);
             return State.BLOCKED;
@@ -70,7 +77,7 @@ public final class BreakAction {
         }
         level.destroyBlockProgress(companion.getId(), pos, -1);
         if (!stillValid.test(level.getBlockState(pos)) || !companion.hands().canInteract(pos)
-                || occupiesSupport(companion, pos)) {
+                || (!allowBreakingSupport && occupiesSupport(companion, pos))) {
             stop(c);
             return State.BLOCKED;
         }

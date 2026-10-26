@@ -13,6 +13,7 @@ import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.tool.Caller;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.obtain.DropIndex;
@@ -60,6 +61,8 @@ public final class ObtainTask implements Task {
     private final int exploreRadius;
     private final int exploreBlocks;
     private final int exploreTicks;
+    private final String searchScope;
+    private final Caller caller;
 
     private final List<String> history = new ArrayList<>();
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
@@ -73,12 +76,18 @@ public final class ObtainTask implements Task {
 
     public ObtainTask(String item, int count, boolean useContainers, boolean explore) {
         this(item, count, useContainers, explore, DEFAULT_MAX_STEPS, DEFAULT_MAX_TICKS,
-                DEFAULT_EXPLORE_RADIUS, DEFAULT_EXPLORE_BLOCKS, DEFAULT_EXPLORE_TICKS);
+                DEFAULT_EXPLORE_RADIUS, DEFAULT_EXPLORE_BLOCKS, DEFAULT_EXPLORE_TICKS, "local", null);
     }
 
     /** The full constructor, for tests with tighter limits. */
     public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
             int exploreRadius, int exploreBlocks, int exploreTicks) {
+        this(item, count, useContainers, explore, maxSteps, maxTicks, exploreRadius, exploreBlocks,
+                exploreTicks, "local", null);
+    }
+
+    public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
+            int exploreRadius, int exploreBlocks, int exploreTicks, String searchScope, Caller caller) {
         this.item = item;
         this.count = count;
         this.useContainers = useContainers;
@@ -88,6 +97,8 @@ public final class ObtainTask implements Task {
         this.exploreRadius = exploreRadius;
         this.exploreBlocks = exploreBlocks;
         this.exploreTicks = exploreTicks;
+        this.searchScope = searchScope == null ? "local" : searchScope;
+        this.caller = caller;
     }
 
     @Override
@@ -207,8 +218,10 @@ public final class ObtainTask implements Task {
             }
             case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count());
             case ObtainStep.Milk milk -> new MilkTask(milk.count(), null);
-            case ObtainStep.Explore explore -> new ExploreTask(blockMatcher(explore.block()), explore.down(),
-                    explore.depthY(), exploreRadius, exploreBlocks, exploreTicks);
+            case ObtainStep.Explore explore -> caller == null
+                    ? new ExploreTask(blockMatcher(explore.block()), explore.down(), explore.depthY(), exploreRadius,
+                            exploreBlocks, exploreTicks)
+                    : new SearchResourceTask(explore.block(), "auto", searchScope, null, caller);
         };
     }
 
@@ -412,5 +425,10 @@ public final class ObtainTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    @Override
+    public String saveData() {
+        return current == null ? null : current.saveData();
     }
 }

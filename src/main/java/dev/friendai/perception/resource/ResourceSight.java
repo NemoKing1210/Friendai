@@ -1,12 +1,16 @@
 package dev.friendai.perception.resource;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /** Incremental, chunk-safe line of sight using the actual collision-independent occlusion geometry. */
@@ -21,6 +25,8 @@ public final class ResourceSight {
         Outcome step(int cellBudget);
         int visitedCellsLastStep();
         BlockPos hitBlock();
+        List<BlockPos> openAirCells();
+        boolean unobstructedOpenCorridor();
     }
 
     public static Job rayTo(ServerLevel level, Vec3 from, Vec3 to, BlockPos target) {
@@ -36,6 +42,8 @@ public final class ResourceSight {
         private Outcome outcome = Outcome.PENDING;
         private BlockPos hit;
         private int visited;
+        private final List<BlockPos> openAirCells = new ArrayList<>();
+        private boolean unobstructedOpenCorridor = true;
 
         private RayJob(ServerLevel level, Vec3 from, Vec3 to, BlockPos target) {
             this.level = level;
@@ -73,6 +81,8 @@ public final class ResourceSight {
                     }
                     return outcome;
                 }
+                if (state.isAir()) openAirCells.add(pos.immutable());
+                else unobstructedOpenCorridor = false;
                 double next = nextBoundary(from, delta, cursor, pos);
                 if (!(next > cursor + EPSILON)) next = cursor + 1.0e-5;
                 cursor = next;
@@ -84,6 +94,13 @@ public final class ResourceSight {
         private boolean blocksRay(BlockState state, BlockPos pos, Vec3 delta) {
             if (state.isAir() || transmitsSight(state)) return false;
             VoxelShape shape = state.getOcclusionShape();
+            // Open blocks such as campfires have no occlusion shape, but their selectable geometry is still
+            // directly observable when this ray is aimed at that block.
+            if (shape.isEmpty() && target != null && target.equals(pos)) shape = state.getShape(level, pos);
+            if (shape.isEmpty() && target != null && target.equals(pos) && !state.getFluidState().isEmpty()) {
+                float height = state.getFluidState().getHeight(level, pos);
+                if (height > 0.0F) shape = Shapes.box(0.0, 0.0, 0.0, 1.0, height, 1.0);
+            }
             if (shape.isEmpty() && (state.is(Blocks.TINTED_GLASS) || state.is(net.minecraft.tags.BlockTags.LEAVES))) {
                 shape = state.getShape(level, pos);
             }
@@ -98,6 +115,8 @@ public final class ResourceSight {
 
         @Override public int visitedCellsLastStep() { return visited; }
         @Override public BlockPos hitBlock() { return hit; }
+        @Override public List<BlockPos> openAirCells() { return List.copyOf(openAirCells); }
+        @Override public boolean unobstructedOpenCorridor() { return unobstructedOpenCorridor; }
     }
 
     private static boolean transmitsSight(BlockState state) {

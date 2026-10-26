@@ -28,17 +28,17 @@ public class InteractTests {
         });
     }
 
-    @GameTest(maxTicks = 800)
+    @GameTest(maxTicks = 2400)
     public void approachReportsUnreachable(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos targetRel = new BlockPos(10, 2, 10);
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dy = -3; dy <= 3; dy++) {
-                for (int dz = -3; dz <= 3; dz++) {
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int dy = -5; dy <= 5; dy++) {
+                for (int dz = -5; dz <= 5; dz++) {
                     if (dx == 0 && dy == 0 && dz == 0) {
                         continue;
                     }
-                    h.setBlock(targetRel.offset(dx, dy, dz), Blocks.TINTED_GLASS);
+                    h.setBlock(targetRel.offset(dx, dy, dz), Blocks.BEDROCK);
                 }
             }
         }

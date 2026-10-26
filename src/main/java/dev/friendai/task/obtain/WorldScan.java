@@ -4,6 +4,7 @@ import dev.friendai.crafting.Station;
 import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.farming.Crops;
@@ -43,13 +44,34 @@ public final class WorldScan {
         for (var observation : evidence.currentVisible(companion, radius)) blocks.merge(observation.blockId(), 1, Integer::sum);
         Map<String, Integer> mobs = countVisibleMobs(level, companion, MOB_RADIUS);
         Map<String, Integer> crops = countVisibleCrops(level, companion, evidence);
+        Map<String, Integer> containerItems = containers ? countKnownContainerItems(level, companion) : Map.of();
         Set<String> stations = new LinkedHashSet<>();
         for (Station station : Stations.available(level, companion)) {
             if (station != Station.INVENTORY) stations.add(station.noun());
         }
-        return new WorldFacts(blocks, mobs, Map.of(), crops, stations, explore,
+        return new WorldFacts(blocks, mobs, containerItems, crops, stations, explore,
                 Level.OVERWORLD.equals(level.dimension()), explore ? evidence.plannerCandidates(companion, 20) : java.util.List.of(),
                 verifiedSiteIds, excludedSiteIds);
+    }
+
+    private static Map<String, Integer> countKnownContainerItems(ServerLevel level, CompanionEntity companion) {
+        if (companion.ownerUuid() == null) return Map.of();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        var book = FriendaiServerState.get(level.getServer()).knowledge().book(companion.ownerUuid());
+        String dimension = level.dimension().identifier().toString();
+        BlockPos origin = companion.blockPosition();
+        long now = level.getServer().overworld().getGameTime();
+        for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
+            var location = observation.location();
+            if (!dimension.equals(location.dimension()) || now - observation.observedTick() > 24_000) continue;
+            var pos = location.pos();
+            double dx = pos.x() - origin.getX();
+            double dy = pos.y() - origin.getY();
+            double dz = pos.z() - origin.getZ();
+            if (dx * dx + dy * dy + dz * dz > (double) CONTAINER_RADIUS * CONTAINER_RADIUS) continue;
+            observation.items().forEach((item, amount) -> counts.merge(item, amount, Integer::sum));
+        }
+        return counts;
     }
 
     private static Map<String, Integer> countVisibleMobs(ServerLevel level, CompanionEntity companion, int radius) {

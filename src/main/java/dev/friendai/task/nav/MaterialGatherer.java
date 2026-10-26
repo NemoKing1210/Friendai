@@ -314,4 +314,5 @@ public final class MaterialGatherer {
     private static String label(TaskContext c, BlockPos pos) {
         return BuiltInRegistries.BLOCK.getKey(c.level().getBlockState(pos).getBlock()).getPath();
     }
+
 }

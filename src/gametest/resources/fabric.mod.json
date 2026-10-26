@@ -41,6 +41,8 @@
 			"dev.friendai.test.PerceptionTests",
 			"dev.friendai.test.ResourceObservationTests",
 			"dev.friendai.test.ResourceToolsTests",
+			"dev.friendai.test.ResourceSearchTests",
+			"dev.friendai.test.ResourceJourneyTests",
 			"dev.friendai.test.PaceTests",
 			"dev.friendai.test.TrustTests",
 			"dev.friendai.test.InventoryWindowTests",

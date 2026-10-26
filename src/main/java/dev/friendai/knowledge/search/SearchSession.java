@@ -33,8 +33,8 @@ public final class SearchSession {
     private final UUID id;
     private final String dimension, goal;
     private final Pos origin;
-    private final Limits limits;
-    private final long startedTick;
+    private Limits limits;
+    private long startedTick;
     private Phase phase = Phase.PREPARE;
     private long lastTick;
     private double spentTravelBlocks;
@@ -64,9 +64,12 @@ public final class SearchSession {
         spentTicks = Math.max(spentTicks, input.tick() - startedTick) + input.workTicks();
         spentTravelBlocks += input.travelBlocks();
         excavationBlocks += input.excavationBlocks();
+        if (input.discovered()) {
+            phase = Phase.RETURN;
+            return decision(Reason.DISCOVERED, null);
+        }
         if (spentTicks >= limits.ticks() || spentTravelBlocks >= limits.travelBlocks()
                 || excavationBlocks >= limits.excavationBlocks()) return terminal(Phase.RETURN, Reason.LIMIT_REACHED);
-        if (input.discovered()) return terminal(Phase.COMPLETE, Reason.DISCOVERED);
         switch (phase) {
             case PREPARE -> {
                 if (!input.inventoryReady()) return terminal(Phase.FAILED, Reason.NOT_READY);
@@ -106,6 +109,39 @@ public final class SearchSession {
     }
 
     public synchronized void interrupt() { phase = Phase.INTERRUPTED; }
+
+    /** Accounts for one task tick of travel and excavation without forcing a planner phase transition. */
+    public synchronized boolean accountWork(long tick, Pos position, double travelBlocks, int blocksExcavated) {
+        Objects.requireNonNull(position);
+        if (tick < 0 || !Double.isFinite(travelBlocks) || travelBlocks < 0 || blocksExcavated < 0)
+            throw new IllegalArgumentException("invalid measured work");
+        lastTick = Math.max(lastTick, tick);
+        spentTicks = Math.max(spentTicks, Math.max(0, tick - startedTick));
+        spentTravelBlocks += travelBlocks;
+        excavationBlocks += blocksExcavated;
+        if (spentTicks >= limits.ticks() || spentTravelBlocks >= limits.travelBlocks()
+                || excavationBlocks >= limits.excavationBlocks()) {
+            if (phase != Phase.COMPLETE && phase != Phase.FAILED && phase != Phase.INTERRUPTED) phase = Phase.RETURN;
+        }
+        return phase == Phase.RETURN;
+    }
+
+    /** Applies a live policy reduction while preserving every unit of already-spent work. */
+    public synchronized void clampLimits(Limits currentPolicy) {
+        Objects.requireNonNull(currentPolicy);
+        limits = new Limits(Math.min(limits.radius(), currentPolicy.radius()),
+                Math.min(limits.travelBlocks(), currentPolicy.travelBlocks()),
+                Math.min(limits.ticks(), currentPolicy.ticks()),
+                Math.min(limits.excavationBlocks(), currentPolicy.excavationBlocks()));
+    }
+
+    public synchronized void resumeForNewRequest(long now) {
+        if (phase != Phase.INTERRUPTED) return;
+        if (now < 0) throw new IllegalArgumentException("tick must not be negative");
+        phase = Phase.CHOOSE_FRONTIER;
+        lastTick = now;
+        startedTick = Math.max(0, now - spentTicks);
+    }
     public synchronized Snapshot snapshot() {
         return new Snapshot(id, dimension, goal, origin, limits, phase, startedTick, lastTick,
                 spentTravelBlocks, spentTicks, excavationBlocks, blockedLegs);

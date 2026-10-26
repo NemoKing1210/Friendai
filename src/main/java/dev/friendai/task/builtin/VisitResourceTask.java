@@ -2,21 +2,20 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.knowledge.ResourceSite;
-import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.Pos;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.Navigator;
+import dev.friendai.task.nav.ResourceJourney;
 
 /** Travels to a remembered resource site and waits for fresh direct evidence. */
 public final class VisitResourceTask implements Task {
-    private static final int SIGHT_BUDGET_TICKS = 80;
+    private static final int SIGHT_BUDGET_TICKS = 240;
     private final long siteId;
     private final String dimension;
     private final int maxTicks;
-    private Navigator navigator;
+    private ResourceJourney journey;
     private ResourceCandidates.Verification result = ResourceCandidates.Verification.PENDING;
     private int ticks;
     private int waiting;
@@ -37,7 +36,6 @@ public final class VisitResourceTask implements Task {
         ticks = 0;
         waiting = 0;
         observing = false;
-        navigator = new Navigator(c.companion(), false);
         String currentDimension = c.level().dimension().identifier().toString();
         if (!dimension.equals(currentDimension)) {
             result = ResourceCandidates.Verification.UNLOADED;
@@ -50,7 +48,8 @@ public final class VisitResourceTask implements Task {
             return;
         }
         Pos approach = site.approach();
-        navigator.setGoal(new GoalPoint(approach.x() + 0.5, approach.y(), approach.z() + 0.5, 3.0, 2.0));
+        journey = new ResourceJourney(c, dimension, approach, null,
+                FriendaiServerState.get(c.level().getServer()).resources().trails(c.companion()), false);
     }
 
     @Override
@@ -63,15 +62,19 @@ public final class VisitResourceTask implements Task {
                 || result == ResourceCandidates.Verification.UNLOADED) return TaskStatus.FAILED;
         ResourceCandidates candidates = FriendaiServerState.get(c.level().getServer()).resources();
         if (!observing) {
-            Navigator.State state = navigator.tick(c);
-            if (state == Navigator.State.UNREACHABLE) {
+            ResourceJourney.State state = journey.tick(c);
+            if (state == ResourceJourney.State.BLOCKED || state == ResourceJourney.State.WAITING_FOR_CHUNK) {
                 result = ResourceCandidates.Verification.OCCLUDED;
                 return TaskStatus.FAILED;
             }
-            if (state != Navigator.State.ARRIVED) return TaskStatus.RUNNING;
+            if (state != ResourceJourney.State.ARRIVED) return TaskStatus.RUNNING;
             candidates.verify(c.companion(), siteId);
             observing = true;
         }
+        // The companion can shift while reaching the approach. A pending ray is tied to its
+        // original eye position and is discarded if that position changes, so refresh focused
+        // checks until fresh evidence arrives or the sight budget expires.
+        candidates.verify(c.companion(), siteId);
         if (candidates.siteVisible(c.companion(), siteId)) {
             result = ResourceCandidates.Verification.PRESENT;
             return TaskStatus.SUCCESS;
@@ -83,7 +86,13 @@ public final class VisitResourceTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    @Override public void stop(TaskContext c) { if (navigator != null) navigator.stop(c); }
+    @Override public void stop(TaskContext c) { if (journey != null) journey.stop(c); }
     @Override public String describe() { return "visiting remembered resource site " + siteId; }
-    @Override public String resultSummary() { return result.name().toLowerCase(java.util.Locale.ROOT); }
+    @Override public String resultSummary() {
+        String value = "site=" + siteId + "; phase=" + (observing ? "inspect" : "travel")
+                + "; result=" + result.name().toLowerCase(java.util.Locale.ROOT)
+                + "; ticks=" + ticks + "/" + maxTicks
+                + (observing ? "; sight_wait=" + waiting + "/" + SIGHT_BUDGET_TICKS : "");
+        return value.length() <= 600 ? value : value.substring(0, 597) + "...";
+    }
 }

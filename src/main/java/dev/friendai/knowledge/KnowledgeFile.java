@@ -132,6 +132,7 @@ public final class KnowledgeFile {
                 throw new IllegalArgumentException("invalid search ledger entry", ex);
             }
         }
+        dev.friendai.knowledge.travel.TrailGraph.fromJson(trails);
         if (sites.size() + summaries.size() > limits.sites() || sites.size() + summaries.size() > 2_048) {
             throw new IllegalArgumentException("too many resource sites");
         }

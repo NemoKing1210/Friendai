@@ -38,6 +38,36 @@ class ObservationBudgetTest {
     }
 
     @Test
+    void oneFourAndSixteenCompanionsStayWithinEveryTickCapAndAllProgress() {
+        for (int count : List.of(1, 4, 16)) {
+            List<UUID> companions = new ArrayList<>();
+            for (int i = 0; i < count; i++) companions.add(UUID.randomUUID());
+            int[] progress = new int[count];
+            for (long tick = 0; tick < 1_200; tick++) {
+                KnowledgeLimits.ObservationBudget budget = KnowledgeLimits.observationBudget(1_000_000, () -> 0L);
+                int start = budget.roundRobinStart(count, tick);
+                int[] tickRays = new int[count];
+                for (int offset = 0; offset < count; offset++) {
+                    int index = (start + offset) % count;
+                    UUID companion = companions.get(index);
+                    while (budget.availableCells() > 0 && budget.availableRays(companion) > 0
+                            && budget.tryRay(companion)) {
+                        assertTrue(budget.tryCell());
+                        progress[index]++;
+                        tickRays[index]++;
+                    }
+                }
+                assertTrue(budget.raysUsed() <= 256, "global ray cap exceeded with " + count + " companions");
+                assertTrue(budget.cellsUsed() <= 128, "global cell cap exceeded with " + count + " companions");
+                for (int rays : tickRays) assertTrue(rays <= 32,
+                        "per-companion ray cap exceeded with " + count + " companions");
+            }
+            for (int companionProgress : progress) assertTrue(companionProgress > 0,
+                    "a continuously active companion received no work with " + count + " companions");
+        }
+    }
+
+    @Test
     void focusAndPassiveWorkUseTheSameCompanionLimit() {
         UUID owner = UUID.randomUUID();
         KnowledgeLimits.ObservationBudget budget = KnowledgeLimits.observationBudget(1_000_000, () -> 0L);

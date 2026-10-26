@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -274,7 +275,7 @@ public class CombatTests {
         zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0);
         zombie.setHealth(200.0F);
         h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
-        h.runAfterDelay(60, () -> zombie.hurtServer(h.getLevel(), h.getLevel().damageSources().genericKill(), 1000.0F));
+        h.runAfterDelay(60, () -> zombie.kill(h.getLevel()));
         h.runAfterDelay(120, () -> {
             h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
                     "state was " + c.combatController().state());
@@ -759,6 +760,10 @@ public class CombatTests {
         h.setBlock(8, 2, 2, Blocks.CRIMSON_STEM);
         h.setBlock(8, 3, 2, Blocks.CRIMSON_STEM);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 2))),
+                "lower crimson stem should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 3, 2))),
+                "upper crimson stem should be directly visible");
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         Notices notices = listen(c);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);

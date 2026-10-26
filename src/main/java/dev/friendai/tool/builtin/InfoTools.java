@@ -59,15 +59,19 @@ final class InfoTools {
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
                     int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
                     var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    // Observations are stored relative to the companion, while this query may be centred on the
+                    // speaking player. Expand only the evidence lookup; TreeFinder still applies the requested
+                    // radius around origin, and this does not inspect the world for unseen blocks.
+                    int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
                     BlockMatcher logs = matcher == null ? ToolKit.parseBlockMatcher("#minecraft:logs") : matcher;
-                    var observedIds = resources.visibleBlockIds(c, radius).entrySet().stream()
+                    var observedIds = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
                             .filter(entry -> {
                                 var id = Identifier.tryParse(entry.getValue());
                                 return id != null && BuiltInRegistries.BLOCK.containsKey(id)
                                         && logs.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
                             }).collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
                     BlockMatcher leavesMatcher = ToolKit.parseBlockMatcher("#minecraft:leaves");
-                    Set<BlockPos> leaves = resources.visible(c, leavesMatcher, radius, 1024).stream()
+                    Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
                             .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                             .collect(java.util.stream.Collectors.toUnmodifiableSet());
                     List<TreeFinder.TreeInfo> found = TreeFinder.findObserved((ServerLevel) c.level(), origin,

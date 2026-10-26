@@ -276,8 +276,26 @@ public final class Scaffold {
                         breaker = null;
                         removalIndex++;
                     }
-                    case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
+                    case UNREACHABLE -> {
                         breaker = null;
+                        failure = "couldn't reach scaffold at " + coords(removal.get(removalIndex));
+                        return State.FAILED;
+                    }
+                    case PROTECTED -> {
+                        breaker = null;
+                        BlockPos blocked = removal.get(removalIndex);
+                        if (!companion.hands().canInteract(blocked)) {
+                            failure = "scaffold is protected at " + coords(blocked);
+                        } else if (level.getBlockState(blocked).getDestroySpeed(level, blocked) < 0) {
+                            failure = "scaffold cannot be broken at " + coords(blocked);
+                        } else {
+                            failure = "scaffold breaker was blocked at " + coords(blocked);
+                        }
+                        return State.FAILED;
+                    }
+                    case OUT_OF_SIGHT -> {
+                        breaker = null;
+                        failure = "scaffold is out of sight at " + coords(removal.get(removalIndex));
                         return State.FAILED;
                     }
                 }
@@ -290,7 +308,7 @@ public final class Scaffold {
             }
             // Taking down its own scaffold: the structure it helped build may hide the block, and leaving it behind
             // is worse, so this breaker does not require line of sight.
-            breaker = new BlockBreaker(pos, Scaffold::isScaffold, false);
+            breaker = new BlockBreaker(pos, Scaffold::isScaffold, false, true);
         }
         return State.READY;
     }

@@ -3,6 +3,7 @@ package dev.friendai.knowledge;
 import dev.friendai.pathing.Pos;
 import dev.friendai.knowledge.search.SearchCoverage;
 import dev.friendai.knowledge.search.SearchLedger;
+import dev.friendai.knowledge.travel.TrailGraph;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public final class ResourceKnowledge {
     private final Map<ResourceObservation.Location, ContainerObservation> containers = new LinkedHashMap<>();
     private SearchCoverage searchCoverage = new SearchCoverage();
     private SearchLedger searchLedger = new SearchLedger();
+    private TrailGraph trails = new TrailGraph();
     private long nextId = 1;
     private long logicalTick;
     private long revision;
@@ -143,8 +145,12 @@ public final class ResourceKnowledge {
 
     public long revision() { return revision; }
 
+    /** Previously inspected container contents, copied so callers cannot mutate the knowledge book. */
+    public List<ContainerObservation> containerObservations() { return List.copyOf(containers.values()); }
+
     public SearchCoverage searchCoverage() { return searchCoverage; }
     public SearchLedger searchLedger() { return searchLedger; }
+    public TrailGraph trails() { return trails; }
 
     public void recordCoverage(String dimension, Pos viewpoint, String family,
             dev.friendai.knowledge.search.ResourceSearchProfile.Strategy strategy, SearchCoverage.Outcome outcome, long tick) {
@@ -195,7 +201,7 @@ public final class ResourceKnowledge {
                         observation.location().pos().x(), observation.location().pos().y(), observation.location().pos().z(),
                         observation.items(), observation.observedTick())).toList();
         return new KnowledgeFile(Math.max(logicalTick, searchLedger.logicalTick()), nextId, records, siteRecords, summaryRecords, aliases, containerRecords,
-                searchCoverage.toJson(), List.of(), searchLedger.toJson());
+                searchCoverage.toJson(), trails.toJson(), searchLedger.toJson());
     }
 
     public static ResourceKnowledge restore(KnowledgeFile file, KnowledgeLimits limits) {
@@ -204,6 +210,8 @@ public final class ResourceKnowledge {
         book.logicalTick = file.logicalTick();
         book.searchCoverage = SearchCoverage.fromJson(file.coverage());
         book.searchLedger.restore(file.searchLedger());
+        book.searchLedger.interruptActive();
+        book.trails = TrailGraph.fromJson(file.trails());
         book.nextId = file.nextSiteId();
         for (KnowledgeFile.SiteRecord record : file.sites()) {
             MutableSite site = new MutableSite(record.id(), record.family(), record.dimension(),

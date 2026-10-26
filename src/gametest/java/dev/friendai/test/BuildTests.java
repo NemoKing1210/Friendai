@@ -10,6 +10,7 @@ import dev.friendai.build.ParseResult;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
@@ -21,6 +22,7 @@ import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.build.Scaffold;
+import dev.friendai.task.build.ScaffoldCleanupTask;
 import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.task.builtin.ObtainTask;
 import java.nio.file.Files;
@@ -673,7 +675,7 @@ public class BuildTests {
     }
 
     @GameTest
-    public void haveCountsChests(GameTestHelper h) {
+    public void haveCountsOnlyCompanionInventory(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         // Birch: no other test stores it, so a neighbouring test's chest inside the 16-block storage
@@ -684,7 +686,8 @@ public class BuildTests {
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(6, 2, 6)));
         chest.setItem(0, new ItemStack(Items.BIRCH_PLANKS, 20));
         chest.setChanged();
-        equal(30, Materials.have(companion, h.getLevel()).getOrDefault(Items.BIRCH_PLANKS, 0), "inventory plus chest");
+        equal(10, Materials.have(companion, h.getLevel()).getOrDefault(Items.BIRCH_PLANKS, 0),
+                "closed storage contents are not available through carried materials");
         h.succeed();
     }
 
@@ -712,6 +715,34 @@ public class BuildTests {
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(result);
         return runner;
+    }
+
+    @GameTest(maxTicks = 200)
+    public void scaffoldCleanupStepsOffItsSupportBeforeBreakingIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        h.getLevel().setBlock(support, Blocks.DIRT.defaultBlockState(), 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ScaffoldCleanupTask cleanup = new ScaffoldCleanupTask(List.of(support));
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        cleanup.start(context);
+        TaskStatus[] status = {TaskStatus.RUNNING};
+        BlockPos[] checkpoints = new BlockPos[4];
+        int[] ticks = {0};
+
+        h.succeedWhen(() -> {
+            status[0] = cleanup.tick(context);
+            if (ticks[0] == 1 || ticks[0] == 10 || ticks[0] == 50 || ticks[0] == 200) {
+                checkpoints[ticks[0] == 1 ? 0 : ticks[0] == 10 ? 1 : ticks[0] == 50 ? 2 : 3] =
+                        companion.blockPosition();
+            }
+            ticks[0]++;
+            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+                    "cleanup did not finish: " + status[0] + " " + cleanup.resultSummary() + " at "
+                            + companion.blockPosition() + " with navigation " + companion.getNavigation().isDone()
+                            + " checkpoints=" + java.util.Arrays.toString(checkpoints));
+            h.assertTrue(h.getLevel().getBlockState(support).isAir(), "the scaffold support was left behind");
+        });
     }
 
     private static BuildTask build(Blueprint blueprint, GameTestHelper h, int x, int y, int z, Direction facing) {
@@ -760,12 +791,15 @@ public class BuildTests {
         var chest = (net.minecraft.world.level.block.entity.ChestBlockEntity)
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 9)));
         chest.setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        chest.setItem(6, new ItemStack(Items.COBBLESTONE, 64));
         chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 64));
         chest.setItem(2, new ItemStack(Items.OAK_PLANKS, 64));
         chest.setItem(3, new ItemStack(Items.GLASS_PANE, 16));
         chest.setItem(4, new ItemStack(Items.OAK_SLAB, 32));
         chest.setItem(5, new ItemStack(Items.OAK_DOOR, 2));
         chest.setChanged();
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(2, 2, 9))),
+                "materials chest should be directly visible");
         Blueprint house = generator("""
                 { "type": "house", "width": 5, "depth": 5, "roof_style": "flat",
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
@@ -850,11 +884,12 @@ public class BuildTests {
         // needed for planks.
         // Acacia: no other test stores it, so the build cannot satisfy the wall from a neighbour's chest
         // and skip the mining this test is about.
-        h.setBlock(2, 2, 10, Blocks.ACACIA_LOG);
-        h.setBlock(2, 2, 11, Blocks.ACACIA_LOG);
-        h.setBlock(2, 2, 12, Blocks.ACACIA_LOG);
-        h.setBlock(2, 2, 13, Blocks.ACACIA_LOG);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(2, 2, 6),
+                new BlockPos(6, 2, 8), new BlockPos(11, 2, 11)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.ACACIA_LOG);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos log : logs) h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
+                "acacia log should be directly visible at " + log);
         Blueprint wall = generator(
                 "{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:acacia_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(3, 2, 6));
@@ -863,6 +898,8 @@ public class BuildTests {
         runner.start(new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true),
                 "build_structure");
         h.succeedWhen(() -> {
+            for (BlockPos log : logs) if (h.getBlockState(log).is(Blocks.ACACIA_LOG))
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(log));
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
@@ -871,7 +908,8 @@ public class BuildTests {
                 h.assertTrue(h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.ACACIA_PLANKS),
                         "missing plank at " + x + ",2,6: " + h.getBlockState(new BlockPos(x, 2, 6)));
             }
-            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.ACACIA_LOG).size() < 4, "the logs must be mined");
+            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.ACACIA_LOG).size() <= 1,
+                    "only the logs needed for the wall should be mined");
         });
     }
 
@@ -1012,12 +1050,18 @@ public class BuildTests {
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(1, 2, 12)));
         far.setItem(0, new ItemStack(Items.JUNGLE_PLANKS, 20));
         far.setChanged();
+        BlockPos nearPos = h.absolutePos(new BlockPos(1, 2, 4));
+        BlockPos farPos = h.absolutePos(new BlockPos(1, 2, 12));
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, nearPos), "near chest should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, farPos), "far chest should be directly visible");
         Blueprint platform = generator(
                 "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:jungle_planks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(platform, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
+            GameTestSupport.observeVisible(h, companion, nearPos);
+            GameTestSupport.observeVisible(h, companion, farPos);
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);

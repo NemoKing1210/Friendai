@@ -867,7 +867,8 @@ public final class BuildTask implements Task {
             case FAILED -> {
                 // Leftover scaffolding is never part of a success: the build only counts as done once the world
                 // is clean again.
-                summary += "; left " + scaffold.left() + " scaffold blocks behind";
+                summary += "; left " + scaffold.left() + " scaffold blocks behind"
+                        + (scaffold.failure().isBlank() ? "" : " (" + scaffold.failure() + ")");
                 return TaskStatus.FAILED;
             }
         }

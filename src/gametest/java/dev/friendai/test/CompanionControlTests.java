@@ -13,6 +13,7 @@ import dev.friendai.debug.RequestType;
 import dev.friendai.debug.SnapshotCodec;
 import dev.friendai.net.CompanionRequestC2SPayload;
 import dev.friendai.net.CompanionRequestHandler;
+import dev.friendai.net.RateLimiter;
 import dev.friendai.net.DebugStream;
 import dev.friendai.net.Operators;
 import dev.friendai.net.RateLimiter;
@@ -80,6 +81,7 @@ public class CompanionControlTests {
             @Override
             public Task cleanupAfterCancel(TaskContext c) { return cleanup; }
         }, "work_with_cleanup");
+        CompanionRequestHandler.setLimiter(new RateLimiter(0, System::currentTimeMillis));
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
         h.assertTrue(stopped[0], "teleport must stop the old task");
         h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
@@ -231,6 +233,9 @@ public class CompanionControlTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(new BlockPos(4, 2, 2), Blocks.CHERRY_LOG);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 2, 2))),
+                "cherry log should be directly visible");
         var server = h.getLevel().getServer();
         BrainService brains = FriendaiServerState.get(server).brains();
         Script script = new Script()
@@ -238,7 +243,6 @@ public class CompanionControlTests {
                 .text("On it")
                 .text("Done");
         brains.setGatewayOverride(player.getUUID(), script);
-        CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             List<TaskRecord> recent = brains.debug().historyOf(player.getUUID()).recent();

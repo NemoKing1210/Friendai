@@ -19,6 +19,7 @@ import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
 import dev.friendai.text.UserMessage;
+import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -130,6 +131,13 @@ public class BrainServiceTests {
         BlockPos log = new BlockPos(4, 2, 2);
         h.setBlock(log, Blocks.MANGROVE_LOG);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
+                "mangrove log should be directly visible");
+        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).resources()
+                        .knownOrVisible(companion, BlockMatcher.parse("minecraft:mangrove_log").orElseThrow(), 8, 8)
+                        .contains(h.absolutePos(log)),
+                "the directly observed log should be queryable by the companion");
         var server = h.getLevel().getServer();
         BrainService brains = FriendaiServerState.get(server).brains();
         Script script = new Script()
@@ -137,10 +145,11 @@ public class BrainServiceTests {
                 .text("On it")
                 .text("Done");
         brains.setGatewayOverride(player.getUUID(), script);
-        CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
-            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(log)).isAir(), "log should be mined");
+            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(log)).isAir(),
+                    "log should be mined; task=" + companion.taskRunner().current().map(task -> task.type() + ":" + task.resultSummary())
+                            + ", history=" + brains.debug().historyOf(player.getUUID()).recent());
             h.assertTrue(script.requests.size() == 2,
                     "a successful queue job must not generate a brain event: " + script.requests.size());
         });

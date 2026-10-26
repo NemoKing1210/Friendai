@@ -68,8 +68,17 @@ public class MineBlocksTests {
     @GameTest(maxTicks = 1200)
     public void minesRequestedLogs(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        placeLogs(h, 5, Blocks.ACACIA_LOG);
+        BlockPos[] targets = {
+            new BlockPos(5, 2, 3), new BlockPos(4, 2, 8), new BlockPos(8, 2, 5),
+            new BlockPos(10, 2, 9), new BlockPos(11, 2, 2)
+        };
+        for (BlockPos target : targets) h.setBlock(target, Blocks.ACACIA_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        for (BlockPos relative : new BlockPos[] {targets[0], targets[1], targets[2]}) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+                    "requested log should be directly visible at " + relative);
+        }
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("#minecraft:acacia_logs", 3), "mine_blocks");
@@ -77,7 +86,7 @@ public class MineBlocksTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.ACACIA_LOG) >= 3, "logs collected: " + c.inventory().countItem(Items.ACACIA_LOG));
-            h.assertTrue(countBlocks(h, Blocks.ACACIA_LOG, LOGS) == 2, "logs left: " + countBlocks(h, Blocks.ACACIA_LOG, LOGS));
+            h.assertTrue(countBlocks(h, Blocks.ACACIA_LOG, targets) == 2, "logs left: " + countBlocks(h, Blocks.ACACIA_LOG, targets));
         });
     }
 
@@ -86,6 +95,8 @@ public class MineBlocksTests {
         GameTestSupport.platform(h, 16);
         placeLogs(h, 2, Blocks.BIRCH_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(LOGS[0])), "birch log should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(LOGS[1])), "upper birch log should be visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:birch_log", 5), "mine_blocks");
@@ -116,6 +127,7 @@ public class MineBlocksTests {
         BlockPos bedrock = new BlockPos(4, 2, 2);
         h.setBlock(bedrock, Blocks.BEDROCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(bedrock)), "bedrock should be visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:bedrock", 1), "mine_blocks");
@@ -132,6 +144,7 @@ public class MineBlocksTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(4, 2, 2, Blocks.JUNGLE_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))), "jungle log should be visible");
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.STONE_AXE));
         Result result = new Result();
@@ -164,6 +177,7 @@ public class MineBlocksTests {
         h.setBlock(6, 2, 4, Blocks.EMERALD_BLOCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, target), "emerald target should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
@@ -182,6 +196,7 @@ public class MineBlocksTests {
         h.setBlock(6, 2, 2, Blocks.LAPIS_BLOCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, target), "initial lapis block should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
@@ -217,6 +232,7 @@ public class MineBlocksTests {
         h.setBlock(6, 2, 2, Blocks.BEDROCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, target), "bedrock target should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
@@ -248,9 +264,13 @@ public class MineBlocksTests {
     public void mineBlocksSkipsProtected(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(6, 2, 2, Blocks.DARK_PRISMARINE);
-        h.setBlock(10, 2, 2, Blocks.DARK_PRISMARINE);
+        h.setBlock(10, 2, 5, Blocks.DARK_PRISMARINE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+                "near protected block should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 5))),
+                "farther block should be visible");
         BlockPos nearer = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(p -> p.equals(nearer));
         Result result = new Result();
@@ -260,14 +280,11 @@ public class MineBlocksTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DARK_PRISMARINE), "the protected block must stay");
-            h.assertTrue(h.getBlockState(new BlockPos(10, 2, 2)).is(Blocks.AIR), "the farther block must be mined");
+            h.assertTrue(h.getBlockState(new BlockPos(10, 2, 5)).is(Blocks.AIR), "the farther block must be mined");
         });
     }
 
-    /**
-     * A granite block at the heart of a grass hill: nothing can see it from outside, so mining it means taking the
-     * grass in the way first, the way a player digs into a hill.
-     */
+    /** A block hidden inside a hill stays unknown until excavation exposes it. */
     @GameTest(maxTicks = 1200)
     public void minesBlockBuriedInAHill(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -286,8 +303,9 @@ public class MineBlocksTests {
         runner.start(mine("minecraft:granite", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 0, "the buried granite must be mined");
+            h.assertTrue(result.status == TaskStatus.FAILED, "hidden granite must stay unknown: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("no minecraft:granite nearby"), "summary was " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 1, "the hidden granite must stay in place");
         });
     }
 
@@ -303,12 +321,22 @@ public class MineBlocksTests {
             h.setBlock(new BlockPos(10, y, 3), Blocks.OAK_LOG);
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 2, 7))),
+                "first tree should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 3))),
+                "second tree should be directly visible");
         // Dirt to pillar up the trunk: the upper logs are out of reach from the ground.
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:oak_log", 5), "mine_blocks");
         h.succeedWhen(() -> {
+            for (int y = 2; y <= 6; y++) {
+                if (h.getBlockState(new BlockPos(7, y, 7)).is(Blocks.OAK_LOG))
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, y, 7)));
+                if (h.getBlockState(new BlockPos(10, y, 3)).is(Blocks.OAK_LOG))
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, y, 3)));
+            }
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             int firstTree = 0;
@@ -337,7 +365,7 @@ public class MineBlocksTests {
         leaf(h, 6, 2, 3);
     }
 
-    /** Mining a kind of block means getting it: the leaves in front of the log are dug away, as a player would. */
+    /** A hidden log is not discoverable through leaves without a separate task first exposing it. */
     @GameTest(maxTicks = 1200)
     public void digsLeavesToTheHiddenLog(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -348,8 +376,9 @@ public class MineBlocksTests {
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 0, "the log must be mined");
+            h.assertTrue(result.status == TaskStatus.FAILED, "hidden log must stay unknown: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("no minecraft:oak_log nearby"), "summary was " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay in place");
         });
     }
 
@@ -377,7 +406,9 @@ public class MineBlocksTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(new BlockPos(6, 2, 2), Blocks.OAK_LOG);
         leaf(h, 5, 2, 2);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+                "log should be visible around the leaf");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
@@ -399,6 +430,7 @@ public class MineBlocksTests {
         BlockPos log = new BlockPos(6, 2, 2);
         h.setBlock(log, Blocks.ACACIA_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
@@ -442,6 +474,7 @@ public class MineBlocksTests {
         sealDrop(h, 10, 3, 2);
         dropItem(h, 10.5, 3.0, 2.5, new ItemStack(Items.COBBLESTONE, 3));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");

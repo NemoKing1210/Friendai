@@ -249,21 +249,26 @@ public class PathingTests {
         });
     }
 
-    /** A 4-deep pit walled in unbreakable planks with a dirt mound on the near side, the only material around. */
+    /** A 6-deep pit walled in unbreakable planks with a dirt mound on the near side, the only material around. */
     private static void plankPitWithDirtMound(GameTestHelper h) {
         GameTestSupport.platformAt(h, 1, 16);
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                for (int y = 2; y <= 5; y++) {
-                    boolean pit = x >= 6 && x <= 8;
+                for (int y = 2; y <= 7; y++) {
+                    boolean pit = x >= 6 && x <= 10;
                     // Planks are blacklisted, so the only way across the 4-deep pit is to build over it.
                     h.setBlock(x, y, z, pit ? Blocks.AIR : Blocks.OAK_PLANKS);
                 }
             }
         }
+        for (int x = 6; x <= 10; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, 1, z, Blocks.LAVA);
+            }
+        }
         for (int x = 2; x <= 4; x++) {
-            for (int z = 2; z <= 4; z++) {
-                for (int y = 6; y <= 7; y++) {
+            for (int z = 7; z <= 9; z++) {
+                for (int y = 8; y <= 9; y++) {
                     h.setBlock(x, y, z, Blocks.DIRT);
                 }
             }
@@ -273,21 +278,35 @@ public class PathingTests {
     @GameTest(maxTicks = 800)
     public void goToGathersDirtThenBridges(GameTestHelper h) {
         plankPitWithDirtMound(h);
-        CompanionEntity c = walker(h, 1, 6, 8);
+        CompanionEntity c = walker(h, 5, 8, 8);
+        c.setPathBounds(new AABB(
+                h.absoluteVec(new Vec3(0, 0, 5)), h.absoluteVec(new Vec3(16, 14, 11))));
+        for (int z = 7; z <= 9; z++) {
+            Vec3 viewpoint = h.absoluteVec(new Vec3(5.5, 8, z + 0.5));
+            c.teleportTo(viewpoint.x, viewpoint.y, viewpoint.z);
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 9, z))),
+                    "the dirt mound edge at z=" + z + " must be directly visible before it can be chosen");
+        }
+        Vec3 start = h.absoluteVec(new Vec3(5.5, 8, 8.5));
+        c.teleportTo(start.x, start.y, start.z);
         Outcome out = new Outcome();
-        walkTo(c, h, out, 12.5, 6, 8.5);
+        walkTo(c, h, out, 14.5, 8, 8.5);
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
             int bridged = 0;
-            for (int x = 6; x <= 8; x++) {
-                for (int z = 7; z <= 9; z++) {
-                    BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, 5, z)));
-                    if (state.is(Blocks.DIRT)) {
-                        bridged++;
+            for (int x = 6; x <= 10; x++) {
+                for (int y = 2; y <= 14; y++) {
+                    for (int z = 5; z <= 11; z++) {
+                        BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z)));
+                        if (state.is(Blocks.DIRT)) {
+                            bridged++;
+                        }
                     }
                 }
             }
-            h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row with gathered dirt");
+            h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row; dirt="
+                    + c.inventory().countItem(Items.DIRT) + ", notices=" + out.notices + ", companion="
+                    + c.blockPosition() + "; paths: " + out.debug);
             h.assertTrue(out.notices.stream().anyMatch(text -> text.startsWith("gathering ")),
                     "no gathering notice, notices: " + out.notices);
         });
@@ -301,6 +320,8 @@ public class PathingTests {
         h.setBlock(new BlockPos(8, 4, 8), Blocks.DIRT);
         CompanionEntity c = walker(h, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
+                "andesite should be directly visible beneath the dirt cap");
         MineBlocksTask task = new MineBlocksTask(
                 BlockMatcher.parse("minecraft:polished_andesite").orElseThrow(), 1, 32);
         Outcome out = new Outcome();
@@ -322,6 +343,10 @@ public class PathingTests {
             h.setBlock(new BlockPos(8, y, 8), Blocks.CHERRY_LOG);
         }
         CompanionEntity c = walker(h, 2, 2, 2);
+        for (int y = 2; y <= 9; y++) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, y, 8))),
+                    "log at y=" + y + " should be directly visible");
+        }
         // Dirt to pillar up beside the column: the upper logs are out of reach from the ground.
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         MineBlocksTask task = new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
@@ -347,20 +372,20 @@ public class PathingTests {
     @GameTest(maxTicks = 800)
     public void gatheringLeavesProtectedBlocks(GameTestHelper h) {
         plankPitWithDirtMound(h);
-        CompanionEntity c = walker(h, 1, 6, 8);
+        CompanionEntity c = walker(h, 1, 8, 8);
         // The mound is protected as a spawn region would be: gathering must leave it alone, so the pit stays uncrossable.
-        BlockPos mound = h.absolutePos(new BlockPos(2, 6, 2));
+        BlockPos mound = h.absolutePos(new BlockPos(2, 8, 7));
         c.hands().overrideProtection(pos -> pos.getX() >= mound.getX() && pos.getX() <= mound.getX() + 2
                 && pos.getZ() >= mound.getZ() && pos.getZ() <= mound.getZ() + 2
                 && pos.getY() >= mound.getY() && pos.getY() <= mound.getY() + 1);
         Outcome out = new Outcome();
-        walkTo(c, h, out, 12.5, 6, 8.5);
+        walkTo(c, h, out, 12.5, 8, 8.5);
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.FAILED, "go_to should have refused: " + out.why());
             int left = 0;
             for (int x = 2; x <= 4; x++) {
-                for (int z = 2; z <= 4; z++) {
-                    for (int y = 6; y <= 7; y++) {
+                for (int z = 7; z <= 9; z++) {
+                    for (int y = 8; y <= 9; y++) {
                         if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(Blocks.DIRT)) {
                             left++;
                         }

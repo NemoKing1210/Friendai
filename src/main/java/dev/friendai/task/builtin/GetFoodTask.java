@@ -9,7 +9,6 @@ import dev.friendai.task.combat.Threats;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.farming.Crops;
 import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.task.inventory.ItemMatcher;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -84,9 +83,6 @@ public final class GetFoodTask implements Task {
             this.shortName = shortName;
         }
     }
-
-    /** A ready food found in storage: a matcher for its item. */
-    private record ChestFood(ItemMatcher matcher) {}
 
     private final int count;
     private final int maxSteps;
@@ -203,7 +199,7 @@ public final class GetFoodTask implements Task {
         CompanionEntity companion = c.companion();
         return switch (option) {
             case COOKING -> hasRawFood(companion) && hasAllowedFuel(c);
-            case CHEST -> bestChestFood(c).isPresent();
+            case CHEST -> ContainerAccess.nearest(companion, CONTAINER_RADIUS).isPresent();
             case BAKING -> wheatCount(companion) >= WHEAT_PER_BREAD;
             case HARVESTING -> nearestMatureCrop(c).isPresent();
             case HUNTING -> nearestHuntable(c.level(), companion) != null;
@@ -217,9 +213,7 @@ public final class GetFoodTask implements Task {
         ServerLevel level = c.level();
         return switch (option) {
             case COOKING -> new CookFoodTask(remaining, true, CraftTask.StationPolicy.AUTO, SMELT_WAIT_TICKS);
-            case CHEST -> bestChestFood(c)
-                    .map(chest -> (Task) new TakeItemsTask(chest.matcher(), remaining, null))
-                    .orElse(null);
+            case CHEST -> new TakeFoodFromChestTask(remaining);
             case BAKING -> {
                 int loaves = Math.min(remaining, wheatCount(companion) / WHEAT_PER_BREAD);
                 yield loaves <= 0 ? null : new CraftTask("minecraft:bread", loaves, CraftTask.StationPolicy.AUTO);
@@ -256,17 +250,64 @@ public final class GetFoodTask implements Task {
                 .stacks().isEmpty();
     }
 
-    /** The ready food in storage within reach that restores the most hunger; cooked food wins on nutrition. */
-    private Optional<ChestFood> bestChestFood(TaskContext c) {
-        ServerLevel level = c.level();
-        Item bestItem = null;
-        int bestNutrition = -1;
-        // Container contents are inspected only by an explicit container task after it opens the container.
-        if (bestItem == null) {
-            return Optional.empty();
+    /** Chest contents are inspected only after the companion has walked to and opened a known container. */
+    private static final class TakeFoodFromChestTask extends ContainerTaskBase {
+        private final int wanted;
+
+        private TakeFoodFromChestTask(int wanted) {
+            super(null);
+            this.wanted = wanted;
         }
-        String id = BuiltInRegistries.ITEM.getKey(bestItem).toString();
-        return ItemMatcher.parse(id).map(ChestFood::new);
+
+        @Override public String type() { return "take_food"; }
+        @Override public void start(TaskContext c) {}
+
+        @Override
+        protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
+            return ContainerAccess.nearest(companion, CONTAINER_RADIUS);
+        }
+
+        @Override protected String noTargetSummary() { return "no known storage container within " + CONTAINER_RADIUS + " blocks"; }
+        @Override protected String missingTargetSummary() { return "the storage container is no longer there"; }
+
+        @Override
+        protected TaskStatus work(TaskContext c) {
+            int bestSlot = -1;
+            FoodProperties best = null;
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!isReadyFood(c.companion(), stack)) continue;
+                FoodProperties food = stack.get(DataComponents.FOOD);
+                if (best == null || food.nutrition() > best.nutrition()
+                        || food.nutrition() == best.nutrition() && food.saturation() > best.saturation()) {
+                    bestSlot = slot;
+                    best = food;
+                }
+            }
+            if (bestSlot < 0) {
+                summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords()
+                        + " has no ready food";
+                return TaskStatus.FAILED;
+            }
+
+            ItemStack source = container.getItem(bestSlot);
+            ItemStack removed = container.removeItem(bestSlot, Math.min(wanted, source.getCount()));
+            int taken = removed.getCount();
+            ItemStack leftover = c.companion().inventory().addItem(removed);
+            taken -= leftover.getCount();
+            if (!leftover.isEmpty()) {
+                ItemStack current = container.getItem(bestSlot);
+                if (current.isEmpty()) container.setItem(bestSlot, leftover);
+                else current.grow(leftover.getCount());
+            }
+            c.companion().inventory().setChanged();
+            summary = taken == 0 ? "my inventory is full" : "took " + taken + " ready food from the "
+                    + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords();
+            return taken == 0 ? TaskStatus.FAILED : TaskStatus.SUCCESS;
+        }
+
+        @Override public String describe() { return "taking ready food from a container"; }
+        @Override public String resultSummary() { return summary; }
     }
 
     private static Optional<BlockPos> nearestMatureCrop(TaskContext c) {

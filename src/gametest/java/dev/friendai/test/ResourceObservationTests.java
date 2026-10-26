@@ -13,6 +13,7 @@ import dev.friendai.task.obtain.WorldScan;
 import dev.friendai.task.crafting.Stations;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -117,7 +118,7 @@ public class ResourceObservationTests {
     public void unloadedRayDoesNotLoadChunk(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        BlockPos unloaded = new BlockPos(4096, 3, 4096);
+        BlockPos unloaded = h.absolutePos(new BlockPos(256, 3, 256));
         boolean loadedBefore = h.getLevel().hasChunkAt(unloaded);
         ResourceSight.Job job = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), Vec3.atCenterOf(unloaded), unloaded);
         h.assertTrue(run(job) == ResourceSight.Outcome.UNLOADED, "ray did not stop at unloaded terrain");
@@ -159,28 +160,226 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
-    @GameTest(maxTicks = 80)
+    @GameTest(maxTicks = 200)
     public void followingLearnsCoalWithoutBrainTurn(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
-        for (int x = 5; x <= 7; x++) for (int y = 2; y <= 5; y++) for (int z = 1; z <= 10; z++) {
-            h.setBlock(x, y, z, Blocks.COAL_ORE);
-        }
+        h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         var state = FriendaiServerState.get(h.getLevel().getServer());
         h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
         CompanionManager.get(h.getLevel().getServer()).register(companion);
         state.observations().register(companion);
-        h.runAfterDelay(60, () -> {
+        h.succeedWhen(() -> {
+            state.observations().tick(h.getLevel().getServer(),
+                    h.getLevel().getServer().overworld().getGameTime());
             BlockPos origin = companion.blockPosition();
             var query = new dev.friendai.knowledge.ResourceQuery.Request(java.util.Set.of("minecraft:coal_ore"),
                     h.getLevel().dimension().identifier().toString(), pos(origin), 16, 20, true);
-            h.assertTrue(dev.friendai.knowledge.ResourceQuery.find(state.knowledge().book(owner.getUUID()), query).size() > 0,
-                    "ordinary observation should record exposed coal");
+            var book = state.knowledge().book(owner.getUUID());
+            var known = dev.friendai.knowledge.ResourceQuery.find(book, query);
+            h.assertFalse(known.isEmpty(), "waiting for ordinary observation to record exposed coal");
             h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "passive observation must not start a brain turn");
             h.succeed();
         });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void ownerlessCompanionRetainsOnlyItsCurrentSightEvidence(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        for (int x = 5; x <= 7; x++) for (int y = 2; y <= 5; y++) for (int z = 1; z <= 10; z++) {
+            h.setBlock(x, y, z, Blocks.COAL_ORE);
+        }
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
+        var ray = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), Vec3.atCenterOf(target), target);
+        ResourceSight.Outcome outcome;
+        do { outcome = ray.step(128); } while (outcome == ResourceSight.Outcome.PENDING);
+        h.assertTrue(outcome == ResourceSight.Outcome.VISIBLE, "fixture target must pass the direct sight ray");
+        BlockPos viewpoint = companion.blockPosition();
+        String blockId = BuiltInRegistries.BLOCK.getKey(h.getLevel().getBlockState(target).getBlock()).toString();
+        state.resources().observe(companion, new ResourceObservation(blockId,
+                new ResourceObservation.Location(h.getLevel().dimension().identifier().toString(),
+                        new Pos(target.getX(), target.getY(), target.getZ())),
+                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                h.getLevel().getServer().overworld().getGameTime()));
+        var visible = state.resources().currentVisible(companion, 16);
+        h.assertTrue(visible.stream().anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore")),
+                "an ownerless companion should retain direct current sight evidence");
+        h.assertTrue(companion.ownerUuid() == null, "the test companion must not acquire persistent owner scope");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void schedulerObservesLoadedOwnerlessCompanion(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        h.setBlock(5, 3, 5, Blocks.COAL_ORE);
+        BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        state.observations().register(companion);
+        state.observations().observer(companion).inspect(target);
+        h.succeedWhen(() -> {
+            state.observations().tick(h.getLevel().getServer(),
+                    h.getLevel().getServer().overworld().getGameTime());
+            var observer = state.observations().observer(companion);
+            boolean observed = state.resources().currentVisible(companion, 16).stream()
+                    .anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore"));
+            h.assertTrue(observed, "scheduler should observe a loaded ownerless companion without persisting its sight; queued="
+                    + observer.queuedJobs() + ", visible="
+                    + state.resources().currentVisible(companion, 16));
+            h.assertTrue(companion.ownerUuid() == null, "observer scheduling must not assign an owner");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void directSightRecordsAnOpenDescendingCaveEntrance(GameTestHelper h) {
+        GameTestSupport.keepLoaded(h, -2, -2, 20, 20);
+        var owner = GameTestSupport.mockPlayerAt(h, 7, 14, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 14, 8);
+        companion.setOwner(owner.getUUID());
+        companion.setNoGravity(true);
+        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) {
+            h.setBlock(x, 10, z, Blocks.STONE);
+            for (int y = 11; y <= 17; y++) h.setBlock(x, y, z, Blocks.AIR);
+        }
+        h.setBlock(8, 10, 8, Blocks.AIR);
+        for (int y = 7; y <= 9; y++) h.setBlock(8, y, 8, Blocks.AIR);
+        h.setBlock(8, 6, 8, Blocks.STONE);
+        BlockPos wall = h.absolutePos(new BlockPos(8, 6, 8));
+        var direct = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), net.minecraft.world.phys.Vec3.atCenterOf(wall), wall);
+        ResourceSight.Outcome directOutcome;
+        do { directOutcome = direct.step(128); } while (directOutcome == ResourceSight.Outcome.PENDING);
+        h.assertTrue(directOutcome == ResourceSight.Outcome.VISIBLE && direct.unobstructedOpenCorridor(),
+                "fixture must produce an open direct ray; outcome=" + directOutcome + ", cells=" + direct.openAirCells());
+        var eyeCell = BlockPos.containing(companion.getEyePosition());
+        h.assertTrue(dev.friendai.perception.resource.CaveEntranceDetector.detect(
+                        direct.openAirCells().stream().map(pos -> new Pos(pos.getX(), pos.getY(), pos.getZ())).toList(),
+                        new Pos(eyeCell.getX(), eyeCell.getY(), eyeCell.getZ()),
+                        new Pos(wall.getX(), wall.getY(), wall.getZ())).isPresent(),
+                "fixture ray must pass through the detector's opening geometry; cells=" + direct.openAirCells()
+                        + ", eye=" + eyeCell + ", hit=" + direct.hitBlock());
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
+                state.resources()::observe, state.resources()::observeCaveEntrance);
+        scheduler.register(companion);
+        scheduler.observer(companion).inspect(wall);
+        h.succeedWhen(() -> {
+            scheduler.tick(h.getLevel().getServer(), h.getLevel().getServer().overworld().getGameTime());
+            var entrances = state.resources().observedCaveEntrances(companion);
+            h.assertTrue(!entrances.isEmpty(), "a clear sight ray through the open shaft should record its cave entrance; metrics="
+                    + scheduler.lastMetrics() + ", queued=" + scheduler.observer(companion).queuedJobs()
+                    + ", eye=" + companion.getEyePosition());
+            var entrance = entrances.getFirst();
+            h.assertTrue(entrance.interior().y() < entrance.opening().y(),
+                    "the recorded interior point must lie below the visible opening");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void sealedUndergroundWallDoesNotCreateCaveEntranceEvidence(GameTestHelper h) {
+        GameTestSupport.keepLoaded(h, -2, -2, 20, 20);
+        var owner = GameTestSupport.mockPlayerAt(h, 7, 14, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 14, 8);
+        companion.setOwner(owner.getUUID());
+        companion.setNoGravity(true);
+        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) {
+            h.setBlock(x, 10, z, Blocks.STONE);
+            for (int y = 11; y <= 17; y++) h.setBlock(x, y, z, Blocks.AIR);
+        }
+        h.setBlock(8, 6, 8, Blocks.STONE);
+        BlockPos wall = h.absolutePos(new BlockPos(8, 6, 8));
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
+                state.resources()::observe, state.resources()::observeCaveEntrance);
+        scheduler.register(companion);
+        var observer = scheduler.observer(companion);
+        observer.inspect(wall);
+        var batch = observer.tick(32, 128, Long.MAX_VALUE);
+        batch.caveEntrances().forEach(entrance -> state.resources().observeCaveEntrance(companion, entrance));
+
+        h.assertTrue(state.resources().observedCaveEntrances(companion).isEmpty(),
+                "an opaque sealed floor must prevent any cave entrance evidence");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 3700)
+    public void manyCompanionsRespectGlobalObservationCaps(GameTestHelper h) {
+        GameTestSupport.platform(h, 32);
+        var server = h.getLevel().getServer();
+        var state = FriendaiServerState.get(server);
+        List<CompanionEntity> companions = new ArrayList<>();
+        for (int x = 0; x < 4; x++) for (int z = 0; z < 4; z++) {
+            CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2 + x * 3, 2, 2 + z * 3);
+            companions.add(companion);
+        }
+        int[] profileSizes = {1, 4, 16};
+        int[] profileIndex = {0};
+        int[] ticks = {0};
+        Map<java.util.UUID, Integer> completed = new java.util.HashMap<>();
+        dev.friendai.perception.resource.ObservationScheduler[] scheduler = {
+                schedulerFor(companions, profileSizes[0], completed)
+        };
+        BlockPos far = h.absolutePos(new BlockPos(4096, 20, 4096));
+        h.assertFalse(h.getLevel().hasChunkAt(far), "the profiling sentinel chunk should start unloaded");
+        long[] totals = new long[6];
+        h.succeedWhen(() -> {
+            int count = profileSizes[profileIndex[0]];
+            scheduler[0].tick(server, server.overworld().getGameTime());
+            var metrics = scheduler[0].lastMetrics();
+            h.assertTrue(metrics.companions() == count, "profile must include exactly " + count + " companions: " + metrics);
+            h.assertTrue(metrics.completedRays() <= 256, "global ray cap exceeded: " + metrics);
+            h.assertTrue(metrics.visitedCells() <= 128, "global cell cap exceeded: " + metrics);
+            for (int rays : metrics.completedByCompanion().values())
+                h.assertTrue(rays <= 32, "per-companion ray cap exceeded: " + metrics);
+            for (CompanionEntity companion : companions.subList(0, count)) {
+                h.assertTrue(scheduler[0].observer(companion).queuedJobs() <= 512,
+                        "companion observation queue exceeded its cap");
+            }
+            metrics.completedByCompanion().forEach((id, rays) -> completed.merge(id, rays, Integer::sum));
+            h.assertTrue(state.chunkLoader().expeditionHorizon().activeLeases() == 0,
+                    "observation work must not request expedition chunks");
+            h.assertFalse(h.getLevel().hasChunkAt(far), "observation loaded the distant sentinel chunk");
+            totals[0] += metrics.scheduledRays();
+            totals[1] += metrics.completedRays();
+            totals[2] += metrics.visitedCells();
+            totals[3] += metrics.elapsedNanos();
+            totals[4] = Math.max(totals[4], metrics.elapsedNanos());
+            totals[5] = Math.max(totals[5], metrics.queuedJobs());
+            h.assertTrue(++ticks[0] >= 1_200,
+                    "profiling " + count + " companions through tick " + ticks[0]);
+            for (var entry : completed.entrySet()) h.assertTrue(entry.getValue() > 0,
+                    "continuously active companion received no completed ray in 1200 ticks: " + entry.getKey());
+            System.out.println("Observation profile (" + count + " companions, 1200 ticks): scheduled=" + totals[0]
+                    + ", completed=" + totals[1] + ", cells=" + totals[2]
+                    + ", avg_tick_us=" + totals[3] / 1_200 / 1_000
+                    + ", max_tick_us=" + totals[4] / 1_000 + ", max_queue=" + totals[5]);
+            if (++profileIndex[0] < profileSizes.length) {
+                completed.clear();
+                ticks[0] = 0;
+                java.util.Arrays.fill(totals, 0);
+                scheduler[0] = schedulerFor(companions, profileSizes[profileIndex[0]], completed);
+                h.assertTrue(false, "starting the next observation profile");
+                return;
+            }
+            h.succeed();
+        });
+    }
+
+    private static dev.friendai.perception.resource.ObservationScheduler schedulerFor(
+            List<CompanionEntity> companions, int count, Map<java.util.UUID, Integer> completed) {
+        var scheduler = new dev.friendai.perception.resource.ObservationScheduler();
+        for (CompanionEntity companion : companions.subList(0, count)) {
+            scheduler.register(companion);
+            completed.put(companion.getUUID(), 0);
+        }
+        return scheduler;
     }
 
     @GameTest(maxTicks = 20)

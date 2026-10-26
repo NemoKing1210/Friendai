@@ -17,9 +17,10 @@ class SearchLedgerTest {
         first.advance(new SearchSession.Input(110, "minecraft:overworld", new Pos(4, 64, 8), true, false,
                 SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
         var retry = ledger.acquire(owner, "minecraft:overworld", "iron ore", 120,
-                SearchLedger.LOCAL_DEFAULTS, new Pos(40, 64, 80));
+                new SearchSession.Limits(512, 2_048, 12_000, 128), new Pos(40, 64, 80));
         assertSame(first, retry);
         assertEquals(10, retry.snapshot().spentTicks());
+        assertEquals(SearchLedger.LOCAL_DEFAULTS, retry.snapshot().limits());
     }
 
     @Test

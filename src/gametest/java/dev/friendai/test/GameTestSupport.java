@@ -1,9 +1,16 @@
 package dev.friendai.test;
 
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.pathing.Pos;
+import dev.friendai.perception.resource.ResourceSight;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 final class GameTestSupport {
     private GameTestSupport() {}
@@ -66,6 +73,38 @@ final class GameTestSupport {
                 }
             }
         }
+    }
+
+    /** Seeds a test fixture with evidence only when the real sight ray reaches the requested block. */
+    static boolean observeVisible(GameTestHelper h, CompanionEntity companion, BlockPos target) {
+        // Task fixtures need an owner so a sighting survives the current-tick view window.
+        if (companion.ownerUuid() == null) companion.setOwner(java.util.UUID.randomUUID());
+        var level = h.getLevel();
+        double[] offsets = {0.2, 0.5, 0.8};
+        for (double x : offsets) {
+            for (double y : offsets) {
+                for (double z : offsets) {
+                    Vec3 endpoint = new Vec3(target.getX() + x, target.getY() + y, target.getZ() + z);
+                    var sight = ResourceSight.rayTo(level, companion.getEyePosition(), endpoint, target);
+                    ResourceSight.Outcome outcome;
+                    do {
+                        outcome = sight.step(128);
+                    } while (outcome == ResourceSight.Outcome.PENDING);
+                    if (outcome != ResourceSight.Outcome.VISIBLE || sight.hitBlock() == null) continue;
+                    BlockPos hit = sight.hitBlock();
+                    BlockPos viewpoint = companion.blockPosition();
+                    String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(hit).getBlock()).toString();
+                    FriendaiServerState.get(level.getServer()).resources().observe(companion,
+                            new ResourceObservation(id,
+                                    new ResourceObservation.Location(level.dimension().identifier().toString(),
+                                            new Pos(hit.getX(), hit.getY(), hit.getZ())),
+                                    new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                    level.getServer().overworld().getGameTime()));
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** A stone floor at {@code y} with clear air above it, for tests that need a world band of their own. */

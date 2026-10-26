@@ -41,12 +41,15 @@ public final class CompanionChunkLoader {
     private final MinecraftServer server;
     private final Supplier<ServerConfig> config;
     private final CompanionTicketSet tickets = new CompanionTicketSet();
+    private final ExpeditionChunkHorizon expeditionHorizon;
     private final Map<UUID, Pending> pending = new HashMap<>();
     private long ticks;
 
     public CompanionChunkLoader(MinecraftServer server, Supplier<ServerConfig> config) {
         this.server = server;
         this.config = config;
+        this.expeditionHorizon = new ExpeditionChunkHorizon(server, () -> config.get().tasks.resources.allowExpeditions
+                && config.get().companion.chunkLoading.enabled);
     }
 
     /** Arms the chunk of every saved anchor so its companion wakes up without a player nearby. */
@@ -74,6 +77,7 @@ public final class CompanionChunkLoader {
     /** Moves tickets to follow the loaded companions and persists their anchors. */
     public void tick() {
         ticks++;
+        expeditionHorizon.tick();
         CompanionAnchors anchors = anchors();
         Set<CompanionTicketSet.Key> desired = new HashSet<>();
         if (enabled()) {
@@ -135,8 +139,11 @@ public final class CompanionChunkLoader {
     /** Drops the owner's anchor; called when the companion is killed or dismissed. */
     public void forget(UUID owner) {
         pending.remove(owner);
+        expeditionHorizon.release(owner);
         anchors().remove(owner);
     }
+
+    public ExpeditionChunkHorizon expeditionHorizon() { return expeditionHorizon; }
 
     /** The anchor recorded for an owner, for diagnostics and tests. */
     public Optional<CompanionAnchors.Anchor> anchorFor(UUID owner) {
