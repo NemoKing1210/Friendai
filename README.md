@@ -87,6 +87,22 @@ Container contents are cached only after the companion opens a container during 
 
 Search policy is under `tasks.resources` in `config/friendai-server.json`: local searches default to 64 blocks and 2,400 ticks. Expeditions default to disabled and require both `allowExpeditions` and companion chunk loading. They hold at most the next-leg chunk ticket; with chunk loading disabled, the companion stops at its current loaded frontier. The atlas, coverage and executed trails are owner-scoped and bounded.
 
+## Goals and planning
+
+For an objective with several parts ("build a house and bring iron") the companion records a goal with how it will know it is done, and the goal survives plans, failures, death and restarts. It keeps working on it through the task queue, reads the facts of every finished task (items gained and lost, what is still unmet) and, when a step fails, gets a diagnosis and a remedy it has not tried yet. After a few failed repairs it stops and asks you what blocks it.
+
+A complex request, or a failed plan with replans left, is first drafted by a separate planner call that returns a validated plan; the plan is queued with your access level and can never use a tool you may not use. Settings live under `agent` in `config/friendai-server.json`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `toolRouting` | `true` | Send the model only the tool families a request needs; it can unlock more with `request_tools`. |
+| `autonomy` | `assistive` | `passive` never starts on its own; `assistive` nudges an idle companion toward an unfinished goal; `autonomous` may also ask what to do next (it still never acts unprompted). |
+| `maxReplans` | `3` | Replans per goal before the companion asks for help (0–10). |
+| `goalTickSec` | `30` | Seconds between nudges toward an unfinished goal (10–600). |
+| `promptBudget` | `24000` | Character budget of the system prompt; `0` means unlimited. |
+| `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
+| `plannerTimeoutSec` | `60` | How long a planner call may take (10–300). |
+
 ## Languages
 
 The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
