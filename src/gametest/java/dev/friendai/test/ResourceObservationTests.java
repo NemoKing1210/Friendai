@@ -379,6 +379,22 @@ public class ResourceObservationTests {
         });
     }
 
+    @GameTest(maxTicks = 80)
+    public void observerHonoursConfiguredRadius(GameTestHelper h) {
+        GameTestSupport.platform(h, 24);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        BlockPos target = h.absolutePos(new BlockPos(14, 3, 5));
+        h.setBlock(14, 3, 5, Blocks.COAL_ORE);
+        ResourceObserver narrow = new ResourceObserver(companion, () -> 8);
+        narrow.inspect(target);
+        h.assertTrue(drain(narrow).isEmpty(), "a target beyond the configured 8-block radius must not be inspected");
+        ResourceObserver wide = new ResourceObserver(companion);
+        wide.inspect(target);
+        h.assertTrue(drain(wide).stream().anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore")),
+                "a target within the default 16-block radius should be inspected");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 100)
     public void recentEvidenceSurvivesTicks(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

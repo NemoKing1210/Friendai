@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.function.IntSupplier;
 import net.minecraft.server.MinecraftServer;
 
 /** Shares a bounded observation budget between loaded companions in rotating order. */
@@ -18,6 +19,7 @@ public final class ObservationScheduler {
     private final Map<UUID, ResourceObserver> observers = new HashMap<>();
     private final BiConsumer<CompanionEntity, ResourceObservation> observationSink;
     private final BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink;
+    private final IntSupplier observationRadius;
     private TickMetrics lastMetrics = new TickMetrics(0, 0, 0, 0, 0, 0, 0, Map.of());
 
     public record TickMetrics(long tick, int companions, int scheduledRays, int completedRays, int visitedCells,
@@ -33,13 +35,19 @@ public final class ObservationScheduler {
 
     public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink,
             BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink) {
+        this(observationSink, caveEntranceSink, () -> 16);
+    }
+
+    public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink,
+            BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink, IntSupplier observationRadius) {
         this.observationSink = observationSink;
         this.caveEntranceSink = caveEntranceSink;
+        this.observationRadius = observationRadius;
     }
 
     public void register(CompanionEntity companion) {
         companions.put(companion.getUUID(), companion);
-        observers.put(companion.getUUID(), new ResourceObserver(companion));
+        observers.put(companion.getUUID(), new ResourceObserver(companion, observationRadius));
     }
 
     public void unregister(CompanionEntity companion) {
@@ -49,7 +57,7 @@ public final class ObservationScheduler {
 
     public ResourceObserver observer(CompanionEntity companion) {
         companions.put(companion.getUUID(), companion);
-        return observers.computeIfAbsent(companion.getUUID(), ignored -> new ResourceObserver(companion));
+        return observers.computeIfAbsent(companion.getUUID(), ignored -> new ResourceObserver(companion, observationRadius));
     }
 
     public TickMetrics lastMetrics() { return lastMetrics; }
