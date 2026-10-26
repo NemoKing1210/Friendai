@@ -63,7 +63,8 @@ public final class SkinFetcher {
                 Duration.ofSeconds(10),
                 URI.create("https://api.mojang.com"),
                 URI.create("https://sessionserver.mojang.com"),
-                uri -> "https".equals(uri.getScheme()) && "textures.minecraft.net".equals(uri.getHost()),
+                uri -> ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))
+                        && "textures.minecraft.net".equals(uri.getHost()),
                 uri -> "https".equals(uri.getScheme()) && uri.getHost() != null);
     }
 
@@ -96,7 +97,7 @@ public final class SkinFetcher {
         boolean slim = skin.has("metadata")
                 && skin.get("metadata").isJsonObject()
                 && "slim".equals(string(skin.getAsJsonObject("metadata"), "model"));
-        return new FetchedSkin(get(texture), slim);
+        return new FetchedSkin(get(upgrade(texture)), slim);
     }
 
     public byte[] byUrl(String url) {
@@ -170,6 +171,14 @@ public final class SkinFetcher {
             Thread.currentThread().interrupt();
             throw error(NETWORK);
         }
+    }
+
+    /** Mojang profiles name textures with plain http; the same host serves https, which is what we fetch. */
+    static URI upgrade(URI uri) {
+        if ("http".equals(uri.getScheme()) && "textures.minecraft.net".equals(uri.getHost())) {
+            return URI.create("https" + uri.toString().substring(4));
+        }
+        return uri;
     }
 
     private static URI parse(String text) {

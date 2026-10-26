@@ -144,4 +144,12 @@ class SkinFetcherTest {
     void theSharedClientNeverFollowsRedirects() {
         assertEquals(HttpClient.Redirect.NEVER, SkinFetcher.newClient().followRedirects());
     }
+
+    @Test
+    void mojangHttpTextureUrlIsUpgradedToHttps() {
+        assertEquals(
+                URI.create("https://textures.minecraft.net/texture/abc"),
+                SkinFetcher.upgrade(URI.create("http://textures.minecraft.net/texture/abc")));
+        assertEquals(URI.create("http://127.0.0.1/x"), SkinFetcher.upgrade(URI.create("http://127.0.0.1/x")));
+    }
 }
