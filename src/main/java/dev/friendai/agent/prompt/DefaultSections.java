@@ -27,7 +27,25 @@ public final class DefaultSections {
 
     /** Identity, speech, rules, role, memory and state; priorities decide what a tight budget cuts first. */
     public static List<PromptSection> all() {
-        return List.of(identity(), speech(), rules(), toolHints(), role(), memory(), mission(), state());
+        return List.of(identity(), speech(), protocol(), rules(), toolHints(), role(), memory(), mission(), state());
+    }
+
+    /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
+    static PromptSection protocol() {
+        return of("protocol", PromptSection.NEVER_CUT, ctx -> {
+            boolean acts = ctx.caller().access().allows(AccessLevel.TRUSTED);
+            return "Working method:\n"
+                    + (acts
+                            ? "- Understand the goal first. For a multi-step objective, record it with set_goal and say how you will know it is done.\n"
+                            : "- Understand what the player wants before you answer.\n")
+                    + "- Trust the facts and the diagnosis in events over your own assumptions; they come from the world, not from a guess.\n"
+                    + "- Read the outcome facts before telling the player something is done. Never claim a result the facts do not show.\n"
+                    + "- When a step fails, make at most one repair that the diagnosis supports, then tell the player what blocks you and ask.\n"
+                    + "- Do not repeat an approach that already failed; the Mission block lists what was tried."
+                    + (acts
+                            ? "\n- When the goal is met, call finish_goal; when it cannot be met, abandon it with a reason."
+                            : "");
+        });
     }
 
     private static PromptSection of(String id, int priority, Function<TurnContext, String> render) {

@@ -388,7 +388,10 @@ public final class BrainService {
                     last,
                     autonomy,
                     config.agent.goalTickSec);
-            if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
+            if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
+                lastGoalTick.put(owner, now);
+                post(owner, new BrainEvent.IdleNudge());
+            } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
                 lastGoalTick.put(owner, now);
                 var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
                 guard.refresh();

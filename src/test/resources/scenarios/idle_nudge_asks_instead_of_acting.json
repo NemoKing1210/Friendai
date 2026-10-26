@@ -1,0 +1,9 @@
+{
+  "name": "idle_nudge_asks_instead_of_acting",
+  "access": "owner",
+  "event": "you have no goal and nothing queued. If something useful comes to mind, ask your owner one short question about what to do next; do not start any work without an answer, and if there is nothing worth asking reply exactly [silent].",
+  "replies": [
+    {"text": "Shall I gather some wood while you are busy?", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "toolsNotCalled": ["mine_blocks", "fell_tree", "queue_add"], "spokenContains": ["Shall I"]}
+}

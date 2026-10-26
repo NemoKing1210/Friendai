@@ -99,6 +99,16 @@ public sealed interface BrainEvent {
         }
     }
 
+    /** An autonomous companion with nothing to do: it may ask its owner what is next, but must not act on its own. */
+    record IdleNudge() implements BrainEvent {
+        @Override
+        public String toPromptLine() {
+            return "[event] you have no goal and nothing queued. If something useful comes to mind, ask your owner "
+                    + "one short question about what to do next; do not start any work without an answer, and if "
+                    + "there is nothing worth asking reply exactly [silent].";
+        }
+    }
+
     /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
     record WorldNotice(String text) implements BrainEvent {
         @Override
