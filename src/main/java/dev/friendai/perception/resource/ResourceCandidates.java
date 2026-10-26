@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
@@ -42,23 +44,94 @@ public final class ResourceCandidates {
 
     /** Returns only evidence observed in the current world tick and still locally loaded. */
     public List<BlockPos> visible(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
-        if (!(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null
-                || radius < 0 || limit < 1) return List.of();
-        long now = level.getGameTime();
-        List<ResourceObservation> current = visibleNow.getOrDefault(companion.ownerUuid(), List.of());
-        double radiusSquared = (double) radius * radius;
-        return current.stream()
-                .filter(observation -> observation.observedTick() == now)
-                .filter(observation -> observation.location().dimension().equals(level.dimension().identifier().toString()))
+        if (matcher == null || limit < 1) return List.of();
+        return currentVisible(companion, radius).stream()
+                .filter(observation -> matches(matcher, observation.blockId()))
                 .map(observation -> new BlockPos(observation.location().pos().x(), observation.location().pos().y(),
                         observation.location().pos().z()))
+                .limit(limit)
+                .toList();
+    }
+
+    public Map<BlockPos, String> visibleBlockIds(CompanionEntity companion, int radius) {
+        Map<BlockPos, String> result = new HashMap<>();
+        currentVisible(companion, radius).forEach(observation -> {
+            var pos = observation.location().pos();
+            result.put(new BlockPos(pos.x(), pos.y(), pos.z()), observation.blockId());
+        });
+        return Map.copyOf(result);
+    }
+
+    /** Direct observations from the current tick, bounded to the companion's visible radius. */
+    public List<ResourceObservation> currentVisible(CompanionEntity companion, int radius) {
+        if (!(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null || radius < 0) return List.of();
+        long now = level.getGameTime();
+        double radiusSquared = (double) radius * radius;
+        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream()
+                .filter(observation -> observation.observedTick() == now)
+                .filter(observation -> observation.location().dimension().equals(level.dimension().identifier().toString()))
+                .filter(observation -> distanceSquared(companion, observation) <= radiusSquared)
+                .sorted(Comparator.comparingDouble(observation -> distanceSquared(companion, observation)))
+                .toList();
+    }
+
+    /** Exact remembered positions matching a block id or tag, with no world or chunk reads. */
+    public List<BlockPos> remembered(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+        if (matcher == null || companion.ownerUuid() == null || limit < 1 || radius < 0) return List.of();
+        ServerLevel level = (ServerLevel) companion.level();
+        ResourceKnowledge book = knowledge.book(companion.ownerUuid());
+        double radiusSquared = (double) radius * radius;
+        return book.snapshot().records().stream()
+                .filter(record -> record.dimension().equals(level.dimension().identifier().toString()))
+                .filter(record -> matches(matcher, record.blockId()))
+                .map(record -> new BlockPos(record.x(), record.y(), record.z()))
                 .filter(pos -> companion.position().distanceToSqr(Vec3.atCenterOf(pos)) <= radiusSquared)
-                .filter(level::hasChunkAt)
-                .filter(pos -> matcher.test(level.getBlockState(pos)))
                 .distinct()
                 .sorted(Comparator.comparingDouble(pos -> companion.position().distanceToSqr(Vec3.atCenterOf(pos))))
                 .limit(limit)
                 .toList();
+    }
+
+    public List<BlockPos> knownOrVisible(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+        if (limit < 1) return List.of();
+        java.util.LinkedHashSet<BlockPos> positions = new java.util.LinkedHashSet<>();
+        positions.addAll(visible(companion, matcher, radius, limit));
+        if (positions.size() < limit) positions.addAll(remembered(companion, matcher, radius, limit - positions.size()));
+        return positions.stream()
+                .sorted(Comparator.comparingDouble(pos -> companion.position().distanceToSqr(Vec3.atCenterOf(pos))))
+                .limit(limit)
+                .toList();
+    }
+
+    public boolean currentlyVisible(CompanionEntity companion, BlockPos pos) {
+        if (!(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null) return false;
+        String dimension = level.dimension().identifier().toString();
+        long tick = level.getGameTime();
+        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream().anyMatch(observation ->
+                observation.observedTick() == tick && observation.location().dimension().equals(dimension)
+                        && observation.location().pos().x() == pos.getX()
+                        && observation.location().pos().y() == pos.getY()
+                        && observation.location().pos().z() == pos.getZ());
+    }
+
+    public java.util.Optional<String> rememberedBlockId(CompanionEntity companion, BlockPos pos) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return java.util.Optional.empty();
+        return knowledge.book(companion.ownerUuid()).snapshot().records().stream()
+                .filter(record -> record.dimension().equals(level.dimension().identifier().toString()))
+                .filter(record -> record.x() == pos.getX() && record.y() == pos.getY() && record.z() == pos.getZ())
+                .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
+                .findFirst();
+    }
+
+    private static boolean matches(BlockMatcher matcher, String blockId) {
+        Identifier id = Identifier.tryParse(blockId);
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) return false;
+        return matcher.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
+    }
+
+    private static double distanceSquared(CompanionEntity companion, ResourceObservation observation) {
+        var pos = observation.location().pos();
+        return companion.position().distanceToSqr(Vec3.atCenterOf(new BlockPos(pos.x(), pos.y(), pos.z())));
     }
 
     /** Queries the owner's in-memory evidence only; it does not load or inspect world chunks. */

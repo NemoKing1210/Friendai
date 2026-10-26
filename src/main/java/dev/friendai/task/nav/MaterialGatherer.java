@@ -215,8 +215,9 @@ public final class MaterialGatherer {
                 return "path material";
             }
         };
-        List<BlockPos> found = BlockSearch.nearestN(
-                level, companion.blockPosition(), RADIUS, matcher, blacklist, CANDIDATES);
+        List<BlockPos> found = new ArrayList<>(dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
+                .knownOrVisible(companion, matcher, RADIUS, CANDIDATES));
+        found.removeIf(blacklist::contains);
         AABB bounds = companion.pathBounds();
         List<BlockPos> result = new ArrayList<>(found.size());
         for (BlockPos pos : found) {

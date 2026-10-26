@@ -30,6 +30,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 
 /**
  * Gets ready food the cheapest way available: cook what it carries, take it from a chest, bake bread, harvest,
@@ -203,7 +205,7 @@ public final class GetFoodTask implements Task {
             case COOKING -> hasRawFood(companion) && hasAllowedFuel(c);
             case CHEST -> bestChestFood(c).isPresent();
             case BAKING -> wheatCount(companion) >= WHEAT_PER_BREAD;
-            case HARVESTING -> nearestMatureCrop(c.level(), companion.blockPosition()).isPresent();
+            case HARVESTING -> nearestMatureCrop(c).isPresent();
             case HUNTING -> nearestHuntable(c.level(), companion) != null;
             case FISHING -> hasFishingRod(companion) && hasOpenWater(c.level(), companion.blockPosition());
         };
@@ -222,7 +224,7 @@ public final class GetFoodTask implements Task {
                 int loaves = Math.min(remaining, wheatCount(companion) / WHEAT_PER_BREAD);
                 yield loaves <= 0 ? null : new CraftTask("minecraft:bread", loaves, CraftTask.StationPolicy.AUTO);
             }
-            case HARVESTING -> nearestMatureCrop(level, companion.blockPosition())
+            case HARVESTING -> nearestMatureCrop(c)
                     .map(center -> (Task) new FarmTask(center, FARM_RADIUS, null, false))
                     .orElse(null);
             case HUNTING -> {
@@ -259,23 +261,7 @@ public final class GetFoodTask implements Task {
         ServerLevel level = c.level();
         Item bestItem = null;
         int bestNutrition = -1;
-        for (BlockPos pos : ContainerAccess.all(level, c.companion().blockPosition(), CONTAINER_RADIUS)) {
-            Container container = ContainerAccess.at(level, pos).orElse(null);
-            if (container == null) {
-                continue;
-            }
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                ItemStack stack = container.getItem(slot);
-                if (!isReadyFood(c.companion(), stack)) {
-                    continue;
-                }
-                FoodProperties food = stack.get(DataComponents.FOOD);
-                if (food != null && food.nutrition() > bestNutrition) {
-                    bestNutrition = food.nutrition();
-                    bestItem = stack.getItem();
-                }
-            }
-        }
+        // Container contents are inspected only by an explicit container task after it opens the container.
         if (bestItem == null) {
             return Optional.empty();
         }
@@ -283,28 +269,13 @@ public final class GetFoodTask implements Task {
         return ItemMatcher.parse(id).map(ChestFood::new);
     }
 
-    private static Optional<BlockPos> nearestMatureCrop(ServerLevel level, BlockPos origin) {
-        int minY = Math.max(level.getMinY(), origin.getY() - CROP_RADIUS);
-        int maxY = Math.min(level.getMaxY(), origin.getY() + CROP_RADIUS);
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (int x = origin.getX() - CROP_RADIUS; x <= origin.getX() + CROP_RADIUS; x++) {
-            for (int z = origin.getZ() - CROP_RADIUS; z <= origin.getZ() + CROP_RADIUS; z++) {
-                if (!level.hasChunkAt(x, z)) {
-                    continue;
-                }
-                for (int y = minY; y <= maxY; y++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    double distance = pos.distSqr(origin);
-                    if (distance >= bestDistance || Crops.harvestable(level, pos).isEmpty()) {
-                        continue;
-                    }
-                    bestDistance = distance;
-                    best = pos;
-                }
-            }
-        }
-        return Optional.ofNullable(best);
+    private static Optional<BlockPos> nearestMatureCrop(TaskContext c) {
+        var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        return evidence.currentVisible(c.companion(), CROP_RADIUS).stream()
+                .map(observation -> observation.location().pos())
+                .map(pos -> new BlockPos(pos.x(), pos.y(), pos.z()))
+                .filter(pos -> Crops.harvestable(c.level(), pos).isPresent())
+                .min(java.util.Comparator.comparingDouble(c.companion().blockPosition()::distSqr));
     }
 
     private static LivingEntity nearestHuntable(ServerLevel level, CompanionEntity companion) {
@@ -319,6 +290,8 @@ public final class GetFoodTask implements Task {
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity : nearby) {
+            if (level.clip(new ClipContext(companion.getEyePosition(), entity.getBoundingBox().getCenter(),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion)).getType() != HitResult.Type.MISS) continue;
             double distance = entity.distanceToSqr(companion);
             if (distance < bestDistance) {
                 bestDistance = distance;

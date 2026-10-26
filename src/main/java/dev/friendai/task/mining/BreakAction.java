@@ -1,6 +1,7 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.TaskContext;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -77,6 +78,7 @@ public final class BreakAction {
             stop(c);
             return level.getBlockState(pos).isAir() ? State.GONE : State.BLOCKED;
         }
+        FriendaiServerState.get(level.getServer()).resources().ownBreak(companion, pos);
         companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
         broken = true;
         return State.BROKEN;

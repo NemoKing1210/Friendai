@@ -104,7 +104,7 @@ public final class CollectSmeltedTask implements Task {
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
         for (Station station : List.of(Station.FURNACE, Station.SMOKER, Station.BLAST_FURNACE)) {
-            for (BlockPos pos : Stations.nearbyAll(c.level(), origin, station, 8)) {
+            for (BlockPos pos : Stations.nearbyAll(c.companion(), station, 8)) {
                 if (!(c.level().getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace)
                         || furnace.getItem(2).isEmpty()) {
                     continue;
@@ -208,7 +208,7 @@ public final class CollectSmeltedTask implements Task {
         }
         BlockState state = c.level().getBlockState(current.pos());
         Station station = current.station();
-        boolean base = Stations.looksLikeBase(c.level(), current.pos());
+        boolean base = Stations.looksLikeBase(c.companion(), current.pos());
         if (station != Station.FURNACE && station != Station.SMOKER && station != Station.BLAST_FURNACE) {
             return;
         }

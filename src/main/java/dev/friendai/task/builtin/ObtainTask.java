@@ -189,8 +189,9 @@ public final class ObtainTask implements Task {
                     type -> entityId(type).equals(hunt.mob()), hunt.mob(), hunt.count(), HUNT_RADIUS);
             case ObtainStep.Harvest harvest -> {
                 BlockMatcher crop = blockMatcher(harvest.crop());
-                BlockPos center = BlockSearch.nearest(level, c.companion().blockPosition(), CONTAINER_RADIUS,
-                        crop, Set.of()).orElse(c.companion().blockPosition());
+                BlockPos center = dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
+                        .knownOrVisible(c.companion(), crop, CONTAINER_RADIUS, 1).stream().findFirst()
+                        .orElse(c.companion().blockPosition());
                 yield new FarmTask(center, FARM_RADIUS, null, false);
             }
             case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count());
@@ -209,7 +210,7 @@ public final class ObtainTask implements Task {
             return Optional.of("my inventory is full");
         }
         ServerLevel level = c.level();
-        BlockPos pos = ContainerAccess.nearest(level, companion.blockPosition(), CONTAINER_RADIUS).orElse(null);
+        BlockPos pos = ContainerAccess.nearest(companion, CONTAINER_RADIUS).orElse(null);
         if (pos == null || !companion.hands().canInteract(pos)) {
             return Optional.of("my inventory is full");
         }

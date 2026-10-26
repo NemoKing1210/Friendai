@@ -37,8 +37,7 @@ public final class TakeItemsTask extends ContainerTaskBase {
 
     @Override
     protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
-        return ContainerAccess.nearest(level, companion.blockPosition(), RADIUS,
-                container -> InventoryOps.count(container, matcher) > 0);
+        return ContainerAccess.nearest(companion, RADIUS);
     }
 
     @Override

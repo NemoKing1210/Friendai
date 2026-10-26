@@ -1,7 +1,6 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.Components;
 import dev.friendai.mining.ExplorationPlanner;
 import dev.friendai.mining.MiningBounds;
@@ -293,7 +292,6 @@ public final class MiningSession {
         extraction.stop(context);
         extraction = null;
         if (result == BreakAction.State.BROKEN) {
-            FriendaiServerState.get(context.level().getServer()).resources().ownBreak(companion, target);
             noProgressPlans = 0;
             search = null;
             return lastState = State.EXTRACTED;

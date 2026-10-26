@@ -8,10 +8,15 @@ import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.pathing.Pos;
+import dev.friendai.crafting.Station;
+import dev.friendai.task.obtain.WorldScan;
+import dev.friendai.task.crafting.Stations;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -117,6 +122,40 @@ public class ResourceObservationTests {
         ResourceSight.Job job = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), Vec3.atCenterOf(unloaded), unloaded);
         h.assertTrue(run(job) == ResourceSight.Outcome.UNLOADED, "ray did not stop at unloaded terrain");
         h.assertTrue(!loadedBefore && !h.getLevel().hasChunkAt(unloaded), "observation loaded an unloaded chunk");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 30)
+    public void hiddenResourceAbsentFromWorldFactsAndStations(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        BlockPos ore = new BlockPos(7, 3, 5);
+        h.setBlock(7, 3, 5, Blocks.COAL_ORE);
+        h.setBlock(8, 3, 5, Blocks.FURNACE);
+        h.setBlock(7, 2, 5, BuiltInRegistries.BLOCK.getValue(Identifier.parse("minecraft:red_bed")).defaultBlockState());
+        h.setBlock(7, 4, 5, Blocks.BEEHIVE);
+        h.setBlock(8, 2, 5, Blocks.OAK_LOG);
+        for (int x = 6; x <= 9; x++) for (int y = 2; y <= 4; y++) for (int z = 4; z <= 6; z++) {
+            if (x == 7 && y == 3 && z == 5 || x == 8 && y == 3 && z == 5
+                    || x == 7 && y == 2 && z == 5 || x == 7 && y == 4 && z == 5
+                    || x == 8 && y == 2 && z == 5) continue;
+            h.setBlock(x, y, z, Blocks.STONE);
+        }
+        var resources = FriendaiServerState.get(h.getLevel().getServer()).resources();
+        var facts = WorldScan.scan(h.getLevel(), companion, 16, true, false);
+        h.assertTrue(!facts.blocksNearby().containsKey("minecraft:coal_ore"), "hidden ore entered WorldFacts");
+        h.assertTrue(!facts.stationsNearby().contains(Station.FURNACE.noun()), "hidden furnace entered available stations");
+        h.assertTrue(facts.containerItems().isEmpty(), "unopened container contents entered WorldFacts");
+        var beds = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beds").orElseThrow();
+        var hives = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives").orElseThrow();
+        var logs = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:logs").orElseThrow();
+        h.assertTrue(resources.knownOrVisible(companion, beds, 24, 4).isEmpty(), "hidden bed was selected");
+        h.assertTrue(resources.visible(companion, hives, 24, 4).isEmpty(), "hidden hive was selected");
+        h.assertTrue(resources.visibleBlockIds(companion, 24).isEmpty(), "hidden tree was offered");
+        h.assertTrue(resources.knownOrVisible(companion, logs, 24, 4).isEmpty(), "hidden log entered tree candidates");
+        h.assertTrue(resources.rememberedBlockId(companion, h.absolutePos(ore)).isEmpty(), "unseen coordinate was remembered");
         h.succeed();
     }
 

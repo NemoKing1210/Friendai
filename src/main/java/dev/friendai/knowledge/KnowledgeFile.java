@@ -20,17 +20,24 @@ public final class KnowledgeFile {
     private List<JsonObject> coverage = new ArrayList<>();
     private List<JsonObject> trails = new ArrayList<>();
     private List<JsonObject> searchLedger = new ArrayList<>();
+    private List<ContainerRecord> containers = new ArrayList<>();
 
     public KnowledgeFile() {}
 
     KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
                   List<SummaryRecord> summaries, Map<Long, Long> aliases) {
+        this(logicalTick, nextSiteId, records, sites, summaries, aliases, List.of());
+    }
+
+    KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
+                  List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers) {
         this.logicalTick = logicalTick;
         this.nextSiteId = nextSiteId;
         this.records = new ArrayList<>(records);
         this.sites = new ArrayList<>(sites);
         this.summaries = new ArrayList<>(summaries);
         this.aliases = new LinkedHashMap<>(aliases);
+        this.containers = new ArrayList<>(containers);
     }
 
     public int version() { return version; }
@@ -43,16 +50,34 @@ public final class KnowledgeFile {
     public List<JsonObject> coverage() { return List.copyOf(coverage); }
     public List<JsonObject> trails() { return List.copyOf(trails); }
     public List<JsonObject> searchLedger() { return List.copyOf(searchLedger); }
+    public List<ContainerRecord> containers() { return containers == null ? List.of() : List.copyOf(containers); }
 
     void validate(KnowledgeLimits limits) {
         if (version != CURRENT_VERSION) throw new IllegalArgumentException("unsupported knowledge version");
         if (logicalTick < 0 || nextSiteId < 1) throw new IllegalArgumentException("invalid knowledge clock or id");
-        if (records == null || sites == null || summaries == null || aliases == null || coverage == null || trails == null || searchLedger == null) {
+        if (records == null || sites == null || summaries == null || aliases == null || coverage == null || trails == null || searchLedger == null || containers == null) {
             throw new IllegalArgumentException("missing knowledge collections");
         }
         if (records.size() > limits.memberObservations() || records.size() > 16_384) {
             throw new IllegalArgumentException("too many member records");
         }
+        if (containers.size() > 256) throw new IllegalArgumentException("too many container records");
+        int itemEntries = 0;
+        java.util.Set<String> containerLocations = new java.util.HashSet<>();
+        for (ContainerRecord record : containers) {
+            if (record == null || blank(record.dimension) || record.items == null || record.observedTick < 0
+                    || record.observedTick > logicalTick) throw new IllegalArgumentException("invalid container record");
+            validatePosition(record.x, record.y, record.z);
+            String key = record.dimension + '\u0000' + record.x + ',' + record.y + ',' + record.z;
+            if (!containerLocations.add(key)) throw new IllegalArgumentException("duplicate container location");
+            for (Map.Entry<String, Integer> item : record.items.entrySet()) {
+                if (blank(item.getKey()) || item.getValue() == null || item.getValue() <= 0 || item.getValue() > 1_000_000) {
+                    throw new IllegalArgumentException("invalid container item record");
+                }
+                itemEntries++;
+            }
+        }
+        if (records.size() + itemEntries > 16_384) throw new IllegalArgumentException("too many exact records");
         if (sites.size() + summaries.size() > limits.sites() || sites.size() + summaries.size() > 2_048) {
             throw new IllegalArgumentException("too many resource sites");
         }
@@ -133,6 +158,24 @@ public final class KnowledgeFile {
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }
+
+    public static final class ContainerRecord {
+        private String dimension;
+        private int x, y, z;
+        private Map<String, Integer> items = new LinkedHashMap<>();
+        private long observedTick;
+        public ContainerRecord() {}
+        ContainerRecord(String dimension, int x, int y, int z, Map<String, Integer> items, long observedTick) {
+            this.dimension = dimension; this.x = x; this.y = y; this.z = z;
+            this.items = new LinkedHashMap<>(items); this.observedTick = observedTick;
+        }
+        public String dimension() { return dimension; }
+        public int x() { return x; }
+        public int y() { return y; }
+        public int z() { return z; }
+        public Map<String, Integer> items() { return Map.copyOf(items); }
+        public long observedTick() { return observedTick; }
+    }
 
     private static void validatePosition(int x, int y, int z) {
         if (Math.abs((long) x) > 30_000_000 || Math.abs((long) z) > 30_000_000 || Math.abs((long) y) > 2_048) {

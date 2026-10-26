@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.task.Task;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropSettle;
@@ -87,7 +88,7 @@ public final class HoneyTask implements Task {
                 failed = true;
                 return TaskStatus.FAILED;
             }
-            Optional<BlockPos> found = hive != null ? Optional.of(hive) : nearestHive(c.level(), c.companion().blockPosition());
+            Optional<BlockPos> found = hive != null ? Optional.of(hive) : nearestHive(c.companion());
             if (found.isEmpty()) {
                 summary = "no beehive nearby";
                 failed = true;
@@ -181,36 +182,12 @@ public final class HoneyTask implements Task {
         return ItemStack.EMPTY;
     }
 
-    private static Optional<BlockPos> nearestHive(ServerLevel level, BlockPos origin) {
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        int minChunkX = (origin.getX() - RADIUS) >> 4;
-        int maxChunkX = (origin.getX() + RADIUS) >> 4;
-        int minChunkZ = (origin.getZ() - RADIUS) >> 4;
-        int maxChunkZ = (origin.getZ() + RADIUS) >> 4;
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                BlockPos sample = new BlockPos(chunkX << 4, origin.getY(), chunkZ << 4);
-                if (!level.hasChunkAt(sample)) {
-                    continue;
-                }
-                LevelChunk chunk = level.getChunkAt(sample);
-                for (BlockPos pos : chunk.getBlockEntities().keySet()) {
-                    if (origin.distSqr(pos) > (double) RADIUS * RADIUS) {
-                        continue;
-                    }
-                    if (!(level.getBlockState(pos).getBlock() instanceof BeehiveBlock)) {
-                        continue;
-                    }
-                    double distance = pos.distSqr(origin);
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        best = pos.immutable();
-                    }
-                }
-            }
-        }
-        return Optional.ofNullable(best);
+    private static Optional<BlockPos> nearestHive(CompanionEntity companion) {
+        if (!(companion.level() instanceof ServerLevel level)) return Optional.empty();
+        var matcher = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives").orElse(null);
+        if (matcher == null) return Optional.empty();
+        return dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
+                .visible(companion, matcher, RADIUS, 1).stream().findFirst();
     }
 
     private static boolean beesEmpty(ServerLevel level, BlockPos pos) {

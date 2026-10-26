@@ -212,7 +212,8 @@ public final class ExploreTask implements Task {
 
     private boolean found(ServerLevel level, CompanionEntity companion) {
         BlockPos origin = companion.blockPosition();
-        return BlockSearch.nearest(level, origin, down ? 6 : Math.min(16, maxRadius), target, Set.of())
+        var evidence = dev.friendai.core.FriendaiServerState.get(level.getServer()).resources();
+        return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream().findFirst()
                 .map(pos -> {
                     BlockState state = level.getBlockState(pos);
                     summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at "

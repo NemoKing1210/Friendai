@@ -165,9 +165,9 @@ public final class MineBlocksTask implements Task {
                 // The tree is finished: pick its drops up before going anywhere else.
                 return TaskStatus.RUNNING;
             }
-            candidates = new ArrayList<>(BlockSearch.nearestN(
-                    c.level(), origin != null ? origin : c.companion().blockPosition(), radius, matcher, blacklist,
-                    CANDIDATES));
+            var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+            candidates = new ArrayList<>(evidence.knownOrVisible(
+                    c.companion(), matcher, radius, CANDIDATES));
             candidates.removeIf(blacklist::contains);
             if (origin != null && candidates.size() > 1) {
                 // The breaker walks to whichever candidate is nearest to the companion, which would defeat searching
@@ -256,7 +256,9 @@ public final class MineBlocksTask implements Task {
         for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
             seeds.add(lastBroken.relative(side));
         }
-        List<BlockPos> result = new ArrayList<>(BlockSearch.connected(c.level(), seeds, matcher, CANDIDATES));
+        var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        List<BlockPos> result = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, CANDIDATES));
+        result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));
         result.removeIf(blacklist::contains);
         return result;
     }

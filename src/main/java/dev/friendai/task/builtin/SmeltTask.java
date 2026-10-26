@@ -332,7 +332,7 @@ public final class SmeltTask implements Task {
             return List.of();
         }
         List<BlockPos> found = new ArrayList<>();
-        for (BlockPos pos : Stations.nearbyAll(c.level(), c.companion().blockPosition(), station, 64)) {
+        for (BlockPos pos : Stations.nearbyAll(c.companion(), station, 64)) {
             if (station == Station.CAMPFIRE) {
                 if (campfireHasRoom(c.level(), pos)) {
                     found.add(pos);
@@ -856,7 +856,7 @@ public final class SmeltTask implements Task {
             if (!isStationBlock(state, kind)) {
                 continue;
             }
-            boolean base = policy == CraftTask.StationPolicy.AUTO && Stations.looksLikeBase(c.level(), pos);
+            boolean base = policy == CraftTask.StationPolicy.AUTO && Stations.looksLikeBase(c.companion(), pos);
             if (policy == CraftTask.StationPolicy.KEEP || base) {
                 stationNotes.add("placed a " + kind.noun() + " at " + coords(pos) + " and left it there"
                         + (base ? " (looks like a base)" : ""));

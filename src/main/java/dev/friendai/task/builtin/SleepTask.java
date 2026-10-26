@@ -4,7 +4,8 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Approach;
-import java.util.Comparator;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.task.mining.BlockMatcher;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
@@ -124,13 +125,10 @@ public final class SleepTask implements Task {
     }
 
     private static @Nullable BlockPos findBed(TaskContext c) {
-        BlockPos origin = c.companion().blockPosition();
-        Optional<BlockPos> nearest = BlockPos.betweenClosedStream(
-                        origin.offset(-BED_SEARCH_RADIUS, -BED_SEARCH_HEIGHT, -BED_SEARCH_RADIUS),
-                        origin.offset(BED_SEARCH_RADIUS, BED_SEARCH_HEIGHT, BED_SEARCH_RADIUS))
-                .filter(p -> c.level().getBlockState(p).is(BlockTags.BEDS))
-                .map(BlockPos::immutable)
-                .min(Comparator.comparingDouble(origin::distSqr));
-        return nearest.map(p -> head(c, p)).orElse(null);
+        BlockMatcher beds = BlockMatcher.parse("#minecraft:beds").orElse(null);
+        if (beds == null) return null;
+        var resources = FriendaiServerState.get(c.level().getServer()).resources();
+        return resources.knownOrVisible(c.companion(), beds, BED_SEARCH_RADIUS, 16).stream()
+                .map(p -> head(c, p)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 }

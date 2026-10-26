@@ -64,7 +64,7 @@ public final class TreeFinder {
     }
 
     /** Bounds the scan, not the tree: a jungle giant is still one cluster. */
-    static final int MAX_SCANNED_LOGS = 512;
+    public static final int MAX_SCANNED_LOGS = 512;
     /** Footprints up to this many columns, without leaves, are a stump or a trunk leftover rather than a build. */
     private static final int STUMP_FOOTPRINT = 4;
     /** How far from a log a leaf block still counts as part of its tree. */
@@ -100,18 +100,64 @@ public final class TreeFinder {
             if (seen.contains(start)) {
                 continue;
             }
-            Set<BlockPos> cluster = cluster(level, start, scanned, seen, isLog);
+            Set<BlockPos> cluster = cluster(level, start, scanned, seen, isLog, true);
             TreeInfo info = describe(level, origin, cluster);
             if (!treesOnly || info.kind() != Kind.LOG_STRUCTURE) {
                 trees.add(info);
             }
         }
+        orderAndLimit(trees, limit);
+        return List.copyOf(trees);
+    }
+
+    /** Groups exact remembered/visible log positions without expanding into concealed connected blocks. */
+    public static List<TreeInfo> findObserved(ServerLevel level, BlockPos origin, Map<BlockPos, String> observedLogs,
+            Set<BlockPos> observedLeaves, int limit) {
+        Set<BlockPos> scanned = new LinkedHashSet<>(observedLogs.keySet().stream().limit(MAX_SCANNED_LOGS).toList());
+        List<TreeInfo> trees = new ArrayList<>();
+        Set<BlockPos> seen = new LinkedHashSet<>();
+        for (BlockPos start : scanned) {
+            if (seen.contains(start)) continue;
+            Set<BlockPos> cluster = cluster(level, start, scanned, seen, state -> false, false);
+            TreeInfo info = describeObserved(origin, cluster, observedLogs, observedLeaves);
+            trees.add(info);
+        }
+        orderAndLimit(trees, limit);
+        return List.copyOf(trees);
+    }
+
+    private static TreeInfo describeObserved(BlockPos origin, Set<BlockPos> cluster,
+            Map<BlockPos, String> observedLogs, Set<BlockPos> observedLeaves) {
+        BlockPos base = cluster.stream().min(Comparator.<BlockPos>comparingInt(BlockPos::getY)
+                .thenComparingDouble(pos -> pos.distSqr(origin))).orElseThrow();
+        int minY = cluster.stream().mapToInt(BlockPos::getY).min().orElse(base.getY());
+        int maxY = cluster.stream().mapToInt(BlockPos::getY).max().orElse(base.getY());
+        int minX = cluster.stream().mapToInt(BlockPos::getX).min().orElse(base.getX());
+        int maxX = cluster.stream().mapToInt(BlockPos::getX).max().orElse(base.getX());
+        int minZ = cluster.stream().mapToInt(BlockPos::getZ).min().orElse(base.getZ());
+        int maxZ = cluster.stream().mapToInt(BlockPos::getZ).max().orElse(base.getZ());
+        Map<String, Integer> types = new HashMap<>();
+        cluster.forEach(pos -> types.merge(observedLogs.get(pos), 1, Integer::sum));
+        String type = types.entrySet().stream().max(Map.Entry.<String, Integer>comparingByValue()
+                .thenComparing(Map.Entry.comparingByKey(Comparator.reverseOrder()))).orElseThrow().getKey();
+        boolean leaves = observedLeaves.stream().anyMatch(pos -> pos.getX() >= minX - LEAF_REACH
+                && pos.getX() <= maxX + LEAF_REACH && pos.getY() >= minY - LEAF_REACH
+                && pos.getY() <= maxY + LEAF_REACH && pos.getZ() >= minZ - LEAF_REACH
+                && pos.getZ() <= maxZ + LEAF_REACH);
+        Kind kind = leaves ? Kind.STANDING_TREE
+                : cluster.stream().map(Columns::column).distinct().count() <= STUMP_FOOTPRINT ? Kind.STUMP : Kind.LOG_STRUCTURE;
+        return new TreeInfo(type, List.copyOf(cluster), base, maxY - minY + 1, kind,
+                Vec3.atCenterOf(base).distanceTo(Vec3.atCenterOf(origin)),
+                RelativeDirection.compass(base.getX() - origin.getX(), base.getZ() - origin.getZ()));
+    }
+
+    private static void orderAndLimit(List<TreeInfo> trees, int limit) {
         trees.sort(Comparator.<TreeInfo>comparingInt(t -> t.kind() == Kind.LOG_STRUCTURE ? 1 : 0)
                 .thenComparingDouble(TreeInfo::distance)
                 .thenComparingInt(t -> t.base().getX())
                 .thenComparingInt(t -> t.base().getY())
                 .thenComparingInt(t -> t.base().getZ()));
-        return trees.size() > limit ? List.copyOf(trees.subList(0, limit)) : List.copyOf(trees);
+        if (trees.size() > limit) trees.subList(limit, trees.size()).clear();
     }
 
     /** Matching, breakable logs in loaded chunks, scanned in rings outwards so the cap keeps the nearest ones. */
@@ -150,8 +196,8 @@ public final class TreeFinder {
     }
 
     /** The six-connected group of {@code start} within {@code scanned}, extended down while logs continue below. */
-    private static Set<BlockPos> cluster(
-            ServerLevel level, BlockPos start, Set<BlockPos> scanned, Set<BlockPos> seen, Predicate<BlockState> isLog) {
+    private static Set<BlockPos> cluster(ServerLevel level, BlockPos start, Set<BlockPos> scanned,
+            Set<BlockPos> seen, Predicate<BlockState> isLog, boolean extendDown) {
         Set<BlockPos> cluster = new LinkedHashSet<>();
         ArrayDeque<BlockPos> queue = new ArrayDeque<>();
         queue.add(start);
@@ -166,6 +212,7 @@ public final class TreeFinder {
                 }
             }
         }
+        if (!extendDown) return cluster;
         // The window may cut the trunk off above its foot: walk down from every column's lowest log.
         Map<Long, BlockPos> lowest = new HashMap<>();
         for (BlockPos pos : cluster) {
@@ -186,6 +233,11 @@ public final class TreeFinder {
     }
 
     private static TreeInfo describe(ServerLevel level, BlockPos origin, Set<BlockPos> cluster) {
+        return describe(level, origin, cluster, Set.of(), true);
+    }
+
+    private static TreeInfo describe(ServerLevel level, BlockPos origin, Set<BlockPos> cluster,
+            Set<BlockPos> observedLeaves, boolean inspectWorldLeaves) {
         BlockPos base = null;
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
@@ -211,7 +263,9 @@ public final class TreeFinder {
                 .orElseThrow()
                 .getKey();
         boolean supported = isSupported(level, base);
-        boolean leaves = hasLeaves(level, minX, minY, minZ, maxX, maxY, maxZ);
+        boolean leaves = inspectWorldLeaves
+                ? hasLeaves(level, minX, minY, minZ, maxX, maxY, maxZ)
+                : hasObservedLeaves(observedLeaves, minX, minY, minZ, maxX, maxY, maxZ);
         Kind kind;
         if (!supported) {
             kind = Kind.FLOATING;
@@ -226,6 +280,16 @@ public final class TreeFinder {
         String direction = RelativeDirection.compass(base.getX() - origin.getX(), base.getZ() - origin.getZ());
         List<BlockPos> logs = Collections.unmodifiableList(new ArrayList<>(cluster));
         return new TreeInfo(type, logs, base, maxY - minY + 1, kind, distance, direction);
+    }
+
+    private static boolean hasObservedLeaves(Set<BlockPos> leaves, int minX, int minY, int minZ,
+            int maxX, int maxY, int maxZ) {
+        for (BlockPos pos : leaves) {
+            if (pos.getX() >= minX - LEAF_REACH && pos.getX() <= maxX + LEAF_REACH
+                    && pos.getY() >= minY - LEAF_REACH && pos.getY() <= maxY + LEAF_REACH
+                    && pos.getZ() >= minZ - LEAF_REACH && pos.getZ() <= maxZ + LEAF_REACH) return true;
+        }
+        return false;
     }
 
     private static boolean isSupported(ServerLevel level, BlockPos base) {

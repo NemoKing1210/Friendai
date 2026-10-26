@@ -399,8 +399,7 @@ public final class BuildTask implements Task {
         if (matcher == null) {
             return null;
         }
-        for (BlockPos pos : ContainerAccess.all(level, companion.blockPosition(), Materials.STORAGE_RADIUS,
-                container -> InventoryOps.count(container, matcher) > 0)) {
+        for (BlockPos pos : ContainerAccess.known(companion, Materials.STORAGE_RADIUS)) {
             if (!exhaustedStorage.contains(pos)) {
                 return pos;
             }

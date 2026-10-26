@@ -78,19 +78,6 @@ public final class Materials {
     /** What the companion has at hand: its inventory, its main hand, and storage within {@link #STORAGE_RADIUS}. */
     public static Map<Item, Integer> have(CompanionEntity companion, ServerLevel level) {
         Map<Item, Integer> have = carried(companion);
-        BlockPos origin = companion.blockPosition();
-        for (BlockPos pos : ContainerAccess.all(level, origin, STORAGE_RADIUS)) {
-            if (isSecondHalf(level, pos)) {
-                continue;
-            }
-            Container container = ContainerAccess.at(level, pos).orElse(null);
-            if (container == null) {
-                continue;
-            }
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                count(have, container.getItem(slot));
-            }
-        }
         return have;
     }
 

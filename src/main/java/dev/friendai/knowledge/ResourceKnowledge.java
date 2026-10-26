@@ -26,12 +26,42 @@ public final class ResourceKnowledge {
     private final Map<FamilyKey, Set<Long>> byFamily = new HashMap<>();
     private final Map<String, Set<Long>> byBlockId = new HashMap<>();
     private final Set<Long> pinned = new HashSet<>();
+    private final Map<ResourceObservation.Location, ContainerObservation> containers = new LinkedHashMap<>();
     private long nextId = 1;
     private long logicalTick;
     private long revision;
 
     public ResourceKnowledge(KnowledgeLimits limits) {
         this.limits = Objects.requireNonNull(limits, "limits");
+    }
+
+    public record ContainerObservation(ResourceObservation.Location location, Map<String, Integer> items, long observedTick) {
+        public ContainerObservation {
+            Objects.requireNonNull(location, "location");
+            items = Map.copyOf(items);
+            if (observedTick < 0) throw new IllegalArgumentException("observedTick must not be negative");
+            if (items.size() > 16_384 || items.entrySet().stream().anyMatch(entry -> entry.getKey() == null
+                    || entry.getKey().isBlank() || entry.getValue() == null || entry.getValue() < 1
+                    || entry.getValue() > 1_000_000)) throw new IllegalArgumentException("invalid container contents");
+        }
+    }
+
+    /** Stores a bounded snapshot taken after an authorized container interaction. */
+    public boolean recordContainer(ContainerObservation observation) {
+        Objects.requireNonNull(observation, "observation");
+        advance(observation.observedTick());
+        boolean replacing = containers.containsKey(observation.location());
+        int entries = containers.values().stream().mapToInt(value -> value.items().size()).sum();
+        if (!replacing && containers.size() >= 256) return false;
+        if (entries - (replacing ? containers.get(observation.location()).items().size() : 0)
+                + observation.items().size() + members.size() > 16_384) return false;
+        containers.put(observation.location(), observation);
+        revision++;
+        return true;
+    }
+
+    public void invalidateContainer(ResourceObservation.Location location) {
+        if (containers.remove(location) != null) revision++;
     }
 
     /** Records direct evidence only; returns -1 when configured caps defer this observation. */
@@ -146,7 +176,11 @@ public final class ResourceKnowledge {
                         summary.representative.y(), summary.representative.z(), summary.approach.x(),
                         summary.approach.y(), summary.approach.z(), summary.firstSeen, summary.lastSeen))
                 .toList();
-        return new KnowledgeFile(logicalTick, nextId, records, siteRecords, summaryRecords, aliases);
+        List<KnowledgeFile.ContainerRecord> containerRecords = containers.values().stream()
+                .map(observation -> new KnowledgeFile.ContainerRecord(observation.location().dimension(),
+                        observation.location().pos().x(), observation.location().pos().y(), observation.location().pos().z(),
+                        observation.items(), observation.observedTick())).toList();
+        return new KnowledgeFile(logicalTick, nextId, records, siteRecords, summaryRecords, aliases, containerRecords);
     }
 
     public static ResourceKnowledge restore(KnowledgeFile file, KnowledgeLimits limits) {
@@ -197,6 +231,11 @@ public final class ResourceKnowledge {
             for (String blockId : summary.blockIds) book.byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(summary.id);
         }
         book.aliases.putAll(file.aliases());
+        for (KnowledgeFile.ContainerRecord record : file.containers()) {
+            var location = new ResourceObservation.Location(record.dimension(),
+                    new Pos(record.x(), record.y(), record.z()));
+            book.containers.put(location, new ContainerObservation(location, record.items(), record.observedTick()));
+        }
         return book;
     }
 

@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -147,6 +148,52 @@ class KnowledgeStoreTest {
             store.book(first).observe(observation("minecraft:coal_ore", new Pos(0, 10, 0), 1), "coal");
             assertTrue(store.book(second).site(1, 1).isEmpty());
         }
+    }
+
+    @Test
+    void authorizedContainerSnapshotSurvivesKnowledgeRoundTrip() {
+        ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        var location = new ResourceObservation.Location("minecraft:overworld", new Pos(4, 20, -3));
+        assertTrue(book.recordContainer(new ResourceKnowledge.ContainerObservation(location,
+                Map.of("minecraft:iron_ingot", 12), 7)));
+        ResourceKnowledge restored = ResourceKnowledge.restore(book.snapshot(), KnowledgeLimits.DEFAULTS);
+        assertEquals(Map.of("minecraft:iron_ingot", 12), restored.snapshot().containers().getFirst().items());
+        assertEquals(7, restored.snapshot().containers().getFirst().observedTick());
+    }
+
+    @Test
+    void containerSnapshotPersistsThroughKnowledgeStore() throws IOException {
+        Path dir = temp.resolve("containers");
+        UUID owner = UUID.randomUUID();
+        ManualExecutor executor = new ManualExecutor();
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS, executor, () -> 0L)) {
+            var location = new ResourceObservation.Location("minecraft:overworld", new Pos(4, 20, -3));
+            store.book(owner).recordContainer(new ResourceKnowledge.ContainerObservation(location,
+                    Map.of("minecraft:iron_ingot", 12), 7));
+            store.flushIfDue(5_000);
+            executor.runNext();
+        }
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS)) {
+            assertEquals(Map.of("minecraft:iron_ingot", 12), store.book(owner).snapshot().containers().getFirst().items());
+        }
+    }
+
+    @Test
+    void containerSnapshotsRespectPerOwnerAndExactRecordCaps() {
+        ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        for (int i = 0; i < 256; i++) {
+            var location = new ResourceObservation.Location("minecraft:overworld", new Pos(i, 20, 0));
+            assertTrue(book.recordContainer(new ResourceKnowledge.ContainerObservation(location, Map.of(), 1)));
+        }
+        assertFalse(book.recordContainer(new ResourceKnowledge.ContainerObservation(
+                new ResourceObservation.Location("minecraft:overworld", new Pos(300, 20, 0)), Map.of(), 1)));
+        ResourceKnowledge capped = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        for (int i = 0; i < 16_384; i++) {
+            capped.observe(observation("minecraft:coal_ore", new Pos(i, 20, 0), i + 1), "coal");
+        }
+        assertFalse(capped.recordContainer(new ResourceKnowledge.ContainerObservation(
+                new ResourceObservation.Location("minecraft:overworld", new Pos(0, 30, 0)),
+                Map.of("minecraft:coal", 1), 16_385)));
     }
 
     @Test
