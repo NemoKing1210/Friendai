@@ -118,6 +118,88 @@ public final class ResourceKnowledge {
 
     long logicalTick() { return logicalTick; }
 
+    public KnowledgeFile snapshot() {
+        List<KnowledgeFile.MemberRecord> records = new ArrayList<>();
+        for (Map.Entry<ResourceObservation.Location, Member> entry : members.entrySet()) {
+            Member member = entry.getValue();
+            ResourceObservation.Location location = entry.getKey();
+            records.add(new KnowledgeFile.MemberRecord(member.blockId, member.family, location.dimension(),
+                    location.pos().x(), location.pos().y(), location.pos().z(), member.viewpoint.x(),
+                    member.viewpoint.y(), member.viewpoint.z(), member.firstSeen, member.lastSeen, resolve(member.siteId)));
+        }
+        records.sort(Comparator.comparingLong(KnowledgeFile.MemberRecord::siteId)
+                .thenComparing(KnowledgeFile.MemberRecord::dimension)
+                .thenComparingInt(KnowledgeFile.MemberRecord::x)
+                .thenComparingInt(KnowledgeFile.MemberRecord::y)
+                .thenComparingInt(KnowledgeFile.MemberRecord::z));
+        List<KnowledgeFile.SiteRecord> siteRecords = sites.values().stream()
+                .sorted(Comparator.comparingLong(site -> site.id))
+                .map(site -> new KnowledgeFile.SiteRecord(site.id, site.family, site.dimension,
+                        site.representative.x(), site.representative.y(), site.representative.z(),
+                        site.approach.x(), site.approach.y(), site.approach.z(), site.firstSeen, site.lastSeen,
+                        site.depleted))
+                .toList();
+        List<KnowledgeFile.SummaryRecord> summaryRecords = summaries.values().stream()
+                .sorted(Comparator.comparingLong(Summary::id))
+                .map(summary -> new KnowledgeFile.SummaryRecord(summary.id, summary.family, summary.dimension,
+                        summary.lastCount, summary.blockIds.stream().sorted().toList(), summary.representative.x(),
+                        summary.representative.y(), summary.representative.z(), summary.approach.x(),
+                        summary.approach.y(), summary.approach.z(), summary.firstSeen, summary.lastSeen))
+                .toList();
+        return new KnowledgeFile(logicalTick, nextId, records, siteRecords, summaryRecords, aliases);
+    }
+
+    public static ResourceKnowledge restore(KnowledgeFile file, KnowledgeLimits limits) {
+        Objects.requireNonNull(file, "file").validate(limits);
+        ResourceKnowledge book = new ResourceKnowledge(limits);
+        book.logicalTick = file.logicalTick();
+        book.nextId = file.nextSiteId();
+        for (KnowledgeFile.SiteRecord record : file.sites()) {
+            MutableSite site = new MutableSite(record.id(), record.family(), record.dimension(),
+                    new Pos(record.x(), record.y(), record.z()),
+                    new Pos(record.approachX(), record.approachY(), record.approachZ()), record.firstSeen());
+            site.lastSeen = record.lastSeen();
+            site.depleted = record.depleted();
+            book.sites.put(site.id, site);
+        }
+        for (KnowledgeFile.MemberRecord record : file.records()) {
+            ResourceObservation.Location location = new ResourceObservation.Location(record.dimension(),
+                    new Pos(record.x(), record.y(), record.z()));
+            MutableSite site = book.sites.get(record.siteId());
+            if (!site.family.equals(record.family()) || !site.dimension.equals(record.dimension())) {
+                throw new IllegalArgumentException("site contains incompatible resource records");
+            }
+            site.positions.add(location.pos());
+            site.blockIds.add(record.blockId());
+            site.firstSeen = Math.min(site.firstSeen, record.firstSeen());
+            site.lastSeen = Math.max(site.lastSeen, record.lastSeen());
+            if (record.lastSeen() >= site.lastSeen) site.approach = new Pos(record.viewX(), record.viewY(), record.viewZ());
+            Member member = new Member(record.blockId(), record.family(), record.firstSeen(),
+                    new Pos(record.viewX(), record.viewY(), record.viewZ()), record.siteId());
+            member.lastSeen = record.lastSeen();
+            book.members.put(location, member);
+            book.siteAt.put(location, record.siteId());
+        }
+        for (MutableSite site : book.sites.values()) {
+            if (!site.positions.isEmpty()) {
+                site.representative = representative(site.positions);
+                book.byFamily.computeIfAbsent(new FamilyKey(site.dimension, site.family), ignored -> new LinkedHashSet<>()).add(site.id);
+                for (String blockId : site.blockIds) book.byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(site.id);
+            }
+        }
+        for (KnowledgeFile.SummaryRecord record : file.summaries()) {
+            Summary summary = new Summary(record.id(), record.family(), record.dimension(), record.lastCount(),
+                    Set.copyOf(record.blockIds()), new Pos(record.x(), record.y(), record.z()),
+                    new Pos(record.approachX(), record.approachY(), record.approachZ()),
+                    record.firstSeen(), record.lastSeen());
+            book.summaries.put(summary.id, summary);
+            book.byFamily.computeIfAbsent(new FamilyKey(summary.dimension, summary.family), ignored -> new LinkedHashSet<>()).add(summary.id);
+            for (String blockId : summary.blockIds) book.byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(summary.id);
+        }
+        book.aliases.putAll(file.aliases());
+        return book;
+    }
+
     private long advance(long tick) {
         logicalTick = Math.max(logicalTick, tick);
         return logicalTick;
@@ -199,8 +281,7 @@ public final class ResourceKnowledge {
 
     private void recomputeBlockIds(long id, MutableSite site) {
         for (String blockId : site.blockIds) {
-            Set<Long> indexed = byBlockId.get(blockId);
-            if (indexed != null) indexed.remove(id);
+            removeIndexEntry(byBlockId, blockId, id);
         }
         site.blockIds.clear();
         for (Map.Entry<ResourceObservation.Location, Member> entry : members.entrySet()) {
@@ -237,11 +318,10 @@ public final class ResourceKnowledge {
                     .map(summary -> summary.id).orElse(null);
             if (candidate != null) {
                 Summary removed = summaries.remove(candidate);
-                Set<Long> ids = byFamily.get(new FamilyKey(removed.dimension, removed.family));
-                if (ids != null) ids.remove(candidate);
+                dropAliasesTo(candidate);
+                removeIndexEntry(byFamily, new FamilyKey(removed.dimension, removed.family), candidate);
                 for (String blockId : removed.blockIds) {
-                    Set<Long> blockSites = byBlockId.get(blockId);
-                    if (blockSites != null) blockSites.remove(candidate);
+                    removeIndexEntry(byBlockId, blockId, candidate);
                 }
                 pinned.remove(candidate);
                 continue;
@@ -254,11 +334,10 @@ public final class ResourceKnowledge {
             compactOne(Set.of());
             Summary compacted = summaries.remove(detailed.id);
             if (compacted == null) return false;
-            Set<Long> familySites = byFamily.get(new FamilyKey(compacted.dimension, compacted.family));
-            if (familySites != null) familySites.remove(compacted.id);
+            dropAliasesTo(compacted.id);
+            removeIndexEntry(byFamily, new FamilyKey(compacted.dimension, compacted.family), compacted.id);
             for (String blockId : compacted.blockIds) {
-                Set<Long> blockSites = byBlockId.get(blockId);
-                if (blockSites != null) blockSites.remove(compacted.id);
+                removeIndexEntry(byBlockId, blockId, compacted.id);
             }
         }
         return true;
@@ -274,15 +353,27 @@ public final class ResourceKnowledge {
 
     private void unindexSite(long id, MutableSite site) {
         Set<Long> ids = byFamily.get(new FamilyKey(site.dimension, site.family));
-        if (ids != null) ids.remove(id);
+        if (ids != null) removeIndexEntry(byFamily, new FamilyKey(site.dimension, site.family), id);
         for (String blockId : site.blockIds) {
-            Set<Long> blockSites = byBlockId.get(blockId);
-            if (blockSites != null) blockSites.remove(id);
+            removeIndexEntry(byBlockId, blockId, id);
         }
     }
 
     private void trimAliases() {
         while (aliases.size() > limits.aliases()) aliases.remove(aliases.keySet().iterator().next());
+    }
+
+    private void dropAliasesTo(long id) {
+        Set<Long> removed = new HashSet<>();
+        for (Map.Entry<Long, Long> entry : aliases.entrySet()) {
+            if (entry.getKey() == id || resolve(entry.getValue()) == id) removed.add(entry.getKey());
+        }
+        removed.forEach(aliases::remove);
+    }
+
+    private static <K> void removeIndexEntry(Map<K, Set<Long>> index, K key, long id) {
+        Set<Long> ids = index.get(key);
+        if (ids != null && ids.remove(id) && ids.isEmpty()) index.remove(key);
     }
 
     private static Pos representative(Set<Pos> positions) {
