@@ -33,6 +33,11 @@ public final class WorldScan {
     private WorldScan() {}
 
     public static WorldFacts scan(ServerLevel level, CompanionEntity companion, int radius, boolean containers, boolean explore) {
+        return scan(level, companion, radius, containers, explore, Set.of(), Set.of());
+    }
+
+    public static WorldFacts scan(ServerLevel level, CompanionEntity companion, int radius, boolean containers,
+            boolean explore, Set<Long> verifiedSiteIds, Set<Long> excludedSiteIds) {
         ResourceCandidates evidence = FriendaiServerState.get(level.getServer()).resources();
         Map<String, Integer> blocks = new LinkedHashMap<>();
         for (var observation : evidence.currentVisible(companion, radius)) blocks.merge(observation.blockId(), 1, Integer::sum);
@@ -42,7 +47,9 @@ public final class WorldScan {
         for (Station station : Stations.available(level, companion)) {
             if (station != Station.INVENTORY) stations.add(station.noun());
         }
-        return new WorldFacts(blocks, mobs, Map.of(), crops, stations, explore, Level.OVERWORLD.equals(level.dimension()));
+        return new WorldFacts(blocks, mobs, Map.of(), crops, stations, explore,
+                Level.OVERWORLD.equals(level.dimension()), explore ? evidence.plannerCandidates(companion, 20) : java.util.List.of(),
+                verifiedSiteIds, excludedSiteIds);
     }
 
     private static Map<String, Integer> countVisibleMobs(ServerLevel level, CompanionEntity companion, int radius) {

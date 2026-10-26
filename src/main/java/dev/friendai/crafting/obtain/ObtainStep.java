@@ -38,6 +38,9 @@ public sealed interface ObtainStep {
         }
     }
 
+    /** Travel to a remembered site, then verify it before replanning against actual observations. */
+    record VisitResource(long siteId, String dimension, String block) implements ObtainStep {}
+
     /** Kill {@code count} mobs. */
     record Hunt(String mob, int count) implements ObtainStep {
         public Hunt {

@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
 
 /** What a scan found around the companion, in the shape the planner consumes. */
 public record WorldFacts(
@@ -14,7 +15,23 @@ public record WorldFacts(
         Map<String, Integer> matureCrops,
         Set<String> stationsNearby,
         boolean exploreAllowed,
-        boolean dimensionHasOre) {
+        boolean dimensionHasOre,
+        List<ResourceCandidate> resourceCandidates,
+        Set<Long> verifiedSiteIds,
+        Set<Long> excludedSiteIds) {
+    public WorldFacts(Map<String, Integer> blocksNearby, Map<String, Integer> mobsNearby,
+            Map<String, Integer> containerItems, Map<String, Integer> matureCrops, Set<String> stationsNearby,
+            boolean exploreAllowed, boolean dimensionHasOre) {
+        this(blocksNearby, mobsNearby, containerItems, matureCrops, stationsNearby, exploreAllowed,
+                dimensionHasOre, List.of(), Set.of(), Set.of());
+    }
+    public WorldFacts(Map<String, Integer> blocksNearby, Map<String, Integer> mobsNearby,
+            Map<String, Integer> containerItems, Map<String, Integer> matureCrops, Set<String> stationsNearby,
+            boolean exploreAllowed, boolean dimensionHasOre, List<ResourceCandidate> resourceCandidates) {
+        this(blocksNearby, mobsNearby, containerItems, matureCrops, stationsNearby, exploreAllowed,
+                dimensionHasOre, resourceCandidates, Set.of(), Set.of());
+    }
+
     public WorldFacts {
         blocksNearby = copy(blocksNearby);
         mobsNearby = copy(mobsNearby);
@@ -23,6 +40,9 @@ public record WorldFacts(
         stationsNearby = stationsNearby == null
                 ? Set.of()
                 : Collections.unmodifiableSet(new LinkedHashSet<>(stationsNearby));
+        resourceCandidates = resourceCandidates == null ? List.of() : List.copyOf(resourceCandidates);
+        verifiedSiteIds = verifiedSiteIds == null ? Set.of() : Set.copyOf(verifiedSiteIds);
+        excludedSiteIds = excludedSiteIds == null ? Set.of() : Set.copyOf(excludedSiteIds);
     }
 
     public static WorldFacts empty() {

@@ -6,6 +6,7 @@ import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.ResourceQuery;
 import dev.friendai.knowledge.ResourceSite;
+import dev.friendai.crafting.obtain.ResourceCandidate;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -140,6 +142,41 @@ public final class ResourceCandidates {
         return ResourceQuery.find(knowledge.book(companion.ownerUuid()), request);
     }
 
+    /** Converts owner-scoped historical sites into planner candidates without reading world chunks. */
+    public List<ResourceCandidate> plannerCandidates(CompanionEntity companion, int limitPerBlock) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return List.of();
+        ResourceKnowledge book = knowledge.book(companion.ownerUuid());
+        String dimension = level.dimension().identifier().toString();
+        BlockPos origin = companion.blockPosition();
+        Set<String> blockIds = book.snapshot().records().stream()
+                .filter(record -> record.dimension().equals(dimension))
+                .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, ResourceCandidate> result = new java.util.LinkedHashMap<>();
+        for (String blockId : blockIds) {
+            ResourceQuery.Request request = new ResourceQuery.Request(Set.of(blockId), dimension,
+                    new Pos(origin.getX(), origin.getY(), origin.getZ()), 30_000_000, limitPerBlock, true);
+            for (ResourceQuery.Result found : ResourceQuery.find(book, request, level.getGameTime())) {
+                ResourceSite site = found.site();
+                Pos approach = site.approach();
+                double dx = approach.x() - companion.getX();
+                double dz = approach.z() - companion.getZ();
+                double dy = Math.abs(approach.y() - companion.getY());
+                boolean fresh = site.availability() == ResourceSite.Availability.OBSERVED;
+                double cost = 4.6 * Math.hypot(dx, dz) + 10 * dy + (fresh ? 0 : 200);
+                boolean visible = site.members().stream().anyMatch(pos -> visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream()
+                        .anyMatch(observation -> observation.observedTick() == level.getGameTime()
+                                && observation.location().pos().equals(pos)));
+                ResourceCandidate candidate = new ResourceCandidate(site.id(), blockId, site.dimension(),
+                        site.representative(), approach, found.lastObservedBlocks(), found.ageTicks(), visible,
+                        site.approximate(), cost);
+                result.putIfAbsent(site.id() + ":" + blockId, candidate);
+            }
+        }
+        return result.values().stream().sorted(Comparator.comparingLong(ResourceCandidate::siteId)
+                .thenComparing(ResourceCandidate::blockId)).toList();
+    }
+
     /** Queues fresh bounded sight checks for remembered exact members of the requested site. */
     public Verification verify(CompanionEntity companion, long siteId) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return Verification.UNLOADED;
@@ -150,6 +187,22 @@ public final class ResourceCandidates {
         ResourceObserver observer = observations.observer(companion);
         site.members().forEach(pos -> observer.inspect(new BlockPos(pos.x(), pos.y(), pos.z())));
         return Verification.PENDING;
+    }
+
+    public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return java.util.Optional.empty();
+        return java.util.Optional.ofNullable(knowledge.book(companion.ownerUuid()).site(siteId, level.getGameTime()).orElse(null));
+    }
+
+    public boolean siteVisible(CompanionEntity companion, long siteId) {
+        ResourceSite site = site(companion, siteId).orElse(null);
+        if (site == null) return false;
+        String dimension = ((ServerLevel) companion.level()).dimension().identifier().toString();
+        long tick = ((ServerLevel) companion.level()).getGameTime();
+        return visibleNow.getOrDefault(companion.ownerUuid(), List.of()).stream().anyMatch(observation ->
+                observation.observedTick() == tick && observation.location().dimension().equals(dimension)
+                        && site.members().contains(observation.location().pos())
+                        && site.family().equals(observation.blockId()));
     }
 
     /** Applies evidence of this companion's confirmed successful break and schedules nearby face checks. */

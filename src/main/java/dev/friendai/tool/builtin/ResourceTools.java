@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.ResourceQuery;
+import dev.friendai.knowledge.ResourceKnowledgeText;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.obtain.ResourceResolver;
 import dev.friendai.tool.AccessLevel;
@@ -58,6 +59,7 @@ final class ResourceTools {
         response.addProperty("scope", level.dimension().identifier().toString());
         response.addProperty("executable", resolution.executable());
         response.addProperty("reason", resolution.reason());
+        response.addProperty("summary", ResourceKnowledgeText.summary(results, 600));
         JsonArray sites = new JsonArray();
         for (ResourceQuery.Result result : results) {
             var site = result.site();

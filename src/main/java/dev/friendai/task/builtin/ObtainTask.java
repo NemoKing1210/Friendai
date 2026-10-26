@@ -62,6 +62,7 @@ public final class ObtainTask implements Task {
     private final int exploreTicks;
 
     private final List<String> history = new ArrayList<>();
+    private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
     private Task current;
     private ObtainStep currentStep;
     private String summary = "";
@@ -109,6 +110,7 @@ public final class ObtainTask implements Task {
         stepsRun = 0;
         lastNoticeTick = -NOTICE_INTERVAL;
         history.clear();
+        excludedSiteIds.clear();
     }
 
     @Override
@@ -122,6 +124,8 @@ public final class ObtainTask implements Task {
                 return TaskStatus.RUNNING;
             }
             String subSummary = current.resultSummary();
+            var visitVerification = current instanceof VisitResourceTask visit ? visit.result()
+                    : dev.friendai.perception.resource.ResourceCandidates.Verification.PENDING;
             safeStop(current, c);
             ObtainStep step = currentStep;
             current = null;
@@ -131,6 +135,10 @@ public final class ObtainTask implements Task {
                 history.add(pastText(step));
                 lastFailedKey = null;
             } else {
+                if (step instanceof ObtainStep.VisitResource visit
+                        && visitVerification != dev.friendai.perception.resource.ResourceCandidates.Verification.PRESENT) {
+                    excludedSiteIds.add(visit.siteId());
+                }
                 String key = stepKey(step);
                 if (key.equals(lastFailedKey)) {
                     return fail("stuck at " + ObtainText.stepText(step) + ": " + subSummary);
@@ -152,10 +160,11 @@ public final class ObtainTask implements Task {
             return fail("gave up after " + maxSteps + " steps; have " + have + " of " + count + " " + item);
         }
         ServerLevel level = c.level();
-        WorldFacts facts = WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore);
+        WorldFacts facts = WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore,
+                Set.of(), excludedSiteIds);
         ObtainPlan plan = ObtainPlanner.plan(item, count, inventoryMap(companion), RecipeIndex.of(level),
                 DropIndex.of(level), facts);
-        if (!plan.ok()) {
+        if (!plan.actionable()) {
             return fail("can't get " + count + " " + item + " here: "
                     + ObtainText.missingText(plan.missing(), !explore));
         }
@@ -177,6 +186,7 @@ public final class ObtainTask implements Task {
         return TaskStatus.RUNNING;
     }
 
+
     private Task subtask(TaskContext c, ObtainStep step) {
         ServerLevel level = c.level();
         return switch (step) {
@@ -185,6 +195,7 @@ public final class ObtainTask implements Task {
             case ObtainStep.Smelt smelt -> new SmeltTask(itemMatcher(smelt.input()), smelt.count(), null, null, true,
                     CraftTask.StationPolicy.AUTO, SMELT_WAIT_TICKS);
             case ObtainStep.Mine mine -> new MineBlocksTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS);
+            case ObtainStep.VisitResource visit -> new VisitResourceTask(visit.siteId(), visit.dimension(), exploreTicks);
             case ObtainStep.Hunt hunt -> new HuntTask(
                     type -> entityId(type).equals(hunt.mob()), hunt.mob(), hunt.count(), HUNT_RADIUS);
             case ObtainStep.Harvest harvest -> {
@@ -252,6 +263,7 @@ public final class ObtainTask implements Task {
                         used.add(mine.tool().vanillaItem());
                     }
                 }
+                case ObtainStep.VisitResource visit -> used.add(visit.block());
                 case ObtainStep.Hunt hunt -> used.add(hunt.mob());
                 case ObtainStep.Harvest harvest -> used.add(harvest.crop());
                 case ObtainStep.Shear shear -> used.add(shear.mob());
@@ -346,6 +358,7 @@ public final class ObtainTask implements Task {
             case ObtainStep.Craft craft -> "craft:" + craft.item();
             case ObtainStep.Smelt smelt -> "smelt:" + smelt.input() + "->" + smelt.output();
             case ObtainStep.Mine mine -> "mine:" + mine.block();
+            case ObtainStep.VisitResource visit -> "visit:" + visit.siteId() + ":" + visit.dimension() + ":" + visit.block();
             case ObtainStep.Hunt hunt -> "hunt:" + hunt.mob();
             case ObtainStep.Harvest harvest -> "harvest:" + harvest.crop();
             case ObtainStep.Shear shear -> "shear:" + shear.mob();
@@ -362,6 +375,7 @@ public final class ObtainTask implements Task {
                     : "crafted " + craft.count() + " × " + craft.item();
             case ObtainStep.Smelt smelt -> "smelted " + smelt.count() + " " + smelt.input();
             case ObtainStep.Mine mine -> "mined " + mine.count() + " " + mine.block();
+            case ObtainStep.VisitResource visit -> "visited site " + visit.siteId() + " for " + visit.block();
             case ObtainStep.Hunt hunt -> "hunted " + hunt.count() + " " + hunt.mob();
             case ObtainStep.Harvest harvest -> "harvested " + harvest.count() + " " + harvest.crop();
             case ObtainStep.Shear shear -> "sheared " + shear.count() + " " + shear.mob();

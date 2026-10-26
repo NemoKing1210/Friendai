@@ -1,6 +1,8 @@
 package dev.friendai.knowledge;
 
 import dev.friendai.pathing.Pos;
+import dev.friendai.knowledge.search.SearchCoverage;
+import dev.friendai.knowledge.search.SearchLedger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -27,6 +29,8 @@ public final class ResourceKnowledge {
     private final Map<String, Set<Long>> byBlockId = new HashMap<>();
     private final Set<Long> pinned = new HashSet<>();
     private final Map<ResourceObservation.Location, ContainerObservation> containers = new LinkedHashMap<>();
+    private SearchCoverage searchCoverage = new SearchCoverage();
+    private SearchLedger searchLedger = new SearchLedger();
     private long nextId = 1;
     private long logicalTick;
     private long revision;
@@ -139,6 +143,16 @@ public final class ResourceKnowledge {
 
     public long revision() { return revision; }
 
+    public SearchCoverage searchCoverage() { return searchCoverage; }
+    public SearchLedger searchLedger() { return searchLedger; }
+
+    public void recordCoverage(String dimension, Pos viewpoint, String family,
+            dev.friendai.knowledge.search.ResourceSearchProfile.Strategy strategy, SearchCoverage.Outcome outcome, long tick) {
+        searchCoverage.record(dimension, viewpoint, family, strategy, outcome, tick);
+        advance(tick);
+        revision++;
+    }
+
     public void pin(long siteId) {
         long resolved = resolve(siteId);
         if (sites.containsKey(resolved) || summaries.containsKey(resolved)) pinned.add(resolved);
@@ -180,13 +194,16 @@ public final class ResourceKnowledge {
                 .map(observation -> new KnowledgeFile.ContainerRecord(observation.location().dimension(),
                         observation.location().pos().x(), observation.location().pos().y(), observation.location().pos().z(),
                         observation.items(), observation.observedTick())).toList();
-        return new KnowledgeFile(logicalTick, nextId, records, siteRecords, summaryRecords, aliases, containerRecords);
+        return new KnowledgeFile(Math.max(logicalTick, searchLedger.logicalTick()), nextId, records, siteRecords, summaryRecords, aliases, containerRecords,
+                searchCoverage.toJson(), List.of(), searchLedger.toJson());
     }
 
     public static ResourceKnowledge restore(KnowledgeFile file, KnowledgeLimits limits) {
         Objects.requireNonNull(file, "file").validate(limits);
         ResourceKnowledge book = new ResourceKnowledge(limits);
         book.logicalTick = file.logicalTick();
+        book.searchCoverage = SearchCoverage.fromJson(file.coverage());
+        book.searchLedger.restore(file.searchLedger());
         book.nextId = file.nextSiteId();
         for (KnowledgeFile.SiteRecord record : file.sites()) {
             MutableSite site = new MutableSite(record.id(), record.family(), record.dimension(),

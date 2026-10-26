@@ -61,7 +61,7 @@ final class ObtainTools {
         Map<String, Integer> inventory = inventoryMap(companion);
         WorldFacts world = WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore);
         ObtainPlan plan = ObtainPlanner.plan(item, count, inventory, RecipeIndex.of(level), DropIndex.of(level), world);
-        if (!plan.ok()) {
+        if (!plan.actionable()) {
             return "can't get " + count + " " + item + " here: "
                     + ObtainText.missingText(plan.missing(), !explore);
         }

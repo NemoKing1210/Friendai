@@ -70,7 +70,7 @@ public final class ObtainPlanner {
         Attempt attempt = new Search(recipes, sources, world)
                 .need(target, count, 0, new LinkedHashSet<>(), sim, true);
         List<ObtainStep> steps = merge(attempt.steps);
-        return new ObtainPlan(steps, attempt.missing, steps.size());
+        return new ObtainPlan(steps, attempt.missing, steps.size(), attempt.conditional);
     }
 
     /** Merges consecutive steps that do the same thing. */
@@ -141,12 +141,16 @@ public final class ObtainPlanner {
         final Map<String, Integer> items = new LinkedHashMap<>();
         final Map<String, Integer> containers = new LinkedHashMap<>();
         final Set<String> reserved = new LinkedHashSet<>();
+        final Set<Long> reservedSites = new LinkedHashSet<>();
+        final Map<Long, Integer> siteBlocks = new LinkedHashMap<>();
 
         Sim copy() {
             Sim copy = new Sim();
             copy.items.putAll(items);
             copy.containers.putAll(containers);
             copy.reserved.addAll(reserved);
+            copy.reservedSites.addAll(reservedSites);
+            copy.siteBlocks.putAll(siteBlocks);
             return copy;
         }
 
@@ -157,6 +161,10 @@ public final class ObtainPlanner {
             containers.putAll(other.containers);
             reserved.clear();
             reserved.addAll(other.reserved);
+            reservedSites.clear();
+            reservedSites.addAll(other.reservedSites);
+            siteBlocks.clear();
+            siteBlocks.putAll(other.siteBlocks);
         }
 
         int available(String item) {
@@ -189,6 +197,7 @@ public final class ObtainPlanner {
         final List<ObtainStep> steps = new ArrayList<>();
         final Map<String, Integer> missing = new LinkedHashMap<>();
         int cost;
+        boolean conditional;
 
         boolean ok() {
             return missing.isEmpty();
@@ -202,6 +211,7 @@ public final class ObtainPlanner {
             steps.addAll(other.steps);
             other.missing.forEach((item, qty) -> missing.merge(item, qty, Integer::sum));
             cost += other.cost;
+            conditional |= other.conditional;
         }
     }
 
@@ -255,7 +265,7 @@ public final class ObtainPlanner {
                     }
                     Sim copy = sim.copy();
                     Candidate candidate = provider.take(this, copy, capacity, depth, nextPath, emitCraft);
-                    if (candidate != null && candidate.supplied() > 0
+                    if (candidate != null && (candidate.supplied() > 0 || candidate.attempt().conditional)
                             && (best == null || cheaper(candidate, best))) {
                         best = candidate;
                     }
@@ -266,6 +276,11 @@ public final class ObtainPlanner {
                 }
                 sim.adopt(best.sim());
                 total.merge(best.attempt());
+                if (best.attempt().conditional) {
+                    total.conditional = true;
+                    if (total.missing.isEmpty()) total.missing.merge(item, qty, Integer::sum);
+                    return total;
+                }
                 qty -= best.supplied();
                 pool.remove(best.provider());
             }
@@ -273,6 +288,18 @@ public final class ObtainPlanner {
         }
 
         private static boolean cheaper(Candidate candidate, Candidate best) {
+            if (candidate.attempt().conditional != best.attempt().conditional) return !candidate.attempt().conditional;
+            if (candidate.attempt().conditional) {
+                ObtainStep.VisitResource a = firstVisit(candidate.attempt());
+                ObtainStep.VisitResource b = firstVisit(best.attempt());
+                if (candidate.cost() != best.cost()) return candidate.cost() < best.cost();
+                if (a != null && b != null) {
+                    int site = Long.compare(a.siteId(), b.siteId());
+                    if (site != 0) return site < 0;
+                    return a.block().compareTo(b.block()) < 0;
+                }
+                return false;
+            }
             long candidateUnit = (long) candidate.cost() * 1000 / candidate.supplied();
             long bestUnit = (long) best.cost() * 1000 / best.supplied();
             if (candidateUnit != bestUnit) {
@@ -285,6 +312,11 @@ public final class ObtainPlanner {
                 return candidate.attempt().steps.size() < best.attempt().steps.size();
             }
             return false;
+        }
+
+        private static ObtainStep.VisitResource firstVisit(Attempt attempt) {
+            return attempt.steps.stream().filter(ObtainStep.VisitResource.class::isInstance)
+                    .map(ObtainStep.VisitResource.class::cast).findFirst().orElse(null);
         }
 
         private List<Provider> providers(String item, Sim sim) {
@@ -305,8 +337,19 @@ public final class ObtainPlanner {
                         if (world.blocksNearby().getOrDefault(mine.block(), 0) > 0) {
                             providers.add(new MineProvider(item, mine, false));
                         }
+                        if (world.exploreAllowed()) {
+                            world.resourceCandidates().stream()
+                                    .filter(candidate -> !candidate.visibleNow() && candidate.blockId().equals(mine.block()))
+                                    .filter(candidate -> !world.excludedSiteIds().contains(candidate.siteId()))
+                                    .sorted(java.util.Comparator.comparingLong(ResourceCandidate::siteId)
+                                            .thenComparing(ResourceCandidate::blockId))
+                                    .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
+                        }
                         if (world.exploreAllowed() && explorable(item, mine)) {
-                            providers.add(new MineProvider(item, mine, true));
+                            boolean hasRememberedSite = world.resourceCandidates().stream()
+                                    .anyMatch(candidate -> !candidate.visibleNow() && candidate.blockId().equals(mine.block())
+                                            && !world.excludedSiteIds().contains(candidate.siteId()));
+                            if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true));
                         }
                     }
                     case Source.Hunt hunt -> providers.add(new HuntProvider(hunt));
@@ -356,6 +399,10 @@ public final class ObtainPlanner {
             // A tool is its own chain: a gold trip may need an iron pickaxe whose chain is as long as any
             // other, and the shared path already guards real cycles.
             Attempt tool = need(item, 1, 0, path, sim, true);
+            if (tool.conditional) {
+                attempt.merge(tool);
+                return false;
+            }
             if (!tool.ok()) {
                 return false;
             }
@@ -474,6 +521,11 @@ public final class ObtainPlanner {
             for (String id : ingredient.items()) {
                 Sim copy = sim.copy();
                 Attempt planned = need(id, qty, depth + 1, path, copy, false);
+                if (planned.conditional) {
+                    attempt.merge(planned);
+                    sim.adopt(copy);
+                    return false;
+                }
                 if (planned.ok()) {
                     attempt.merge(planned);
                     sim.adopt(copy);
@@ -537,6 +589,7 @@ public final class ObtainPlanner {
                 for (int craft = 0; craft < times; craft++) {
                     for (Map.Entry<Ingredient, Integer> slot : slots.entrySet()) {
                         if (!fillIngredient(slot.getKey(), slot.getValue(), depth, path, sim, attempt)) {
+                            if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
                             return null;
                         }
                     }
@@ -580,6 +633,11 @@ public final class ObtainPlanner {
                 for (String id : input.items()) {
                     Sim copy = sim.copy();
                     Attempt planned = need(id, times, depth + 1, path, copy, true);
+                    if (planned.conditional) {
+                        attempt.merge(planned);
+                        sim.adopt(copy);
+                        return new Candidate(this, attempt, sim, 0);
+                    }
                     if (planned.ok()) {
                         attempt.merge(planned);
                         sim.adopt(copy);
@@ -629,6 +687,7 @@ public final class ObtainPlanner {
                 int blocks = Math.max(1, (int) Math.ceil(want / source.perBlock()));
                 Attempt attempt = new Attempt();
                 if (!ensureTool(source.tool(), depth, path, sim, attempt)) {
+                    if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
                     return null;
                 }
                 if (explore) {
@@ -646,6 +705,42 @@ public final class ObtainPlanner {
                 attempt.add(new ObtainStep.Mine(source.block(), blocks, source.tool()));
                 attempt.cost += 4 * blocks;
                 return new Candidate(this, attempt, sim, want);
+            }
+        }
+
+        private final class VisitProvider implements Provider {
+            private final String item;
+            private final Source.Mine source;
+            private final ResourceCandidate resource;
+
+            VisitProvider(String item, Source.Mine source, ResourceCandidate resource) {
+                this.item = item;
+                this.source = source;
+                this.resource = resource;
+            }
+
+            @Override
+            public int capacity(Sim sim, int want) {
+                if (sim.reservedSites.contains(resource.siteId())) return 0;
+                int availableBlocks = sim.siteBlocks.computeIfAbsent(resource.siteId(), ignored ->
+                        world.resourceCandidates().stream().filter(candidate -> candidate.siteId() == resource.siteId())
+                                .mapToInt(ResourceCandidate::lastObservedBlocks).max().orElse(0));
+                if (availableBlocks < 1) return 0;
+                return Math.min(want, Math.max(1, (int) Math.floor(availableBlocks * source.perBlock())));
+            }
+
+            @Override
+            public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
+                int availableBlocks = sim.siteBlocks.getOrDefault(resource.siteId(), resource.lastObservedBlocks());
+                int blocks = Math.min(availableBlocks, Math.max(1, (int) Math.ceil(want / source.perBlock())));
+                if (blocks < 1) return null;
+                sim.siteBlocks.put(resource.siteId(), availableBlocks - blocks);
+                sim.reservedSites.add(resource.siteId());
+                Attempt attempt = new Attempt();
+                attempt.add(new ObtainStep.VisitResource(resource.siteId(), resource.dimension(), source.block()));
+                attempt.conditional = true;
+                attempt.cost += (int) Math.ceil(resource.estimatedCost());
+                return new Candidate(this, attempt, sim, 0);
             }
         }
 

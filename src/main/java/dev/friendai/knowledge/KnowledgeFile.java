@@ -31,6 +31,18 @@ public final class KnowledgeFile {
 
     KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
                   List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers) {
+        this(logicalTick, nextSiteId, records, sites, summaries, aliases, containers, List.of());
+    }
+
+    KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
+                  List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers,
+                  List<JsonObject> coverage) {
+        this(logicalTick, nextSiteId, records, sites, summaries, aliases, containers, coverage, List.of(), List.of());
+    }
+
+    KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
+                  List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers,
+                  List<JsonObject> coverage, List<JsonObject> trails, List<JsonObject> searchLedger) {
         this.logicalTick = logicalTick;
         this.nextSiteId = nextSiteId;
         this.records = new ArrayList<>(records);
@@ -38,6 +50,9 @@ public final class KnowledgeFile {
         this.summaries = new ArrayList<>(summaries);
         this.aliases = new LinkedHashMap<>(aliases);
         this.containers = new ArrayList<>(containers);
+        this.coverage = new ArrayList<>(coverage);
+        this.trails = new ArrayList<>(trails);
+        this.searchLedger = new ArrayList<>(searchLedger);
     }
 
     public int version() { return version; }
@@ -78,6 +93,45 @@ public final class KnowledgeFile {
             }
         }
         if (records.size() + itemEntries > 16_384) throw new IllegalArgumentException("too many exact records");
+        for (JsonObject row : coverage) {
+            if (row == null || !row.has("dimension") || !row.has("x") || !row.has("y") || !row.has("z")
+                    || !row.has("family") || !row.has("strategy") || !row.has("outcome") || !row.has("tick")) {
+                throw new IllegalArgumentException("invalid coverage record");
+            }
+            String dimension = row.get("dimension").getAsString();
+            String family = row.get("family").getAsString();
+            long tick = row.get("tick").getAsLong();
+            if (blank(dimension) || blank(family) || tick < 0 || tick > logicalTick) throw new IllegalArgumentException("invalid coverage record");
+            validatePosition(row.get("x").getAsInt(), row.get("y").getAsInt(), row.get("z").getAsInt());
+            try {
+                dev.friendai.knowledge.search.ResourceSearchProfile.Strategy.valueOf(row.get("strategy").getAsString());
+                dev.friendai.knowledge.search.SearchCoverage.Outcome.valueOf(row.get("outcome").getAsString());
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("invalid coverage strategy or outcome", ex);
+            }
+        }
+        for (JsonObject row : searchLedger) {
+            String[] fields = {"owner", "dimension", "goal", "id", "x", "y", "z", "radius", "travel",
+                    "limit_ticks", "excavation", "phase", "started", "last", "spent_travel", "spent_ticks", "excavated", "blocked"};
+            if (row == null || java.util.Arrays.stream(fields).anyMatch(field -> !row.has(field)))
+                throw new IllegalArgumentException("invalid search ledger entry");
+            try {
+                java.util.UUID.fromString(row.get("owner").getAsString());
+                java.util.UUID.fromString(row.get("id").getAsString());
+                if (blank(row.get("dimension").getAsString()) || blank(row.get("goal").getAsString()))
+                    throw new IllegalArgumentException("blank search ledger key");
+                validatePosition(row.get("x").getAsInt(), row.get("y").getAsInt(), row.get("z").getAsInt());
+                new dev.friendai.knowledge.search.SearchSession.Limits(row.get("radius").getAsInt(),
+                        row.get("travel").getAsDouble(), row.get("limit_ticks").getAsLong(), row.get("excavation").getAsInt());
+                dev.friendai.knowledge.search.SearchSession.Phase.valueOf(row.get("phase").getAsString());
+                long started = row.get("started").getAsLong(), last = row.get("last").getAsLong();
+                if (started < 0 || last < started || last > logicalTick || row.get("spent_ticks").getAsLong() < 0
+                        || row.get("spent_travel").getAsDouble() < 0 || row.get("excavated").getAsInt() < 0
+                        || row.get("blocked").getAsInt() < 0) throw new IllegalArgumentException("invalid search ledger counters");
+            } catch (RuntimeException ex) {
+                throw new IllegalArgumentException("invalid search ledger entry", ex);
+            }
+        }
         if (sites.size() + summaries.size() > limits.sites() || sites.size() + summaries.size() > 2_048) {
             throw new IllegalArgumentException("too many resource sites");
         }
