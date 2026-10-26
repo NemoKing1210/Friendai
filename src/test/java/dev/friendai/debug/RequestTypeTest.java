@@ -27,8 +27,14 @@ class RequestTypeTest {
         assertEquals(15, RequestType.TELEPORT.ordinal());
         assertEquals(16, RequestType.MOVE_DEBUG_ON.ordinal());
         assertEquals(17, RequestType.MOVE_DEBUG_OFF.ordinal());
-        assertEquals(18, RequestType.INVALID.ordinal());
+        assertEquals(18, RequestType.RENAME.ordinal());
+        assertEquals(19, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
+    }
+
+    @Test
+    void renameMapsToItsOwnAction() {
+        assertEquals(Optional.of(DebugAccess.Action.RENAME), RequestType.RENAME.action());
     }
 
     @Test

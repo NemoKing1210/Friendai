@@ -1,6 +1,7 @@
 package dev.friendai.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
@@ -22,6 +23,8 @@ import net.minecraft.world.phys.Vec3;
  */
 public class CompanionRenderer
         extends HumanoidMobRenderer<CompanionEntity, CompanionRenderState, HumanoidModel<CompanionRenderState>> {
+    private final HumanoidModel<CompanionRenderState> wideModel;
+    private final HumanoidModel<CompanionRenderState> slimModel;
     private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
     /** How long one dot of the thinking animation stays on screen. */
     private static final float TICKS_PER_DOT = 8.0F;
@@ -31,6 +34,8 @@ public class CompanionRenderer
 
     public CompanionRenderer(EntityRendererProvider.Context context) {
         super(context, new HumanoidModel<>(context.bakeLayer(ModelLayers.PLAYER)), 0.5F);
+        this.wideModel = this.model;
+        this.slimModel = new HumanoidModel<>(context.bakeLayer(ModelLayers.PLAYER_SLIM));
         this.addLayer(new HumanoidArmorLayer<>(
                 this,
                 ArmorModelSet.bake(ModelLayers.PLAYER_ARMOR, context.getModelSet(), HumanoidModel::new),
@@ -46,6 +51,9 @@ public class CompanionRenderer
     public void extractRenderState(CompanionEntity companion, CompanionRenderState state, float partialTick) {
         super.extractRenderState(companion, state, partialTick);
         state.thinking = companion.isThinking();
+        state.skin = SkinCache.textureFor(companion.getSkinHash());
+        // The model is only read while this entity is drawn, so picking the arm shape here is safe.
+        this.model = state.skin != null && companion.isSlimSkin() ? slimModel : wideModel;
     }
 
     /**
@@ -94,6 +102,6 @@ public class CompanionRenderer
 
     @Override
     public Identifier getTextureLocation(CompanionRenderState state) {
-        return TEXTURE;
+        return state.skin != null ? state.skin : TEXTURE;
     }
 }

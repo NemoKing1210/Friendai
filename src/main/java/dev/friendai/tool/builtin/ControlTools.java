@@ -3,6 +3,7 @@ package dev.friendai.tool.builtin;
 import com.google.gson.JsonObject;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionRenamer;
 import dev.friendai.memory.CompanionName;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
@@ -76,17 +77,12 @@ final class ControlTools {
 
     /** Renames this companion for its owner; the name is stored in the owner's book and survives a dismiss. */
     private static ToolResult setName(CompanionEntity c, String raw) {
-        Optional<String> parsed = CompanionName.parse(raw);
-        if (parsed.isEmpty()) {
-            return ToolResult.error("Invalid name. " + CompanionName.PROBLEM);
-        }
-        if (c.ownerUuid() == null) {
-            return ToolResult.error("I don't have an owner.");
-        }
-        String name = parsed.get();
-        FriendaiServerState.get(c.level().getServer()).memory().book(c.ownerUuid()).setCompanionName(name);
-        c.applyName(name);
-        return ToolResult.ok("my name is now " + name);
+        CompanionRenamer.Result result = CompanionRenamer.rename(c, raw);
+        return switch (result.outcome()) {
+            case INVALID_NAME -> ToolResult.error("Invalid name. " + CompanionName.PROBLEM);
+            case NO_OWNER -> ToolResult.error("I don't have an owner.");
+            case RENAMED -> ToolResult.ok("my name is now " + result.name());
+        };
     }
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {

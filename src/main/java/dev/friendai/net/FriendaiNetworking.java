@@ -14,6 +14,9 @@ public final class FriendaiNetworking {
         PayloadTypeRegistry.clientboundPlay().register(PromptS2CPayload.TYPE, PromptS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MemoryViewS2CPayload.TYPE, MemoryViewS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(CompanionSpeechS2CPayload.TYPE, CompanionSpeechS2CPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SkinUploadC2SPayload.TYPE, SkinUploadC2SPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SkinRequestC2SPayload.TYPE, SkinRequestC2SPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SkinS2CPayload.TYPE, SkinS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MovementDebugS2CPayload.TYPE, MovementDebugS2CPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(
                 VoiceTranscriptC2SPayload.TYPE,
@@ -22,5 +25,11 @@ public final class FriendaiNetworking {
         ServerPlayNetworking.registerGlobalReceiver(
                 CompanionRequestC2SPayload.TYPE,
                 (payload, context) -> context.server().execute(() -> CompanionRequestHandler.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(
+                SkinUploadC2SPayload.TYPE,
+                (payload, context) -> context.server().execute(() -> SkinHandler.upload(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(
+                SkinRequestC2SPayload.TYPE,
+                (payload, context) -> context.server().execute(() -> SkinHandler.request(context.player(), payload)));
     }
 }

@@ -9,6 +9,8 @@ import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.net.CompanionSnapshotS2CPayload;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.net.PromptS2CPayload;
+import dev.friendai.net.SkinS2CPayload;
+import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.debug.MovementDebugRenderer;
 import dev.friendai.client.debug.MovementDebugState;
@@ -101,6 +103,9 @@ public class FriendaiClient implements ClientModInitializer {
                     }
                 }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> MovementDebugState.reset());
+        ClientPlayNetworking.registerGlobalReceiver(
+                SkinS2CPayload.TYPE, (payload, context) -> context.client().execute(() -> SkinCache.onSkin(payload)));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(SkinCache::clear));
         new PushToTalkHandler(VoiceRuntime::stt, text -> {
             if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
                 ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));

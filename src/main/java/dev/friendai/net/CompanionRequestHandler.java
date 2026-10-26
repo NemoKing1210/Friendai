@@ -5,6 +5,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.debug.RequestType;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.CompanionRenamer;
 import dev.friendai.memory.MemoryMenuActions;
 import dev.friendai.memory.MenuStatus;
 import dev.friendai.memory.PlayerRef;
@@ -82,6 +83,13 @@ public final class CompanionRequestHandler {
                 }
             }
             case DISMISS -> companions.dismiss(player);
+            case RENAME -> companions.find(owner).ifPresentOrElse(
+                    c -> {
+                        if (CompanionRenamer.rename(c, a).outcome() != CompanionRenamer.Outcome.RENAMED) {
+                            player.sendSystemMessage(Component.translatable("friendai.menu.rename.invalid"));
+                        }
+                    },
+                    () -> player.sendSystemMessage(Component.translatable("friendai.menu.no_companion")));
             case STOP -> companions.find(owner).ifPresent(c -> {
                 c.taskRunner().stop("stopped from menu");
                 brains.cancel(owner);

@@ -86,6 +86,11 @@ public class CompanionEntity extends PathfinderMob {
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_XP_PROGRESS =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.FLOAT);
+    /** Synced hash of the custom skin; empty means the default look. Clients fetch the image by this hash. */
+    private static final EntityDataAccessor<String> DATA_SKIN =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Boolean> DATA_SLIM =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -150,6 +155,8 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_FOOD, HungerModel.MAX_FOOD);
         builder.define(DATA_XP_LEVEL, 0);
         builder.define(DATA_XP_PROGRESS, 0.0f);
+        builder.define(DATA_SKIN, "");
+        builder.define(DATA_SLIM, false);
     }
 
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
@@ -208,6 +215,20 @@ public class CompanionEntity extends PathfinderMob {
             syncExperience();
             playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.1f, 0.5f + random.nextFloat() * 0.5f);
         }
+    }
+
+    /** Hash of the custom skin, or empty for the default look. */
+    public String getSkinHash() {
+        return entityData.get(DATA_SKIN);
+    }
+
+    public boolean isSlimSkin() {
+        return entityData.get(DATA_SLIM);
+    }
+
+    public void setSkin(String hash, boolean slim) {
+        entityData.set(DATA_SKIN, hash);
+        entityData.set(DATA_SLIM, slim);
     }
 
     /** True while the brain is waiting for the model; the client draws a thought bubble above the head. */
