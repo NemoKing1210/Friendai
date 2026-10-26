@@ -379,6 +379,53 @@ public class ResourceObservationTests {
         });
     }
 
+    @GameTest(maxTicks = 100)
+    public void recentEvidenceSurvivesTicks(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        ServerLevel level = h.getLevel();
+        BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
+        h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
+        state.resources().observe(companion, new ResourceObservation("minecraft:acacia_log",
+                new ResourceObservation.Location(level.dimension().identifier().toString(),
+                        new Pos(target.getX(), target.getY(), target.getZ())),
+                new Pos(2, 2, 5), level.getServer().overworld().getGameTime()));
+        h.assertTrue(state.resources().currentVisible(companion, 16).stream()
+                        .anyMatch(observation -> observation.blockId().equals("minecraft:acacia_log")),
+                "the strict current view should contain the fresh observation");
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(state.resources().recentVisible(companion, 16).stream()
+                            .anyMatch(observation -> observation.blockId().equals("minecraft:acacia_log")),
+                    "recent evidence should survive 20 ticks");
+            h.assertTrue(state.resources().currentVisible(companion, 16).isEmpty(),
+                    "the strict current view should expire after 20 ticks");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void replacedBlockDropsOutOfRecentEvidence(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        ServerLevel level = h.getLevel();
+        BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
+        h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
+        Pos position = new Pos(target.getX(), target.getY(), target.getZ());
+        state.resources().observe(companion, new ResourceObservation("minecraft:acacia_log",
+                new ResourceObservation.Location(level.dimension().identifier().toString(), position),
+                new Pos(2, 2, 5), level.getServer().overworld().getGameTime()));
+        h.assertTrue(state.resources().recentVisible(companion, 16).stream()
+                        .anyMatch(observation -> observation.location().pos().equals(position)),
+                "the fixture must be in the recent window");
+        h.setBlock(5, 3, 5, Blocks.STONE);
+        h.assertTrue(state.resources().confirmedRecent(companion, 16).stream()
+                        .noneMatch(observation -> observation.location().pos().equals(position)),
+                "a replaced block must not survive confirmed evidence");
+        h.succeed();
+    }
+
     private static dev.friendai.perception.resource.ObservationScheduler schedulerFor(
             List<CompanionEntity> companions, int count, Map<java.util.UUID, Integer> completed) {
         var scheduler = new dev.friendai.perception.resource.ObservationScheduler();
