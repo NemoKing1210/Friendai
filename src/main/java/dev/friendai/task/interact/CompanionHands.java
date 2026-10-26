@@ -14,13 +14,16 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The companion's "hands": one Fabric fake player per companion, so vanilla code performs placements and
@@ -103,6 +106,49 @@ public final class CompanionHands {
         } finally {
             returnItems(hands);
         }
+    }
+
+    /**
+     * Right-clicks pos with an empty hand and returns the vanilla menu that opened for the fake player, or null when
+     * none did. The companion's experience is mirrored into the fake player first, so menus that charge levels see
+     * them; {@link #closeMenu()} copies it back.
+     */
+    public @Nullable AbstractContainerMenu openMenu(BlockPos pos) {
+        FakePlayer hands = handsPlayer();
+        mirrorExperienceIn(hands);
+        use(pos);
+        if (hands.containerMenu == hands.inventoryMenu) {
+            // Fabric's FakePlayer swallows openMenu, so install the block's menu by hand; the menu works server-side
+            // without the open-screen packet.
+            MenuProvider provider = level().getBlockState(pos).getMenuProvider(level(), pos);
+            AbstractContainerMenu menu = provider == null ? null : provider.createMenu(1, hands.getInventory(), hands);
+            if (menu == null) {
+                return null;
+            }
+            hands.containerMenu = menu;
+        }
+        return hands.containerMenu;
+    }
+
+    /**
+     * Closes the fake player's menu: vanilla hands the menu's input slots back to the fake player, everything it holds
+     * returns to the companion, and the fake player's experience is copied back. Does nothing when no menu is open.
+     */
+    public void closeMenu() {
+        if (player == null || player.containerMenu == player.inventoryMenu) {
+            return;
+        }
+        FakePlayer hands = player;
+        hands.closeContainer();
+        returnItems(hands);
+        companion.experience().loadLevel(hands.experienceLevel, hands.experienceProgress);
+        companion.syncExperience();
+    }
+
+    private void mirrorExperienceIn(FakePlayer hands) {
+        hands.experienceLevel = companion.experience().level();
+        hands.experienceProgress = companion.experience().progress();
+        hands.totalExperience = companion.experience().points();
     }
 
     /** The fake player, for container open/close animations. */
