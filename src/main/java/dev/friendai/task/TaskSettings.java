@@ -18,6 +18,8 @@ public final class TaskSettings {
     public static volatile boolean mineCollectDrops = true;
     public static volatile boolean treePerception = true;
     public static volatile int treePerceptionRadius = 12;
+    /** How many golems of one kind may stand around a structure before building another is refused. */
+    public static volatile int maxNearbySpawned = 4;
     public static volatile PathingConfig pathing = PathingConfig.DEFAULTS;
     /** Block ids and tags pathing never breaks; parsed once per applied config. */
     public static volatile BlockList breakList =

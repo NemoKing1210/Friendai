@@ -141,6 +141,7 @@ public final class FriendaiServerState {
         TaskSettings.mineCollectDrops = cfg.tasks.mineCollectDrops;
         TaskSettings.treePerception = cfg.tasks.treePerception;
         TaskSettings.treePerceptionRadius = cfg.tasks.treePerceptionRadius;
+        TaskSettings.maxNearbySpawned = cfg.structures.maxNearbySpawned;
         TaskSettings.pathing = cfg.pathing.toPathingConfig();
         TaskSettings.breakList = BlockList.parse(
                 cfg.pathing.breakBlacklist,

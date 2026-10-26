@@ -279,11 +279,11 @@ final class BuildTools {
         return companion.owner().map(owner -> owner.getUUID()).orElse(null);
     }
 
-    private static BlockPos origin(JsonObject args) {
+    static BlockPos origin(JsonObject args) {
         return ToolKit.optionalPos(args).orElse(null);
     }
 
-    private static Direction facing(JsonObject args) {
+    static Direction facing(JsonObject args) {
         if (!present(args, "facing")) {
             return null;
         }

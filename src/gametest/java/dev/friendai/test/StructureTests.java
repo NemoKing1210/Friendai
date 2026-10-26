@@ -1,6 +1,13 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.llm.model.ToolCall;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.FriendaiTools;
+import java.util.UUID;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.structure.Offset;
 import dev.friendai.structure.SpecialStructure;
@@ -115,7 +122,72 @@ public class StructureTests {
     }
 
     private static int count(GameTestHelper h, net.minecraft.world.entity.EntityType<?> type) {
-        return h.getLevel().getEntities(type, e -> true).size();
+        return h.getLevel().getEntities(type, h.getBounds().inflate(4), e -> true).size();
+    }
+
+    private static ToolResult callTool(GameTestHelper h, CompanionEntity c, AccessLevel access, String name,
+            String json) {
+        ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
+        return FriendaiTools.create(() -> 32).bind(c).execute(call, new Caller(UUID.randomUUID(), "tester", access));
+    }
+
+    private static String siteArgs(GameTestHelper h, String kind, int x, int y, int z) {
+        BlockPos pos = h.absolutePos(new BlockPos(x, y, z));
+        return "{\"kind\":\"" + kind + "\",\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ()
+                + ",\"facing\":\"south\"}";
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void tool_build_special_builds_snow_golem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
+        c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
+        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        h.assertFalse(r.error(), "error: " + r.content());
+        h.succeedWhen(() -> h.assertTrue(count(h, EntityTypes.SNOW_GOLEM) >= 1, "a snow golem should exist"));
+    }
+
+    @GameTest
+    public void tool_build_special_rejects_unknown_kind(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "dragon", 3, 2, 3));
+        h.assertTrue(r.error(), "an unknown kind must be an error");
+        h.assertTrue(r.content().contains("iron_golem"), "the error should list valid kinds: " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void tool_plan_special_reports_missing_item(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "plan_special", siteArgs(h, "nether_portal", 3, 2, 3));
+        h.assertFalse(r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("minecraft:flint_and_steel"), "result was " + r.content());
+        h.assertTrue(c.taskRunner().current().isEmpty() || !c.taskRunner().current().get().type().startsWith("special:"),
+                "planning must not start a task");
+        h.succeed();
+    }
+
+    @GameTest
+    public void tool_build_special_needs_the_finishing_block(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
+        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        h.assertTrue(r.error(), "no pumpkin must be refused up front");
+        h.assertTrue(r.content().contains("minecraft:carved_pumpkin"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void tool_build_special_guest_denied(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        ToolResult r = callTool(h, c, AccessLevel.GUEST, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        h.assertTrue(r.error(), "a guest must not build");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 1200)
