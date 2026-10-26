@@ -126,7 +126,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         contentWidth = Math.min(width - 2 * (PANEL_PAD + 4), MAX_WIDTH);
         left = (width - contentWidth) / 2;
         top = 24 + TAB_HEIGHT + 10;
-        contentHeight = height - top - 38;
+        contentHeight = height - top - 36 - PANEL_PAD;
 
         // Five tabs no longer fit at small GUI scales, so they share the width they have.
         tabWidth = Math.min(contentWidth / shownTabs.size(), 96);
