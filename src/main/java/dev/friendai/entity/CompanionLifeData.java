@@ -15,8 +15,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.SavedData;
-import net.minecraft.world.level.storage.SavedDataType;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /** Per-owner lifecycle preferences and bed checkpoints, persisted independently from companion entities. */
 public final class CompanionLifeData extends SavedData {

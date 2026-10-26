@@ -2,6 +2,7 @@ package dev.friendai.entity;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.builtin.FollowTask;
+import dev.friendai.task.builtin.SleepTask;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -140,7 +141,7 @@ public final class CompanionManager {
             }
         }
         if (spawn == null) {
-            BlockPos sharedSpawn = level.getSharedSpawnPos();
+            BlockPos sharedSpawn = level.getRespawnData().pos();
             spawn = safeSpawnSpot(level, List.of(sharedSpawn));
             if (spawn == null) {
                 spawn = sharedSpawn;
@@ -162,7 +163,7 @@ public final class CompanionManager {
 
     @Nullable
     private BlockPos bedSpawnSpot(ServerLevel level, BlockPos foot) {
-        if (!level.dimensionType().bedWorks() || !level.hasChunkAt(foot)) {
+        if (!SleepTask.bedsWork(level) || !level.hasChunkAt(foot)) {
             return null;
         }
         BlockState footState = level.getBlockState(foot);

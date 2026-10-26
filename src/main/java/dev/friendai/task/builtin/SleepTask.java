@@ -13,6 +13,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.attribute.BedRule;
+import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -166,7 +168,7 @@ public final class SleepTask implements Task {
 
     /** Finds accessible, unoccupied beds in distance order without reading unloaded chunks. */
     public static List<BlockPos> findNearbyBeds(ServerLevel level, BlockPos center) {
-        if (!level.dimensionType().bedWorks()) {
+        if (!bedsWork(level)) {
             return List.of();
         }
         List<BlockPos> beds = new ArrayList<>();
@@ -208,8 +210,13 @@ public final class SleepTask implements Task {
     }
 
     public static boolean isNight(ServerLevel level) {
-        long timeOfDay = Math.floorMod(level.getDayTime(), 24_000L);
-        return timeOfDay >= 12_542L && timeOfDay < 23_460L;
+        return level.isDarkOutside();
+    }
+
+    /** Whether beds can be slept in at all in this dimension, by the dimension's bed rule. */
+    public static boolean bedsWork(ServerLevel level) {
+        BedRule rule = level.environmentAttributes().getDimensionValue(EnvironmentAttributes.BED_RULE);
+        return rule.canSleep() != BedRule.Rule.NEVER;
     }
 
     private boolean shouldWakeForMorning(TaskContext c) {
