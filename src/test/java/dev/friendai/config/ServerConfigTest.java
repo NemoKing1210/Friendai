@@ -56,7 +56,7 @@ class ServerConfigTest {
     @Test
     void resourcePolicyDefaultsAndCapsAreSafe() {
         ServerConfig c = ServerConfig.defaults();
-        assertFalse(c.tasks.resources.allowExpeditions);
+        assertTrue(c.tasks.resources.allowExpeditions);
         assertEquals(64, c.tasks.resources.localRadius);
         assertEquals(2_400, c.tasks.resources.localTicks);
         assertEquals(512, c.tasks.resources.expeditionRadius);
@@ -90,7 +90,7 @@ class ServerConfigTest {
         assertTrue(c.chat.guestsEnabled);
         assertEquals(32, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
-        assertEquals(7, c.version);
+        assertEquals(8, c.version);
     }
 
     @Test
@@ -100,7 +100,7 @@ class ServerConfigTest {
         assertEquals(160, c.memory.maxFactChars);
         assertEquals(20, c.memory.maxFactsPerPlayer);
         assertEquals(30, c.memory.maxWorldFacts);
-        assertEquals(7, c.version);
+        assertEquals(8, c.version);
         assertEquals(160, c.memory.limits().maxFactChars());
     }
 
@@ -126,7 +126,7 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(160, c.memory.maxFactChars);
         assertTrue(c.memory.enabled);
-        assertTrue(Files.readString(f).contains("\"version\": 7"));
+        assertTrue(Files.readString(f).contains("\"version\": 8"));
     }
 
     @Test
@@ -147,7 +147,7 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(32, c.chat.hearingRadius);
-        assertTrue(Files.readString(f).contains("\"version\": 7"));
+        assertTrue(Files.readString(f).contains("\"version\": 8"));
     }
 
     @Test
@@ -158,10 +158,29 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals(12, c.chat.hearingRadius);
         assertFalse(c.companion.chunkLoading.enabled);
-        assertFalse(c.tasks.resources.allowExpeditions);
+        assertTrue(c.tasks.resources.allowExpeditions);
         assertEquals(64, c.tasks.resources.localRadius);
         assertEquals(2_400, c.tasks.resources.localTicks);
-        assertTrue(Files.readString(f).contains("\"version\": 7"));
+        assertTrue(Files.readString(f).contains("\"version\": 8"));
+    }
+
+    @Test
+    void version7FileEnablesExpeditionsOnMigration(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":7,\"tasks\":{\"resources\":{\"allowExpeditions\":false}}}");
+        var store = new ConfigStore<>(f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ServerConfig c = store.load();
+        assertTrue(c.tasks.resources.allowExpeditions);
+        assertTrue(Files.readString(f).contains("\"version\": 8"));
+        assertTrue(Files.readString(f).contains("\"allowExpeditions\": true"));
+    }
+
+    @Test
+    void version8FileKeepsExpeditionsExplicitlyDisabled(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":8,\"tasks\":{\"resources\":{\"allowExpeditions\":false}}}");
+        var store = new ConfigStore<>(f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        assertFalse(store.load().tasks.resources.allowExpeditions);
     }
 
     @Test
@@ -182,7 +201,7 @@ class ServerConfigTest {
         assertEquals(64, c.pathing.maxGatherBlocks);
         assertTrue(c.pathing.breakBlacklist.contains("#minecraft:planks"));
         assertFalse(c.pathing.breakBlacklist.stream().anyMatch(entry -> entry.contains("terracotta")));
-        assertEquals(7, c.version);
+        assertEquals(8, c.version);
         assertEquals(2, c.pathing.toPathingConfig().searchBudgetMs());
     }
 
@@ -196,8 +215,8 @@ class ServerConfigTest {
         assertEquals(8, c.chat.hearingRadius);
         assertEquals(2, c.pathing.searchBudgetMs);
         assertTrue(c.pathing.allowBreak);
-        assertEquals(7, c.version);
-        assertTrue(Files.readString(f).contains("\"version\": 7"));
+        assertEquals(8, c.version);
+        assertTrue(Files.readString(f).contains("\"version\": 8"));
     }
 
     @Test
@@ -205,7 +224,7 @@ class ServerConfigTest {
         var c = ServerConfig.defaults();
         assertTrue(c.companion.chunkLoading.enabled);
         assertEquals(1, c.companion.chunkLoading.radius);
-        assertEquals(7, c.version);
+        assertEquals(8, c.version);
     }
 
     @Test
@@ -250,7 +269,7 @@ class ServerConfigTest {
         assertTrue(c.tasks.mineCollectDrops);
         assertTrue(c.tasks.treePerception);
         assertEquals(12, c.tasks.treePerceptionRadius);
-        assertEquals(7, c.version);
+        assertEquals(8, c.version);
     }
 
     @Test
@@ -271,7 +290,7 @@ class ServerConfigTest {
         var store = new ConfigStore<>(
                 f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
         var config = store.load();
-        assertEquals(7, config.version);
+        assertEquals(8, config.version);
         assertEquals(20, config.tasks.mineSearchRadius);
         assertEquals(32, config.tasks.treeSearchRadius);
         assertTrue(config.tasks.treePerception);
@@ -313,7 +332,7 @@ class ServerConfigTest {
         var store = new ConfigStore<>(
                 f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
         var config = store.load();
-        assertEquals(7, config.version);
+        assertEquals(8, config.version);
         assertEquals(20, config.tasks.mineSearchRadius);
         assertEquals(4, config.structures.maxNearbySpawned);
     }

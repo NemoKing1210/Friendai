@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 7;
+    public static final int VERSION = 8;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -90,7 +90,7 @@ public class ServerConfig {
     }
 
     public static class ResourceSection {
-        public boolean allowExpeditions = false;
+        public boolean allowExpeditions = true;
         public int localRadius = 64;
         public int localTicks = 2_400;
         public int expeditionRadius = 512;
@@ -137,8 +137,19 @@ public class ServerConfig {
         return c;
     }
 
-    /** Older files keep their values; missing fields keep their field-initializer defaults. */
+    /** Enables expeditions for existing servers once; later config edits retain their chosen value. */
     public static JsonObject migrate(JsonObject json, int from) {
+        if (from < 8) {
+            JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
+                    ? json.getAsJsonObject("tasks")
+                    : new JsonObject();
+            JsonObject resources = tasks.has("resources") && tasks.get("resources").isJsonObject()
+                    ? tasks.getAsJsonObject("resources")
+                    : new JsonObject();
+            resources.addProperty("allowExpeditions", true);
+            tasks.add("resources", resources);
+            json.add("tasks", tasks);
+        }
         return json;
     }
 
