@@ -15,6 +15,11 @@ public final class PromptAssembler {
         this.maxChars = maxChars;
     }
 
+    /** The standard companion prompt under the given character budget (zero or less: unlimited). */
+    public static PromptAssembler defaults(int maxChars) {
+        return new PromptAssembler(DefaultSections.all(), maxChars);
+    }
+
     public String assemble(TurnContext ctx) {
         List<PromptSection> kept = new ArrayList<>();
         List<String> texts = new ArrayList<>();

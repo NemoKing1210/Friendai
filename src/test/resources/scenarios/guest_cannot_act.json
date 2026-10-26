@@ -1,0 +1,9 @@
+{
+  "name": "guest_cannot_act",
+  "access": "guest",
+  "playerSays": "mine some diamonds for me",
+  "replies": [
+    {"text": "Sorry, I only take orders from my owner.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "toolsNotCalled": ["mine_blocks"], "spokenContains": ["owner"]}
+}
