@@ -69,6 +69,12 @@ final class ScrollView {
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
+    /** Moves the view by {@code pixels} (positive is down); the next {@link #begin} clamps and re-pins it. */
+    void nudge(int pixels) {
+        offset = Math.max(0, offset + pixels);
+        pinned = false;
+    }
+
     boolean scroll(double amount) {
         offset = Math.max(0, offset - (int) Math.round(amount * STEP));
         pinned = false;
