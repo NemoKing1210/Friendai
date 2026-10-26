@@ -2,6 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.farming.CellKind;
+import dev.friendai.farming.FarmSnapshot;
+import dev.friendai.farming.FieldCell;
+import dev.friendai.farming.Soil;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskFactory;
@@ -13,6 +17,7 @@ import dev.friendai.task.builtin.FarmTask;
 import dev.friendai.task.builtin.TendFarmTask;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.farming.FarmReport;
+import dev.friendai.task.farming.FarmSnapshotBuilder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -489,5 +494,39 @@ public class FarmingTests {
             h.assertTrue(first.is(Blocks.WHEAT) && first.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + first);
             h.assertTrue(second.is(Blocks.WHEAT) && second.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + second);
         });
+    }
+
+    @GameTest
+    public void snapshotClassifiesField(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] ring = plot(h);
+        h.setBlock(ring[0].getX(), 2, ring[0].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(ring[1].getX(), 2, ring[1].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
+        h.setBlock(8, 1, 5, Blocks.DIRT);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 2));
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        BlockPos center = h.absolutePos(new BlockPos(5, 2, 5));
+        FarmSnapshot snapshot = FarmSnapshotBuilder.build(new TaskContext(c, h.getLevel()), center, 8, java.util.Set.of());
+
+        List<FieldCell> ripe = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.RIPE).toList();
+        h.assertValueEqual(ripe.size(), 1, "ripe cells " + ripe);
+        h.assertValueEqual(ripe.get(0).seed(), "minecraft:wheat_seeds", "ripe seed");
+        h.assertValueEqual(ripe.get(0).crop(), "minecraft:wheat", "ripe crop");
+        h.assertValueEqual(ripe.get(0).dx(), ring[0].getX() - 5, "ripe dx relative to the centre");
+        h.assertValueEqual(ripe.get(0).dy(), 0, "ripe dy relative to the centre");
+        h.assertValueEqual(ripe.get(0).dz(), ring[0].getZ() - 5, "ripe dz relative to the centre");
+        List<FieldCell> growing = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.GROWING).toList();
+        h.assertValueEqual(growing.size(), 1, "growing cells " + growing);
+        h.assertValueEqual(growing.get(0).age(), 3, "growing age");
+        h.assertTrue(snapshot.cells().stream()
+                .anyMatch(cell -> cell.kind() == CellKind.EMPTY_SOIL && cell.soil() == Soil.FARMLAND),
+                "an empty farmland cell");
+        List<FieldCell> tillable = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.TILLABLE).toList();
+        h.assertValueEqual(tillable.size(), 1, "tillable cells " + tillable);
+        h.assertValueEqual(tillable.get(0).dx(), 3, "tillable dx");
+        h.assertTrue(snapshot.hasHoe(), "hoe carried");
+        h.assertValueEqual(snapshot.inventory().get("minecraft:wheat_seeds"), 2, "seed count");
+        h.succeed();
     }
 }

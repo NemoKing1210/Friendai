@@ -40,7 +40,6 @@ public final class FarmPass {
     private enum Action { REPLANT, PLANT, TILL }
 
     private static final int TILL_CAP = 16;
-    private static final int WATER_RADIUS = 4;
     /** How long a harvest's drops get to land and leave their pickup delay before the pass moves on. */
     private static final int SETTLE_TICKS = 12;
     private static final ItemMatcher BERRIES = ItemMatcher.parse("minecraft:sweet_berries").orElseThrow();
@@ -469,26 +468,7 @@ public final class FarmPass {
     }
 
     private static boolean isTillCandidate(ServerLevel level, BlockPos pos) {
-        BlockState state = level.getBlockState(pos);
-        if (!(state.is(Blocks.DIRT) || state.is(Blocks.GRASS_BLOCK)
-                || state.is(Blocks.DIRT_PATH) || state.is(Blocks.COARSE_DIRT))) {
-            return false;
-        }
-        if (!level.getBlockState(pos.above()).isAir()) {
-            return false;
-        }
-        for (int dx = -WATER_RADIUS; dx <= WATER_RADIUS; dx++) {
-            for (int dz = -WATER_RADIUS; dz <= WATER_RADIUS; dz++) {
-                if (dx * dx + dz * dz > WATER_RADIUS * WATER_RADIUS) {
-                    continue;
-                }
-                if (level.getBlockState(pos.offset(dx, 0, dz)).is(Blocks.WATER)
-                        || level.getBlockState(pos.offset(dx, -1, dz)).is(Blocks.WATER)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return FarmSnapshotBuilder.isTillCandidate(level, pos);
     }
 
     private static boolean hasRoom(CompanionEntity companion) {
