@@ -201,6 +201,16 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Save and reload the world mid-build: the build resumes where it stopped and finishes.
 - [ ] Missing materials with "gather": the companion obtains them with obtain_item instead of failing, then builds.
 
+## Special structures
+
+- [ ] "Build an iron golem" with 4 iron blocks and a carved pumpkin in the bag: the T is built and the golem appears; with no pumpkin the request is refused up front, naming the pumpkin.
+- [ ] "Build a snowman" with 2 snow blocks and a carved pumpkin: the snow golem appears.
+- [ ] "Make a nether portal" with obsidian and flint and steel: the frame is built and lit; without flint and steel the plan reports it.
+- [ ] A fifth golem next to four existing ones is refused (structures.maxNearbySpawned) and the reason is spoken.
+- [ ] A site inside spawn protection or on a server claim is refused before anything is placed.
+- [ ] Stand in the footprint while it builds: the companion waits or reports the entity in the way, and nobody is moved by force.
+- [ ] In the End a nether portal is refused; golems still work.
+
 ## Player view
 
 - [ ] Ask a real model: "break the block I'm looking at" / "the one I'm standing on" / from behind a wall (it should say it cannot see you, not guess).
