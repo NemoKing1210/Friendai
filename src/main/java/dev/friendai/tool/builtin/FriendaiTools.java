@@ -52,6 +52,7 @@ public final class FriendaiTools {
         StorageTools.register(registry, defs);
         CraftingTools.register(registry, defs);
         CookingTools.register(registry, defs);
+        EnchantTools.register(registry, defs);
         CombatTools.register(registry, defs);
         FarmingTools.register(registry, defs);
         AnimalTools.register(registry, defs);
