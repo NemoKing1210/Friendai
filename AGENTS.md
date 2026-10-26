@@ -287,6 +287,7 @@ A full run is about 9 minutes of GameTests plus the unit suite, so an agent does
 
 - Decompiled sources: after `./gradlew genSources`, find `*-sources.jar` under `.gradle/loom-cache/minecraftMaven/net/minecraft/` (`minecraft-common-*` and `minecraft-clientOnly-*`). Extract them somewhere outside the repo and `grep`. Without sources, `javap -p -c -cp <minecraft.jar> <class>` still works because the jar keeps its names.
 - Fabric API / YACL / Mod Menu jars live in the Gradle cache; inspect with `javap -cp <jar> <class>`.
+- Names removed or moved in 26.x (do not use the old ones): `SavedData`/`SavedDataType` are in `net.minecraft.world.level.saveddata`; `level.getSharedSpawnPos()` → `level.getRespawnData().pos()`; `dimensionType().bedWorks()` → `level.environmentAttributes().getDimensionValue(EnvironmentAttributes.BED_RULE)` (`BedRule`); `level.getDayTime()` is gone (use `level.isDarkOutside()` for night, or the world clock via `level.getDefaultClockTime()`).
 - Things that tripped us before: `Identifier` (not `ResourceLocation`); entity save/load uses `ValueOutput`/`ValueInput`; `Entity.snapTo`; the current screen is `minecraft.gui.screen()`, toasts are `minecraft.gui.toastManager()`, open a screen with `setScreenAndShow`; `Mob.swing(hand, SwingAnimation.DEFAULT)`; `EntityRenderers.register`; HUD via `HudElementRegistry`; keybinds via `KeyMappingHelper` and `KeyMapping.Category.register(Identifier)`; command permissions via `Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)`.
 - Item behavior lives in data components: `DataComponents.TOOL` (mining rules and speeds), `ATTRIBUTE_MODIFIERS` (damage/speed), `EQUIPPABLE`, `WEAPON`, `FOOD`. Do not hard-code tool tiers; ask the stack.
 - YACL and Mod Menu are **optional** dependencies. Code that touches them lives in `client/config` and must only be loaded when `yet_another_config_lib_v3` is present.
@@ -450,6 +451,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 ## Definition of done
 
+0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble` (compiles every source set and packages) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session.
 1. Tests are not a gate for a commit: commit a coherent change when it is ready. Run only your group's tests (see "Test scope" under Testing); the full suite is CI's job at merge to `main`. Quote the real result of what you ran (unit-test count and GameTest line) instead of assuming.
 2. New player-facing strings exist in both language files.
 3. New behavior has a test that failed first; bugs get a regression test.
