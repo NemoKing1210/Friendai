@@ -420,15 +420,19 @@ public final class ResourceKnowledge {
     }
 
     List<ResourceSite> querySites(Set<String> blockIds, String dimension) {
+        return querySites(blockIds, dimension, logicalTick);
+    }
+
+    List<ResourceSite> querySites(Set<String> blockIds, String dimension, long now) {
         Set<Long> matching = new HashSet<>();
         for (String blockId : blockIds) matching.addAll(byBlockId.getOrDefault(blockId, Set.of()));
         List<ResourceSite> result = new ArrayList<>();
         for (long id : matching) {
             long resolved = resolve(id);
             MutableSite site = sites.get(resolved);
-            if (site != null && site.dimension.equals(dimension)) result.add(site.snapshot(logicalTick));
+            if (site != null && site.dimension.equals(dimension)) result.add(site.snapshot(Math.max(logicalTick, now)));
             Summary summary = summaries.get(resolved);
-            if (summary != null && summary.dimension.equals(dimension)) result.add(summary.snapshot(logicalTick));
+            if (summary != null && summary.dimension.equals(dimension)) result.add(summary.snapshot(Math.max(logicalTick, now)));
         }
         return result;
     }

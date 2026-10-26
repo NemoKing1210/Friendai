@@ -40,6 +40,7 @@
 			"dev.friendai.test.OwnerViewTests",
 			"dev.friendai.test.PerceptionTests",
 			"dev.friendai.test.ResourceObservationTests",
+			"dev.friendai.test.ResourceToolsTests",
 			"dev.friendai.test.PaceTests",
 			"dev.friendai.test.TrustTests",
 			"dev.friendai.test.InventoryWindowTests",

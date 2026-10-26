@@ -30,4 +30,13 @@ class ResourceQueryTest {
         observe(book, "minecraft:coal_ore", "minecraft:the_nether", new Pos(0, 10, 0), 1);
         assertTrue(ResourceQuery.find(book, request("minecraft:overworld", new Pos(0, 10, 0))).isEmpty());
     }
+
+    @Test
+    void explicitQueryTickAdvancesAgeWithoutNewObservations() {
+        ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        observe(book, "minecraft:coal_ore", "minecraft:overworld", new Pos(3, 10, 4), 2);
+        var result = ResourceQuery.find(book, request("minecraft:overworld", new Pos(0, 10, 0)), 101).getFirst();
+        assertEquals(5.0, result.distanceBlocks());
+        assertEquals(99, result.ageTicks());
+    }
 }
