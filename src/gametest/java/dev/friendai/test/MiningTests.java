@@ -163,6 +163,31 @@ public class MiningTests {
         });
     }
 
+    @GameTest(maxTicks = 2400)
+    public void minesTwentyStoneBlocksFromAHill(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        for (int x = 4; x <= 11; x++) {
+            for (int z = 3; z <= 9; z++) {
+                for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
+                "the initial exposed stone should be visible");
+        Outcome outcome = new Outcome();
+        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        runner.setListener(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 20, 16),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+                    "hill stone mining did not finish: " + outcome.status + " " + outcome.summary
+                            + ", cobblestone=" + companion.inventory().countItem(Items.COBBLESTONE));
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void stoneBrokenByHandDropsNothing(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

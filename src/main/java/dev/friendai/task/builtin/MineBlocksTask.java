@@ -36,6 +36,8 @@ public final class MineBlocksTask implements Task {
     private static final int SWEEP_RADIUS = 8;
     /** How close a drop must be to be taken without walking, while the job goes on. */
     private static final double FEET_RADIUS = 1.5;
+    /** Allow the shared sight scheduler to inspect newly exposed faces before declaring the vein exhausted. */
+    private static final int OBSERVATION_WAIT_TICKS = 400;
 
     private BlockBreaker breaker;
     private MiningSession miningSession;
@@ -44,6 +46,8 @@ public final class MineBlocksTask implements Task {
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
     private BlockPos lastBroken;
+    private BlockPos pendingObservation;
+    private int observationWaitTicks;
     private String summary = "";
 
     /** Where to search from; null means around the companion. */
@@ -99,6 +103,8 @@ public final class MineBlocksTask implements Task {
             case WORKING -> TaskStatus.RUNNING;
             case BROKEN -> {
                 lastBroken = breaker.target();
+                pendingObservation = lastBroken;
+                observationWaitTicks = 0;
                 breaker = null;
                 mined++;
                 yield TaskStatus.RUNNING;
@@ -132,6 +138,8 @@ public final class MineBlocksTask implements Task {
             case WORKING -> TaskStatus.RUNNING;
             case EXTRACTED -> {
                 lastBroken = miningSession.target();
+                pendingObservation = lastBroken;
+                observationWaitTicks = 0;
                 mined++;
                 miningSessionActive = false;
                 yield TaskStatus.RUNNING;
@@ -169,8 +177,8 @@ public final class MineBlocksTask implements Task {
             int evidenceRadius = origin == null ? radius
                     : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
             candidates = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, evidenceRadius,
-                    origin == null ? CANDIDATES : 64));
-            candidates.removeIf(blacklist::contains);
+                    evidenceLimit(origin == null ? CANDIDATES : 64)));
+            candidates.removeIf(this::excluded);
             if (origin != null) {
                 double radiusSquared = (double) radius * radius;
                 double originX = origin.getX() + 0.5, originY = origin.getY() + 0.5, originZ = origin.getZ() + 0.5;
@@ -182,6 +190,8 @@ public final class MineBlocksTask implements Task {
                     // requested origin before handing it a single target.
                     candidates = new ArrayList<>(candidates.subList(0, 1));
                 }
+            } else if (candidates.size() > CANDIDATES) {
+                candidates = new ArrayList<>(candidates.subList(0, CANDIDATES));
             }
         }
         // Historical evidence can outlive a registry block's current state. Keep the old scanner's
@@ -191,6 +201,17 @@ public final class MineBlocksTask implements Task {
             return !matcher.test(state) || state.getDestroySpeed(c.level(), pos) < 0;
         });
         if (candidates.isEmpty()) {
+            if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
+                if (observationWaitTicks++ == 0) {
+                    var observer = dev.friendai.core.FriendaiServerState.get(c.level().getServer())
+                            .observations().observer(c.companion());
+                    for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
+                        observer.inspect(pendingObservation.relative(side));
+                    }
+                }
+                return TaskStatus.RUNNING;
+            }
+            pendingObservation = null;
             // Say which it is: nothing around, or blocks that were found and could not be reached.
             boolean hidden = !blacklist.isEmpty();
             if (mined == 0) {
@@ -203,6 +224,7 @@ public final class MineBlocksTask implements Task {
             }
             return TaskStatus.FAILED;
         }
+        pendingObservation = null;
         boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
         if (!logs) {
             if (miningSession == null) {
@@ -272,10 +294,20 @@ public final class MineBlocksTask implements Task {
             seeds.add(lastBroken.relative(side));
         }
         var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
-        List<BlockPos> result = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, CANDIDATES));
+        List<BlockPos> result = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius,
+                evidenceLimit(CANDIDATES)));
         result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));
-        result.removeIf(blacklist::contains);
-        return result;
+        result.removeIf(this::excluded);
+        return result.size() <= CANDIDATES ? result : new ArrayList<>(result.subList(0, CANDIDATES));
+    }
+
+    private boolean excluded(BlockPos pos) {
+        return blacklist.contains(pos) || miningSession != null && miningSession.protects(pos);
+    }
+
+    private int evidenceLimit(int wanted) {
+        int supports = miningSession == null ? 0 : miningSession.protectedSupportCount();
+        return wanted + blacklist.size() + supports;
     }
 
     @Override
@@ -297,7 +329,8 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public String describe() {
-        return "mining " + count + " " + matcher.label();
+        return "mining " + count + " " + matcher.label()
+                + (pendingObservation != null && observationWaitTicks > 0 ? " (checking exposed blocks)" : "");
     }
 
     @Override

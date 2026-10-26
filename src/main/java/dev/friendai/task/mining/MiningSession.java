@@ -152,6 +152,15 @@ public final class MiningSession {
         return brokenBlocks;
     }
 
+    /** Previously used supports stay intact so the companion can return along its route. */
+    public boolean protects(BlockPos pos) {
+        return supports.contains(plain(pos));
+    }
+
+    public int protectedSupportCount() {
+        return supports.size();
+    }
+
     public int completedExplorationSteps() {
         return completedExplorationSteps;
     }
