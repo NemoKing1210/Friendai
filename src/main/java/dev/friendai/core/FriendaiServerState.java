@@ -5,6 +5,7 @@ import dev.friendai.config.ConfigStore;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.skin.SkinStore;
@@ -92,6 +93,11 @@ public final class FriendaiServerState {
     /** Keeps loaded companions' chunks ticking and restores them on startup. */
     public CompanionChunkLoader chunkLoader() {
         return chunkLoader;
+    }
+
+    /** Per-owner auto-respawn preferences and bed checkpoints. */
+    public CompanionLifeData companionLife() {
+        return CompanionLifeData.get(server);
     }
 
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */

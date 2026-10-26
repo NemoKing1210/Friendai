@@ -74,6 +74,8 @@ public final class SnapshotCodec {
                 out.writeInt(r.maxAttempts());
                 out.writeInt(r.priority());
             }
+            out.writeBoolean(s.autoRespawn());
+            out.writeBoolean(s.autoRespawnAvailable());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -135,11 +137,18 @@ public final class SnapshotCodec {
                 queue.add(new QueueRow(id, planId, goal, planStatus, tool, args, state, note, after,
                         in.readInt(), in.readInt(), in.readInt()));
             }
+            boolean autoRespawn = true;
+            boolean autoRespawnAvailable = present;
+            if (in.available() == 2) {
+                autoRespawn = in.readBoolean();
+                autoRespawnAvailable = in.readBoolean();
+            }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
-                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals, queue);
+                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals,
+                    queue, autoRespawn, autoRespawnAvailable);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

@@ -58,6 +58,7 @@ public class FriendaiMod implements ModInitializer {
             state.observations().tick(server, server.overworld().getGameTime());
             state.brains().tick();
             state.chunkLoader().tick();
+            CompanionManager.get(server).tick();
             state.tick(System.currentTimeMillis());
             state.memory().flushIfDue();
             DebugStream.tick(server);

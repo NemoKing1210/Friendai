@@ -195,7 +195,7 @@ public final class SpeechRuntime {
         } else {
             mix = SpatialAudio.CENTER;
         }
-        enqueue(chunks, resolve(cfg, source != null, source != null ? payload.companionId() : null, range));
+        enqueue(chunks, resolve(cfg, source != null, payload.companionId(), range));
     }
 
     /**
@@ -204,17 +204,22 @@ public final class SpeechRuntime {
      */
     public static void tick() {
         Plan plan = playingPlan;
-        if (plan == null || !plan.spatial()) {
+        if (plan == null || plan.companionId() == null) {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;
         }
-        if (!(minecraft.level.getEntity(plan.companionId()) instanceof CompanionEntity source)) {
+        if (!(minecraft.level.getEntity(plan.companionId()) instanceof CompanionEntity source)
+                || source.isDeadOrDying()
+                || source.isRemoved()) {
+            stop();
             return;
         }
-        mix = mixFor(minecraft.player, source, plan.range());
+        if (plan.spatial()) {
+            mix = mixFor(minecraft.player, source, plan.range());
+        }
     }
 
     private static void enqueue(List<String> chunks, Plan plan) {
@@ -255,6 +260,8 @@ public final class SpeechRuntime {
                         QUEUE.clear();
                     }
                     toastOnce(UserMessage.of("friendai.voice.tts.error.failed"));
+                } finally {
+                    playingPlan = null;
                 }
             }
         } finally {
@@ -275,6 +282,7 @@ public final class SpeechRuntime {
         if (plan == null) {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
         }
+        playingPlan = plan;
         ResolvedTts settings = plan.settings();
         boolean installed = true;
         if (settings.local()) {

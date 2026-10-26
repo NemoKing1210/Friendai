@@ -90,6 +90,19 @@ public final class CompanionRequestHandler {
                         }
                     },
                     () -> player.sendSystemMessage(Component.translatable("friendai.menu.no_companion")));
+            case SET_AUTO_RESPAWN -> {
+                if (!a.equals("true") && !a.equals("false")) {
+                    return;
+                }
+                if (companions.find(owner).isEmpty()) {
+                    return;
+                }
+                boolean enabled = a.equals("true");
+                if (server.isHardcore() && enabled) {
+                    return;
+                }
+                state.companionLife().setAutoRespawn(owner, enabled);
+            }
             case STOP -> companions.find(owner).ifPresent(c -> {
                 c.taskRunner().stop("stopped from menu");
                 brains.cancel(owner);

@@ -15,14 +15,15 @@ public final class DebugAccess {
         VIEW_MEMORY,
         EDIT_MEMORY,
         VIEW_MOVEMENT,
-        RENAME
+        RENAME,
+        SET_AUTO_RESPAWN
     }
 
     private DebugAccess() {}
 
     public static boolean allowed(Action action, boolean operator) {
         return switch (action) {
-            case SUMMON, TELEPORT, DISMISS, STOP, VIEW_STATUS, VIEW_MEMORY, EDIT_MEMORY, RENAME -> true;
+            case SUMMON, TELEPORT, DISMISS, STOP, VIEW_STATUS, VIEW_MEMORY, EDIT_MEMORY, RENAME, SET_AUTO_RESPAWN -> true;
             case VIEW_LOG, VIEW_PROMPT, SEND_MESSAGE, RUN_TOOL, VIEW_MOVEMENT -> operator;
         };
     }

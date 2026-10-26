@@ -16,4 +16,24 @@ public record CompanionSnapshot(
         String perception,
         List<String> toolNames,
         CompanionVitals vitals,
-        List<QueueRow> queue) {}
+        List<QueueRow> queue,
+        boolean autoRespawn,
+        boolean autoRespawnAvailable) {
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue) {
+        this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
+                toolNames, vitals, queue, true, present);
+    }
+}

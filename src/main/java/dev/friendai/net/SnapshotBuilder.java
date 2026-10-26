@@ -32,9 +32,11 @@ public final class SnapshotBuilder {
         List<TaskRecord> history = brains.debug().historyOf(owner).recent();
         List<LogEntry> log = operator ? brains.debug().logOf(owner).after(afterLogId, MAX_LOG_ENTRIES) : List.of();
         List<String> toolNames = operator ? brains.toolNames() : List.of();
+        boolean autoRespawn = state.companionLife().autoRespawn(owner) && !server.isHardcore();
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
-                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "", toolNames, CompanionVitals.NONE, List.of());
+                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "",
+                    toolNames, CompanionVitals.NONE, List.of(), autoRespawn, false);
         }
         CompanionEntity c = companion.get();
         return new CompanionSnapshot(
@@ -50,7 +52,9 @@ public final class SnapshotBuilder {
                 operator ? PerceptionBuilder.detailed(c).toPromptText() : "",
                 toolNames,
                 vitalsOf(c),
-                c.taskRunner().queueRows());
+                c.taskRunner().queueRows(),
+                autoRespawn,
+                !server.isHardcore());
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

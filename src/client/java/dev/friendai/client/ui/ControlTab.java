@@ -21,6 +21,7 @@ final class ControlTab implements MenuTab {
     private FlatButton dismiss;
     private FlatButton stop;
     private FlatButton movementDebug;
+    private FlatButton autoRespawn;
     private int buttonsTop;
 
     @Override
@@ -40,6 +41,8 @@ final class ControlTab implements MenuTab {
                 dismissX + buttonWidth + GAP, secondRow, buttonWidth);
         movementDebug = host.add(new FlatButton(left, buttonsTop - GAP - BUTTON_HEIGHT, width, BUTTON_HEIGHT,
                 Component.empty(), Ui.PURPLE, ControlTab::toggleMovementDebug));
+        autoRespawn = host.add(new FlatButton(left, buttonsTop - 2 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
+                Component.empty(), Ui.ACCENT, ControlTab::toggleAutoRespawn));
         tick();
     }
 
@@ -49,6 +52,11 @@ final class ControlTab implements MenuTab {
         CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
     }
 
+    private static void toggleAutoRespawn() {
+        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
+                RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
+    }
+
     private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
         return host.add(new FlatButton(x, y, width, BUTTON_HEIGHT, Component.translatable(key), color,
                 () -> CompanionRequests.send(request)));
@@ -56,7 +64,8 @@ final class ControlTab implements MenuTab {
 
     @Override
     public void tick() {
-        boolean present = CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
+        var snapshot = CompanionClientState.snapshot();
+        boolean present = snapshot.map(CompanionSnapshot::present).orElse(false);
         boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
         summon.active = connected && !present;
         teleport.active = connected && present;
@@ -68,6 +77,13 @@ final class ControlTab implements MenuTab {
         movementDebug.setMessage(Component.translatable(MovementDebugState.enabled()
                 ? "friendai.menu.movement_debug.on"
                 : "friendai.menu.movement_debug.off"));
+        autoRespawn.visible = present;
+        autoRespawn.active = connected && present && snapshot.map(CompanionSnapshot::autoRespawnAvailable).orElse(false);
+        String autoRespawnKey = snapshot.map(s -> !s.autoRespawnAvailable()
+                        ? "friendai.menu.auto_respawn.hardcore"
+                        : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
+                .orElse("friendai.menu.auto_respawn.off");
+        autoRespawn.setMessage(Component.translatable(autoRespawnKey));
     }
 
     @Override
@@ -80,7 +96,9 @@ final class ControlTab implements MenuTab {
         CompanionSnapshot s = snapshot.get();
         drawHeader(g, font, s, left, top, width);
         int y = top + HEADER_HEIGHT + GAP;
-        int limit = buttonsTop - GAP - (movementDebug.visible ? BUTTON_HEIGHT + GAP : 0);
+        int limit = buttonsTop - GAP
+                - (movementDebug.visible ? BUTTON_HEIGHT + GAP : 0)
+                - (autoRespawn.visible ? BUTTON_HEIGHT + GAP : 0);
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
             y += VITALS_HEIGHT + GAP;

@@ -19,6 +19,7 @@ import dev.friendai.task.TaskSettings;
 import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.FollowTask;
+import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
@@ -137,6 +138,7 @@ public class CompanionEntity extends PathfinderMob {
     private int hungerWatchTicks;
     private int stationWatchTicks;
     private int ownerPickupTicks;
+    private int automaticBedSearchTicks;
     /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
     private int inventoryViewers;
     private CombatMode combatMode = CombatMode.DEFENSIVE;
@@ -344,6 +346,7 @@ public class CompanionEntity extends PathfinderMob {
             collectExperienceOrbs();
             combatController.tick();
             taskRunner.tick();
+            tickAutomaticBedRest((ServerLevel) level());
             body.tick();
             if (isSprinting() && !pathing() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
@@ -360,6 +363,22 @@ public class CompanionEntity extends PathfinderMob {
             if (++stationWatchTicks % STATION_WATCH_INTERVAL == 0) {
                 fetchBackLeftStations();
             }
+        }
+    }
+
+    private void tickAutomaticBedRest(ServerLevel level) {
+        if (!SleepTask.isNight(level) || !idle() || taskRunner.hasWork() || taskRunner.paused()
+                || getTarget() != null || isSleeping()) {
+            automaticBedSearchTicks = 0;
+            return;
+        }
+        if (++automaticBedSearchTicks < 100) {
+            return;
+        }
+        automaticBedSearchTicks = 0;
+        List<BlockPos> beds = SleepTask.findNearbyBeds(level, blockPosition());
+        if (!beds.isEmpty()) {
+            taskRunner.start(SleepTask.automatic(beds), "auto_sleep");
         }
     }
 
@@ -738,7 +757,8 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     public void die(DamageSource source) {
         super.die(source);
-        if (!level().isClientSide()) {
+        if (!level().isClientSide() && level() instanceof ServerLevel serverLevel) {
+            CompanionManager.get(serverLevel.getServer()).onDeath(this);
             owner().ifPresent(p -> p.sendSystemMessage(Component.translatable("friendai.companion.died", getName())));
         }
     }
