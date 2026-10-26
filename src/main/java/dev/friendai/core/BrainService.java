@@ -324,7 +324,10 @@ public final class BrainService {
                 () -> config.chat.hearingRadius);
         Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
         CompanionBrain brain = new CompanionBrain(
-                () -> new Persona(companion.getName().getString(), config.companion.persona, config.companion.language),
+                () -> new Persona(
+                        companion.getName().getString(),
+                        memory.book(owner).persona().orElse(config.companion.persona),
+                        config.companion.language),
                 () -> new BrainSettings(
                         config.brain.maxToolStepsPerTurn,
                         config.brain.historyMessages,

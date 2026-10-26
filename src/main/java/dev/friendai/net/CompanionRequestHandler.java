@@ -109,7 +109,7 @@ public final class CompanionRequestHandler {
                 }
             }
             case RUN_TOOL -> brains.runTool(owner, a.strip(), b.isBlank() ? "{}" : b);
-            case MEMORY_ADD, MEMORY_EDIT, MEMORY_FORGET, MEMORY_CLEAR, MEMORY_TRUST -> {
+            case MEMORY_ADD, MEMORY_EDIT, MEMORY_FORGET, MEMORY_CLEAR, MEMORY_TRUST, PERSONA_SET -> {
                 var cfg = state.config();
                 MemoryMenuActions actions = new MemoryMenuActions(
                         state.memory().book(owner),
@@ -125,6 +125,7 @@ public final class CompanionRequestHandler {
                     case MEMORY_FORGET -> actions.forget(a);
                     case MEMORY_CLEAR -> actions.clear(a);
                     case MEMORY_TRUST -> actions.trust(a, b);
+                    case PERSONA_SET -> actions.persona(a);
                     default -> null;
                 };
             }

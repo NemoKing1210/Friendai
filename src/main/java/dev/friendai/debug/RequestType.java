@@ -23,6 +23,7 @@ public enum RequestType {
     MOVE_DEBUG_ON(DebugAccess.Action.VIEW_MOVEMENT),
     MOVE_DEBUG_OFF(DebugAccess.Action.VIEW_MOVEMENT),
     RENAME(DebugAccess.Action.RENAME),
+    PERSONA_SET(DebugAccess.Action.EDIT_MEMORY),
     INVALID(null);
 
     private final DebugAccess.Action action;

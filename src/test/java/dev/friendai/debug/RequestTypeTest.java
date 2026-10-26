@@ -28,7 +28,8 @@ class RequestTypeTest {
         assertEquals(16, RequestType.MOVE_DEBUG_ON.ordinal());
         assertEquals(17, RequestType.MOVE_DEBUG_OFF.ordinal());
         assertEquals(18, RequestType.RENAME.ordinal());
-        assertEquals(19, RequestType.INVALID.ordinal());
+        assertEquals(19, RequestType.PERSONA_SET.ordinal());
+        assertEquals(20, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
     }
 
@@ -46,6 +47,7 @@ class RequestTypeTest {
         assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_FORGET.action());
         assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_CLEAR.action());
         assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.MEMORY_TRUST.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_MEMORY), RequestType.PERSONA_SET.action());
     }
 
     @Test

@@ -134,6 +134,23 @@ public final class MemoryMenuActions {
                 trust ? "friendai.menu.memory.status.trusted" : "friendai.menu.memory.status.untrusted", name);
     }
 
+    /**
+     * Sets the owner's companion personality, or returns to the server default when {@code text} is blank. It does
+     * not depend on {@code memory.enabled}: the personality is not a stored fact.
+     */
+    public MenuStatus persona(String text) {
+        if (text == null || text.isBlank()) {
+            book.clearPersona();
+            return ok("friendai.menu.persona.cleared");
+        }
+        try {
+            book.setPersona(text);
+            return ok("friendai.menu.persona.saved");
+        } catch (IllegalArgumentException e) {
+            return error("friendai.menu.persona.invalid");
+        }
+    }
+
     /** {@code world}, the owner's UUID or another player the book knows or who is online. */
     private Optional<Subject> resolveGroup(String key) {
         Subject subject = key == null ? null : Subject.parse(key.strip()).orElse(null);
