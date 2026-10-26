@@ -176,6 +176,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Farming and animals
 
 - [ ] "Look after the farm": the companion harvests and replants for 10 minutes and fills the chest next to the field.
+- [ ] Mixed farm with partial seeds: the `plan_farm` text matches what `farm` then does.
 - [ ] "Tame that wolf for me": the wolf becomes your pet and follows you, not the companion.
 - [ ] "Bring the cows into the pen": cows are led on leads and tied to the fence.
 - [ ] "Go fishing" by a river: catches arrive, the rod wears out.
