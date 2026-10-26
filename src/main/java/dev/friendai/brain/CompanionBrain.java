@@ -48,6 +48,7 @@ public final class CompanionBrain {
     private final MemorySource memorySource;
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
+    private GoalSource goalSource = GoalSource.NONE;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
     private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
@@ -166,14 +167,23 @@ public final class CompanionBrain {
         this.observer = java.util.Objects.requireNonNull(observer);
     }
 
+    public void setGoalSource(GoalSource goalSource) {
+        this.goalSource = java.util.Objects.requireNonNull(goalSource);
+    }
+
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
+        return buildSystemPrompt();
+    }
+
+    private String buildSystemPrompt() {
         return PromptBuilder.system(
                 persona.get(),
                 perception.describe(turnCaller),
                 turnCaller,
                 memorySource.describe(turnCaller),
-                turnKind);
+                turnKind,
+                goalSource.view(turnCaller));
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -254,12 +264,7 @@ public final class CompanionBrain {
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access());
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-            String system = PromptBuilder.system(
-                    persona.get(),
-                    perception.describe(turnCaller),
-                    turnCaller,
-                    memorySource.describe(turnCaller),
-                    turnKind);
+            String system = buildSystemPrompt();
             future = gateway.get().complete(system, memory.snapshot(), specs);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);

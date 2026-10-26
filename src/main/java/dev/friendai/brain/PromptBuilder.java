@@ -1,5 +1,7 @@
 package dev.friendai.brain;
 
+import dev.friendai.agent.goal.GoalView;
+import dev.friendai.agent.prompt.MissionText;
 import dev.friendai.agent.prompt.PromptAssembler;
 import dev.friendai.agent.prompt.TurnContext;
 import dev.friendai.tool.Caller;
@@ -23,7 +25,12 @@ public final class PromptBuilder {
 
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn) {
-        return PromptAssembler.defaults(0)
-                .assemble(new TurnContext(p, perception, caller, memoryBlock, turn, "", List.of()));
+        return system(p, perception, caller, memoryBlock, turn, GoalView.EMPTY);
+    }
+
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal) {
+        return PromptAssembler.defaults(0).assemble(new TurnContext(
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal), List.of()));
     }
 }

@@ -67,6 +67,17 @@ class CompanionBrainTest {
                 AccessResolver.of(OWNER, trusted::contains));
     }
 
+    @Test
+    void systemPromptCarriesTheMissionForTheOwner() {
+        brain.setGoalSource(caller -> new dev.friendai.agent.goal.GoalView(
+                "gather 12 logs", List.of("12 logs"), "plan 4 running", ""));
+        gateway.enqueue(text("ok"));
+        brain.post(said("hi"));
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("Mission:"), system);
+        assertTrue(system.contains("gather 12 logs"), system);
+    }
+
     private static BrainEvent said(String text) {
         return new BrainEvent.PlayerSaid(OWNER, "Steve", text, BrainEvent.Source.CHAT);
     }

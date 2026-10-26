@@ -27,7 +27,7 @@ public final class DefaultSections {
 
     /** Identity, speech, rules, role, memory and state; priorities decide what a tight budget cuts first. */
     public static List<PromptSection> all() {
-        return List.of(identity(), speech(), rules(), role(), memory(), state());
+        return List.of(identity(), speech(), rules(), role(), memory(), mission(), state());
     }
 
     private static PromptSection of(String id, int priority, Function<TurnContext, String> render) {
@@ -115,6 +115,12 @@ public final class DefaultSections {
                     + "- Use remember only for durable facts: names, preferences, places with coordinates, promises. Not for small talk. One short sentence per fact; update instead of duplicating.\n"
                     + ctx.memoryBlock();
         });
+    }
+
+    /** The owner's goal; a guest's prompt never carries it. */
+    static PromptSection mission() {
+        return of("mission", 70,
+                ctx -> ctx.caller().access().allows(AccessLevel.TRUSTED) ? ctx.mission() : "");
     }
 
     static PromptSection state() {
