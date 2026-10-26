@@ -57,7 +57,8 @@
 			"dev.friendai.test.GrindstoneSkillTests",
 			"dev.friendai.test.StructureTests",
 			"dev.friendai.test.SkinRenameTests",
-			"dev.friendai.test.GoalTests"
+			"dev.friendai.test.GoalTests",
+			"dev.friendai.test.RecoveryTests"
 		]
 	},
 	"depends": {

@@ -313,6 +313,47 @@ public final class BrainService {
         scheduler.tick();
     }
 
+    /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
+    private final class AgentEvents {
+        private final UUID owner;
+        private final CompanionEntity companion;
+        private final dev.friendai.agent.recover.FailureHandler handler =
+                new dev.friendai.agent.recover.FailureHandler(new dev.friendai.agent.recover.RecoveryAdvisor());
+        private dev.friendai.agent.verify.WorldSnapshot last;
+
+        AgentEvents(UUID owner, CompanionEntity companion) {
+            this.owner = owner;
+            this.companion = companion;
+            this.last = OutcomeFacts.snapshot(companion);
+        }
+
+        /** The text to append to an event line; empty when there is nothing verified to add. */
+        String extra(boolean success, long planId, String tool, String text) {
+            try {
+                dev.friendai.agent.verify.WorldSnapshot after = OutcomeFacts.snapshot(companion);
+                String factsLine = dev.friendai.agent.verify.OutcomeChecker
+                        .check(last, after, success, java.util.List.of(), new dev.friendai.task.queue.CompanionGuardFacts(companion))
+                        .factsLine();
+                last = after;
+                var goals = FriendaiServerState.get(server).goals();
+                var board = goals.board(owner);
+                String extra;
+                if (success) {
+                    var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                    facts.refresh();
+                    extra = handler.onSuccess(board, planId, factsLine, facts);
+                } else {
+                    extra = handler.onFailure(board, planId, tool, text, factsLine);
+                }
+                goals.save(owner);
+                return extra;
+            } catch (RuntimeException e) {
+                FriendaiMod.LOGGER.warn("Could not build event facts", e);
+                return "";
+            }
+        }
+    }
+
     private Entry create(UUID owner, CompanionEntity companion) {
         CompanionSpeaker speaker = new CompanionSpeaker(
                 server,
@@ -365,12 +406,15 @@ public final class BrainService {
             facts.refresh();
             return board.view(plan, facts);
         });
+        AgentEvents agent = new AgentEvents(owner, companion);
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 debug.historyOf(owner).add(new TaskRecord(
                         id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
-                post(owner, new BrainEvent.TaskFinished(id, toolName, status == TaskStatus.SUCCESS, summary));
+                boolean ok = status == TaskStatus.SUCCESS;
+                post(owner, new BrainEvent.TaskFinished(id, toolName, ok, summary,
+                        agent.extra(ok, 0, toolName, summary)));
             }
 
             @Override
@@ -389,12 +433,14 @@ public final class BrainService {
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
-                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary));
+                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary,
+                        agent.extra(success, planId, goal, summary)));
             }
 
             @Override
             public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
-                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining));
+                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining,
+                        agent.extra(false, planId, toolName, reason)));
             }
 
             @Override
