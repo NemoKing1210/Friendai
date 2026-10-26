@@ -207,6 +207,8 @@
   "friendai.menu.teleport": "Телепортировать ко мне",
   "friendai.menu.dismiss": "Отпустить",
   "friendai.menu.stop": "Стоп",
+  "friendai.menu.movement_debug.on": "Отладка движения: ВКЛ",
+  "friendai.menu.movement_debug.off": "Отладка движения: выкл",
   "friendai.menu.current_task": "Текущая задача: %s",
   "friendai.menu.history": "Недавние задачи",
   "friendai.menu.history_empty": "Завершённых задач пока нет.",

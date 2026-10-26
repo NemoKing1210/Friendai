@@ -113,6 +113,9 @@ public class CompanionEntity extends PathfinderMob {
     private transient AABB pathBounds;
     /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
     private transient int pathingTicks;
+    /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
+    private transient dev.friendai.task.nav.Navigator lastNavigator;
+    private transient long lastNavigatorTick;
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
     private int stationWatchTicks;
@@ -211,6 +214,16 @@ public class CompanionEntity extends PathfinderMob {
      */
     public boolean pathing() {
         return pathingTicks > 0;
+    }
+
+    public void noteNavigator(dev.friendai.task.nav.Navigator navigator) {
+        this.lastNavigator = navigator;
+        this.lastNavigatorTick = level().getGameTime();
+    }
+
+    /** The navigator that drove the companion within the last second, or null. */
+    public dev.friendai.task.nav.Navigator activeNavigator() {
+        return lastNavigator != null && level().getGameTime() - lastNavigatorTick <= 20 ? lastNavigator : null;
     }
 
     public void setPathing(boolean pathing) {

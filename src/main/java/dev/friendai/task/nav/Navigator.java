@@ -60,6 +60,8 @@ public final class Navigator {
     private int availableAtProbe;
     private MaterialGatherer gatherer;
     private int gatherRounds;
+    /** The last search's summary, for the movement debug overlay. */
+    private String lastSearch = "";
 
     public Navigator(CompanionEntity companion) {
         this(companion, true, null);
@@ -93,6 +95,44 @@ public final class Navigator {
         return state;
     }
 
+    /** The route being walked, or null while none is. */
+    public @Nullable Path plan() {
+        return executor == null ? null : plan;
+    }
+
+    /** How many steps of {@link #plan()} are finished; -1 while no route is walked. */
+    public int stepIndex() {
+        return executor == null ? -1 : executor.stepIndex();
+    }
+
+    public int failedPlans() {
+        return failedPlans;
+    }
+
+    public boolean searching() {
+        return search != null;
+    }
+
+    public String lastSearch() {
+        return lastSearch;
+    }
+
+    /** The cells the goal asks for, for the movement debug overlay; a point goal gives the cell holding the point. */
+    public List<Pos> goalCells() {
+        if (goal instanceof GoalPoint point) {
+            return List.of(new Pos((int) Math.floor(point.x()), (int) Math.floor(point.y()), (int) Math.floor(point.z())));
+        }
+        if (goal instanceof GoalReach reach) {
+            return reach.targets().subList(0, Math.min(reach.targets().size(), 64));
+        }
+        return List.of();
+    }
+
+    /** A short description of the goal for the movement debug overlay. */
+    public String goalText() {
+        return goal == null ? "none" : describe(goal);
+    }
+
     public PathGoal goal() {
         return goal;
     }
@@ -123,6 +163,7 @@ public final class Navigator {
     }
 
     public State tick(TaskContext c) {
+        companion.noteNavigator(this);
         if (state == State.ARRIVED || state == State.UNREACHABLE) {
             return state;
         }
@@ -244,6 +285,7 @@ public final class Navigator {
             line.append(", material probe");
         }
         companion.taskRunner().debug(line.toString());
+        lastSearch = line.toString();
         search = null;
         if (result.status() == SearchResult.Status.FOUND && path != null && path.steps().isEmpty()) {
             // The start node already is the goal: there is nothing to walk.

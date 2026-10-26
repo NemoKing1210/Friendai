@@ -1,5 +1,6 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.CompanionVitals;
 import dev.friendai.debug.RequestType;
@@ -19,6 +20,7 @@ final class ControlTab implements MenuTab {
     private FlatButton teleport;
     private FlatButton dismiss;
     private FlatButton stop;
+    private FlatButton movementDebug;
     private int buttonsTop;
 
     @Override
@@ -36,7 +38,15 @@ final class ControlTab implements MenuTab {
         dismiss = button(host, "friendai.menu.dismiss", RequestType.DISMISS, Ui.WARN, dismissX, secondRow, buttonWidth);
         stop = button(host, "friendai.menu.stop", RequestType.STOP, Ui.BAD,
                 dismissX + buttonWidth + GAP, secondRow, buttonWidth);
+        movementDebug = host.add(new FlatButton(left, buttonsTop - GAP - BUTTON_HEIGHT, width, BUTTON_HEIGHT,
+                Component.empty(), Ui.PURPLE, ControlTab::toggleMovementDebug));
         tick();
+    }
+
+    private static void toggleMovementDebug() {
+        boolean on = !MovementDebugState.enabled();
+        MovementDebugState.setEnabled(on);
+        CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
     }
 
     private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
@@ -52,6 +62,12 @@ final class ControlTab implements MenuTab {
         teleport.active = connected && present;
         dismiss.active = connected && present;
         stop.active = connected && present;
+        boolean operator = CompanionClientState.snapshot().map(CompanionSnapshot::operator).orElse(false);
+        movementDebug.visible = operator;
+        movementDebug.active = connected;
+        movementDebug.setMessage(Component.translatable(MovementDebugState.enabled()
+                ? "friendai.menu.movement_debug.on"
+                : "friendai.menu.movement_debug.off"));
     }
 
     @Override
@@ -64,7 +80,7 @@ final class ControlTab implements MenuTab {
         CompanionSnapshot s = snapshot.get();
         drawHeader(g, font, s, left, top, width);
         int y = top + HEADER_HEIGHT + GAP;
-        int limit = buttonsTop - GAP;
+        int limit = buttonsTop - GAP - (movementDebug.visible ? BUTTON_HEIGHT + GAP : 0);
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
             y += VITALS_HEIGHT + GAP;

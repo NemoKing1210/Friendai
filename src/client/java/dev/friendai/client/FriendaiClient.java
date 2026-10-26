@@ -10,6 +10,8 @@ import dev.friendai.net.CompanionSnapshotS2CPayload;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.net.PromptS2CPayload;
 import dev.friendai.client.voice.PushToTalkHandler;
+import dev.friendai.client.debug.MovementDebugRenderer;
+import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.config.ClientConfig;
@@ -18,6 +20,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.memory.MemoryViewCodec;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.MemoryViewS2CPayload;
+import dev.friendai.net.MovementDebugS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
 import dev.friendai.client.ui.CompanionInventoryScreen;
 import net.fabricmc.api.ClientModInitializer;
@@ -66,6 +69,7 @@ public class FriendaiClient implements ClientModInitializer {
         MenuScreens.register(FriendaiMenus.TYPE, CompanionInventoryScreen::new);
         clientConfig();
         VoiceHud.register();
+        MovementDebugRenderer.register();
         SpeechKeybind.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> SpeechRuntime.tick());
         PauseMenuButton.register();
@@ -88,6 +92,15 @@ public class FriendaiClient implements ClientModInitializer {
                         FriendaiMod.LOGGER.warn("Dropping a malformed memory view: {}", e.getMessage());
                     }
                 }));
+        ClientPlayNetworking.registerGlobalReceiver(MovementDebugS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> {
+                    try {
+                        MovementDebugState.onData(payload.data());
+                    } catch (IllegalArgumentException e) {
+                        FriendaiMod.LOGGER.warn("Dropping a malformed movement debug view: {}", e.getMessage());
+                    }
+                }));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> MovementDebugState.reset());
         new PushToTalkHandler(VoiceRuntime::stt, text -> {
             if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
                 ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));

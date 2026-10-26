@@ -10,6 +10,7 @@ import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.DebugStream;
 import dev.friendai.net.FriendaiNetworking;
 import dev.friendai.net.MemoryViewStream;
+import dev.friendai.net.MovementDebugStream;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -58,6 +59,7 @@ public class FriendaiMod implements ModInitializer {
             state.memory().flushIfDue();
             DebugStream.tick(server);
             MemoryViewStream.tick(server);
+            MovementDebugStream.tick(server);
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(
                 server -> FriendaiServerState.get(server).memory().flushAll());
@@ -72,6 +74,7 @@ public class FriendaiMod implements ModInitializer {
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             DebugStream.onDisconnect(handler.getPlayer());
+            MovementDebugStream.onDisconnect(handler.getPlayer());
             MemoryViewStream.onDisconnect(handler.getPlayer());
             FriendaiServerState.get(server).brains().onOwnerLeft(handler.getPlayer().getUUID());
         });

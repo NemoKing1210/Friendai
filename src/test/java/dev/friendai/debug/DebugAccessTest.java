@@ -22,7 +22,8 @@ class DebugAccessTest {
                         DebugAccess.Action.VIEW_LOG,
                         DebugAccess.Action.VIEW_PROMPT,
                         DebugAccess.Action.SEND_MESSAGE,
-                        DebugAccess.Action.RUN_TOOL),
+                        DebugAccess.Action.RUN_TOOL,
+                        DebugAccess.Action.VIEW_MOVEMENT),
                 operatorOnly);
     }
 

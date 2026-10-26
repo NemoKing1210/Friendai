@@ -25,7 +25,9 @@ class RequestTypeTest {
         assertEquals(6, RequestType.SEND_MESSAGE.ordinal());
         assertEquals(7, RequestType.RUN_TOOL.ordinal());
         assertEquals(15, RequestType.TELEPORT.ordinal());
-        assertEquals(16, RequestType.INVALID.ordinal());
+        assertEquals(16, RequestType.MOVE_DEBUG_ON.ordinal());
+        assertEquals(17, RequestType.MOVE_DEBUG_OFF.ordinal());
+        assertEquals(18, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
     }
 
@@ -52,5 +54,11 @@ class RequestTypeTest {
         assertEquals(Optional.of(DebugAccess.Action.SEND_MESSAGE), RequestType.SEND_MESSAGE.action());
         assertEquals(Optional.of(DebugAccess.Action.RUN_TOOL), RequestType.RUN_TOOL.action());
         assertTrue(RequestType.INVALID.action().isEmpty());
+    }
+
+    @Test
+    void movementDebugRequestsNeedTheOperatorAction() {
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_MOVEMENT), RequestType.MOVE_DEBUG_ON.action());
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_MOVEMENT), RequestType.MOVE_DEBUG_OFF.action());
     }
 }

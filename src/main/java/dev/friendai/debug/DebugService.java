@@ -19,6 +19,7 @@ public final class DebugService {
     private final Map<UUID, DebugLog> logs = new HashMap<>();
     private final Map<UUID, TaskHistory> histories = new HashMap<>();
     private final Map<UUID, Long> subscribers = new HashMap<>();
+    private final Set<UUID> movementViewers = new HashSet<>();
 
     public DebugService(UnaryOperator<String> redactor, LongSupplier clock) {
         this.redactor = redactor;
@@ -43,6 +44,23 @@ public final class DebugService {
 
     public synchronized Set<UUID> subscribers() {
         return new HashSet<>(subscribers.keySet());
+    }
+
+    /** Turns the movement overlay on or off for a player. */
+    public synchronized void setMovementDebug(UUID owner, boolean on) {
+        if (on) {
+            movementViewers.add(owner);
+        } else {
+            movementViewers.remove(owner);
+        }
+    }
+
+    public synchronized boolean movementDebug(UUID owner) {
+        return movementViewers.contains(owner);
+    }
+
+    public synchronized Set<UUID> movementViewers() {
+        return new HashSet<>(movementViewers);
     }
 
     public synchronized long lastSent(UUID owner) {

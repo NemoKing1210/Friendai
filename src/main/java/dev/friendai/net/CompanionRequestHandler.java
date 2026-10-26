@@ -54,6 +54,10 @@ public final class CompanionRequestHandler {
             brains.debug().unsubscribe(owner);
             return;
         }
+        if (type == RequestType.MOVE_DEBUG_ON || type == RequestType.MOVE_DEBUG_OFF) {
+            MovementDebugStream.set(player, type == RequestType.MOVE_DEBUG_ON);
+            return;
+        }
         if (type == RequestType.MEMORY_OPEN) {
             MemoryViewStream.open(player);
             return;

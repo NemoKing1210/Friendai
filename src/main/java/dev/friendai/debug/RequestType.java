@@ -20,6 +20,8 @@ public enum RequestType {
     MEMORY_CLEAR(DebugAccess.Action.EDIT_MEMORY),
     MEMORY_TRUST(DebugAccess.Action.EDIT_MEMORY),
     TELEPORT(DebugAccess.Action.TELEPORT),
+    MOVE_DEBUG_ON(DebugAccess.Action.VIEW_MOVEMENT),
+    MOVE_DEBUG_OFF(DebugAccess.Action.VIEW_MOVEMENT),
     INVALID(null);
 
     private final DebugAccess.Action action;
