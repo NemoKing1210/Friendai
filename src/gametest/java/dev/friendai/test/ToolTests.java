@@ -303,7 +303,7 @@ public class ToolTests {
                 "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",
                 "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait", "swap_hands",
                 "set_idle_behavior", "set_follow_distance", "step", "back_away", "approach", "circle",
-                "interact_entity", "mount", "dismount", "sleep", "throw_item", "set_goal", "update_goal", "finish_goal")),
+                "interact_entity", "mount", "dismount", "sleep", "throw_item", "set_goal", "update_goal", "finish_goal", "request_tools")),
                 "names were " + names);
         h.succeed();
     }

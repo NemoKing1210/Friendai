@@ -78,6 +78,112 @@ class CompanionBrainTest {
         assertTrue(system.contains("gather 12 logs"), system);
     }
 
+    private static ToolSpec spec(String name) {
+        JsonObject schema = new JsonObject();
+        schema.addProperty("type", "object");
+        schema.add("properties", new JsonObject());
+        return new ToolSpec(name, "d", schema);
+    }
+
+    private static dev.friendai.llm.model.ToolCall requestTools(String id, String group) {
+        JsonObject args = new JsonObject();
+        args.addProperty("group", group);
+        return new dev.friendai.llm.model.ToolCall(id, "request_tools", args, args.toString(), null);
+    }
+
+    private static List<String> toolNames(FakeGateway.Request request) {
+        return request.tools().stream().map(ToolSpec::name).toList();
+    }
+
+    private void routedToolbox(boolean routing) {
+        tools.available.clear();
+        tools.available.addAll(List.of(spec("stop"), spec("stay"), spec("mine_blocks"), spec("request_tools")));
+        brain.setAgentSettings(() -> new AgentSettings(
+                routing, AgentSettings.Autonomy.ASSISTIVE, 3, 30, 0, 60));
+    }
+
+    @Test
+    void routingOffSendsEveryToolSpec() {
+        routedToolbox(false);
+        gateway.enqueue(text("Right here."));
+        brain.post(said("where are you?"));
+        assertEquals(List.of("stop", "stay", "mine_blocks", "request_tools"), toolNames(gateway.requests.get(0)));
+    }
+
+    @Test
+    void chatTurnHidesActionGroups() {
+        routedToolbox(true);
+        gateway.enqueue(text("Right here."));
+        brain.post(said("where are you?"));
+        List<String> sent = toolNames(gateway.requests.get(0));
+        assertFalse(sent.contains("mine_blocks"), sent.toString());
+        assertTrue(sent.contains("stop") && sent.contains("request_tools"), sent.toString());
+    }
+
+    @Test
+    void actionTurnKeepsTheMatchedGroup() {
+        routedToolbox(true);
+        gateway.enqueue(text("On it."));
+        brain.post(said("mine some stone"));
+        assertTrue(toolNames(gateway.requests.get(0)).contains("mine_blocks"));
+    }
+
+    @Test
+    void requestToolsAddsTheGroupOnTheNextStep() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", requestTools("r1", "gathering")));
+        gateway.enqueue(text("Unlocked."));
+        brain.post(said("where are you?"));
+        assertFalse(toolNames(gateway.requests.get(0)).contains("mine_blocks"));
+        assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
+        assertFalse(tools.executed.contains("request_tools"), "the brain answers request_tools itself");
+        Message result = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.TOOL).findFirst().orElseThrow();
+        assertTrue(result.text().contains("tools unlocked: gathering"), result.text());
+        assertTrue(result.text().contains("mine_blocks"), result.text());
+    }
+
+    @Test
+    void unlockedGroupsDoNotLeakIntoTheNextTurn() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", requestTools("r1", "gathering")));
+        gateway.enqueue(text("Unlocked."));
+        gateway.enqueue(text("Still here."));
+        brain.post(said("where are you?"));
+        brain.post(said("where are you now?"));
+        assertFalse(toolNames(gateway.requests.get(2)).contains("mine_blocks"));
+    }
+
+    @Test
+    void unknownGroupReturnsAnErrorListingGroups() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", requestTools("r1", "teleportation")));
+        gateway.enqueue(text("Hm."));
+        brain.post(said("where are you?"));
+        Message result = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.TOOL).findFirst().orElseThrow();
+        assertTrue(result.text().contains("Unknown tool group"), result.text());
+        assertTrue(result.text().contains("gathering"), result.text());
+        assertFalse(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
+    }
+
+    @Test
+    void hiddenButRegisteredToolStillExecutes() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(text("Done."));
+        brain.post(said("where are you?"));
+        assertEquals(List.of("mine_blocks"), tools.executed);
+    }
+
+    @Test
+    void hiddenToolNameIsStillCaughtByReplyGuard() {
+        routedToolbox(true);
+        gateway.enqueue(text("I will use mine_blocks now."));
+        brain.post(said("where are you?"));
+        assertTrue(speaker.said.stream().noneMatch(line -> line.contains("mine_blocks")), speaker.said.toString());
+    }
+
     private static BrainEvent said(String text) {
         return new BrainEvent.PlayerSaid(OWNER, "Steve", text, BrainEvent.Source.CHAT);
     }

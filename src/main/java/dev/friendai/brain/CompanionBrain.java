@@ -1,5 +1,12 @@
 package dev.friendai.brain;
 
+import dev.friendai.agent.route.IntentVocabulary;
+import dev.friendai.agent.route.RouteDecision;
+import dev.friendai.agent.route.RouteSignals;
+import dev.friendai.agent.route.TurnMode;
+import dev.friendai.agent.route.TurnRouter;
+import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.ToolCall;
@@ -11,6 +18,7 @@ import dev.friendai.tool.ToolResult;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +38,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
+    private static final String REQUEST_TOOLS = "request_tools";
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
@@ -67,6 +76,11 @@ public final class CompanionBrain {
     /** What the player just heard, newest first: an event turn repeats none of it. */
     private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
     private Set<String> turnToolNames = Set.of();
+    private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
+    private final ToolCatalog catalog = ToolCatalog.defaults();
+    /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
+    private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
+    private RouteDecision decision = new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), false, "none");
 
     private static final class SpokenLine {
         private final String text;
@@ -244,6 +258,16 @@ public final class CompanionBrain {
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         turnCaller = new Caller(principal, name == null ? "" : name, level);
+        boolean planTrouble = batch.stream().anyMatch(event -> event instanceof BrainEvent.PlanBlocked
+                || (event instanceof BrainEvent.PlanFinished finished && !finished.success()));
+        decision = router.route(new RouteSignals(
+                turnKind,
+                String.join("\n", turnPlayerTexts),
+                !goalSource.view(turnCaller).isEmpty(),
+                planTrouble,
+                0));
+        visibleGroups.clear();
+        visibleGroups.addAll(decision.groups());
         thinking = true;
         speaker.thinking(true);
         String lines = batch.stream()
@@ -269,9 +293,11 @@ public final class CompanionBrain {
         CompletableFuture<LlmResponse> future;
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access());
+            // Speech is checked against every tool this caller has, not just the routed subset.
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
+            List<ToolSpec> sent = agentSettings.get().toolRouting() ? catalog.filter(specs, visibleGroups) : specs;
             String system = buildSystemPrompt();
-            future = gateway.get().complete(system, memory.snapshot(), specs);
+            future = gateway.get().complete(system, memory.snapshot(), sent);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
@@ -316,7 +342,7 @@ public final class CompanionBrain {
             ToolResult result;
             observe(o -> o.onToolCall(call));
             try {
-                result = tools.execute(call, turnCaller);
+                result = REQUEST_TOOLS.equals(call.name()) ? requestTools(call) : tools.execute(call, turnCaller);
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
@@ -326,6 +352,28 @@ public final class CompanionBrain {
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
         }
         requestStep(gen);
+    }
+
+    /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */
+    private ToolResult requestTools(ToolCall call) {
+        String wanted = call.arguments() != null && call.arguments().has("group")
+                && call.arguments().get("group").isJsonPrimitive()
+                ? call.arguments().get("group").getAsString() : "";
+        Optional<ToolGroup> group = ToolGroup.parse(wanted).filter(g -> g != ToolGroup.CORE);
+        if (group.isEmpty()) {
+            String valid = java.util.Arrays.stream(ToolGroup.values())
+                    .filter(g -> g != ToolGroup.CORE)
+                    .map(g -> g.name().toLowerCase(java.util.Locale.ROOT))
+                    .collect(Collectors.joining(", "));
+            return ToolResult.error("Unknown tool group \"" + wanted + "\". Valid groups: " + valid);
+        }
+        visibleGroups.add(group.get());
+        String unlocked = tools.specs(turnCaller.access()).stream()
+                .map(ToolSpec::name)
+                .filter(name -> catalog.meta(name).map(meta -> meta.group() == group.get()).orElse(false))
+                .collect(Collectors.joining(", "));
+        return ToolResult.ok("tools unlocked: " + group.get().name().toLowerCase(java.util.Locale.ROOT)
+                + (unlocked.isEmpty() ? "" : " (" + unlocked + ")"));
     }
 
     /**

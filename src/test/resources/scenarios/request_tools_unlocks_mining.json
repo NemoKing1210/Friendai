@@ -1,0 +1,10 @@
+{
+  "name": "request_tools_unlocks_mining",
+  "access": "owner",
+  "playerSays": "how about some coal for the furnace?",
+  "replies": [
+    {"text": "", "tools": ["request_tools", "mine_blocks"]},
+    {"text": "Digging some up.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["mine_blocks"], "spokenContains": ["Digging"]}
+}
