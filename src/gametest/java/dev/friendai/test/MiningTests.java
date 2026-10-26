@@ -163,6 +163,48 @@ public class MiningTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void stoneBrokenByHandDropsNothing(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(new BlockPos(4, 2, 2), Blocks.STONE);
+        BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
+        BreakAction action = new BreakAction(target);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        long before = cobbleDrops(h);
+
+        h.succeedWhen(() -> {
+            BreakAction.State state = action.tick(context, block -> !block.isAir());
+            h.assertTrue(state == BreakAction.State.BROKEN, "still breaking: " + state);
+            h.assertTrue(h.getLevel().getBlockState(target).isAir(), "stone was not removed");
+            h.assertTrue(cobbleDrops(h) == before, "stone dropped cobblestone by hand");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void stoneBrokenWithPickaxeDropsCobblestone(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        h.setBlock(new BlockPos(4, 2, 2), Blocks.STONE);
+        BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
+        BreakAction action = new BreakAction(target);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        long before = cobbleDrops(h);
+
+        h.succeedWhen(() -> {
+            BreakAction.State state = action.tick(context, block -> !block.isAir());
+            h.assertTrue(state == BreakAction.State.BROKEN, "still breaking: " + state);
+            h.assertTrue(cobbleDrops(h) == before + 1, "no cobblestone dropped");
+        });
+    }
+
+    private static long cobbleDrops(GameTestHelper h) {
+        return h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(0, 0, 0))).inflate(16),
+                e -> e.getItem().is(Items.COBBLESTONE)).stream().mapToLong(e -> e.getItem().getCount()).sum();
+    }
+
     private static ExcavationGuard guard(CompanionEntity companion, GameTestHelper h) {
         BlockPos start = companion.blockPosition();
         return new ExcavationGuard(new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), 8), Set.of());

@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.component.SwingAnimation;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -81,9 +82,18 @@ public final class BreakAction {
             stop(c);
             return State.BLOCKED;
         }
-        if (!level.destroyBlock(pos, true, companion)) {
+        // Level.destroyBlock drops with an empty tool, so stone would give cobblestone by hand. Drop by hand instead:
+        // with the held tool, and nothing when the block needs a tool the companion does not hold.
+        var heldTool = companion.getMainHandItem();
+        BlockState brokenState = level.getBlockState(pos);
+        var blockEntity = level.getBlockEntity(pos);
+        boolean dropsLoot = !brokenState.requiresCorrectToolForDrops() || heldTool.isCorrectToolForDrops(brokenState);
+        if (!level.destroyBlock(pos, false, companion)) {
             stop(c);
             return level.getBlockState(pos).isAir() ? State.GONE : State.BLOCKED;
+        }
+        if (dropsLoot) {
+            Block.dropResources(brokenState, level, pos, blockEntity, companion, heldTool);
         }
         FriendaiServerState.get(level.getServer()).resources().ownBreak(companion, pos);
         companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
