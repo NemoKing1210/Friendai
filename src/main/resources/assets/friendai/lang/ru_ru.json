@@ -213,6 +213,7 @@
   "friendai.menu.appearance.working": "Загрузка...",
   "friendai.menu.appearance.applied": "Скин отправлен на сервер.",
   "friendai.menu.appearance.reset_done": "Скин по умолчанию восстановлен.",
+  "friendai.menu.appearance.find_skins": "Найти скины: minecraftskins.com",
   "friendai.menu.appearance.dialog_title": "Выберите скин",
   "friendai.menu.appearance.dialog_unavailable": "Окно выбора файла здесь недоступно. Используйте ник или ссылку.",
   "friendai.skin.error.not_png": "Этот файл не является PNG-изображением.",

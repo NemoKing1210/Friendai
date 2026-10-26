@@ -2,10 +2,13 @@ package dev.friendai.client.ui;
 
 import dev.friendai.client.skin.SkinSources;
 import dev.friendai.debug.CompanionSnapshot;
+import java.net.URI;
 import java.util.function.Consumer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.network.chat.Component;
 
 /** The companion's name and skin: rename it, or pick a skin from a file, a Minecraft username or a URL. */
@@ -14,6 +17,7 @@ final class AppearanceTab implements MenuTab {
     private static final int GAP = 6;
     private static final int HEADING = 12;
     private static final int APPLY_WIDTH = 64;
+    private static final String SKIN_SITE = "https://www.minecraftskins.com/";
 
     // Kept across tab switches and screen rebuilds.
     private static boolean slim;
@@ -83,7 +87,15 @@ final class AppearanceTab implements MenuTab {
         reset = host.add(new FlatButton(left + 2 * (third + GAP), y, width - 2 * (third + GAP), FIELD,
                 Component.translatable("friendai.menu.appearance.reset"), Ui.WARN, AppearanceTab::resetSkin));
         statusY = y + FIELD + GAP;
+        host.add(new FlatButton(left, statusY + HEADING + GAP, width, FIELD,
+                Component.translatable("friendai.menu.appearance.find_skins"), Ui.PURPLE, AppearanceTab::openSkinSite));
         tick();
+    }
+
+    /** Opens the skin site through Minecraft's own link confirmation. */
+    private static void openSkinSite() {
+        Minecraft minecraft = Minecraft.getInstance();
+        ConfirmLinkScreen.confirmLinkNow(minecraft.gui.screen(), URI.create(SKIN_SITE));
     }
 
     private static String currentName() {
