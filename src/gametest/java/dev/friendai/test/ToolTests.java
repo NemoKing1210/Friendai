@@ -291,7 +291,7 @@ public class ToolTests {
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
                 "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
-                "farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
+                "farm", "plan_farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
@@ -803,4 +803,14 @@ public class ToolTests {
         h.succeed();
     }
 
+
+    @GameTest
+    public void farmToolsAreRegistered(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        h.assertTrue(tools.specs().stream().anyMatch(spec -> spec.name().equals("plan_farm")), "plan_farm missing");
+        ToolResult r = run(tools, "farm", "{\"bonemeal\":true}");
+        h.assertTrue(!r.error(), "farm refused bonemeal: " + r.content());
+        h.succeed();
+    }
 }

@@ -2,17 +2,26 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.farming.FarmGoal;
+import dev.friendai.farming.FarmPlan;
+import dev.friendai.farming.FarmPlanner;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.builtin.BonemealTask;
 import dev.friendai.task.builtin.FarmTask;
 import dev.friendai.task.builtin.TendFarmTask;
+import dev.friendai.task.farming.CropIndex;
 import dev.friendai.task.farming.Crops;
+import dev.friendai.task.farming.FarmSnapshotBuilder;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
+import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
@@ -31,9 +40,22 @@ final class FarmingTools {
                         .integer("z", "Farm Z coordinate")
                         .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
                         .bool("till", "Also till soil next to water")
+                        .bool("bonemeal", "Use bone meal from the inventory on growing crops after the pass's other work")
                         .build(),
-                (c, a) -> new FarmTask(center(c, a), radius(a, 8), crop(a), till(a)),
+                (c, a) -> new FarmTask(center(c, a), radius(a, 8), crop(a), till(a), flag(a, "bonemeal")),
                 true));
+        registry.register(ToolKit.instantTool("plan_farm",
+                "Show what a farm pass would do here (harvest, replant, sow, till, bone meal, missing seeds) without doing it.",
+                SchemaBuilder.object()
+                        .integer("radius", "Farm radius in blocks", 1, 16)
+                        .integer("x", "Farm X coordinate")
+                        .integer("y", "Farm Y coordinate")
+                        .integer("z", "Farm Z coordinate")
+                        .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
+                        .bool("till", "Also plan tilling soil next to water")
+                        .bool("bonemeal", "Also plan bone meal on growing crops")
+                        .build(),
+                FarmingTools::planFarm));
         ToolKit.add(registry, defs, new TaskToolDef("tend_farm",
                 "Stay at a farm and keep it: harvest and replant every minute and put the harvest into a nearby chest, until told otherwise.",
                 SchemaBuilder.object()
@@ -66,7 +88,24 @@ final class FarmingTools {
     }
 
     private static boolean till(JsonObject args) {
-        return args.has("till") && !args.get("till").isJsonNull() && args.get("till").getAsBoolean();
+        return flag(args, "till");
+    }
+
+    private static boolean flag(JsonObject args, String name) {
+        return args.has(name) && !args.get(name).isJsonNull() && args.get(name).getAsBoolean();
+    }
+
+    /** The plan a pass would follow, without touching the world. */
+    private static ToolResult planFarm(CompanionEntity c, JsonObject args) {
+        Item crop = crop(args);
+        int radius = Math.max(1, Math.min(16, radius(args, 8)));
+        TaskContext context = new TaskContext(c, (ServerLevel) c.level());
+        FarmPlan plan = FarmPlanner.plan(
+                FarmSnapshotBuilder.build(context, center(c, args), radius, Set.of()),
+                new FarmGoal(crop == null ? null : BuiltInRegistries.ITEM.getKey(crop).toString(),
+                        till(args), flag(args, "bonemeal"), 0, FarmGoal.DEFAULT_MAX_STEPS),
+                CropIndex.of(context.level()));
+        return ToolResult.ok(plan.describe());
     }
 
     private static @Nullable Item crop(JsonObject args) {

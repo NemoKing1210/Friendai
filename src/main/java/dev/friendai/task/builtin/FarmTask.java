@@ -15,10 +15,16 @@ public final class FarmTask implements Task {
     private final int radius;
     private final @Nullable Item crop;
     private final boolean till;
+    private final boolean boneMeal;
     private FarmPass pass;
     private String summary = "";
 
     public FarmTask(BlockPos center, int radius, @Nullable Item crop, boolean till) {
+        this(center, radius, crop, till, false);
+    }
+
+    public FarmTask(BlockPos center, int radius, @Nullable Item crop, boolean till, boolean boneMeal) {
+        this.boneMeal = boneMeal;
         this.center = center;
         this.radius = radius;
         this.crop = crop;
@@ -32,7 +38,7 @@ public final class FarmTask implements Task {
 
     @Override
     public void start(TaskContext c) {
-        pass = new FarmPass(center, radius, crop, till);
+        pass = new FarmPass(center, radius, crop, till, boneMeal);
     }
 
     @Override

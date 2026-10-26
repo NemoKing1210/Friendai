@@ -596,4 +596,58 @@ public class FarmingTests {
             }
         });
     }
+
+    @GameTest(maxTicks = 1200)
+    public void farmBonemealOption(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 1, 4, Blocks.FARMLAND);
+        h.setBlock(5, 2, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
+        h.setBlock(7, 1, 4, Blocks.FARMLAND);
+        h.setBlock(7, 2, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.BONE_MEAL, 8));
+        FarmPass off = new FarmPass(h.absolutePos(new BlockPos(5, 2, 4)), 3, null, false, false);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(off.tick(ctx), "pass not done yet");
+            h.assertValueEqual(c.inventory().countItem(Items.BONE_MEAL), 8, "bone meal untouched without the option");
+            h.assertValueEqual(age(h, 5, 2, 4), 3, "crop untouched without the option");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void farmBonemealOptionUsesBoneMeal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 1, 4, Blocks.FARMLAND);
+        h.setBlock(5, 2, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.BONE_MEAL, 8));
+        FarmPass on = new FarmPass(h.absolutePos(new BlockPos(5, 2, 4)), 3, null, false, true);
+        TaskContext ctx = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            h.assertTrue(on.tick(ctx), "pass not done yet");
+            h.assertTrue(age(h, 5, 2, 4) > 3, "crop did not grow");
+            h.assertTrue(c.inventory().countItem(Items.BONE_MEAL) < 8, "bone meal was not used");
+        });
+    }
+
+    @GameTest
+    public void planFarmIsReadOnly(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 1, 4, Blocks.FARMLAND);
+        h.setBlock(5, 2, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 3));
+        BlockPos center = h.absolutePos(new BlockPos(5, 2, 4));
+        String json = "{\"radius\":4,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}";
+        dev.friendai.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c).execute(
+                new dev.friendai.llm.model.ToolCall("1", "plan_farm",
+                        com.google.gson.JsonParser.parseString(json).getAsJsonObject(), json, null),
+                dev.friendai.tool.AccessLevel.OWNER);
+        h.assertTrue(!r.error() && r.content().contains("harvest"), "result was " + r.content());
+        h.assertValueEqual(age(h, 5, 2, 4), 7, "crop still ripe");
+        h.assertValueEqual(c.inventory().countItem(Items.WHEAT_SEEDS), 3, "inventory unchanged");
+        h.assertTrue(c.taskRunner().current().filter(t -> t.type().equals("farm")).isEmpty(), "no farm task started");
+        h.succeed();
+    }
 }
