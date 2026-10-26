@@ -13,7 +13,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Test jar for the maintainer
 
-- After any change to code or resources (fix, improvement, new feature), refresh `test-builds/friendai-<version>.jar` with `./gradlew assemble` — it packages without running the test suites, and `exportTestJar` runs automatically. Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
+- After any change to code or resources (fix, improvement, new feature), refresh `test-builds/friendai-<version>.jar` with `./gradlew assemble` (or just `./gradlew exportTestJar`, which skips the sources jar) — it packages without running the test suites, and `exportTestJar` runs automatically after `assemble`. Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
 
 ## Environment (Windows)
 
