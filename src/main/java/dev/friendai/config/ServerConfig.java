@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -155,7 +155,10 @@ public class ServerConfig {
         return c;
     }
 
-    /** Enables expeditions for existing servers once; later config edits retain their chosen value. */
+    /**
+     * Version 8 enabled expeditions for existing servers once; later config edits retain their chosen value.
+     * Version 9 added the {@code agent} section, whose field defaults fill in old files.
+     */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
             JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()

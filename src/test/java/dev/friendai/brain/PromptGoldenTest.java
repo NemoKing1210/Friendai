@@ -76,7 +76,8 @@ class PromptGoldenTest {
             if (in == null) {
                 throw new IOException("missing golden " + name + "; run with -Dfriendai.golden.write=true");
             }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // A checkout may convert the files to CRLF; the prompt itself always uses LF.
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
     }
 }

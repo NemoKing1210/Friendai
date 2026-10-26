@@ -78,8 +78,10 @@ public class PlannerTests {
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
         AtomicInteger requests = new AtomicInteger();
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
         brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
             requests.incrementAndGet();
+            seen.add(messages.get(messages.size() - 1).text());
             return CompletableFuture.completedFuture(new dev.friendai.llm.model.LlmResponse(
                     "[silent]", List.of(), dev.friendai.llm.model.StopReason.END, new dev.friendai.llm.model.Usage(0, 0)));
         });
@@ -94,8 +96,9 @@ public class PlannerTests {
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(goal.replans() == 1, "the replan is spent once, got " + goal.replans());
             h.assertTrue(goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE, "the goal is not blocked");
-            // One turn for the first notice and one for the blocked plan; cancelling the old plan is silent.
-            h.assertTrue(requests.get() == 2, "cancelling the replaced plan must not start a turn, requests=" + requests.get());
+            // The old plan is reported once, when it blocks; cancelling it for the replacement is silent.
+            long reportsOfOldPlan = seen.stream().filter(line -> line.contains("plan #1")).count();
+            h.assertTrue(reportsOfOldPlan == 1, "plan #1 must be reported exactly once, got " + reportsOfOldPlan + " " + seen);
             h.succeed();
         });
     }

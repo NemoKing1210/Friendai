@@ -52,8 +52,12 @@ public class GoalTickTests {
         return config;
     }
 
-    @GameTest(maxTicks = 600)
-    public void idle_companion_with_a_goal_gets_a_nudge(GameTestHelper h) {
+    /**
+     * One test for both levels: the autonomy setting is server-wide, so two tests flipping it in parallel would
+     * see each other's setting. First an assistive companion is nudged, then a passive one is not.
+     */
+    @GameTest(maxTicks = 900)
+    public void assistive_companion_is_nudged_and_passive_one_is_not(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
@@ -66,30 +70,19 @@ public class GoalTickTests {
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         setGoal(c, player);
-        h.succeedWhen(() -> {
-            h.assertTrue(recorder.sawNudge(), "an idle companion with a goal should be nudged; saw " + recorder.userLines);
-            state.applyConfig(original);
-        });
-    }
-
-    @GameTest(maxTicks = 400)
-    public void passive_companion_is_never_nudged(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
-        var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
-        ServerConfig original = state.config();
-        state.applyConfig(fastTicks("passive"));
-        BrainService brains = state.brains();
-        Recorder recorder = new Recorder();
-        brains.setGatewayOverride(player.getUUID(), recorder);
-        CompanionEntity c = CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
-        setGoal(c, player);
         h.runAfterDelay(300, () -> {
-            state.applyConfig(original);
-            h.assertFalse(recorder.sawNudge(), "a passive companion must not start on its own");
-            h.succeed();
+            h.assertTrue(recorder.sawNudge(),
+                    "an idle companion with a goal should be nudged; saw " + recorder.userLines);
+            state.applyConfig(fastTicks("passive"));
+            int before = recorder.userLines.size();
+            h.runAfterDelay(450, () -> {
+                state.applyConfig(original);
+                long nudgesAfter = recorder.userLines.subList(before, recorder.userLines.size()).stream()
+                        .filter(line -> line.contains("is not finished")).count();
+                h.assertTrue(nudgesAfter == 0, "a passive companion must not start on its own; saw "
+                        + recorder.userLines.subList(before, recorder.userLines.size()));
+                h.succeed();
+            });
         });
     }
 }
