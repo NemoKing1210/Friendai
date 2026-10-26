@@ -6,12 +6,12 @@ import dev.friendai.skin.SkinFetcher;
 import dev.friendai.skin.SkinImage;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
-import java.awt.FileDialog;
-import java.awt.Frame;
-import java.awt.HeadlessException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
@@ -99,20 +99,52 @@ public final class SkinSources {
         return new Outcome(null, Component.translatable(key));
     }
 
-    /** The native file dialog; null when the player cancels. Throws {@link UserFacingException} when none can open. */
-    private static Path chooseFile() {
-        try {
-            FileDialog dialog = new FileDialog(
-                    (Frame) null, Component.translatable("friendai.menu.appearance.dialog_title").getString());
-            dialog.setFilenameFilter((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".png"));
-            dialog.setMode(FileDialog.LOAD);
-            dialog.setAlwaysOnTop(true);
-            dialog.setVisible(true);
-            String file = dialog.getFile();
-            dialog.dispose();
-            return file == null ? null : Path.of(dialog.getDirectory(), file);
-        } catch (HeadlessException | LinkageError e) {
-            throw new UserFacingException(UserMessage.of(DIALOG_UNAVAILABLE));
+    /**
+     * The system's own file dialog, started as a separate process: AWT cannot show one inside the game. Returns null
+     * when the player cancels and throws {@link UserFacingException} when no dialog program exists.
+     */
+    private static Path chooseFile() throws IOException {
+        String title = Component.translatable("friendai.menu.appearance.dialog_title").getString();
+        String filter = Component.translatable("friendai.menu.appearance.dialog_filter").getString();
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        List<List<String>> candidates;
+        if (os.contains("win")) {
+            String script = "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+                    + "Add-Type -AssemblyName System.Windows.Forms;"
+                    + "$d=New-Object System.Windows.Forms.OpenFileDialog;"
+                    + "$d.Title='" + title.replace("'", "''") + "';"
+                    + "$d.Filter='" + filter.replace("'", "''") + " (*.png)|*.png';"
+                    + "if($d.ShowDialog() -eq 'OK'){[Console]::Out.Write($d.FileName)}";
+            candidates = List.of(List.of("powershell", "-NoProfile", "-STA", "-Command", script));
+        } else if (os.contains("mac")) {
+            String script = "POSIX path of (choose file of type {\"png\"} with prompt \""
+                    + title.replace("\\", "").replace("\"", "") + "\")";
+            candidates = List.of(List.of("osascript", "-e", script));
+        } else {
+            candidates = List.of(
+                    List.of("zenity", "--file-selection", "--title=" + title, "--file-filter=*.png"),
+                    List.of("kdialog", "--title", title, "--getopenfilename", ".", "*.png"));
         }
+        for (List<String> command : candidates) {
+            Process process;
+            try {
+                process = new ProcessBuilder(command).redirectErrorStream(false).start();
+            } catch (IOException e) {
+                continue;
+            }
+            try {
+                process.getOutputStream().close();
+                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                }
+                return output.isEmpty() ? null : Path.of(output);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                process.destroyForcibly();
+                return null;
+            }
+        }
+        throw new UserFacingException(UserMessage.of(DIALOG_UNAVAILABLE));
     }
 }

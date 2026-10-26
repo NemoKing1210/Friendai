@@ -215,6 +215,7 @@
   "friendai.menu.appearance.reset_done": "Скин по умолчанию восстановлен.",
   "friendai.menu.appearance.find_skins": "Найти скины: minecraftskins.com",
   "friendai.menu.appearance.dialog_title": "Выберите скин",
+  "friendai.menu.appearance.dialog_filter": "PNG-скин (64x64)",
   "friendai.menu.appearance.dialog_unavailable": "Окно выбора файла здесь недоступно. Используйте ник или ссылку.",
   "friendai.skin.error.not_png": "Этот файл не является PNG-изображением.",
   "friendai.skin.error.wrong_size": "Скин должен быть ровно 64x64 пикселя.",

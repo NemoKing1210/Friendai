@@ -215,6 +215,7 @@
   "friendai.menu.appearance.reset_done": "Default skin restored.",
   "friendai.menu.appearance.find_skins": "Find skins: minecraftskins.com",
   "friendai.menu.appearance.dialog_title": "Choose a skin",
+  "friendai.menu.appearance.dialog_filter": "PNG skin (64x64)",
   "friendai.menu.appearance.dialog_unavailable": "No file dialog is available here. Use a username or a link instead.",
   "friendai.skin.error.not_png": "That file is not a PNG image.",
   "friendai.skin.error.wrong_size": "The skin must be exactly 64x64 pixels.",
