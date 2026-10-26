@@ -92,6 +92,11 @@ test {
 	if (ttsVoice != null) {
 		systemProperty "friendai.tts.voice", ttsVoice
 	}
+	// Lets PromptGoldenTest regenerate its golden files with -Dfriendai.golden.write=true.
+	def goldenWrite = System.getProperty("friendai.golden.write")
+	if (goldenWrite != null) {
+		systemProperty "friendai.golden.write", goldenWrite
+	}
 }
 
 processResources {
