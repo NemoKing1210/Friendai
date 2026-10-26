@@ -16,7 +16,7 @@ import javax.imageio.stream.ImageInputStream;
 public final class SkinImage {
     public static final int SIZE = 64;
     public static final int MAX_INPUT = 64 * 1024;
-    public static final int MAX_CANONICAL = 32 * 1024;
+    public static final int MAX_CANONICAL = 24 * 1024;
     private static final byte[] SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
     public enum Problem {

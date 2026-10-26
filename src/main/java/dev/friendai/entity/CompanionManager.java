@@ -58,6 +58,11 @@ public final class CompanionManager {
             return;
         }
         byOwner.put(owner, entity);
+        FriendaiServerState.get(entity.level().getServer())
+                .skins()
+                .load(owner)
+                .ifPresentOrElse(
+                        stored -> entity.setSkin(stored.hash(), stored.slim()), () -> entity.setSkin("", false));
         if (entity.hasCustomName()) {
             // Saves made before the name tag was shown carry a name but not the visible flag.
             entity.setCustomNameVisible(true);

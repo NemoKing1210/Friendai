@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.skin.SkinStore;
 import dev.friendai.memory.MemoryViewers;
 import dev.friendai.knowledge.KnowledgeLimits;
 import dev.friendai.knowledge.KnowledgeStore;
@@ -32,6 +33,7 @@ public final class FriendaiServerState {
     private final BrainService brains;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
@@ -54,6 +56,7 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
+        this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
         this.resources = new ResourceCandidates(knowledge);
@@ -94,6 +97,11 @@ public final class FriendaiServerState {
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** Custom companion skins, one per owner. */
+    public SkinStore skins() {
+        return skins;
     }
 
     public KnowledgeStore knowledge() { return knowledge; }

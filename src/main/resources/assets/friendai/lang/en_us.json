@@ -200,6 +200,7 @@
   "friendai.menu.tab.debug": "Debug",
   "friendai.menu.no_companion": "You have no companion yet.",
   "friendai.menu.rename.invalid": "Invalid name: use 1-32 characters, without line breaks or formatting codes.",
+  "friendai.skin.error.rejected": "The skin was rejected: it must be a valid 64x64 PNG.",
   "friendai.skin.error.unknown_user": "No Minecraft player with that name.",
   "friendai.skin.error.network": "Could not download the skin. Check your connection.",
   "friendai.skin.error.host": "That skin comes from a server that is not allowed.",

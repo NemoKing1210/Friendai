@@ -200,6 +200,7 @@
   "friendai.menu.tab.debug": "Отладка",
   "friendai.menu.no_companion": "У вас пока нет компаньона.",
   "friendai.menu.rename.invalid": "Недопустимое имя: от 1 до 32 символов, без переносов строк и кодов форматирования.",
+  "friendai.skin.error.rejected": "Скин отклонён: нужен корректный PNG размером 64x64.",
   "friendai.skin.error.unknown_user": "Игрока с таким именем нет.",
   "friendai.skin.error.network": "Не удалось скачать скин. Проверьте соединение.",
   "friendai.skin.error.host": "Этот скин лежит на недопустимом сервере.",
