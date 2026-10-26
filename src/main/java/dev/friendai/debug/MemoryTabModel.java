@@ -23,6 +23,7 @@ public final class MemoryTabModel {
     private boolean statusVisible;
     private MenuStatus lastStatus;
     private long clearArmedAt = -1;
+    private boolean personaSelected;
 
     /** Takes a fresh view: keeps the group by key, drops a vanished selection or edit, shows any status. */
     public void onView(MemoryView next) {
@@ -52,16 +53,30 @@ public final class MemoryTabModel {
         return Optional.ofNullable(view);
     }
 
+    /** The selected group, or empty while the personality pane is shown. */
     public Optional<MemoryView.Group> group() {
-        if (view == null || groupKey == null) {
+        if (view == null || groupKey == null || personaSelected) {
             return Optional.empty();
         }
         return view.groups().stream().filter(g -> g.key().equals(groupKey)).findFirst();
     }
 
-    /** The current group's facts, in id order. */
+    /** Shows the personality pane instead of a group: drops the fact selection, edit, Clear arming and status. */
+    public void selectPersona() {
+        personaSelected = true;
+        selectedId = null;
+        cancelEdit();
+        clearArmedAt = -1;
+        statusVisible = false;
+    }
+
+    public boolean personaSelected() {
+        return personaSelected;
+    }
+
+    /** The current group's facts, in id order; none while the personality pane is shown. */
     public List<MemoryView.FactRow> facts() {
-        if (view == null || groupKey == null) {
+        if (view == null || groupKey == null || personaSelected) {
             return List.of();
         }
         return view.facts().stream().filter(f -> f.groupKey().equals(groupKey)).toList();
@@ -88,6 +103,7 @@ public final class MemoryTabModel {
             }
         }
         index = Math.floorMod(index + delta, groups.size());
+        personaSelected = false;
         groupKey = groups.get(index).key();
         selectedId = null;
         cancelEdit();
@@ -97,7 +113,17 @@ public final class MemoryTabModel {
 
     /** Switches to the group with this key; a no-op for the current or an unknown group. */
     public void selectGroup(String key) {
-        if (view == null || key.equals(groupKey) || view.groups().stream().noneMatch(g -> g.key().equals(key))) {
+        if (view == null || view.groups().stream().noneMatch(g -> g.key().equals(key))) {
+            return;
+        }
+        if (personaSelected) {
+            personaSelected = false;
+            groupKey = key;
+            selectedId = null;
+            statusVisible = false;
+            return;
+        }
+        if (key.equals(groupKey)) {
             return;
         }
         groupKey = key;

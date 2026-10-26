@@ -43,6 +43,65 @@ class MemoryTabModelTest {
     }
 
     @Test
+    void selectingPersonaHidesGroupAndFacts() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(fact(1, O.toString(), "Base")), Optional.empty()));
+        model.selectPersona();
+        assertTrue(model.personaSelected());
+        assertTrue(model.group().isEmpty());
+        assertTrue(model.facts().isEmpty());
+    }
+
+    @Test
+    void selectingAGroupLeavesPersona() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        model.selectPersona();
+        model.selectGroup(O.toString());
+        assertFalse(model.personaSelected());
+        assertEquals(O.toString(), model.group().orElseThrow().key());
+        model.selectPersona();
+        model.selectGroup("world");
+        assertFalse(model.personaSelected());
+        assertEquals("world", model.group().orElseThrow().key());
+    }
+
+    @Test
+    void cyclingLeavesPersona() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        model.selectPersona();
+        model.next();
+        assertFalse(model.personaSelected());
+        model.selectPersona();
+        model.previous();
+        assertFalse(model.personaSelected());
+    }
+
+    @Test
+    void personaSelectionSurvivesANewView() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
+        model.selectPersona();
+        model.onView(view(List.of(owner(), world()), List.of(), status("friendai.menu.persona.saved")));
+        assertTrue(model.personaSelected());
+        assertTrue(model.status().isPresent());
+    }
+
+    @Test
+    void selectingPersonaCancelsAFactEditAndClearsTheStatusLine() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(
+                List.of(owner()), List.of(fact(1, O.toString(), "Base")), status("friendai.menu.memory.status.saved")));
+        model.select(1);
+        assertTrue(model.startEdit());
+        model.selectPersona();
+        assertTrue(model.editing().isEmpty());
+        assertTrue(model.selected().isEmpty());
+        assertTrue(model.status().isEmpty());
+    }
+
+    @Test
     void firstViewSelectsOwnerGroup() {
         MemoryTabModel model = new MemoryTabModel();
         model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
