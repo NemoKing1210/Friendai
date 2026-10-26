@@ -343,6 +343,13 @@ public final class BrainService {
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
+        brain.setAgentSettings(() -> new dev.friendai.brain.AgentSettings(
+                config.agent.toolRouting,
+                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy),
+                config.agent.maxReplans,
+                config.agent.goalTickSec,
+                config.agent.promptBudget,
+                config.agent.plannerTimeoutSec));
         brain.setGoalSource(caller -> {
             var board = FriendaiServerState.get(server).goals().board(owner);
             var primary = board.primary();

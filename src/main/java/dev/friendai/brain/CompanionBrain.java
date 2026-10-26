@@ -49,6 +49,7 @@ public final class CompanionBrain {
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
+    private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
     private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
@@ -167,6 +168,10 @@ public final class CompanionBrain {
         this.observer = java.util.Objects.requireNonNull(observer);
     }
 
+    public void setAgentSettings(Supplier<AgentSettings> agentSettings) {
+        this.agentSettings = java.util.Objects.requireNonNull(agentSettings);
+    }
+
     public void setGoalSource(GoalSource goalSource) {
         this.goalSource = java.util.Objects.requireNonNull(goalSource);
     }
@@ -183,7 +188,8 @@ public final class CompanionBrain {
                 turnCaller,
                 memorySource.describe(turnCaller),
                 turnKind,
-                goalSource.view(turnCaller));
+                goalSource.view(turnCaller),
+                agentSettings.get().promptBudget());
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {

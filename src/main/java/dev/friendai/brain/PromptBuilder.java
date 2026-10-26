@@ -30,7 +30,14 @@ public final class PromptBuilder {
 
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal) {
-        return PromptAssembler.defaults(0).assemble(new TurnContext(
+        return system(p, perception, caller, memoryBlock, turn, goal, 0);
+    }
+
+    /** @param budget character budget of the prompt; zero or less means unlimited */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget) {
+        return PromptAssembler.defaults(budget).assemble(new TurnContext(
                 p, perception, caller, memoryBlock, turn, MissionText.render(goal), List.of()));
     }
 }
