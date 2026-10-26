@@ -57,6 +57,7 @@ public final class ObtainPlanner {
         Objects.requireNonNull(sources, "sources");
         Objects.requireNonNull(world, "world");
         Sim sim = new Sim();
+        sim.mineBudget.putAll(world.blocksNearby());
         if (inventory != null) {
             inventory.forEach((item, amount) -> {
                 if (item != null && amount != null && amount > 0) {
@@ -146,6 +147,7 @@ public final class ObtainPlanner {
         final Set<Long> reservedSites = new LinkedHashSet<>();
         final Map<Long, Integer> siteBlocks = new LinkedHashMap<>();
         final Set<String> searchReserved = new LinkedHashSet<>();
+        final Map<String, Integer> mineBudget = new LinkedHashMap<>();
 
         Sim copy() {
             Sim copy = new Sim();
@@ -155,6 +157,7 @@ public final class ObtainPlanner {
             copy.reservedSites.addAll(reservedSites);
             copy.siteBlocks.putAll(siteBlocks);
             copy.searchReserved.addAll(searchReserved);
+            copy.mineBudget.putAll(mineBudget);
             return copy;
         }
 
@@ -171,6 +174,8 @@ public final class ObtainPlanner {
             siteBlocks.putAll(other.siteBlocks);
             searchReserved.clear();
             searchReserved.addAll(other.searchReserved);
+            mineBudget.clear();
+            mineBudget.putAll(other.mineBudget);
         }
 
         int available(String item) {
@@ -737,7 +742,7 @@ public final class ObtainPlanner {
                 if (explore) {
                     return want;
                 }
-                int nearby = world.blocksNearby().getOrDefault(source.block(), 0);
+                int nearby = sim.mineBudget.getOrDefault(source.block(), 0);
                 if (nearby <= 0) {
                     return 0;
                 }
@@ -763,6 +768,12 @@ public final class ObtainPlanner {
                     }
                     attempt.add(new ObtainStep.Explore(source.block(), !source.surface(), depthY));
                     attempt.cost += 20;
+                } else {
+                    int available = sim.mineBudget.getOrDefault(source.block(), 0);
+                    if (available < blocks) {
+                        return null;
+                    }
+                    sim.mineBudget.put(source.block(), available - blocks);
                 }
                 attempt.add(new ObtainStep.Mine(source.block(), blocks, source.tool()));
                 attempt.cost += 4 * blocks;

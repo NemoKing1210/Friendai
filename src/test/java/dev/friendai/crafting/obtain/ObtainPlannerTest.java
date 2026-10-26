@@ -122,6 +122,33 @@ class ObtainPlannerTest {
     }
 
     @Test
+    void mineCapacityIsNotDoubleCounted() {
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(ACACIA_LOG, 1), true));
+
+        List<ObtainStep.Mine> mines = plan.steps().stream()
+                .filter(ObtainStep.Mine.class::isInstance)
+                .map(ObtainStep.Mine.class::cast)
+                .filter(mine -> mine.block().equals(ACACIA_LOG))
+                .toList();
+        assertEquals(1, mines.size(), plan.steps().toString());
+        assertTrue(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore
+                || step instanceof ObtainStep.VisitResource), plan.steps().toString());
+    }
+
+    @Test
+    void oneAcaciaTreeSuppliesMultiplePlanksCrafts() {
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(ACACIA_LOG, 4), true));
+
+        List<ObtainStep.Mine> mines = plan.steps().stream()
+                .filter(ObtainStep.Mine.class::isInstance)
+                .map(ObtainStep.Mine.class::cast)
+                .filter(mine -> mine.block().equals(ACACIA_LOG))
+                .toList();
+        assertEquals(1, mines.size(), plan.steps().toString());
+        assertEquals(2, mines.get(0).count(), plan.steps().toString());
+    }
+
+    @Test
     void conditionalSiteIsUsedOnlyWhenNoLocalPlanExists() {
         ResourceCandidate remembered = new ResourceCandidate(41, ACACIA_LOG, "minecraft:overworld",
                 new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
@@ -231,7 +258,7 @@ class ObtainPlannerTest {
     @Test
     void partialFromContainers() {
         ObtainPlan plan = plan(IRON_INGOT, 3, Map.of(STICK, 2),
-                world(Map.of(OAK_LOG, 8, STONE, 8, IRON_ORE, 4, COAL_ORE, 4), Map.of(), Map.of(IRON_INGOT, 2), false));
+                world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), Map.of(), Map.of(IRON_INGOT, 2), false));
         assertTrue(plan.ok(), plan.missing().toString());
         ObtainStep.Take take = plan.steps().stream()
                 .filter(step -> step instanceof ObtainStep.Take)
