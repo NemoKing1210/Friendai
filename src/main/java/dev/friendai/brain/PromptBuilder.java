@@ -4,11 +4,18 @@ import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.prompt.MissionText;
 import dev.friendai.agent.prompt.PromptAssembler;
 import dev.friendai.agent.prompt.TurnContext;
+import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.tool.Caller;
+import java.util.EnumSet;
 import java.util.List;
 
 /** The system prompt entry point; the text itself lives in {@code agent.prompt} sections. */
 public final class PromptBuilder {
+    /** Guidance for every tool, used whenever the caller does not say which tools are visible. */
+    private static final List<String> ALL_TOOL_HINTS =
+            ToolCatalog.defaults().hints(EnumSet.allOf(ToolGroup.class));
+
     private PromptBuilder() {}
 
     public static String system(Persona p, String perception, Caller caller) {
@@ -37,7 +44,14 @@ public final class PromptBuilder {
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
             int budget) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, ALL_TOOL_HINTS);
+    }
+
+    /** @param toolHints the guidance lines of the tools visible this turn */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget, List<String> toolHints) {
         return PromptAssembler.defaults(budget).assemble(new TurnContext(
-                p, perception, caller, memoryBlock, turn, MissionText.render(goal), List.of()));
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal), toolHints));
     }
 }

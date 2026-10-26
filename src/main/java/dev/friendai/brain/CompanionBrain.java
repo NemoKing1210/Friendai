@@ -203,7 +203,8 @@ public final class CompanionBrain {
                 memorySource.describe(turnCaller),
                 turnKind,
                 goalSource.view(turnCaller),
-                agentSettings.get().promptBudget());
+                agentSettings.get().promptBudget(),
+                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)));
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {

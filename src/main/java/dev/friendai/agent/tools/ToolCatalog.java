@@ -104,7 +104,31 @@ public final class ToolCatalog {
                 "swap_hands", "set_idle_behavior", "set_follow_distance");
         group(metas, ToolGroup.INTERACTION, Cost.MEDIUM, "interact_entity", "mount", "dismount", "sleep",
                 "throw_item");
+        hint(metas, "fell_tree",
+                "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It fells that whole tree from the lowest log up. Pass limit only when the player asks for a few logs or to hurry; pass collect:false only when speed matters more than the drops.\n"
+                        + "- When the player says 'near me', near: \"me\" is the default for the tree tools and means their position; near: \"self\" means yours.");
+        hint(metas, "mine_blocks",
+                "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.");
+        hint(metas, "obtain_item",
+                "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.");
+        hint(metas, "build_structure",
+                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.");
+        hint(metas, "set_pace",
+                "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.");
+        hint(metas, "get_food",
+                "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.");
         return new ToolCatalog(metas);
+    }
+
+    private static void hint(List<ToolMeta> metas, String name, String text) {
+        for (int i = 0; i < metas.size(); i++) {
+            ToolMeta meta = metas.get(i);
+            if (meta.name().equals(name)) {
+                metas.set(i, new ToolMeta(name, meta.group(), meta.core(), text, meta.requires(), meta.cost()));
+                return;
+            }
+        }
+        throw new IllegalStateException("no catalog entry for the hint on " + name);
     }
 
     private static void core(List<ToolMeta> metas, ToolGroup group, String... names) {

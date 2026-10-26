@@ -52,13 +52,16 @@ public final class TurnRouter {
                 + (vocabulary.hasPlanRequest(lower) ? 1 : 0);
         if (!s.hasActiveGoal() && score >= GOAL_SCORE) {
             groups.add(ToolGroup.MOVEMENT);
+            groups.add(ToolGroup.INFO);
             return new RouteDecision(TurnMode.GOAL, groups.isEmpty() ? all() : groups, true,
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {
             return new RouteDecision(TurnMode.ACTION, all(), false, "no recognized words");
         }
+        // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action.
         groups.add(ToolGroup.MOVEMENT);
+        groups.add(ToolGroup.INFO);
         return new RouteDecision(TurnMode.ACTION, groups, false, "matched " + groups);
     }
 
