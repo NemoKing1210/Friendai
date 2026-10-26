@@ -16,6 +16,7 @@ import java.util.OptionalInt;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -39,6 +40,8 @@ final class MemoryTab implements MenuTab {
     private FlatButton forget;
     private FlatButton categoryButton;
     private EditBox text;
+    private MultiLineEditBox personaBox;
+    private HitArea factsHit;
     private FlatButton addOrSave;
     private FlatButton cancel;
     private Category draftCategory = Category.PROFILE;
@@ -91,7 +94,7 @@ final class MemoryTab implements MenuTab {
         listHeight = Math.max(LINE, actionY - GAP - listTop);
 
         host.add(new HitArea(sideLeft, sideTop, sideWidth, sideHeight, this::clickGroup));
-        host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickFact));
+        factsHit = host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickFact));
         edit = host.add(new FlatButton(headLeft, actionY, 70, ROW,
                 Component.translatable("friendai.menu.memory.edit"), Ui.ACCENT, this::startEdit));
         forget = host.add(new FlatButton(headLeft + 70 + GAP, actionY, 70, ROW,
@@ -138,8 +141,16 @@ final class MemoryTab implements MenuTab {
             int px = headLeft + (i % 3) * (presetWidth + GAP);
             int py = listTop + PERSONA_PRESETS_Y + (i / 3) * (ROW + GAP);
             presetButtons.add(host.add(new FlatButton(px, py, presetWidth, ROW,
-                    Component.translatable(preset.labelKey()), Ui.ACCENT, () -> text.setValue(preset.text()))));
+                    Component.translatable(preset.labelKey()), Ui.ACCENT, () -> personaBox.setValue(preset.text()))));
         }
+        int boxTop = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + LINE + GAP;
+        personaBox = host.add(MultiLineEditBox.builder()
+                .setX(headLeft)
+                .setY(boxTop)
+                .setPlaceholder(Component.translatable("friendai.menu.persona.hint"))
+                .build(host.font(), headWidth, Math.max(30, formY - GAP - boxTop),
+                        Component.translatable("friendai.menu.persona.title")));
+        personaBox.setCharacterLimit(PersonaText.MAX_LENGTH);
         wasPersona = false;
         sync();
     }
@@ -163,8 +174,8 @@ final class MemoryTab implements MenuTab {
                 lastView = view;
                 model.onView(view);
                 if (model.personaSelected()) {
-                    if (view.status().isPresent() && !text.isFocused()) {
-                        text.setValue(view.persona().text());
+                    if (view.status().isPresent() && !personaBox.isFocused()) {
+                        personaBox.setValue(view.persona().text());
                     }
                 } else {
                     text.setMaxLength(view.limits().maxFactChars());
@@ -177,16 +188,13 @@ final class MemoryTab implements MenuTab {
     private void openPersona() {
         model.selectPersona();
         sync();
-        text.setMaxLength(PersonaText.MAX_LENGTH);
-        text.setValue(model.view().map(v -> v.persona().text()).orElse(""));
-        text.setHint(Component.translatable("friendai.menu.persona.hint"));
+        personaBox.setValue(model.view().map(v -> v.persona().text()).orElse(""));
         wasPersona = true;
         sync();
     }
 
     private void leavePersona() {
         wasPersona = false;
-        text.setHint(Component.translatable("friendai.menu.memory.text_hint"));
         text.setMaxLength(model.view().map(v -> v.limits().maxFactChars()).orElse(160));
         text.setValue("");
     }
@@ -207,13 +215,15 @@ final class MemoryTab implements MenuTab {
         for (FlatButton preset : presetButtons) {
             preset.visible = persona;
         }
+        personaBox.visible = persona;
+        factsHit.active = !persona;
         if (persona) {
             clear.active = false;
             trust.visible = false;
             edit.visible = false;
             forget.visible = false;
             categoryButton.visible = false;
-            text.visible = true;
+            text.visible = false;
             addOrSave.visible = true;
             addOrSave.active = true;
             addOrSave.setMessage(Component.translatable("friendai.menu.persona.save"));
@@ -261,7 +271,7 @@ final class MemoryTab implements MenuTab {
 
     private void submit() {
         if (model.personaSelected()) {
-            CompanionRequests.send(RequestType.PERSONA_SET, text.getValue(), "");
+            CompanionRequests.send(RequestType.PERSONA_SET, personaBox.getValue(), "");
             return;
         }
         Optional<MemoryView.Group> group = model.group();
@@ -450,12 +460,12 @@ final class MemoryTab implements MenuTab {
             Component custom = Component.translatable("friendai.menu.persona.custom");
             Ui.badge(g, font, custom.getString(), headLeft + font.width(title) + 6, sideTop + 4, Ui.PURPLE);
         }
-        String current = text.getValue().strip();
+        String current = personaBox.getValue().strip();
         for (int i = 0; i < presetButtons.size(); i++) {
             presetButtons.get(i).setColor(
                     PersonaPresets.all().get(i).text().equals(current) ? Ui.GOOD : Ui.ACCENT);
         }
-        String counter = text.getValue().length() + "/" + PersonaText.MAX_LENGTH;
+        String counter = personaBox.getValue().length() + "/" + PersonaText.MAX_LENGTH;
         int counterY = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + 2;
         g.text(font, counter, headLeft + headWidth - font.width(counter), counterY, Ui.DIM);
     }
