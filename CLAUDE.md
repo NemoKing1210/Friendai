@@ -29,7 +29,7 @@ The shared project guide is `AGENTS.md` (imported above) — commands, architect
 
 ## Verification habits for this repo
 
-- Tests are not a prerequisite for a commit; commit a coherent change when it is ready. When you do claim tests pass, you must have run `./gradlew build` and read the result, not assumed it — report the unit-test count and the GameTest line.
+- Tests are not a prerequisite for a commit; commit a coherent change when it is ready. Run only your own group's tests (see "Test scope" in `AGENTS.md`); the full `./gradlew build` is left to CI at merge to `main`. When you claim tests pass, you must have run them and read the result, not assumed it — report the group you ran, its unit-test count and, if you ran one, the GameTest line, and say the full suite was left to CI.
 - Changing anything in `llm/protocol`, `brain`, or tool handling: re-read rules 3–6 in `AGENTS.md` and make sure the matching regression tests still exist.
 - When a Minecraft or Fabric API name does not compile, look it up in the decompiled sources / with `javap` (see `AGENTS.md`), do not guess variants.
 - If a GameTest fails only in the full run, suspect cross-test interference in the shared world before suspecting the code under test.

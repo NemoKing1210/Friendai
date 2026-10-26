@@ -22,7 +22,7 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 
 | Command | What it does |
 |---|---|
-| `./gradlew build` | Compile, run unit tests **and** the Fabric GameTests (`runGameTest` is part of `check`), then package. The full gate for a release; not required before a commit. |
+| `./gradlew build` | Compile, run unit tests **and** the Fabric GameTests (`runGameTest` is part of `check`), then package. The full gate: CI runs it at merge to `main`; agents do not run it while working (see "Test scope"). |
 | `./gradlew test` | Unit tests only (JUnit 5, no Minecraft). Fast. |
 | `./gradlew test --tests '*SomeTest'` | One unit test class. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
@@ -260,6 +260,18 @@ The companion inventory/equipment window uses a vanilla container menu (`menu/Fr
 
 ## Testing
 
+### Test scope: group while working, everything at merge
+
+A full run is about 9 minutes of GameTests plus the unit suite, so an agent does **not** run it while working on a task. The rule:
+
+- **While working** (new module, skill, fix): run only the group that covers your change.
+  - Unit tests of the area: `./gradlew test --tests 'dev.friendai.<package>.*'` (or a single class). Pure-layer work needs nothing else.
+  - GameTests of the area, only if the change touches the game layer: one class glob per run, e.g. `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` (`BuildTests` → `build_tests_*`, `FarmingTests` → `farming_tests_*`). Name the class(es) you added or whose behavior you changed; a new skill's GameTest class counts.
+  - Always run `LangFilesTest` when you touched a language file.
+- **Do not** run `./gradlew build`, `check` or a bare `runGameTest` to "be safe" before a commit or a task report.
+- **At merge to `main`** the full gate runs: CI (`.github/workflows/ci.yml`) runs all unit tests and all GameTests on every pull request, merge-queue entry and push to `main`, and `CI gate` is the required check. A local full run is the maintainer's call (before tagging a release), not an agent's default.
+- In the task report, state which group you ran and its real result, and say plainly that the full suite was left to CI. A failure in an unrelated test on the full run is CI's finding to triage, not a reason to widen your own scope.
+
 - **TDD.** Write the failing test first and watch it fail for the right reason. Unit tests use the fakes in `src/test/java/dev/friendai/testutil` — no mocking frameworks.
 - **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView`), `RecordingSpeaker` (captures speech/errors/thinking).
 - **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive a `TaskRunner` yourself inside `h.succeedWhen(() -> { runner.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
@@ -438,7 +450,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 ## Definition of done
 
-1. Tests are not a gate for a commit: commit a coherent change when it is ready. When you do run them, quote the real result (unit-test count and GameTest line) instead of assuming.
+1. Tests are not a gate for a commit: commit a coherent change when it is ready. Run only your group's tests (see "Test scope" under Testing); the full suite is CI's job at merge to `main`. Quote the real result of what you ran (unit-test count and GameTest line) instead of assuming.
 2. New player-facing strings exist in both language files.
 3. New behavior has a test that failed first; bugs get a regression test.
 4. Layer boundaries respected (no Minecraft imports in the pure layers).
