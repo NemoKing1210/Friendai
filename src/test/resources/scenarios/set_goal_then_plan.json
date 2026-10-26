@@ -1,0 +1,10 @@
+{
+  "name": "set_goal_then_plan",
+  "access": "owner",
+  "playerSays": "build me a small house and bring iron",
+  "replies": [
+    {"text": "", "tools": ["set_goal", "queue_add"]},
+    {"text": "On it.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["set_goal", "queue_add"], "spokenContains": ["On it"]}
+}

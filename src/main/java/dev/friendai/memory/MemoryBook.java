@@ -23,6 +23,8 @@ public final class MemoryBook {
     private String companionName;
     /** The personality the owner gave the companion; null means the configured default applies. */
     private String persona;
+    /** The encoded goal board; null when there are no goals. */
+    private String goals;
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -147,6 +149,23 @@ public final class MemoryBook {
             return false;
         }
         persona = normalized;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** The encoded goal board, or empty when the companion has no goals. */
+    public Optional<String> goals() {
+        return Optional.ofNullable(goals);
+    }
+
+    /** Stores the encoded goal board (null or blank clears it). Returns whether it changed. */
+    public boolean setGoals(String encoded) {
+        String value = encoded == null || encoded.isBlank() ? null : encoded;
+        if (java.util.Objects.equals(value, goals)) {
+            return false;
+        }
+        goals = value;
         dirty = true;
         revision++;
         return true;
@@ -366,6 +385,7 @@ public final class MemoryBook {
         file.nextId = nextId;
         file.companionName = companionName;
         file.persona = persona;
+        file.goals = goals;
         for (Fact fact : facts.values()) {
             MemoryFile.FactEntry entry = new MemoryFile.FactEntry();
             entry.id = fact.id();
@@ -400,6 +420,9 @@ public final class MemoryBook {
         if (file != null) {
             CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
             PersonaText.parse(file.persona).ifPresent(text -> book.persona = text);
+            if (file.goals != null && !file.goals.isBlank()) {
+                book.goals = file.goals;
+            }
         }
         if (file != null && file.players != null) {
             for (MemoryFile.PlayerEntry entry : file.players) {

@@ -343,6 +343,21 @@ public final class BrainService {
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
+        brain.setGoalSource(caller -> {
+            var board = FriendaiServerState.get(server).goals().board(owner);
+            var primary = board.primary();
+            String plan = "";
+            if (primary.isPresent() && primary.get().planId() != 0) {
+                long planId = primary.get().planId();
+                plan = companion.taskRunner().queue().plan(planId).isPresent()
+                        ? "plan #" + planId + " " + companion.taskRunner().queue().planStatus(planId).name()
+                                .toLowerCase(java.util.Locale.ROOT).replace('_', ' ')
+                        : "plan #" + planId + " is no longer queued";
+            }
+            var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+            facts.refresh();
+            return board.view(plan, facts);
+        });
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
