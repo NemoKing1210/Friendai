@@ -19,7 +19,7 @@ class PlannerPromptTest {
 
     @Test
     void promptContainsGoalLessonsFailureAndToolDigest() {
-        PlannerInput in = new PlannerInput(goal(), "Position: 1 2 3", "- jump {}", "iron near the river",
+        PlannerInput in = PlannerInput.promptOnly(goal(), "Position: 1 2 3", "- jump {}", "iron near the river",
                 Optional.of("job #1 jump"), List.of("no axe"), "missing 3 minecraft:iron_ingot");
         String user = PlannerPrompt.user(in, text -> text);
         for (String part : List.of("Goal: iron armor", "full set worn", "Position: 1 2 3", "iron near the river",
@@ -30,7 +30,7 @@ class PlannerPromptTest {
 
     @Test
     void emptyOptionalSectionsAreLeftOut() {
-        PlannerInput in = new PlannerInput(goal(), "w", "t", "", Optional.empty(), List.of(), "");
+        PlannerInput in = PlannerInput.promptOnly(goal(), "w", "t", "", Optional.empty(), List.of(), "");
         String user = PlannerPrompt.user(in, text -> text);
         assertFalse(user.contains("Lessons so far"));
         assertFalse(user.contains("What just failed"));
@@ -40,7 +40,7 @@ class PlannerPromptTest {
 
     @Test
     void secretsAreRedactedFromEverythingTheModelSees() {
-        PlannerInput in = new PlannerInput(goal(), "key sk-test-123 leaked", "t", "", Optional.empty(), List.of(), "");
+        PlannerInput in = PlannerInput.promptOnly(goal(), "key sk-test-123 leaked", "t", "", Optional.empty(), List.of(), "");
         String user = PlannerPrompt.user(in, SecretRedactor.of(() -> List.of("sk-test-123")));
         assertFalse(user.contains("sk-test-123"), user);
         assertTrue(user.contains("***"));
