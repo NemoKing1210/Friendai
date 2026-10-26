@@ -217,6 +217,8 @@
   "friendai.menu.vital.health": "Health",
   "friendai.menu.vital.hunger": "Hunger",
   "friendai.menu.vital.inventory": "Inventory",
+  "friendai.menu.vital.experience": "Experience",
+  "friendai.menu.vital.level": "Lv %s",
   "friendai.menu.mode.combat": "Combat: %s",
   "friendai.menu.mode.pace": "Pace: %s",
   "friendai.menu.combat.defensive": "defensive",

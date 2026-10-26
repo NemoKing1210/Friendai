@@ -36,6 +36,12 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private static final int VITALS_Y = 88;
     private static final int HEARTS_X = 8;
     private static final int FOOD_RIGHT = 168;
+    private static final int XP_BAR_Y = 99;
+    private static final int XP_BAR_HEIGHT = 3;
+    private static final int XP_LEVEL_X = 82;
+    private static final int XP_LEVEL_Y = 28;
+    private static final int XP_GREEN = 0xFF80FF20;
+    private static final int XP_BAR_BACK = 0xFF555555;
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title, 176, 254);
@@ -111,5 +117,18 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
                 graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_HALF, x, y, ICON, ICON);
             }
         }
+        drawExperience(graphics, companion);
+    }
+
+    /** A thin bar between the vitals and the slots, and the level beside the portrait, in the vanilla XP green. */
+    private void drawExperience(GuiGraphicsExtractor graphics, CompanionEntity companion) {
+        int x0 = leftPos + HEARTS_X;
+        int x1 = leftPos + FOOD_RIGHT;
+        int y = topPos + XP_BAR_Y;
+        graphics.fill(x0, y, x1, y + XP_BAR_HEIGHT, XP_BAR_BACK);
+        int filled = Math.round((x1 - x0) * Math.max(0.0f, Math.min(1.0f, companion.syncedXpProgress())));
+        graphics.fill(x0, y, x0 + filled, y + XP_BAR_HEIGHT, XP_GREEN);
+        graphics.text(font, Component.translatable("friendai.menu.vital.level", companion.syncedXpLevel()),
+                leftPos + XP_LEVEL_X, topPos + XP_LEVEL_Y, XP_GREEN);
     }
 }

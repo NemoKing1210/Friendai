@@ -54,6 +54,8 @@ public final class SnapshotCodec {
             out.writeInt(v.inventorySlots());
             writeString(out, v.combatMode());
             writeString(out, v.paceMode());
+            out.writeInt(v.xpLevel());
+            out.writeFloat(v.xpProgress());
             out.writeInt(s.queue().size());
             for (QueueRow r : s.queue()) {
                 out.writeLong(r.id());
@@ -112,7 +114,8 @@ public final class SnapshotCodec {
                 tools.add(readString(in));
             }
             CompanionVitals vitals = new CompanionVitals(
-                    in.readFloat(), in.readFloat(), in.readInt(), in.readInt(), in.readInt(), readString(in), readString(in));
+                    in.readFloat(), in.readFloat(), in.readInt(), in.readInt(), in.readInt(), readString(in), readString(in),
+                    in.readInt(), in.readFloat());
             int queueSize = readCount(in);
             List<QueueRow> queue = new ArrayList<>();
             for (int i = 0; i < queueSize; i++) {

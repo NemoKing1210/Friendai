@@ -217,6 +217,8 @@
   "friendai.menu.vital.health": "Здоровье",
   "friendai.menu.vital.hunger": "Сытость",
   "friendai.menu.vital.inventory": "Инвентарь",
+  "friendai.menu.vital.experience": "Опыт",
+  "friendai.menu.vital.level": "Ур. %s",
   "friendai.menu.mode.combat": "Бой: %s",
   "friendai.menu.mode.pace": "Темп: %s",
   "friendai.menu.combat.defensive": "оборона",

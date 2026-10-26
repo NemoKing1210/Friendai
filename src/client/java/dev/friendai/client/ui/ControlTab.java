@@ -13,7 +13,7 @@ final class ControlTab implements MenuTab {
     private static final int GAP = 6;
     private static final int BUTTON_HEIGHT = 20;
     private static final int HEADER_HEIGHT = 52;
-    private static final int VITALS_HEIGHT = 50;
+    private static final int VITALS_HEIGHT = 64;
     private static final int PAD = 8;
 
     private FlatButton summon;
@@ -139,6 +139,9 @@ final class ControlTab implements MenuTab {
                 v.food() + " / 20", left, top + 21, barX, barWidth, width);
         row(g, font, "friendai.menu.vital.inventory", v.inventoryUsed() / (float) Math.max(1, v.inventorySlots()),
                 Ui.ACCENT, v.inventoryUsed() + " / " + v.inventorySlots(), left, top + 35, barX, barWidth, width);
+        row(g, font, "friendai.menu.vital.experience", v.xpProgress(), Ui.GOOD,
+                Component.translatable("friendai.menu.vital.level", v.xpLevel()).getString(),
+                left, top + 49, barX, barWidth, width);
     }
 
     private static void row(GuiGraphicsExtractor g, Font font, String labelKey, float fraction, int color,
