@@ -8,6 +8,10 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.MemoryViewers;
+import dev.friendai.knowledge.KnowledgeLimits;
+import dev.friendai.knowledge.KnowledgeStore;
+import dev.friendai.perception.resource.ObservationScheduler;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.task.TaskSettings;
 import java.util.ArrayList;
@@ -28,6 +32,9 @@ public final class FriendaiServerState {
     private final BrainService brains;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final KnowledgeStore knowledge;
+    private final ObservationScheduler observations;
+    private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
     private final TrustConfirmations trust;
     private ServerConfig config;
@@ -47,6 +54,11 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
+        this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
+                .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
+        this.resources = new ResourceCandidates(knowledge);
+        this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance);
+        this.resources.attach(observations);
         this.brains = new BrainService(server, config, memory);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
@@ -58,7 +70,8 @@ public final class FriendaiServerState {
     }
 
     public static synchronized void close(MinecraftServer server) {
-        STATES.remove(server);
+        FriendaiServerState state = STATES.remove(server);
+        if (state != null) state.shutdown();
     }
 
     public ServerConfig config() {
@@ -81,6 +94,16 @@ public final class FriendaiServerState {
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    public KnowledgeStore knowledge() { return knowledge; }
+
+    public ObservationScheduler observations() { return observations; }
+
+    public ResourceCandidates resources() { return resources; }
+
+    private void shutdown() {
+        knowledge.close();
     }
 
     /** The name the owner gave their companion, or the configured default. */

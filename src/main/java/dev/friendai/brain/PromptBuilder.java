@@ -52,6 +52,7 @@ public final class PromptBuilder {
                 + "- Keep replies short: 1–2 sentences, no markdown.\n"
                 + "- Answering is never a reason to move: you can talk to the player from wherever you are. Reply where you stand and follow or walk only when the player asks, or when a task needs it.\n"
                 + "- Do anything in the world only through tools. Never claim you did something until the task-finished event arrives.\n"
+                + "- Remembered resource locations and counts are historical evidence, not guaranteed supply. Unknown means unseen, not absent; never claim a hidden location exists until direct observation verifies it.\n"
                 + "- Long tasks finish later; you will get a message starting with \"[event]\" with the result.\n"
                 + "- If a request can't be done with the available tools, say so honestly.\n"
                 + "- You own a task queue; one job runs at a time. Use queue_add for work with several steps; it returns plan and job ids.\n"

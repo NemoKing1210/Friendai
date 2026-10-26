@@ -357,6 +357,8 @@ public class FarmingTests {
         wheatPlot(h, 4, 4, 5, 5, 7);
         h.setBlock(10, 2, 10, Blocks.CHEST);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+                "harvest chest should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
@@ -381,6 +383,8 @@ public class FarmingTests {
         }
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+                "full harvest chest should be directly visible");
         Result result = new Result();
         c.taskRunner().setListener(result);
         c.taskRunner().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");

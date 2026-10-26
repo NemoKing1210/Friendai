@@ -165,16 +165,31 @@ public final class MineBlocksTask implements Task {
                 // The tree is finished: pick its drops up before going anywhere else.
                 return TaskStatus.RUNNING;
             }
-            candidates = new ArrayList<>(BlockSearch.nearestN(
-                    c.level(), origin != null ? origin : c.companion().blockPosition(), radius, matcher, blacklist,
-                    CANDIDATES));
+            var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+            int evidenceRadius = origin == null ? radius
+                    : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
+            candidates = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, evidenceRadius,
+                    origin == null ? CANDIDATES : 64));
             candidates.removeIf(blacklist::contains);
-            if (origin != null && candidates.size() > 1) {
-                // The breaker walks to whichever candidate is nearest to the companion, which would defeat searching
-                // around another place: offer only the block nearest to that place.
-                candidates = new ArrayList<>(candidates.subList(0, 1));
+            if (origin != null) {
+                double radiusSquared = (double) radius * radius;
+                double originX = origin.getX() + 0.5, originY = origin.getY() + 0.5, originZ = origin.getZ() + 0.5;
+                candidates.removeIf(pos -> pos.distToCenterSqr(originX, originY, originZ) > radiusSquared);
+                candidates.sort(java.util.Comparator.comparingDouble(
+                        pos -> pos.distToCenterSqr(originX, originY, originZ)));
+                if (candidates.size() > 1) {
+                    // BlockBreaker walks from the companion, so choose the nearest eligible evidence to the
+                    // requested origin before handing it a single target.
+                    candidates = new ArrayList<>(candidates.subList(0, 1));
+                }
             }
         }
+        // Historical evidence can outlive a registry block's current state. Keep the old scanner's
+        // safety property: an unbreakable match is not an executable mining target.
+        candidates.removeIf(pos -> {
+            BlockState state = c.level().getBlockState(pos);
+            return !matcher.test(state) || state.getDestroySpeed(c.level(), pos) < 0;
+        });
         if (candidates.isEmpty()) {
             // Say which it is: nothing around, or blocks that were found and could not be reached.
             boolean hidden = !blacklist.isEmpty();
@@ -256,7 +271,9 @@ public final class MineBlocksTask implements Task {
         for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
             seeds.add(lastBroken.relative(side));
         }
-        List<BlockPos> result = new ArrayList<>(BlockSearch.connected(c.level(), seeds, matcher, CANDIDATES));
+        var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        List<BlockPos> result = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, CANDIDATES));
+        result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));
         result.removeIf(blacklist::contains);
         return result;
     }

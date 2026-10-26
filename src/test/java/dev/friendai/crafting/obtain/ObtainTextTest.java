@@ -48,6 +48,8 @@ class ObtainTextTest {
         assertEquals("craft 4 × minecraft:torch", ObtainText.stepText(new ObtainStep.Craft("minecraft:torch", 4)));
         assertEquals("smelt 3 × minecraft:raw_iron", ObtainText.stepText(new ObtainStep.Smelt("minecraft:raw_iron", 3, "minecraft:iron_ingot")));
         assertEquals("mine 3 × minecraft:iron_ore", ObtainText.stepText(new ObtainStep.Mine("minecraft:iron_ore", 3, new ToolNeed(ToolKind.PICKAXE, Tier.STONE))));
+        assertEquals("visit remembered site 41 for minecraft:iron_ore",
+                ObtainText.stepText(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")));
         assertEquals("hunt 2 × minecraft:cow", ObtainText.stepText(new ObtainStep.Hunt("minecraft:cow", 2)));
         assertEquals("harvest 4 × minecraft:wheat", ObtainText.stepText(new ObtainStep.Harvest(4, "minecraft:wheat")));
         assertEquals("shear 1 × minecraft:sheep", ObtainText.stepText(new ObtainStep.Shear("minecraft:sheep", 1)));
@@ -55,6 +57,15 @@ class ObtainTextTest {
         assertEquals("milk 2 buckets", ObtainText.stepText(new ObtainStep.Milk(2)));
         assertEquals("explore down to Y 16 for minecraft:iron_ore", ObtainText.stepText(new ObtainStep.Explore("minecraft:iron_ore", true, 16)));
         assertEquals("explore up to 64 blocks around for #minecraft:logs", ObtainText.stepText(new ObtainStep.Explore("#minecraft:logs", false, 0)));
+    }
+
+    @Test
+    void conditionalPlanExplainsVerificationBoundary() {
+        ObtainPlan plan = new ObtainPlan(List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")),
+                Map.of("minecraft:raw_iron", 2), 1, true);
+        assertEquals("to get 2 minecraft:iron_ingot: conditional prefix visit remembered site 41 for minecraft:iron_ore"
+                        + "; verify the remembered source, then replan; unresolved: missing: 2 × minecraft:raw_iron",
+                ObtainText.planText(plan, "minecraft:iron_ingot", 2));
     }
 
     @Test

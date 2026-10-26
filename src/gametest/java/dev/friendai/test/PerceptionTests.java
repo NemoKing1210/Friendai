@@ -4,7 +4,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionSnapshot;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Blocks;
 
@@ -68,8 +70,14 @@ public class PerceptionTests {
         h.setBlock(5, 7, 2, Blocks.CHERRY_LEAVES.defaultBlockState()
                 .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (int y = 2; y <= 6; y++) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, y, 2))),
+                    "tree log should be directly visible at y=" + y);
+        }
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 7, 2))),
+                "tree leaves should be directly visible");
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
-        h.assertTrue(p.toPromptText().contains("Trees: cherry_log 3 blocks east (5 logs, height 5, standing)"),
+        h.assertTrue(p.toPromptText().contains("Trees: minecraft:cherry_log 3 blocks east (5 logs, height 5, standing)"),
                 p.toPromptText());
         h.succeed();
     }
@@ -80,6 +88,10 @@ public class PerceptionTests {
         h.setBlock(6, 2, 2, Blocks.CRAFTING_TABLE);
         h.setBlock(2, 2, 6, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+                "crafting table should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
+                "furnace should be directly visible");
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
         h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("crafting_table")),
                 p.toPromptText());
@@ -102,12 +114,18 @@ public class PerceptionTests {
     public void landmarksAreCappedAtFive(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         h.setBlock(1, 2, 1, Blocks.LAVA);
-        h.setBlock(2, 2, 1, Blocks.WATER);
-        h.setBlock(3, 2, 1, Blocks.CRAFTING_TABLE);
-        h.setBlock(4, 2, 1, Blocks.FURNACE);
-        h.setBlock(5, 2, 1, Blocks.ANVIL);
-        h.setBlock(6, 2, 1, Blocks.CHEST);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        h.setBlock(1, 2, 6, Blocks.WATER);
+        h.setBlock(6, 2, 1, Blocks.CRAFTING_TABLE);
+        h.setBlock(11, 2, 6, Blocks.FURNACE);
+        h.setBlock(6, 2, 11, Blocks.ANVIL);
+        h.setBlock(11, 2, 11, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        for (BlockPos landmark : List.of(new BlockPos(1, 2, 1), new BlockPos(1, 2, 6),
+                new BlockPos(6, 2, 1), new BlockPos(11, 2, 6), new BlockPos(6, 2, 11),
+                new BlockPos(11, 2, 11))) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(landmark)),
+                    "landmark should be directly visible at " + landmark);
+        }
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
         h.assertTrue(p.landmarks().size() == 5, "landmarks: " + p.toPromptText());
         h.succeed();
@@ -122,6 +140,8 @@ public class PerceptionTests {
         var owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
+                "wall should be directly visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var call = new dev.friendai.llm.model.ToolCall("1", "survey_area",
                 new com.google.gson.JsonObject(), "{}", null);

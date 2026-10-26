@@ -35,6 +35,8 @@ public final class BlockBreaker {
     private final boolean requireSight;
     /** Whether the companion digs away what hides the target, as a player digging into a hill does. */
     private final boolean digToTarget;
+    /** Whether the breaker may remove a temporary block directly beneath the companion. */
+    private final boolean allowBreakingSupport;
     private final Approach approach;
     /** A precise stance goal: interaction reach alone does not put the eyes around the obstruction. */
     private MoveHelper viewApproach;
@@ -64,6 +66,12 @@ public final class BlockBreaker {
         this(List.of(target), stillValid, requireSight, false);
     }
 
+    /** A cleanup-only variant that may remove the temporary block the companion is standing on. */
+    public BlockBreaker(BlockPos target, Predicate<BlockState> stillValid, boolean requireSight,
+            boolean allowBreakingSupport) {
+        this(List.of(target), stillValid, requireSight, false, false, allowBreakingSupport);
+    }
+
     /**
      * Breaks whichever of several candidates the companion reaches first; {@link #target()} reports the one chosen.
      * The route never builds, so the caller's material is not spent on the way.
@@ -88,6 +96,12 @@ public final class BlockBreaker {
      */
     public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
             boolean mayPlace, boolean digToTarget) {
+        this(candidates, stillValid, requireSight, mayPlace, digToTarget, false);
+    }
+
+    /** Full constructor; support breaking is reserved for cleanup of a block the companion itself placed. */
+    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
+            boolean mayPlace, boolean digToTarget, boolean allowBreakingSupport) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
@@ -95,6 +109,7 @@ public final class BlockBreaker {
         this.stillValid = stillValid;
         this.requireSight = requireSight;
         this.digToTarget = digToTarget;
+        this.allowBreakingSupport = allowBreakingSupport;
         this.approach = new Approach(this.candidates, mayPlace);
     }
 
@@ -192,7 +207,7 @@ public final class BlockBreaker {
             viewApproach.stop(c);
             viewApproach = null;
         }
-        action = new BreakAction(target);
+        action = new BreakAction(target, allowBreakingSupport);
         phase = Phase.BREAK;
         return State.WORKING;
     }

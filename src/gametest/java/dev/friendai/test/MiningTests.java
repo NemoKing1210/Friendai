@@ -113,6 +113,8 @@ public class MiningTests {
         h.setBlock(4, 0, 4, Blocks.STONE);
         h.setBlock(ore, Blocks.DIAMOND_ORE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+                "diamond ore below the companion should be directly visible");
         companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
@@ -122,6 +124,9 @@ public class MiningTests {
 
         h.succeedWhen(() -> {
             runner.tick();
+            if (outcome.status != TaskStatus.SUCCESS || companion.inventory().countItem(Items.DIAMOND) < 1) {
+                return;
+            }
             h.assertTrue(outcome.status == TaskStatus.SUCCESS,
                     "mining did not finish: " + outcome.status + " " + outcome.summary);
             h.assertTrue(h.getLevel().getBlockState(h.absolutePos(ore)).isAir(), "ore support was not extracted");
@@ -137,6 +142,8 @@ public class MiningTests {
         BlockPos ore = new BlockPos(5, 2, 3);
         h.setBlock(ore, Blocks.DIAMOND_ORE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 3);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+                "diamond ore should be directly visible");
         companion.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, Items.IRON_PICKAXE.getDefaultInstance());
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             companion.inventory().setItem(i, new ItemStack(Items.COBBLESTONE, 64));

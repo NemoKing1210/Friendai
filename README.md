@@ -77,6 +77,16 @@ Only the reply text leaves your machine, and only for cloud synthesis; local voi
 
 Volume, the output device, the maximum length of a spoken phrase and speaking replies addressed to other players are on the same screen. **Voice comes from the companion** is on by default: every reply plays from the companion's position, pans left or right as you turn, and fades with distance until it is silent at the hearing radius. Turn it off to hear replies centred at full volume. **Test voice** speaks a sample sentence. Pressing push-to-talk or the **Stop speaking** key (unbound by default; set it in Controls) cuts a reply off.
 
+## Resource knowledge and search
+
+The server keeps a separate resource atlas for each owner in `<world>/friendai/knowledge/<owner-uuid>.json`. It records block locations only after the companion has a clear sight ray or confirms its own successful mining break. Counts are historical observations; a remembered site can be covered or depleted, so `known_resources` reports age and uncertainty and never promises the old count is still available. Queries use saved evidence only and do not load chunks.
+
+Container contents are cached only after the companion opens a container during an authorized check or transfer. `obtain_item` may use a recent same-dimension snapshot within 16 blocks to choose a chest source, then it opens that container and verifies the live contents before taking items. A closed container is never inspected during discovery.
+
+`search_resource` lets a trusted player request a bounded search. The companion chooses deterministic surface viewpoints and reports a resource only after direct sight. It does not infer a hidden ore vein from terrain. `strategy=mine` can use the existing guarded mining route when a suitable durable pickaxe and 16 torches are available. `strategy=cave` requires a recently observed, unobstructed open-air sight corridor descending through an entrance to a visible interior wall; without that evidence it refuses to depart. Entrance evidence is transient, owner-scoped, expires after five minutes, and does not reveal resources by itself. Repeated requests for the same owner, dimension and goal reuse the saved budget. Active search work is interrupted on owner logout or world reload rather than replayed automatically.
+
+Search policy is under `tasks.resources` in `config/friendai-server.json`: local searches default to 64 blocks and 2,400 ticks. Expeditions default to disabled and require both `allowExpeditions` and companion chunk loading. They hold at most the next-leg chunk ticket; with chunk loading disabled, the companion stops at its current loaded frontier. The atlas, coverage and executed trails are owner-scoped and bounded.
+
 ## Languages
 
 The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).

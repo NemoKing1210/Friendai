@@ -13,6 +13,7 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.ExploreTask;
+import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.ObtainTask;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.obtain.DropIndex;
@@ -138,7 +139,7 @@ public class ObtainTests {
     }
 
     @GameTest
-    public void scanCountsBlocksMobsChests(GameTestHelper h) {
+    public void scanCountsVisibleBlocksAndMobsWithoutInspectingChests(GameTestHelper h) {
         GameTestSupport.platformAt(h, 300, 32);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 301, 2);
         h.setBlock(4, 301, 2, Blocks.IRON_ORE);
@@ -150,17 +151,24 @@ public class ObtainTests {
         h.setBlock(7, 300, 6, Blocks.SOUL_SAND);
         h.setBlock(6, 301, 6, Blocks.NETHER_WART.defaultBlockState().setValue(NetherWartBlock.AGE, 3));
         h.setBlock(7, 301, 6, Blocks.NETHER_WART.defaultBlockState().setValue(NetherWartBlock.AGE, 3));
-
         h.succeedWhen(() -> {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 301, 2))),
+                    "the near iron ore should be directly visible");
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(3, 301, 8))),
+                    "the chest should be directly visible");
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 301, 6))),
+                    "the mature crop should be directly visible");
             Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(3, 301, 8)));
             h.assertTrue(chest != null, "chest block entity is missing");
             chest.setItem(0, new ItemStack(Items.IRON_INGOT, 2));
             chest.setChanged();
             WorldFacts world = WorldScan.scan(h.getLevel(), c, 32, true, false);
-            h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:iron_ore", 0), 3, "iron ore blocks");
+            h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:iron_ore", 0), 1,
+                    "only the directly observed iron ore is counted");
             h.assertValueEqual(world.mobsNearby().getOrDefault("minecraft:cow", 0), 1, "cows");
-            h.assertValueEqual(world.containerItems().getOrDefault("minecraft:iron_ingot", 0), 2, "chest ingots");
-            h.assertValueEqual(world.matureCrops().getOrDefault("minecraft:nether_wart", 0), 2, "mature nether wart");
+            h.assertTrue(world.containerItems().isEmpty(), "scan must not inspect closed containers");
+            h.assertValueEqual(world.matureCrops().getOrDefault("minecraft:nether_wart", 0), 1,
+                    "only the directly observed mature wart is counted");
         });
     }
 
@@ -188,7 +196,9 @@ public class ObtainTests {
     public void surfaceExploreFindsLogs(GameTestHelper h) {
         GameTestSupport.platformAt(h, 240, 32);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 241, 2);
-        h.setBlock(22, 241, 2, Blocks.DARK_OAK_LOG);
+        h.setBlock(10, 241, 2, Blocks.DARK_OAK_LOG);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 241, 2))),
+                "dark oak log should be directly visible");
         Result result = new Result();
         TaskRunner runner = explore(c, result, new ExploreTask(logs(), false, 0, 32, 128, 6000));
         h.succeedWhen(() -> {
@@ -222,6 +232,8 @@ public class ObtainTests {
         TaskRunner runner = explore(c, result,
                 new ExploreTask(BlockMatcher.parse("minecraft:gold_ore").orElseThrow(), true, -6, 64, 128, 6000));
         h.succeedWhen(() -> {
+            if (h.getBlockState(new BlockPos(2, -6, 10)).is(Blocks.GOLD_ORE))
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, -6, 10)));
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("found minecraft:gold_ore at"), "summary was " + result.summary);
@@ -266,15 +278,36 @@ public class ObtainTests {
     @GameTest(maxTicks = 4800)
     public void obtainWoodenPickaxe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.OAK_LOG);
         h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos log : logs) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)),
+                    "oak log should be directly visible at " + log);
+        }
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
+                "crafting table should be directly visible");
         Result result = new Result();
-        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, true));
+        int[] factChecks = {0};
         h.succeedWhen(() -> {
+            for (BlockPos log : logs) {
+                if (h.getBlockState(log).is(Blocks.OAK_LOG)) {
+                    h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)),
+                            "remaining oak log should still be directly visible during local acquisition: " + log);
+                }
+            }
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
+                    "crafting table should still be directly visible during local acquisition");
+            if (factChecks[0]++ == 0) {
+                WorldFacts facts = WorldScan.scan((net.minecraft.server.level.ServerLevel) h.getLevel(), c, 32, true, false);
+                h.assertValueEqual(facts.blocksNearby().getOrDefault("minecraft:oak_log", 0), 1,
+                        "local acquisition facts include the directly observed log");
+                h.assertTrue(facts.stationsNearby().contains("crafting table"),
+                        "local acquisition facts include the directly observed table: " + facts.stationsNearby());
+            }
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("got 1 minecraft:wooden_pickaxe in "), "summary was " + result.summary);
@@ -285,21 +318,27 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600)
     public void obtainStonePickaxe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
-        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
-        h.setBlock(6, 2, 2, Blocks.STONE);
-        h.setBlock(6, 2, 3, Blocks.STONE);
-        h.setBlock(6, 2, 4, Blocks.STONE);
-        h.setBlock(7, 2, 2, Blocks.STONE);
-        h.setBlock(7, 2, 3, Blocks.STONE);
-        h.setBlock(7, 2, 4, Blocks.STONE);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        BlockPos[] stones = {new BlockPos(6, 2, 6), new BlockPos(7, 2, 8), new BlockPos(7, 2, 4)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.OAK_LOG);
+        for (BlockPos stone : stones) h.setBlock(stone, Blocks.STONE);
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos pos : logs) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "oak log should be directly visible at " + pos);
+        for (BlockPos pos : stones) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "stone should be directly visible at " + pos);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
         Result result = new Result();
-        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, true));
         h.succeedWhen(() -> {
+            for (BlockPos pos : logs) if (h.getBlockState(pos).is(Blocks.OAK_LOG))
+                GameTestSupport.observeVisible(h, c, h.absolutePos(pos));
+            for (BlockPos pos : stones) if (h.getBlockState(pos).is(Blocks.STONE))
+                GameTestSupport.observeVisible(h, c, h.absolutePos(pos));
+            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 1, "pickaxes");
@@ -315,10 +354,22 @@ public class ObtainTests {
         chest.setChanged();
         h.setBlock(6, 2, 2, Blocks.STONE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))),
+                "chest should be directly visible");
         Result result = new Result();
-        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        TaskRunner runner = new TaskRunner(c, () -> 2400, () -> false);
+        runner.setListener(result);
+        runner.start(new CheckContainerTask(h.absolutePos(new BlockPos(4, 2, 2))), "check_container");
+        boolean[] startedObtain = {false};
         h.succeedWhen(() -> {
             runner.tick();
+            if (!startedObtain[0] && result.status == TaskStatus.SUCCESS) {
+                startedObtain[0] = true;
+                result.status = null;
+                result.summary = null;
+                runner.start(new ObtainTask("minecraft:stone_pickaxe", 1, true, false), "obtain_item");
+            }
+            if (!startedObtain[0]) return;
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("got 1 minecraft:stone_pickaxe in 1 steps: took"),
                     "summary was " + result.summary);
@@ -331,11 +382,21 @@ public class ObtainTests {
         h.setBlock(4, 2, 2, Blocks.IRON_ORE);
         h.setBlock(6, 2, 2, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))),
+                "iron ore should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+                "furnace should be directly visible");
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();
-        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, false));
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, true));
         h.succeedWhen(() -> {
+            if (h.getBlockState(new BlockPos(4, 2, 2)).is(Blocks.IRON_ORE)) {
+                h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))),
+                        "iron ore should still be directly visible during local acquisition");
+            }
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+                    "furnace should still be directly visible during local acquisition");
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 1, "iron ingots");
@@ -345,16 +406,22 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600)
     public void replansAfterTheft(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        for (int x = 4; x <= 6; x++) {
-            for (int z = 2; z <= 3; z++) {
-                h.setBlock(x, 2, z, Blocks.OAK_LOG);
-            }
-        }
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.OAK_LOG);
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos log : logs) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)),
+                "oak log should be directly visible at " + log);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
         Result result = new Result();
-        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false));
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, true));
         boolean[] stolen = {false};
         h.succeedWhen(() -> {
+            for (BlockPos log : logs) if (h.getBlockState(log).is(Blocks.OAK_LOG))
+                h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "remaining log should be visible");
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
             runner.tick();
             if (!stolen[0] && c.inventory().countItem(Items.OAK_LOG) > 0) {
                 for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
@@ -415,15 +482,24 @@ public class ObtainTests {
     public void stepLimit(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(4, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 2, Blocks.OAK_LOG);
-        h.setBlock(4, 2, 3, Blocks.OAK_LOG);
-        h.setBlock(5, 2, 3, Blocks.OAK_LOG);
-        h.setBlock(8, 2, 8, Blocks.CRAFTING_TABLE);
+        h.setBlock(4, 2, 7, Blocks.OAK_LOG);
+        h.setBlock(8, 2, 4, Blocks.OAK_LOG);
+        h.setBlock(8, 2, 6, Blocks.OAK_LOG);
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos[] visibleLogs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        for (BlockPos log : visibleLogs) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)),
+                "oak log should be directly visible at " + log);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be directly visible");
         Result result = new Result();
         TaskRunner runner = obtain(c, result,
                 new ObtainTask("minecraft:wooden_pickaxe", 1, true, false, 1, 24000, 64, 128, 6000));
         h.succeedWhen(() -> {
+            for (BlockPos log : visibleLogs) if (h.getBlockState(log).is(Blocks.OAK_LOG))
+                h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "remaining log should be visible");
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should remain visible");
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("gave up after 1 steps"), "summary was " + result.summary);

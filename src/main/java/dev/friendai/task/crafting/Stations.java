@@ -4,6 +4,8 @@ import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -36,18 +38,32 @@ public final class Stations {
 
     private Stations() {}
 
-    /** The nearest block of the station's type within {@link #SEARCH_RADIUS}; empty for {@code INVENTORY}. */
+    /** World-scanning fixture helper. Production companion decisions must use {@link #nearby(CompanionEntity, Station)}. */
+    @Deprecated(forRemoval = true)
     public static Optional<BlockPos> nearby(ServerLevel level, BlockPos origin, Station station) {
         List<BlockPos> found = nearbyAll(level, origin, station, 1);
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
-    /** Up to {@code limit} blocks of the station's type within {@link #SEARCH_RADIUS}, nearest first. */
+    /** World-scanning fixture helper. Production companion decisions must use {@link #nearbyAll(CompanionEntity, Station, int)}. */
+    @Deprecated(forRemoval = true)
     public static List<BlockPos> nearbyAll(ServerLevel level, BlockPos origin, Station station, int limit) {
         if (block(station) == null) {
             return List.of();
         }
         return BlockSearch.nearestN(level, origin, SEARCH_RADIUS, matcher(station), Set.of(), limit);
+    }
+
+    /** Evidence-backed station candidates for companion decisions. */
+    public static List<BlockPos> nearbyAll(CompanionEntity companion, Station station, int limit) {
+        if (!(companion.level() instanceof ServerLevel level) || block(station) == null) return List.of();
+        ResourceCandidates candidates = FriendaiServerState.get(level.getServer()).resources();
+        return candidates.knownOrVisible(companion, matcher(station), SEARCH_RADIUS, limit);
+    }
+
+    public static Optional<BlockPos> nearby(CompanionEntity companion, Station station) {
+        List<BlockPos> found = nearbyAll(companion, station, 1);
+        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
     private static BlockMatcher matcher(Station station) {
@@ -56,7 +72,8 @@ public final class Stations {
             @Override
             public boolean test(BlockState state) {
                 if (station == Station.CAMPFIRE) {
-                    return state.is(BlockTags.CAMPFIRES) && CampfireBlock.isLitCampfire(state);
+                    return state.is(BlockTags.CAMPFIRES) && state.hasProperty(CampfireBlock.LIT)
+                            && state.getValue(CampfireBlock.LIT);
                 }
                 return state.is(block);
             }
@@ -73,9 +90,8 @@ public final class Stations {
     /** The stations the companion can use where it stands, for the planner. */
     public static Set<Station> available(ServerLevel level, CompanionEntity companion) {
         Set<Station> available = EnumSet.of(Station.INVENTORY);
-        BlockPos origin = companion.blockPosition();
         for (Station station : Station.values()) {
-            if (station != Station.INVENTORY && nearby(level, origin, station).isPresent()) {
+            if (station != Station.INVENTORY && nearby(companion, station).isPresent()) {
                 available.add(station);
             }
         }
@@ -107,6 +123,26 @@ public final class Stations {
                     }
                 }
             }
+        }
+        return false;
+    }
+
+    /** Evaluates base features only from direct observations, for production station selection. */
+    public static boolean looksLikeBase(CompanionEntity companion, BlockPos pos) {
+        if (!(companion.level() instanceof ServerLevel level)) return false;
+        var observations = FriendaiServerState.get(level.getServer()).resources().currentVisible(companion, BASE_RADIUS * 2);
+        int kinds = 0;
+        for (var observation : observations) {
+            var p = observation.location().pos();
+            BlockPos seen = new BlockPos(p.x(), p.y(), p.z());
+            if (seen.equals(pos) || Math.abs(seen.getX() - pos.getX()) > BASE_RADIUS
+                    || Math.abs(seen.getY() - pos.getY()) > BASE_RADIUS
+                    || Math.abs(seen.getZ() - pos.getZ()) > BASE_RADIUS) continue;
+            var id = net.minecraft.resources.Identifier.tryParse(observation.blockId());
+            if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) continue;
+            int kind = kind(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState(), false);
+            kinds |= kind;
+            if (Integer.bitCount(kinds) >= BASE_KINDS) return true;
         }
         return false;
     }

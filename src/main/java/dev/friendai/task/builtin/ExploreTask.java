@@ -119,6 +119,11 @@ public final class ExploreTask implements Task {
         return down ? digTick(c) : surfaceTick(c);
     }
 
+    /** Number of blocks actually removed by this bounded exploration leg. */
+    public int excavationBlocks() {
+        return blocksDug;
+    }
+
     private TaskStatus surfaceTick(TaskContext c) {
         CompanionEntity companion = c.companion();
         if (companion.blockPosition().equals(previousFoot)) {
@@ -212,7 +217,8 @@ public final class ExploreTask implements Task {
 
     private boolean found(ServerLevel level, CompanionEntity companion) {
         BlockPos origin = companion.blockPosition();
-        return BlockSearch.nearest(level, origin, down ? 6 : Math.min(16, maxRadius), target, Set.of())
+        var evidence = dev.friendai.core.FriendaiServerState.get(level.getServer()).resources();
+        return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream().findFirst()
                 .map(pos -> {
                     BlockState state = level.getBlockState(pos);
                     summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at "

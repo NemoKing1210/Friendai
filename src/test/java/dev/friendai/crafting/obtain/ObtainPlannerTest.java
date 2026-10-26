@@ -8,6 +8,7 @@ import dev.friendai.crafting.FakeRecipeBook;
 import dev.friendai.crafting.Ingredient;
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
+import dev.friendai.pathing.Pos;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +76,52 @@ class ObtainPlannerTest {
         assertEquals(2, plan.steps().size(), plan.steps().toString());
         assertEquals(OAK_LOG, ((ObtainStep.Mine) plan.steps().get(0)).block());
         assertEquals(WOODEN_PICKAXE, ((ObtainStep.Craft) plan.steps().get(1)).item());
+    }
+
+    @Test
+    void rememberedResourceProducesConditionalVisitPrefix() {
+        ResourceCandidate candidate = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
+                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
+        ResourceCandidate tied = new ResourceCandidate(42, OAK_LOG, "minecraft:overworld",
+                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
+        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(tied, candidate));
+
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+
+        assertFalse(plan.ok());
+        assertTrue(plan.conditional());
+        assertTrue(plan.actionable());
+        assertEquals(Map.of(OAK_LOG, 1), plan.missing());
+        assertEquals(List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", OAK_LOG)), plan.steps());
+    }
+
+    @Test
+    void rememberedResourceIsIgnoredWhenExplorationIsDisabled() {
+        ResourceCandidate candidate = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
+                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
+        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()), false, true, List.of(candidate));
+
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+
+        assertFalse(plan.actionable());
+        assertFalse(plan.conditional());
+        assertTrue(plan.steps().isEmpty());
+    }
+
+    @Test
+    void excludedSiteFallsBackToNextRememberedSite() {
+        ResourceCandidate first = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
+                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
+        ResourceCandidate second = new ResourceCandidate(42, OAK_LOG, "minecraft:overworld",
+                new Pos(50, 64, 0), new Pos(49, 64, 0), 5, 1_200, false, false, 220.0);
+        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(first, second), Set.of(), Set.of(41L));
+
+        ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
+
+        assertEquals(new ObtainStep.VisitResource(42, "minecraft:overworld", OAK_LOG), plan.steps().get(0));
     }
 
     @Test

@@ -125,6 +125,16 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Resource mining and exploration
 
+- [ ] Walk past an exposed resource without starting a brain turn: `known_resources` reports it only after sight; a sealed or occluded resource stays unknown.
+- [ ] Query a remembered site after it has been covered: the result is historical with age/uncertainty, not a promise of remaining supply; the query does not load a distant chunk.
+- [ ] Ask for a remembered resource: the companion visits its saved approach, verifies with fresh sight, then replans before mining.
+- [ ] Ask for `search_resource` on a surface resource: it checks bounded deterministic viewpoints and reports a find only after direct sight; repeat the same goal and verify its budget does not reset.
+- [ ] Ask for `strategy=cave` without a recently observed open descending entrance: it refuses departure and does not turn toward unseen ore.
+- [ ] Observe an open descending entrance with a visible interior wall, then request `strategy=cave`: the companion routes to that observed interior point, searches by direct sight, and returns without treating the entrance itself as a resource.
+- [ ] Seal the visible opening or wait for its evidence to expire: a cave search refuses departure until a qualifying entrance is observed again.
+- [ ] Ask for `strategy=mine` with and without a durable pickaxe and 16 torches: it refuses departure when unprepared, respects the excavation cap, and reports a find only after direct sight.
+- [ ] Restart during a resource search: the active search is reported interrupted and does not resume or excavate automatically.
+- [ ] With expeditions disabled (the default), request an expedition: it is refused. With chunk loading disabled, verify no expedition ticket is held and search stops at the loaded frontier.
 - [ ] Ore under the companion's feet: it moves to a dry supported side stance before breaking the ore and collects the drop.
 - [ ] Buried same-level ore: it tunnels horizontally through allowed blocks; a shorter existing dry passage is preferred.
 - [ ] A descending staircase, including a turn: walk back through it without breaking or placing any more blocks.

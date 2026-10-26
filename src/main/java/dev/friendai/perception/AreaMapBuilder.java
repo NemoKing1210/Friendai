@@ -1,14 +1,12 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.combat.Threats;
-import java.util.HashSet;
-import java.util.Set;
+import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.knowledge.ResourceObservation;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 
 /** Draws the area around the companion at its eye level. Server thread only. */
 public final class AreaMapBuilder {
@@ -16,35 +14,37 @@ public final class AreaMapBuilder {
 
     /** The map around {@code c}; the speaker is {@code O} when the principal (or owner) is in sight. */
     public static String of(CompanionEntity c, UUID principal, int radius) {
-        ServerLevel level = (ServerLevel) c.level();
+        return of(c, principal, radius, null);
+    }
+
+    public static String of(CompanionEntity c, UUID principal, int radius, ResourceCandidates candidates) {
         BlockPos center = c.blockPosition();
         BlockPos speaker = OwnerFocusBuilder.speakerBlock(c, principal).orElse(null);
-        Set<Long> hostiles = new HashSet<>();
-        for (var hostile : Threats.hostilesNear(level, c.position(), radius + 2)) {
-            hostiles.add(hostile.blockPosition().asLong());
+        Map<Long, String> observed = new HashMap<>();
+        if (candidates != null) {
+            for (ResourceObservation observation : candidates.currentVisible(c, radius + 1)) {
+                var pos = observation.location().pos();
+                observed.put(new BlockPos(pos.x(), pos.y(), pos.z()).asLong(), observation.blockId());
+            }
         }
         return AreaMap.render(radius, (dx, dz) -> {
             BlockPos pos = center.offset(dx, 0, dz);
             if (pos.equals(center)) {
                 return '@';
             }
-            if (!level.hasChunkAt(pos)) {
-                return '?';
-            }
             if (pos.equals(speaker)) {
                 return 'O';
             }
-            if (hostiles.contains(pos.asLong())) {
-                return 'Z';
-            }
-            BlockState state = level.getBlockState(pos);
-            if (state.is(Blocks.WATER)) {
+            String blockId = observed.get(pos.asLong());
+            if (blockId == null) return '?';
+            if (blockId.equals("minecraft:water")) {
                 return '~';
             }
-            if (state.is(Blocks.LAVA) || state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE)) {
+            if (blockId.equals("minecraft:lava") || blockId.equals("minecraft:fire")
+                    || blockId.equals("minecraft:soul_fire")) {
                 return '^';
             }
-            return state.getCollisionShape(level, pos).isEmpty() ? '.' : '#';
+            return '#';
         });
     }
 }

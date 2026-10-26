@@ -1,10 +1,13 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.task.mining.TreeFinder;
+import dev.friendai.task.mining.BlockMatcher;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +23,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 public final class PerceptionBuilder {
     private static final Set<String> IGNORED_BLOCKS =
@@ -28,7 +34,6 @@ public final class PerceptionBuilder {
     private static final int DETAILED_RADIUS = 16;
     private static final int ENTITY_RADIUS = 16;
     private static final int TOP = 10;
-    private static final double THREAT_RADIUS = 16;
     private static final int MAX_THREATS = 3;
     private static final int MAX_TREES = 3;
     private static final int TREE_DOWN = 4;
@@ -56,6 +61,7 @@ public final class PerceptionBuilder {
         String weather = level.isThundering() ? "thunder" : level.isRaining() ? "rain" : "clear";
         Double ownerDistance = c.owner().filter(o -> o.level() == level).map(o -> (double) c.distanceTo(o)).orElse(null);
         String task = c.taskRunner().queueSummary();
+        ResourceCandidates resources = FriendaiServerState.get(level.getServer()).resources();
         return new PerceptionSnapshot(
                 pos.getX() + " " + pos.getY() + " " + pos.getZ(),
                 level.dimension().identifier().getPath(),
@@ -66,7 +72,7 @@ public final class PerceptionBuilder {
                 biome,
                 weather,
                 ownerDistance,
-                top(countBlocks(level, pos, blockRadius)),
+                top(countBlocks(resources, c, blockRadius)),
                 top(countEntities(c, level)),
                 inventory(c),
                 c.equipmentText(),
@@ -74,48 +80,49 @@ public final class PerceptionBuilder {
                 focus,
                 selfStatus(c, level, pos),
                 threats(c, level),
-                LandmarkScanner.scan(level, pos),
-                trees(level, pos),
+                LandmarkScanner.scan(c, resources),
+                trees(c, resources, pos),
                 c.experience().level());
     }
 
     /** The nearest tree-like clusters, so the model need not infer a tree from a count of log blocks. */
-    private static List<TreeSummary> trees(ServerLevel level, BlockPos pos) {
+    private static List<TreeSummary> trees(CompanionEntity c, ResourceCandidates resources, BlockPos pos) {
         if (!TaskSettings.treePerception) {
             return List.of();
         }
-        return TreeFinder.find(level, pos, TaskSettings.treePerceptionRadius, TREE_DOWN, TREE_UP, null, MAX_TREES, true)
+        BlockMatcher leaves = BlockMatcher.parse("#minecraft:leaves").orElse(null);
+        Map<BlockPos, String> observedLogs = resources.visibleBlockIds(c, TaskSettings.treePerceptionRadius).entrySet().stream()
+                .filter(entry -> {
+                    var id = Identifier.tryParse(entry.getValue());
+                    return id != null && BuiltInRegistries.BLOCK.containsKey(id)
+                            && BuiltInRegistries.BLOCK.getValue(id).defaultBlockState().is(net.minecraft.tags.BlockTags.LOGS);
+                }).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Set<BlockPos> observedLeaves = leaves == null ? Set.of() : Set.copyOf(resources.visible(c, leaves, TaskSettings.treePerceptionRadius, 1024));
+        return TreeFinder.findObserved((ServerLevel)c.level(), pos, observedLogs, observedLeaves, MAX_TREES)
                 .stream()
                 .map(TreeFinder.TreeInfo::summary)
                 .toList();
     }
 
     private static List<Threat> threats(CompanionEntity c, ServerLevel level) {
-        return Threats.hostilesNear(level, c.position(), THREAT_RADIUS).stream()
-                .limit(MAX_THREATS)
-                .map(e -> new Threat(
-                        shortName(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType())),
-                        c.distanceTo(e),
-                        RelativeDirection.relativeTo(c.getYRot(), e.getX() - c.getX(), e.getZ() - c.getZ()),
-                        e.getHealth(),
-                        e.getMaxHealth(),
-                        targetOf(c, e)))
-                .toList();
+        List<Threat> result = new java.util.ArrayList<>();
+        for (LivingEntity entity : Threats.hostilesNear(level, c.position(), 16)) {
+            if (result.size() >= MAX_THREATS) break;
+            if (level.clip(new ClipContext(c.getEyePosition(), entity.getBoundingBox().getCenter(),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, c)).getType() != HitResult.Type.MISS) continue;
+            result.add(new Threat(shortName(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType())),
+                    c.distanceTo(entity),
+                    RelativeDirection.relativeTo(c.getYRot(), entity.getX() - c.getX(), entity.getZ() - c.getZ()),
+                    entity.getHealth(), entity.getMaxHealth(), targetOf(c, entity)));
+        }
+        return List.copyOf(result);
     }
 
     private static String targetOf(CompanionEntity c, LivingEntity entity) {
-        if (!(entity instanceof Mob mob)) {
-            return "nothing";
-        }
-        LivingEntity target = mob.getTarget();
-        if (target == null) {
-            return "nothing";
-        }
-        if (target == c) {
-            return "me";
-        }
+        if (!(entity instanceof Mob mob) || mob.getTarget() == null) return "nothing";
+        if (mob.getTarget() == c) return "me";
         ServerPlayer owner = c.owner().orElse(null);
-        return owner != null && target == owner ? "owner" : "someone else";
+        return owner != null && mob.getTarget() == owner ? "owner" : "someone else";
     }
 
     private static SelfStatus selfStatus(CompanionEntity c, ServerLevel level, BlockPos pos) {
@@ -132,22 +139,13 @@ public final class PerceptionBuilder {
                 level.canSeeSky(pos), level.getMaxLocalRawBrightness(pos), GroundText.under(level, c), headroom);
     }
 
-    private static Map<String, Integer> countBlocks(ServerLevel level, BlockPos center, int radius) {
+    private static Map<String, Integer> countBlocks(ResourceCandidates resources, CompanionEntity companion, int radius) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int x = center.getX() - radius; x <= center.getX() + radius; x++) {
-            for (int z = center.getZ() - radius; z <= center.getZ() + radius; z++) {
-                if (!level.hasChunkAt(x, z)) {
-                    continue;
-                }
-                for (int y = Math.max(level.getMinY(), center.getY() - radius); y <= Math.min(level.getMaxY(), center.getY() + radius); y++) {
-                    pos.set(x, y, z);
-                    String name = shortName(BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()));
-                    if (!IGNORED_BLOCKS.contains(name)) {
-                        counts.merge(name, 1, Integer::sum);
-                    }
-                }
-            }
+        for (var observation : resources.currentVisible(companion, radius)) {
+            Identifier id = Identifier.tryParse(observation.blockId());
+            if (id == null) continue;
+            String name = shortName(id);
+            if (!IGNORED_BLOCKS.contains(name)) counts.merge(name, 1, Integer::sum);
         }
         return counts;
     }
@@ -156,6 +154,11 @@ public final class PerceptionBuilder {
         Map<String, Integer> counts = new LinkedHashMap<>();
         List<Entity> nearby = level.getEntities(c, c.getBoundingBox().inflate(ENTITY_RADIUS));
         for (Entity e : nearby) {
+            Vec3 eye = c.getEyePosition();
+            Vec3 target = e.getBoundingBox().getCenter();
+            if (eye.distanceToSqr(target) > ENTITY_RADIUS * ENTITY_RADIUS
+                    || level.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER,
+                            ClipContext.Fluid.NONE, c)).getType() != HitResult.Type.MISS) continue;
             counts.merge(shortName(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType())), 1, Integer::sum);
         }
         return counts;

@@ -4,6 +4,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.nav.Approach;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -102,6 +103,9 @@ abstract class ContainerTaskBase implements Task {
             opened = true;
         }
         TaskStatus status = work(c);
+        if (opened && container != null && c.level() instanceof ServerLevel level) {
+            ContainerAccess.recordContents(level, c.companion(), containerPos, container);
+        }
         if (status != TaskStatus.RUNNING) {
             close(c);
         }

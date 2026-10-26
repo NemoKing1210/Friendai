@@ -50,7 +50,7 @@ public final class ScaffoldCleanupTask implements Task {
                 yield TaskStatus.SUCCESS;
             }
             case FAILED -> {
-                summary = "couldn't remove " + scaffold.left() + " scaffold blocks";
+                summary = "couldn't remove " + scaffold.left() + " scaffold blocks: " + scaffold.failure();
                 yield TaskStatus.FAILED;
             }
         };

@@ -277,7 +277,7 @@ public final class CraftTask implements Task {
         if (leased.isPresent() && leaseUsable(c, station, BlockPos.of(leased.getAsLong()), now)) {
             return TaskStatus.RUNNING;
         }
-        Optional<BlockPos> nearby = Stations.nearby(c.level(), companion.blockPosition(), station);
+        Optional<BlockPos> nearby = Stations.nearby(companion, station);
         if (nearby.isPresent()) {
             BlockPos pos = nearby.get();
             usedStations.putIfAbsent(station, pos);
@@ -518,7 +518,7 @@ public final class CraftTask implements Task {
         for (Map.Entry<Station, BlockPos> entry : placedStations.entrySet()) {
             Station station = entry.getKey();
             BlockPos pos = entry.getValue();
-            boolean base = policy == StationPolicy.AUTO && Stations.looksLikeBase(c.level(), pos);
+            boolean base = policy == StationPolicy.AUTO && Stations.looksLikeBase(c.companion(), pos);
             if (policy == StationPolicy.KEEP || base) {
                 c.companion().stationLease().release(station);
                 stationNotes.add("placed a " + station.noun() + " at " + coords(pos)

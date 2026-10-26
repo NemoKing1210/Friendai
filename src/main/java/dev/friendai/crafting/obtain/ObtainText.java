@@ -18,6 +18,11 @@ public final class ObtainText {
      * annotation on the steps that need it.
      */
     public static String planText(ObtainPlan plan, String target, int count, Map<String, Integer> inventory) {
+        if (plan.conditional()) {
+            String prefix = plan.steps().stream().map(ObtainText::stepText).collect(Collectors.joining(", "));
+            return "to get " + count + " " + target + ": conditional prefix " + prefix
+                    + "; verify the remembered source, then replan; unresolved: " + missingText(plan.missing(), false);
+        }
         if (!plan.ok()) {
             return "can't get " + count + " " + target + " here: " + missingText(plan.missing(), false);
         }
@@ -56,6 +61,7 @@ public final class ObtainText {
                     : "craft " + craft.count() + " × " + craft.item();
             case ObtainStep.Smelt smelt -> "smelt " + smelt.count() + " × " + smelt.input();
             case ObtainStep.Mine mine -> "mine " + mine.count() + " × " + mine.block();
+            case ObtainStep.VisitResource visit -> "visit remembered site " + visit.siteId() + " for " + visit.block();
             case ObtainStep.Hunt hunt -> "hunt " + hunt.count() + " × " + hunt.mob();
             case ObtainStep.Harvest harvest -> "harvest " + harvest.count() + " × " + harvest.crop();
             case ObtainStep.Shear shear -> "shear " + shear.count() + " × " + shear.mob();

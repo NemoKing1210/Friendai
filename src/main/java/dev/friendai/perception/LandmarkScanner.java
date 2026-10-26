@@ -8,6 +8,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.knowledge.ResourceObservation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -65,6 +69,39 @@ public final class LandmarkScanner {
                     RelativeDirection.compass(at.getX() - center.getX(), at.getZ() - center.getZ())));
         }
         return landmarks;
+    }
+
+    /** Builds landmarks only from blocks directly seen this tick. */
+    public static List<Landmark> scan(CompanionEntity companion, ResourceCandidates candidates) {
+        BlockPos center = companion.blockPosition();
+        Map<String, ResourceObservation> nearest = new LinkedHashMap<>();
+        for (ResourceObservation observation : candidates.currentVisible(companion, RADIUS)) {
+            Identifier id = Identifier.tryParse(observation.blockId());
+            if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) continue;
+            String kind = kind(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
+            if (kind == null) continue;
+            ResourceObservation old = nearest.get(kind);
+            var p = observation.location().pos();
+            if (old == null || distanceSqr(center, p.x(), p.y(), p.z())
+                    < distanceSqr(center, old.location().pos().x(), old.location().pos().y(), old.location().pos().z())) {
+                nearest.put(kind, observation);
+            }
+        }
+        List<Landmark> result = new ArrayList<>();
+        for (String kind : PRIORITY) {
+            if (result.size() >= LIMIT) break;
+            ResourceObservation observation = nearest.get(kind);
+            if (observation == null) continue;
+            var p = observation.location().pos();
+            result.add(new Landmark(kind, shortName(Identifier.parse(observation.blockId())),
+                    p.x() + " " + p.y() + " " + p.z(), Math.sqrt(distanceSqr(center, p.x(), p.y(), p.z())),
+                    RelativeDirection.compass(p.x() - center.getX(), p.z() - center.getZ())));
+        }
+        return List.copyOf(result);
+    }
+
+    private static double distanceSqr(BlockPos center, int x, int y, int z) {
+        return center.distToCenterSqr(x + 0.5, y + 0.5, z + 0.5);
     }
 
     private static String kind(BlockState state) {

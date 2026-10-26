@@ -312,6 +312,8 @@ public class PlanTests {
         }
         h.setBlock(4, 241, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 241, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 241, 2))),
+                "blast furnace should be directly visible");
         c.inventory().addItem(new ItemStack(Items.RAW_IRON));
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();

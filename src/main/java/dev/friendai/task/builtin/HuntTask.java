@@ -14,6 +14,8 @@ import java.util.function.Predicate;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /** Hunts and kills mobs of a kind near where it started, then collects the drops. */
@@ -103,6 +105,8 @@ public final class HuntTask implements Task {
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity : nearby) {
+            if (c.level().clip(new ClipContext(companion.getEyePosition(), entity.getBoundingBox().getCenter(),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion)).getType() != HitResult.Type.MISS) continue;
             if (Threats.isProtected(entity, companion, ownerOrdered)) {
                 skipped.add(entity.getUUID());
                 continue;

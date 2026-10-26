@@ -302,6 +302,7 @@ public class CraftingTests {
                 "no stonecutter is nearby");
 
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, table), "crafting table should be directly visible");
         Set<Station> available = Stations.available(h.getLevel(), c);
         h.assertTrue(available.contains(Station.INVENTORY), "the inventory is always available: " + available);
         h.assertTrue(available.contains(Station.CRAFTING_TABLE), "available should find the crafting table: " + available);
@@ -584,10 +585,16 @@ public class CraftingTests {
         h.setBlock(6, BASE_DECK + 1, 2, Blocks.CHEST);
         h.setBlock(2, BASE_DECK + 1, 6, Blocks.BED.white());
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BASE_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, BASE_DECK + 1, 2))),
+                "base chest should be directly visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, BASE_DECK + 1, 6))),
+                "base bed should be directly visible");
         addLogs(c, Items.OAK_LOG, 3);
         Result result = new Result();
         TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
         h.succeedWhen(() -> {
+            GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, BASE_DECK + 1, 2)));
+            GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, BASE_DECK + 1, 6)));
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(0, c.inventory().countItem(Items.CRAFTING_TABLE), "crafting tables");
@@ -638,6 +645,7 @@ public class CraftingTests {
         h.setBlock(8, EXISTING_DECK + 1, 2, Blocks.CRAFTING_TABLE);
         BlockPos table = h.absolutePos(new BlockPos(8, EXISTING_DECK + 1, 2));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, EXISTING_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, table), "crafting table should be directly visible");
         c.inventory().addItem(new ItemStack(Items.SPRUCE_PLANKS, 3));
         c.inventory().addItem(new ItemStack(Items.STICK, 2));
         Result result = new Result();
@@ -660,6 +668,14 @@ public class CraftingTests {
         h.setBlock(8, STONECUTTER_DECK + 1, 2, Blocks.STONECUTTER);
         h.setBlock(8, STONECUTTER_DECK + 1, 6, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, STONECUTTER_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))), "stonecutter should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))), "crafting table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))), "stonecutter should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))), "crafting table should be visible");
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 4));
         Result result = new Result();
         TaskRunner runner = craft(c, result, "minecraft:andesite_stairs", 4);
@@ -677,6 +693,10 @@ public class CraftingTests {
         deck(h, 16, SMITHING_DECK);
         h.setBlock(8, SMITHING_DECK + 1, 2, Blocks.SMITHING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, SMITHING_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))), "smithing table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))), "smithing table should be visible");
         Holder<Enchantment> sharpness =
                 h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.SHARPNESS);
         ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
@@ -706,6 +726,10 @@ public class CraftingTests {
         deck(h, 16, CAKE_DECK);
         h.setBlock(8, CAKE_DECK + 1, 2, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, CAKE_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))), "crafting table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c,
+                h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))), "crafting table should be visible");
         for (int i = 0; i < 3; i++) {
             c.inventory().addItem(new ItemStack(Items.MILK_BUCKET));
         }

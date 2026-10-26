@@ -306,6 +306,8 @@ public class StorageTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(12, 2, 3, Blocks.CHEST);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 3))),
+                "first chest should be directly visible");
         c.inventory().addItem(new ItemStack(Items.DIRT, 5));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -317,7 +319,10 @@ public class StorageTests {
         h.assertTrue(c.inventory().countItem(Items.DIRT) == 5, "the inventory must be unchanged");
         h.assertTrue(result.cancelled == 1, "one cancel event, got " + result.cancelled);
 
-        h.setBlock(5, 2, 5, Blocks.CHEST);
+        BlockPos secondChest = new BlockPos(5, 2, 5);
+        h.setBlock(secondChest, Blocks.CHEST);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(secondChest)),
+                "second chest should be directly visible");
         runner.start(store(null, Integer.MAX_VALUE, h, 5, 2, 5), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -376,6 +381,7 @@ public class StorageTests {
         containerAt(h, 12, 2, 6).setItem(0, new ItemStack(Items.LAPIS_LAZULI, 3));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos far = h.absolutePos(new BlockPos(12, 2, 6));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, far), "the chest with lapis should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:lapis_lazuli"), 3, null), "take_items");

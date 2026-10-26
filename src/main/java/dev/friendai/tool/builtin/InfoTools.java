@@ -1,6 +1,7 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.perception.AreaMapBuilder;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
@@ -57,8 +58,24 @@ final class InfoTools {
                             : null;
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
                     int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
-                    List<TreeFinder.TreeInfo> found =
-                            TreeFinder.find((ServerLevel) c.level(), origin, radius, matcher, limit, false);
+                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    // Observations are stored relative to the companion, while this query may be centred on the
+                    // speaking player. Expand only the evidence lookup; TreeFinder still applies the requested
+                    // radius around origin, and this does not inspect the world for unseen blocks.
+                    int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
+                    BlockMatcher logs = matcher == null ? ToolKit.parseBlockMatcher("#minecraft:logs") : matcher;
+                    var observedIds = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
+                            .filter(entry -> {
+                                var id = Identifier.tryParse(entry.getValue());
+                                return id != null && BuiltInRegistries.BLOCK.containsKey(id)
+                                        && logs.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
+                            }).collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+                    BlockMatcher leavesMatcher = ToolKit.parseBlockMatcher("#minecraft:leaves");
+                    Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
+                            .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
+                            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    List<TreeFinder.TreeInfo> found = TreeFinder.findObserved((ServerLevel) c.level(), origin,
+                            observedIds, leaves, limit);
                     List<TreeSummary> trees = found.stream()
                             .filter(t -> t.kind() != TreeFinder.Kind.LOG_STRUCTURE)
                             .map(TreeFinder.TreeInfo::summary)
@@ -73,7 +90,8 @@ final class InfoTools {
                 AccessLevel.GUEST,
                 (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText())));
         registry.register(ToolKit.instantTool("find_blocks",
-                "List the nearest blocks of a given id or #tag with coordinates. Use it before planning.",
+                "List directly observed or remembered blocks of a given id or #tag with coordinates. Results are "
+                        + "observations, not a survey of unseen terrain.",
                 SchemaBuilder.object()
                         .string("block", "Block id like minecraft:iron_ore, or a tag like #minecraft:logs")
                         .integer("radius", "Search radius in blocks", 1, 64)
@@ -84,12 +102,13 @@ final class InfoTools {
                     BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : mineRadius.getAsInt();
                     int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
-                    List<BlockPos> found = BlockSearch.nearestN(
-                            (ServerLevel) c.level(), c.blockPosition(), radius, matcher, Set.of(), limit);
+                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    List<BlockPos> found = resources.knownOrVisible(c, matcher, radius, limit);
                     if (found.isEmpty()) {
                         return ToolResult.ok("no " + matcher.label() + " within " + radius + " blocks");
                     }
-                    StringBuilder text = new StringBuilder(found.size() + " x " + matcher.label() + " nearest first: ");
+                    StringBuilder text = new StringBuilder(found.size() + " observed/remembered " + matcher.label()
+                            + " nearest first: ");
                     for (int i = 0; i < found.size(); i++) {
                         BlockPos p = found.get(i);
                         if (i > 0) {
@@ -129,6 +148,13 @@ final class InfoTools {
                     if (pos == null) {
                         return ToolResult.error("no block in view; pass x, y and z");
                     }
+                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    if (asked.isPresent() && !resources.currentlyVisible(c, pos)) {
+                        Optional<String> remembered = resources.rememberedBlockId(c, pos);
+                        if (remembered.isEmpty()) return ToolResult.ok("unknown at " + pos.getX() + " " + pos.getY() + " " + pos.getZ());
+                        return ToolResult.ok("historically observed " + remembered.get() + " at " + pos.getX() + " "
+                                + pos.getY() + " " + pos.getZ() + "; current contents are unknown until seen again");
+                    }
                     ServerLevel level = (ServerLevel) c.level();
                     if (!level.hasChunkAt(pos)) {
                         return ToolResult.error("that chunk is not loaded");
@@ -163,7 +189,8 @@ final class InfoTools {
                 () -> true,
                 (c, caller, a) -> {
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : 8;
-                    return ToolResult.ok(AreaMapBuilder.of(c, caller.uuid(), radius));
+                    return ToolResult.ok(AreaMapBuilder.of(c, caller.uuid(), radius,
+                            FriendaiServerState.get(c.level().getServer()).resources()));
                 }));
     }
 

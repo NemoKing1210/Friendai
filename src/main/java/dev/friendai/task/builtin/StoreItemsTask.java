@@ -45,7 +45,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
 
     @Override
     protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
-        return ContainerAccess.nearest(level, companion.blockPosition(), RADIUS);
+        return ContainerAccess.nearest(companion, RADIUS);
     }
 
     @Override

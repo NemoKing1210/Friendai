@@ -367,12 +367,14 @@ public class HungerTests {
     @GameTest(maxTicks = 2400)
     public void getFoodCooksFirst(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 16);
-        h.setBlock(10, 200, 10, Blocks.FURNACE);
+        h.setBlock(8, 200, 4, Blocks.FURNACE);
         h.setBlock(12, 200, 4, Blocks.CHEST);
         Container chest = containerAt(h, 12, 200, 4);
         chest.setItem(0, new ItemStack(Items.BREAD, 2));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 201, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 200, 4))),
+                "furnace should be directly visible");
         c.inventory().addItem(new ItemStack(Items.BEEF, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         FoodListener n = new FoodListener(c);
@@ -394,6 +396,8 @@ public class HungerTests {
         chest.setItem(0, new ItemStack(Items.BREAD, 5));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 153, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 152, 8))),
+                "bread chest should be directly visible");
         FoodListener n = new FoodListener(c);
         c.taskRunner().setListener(n);
         c.taskRunner().start(new GetFoodTask(2), "get_food");
@@ -408,8 +412,10 @@ public class HungerTests {
     @GameTest(maxTicks = 2400)
     public void getFoodBakesBread(GameTestHelper h) {
         GameTestSupport.platformAt(h, 56, 16);
-        h.setBlock(8, 56, 8, Blocks.CRAFTING_TABLE);
+        h.setBlock(7, 56, 4, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 57, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 56, 4))),
+                "crafting table should be directly visible");
         c.inventory().addItem(new ItemStack(Items.WHEAT, 3));
         FoodListener n = new FoodListener(c);
         c.taskRunner().setListener(n);
@@ -427,8 +433,10 @@ public class HungerTests {
         GameTestSupport.platformAt(h, 80, 16);
         // Walled: a hurt cow panics and would otherwise run off the platform and die in the fall.
         GameTestSupport.enclose(h, 80, 16, 4);
-        h.setBlock(10, 80, 10, Blocks.FURNACE);
+        h.setBlock(8, 80, 3, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 81, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 80, 3))),
+                "furnace should be directly visible");
         h.spawn(EntityTypes.COW, 6, 81, 6);
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         FoodListener n = new FoodListener(c);
@@ -484,6 +492,8 @@ public class HungerTests {
         chest.setItem(0, new ItemStack(Items.BREAD, 4));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 129, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 128, 8))),
+                "bread chest should be directly visible");
         c.hunger().load(3, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
         c.taskRunner().setListener(n);

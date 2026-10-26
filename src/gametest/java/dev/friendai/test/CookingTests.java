@@ -170,7 +170,9 @@ public class CookingTests {
         deck(h, 16, COLLECT_DECK);
         h.setBlock(4, COLLECT_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, COLLECT_DECK + 1, 2, Blocks.FURNACE);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, COLLECT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, COLLECT_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, COLLECT_DECK + 1, 2)), "first furnace should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, COLLECT_DECK + 1, 2)), "second furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
         Result loaded = new Result();
@@ -206,6 +208,7 @@ public class CookingTests {
         furnace.setItem(2, new ItemStack(Items.COOKED_SALMON, 3));
         furnace.setItem(1, new ItemStack(Items.COAL));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
         Result result = new Result();
         TaskRunner runner = collect(c, result, pos);
         h.succeedWhen(() -> {
@@ -223,6 +226,7 @@ public class CookingTests {
         furnaceAt(h, 4, GIVEN_DECK + 1, 2);
         BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "empty furnace should be visible");
         Result result = new Result();
         TaskRunner runner = collect(c, result, pos);
         h.succeedWhen(() -> {
@@ -309,6 +313,7 @@ public class CookingTests {
         deck(h, 16, LAVA_DECK);
         h.setBlock(4, LAVA_DECK + 1, 2, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, LAVA_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, LAVA_DECK + 1, 2)), "furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.LAVA_BUCKET, 1));
         Result result = new Result();
@@ -326,6 +331,7 @@ public class CookingTests {
         deck(h, 16, LOAD_DECK);
         h.setBlock(8, LOAD_DECK + 1, 2, Blocks.SMOKER);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, LOAD_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, LOAD_DECK + 1, 2)), "smoker should be visible");
         c.inventory().addItem(new ItemStack(Items.CHICKEN, 1));
         c.inventory().addItem(new ItemStack(Items.RABBIT, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
@@ -368,6 +374,7 @@ public class CookingTests {
         deck(h, 16, WAIT_DECK);
         h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, WAIT_DECK + 1, 2)), "furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -388,6 +395,7 @@ public class CookingTests {
         deck(h, 16, WAIT_DECK);
         h.setBlock(4, WAIT_DECK + 1, 2, Blocks.CAMPFIRE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, WAIT_DECK + 1, 2)), "campfire should be visible");
         c.inventory().addItem(new ItemStack(Items.MUTTON, 2));
         Result result = new Result();
         TaskRunner runner = smelt(c, result, "minecraft:mutton", 2, Station.CAMPFIRE, null, false, 60 * 20);
@@ -407,6 +415,7 @@ public class CookingTests {
         h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
         BlockPos pos = pos(h, 4, WAIT_DECK + 1, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.KELP, 2));
         c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 1));
         Result result = new Result();
@@ -427,6 +436,7 @@ public class CookingTests {
         h.setBlock(4, BROKEN_DECK + 1, 2, Blocks.FURNACE);
         BlockPos pos = pos(h, 4, BROKEN_DECK + 1, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BROKEN_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -452,6 +462,7 @@ public class CookingTests {
         deck(h, 16, TAG_DECK);
         h.setBlock(4, TAG_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAG_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, TAG_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.IRON_ORE, 1));
         c.inventory().addItem(new ItemStack(Items.DEEPSLATE_IRON_ORE, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
@@ -528,7 +539,9 @@ public class CookingTests {
         deck(h, 16, LOAD_DECK);
         h.setBlock(4, LOAD_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, LOAD_DECK + 1, 2, Blocks.FURNACE);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, LOAD_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, LOAD_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, LOAD_DECK + 1, 2)), "first furnace should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, LOAD_DECK + 1, 2)), "second furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
         Result result = new Result();
@@ -558,7 +571,9 @@ public class CookingTests {
         deck(h, 16, BLAST_DECK);
         h.setBlock(4, BLAST_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, BLAST_DECK + 1, 2, Blocks.BLAST_FURNACE);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BLAST_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BLAST_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, BLAST_DECK + 1, 2)), "furnace should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, BLAST_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -575,7 +590,9 @@ public class CookingTests {
         deck(h, 16, SMOKER_DECK);
         h.setBlock(4, SMOKER_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, SMOKER_DECK + 1, 2, Blocks.SMOKER);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, SMOKER_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, SMOKER_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, SMOKER_DECK + 1, 2)), "furnace should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, SMOKER_DECK + 1, 2)), "smoker should be visible");
         c.inventory().addItem(new ItemStack(Items.COD, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -595,7 +612,9 @@ public class CookingTests {
         var busy = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
                 h.getLevel().getBlockEntity(pos(h, 4, BUSY_DECK + 1, 2));
         busy.setItem(0, new ItemStack(Items.RAW_IRON));
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BUSY_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BUSY_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, BUSY_DECK + 1, 2)), "busy furnace should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, BUSY_DECK + 1, 2)), "free furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -636,6 +655,7 @@ public class CookingTests {
         deck(h, 16, NOFUEL_DECK);
         h.setBlock(4, NOFUEL_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, NOFUEL_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, NOFUEL_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.OAK_BOAT));
         Result result = new Result();
@@ -796,6 +816,8 @@ public class CookingTests {
         BlockPos origin = pos(h, 2, 2, 2);
         h.setBlock(6, 2, 2, Blocks.CAMPFIRE);
         BlockPos campfire = pos(h, 6, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, campfire), "lit campfire should be visible");
         h.assertValueEqual(
                 Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE),
                 Optional.of(campfire),

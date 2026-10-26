@@ -2,6 +2,7 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
@@ -15,6 +16,7 @@ import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -141,13 +143,31 @@ final class GatheringTools {
         // A named block id is the player's explicit word; a tag or no type must never pick a log structure.
         boolean treesOnly = matcher == null || matcher.label().startsWith("#");
         ServerLevel level = (ServerLevel) c.level();
-        List<TreeFinder.TreeInfo> found = TreeFinder.find(level, origin, radius, 16, 32, matcher, 1, treesOnly);
+        var resources = FriendaiServerState.get(level.getServer()).resources();
+        // The sight cache is companion-centred, but a call may search around its speaker. Expand only
+        // the evidence radius here; the exact requested radius is applied around origin below.
+        int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
+        BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
+        var observed = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
+                .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
+                .filter(entry -> {
+                    var id = net.minecraft.resources.Identifier.tryParse(entry.getValue());
+                    return id != null && net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(id)
+                            && logs.test(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
+                }).collect(java.util.stream.Collectors.toMap(
+                        (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
+                        (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
+        var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
+        Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
+                .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        List<TreeFinder.TreeInfo> found = TreeFinder.findObserved(level, origin, observed, leaves, 1).stream()
+                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE).toList();
         if (found.isEmpty()) {
             String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
             String hint = "";
             if (treesOnly) {
-                List<TreeFinder.TreeInfo> structures =
-                        TreeFinder.find(level, origin, radius, 16, 32, matcher, 1, false);
+                List<TreeFinder.TreeInfo> structures = TreeFinder.findObserved(level, origin, observed, leaves, 1);
                 if (!structures.isEmpty()) {
                     TreeFinder.TreeInfo s = structures.get(0);
                     hint = "; the nearest " + s.type() + " is a log structure at " + s.base().getX() + " "
@@ -161,7 +181,6 @@ final class GatheringTools {
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : TaskSettings.fellCollectDrops;
-        BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
         return new FellTreeTask(found.get(0), logs, limit, collect);
     }
 }

@@ -54,6 +54,28 @@ class ServerConfigTest {
     }
 
     @Test
+    void resourcePolicyDefaultsAndCapsAreSafe() {
+        ServerConfig c = ServerConfig.defaults();
+        assertFalse(c.tasks.resources.allowExpeditions);
+        assertEquals(64, c.tasks.resources.localRadius);
+        assertEquals(2_400, c.tasks.resources.localTicks);
+        assertEquals(512, c.tasks.resources.expeditionRadius);
+        assertEquals(12_000, c.tasks.resources.expeditionTicks);
+        assertEquals(16, c.tasks.resources.observationRadius);
+        c.tasks.resources.localRadius = 1;
+        c.tasks.resources.expeditionRadius = 1;
+        c.tasks.resources.localTicks = 1;
+        c.tasks.resources.expeditionTicks = 1;
+        c.tasks.resources.observationRadius = 100;
+        c.validate();
+        assertEquals(16, c.tasks.resources.localRadius);
+        assertEquals(16, c.tasks.resources.expeditionRadius);
+        assertEquals(200, c.tasks.resources.localTicks);
+        assertEquals(200, c.tasks.resources.expeditionTicks);
+        assertEquals(32, c.tasks.resources.observationRadius);
+    }
+
+    @Test
     void toLlmProfileResolvesEnvKey() {
         ServerConfig c = ServerConfig.defaults();
         LlmProfile p = c.toLlmProfile(Map.of("ANTHROPIC_API_KEY", "secret")::get);
@@ -125,6 +147,20 @@ class ServerConfigTest {
         ServerConfig c = store.load();
         assertEquals("!", c.chat.prefix);
         assertEquals(32, c.chat.hearingRadius);
+        assertTrue(Files.readString(f).contains("\"version\": 7"));
+    }
+
+    @Test
+    void version6FileMigratesWithResourceDefaults(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":6,\"chat\":{\"hearingRadius\":12},\"companion\":{\"chunkLoading\":{\"enabled\":false}}}");
+        var store = new ConfigStore<>(f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ServerConfig c = store.load();
+        assertEquals(12, c.chat.hearingRadius);
+        assertFalse(c.companion.chunkLoading.enabled);
+        assertFalse(c.tasks.resources.allowExpeditions);
+        assertEquals(64, c.tasks.resources.localRadius);
+        assertEquals(2_400, c.tasks.resources.localTicks);
         assertTrue(Files.readString(f).contains("\"version\": 7"));
     }
 
