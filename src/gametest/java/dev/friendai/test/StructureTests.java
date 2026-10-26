@@ -2,9 +2,14 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.structure.Offset;
 import dev.friendai.structure.SpecialStructure;
 import dev.friendai.structure.StructureBook;
 import dev.friendai.structure.StructureSnapshot;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.SpecialStructureTask;
 import dev.friendai.task.structure.StructureIndex;
 import dev.friendai.task.structure.StructureSite;
 import dev.friendai.task.structure.StructureSnapshotBuilder;
@@ -12,6 +17,9 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 
 public class StructureTests {
@@ -77,5 +85,156 @@ public class StructureTests {
                 "the iron block at offset 1,0,0 should count as built");
         h.assertTrue(snap.footprintFree(), "a correct body block does not block the footprint");
         h.succeed();
+    }
+
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary = "";
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+
+        @Override
+        public void onNotice(String text) {}
+    }
+
+    private static TaskRunner runner(CompanionEntity companion, Result result) {
+        TaskRunner runner = new TaskRunner(companion, () -> 600, () -> false);
+        runner.setListener(result);
+        return runner;
+    }
+
+    private static SpecialStructureTask task(GameTestHelper h, String id, int x, int y, int z) {
+        return new SpecialStructureTask(structure(id), h.absolutePos(new BlockPos(x, y, z)), Rotation.NONE, 4);
+    }
+
+    private static int count(GameTestHelper h, net.minecraft.world.entity.EntityType<?> type) {
+        return h.getLevel().getEntities(type, e -> true).size();
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void snow_golem_spawns(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
+        c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(count(h, EntityTypes.SNOW_GOLEM) >= 1, "a snow golem should exist");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void iron_golem_spawns(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.IRON_BLOCK, 4));
+        c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "iron_golem", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(count(h, EntityTypes.IRON_GOLEM) >= 1, "an iron golem should exist");
+        });
+    }
+
+    @GameTest(maxTicks = 4000)
+    public void nether_portal_lights(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).is(Blocks.NETHER_PORTAL), "the portal should be lit");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void blocked_by_stone(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
+        c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
+        h.setBlock(3, 3, 3, Blocks.STONE);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status);
+            h.assertTrue(result.summary.contains("room"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void protected_area_fails_with_reason(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
+        c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
+        c.hands().overrideProtection(pos -> true);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status);
+            h.assertTrue(result.summary.contains("protect"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void finishing_item_missing_names_item(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status);
+            h.assertTrue(result.summary.contains("flint_and_steel"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(3, 3, 3)).isAir(), "nothing should be built without the item");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void existing_frame_skips_building(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        StructureSite site = new StructureSite(h.absolutePos(new BlockPos(3, 2, 3)), Rotation.NONE);
+        SpecialStructure portal = structure("nether_portal");
+        for (var block : portal.body().blocks()) {
+            h.getLevel().setBlock(site.pos(portal, new Offset(block.x(), block.y(), block.z())),
+                    Blocks.OBSIDIAN.defaultBlockState(), 3);
+        }
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).is(Blocks.NETHER_PORTAL), "the portal should be lit");
+        });
     }
 }
