@@ -6,6 +6,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
+import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.pathing.Pos;
 import dev.friendai.crafting.Station;
@@ -166,13 +167,16 @@ public class ResourceObservationTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
+        companion.setNoGravity(true);
+        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         var state = FriendaiServerState.get(h.getLevel().getServer());
         h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
         CompanionManager.get(h.getLevel().getServer()).register(companion);
-        state.observations().register(companion);
+        var scheduler = new ObservationScheduler(state.resources()::observe);
+        scheduler.register(companion);
         h.succeedWhen(() -> {
-            state.observations().tick(h.getLevel().getServer(),
+            scheduler.tick(h.getLevel().getServer(),
                     h.getLevel().getServer().overworld().getGameTime());
             BlockPos origin = companion.blockPosition();
             var query = new dev.friendai.knowledge.ResourceQuery.Request(java.util.Set.of("minecraft:coal_ore"),
@@ -216,15 +220,18 @@ public class ResourceObservationTests {
     public void schedulerObservesLoadedOwnerlessCompanion(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setNoGravity(true);
+        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         var state = FriendaiServerState.get(h.getLevel().getServer());
-        state.observations().register(companion);
-        state.observations().observer(companion).inspect(target);
+        var scheduler = new ObservationScheduler(state.resources()::observe);
+        scheduler.register(companion);
+        scheduler.observer(companion).inspect(target);
         h.succeedWhen(() -> {
-            state.observations().tick(h.getLevel().getServer(),
+            scheduler.tick(h.getLevel().getServer(),
                     h.getLevel().getServer().overworld().getGameTime());
-            var observer = state.observations().observer(companion);
+            var observer = scheduler.observer(companion);
             boolean observed = state.resources().currentVisible(companion, 16).stream()
                     .anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore"));
             h.assertTrue(observed, "scheduler should observe a loaded ownerless companion without persisting its sight; queued="

@@ -787,6 +787,7 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.BREAD, 4));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 64));
         h.setBlock(2, 2, 9, Blocks.CHEST);
         var chest = (net.minecraft.world.level.block.entity.ChestBlockEntity)
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 9)));
