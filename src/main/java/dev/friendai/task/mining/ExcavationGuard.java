@@ -15,6 +15,7 @@ import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.PathExecutionGuard;
 import dev.friendai.task.nav.Sight;
+import dev.friendai.text.UserMessage;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -90,6 +91,23 @@ public final class ExcavationGuard implements PathExecutionGuard {
         var block = companion.blockPosition();
         var stance = new dev.friendai.pathing.Node(block.getX(), block.getY(), block.getZ());
         return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
+    }
+
+    /** Localized explanation for a refused explicit target. */
+    public UserMessage targetFailure(TaskContext context, BlockPos target) {
+        CompanionEntity companion = context.companion();
+        BlockState state = context.level().getBlockState(target);
+        if (state.requiresCorrectToolForDrops() && !hasCorrectTool(companion, state)) {
+            return UserMessage.of("friendai.mining.no_tool");
+        }
+        Pos pos = plain(target);
+        if (!bounds.contains(pos) || supportsFootprint(companion, target) || protectedSupports.contains(pos)) {
+            return UserMessage.of("friendai.mining.unsafe_support");
+        }
+        if (unsafeExposure(context.level(), target)) {
+            return UserMessage.of("friendai.mining.unsafe_passage");
+        }
+        return UserMessage.of("friendai.mining.unreachable");
     }
 
     /** A mining-specific fresh view that treats waterlogged cells as water without changing normal navigation. */

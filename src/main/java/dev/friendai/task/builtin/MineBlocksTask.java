@@ -7,6 +7,15 @@ import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.task.mining.MiningSession;
+import dev.friendai.mining.MiningBounds;
+import dev.friendai.pathing.Node;
+import dev.friendai.core.Components;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +38,8 @@ public final class MineBlocksTask implements Task {
     private static final double FEET_RADIUS = 1.5;
 
     private BlockBreaker breaker;
+    private MiningSession miningSession;
+    private boolean miningSessionActive;
     private DropCollector sweep;
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
@@ -69,6 +80,18 @@ public final class MineBlocksTask implements Task {
             }
             return TaskStatus.RUNNING;
         }
+        if (miningSessionActive) {
+            if (miningSession.target() != null && "extract".equals(miningSession.phase())
+                    && !hasRoomForDrops(c, miningSession.target())) {
+                miningSession.stop(c);
+                miningSessionActive = false;
+                summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
+                c.owner().ifPresent(player -> player.sendSystemMessage(
+                        Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+                return TaskStatus.FAILED;
+            }
+            return tickMiningSession(c);
+        }
         if (breaker == null) {
             return search(c);
         }
@@ -99,6 +122,31 @@ public final class MineBlocksTask implements Task {
                 }
                 breaker = null;
                 yield TaskStatus.RUNNING;
+            }
+        };
+    }
+
+    private TaskStatus tickMiningSession(TaskContext c) {
+        MiningSession.State state = miningSession.tick(c);
+        return switch (state) {
+            case WORKING -> TaskStatus.RUNNING;
+            case EXTRACTED -> {
+                lastBroken = miningSession.target();
+                mined++;
+                miningSessionActive = false;
+                yield TaskStatus.RUNNING;
+            }
+            case EXHAUSTED -> {
+                miningSessionActive = false;
+                summary = "mined " + mined + " of " + count + ", mining search limit reached";
+                yield TaskStatus.FAILED;
+            }
+            case FAILED -> {
+                miningSessionActive = false;
+                String reason = miningSession.failure() == null ? "resource became unreachable"
+                        : miningSession.failure().key();
+                summary = "mined " + mined + " of " + count + ", " + reason;
+                yield TaskStatus.FAILED;
             }
         };
     }
@@ -140,10 +188,43 @@ public final class MineBlocksTask implements Task {
             }
             return TaskStatus.FAILED;
         }
-        // The route may pillar up to a block that cannot be reached from the ground, using the material the
-        // companion carries, and it digs away whatever hides the block: mining a kind of block means getting it.
+        boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
+        if (!logs) {
+            if (miningSession == null) {
+                BlockPos start = origin != null ? origin : c.companion().blockPosition();
+                miningSession = new MiningSession(c.companion(), new MiningBounds(
+                        new Node(start.getX(), start.getY(), start.getZ()), radius), 128, 6_000);
+            }
+            miningSession.setTargets(candidates, matcher::test);
+            miningSessionActive = true;
+            return TaskStatus.RUNNING;
+        }
+        // Tree felling keeps its existing placement route and connected-log behavior.
         breaker = new BlockBreaker(candidates, matcher::test, true, true, true);
         return TaskStatus.RUNNING;
+    }
+
+    private static boolean hasRoomForDrops(TaskContext c, BlockPos pos) {
+        BlockState state = c.level().getBlockState(pos);
+        ItemStack tool = c.companion().getMainHandItem();
+        for (int i = 0; i < c.companion().inventory().getContainerSize(); i++) {
+            ItemStack candidate = c.companion().inventory().getItem(i);
+            if (!candidate.isEmpty() && candidate.getDestroySpeed(state) > tool.getDestroySpeed(state)) {
+                tool = candidate;
+            }
+        }
+        List<ItemStack> drops = Block.getDrops(state, c.level(), pos, c.level().getBlockEntity(pos),
+                c.companion(), tool);
+        SimpleContainer projected = new SimpleContainer(c.companion().inventory().getContainerSize());
+        for (int i = 0; i < projected.getContainerSize(); i++) {
+            projected.setItem(i, c.companion().inventory().getItem(i).copy());
+        }
+        for (ItemStack drop : drops) {
+            if (!projected.addItem(drop.copy()).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -190,6 +271,10 @@ public final class MineBlocksTask implements Task {
             breaker.stop(c);
         } else {
             c.companion().getNavigation().stop();
+        }
+        if (miningSession != null) {
+            miningSession.stop(c);
+            miningSessionActive = false;
         }
     }
 

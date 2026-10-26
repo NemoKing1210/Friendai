@@ -246,6 +246,7 @@ public class TreeFellingTests {
         h.setBlock(new BlockPos(5, 2, 5), Blocks.DARK_PRISMARINE); // next to the companion
         var owner = GameTestSupport.mockPlayerAt(h, 9.5, 2, 9.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(net.minecraft.world.item.Items.IRON_PICKAXE.getDefaultInstance());
         c.setOwner(owner.getUUID());
         var started = run(FriendaiTools.create(() -> 32).bind(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), "mine_blocks",

@@ -123,6 +123,17 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Companion death: inventory drops and the owner gets a message; `/friendai summon` creates a new one.
 - [ ] Leave and rejoin the world: the companion is still there; a Stay task is restored.
 
+## Resource mining and exploration
+
+- [ ] Ore under the companion's feet: it moves to a dry supported side stance before breaking the ore and collects the drop.
+- [ ] Buried same-level ore: it tunnels horizontally through allowed blocks; a shorter existing dry passage is preferred.
+- [ ] A descending staircase, including a turn: walk back through it without breaking or placing any more blocks.
+- [ ] Lava or water revealed while excavating: mining stops before another unsafe block is broken; the crack overlay clears.
+- [ ] Pause or resume mining after changing nearby blocks: each pending break and move is checked against the current world.
+- [ ] Deep ore beyond the excavation budget: the companion leaves the ore untouched and reports that the search limit was reached.
+- [ ] Default ore navigation blacklist: an explicitly requested ore is still extractable, while blacklisted corridor blocks stay intact.
+- [ ] Fill the companion's inventory before mining ore: it stops before breaking the target and reports that the inventory is full.
+
 ## Blocks and containers
 
 - [ ] "Put all the cobblestone in the chest" and "bring me 5 iron from the chest": the companion walks to the chest, the lid opens, items move, the result is reported.

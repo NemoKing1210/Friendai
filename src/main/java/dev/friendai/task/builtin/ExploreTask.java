@@ -2,18 +2,18 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.obtain.Spiral;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.mining.MiningBounds;
+import dev.friendai.pathing.Node;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.task.mining.MiningSession;
 import dev.friendai.task.nav.MoveHelper;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -41,36 +41,34 @@ public final class ExploreTask implements Task {
     private final boolean down;
     private final int depthY;
     private final int maxRadius;
+    private final int undergroundRadius;
     private final int maxBlocks;
     private final int maxTicks;
 
     private final MoveHelper mover = new MoveHelper(1.0, 1.5);
-    private final Deque<BlockPos> toBreak = new ArrayDeque<>();
 
     private Vec3 origin;
     private String summary = "";
     private int ticks;
     private int blocksDug;
     private int noProgress;
-    private int stalled;
+    private int lastTorchBlockCount;
+    private int branchSteps;
+    private BlockPos previousFoot;
     private boolean failed;
 
     private Spiral spiral;
     private Vec3 waypoint;
 
     private Direction heading;
-    private BlockBreaker breaker;
-    private Vec3 walkTo;
-    private int walkTicks;
-    private boolean atDepth;
-    private int branchSteps;
-    private BlockPos previousFoot;
+    private MiningSession miningSession;
 
     public ExploreTask(BlockMatcher target, boolean down, int depthY, int maxRadius, int maxBlocks, int maxTicks) {
         this.target = target;
         this.down = down;
         this.depthY = depthY;
         this.maxRadius = Math.max(LEG, maxRadius);
+        this.undergroundRadius = Math.max(0, maxRadius);
         this.maxBlocks = maxBlocks;
         this.maxTicks = maxTicks;
     }
@@ -113,6 +111,9 @@ public final class ExploreTask implements Task {
             return finishFailure(c);
         }
         if ((down ? ticks % 4 == 0 : ticks % 16 == 0) && found(c.level(), c.companion())) {
+            if (miningSession != null) {
+                miningSession.stop(c);
+            }
             return TaskStatus.SUCCESS;
         }
         return down ? digTick(c) : surfaceTick(c);
@@ -163,127 +164,36 @@ public final class ExploreTask implements Task {
 
     private TaskStatus digTick(TaskContext c) {
         CompanionEntity companion = c.companion();
-        ServerLevel level = c.level();
-        if (++stalled > MAX_NO_PROGRESS * 2) {
+        if (miningSession == null) {
+            BlockPos start = companion.blockPosition();
+            miningSession = new MiningSession(companion,
+                    new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), undergroundRadius),
+                    maxBlocks, maxTicks);
+            int legalTargetY = Math.max(c.level().getMinY() + 1, Math.min(depthY, c.level().getMaxY() - 2));
+            miningSession.explore(legalTargetY, headingIndex(heading));
+        }
+        MiningSession.State state = miningSession.tick(c);
+        blocksDug = miningSession.brokenBlocks();
+        branchSteps = miningSession.completedExplorationSteps();
+        if (blocksDug - lastTorchBlockCount >= TORCH_EVERY) {
+            placeTorch(c.level(), companion, companion.blockPosition());
+            lastTorchBlockCount = blocksDug;
+        }
+        if (branchSteps >= BRANCH || blocksDug >= maxBlocks || state == MiningSession.State.EXHAUSTED
+                || state == MiningSession.State.FAILED) {
             return finishFailure(c);
-        }
-        if (breaker != null) {
-            BlockBreaker.State state = breaker.tick(c);
-            switch (state) {
-                case BROKEN -> {
-                    blocksDug++;
-                    stalled = 0;
-                    breaker = null;
-                }
-                case GONE -> breaker = null;
-                case UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
-                    breaker.stop(c);
-                    breaker = null;
-                    turn();
-                }
-                default -> {
-                }
-            }
-            return TaskStatus.RUNNING;
-        }
-        if (!toBreak.isEmpty()) {
-            BlockPos next = toBreak.peek();
-            if (level.getBlockState(next).isAir()) {
-                toBreak.poll();
-                return TaskStatus.RUNNING;
-            }
-            breaker = new BlockBreaker(next, state -> !state.isAir());
-            return TaskStatus.RUNNING;
-        }
-        if (walkTo != null) {
-            double horizontal = Math.hypot(companion.getX() - walkTo.x, companion.getZ() - walkTo.z);
-            if (horizontal <= 0.7 && Math.abs(companion.getY() - walkTo.y) <= 0.8) {
-                walkTo = null;
-                walkTicks = 0;
-                stalled = 0;
-                companion.getNavigation().stop();
-                noProgress = 0;
-                if (previousFoot != null && blocksDug > 0 && blocksDug % TORCH_EVERY == 0) {
-                    placeTorch(level, companion, previousFoot);
-                }
-                previousFoot = companion.blockPosition();
-                return TaskStatus.RUNNING;
-            }
-            companion.pace().update(false, Double.NaN);
-            if (walkTicks++ % 10 == 0) {
-                companion.getNavigation().moveTo(walkTo.x, walkTo.y, walkTo.z, 1.0);
-            }
-            if (walkTicks > MAX_NO_PROGRESS) {
-                walkTo = null;
-                walkTicks = 0;
-                companion.getNavigation().stop();
-                turn();
-            }
-            return TaskStatus.RUNNING;
-        }
-        if (++noProgress > MAX_NO_PROGRESS) {
-            return finishFailure(c);
-        }
-        BlockPos current = companion.blockPosition();
-        if (!atDepth && down && current.getY() <= depthY + 2) {
-            atDepth = true;
-        }
-        if (atDepth && branchSteps >= BRANCH) {
-            return finishFailure(c);
-        }
-        if (blocksDug >= maxBlocks) {
-            return finishFailure(c);
-        }
-        BlockPos foot = atDepth ? current.relative(heading) : current.relative(heading).below();
-        if (!safe(level, foot)) {
-            turn();
-            return TaskStatus.RUNNING;
-        }
-        BlockPos head = foot.above();
-        toBreak.clear();
-        if (!level.getBlockState(head).isAir()) {
-            toBreak.add(head.immutable());
-        }
-        if (!level.getBlockState(foot).isAir()) {
-            toBreak.add(foot.immutable());
-        }
-        walkTo = Vec3.atBottomCenterOf(foot);
-        walkTicks = 0;
-        if (atDepth) {
-            branchSteps++;
         }
         return TaskStatus.RUNNING;
     }
 
-    /** Right, then left, then back: a staircase that meets lava tries another way. */
-    private void turn() {
-        heading = heading.getClockWise();
-        noProgress++;
-    }
-
-    private boolean safe(ServerLevel level, BlockPos foot) {
-        if (foot.getY() <= level.getMinY() || foot.getY() >= level.getMaxY()) {
-            return false;
-        }
-        BlockPos head = foot.above();
-        for (BlockPos cell : List.of(foot, head)) {
-            if (level.getBlockState(cell).getDestroySpeed(level, cell) < 0) {
-                return false;
-            }
-            for (Direction direction : Direction.values()) {
-                BlockState neighbour = level.getBlockState(cell.relative(direction));
-                if (neighbour.is(Blocks.LAVA) || neighbour.is(Blocks.WATER)) {
-                    return false;
-                }
-            }
-        }
-        int drop = 0;
-        BlockPos below = foot.below();
-        while (drop <= 3 && level.getBlockState(below).isAir()) {
-            drop++;
-            below = below.below();
-        }
-        return drop <= 3;
+    private static int headingIndex(Direction direction) {
+        return switch (direction) {
+            case NORTH -> 0;
+            case EAST -> 1;
+            case SOUTH -> 2;
+            case WEST -> 3;
+            default -> 0;
+        };
     }
 
     private void placeTorch(ServerLevel level, CompanionEntity companion, BlockPos pos) {
@@ -314,6 +224,9 @@ public final class ExploreTask implements Task {
 
     private TaskStatus finishFailure(TaskContext c) {
         failed = true;
+        if (miningSession != null) {
+            miningSession.stop(c);
+        }
         if (down) {
             summary = "dug " + blocksDug + " blocks down to Y " + c.companion().blockPosition().getY()
                     + " without finding " + target.label();
@@ -327,9 +240,8 @@ public final class ExploreTask implements Task {
     public void stop(TaskContext c) {
         mover.stop(c);
         c.companion().getNavigation().stop();
-        if (breaker != null) {
-            breaker.stop(c);
-            breaker = null;
+        if (miningSession != null) {
+            miningSession.stop(c);
         }
     }
 

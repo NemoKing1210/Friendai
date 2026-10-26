@@ -8,6 +8,9 @@ import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Node;
 import dev.friendai.pathing.PathStep;
+import dev.friendai.pathing.PathSearch;
+import dev.friendai.pathing.SearchOptions;
+import dev.friendai.pathing.SearchResult;
 import dev.friendai.pathing.Pos;
 import dev.friendai.testutil.GridCellView;
 import java.util.List;
@@ -25,11 +28,22 @@ class MiningSafetyTest {
     }
 
     @Test
-    void alternateSideStanceCanReachUnderfootOre() {
+    void adjacentSideStanceDoesNotOverlapUnderfootOreButFartherStanceCanReach() {
         GridCellView view = miningFloor();
         MiningGoal goal = new MiningGoal(List.of(new Pos(2, 1, 1)), 4, 1.62, Set.of());
 
-        assertTrue(goal.isGoal(new Node(1, 2, 1), view));
+        assertFalse(goal.isGoal(new Node(1, 2, 1), view));
+        assertTrue(goal.isGoal(new Node(0, 2, 1), view));
+    }
+
+    @Test
+    void rejectedLiveStanceDoesNotHideTheTargetFromAnotherStance() {
+        GridCellView view = miningFloor();
+        Node rejected = new Node(1, 2, 1);
+        MiningGoal goal = new MiningGoal(List.of(new Pos(2, 1, 1)), 4, 1.62, Set.of(), Set.of(rejected));
+
+        assertFalse(goal.isGoal(rejected, view));
+        assertTrue(goal.isGoal(new Node(0, 2, 1), view));
     }
 
     @Test
@@ -135,6 +149,42 @@ class MiningSafetyTest {
 
         assertTrue(MiningSafety.reversible(tunnel, dig));
         assertTrue(MiningSafety.reversible(stair, descend));
+    }
+
+    @Test
+    void supportedRouteCanReachResourceBuriedInAHill() {
+        String[] layers = hillLayers();
+        GridCellView view = new GridCellView(layers);
+        Pos target = new Pos(7, 3, 7);
+        Node start = new Node(2, 2, 2);
+        MiningBounds bounds = new MiningBounds(start, 8);
+        MiningGoal goal = new MiningGoal(List.of(target), 1.5, 1.62, Set.of(), Set.of(), true);
+        MiningPathPolicy policy = new MiningPathPolicy(view, bounds, Set.of(), CostModel.DEFAULTS);
+        PathSearch search = new PathSearch(view, CostModel.DEFAULTS, goal, start,
+                new SearchOptions(20_000, 8, 0, 1), policy);
+
+        SearchResult result = search.step(Long.MAX_VALUE, () -> 0L);
+
+        assertEquals(SearchResult.Status.FOUND, result.status(), "expanded=" + search.expanded());
+        assertTrue(result.path().steps().stream().anyMatch(step -> !step.breaks().isEmpty()));
+    }
+
+    private static String[] hillLayers() {
+        String[] layers = new String[7];
+        for (int y = 0; y < layers.length; y++) {
+            StringBuilder layer = new StringBuilder();
+            for (int z = 0; z < 14; z++) {
+                if (z > 0) layer.append('/');
+                for (int x = 0; x < 14; x++) {
+                    char cell = y == 1 ? '#' : '.';
+                    if (y >= 2 && y <= 4 && x >= 5 && x <= 9 && z >= 5 && z <= 9) cell = 'd';
+                    if (x == 7 && y == 3 && z == 7) cell = 'd';
+                    layer.append(cell);
+                }
+            }
+            layers[y] = layer.toString();
+        }
+        return layers;
     }
 
     @Test

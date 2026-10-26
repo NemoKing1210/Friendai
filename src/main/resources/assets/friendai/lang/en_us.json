@@ -309,5 +309,17 @@
   "friendai.menu.memory.save": "Save",
   "friendai.menu.memory.cancel": "Cancel",
   "friendai.menu.memory.text_hint": "Fact text",
-  "friendai.menu.memory.empty_group": "Nothing remembered here."
+  "friendai.menu.memory.empty_group": "Nothing remembered here.",
+
+  "friendai.mining.unsafe_support": "I can't mine a block that supports me or the route.",
+  "friendai.mining.unsafe_passage": "That passage is unsafe to excavate.",
+  "friendai.mining.no_tool": "I don't have a suitable tool to collect this resource.",
+  "friendai.mining.inventory_full": "My inventory has no room for the expected drop.",
+  "friendai.mining.search_limit": "I reached the mining search limit.",
+  "friendai.mining.unreachable": "I can't reach the resource safely.",
+  "friendai.mining.phase.approach": "Approaching the resource",
+  "friendai.mining.phase.descend": "Descending safely",
+  "friendai.mining.phase.tunnel": "Tunneling through stone",
+  "friendai.mining.phase.ascend": "Climbing the passage",
+  "friendai.mining.phase.extract": "Extracting the resource"
 }

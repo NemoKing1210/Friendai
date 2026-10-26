@@ -1,5 +1,6 @@
 package dev.friendai.mining;
 
+import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.Move;
@@ -51,6 +52,14 @@ public final class MiningPathPolicy implements PathPolicy {
         }
         PathStep prepared = new PathStep(step.from(), step.to(), step.move(), new ArrayList<>(breaks),
                 step.places(), cost, step.headUnderwater());
-        return MiningSafety.reversible(view, prepared) ? Optional.of(prepared) : Optional.empty();
+        CellView projectedSource = (x, y, z) -> {
+            Pos pos = new Pos(x, y, z);
+            Cell cell = view.at(x, y, z);
+            if ((pos.equals(step.from().pos()) || pos.equals(step.from().head())) && cell.breakable()) {
+                return Cell.AIR;
+            }
+            return cell;
+        };
+        return MiningSafety.reversible(projectedSource, prepared) ? Optional.of(prepared) : Optional.empty();
     }
 }

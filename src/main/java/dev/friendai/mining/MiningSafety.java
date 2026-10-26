@@ -21,9 +21,38 @@ public final class MiningSafety {
     /** Whether a target may be extracted from this stance without removing its feet, head, or support. */
     public static boolean canBreak(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
         if (target.equals(stance.pos()) || target.equals(stance.head()) || target.equals(stance.support())
-                || protectedSupports.contains(target) || !safeNode(view, stance)) {
+                || protectedSupports.contains(target) || !safeNode(view, stance) || !safeTarget(view, target)) {
             return false;
         }
+        // Keep a full block between the entity's nominal cell and a floor resource: the live footprint can extend
+        // over an adjacent support when movement has not centered perfectly in its destination cell.
+        if (target.y() == stance.y() - 1
+                && Math.max(Math.abs(target.x() - stance.x()), Math.abs(target.z() - stance.z())) == 1) {
+            return false;
+        }
+        return true;
+    }
+
+    /** A supported approach cell may still need its feet or head cleared by the final planned edge. */
+    public static boolean canApproach(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
+        if (target.equals(stance.pos()) || target.equals(stance.head()) || target.equals(stance.support())
+                || protectedSupports.contains(target) || !view.at(stance.support()).supports()
+                || view.at(stance.support()).kind() == Cell.Kind.UNLOADED || !safeTarget(view, target)) {
+            return false;
+        }
+        if (target.y() == stance.y() - 1
+                && Math.max(Math.abs(target.x() - stance.x()), Math.abs(target.z() - stance.z())) == 1) {
+            return false;
+        }
+        Cell feet = view.at(stance.pos());
+        Cell head = view.at(stance.head());
+        if ((!feet.free() && !feet.breakable()) || (!head.free() && !head.breakable())) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean safeTarget(CellView view, Pos target) {
         Cell targetCell = view.at(target);
         if (targetCell.kind() == Cell.Kind.UNLOADED || targetCell.hazard() || targetCell.falls()
                 || targetCell.kind() == Cell.Kind.WATER || targetCell.kind() == Cell.Kind.LAVA) {

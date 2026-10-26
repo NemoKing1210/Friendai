@@ -309,5 +309,17 @@
   "friendai.menu.memory.save": "Сохранить",
   "friendai.menu.memory.cancel": "Отмена",
   "friendai.menu.memory.text_hint": "Текст факта",
-  "friendai.menu.memory.empty_group": "Здесь ничего не запомнено."
+  "friendai.menu.memory.empty_group": "Здесь ничего не запомнено.",
+
+  "friendai.mining.unsafe_support": "Не могу добывать блок, который поддерживает меня или путь.",
+  "friendai.mining.unsafe_passage": "Этот проход небезопасно раскапывать.",
+  "friendai.mining.no_tool": "У меня нет подходящего инструмента, чтобы добыть этот ресурс.",
+  "friendai.mining.inventory_full": "В инвентаре нет места для ожидаемой добычи.",
+  "friendai.mining.search_limit": "Достигнут лимит поиска при добыче.",
+  "friendai.mining.unreachable": "Не могу безопасно добраться до ресурса.",
+  "friendai.mining.phase.approach": "Подхожу к ресурсу",
+  "friendai.mining.phase.descend": "Безопасно спускаюсь",
+  "friendai.mining.phase.tunnel": "Прокладываю туннель",
+  "friendai.mining.phase.ascend": "Поднимаюсь по проходу",
+  "friendai.mining.phase.extract": "Добываю ресурс"
 }

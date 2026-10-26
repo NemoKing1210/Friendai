@@ -250,6 +250,7 @@ public class MineBlocksTests {
         h.setBlock(6, 2, 2, Blocks.DARK_PRISMARINE);
         h.setBlock(10, 2, 2, Blocks.DARK_PRISMARINE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         BlockPos nearer = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(p -> p.equals(nearer));
         Result result = new Result();
@@ -279,6 +280,7 @@ public class MineBlocksTests {
         }
         h.setBlock(new BlockPos(7, 3, 7), Blocks.GRANITE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         Result result = new Result();
         TaskRunner runner = runner(c, result);
         runner.start(mine("minecraft:granite", 1), "mine_blocks");
