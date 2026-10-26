@@ -1,0 +1,355 @@
+package dev.friendai.knowledge;
+
+import dev.friendai.pathing.Pos;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+
+public final class ResourceKnowledge {
+    private static final long STALE_AFTER_TICKS = 24_000;
+    private static final int[][] NEIGHBORS = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+
+    private final KnowledgeLimits limits;
+    private final Map<ResourceObservation.Location, Member> members = new HashMap<>();
+    private final Map<ResourceObservation.Location, Long> siteAt = new HashMap<>();
+    private final Map<Long, MutableSite> sites = new LinkedHashMap<>();
+    private final Map<Long, Summary> summaries = new LinkedHashMap<>();
+    private final Map<Long, Long> aliases = new LinkedHashMap<>();
+    private final Map<FamilyKey, Set<Long>> byFamily = new HashMap<>();
+    private final Map<String, Set<Long>> byBlockId = new HashMap<>();
+    private final Set<Long> pinned = new HashSet<>();
+    private long nextId = 1;
+    private long logicalTick;
+    private long revision;
+
+    public ResourceKnowledge(KnowledgeLimits limits) {
+        this.limits = Objects.requireNonNull(limits, "limits");
+    }
+
+    /** Records direct evidence only; returns -1 when configured caps defer this observation. */
+    public long observe(ResourceObservation observation, String family) {
+        Objects.requireNonNull(observation, "observation");
+        if (family == null || family.isBlank()) throw new IllegalArgumentException("family must not be blank");
+        long tick = advance(observation.observedTick());
+        ResourceObservation.Location location = observation.location();
+        Member existing = members.get(location);
+        if (existing != null) {
+            long resolved = resolve(existing.siteId);
+            MutableSite oldSite = sites.get(resolved);
+            if (oldSite != null && oldSite.family.equals(family) && existing.blockId.equals(observation.blockId())) {
+                existing.lastSeen = Math.max(existing.lastSeen, tick);
+                existing.viewpoint = observation.viewpoint();
+                oldSite.lastSeen = Math.max(oldSite.lastSeen, tick);
+                oldSite.approach = observation.viewpoint();
+                revision++;
+                return resolved;
+            }
+            removeMember(location);
+        }
+
+        Set<Long> adjacent = adjacentSites(location, family);
+        if (members.size() >= limits.memberObservations() && !compactOne(adjacent)) return -1;
+        if (adjacent.isEmpty() && siteCount() >= limits.sites() && !makeSiteRoom()) return -1;
+
+        long id = adjacent.stream().min(Long::compareTo).orElseGet(() -> nextId++);
+        MutableSite target = sites.computeIfAbsent(id, ignored -> new MutableSite(id, family, location.dimension(),
+                location.pos(), observation.viewpoint(), tick));
+        for (long neighbor : adjacent) {
+            if (neighbor != id) mergeInto(id, neighbor);
+        }
+        Member member = new Member(observation.blockId(), family, tick, observation.viewpoint(), id);
+        members.put(location, member);
+        siteAt.put(location, id);
+        target.positions.add(location.pos());
+        target.firstSeen = Math.min(target.firstSeen, tick);
+        target.lastSeen = Math.max(target.lastSeen, tick);
+        target.approach = observation.viewpoint();
+        target.depleted = false;
+        target.representative = representative(target.positions);
+        target.blockIds.add(observation.blockId());
+        indexMember(id, family, observation.blockId());
+        revision++;
+        return id;
+    }
+
+    public void confirmAbsent(ResourceObservation.Location location, long tick) {
+        advance(tick);
+        if (removeMember(location)) revision++;
+    }
+
+    public void extracted(ResourceObservation.Location location, long tick) {
+        confirmAbsent(location, tick);
+    }
+
+    public Optional<ResourceSite> site(long id, long now) {
+        long resolved = resolve(id);
+        MutableSite detailed = sites.get(resolved);
+        long tick = Math.max(logicalTick, now);
+        if (detailed != null) return Optional.of(detailed.snapshot(tick));
+        Summary summary = summaries.get(resolved);
+        return summary == null ? Optional.empty() : Optional.of(summary.snapshot(tick));
+    }
+
+    /** Historical distinct block count; approximate summaries are explicitly marked by their site snapshot. */
+    public int historicalBlockCount(long id) {
+        long resolved = resolve(id);
+        MutableSite detailed = sites.get(resolved);
+        if (detailed != null) return detailed.positions.size();
+        Summary summary = summaries.get(resolved);
+        return summary == null ? 0 : summary.lastCount;
+    }
+
+    public long revision() { return revision; }
+
+    public void pin(long siteId) {
+        long resolved = resolve(siteId);
+        if (sites.containsKey(resolved) || summaries.containsKey(resolved)) pinned.add(resolved);
+    }
+
+    public void unpin(long siteId) { pinned.remove(resolve(siteId)); }
+
+    long logicalTick() { return logicalTick; }
+
+    private long advance(long tick) {
+        logicalTick = Math.max(logicalTick, tick);
+        return logicalTick;
+    }
+
+    private long resolve(long id) {
+        long current = id;
+        Set<Long> seen = null;
+        while (aliases.containsKey(current)) {
+            if (seen == null) seen = new HashSet<>();
+            if (!seen.add(current)) break;
+            current = aliases.get(current);
+        }
+        return current;
+    }
+
+    private Set<Long> adjacentSites(ResourceObservation.Location location, String family) {
+        Set<Long> result = new LinkedHashSet<>();
+        Pos pos = location.pos();
+        for (int[] offset : NEIGHBORS) {
+            Long id = siteAt.get(new ResourceObservation.Location(location.dimension(), pos.offset(offset[0], offset[1], offset[2])));
+            if (id != null) {
+                long resolved = resolve(id);
+                MutableSite site = sites.get(resolved);
+                if (site != null && site.family.equals(family)) result.add(resolved);
+            }
+        }
+        return result;
+    }
+
+    private void mergeInto(long retainedId, long removedId) {
+        MutableSite retained = sites.get(retainedId);
+        MutableSite removed = sites.remove(removedId);
+        if (retained == null || removed == null) return;
+        retained.positions.addAll(removed.positions);
+        retained.blockIds.addAll(removed.blockIds);
+        retained.firstSeen = Math.min(retained.firstSeen, removed.firstSeen);
+        retained.lastSeen = Math.max(retained.lastSeen, removed.lastSeen);
+        retained.representative = representative(retained.positions);
+        if (removed.lastSeen >= retained.lastSeen) retained.approach = removed.approach;
+        for (ResourceObservation.Location location : members.keySet()) {
+            if (members.get(location).siteId == removedId) {
+                members.get(location).siteId = retainedId;
+                siteAt.put(location, retainedId);
+            }
+        }
+        for (String blockId : removed.blockIds) {
+            Set<Long> indexed = byBlockId.get(blockId);
+            if (indexed != null) indexed.remove(removedId);
+            byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(retainedId);
+        }
+        Set<Long> familySites = byFamily.get(new FamilyKey(removed.dimension, removed.family));
+        if (familySites != null) familySites.remove(removedId);
+        if (pinned.remove(removedId)) pinned.add(retainedId);
+        aliases.put(removedId, retainedId);
+        trimAliases();
+        revision++;
+    }
+
+    private boolean removeMember(ResourceObservation.Location location) {
+        Member member = members.remove(location);
+        Long id = siteAt.remove(location);
+        if (member == null || id == null) return false;
+        long resolved = resolve(id);
+        MutableSite site = sites.get(resolved);
+        if (site == null) return false;
+        site.positions.remove(location.pos());
+        site.lastSeen = Math.max(site.lastSeen, logicalTick);
+        if (site.positions.isEmpty()) {
+            site.depleted = true;
+            unindexSite(resolved, site);
+            site.blockIds.clear();
+        } else {
+            site.representative = representative(site.positions);
+            recomputeBlockIds(resolved, site);
+        }
+        return true;
+    }
+
+    private void recomputeBlockIds(long id, MutableSite site) {
+        for (String blockId : site.blockIds) {
+            Set<Long> indexed = byBlockId.get(blockId);
+            if (indexed != null) indexed.remove(id);
+        }
+        site.blockIds.clear();
+        for (Map.Entry<ResourceObservation.Location, Member> entry : members.entrySet()) {
+            if (resolve(entry.getValue().siteId) == id) site.blockIds.add(entry.getValue().blockId);
+        }
+        for (String blockId : site.blockIds) byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(id);
+    }
+
+    private boolean compactOne(Set<Long> protectedSites) {
+        MutableSite candidate = sites.values().stream()
+                .filter(site -> !pinned.contains(site.id) && !protectedSites.contains(site.id))
+                .min(Comparator.comparingLong((MutableSite site) -> site.lastSeen).thenComparingLong(site -> site.id))
+                .orElse(null);
+        if (candidate == null) return false;
+        summaries.put(candidate.id, new Summary(candidate.id, candidate.family, candidate.dimension,
+                candidate.positions.size(), candidate.blockIds, candidate.representative, candidate.approach,
+                candidate.firstSeen, candidate.lastSeen));
+        sites.remove(candidate.id);
+        for (ResourceObservation.Location location : List.copyOf(members.keySet())) {
+            if (resolve(members.get(location).siteId) == candidate.id) {
+                members.remove(location);
+                siteAt.remove(location);
+            }
+        }
+        revision++;
+        return true;
+    }
+
+    private boolean makeSiteRoom() {
+        while (siteCount() >= limits.sites()) {
+            Long candidate = summaries.values().stream()
+                    .filter(summary -> !pinned.contains(summary.id))
+                    .min(Comparator.comparingLong((Summary summary) -> summary.lastSeen).thenComparingLong(summary -> summary.id))
+                    .map(summary -> summary.id).orElse(null);
+            if (candidate != null) {
+                Summary removed = summaries.remove(candidate);
+                Set<Long> ids = byFamily.get(new FamilyKey(removed.dimension, removed.family));
+                if (ids != null) ids.remove(candidate);
+                for (String blockId : removed.blockIds) {
+                    Set<Long> blockSites = byBlockId.get(blockId);
+                    if (blockSites != null) blockSites.remove(candidate);
+                }
+                pinned.remove(candidate);
+                continue;
+            }
+            MutableSite detailed = sites.values().stream()
+                    .filter(site -> !pinned.contains(site.id))
+                    .min(Comparator.comparingLong((MutableSite site) -> site.lastSeen).thenComparingLong(site -> site.id))
+                    .orElse(null);
+            if (detailed == null) return false;
+            compactOne(Set.of());
+            Summary compacted = summaries.remove(detailed.id);
+            if (compacted == null) return false;
+            Set<Long> familySites = byFamily.get(new FamilyKey(compacted.dimension, compacted.family));
+            if (familySites != null) familySites.remove(compacted.id);
+            for (String blockId : compacted.blockIds) {
+                Set<Long> blockSites = byBlockId.get(blockId);
+                if (blockSites != null) blockSites.remove(compacted.id);
+            }
+        }
+        return true;
+    }
+
+    private int siteCount() { return sites.size() + summaries.size(); }
+
+    private void indexMember(long id, String family, String blockId) {
+        MutableSite site = sites.get(id);
+        byFamily.computeIfAbsent(new FamilyKey(site.dimension, family), ignored -> new LinkedHashSet<>()).add(id);
+        byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(id);
+    }
+
+    private void unindexSite(long id, MutableSite site) {
+        Set<Long> ids = byFamily.get(new FamilyKey(site.dimension, site.family));
+        if (ids != null) ids.remove(id);
+        for (String blockId : site.blockIds) {
+            Set<Long> blockSites = byBlockId.get(blockId);
+            if (blockSites != null) blockSites.remove(id);
+        }
+    }
+
+    private void trimAliases() {
+        while (aliases.size() > limits.aliases()) aliases.remove(aliases.keySet().iterator().next());
+    }
+
+    private static Pos representative(Set<Pos> positions) {
+        return positions.stream().min(Comparator.comparingInt(Pos::x).thenComparingInt(Pos::y).thenComparingInt(Pos::z)).orElseThrow();
+    }
+
+    List<ResourceSite> querySites(Set<String> blockIds, String dimension) {
+        Set<Long> matching = new HashSet<>();
+        for (String blockId : blockIds) matching.addAll(byBlockId.getOrDefault(blockId, Set.of()));
+        List<ResourceSite> result = new ArrayList<>();
+        for (long id : matching) {
+            long resolved = resolve(id);
+            MutableSite site = sites.get(resolved);
+            if (site != null && site.dimension.equals(dimension)) result.add(site.snapshot(logicalTick));
+            Summary summary = summaries.get(resolved);
+            if (summary != null && summary.dimension.equals(dimension)) result.add(summary.snapshot(logicalTick));
+        }
+        return result;
+    }
+
+    private static final class Member {
+        final String blockId;
+        final String family;
+        final long firstSeen;
+        long lastSeen;
+        Pos viewpoint;
+        long siteId;
+        Member(String blockId, String family, long tick, Pos viewpoint, long siteId) {
+            this.blockId = blockId; this.family = family; this.firstSeen = tick; this.lastSeen = tick;
+            this.viewpoint = viewpoint; this.siteId = siteId;
+        }
+    }
+
+    private static final class MutableSite {
+        final long id;
+        final String family;
+        final String dimension;
+        final Set<Pos> positions = new LinkedHashSet<>();
+        final Set<String> blockIds = new LinkedHashSet<>();
+        Pos representative;
+        Pos approach;
+        long firstSeen;
+        long lastSeen;
+        boolean depleted;
+        MutableSite(long id, String family, String dimension, Pos representative, Pos approach, long tick) {
+            this.id = id; this.family = family; this.dimension = dimension; this.representative = representative;
+            this.approach = approach; this.firstSeen = tick; this.lastSeen = tick;
+        }
+        ResourceSite snapshot(long now) {
+            ResourceSite.Availability availability = now - lastSeen >= STALE_AFTER_TICKS
+                    ? ResourceSite.Availability.STALE : ResourceSite.Availability.OBSERVED;
+            return new ResourceSite(id, family, dimension, Set.copyOf(positions), representative, approach,
+                    firstSeen, lastSeen, depleted ? ResourceSite.Availability.DEPLETED : availability,
+                    ResourceSite.RouteStatus.UNKNOWN, false);
+        }
+    }
+
+    private record Summary(long id, String family, String dimension, int lastCount, Set<String> blockIds,
+                           Pos representative, Pos approach, long firstSeen, long lastSeen) {
+        Summary { blockIds = Set.copyOf(blockIds); }
+        ResourceSite snapshot(long now) {
+            ResourceSite.Availability availability = now - lastSeen >= STALE_AFTER_TICKS
+                    ? ResourceSite.Availability.STALE : ResourceSite.Availability.OBSERVED;
+            return new ResourceSite(id, family, dimension, Set.of(), representative, approach,
+                    firstSeen, lastSeen, availability, ResourceSite.RouteStatus.UNKNOWN, true);
+        }
+    }
+
+    private record FamilyKey(String dimension, String family) {}
+}
