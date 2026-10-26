@@ -4,6 +4,7 @@ import dev.friendai.brain.AccessResolver;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.brain.BrainSettings;
 import dev.friendai.brain.CompanionBrain;
+import dev.friendai.brain.LlmGateway;
 import dev.friendai.brain.Persona;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.testutil.FakeGateway;
@@ -15,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Runs a {@link Scenario} against a real {@link CompanionBrain} with scripted fakes and judges the outcome. */
 public final class ScenarioRunner {
@@ -31,7 +33,19 @@ public final class ScenarioRunner {
     private ScenarioRunner() {}
 
     public static Result run(Scenario s) {
+        return run(s, null);
+    }
+
+    /**
+     * @param live a real gateway to answer instead of the scripted replies (the live evaluation), or null
+     */
+    public static Result run(Scenario s, LlmGateway live) {
         FakeGateway gateway = new FakeGateway();
+        AtomicInteger liveRequests = new AtomicInteger();
+        LlmGateway used = live == null ? gateway : (system, messages, specs) -> {
+            liveRequests.incrementAndGet();
+            return live.complete(system, messages, specs);
+        };
         int n = 0;
         for (Scenario.Reply reply : s.replies()) {
             List<ToolCall> calls = new ArrayList<>();
@@ -54,7 +68,7 @@ public final class ScenarioRunner {
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona("Friendai", "friendly", "auto"),
                 () -> new BrainSettings(8, 30, 0, 0),
-                () -> gateway,
+                () -> used,
                 tools,
                 () -> "Position: 0 64 0",
                 speaker,
@@ -65,8 +79,9 @@ public final class ScenarioRunner {
         } else {
             brain.post(new BrainEvent.WorldNotice(s.event()));
         }
-        List<String> failures = judge(s.expect(), gateway.requests.size(), tools.executed, speaker.said);
-        return new Result(gateway.requests.size(), List.copyOf(tools.executed), List.copyOf(speaker.said), failures);
+        int requests = live == null ? gateway.requests.size() : liveRequests.get();
+        List<String> failures = judge(s.expect(), requests, tools.executed, speaker.said);
+        return new Result(requests, List.copyOf(tools.executed), List.copyOf(speaker.said), failures);
     }
 
     private static List<String> judge(

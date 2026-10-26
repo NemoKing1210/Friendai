@@ -280,3 +280,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dismiss and summon, then save and reload the world: the skin and the slim flag come back.
 - [ ] Worn armor still looks right on a slim companion (known gap: armor keeps wide arm shapes).
 - [ ] On macOS and Linux the file dialog opens, or the tab says that no dialog is available.
+
+## Live agent evaluation
+
+- [ ] Run `./gradlew test --tests "*LiveScenarioRunner" -Dfriendai.live=true -Dfriendai.live.config=<path to friendai-server.json>` on the configured provider and read `build/eval/<timestamp>.md`.
+- [ ] Compare the report with the previous one: requests per scenario must not grow, and no scenario may start to fail.

@@ -97,6 +97,13 @@ test {
 	if (goldenWrite != null) {
 		systemProperty "friendai.golden.write", goldenWrite
 	}
+	// Opt-in live evaluation: -Dfriendai.live=true -Dfriendai.live.config=<server config path>.
+	["friendai.live", "friendai.live.config"].each { key ->
+		def value = System.getProperty(key)
+		if (value != null) {
+			systemProperty key, value
+		}
+	}
 }
 
 processResources {
