@@ -39,8 +39,17 @@ fabricApi {
 	}
 }
 
+// Forwards `-Dfabric-api.gametest.filter=<regex>` from the Gradle command line to the GameTest server;
+// without this the property stays in the Gradle JVM and the whole suite runs.
+tasks.named('runGameTest') {
+	def gameTestFilter = providers.systemProperty("fabric-api.gametest.filter")
+	if (gameTestFilter.isPresent()) {
+		systemProperty "fabric-api.gametest.filter", gameTestFilter.get()
+	}
+}
+
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	minecraft"com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
