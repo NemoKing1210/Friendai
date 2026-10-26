@@ -37,10 +37,12 @@ public class FriendaiMod implements ModInitializer {
         ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
             if (entity instanceof CompanionEntity companion) {
                 CompanionManager.get(level.getServer()).register(companion);
+                FriendaiServerState.get(level.getServer()).observations().register(companion);
             }
         });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, level) -> {
             if (entity instanceof CompanionEntity companion) {
+                FriendaiServerState.get(level.getServer()).observations().unregister(companion);
                 CompanionManager.get(level.getServer()).unregister(companion);
             }
         });
@@ -52,6 +54,7 @@ public class FriendaiMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(FriendaiServerState::close);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriendaiServerState state = FriendaiServerState.get(server);
+            state.observations().tick(server, server.overworld().getGameTime());
             state.brains().tick();
             state.chunkLoader().tick();
             state.tick(System.currentTimeMillis());
@@ -59,8 +62,11 @@ public class FriendaiMod implements ModInitializer {
             DebugStream.tick(server);
             MemoryViewStream.tick(server);
         });
-        ServerLifecycleEvents.SERVER_STOPPING.register(
-                server -> FriendaiServerState.get(server).memory().flushAll());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            FriendaiServerState state = FriendaiServerState.get(server);
+            state.memory().flushAll();
+            state.knowledge().flushAll();
+        });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             FriendaiServerState state = FriendaiServerState.get(server);
             UUID player = handler.getPlayer().getUUID();

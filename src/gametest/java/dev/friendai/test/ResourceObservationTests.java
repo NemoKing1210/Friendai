@@ -2,19 +2,25 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.entity.CompanionManager;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
 import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.pathing.Pos;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 
 public class ResourceObservationTests {
-    @GameTest(maxTicks = 40)
+    @GameTest(maxTicks = 80)
     public void exposedOreObserved(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
@@ -112,6 +118,99 @@ public class ResourceObservationTests {
         h.assertTrue(run(job) == ResourceSight.Outcome.UNLOADED, "ray did not stop at unloaded terrain");
         h.assertTrue(!loadedBefore && !h.getLevel().hasChunkAt(unloaded), "observation loaded an unloaded chunk");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 80)
+    public void followingLearnsCoalWithoutBrainTurn(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        for (int x = 5; x <= 7; x++) for (int y = 2; y <= 5; y++) for (int z = 1; z <= 10; z++) {
+            h.setBlock(x, y, z, Blocks.COAL_ORE);
+        }
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        state.observations().register(companion);
+        h.runAfterDelay(60, () -> {
+            BlockPos origin = companion.blockPosition();
+            var query = new dev.friendai.knowledge.ResourceQuery.Request(java.util.Set.of("minecraft:coal_ore"),
+                    h.getLevel().dimension().identifier().toString(), pos(origin), 16, 20, true);
+            h.assertTrue(dev.friendai.knowledge.ResourceQuery.find(state.knowledge().book(owner.getUUID()), query).size() > 0,
+                    "ordinary observation should record exposed coal");
+            h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "passive observation must not start a brain turn");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 20)
+    public void ownSuccessfulBreakRemovesExactlyOneMember(GameTestHelper h) {
+        GameTestSupport.platform(h, 10);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var book = state.knowledge().book(owner.getUUID());
+        BlockPos first = h.absolutePos(new BlockPos(5, 3, 5));
+        BlockPos second = h.absolutePos(new BlockPos(6, 3, 5));
+        book.observe(observation(first, companion.blockPosition()), "minecraft:coal_ore");
+        book.observe(observation(second, companion.blockPosition()), "minecraft:coal_ore");
+        state.resources().ownBreak(companion, first);
+        h.assertTrue(book.historicalBlockCount(1) == 1, "successful break should remove exactly one member");
+        h.assertTrue(book.snapshot().records().stream().anyMatch(record -> record.x() == second.getX()),
+                "neighboring member must remain remembered");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 20)
+    public void dismissAndReloadRetainsKnowledge(GameTestHelper h) {
+        GameTestSupport.platform(h, 10);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        var server = h.getLevel().getServer();
+        var state = FriendaiServerState.get(server);
+        BlockPos ore = h.absolutePos(new BlockPos(5, 3, 5));
+        long siteId = state.knowledge().book(owner.getUUID()).observe(observation(ore, companion.blockPosition()),
+                "minecraft:coal_ore");
+        state.knowledge().flushAll();
+        h.assertTrue(CompanionManager.get(server).dismiss(owner), "test companion should be dismissed");
+        FriendaiServerState.close(server);
+        var reloaded = FriendaiServerState.get(server);
+        h.assertTrue(reloaded.knowledge().book(owner.getUUID()).site(siteId, 2).isPresent(),
+                "dismiss and server-state reload must retain the owner's site");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 20)
+    public void dimensionChangeDropsPendingObservation(GameTestHelper h) {
+        GameTestSupport.platform(h, 10);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        var server = h.getLevel().getServer();
+        var state = FriendaiServerState.get(server);
+        CompanionManager.get(server).register(companion);
+        state.observations().register(companion);
+        ResourceObserver previous = state.observations().observer(companion);
+        previous.scheduleSweep(0);
+        h.assertTrue(previous.queuedJobs() > 0, "pre-transfer sweep should be pending");
+        ServerLevel destination = server.getLevel(Level.NETHER);
+        BlockPos spawn = new BlockPos(0, 64, 0);
+        var moved = companion.teleport(new TeleportTransition(destination, Vec3.atBottomCenterOf(spawn), Vec3.ZERO,
+                0.0F, 0.0F, TeleportTransition.DO_NOTHING));
+        h.assertTrue(moved instanceof CompanionEntity, "companion should transfer to the second dimension");
+        ResourceObserver next = state.observations().observer((CompanionEntity) moved);
+        h.assertTrue(next != previous && next.queuedJobs() == 0,
+                "pending observations must not cross a dimension transfer");
+        h.succeed();
+    }
+
+    private static ResourceObservation observation(BlockPos block, BlockPos viewpoint) {
+        return new ResourceObservation("minecraft:coal_ore",
+                new ResourceObservation.Location("minecraft:overworld", pos(block)), pos(viewpoint), 1);
     }
 
     private static List<ResourceObservation> drain(ResourceObserver observer) {

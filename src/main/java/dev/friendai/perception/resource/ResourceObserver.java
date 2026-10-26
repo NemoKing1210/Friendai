@@ -21,6 +21,10 @@ public final class ResourceObserver {
     private static final double RADIUS = 16.0;
     private static final long SWEEP_INTERVAL = 20;
     private static final int SWEEP_RAYS = 128;
+    private static final Vec3[] CARDINALS = {
+            new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 1, 0),
+            new Vec3(0, -1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)
+    };
     private static final BlockPos[] FACES = {
             new BlockPos(1, 0, 0), new BlockPos(-1, 0, 0), new BlockPos(0, 1, 0),
             new BlockPos(0, -1, 0), new BlockPos(0, 0, 1), new BlockPos(0, 0, -1)
@@ -47,8 +51,10 @@ public final class ResourceObserver {
         Vec3 eye = companion.getEyePosition();
         double rotation = ((companion.getId() * 0.6180339887498949 + tick * 0.017) % 1.0) * Math.PI * 2.0;
         double golden = Math.PI * (3.0 - Math.sqrt(5.0));
-        for (int i = 0; i < SWEEP_RAYS; i++) {
-            double y = 1.0 - 2.0 * (i + 0.5) / SWEEP_RAYS;
+        for (Vec3 direction : CARDINALS) enqueue(eye, eye.add(direction.scale(RADIUS)), null, false, false);
+        int sphericalRays = SWEEP_RAYS - CARDINALS.length;
+        for (int i = 0; i < sphericalRays; i++) {
+            double y = 1.0 - 2.0 * (i + 0.5) / sphericalRays;
             double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
             double angle = i * golden + rotation;
             Vec3 direction = new Vec3(Math.cos(angle) * ring, y, Math.sin(angle) * ring);
