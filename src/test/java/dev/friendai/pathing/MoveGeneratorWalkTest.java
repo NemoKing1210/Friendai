@@ -119,13 +119,22 @@ class MoveGeneratorWalkTest {
                 .neighbours(from, 0, 0, 0, fresh::add);
         PathStep swim = stepTo(fresh, 2, 1, 0);
         assertEquals(Move.SWIM, swim.move());
-        assertEquals(COSTS.swim(), swim.cost(), 1e-9);
+        assertEquals(COSTS.swim() * MoveGenerator.SUBMERGED_FACTOR, swim.cost(), 1e-9);
         assertEquals(1, swim.headUnderwater());
 
         List<PathStep> tired = new ArrayList<>();
         new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
                 .neighbours(from, 0, 0, 8, tired::add);
         assertTrue(tired.stream().noneMatch(step -> step.headUnderwater() > 0));
+    }
+
+    @Test
+    void swimmingOnTheSurfaceIsCheaperThanDiving() {
+        GridCellView view = new GridCellView("####", "~~~~", "....");
+        PathStep swim = stepTo(stepsFrom(view, new Node(1, 1, 0)), 2, 1, 0);
+        assertEquals(Move.SWIM, swim.move());
+        assertEquals(COSTS.swim(), swim.cost(), 1e-9);
+        assertEquals(0, swim.headUnderwater());
     }
 
     @Test

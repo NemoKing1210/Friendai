@@ -511,6 +511,26 @@ public class PathingTests {
                 "did not swim across: " + out.why() + " at " + c.blockPosition()));
     }
 
+    @GameTest(maxTicks = 300)
+    public void goToSwimsThroughASubmergedTunnel(GameTestHelper h) {
+        int floor = 172;
+        GameTestSupport.platformAt(h, floor, 16);
+        for (int x = 5; x <= 10; x++) {
+            h.setBlock(new BlockPos(x, floor + 1, 3), Blocks.WATER);
+            h.setBlock(new BlockPos(x, floor + 2, 3), Blocks.WATER);
+            h.setBlock(new BlockPos(x, floor + 3, 3), Blocks.STONE);
+            for (int y = floor + 1; y <= floor + 2; y++) {
+                h.setBlock(new BlockPos(x, y, 2), Blocks.STONE);
+                h.setBlock(new BlockPos(x, y, 4), Blocks.STONE);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, floor + 1, 3.5);
+        h.succeedWhen(() -> h.assertTrue(out.status == TaskStatus.SUCCESS,
+                "did not swim through: " + out.why() + " at " + c.position()));
+    }
+
     @GameTest(maxTicks = 900)
     public void followNeverTeleports(GameTestHelper h) {
         int floor = 140;

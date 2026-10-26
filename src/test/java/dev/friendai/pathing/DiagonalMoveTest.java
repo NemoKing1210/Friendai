@@ -52,6 +52,6 @@ class DiagonalMoveTest {
         GridCellView view = new GridCellView("####/####", "~~~~/~~~~", "~~~~/~~~~");
         PathStep step = stepTo(stepsFrom(view, new Node(1, 1, 1)), 2, 1, 0);
         assertTrue(step != null && step.move() == Move.SWIM, "no diagonal swim: " + step);
-        assertEquals(COSTS.swim() * Math.sqrt(2.0), step.cost(), 1e-9);
+        assertEquals(COSTS.swim() * Math.sqrt(2.0) * MoveGenerator.SUBMERGED_FACTOR, step.cost(), 1e-9);
     }
 }

@@ -20,6 +20,8 @@ public final class MoveGenerator {
     private static final int MAX_WATER_DROP = 32;
     /** How many steps in a row the companion may swim with its head under water. */
     public static final int MAX_UNDERWATER_RUN = 8;
+    /** Price multiplier of a swim step that ends with the head under water. */
+    public static final double SUBMERGED_FACTOR = 1.3;
 
     private final CellView view;
     private final CostModel costs;
@@ -223,7 +225,10 @@ public final class MoveGenerator {
         if (headInWater && headUnderwater >= MAX_UNDERWATER_RUN) {
             return;
         }
-        emit(from, to, Move.SWIM, cost, headInWater ? headUnderwater + 1 : 0, out);
+        // Swimming with the head under is slower and harder to steer than floating along the surface, and it
+        // spends breath, so a route on the surface wins a tie.
+        emit(from, to, Move.SWIM, headInWater ? cost * SUBMERGED_FACTOR : cost,
+                headInWater ? headUnderwater + 1 : 0, out);
     }
 
     private void climb(Node from, Consumer<PathStep> out) {

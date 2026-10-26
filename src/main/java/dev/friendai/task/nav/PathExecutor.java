@@ -17,6 +17,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -37,6 +38,10 @@ public final class PathExecutor {
     /** How many ticks the companion may take to rise one block after the jump of a pillar. */
     private static final int JUMP_TIMEOUT = 20;
     private static final double MOVE_SPEED = 1.0;
+    /** Blocks per tick while swimming; set directly, because a mob's own water acceleration is very slow. */
+    private static final double SWIM_SPEED = 0.14;
+    private static final double DIVE_SPEED = 0.15;
+    private static final double RISE_SPEED = 0.2;
     private static final int STUCK_WINDOW = 10;
     private static final double STUCK_PROGRESS = 0.15;
     private static final double FEET_TOLERANCE = 0.4;
@@ -312,8 +317,9 @@ public final class PathExecutor {
             double dz = step.to().z() + 0.5 - companion.getZ();
             double distance = Math.hypot(dx, dz);
             var velocity = companion.getDeltaMovement();
-            double horizontal = distance < 1.0e-4 ? 0.0 : 0.12 / distance;
-            companion.setDeltaMovement(dx * horizontal, up ? Math.max(velocity.y, 0.2) : velocity.y, dz * horizontal);
+            // Never step further than the distance left, so it does not overshoot and shuffle back and forth.
+            double horizontal = distance < 1.0e-4 ? 0.0 : Math.min(SWIM_SPEED, distance) / distance;
+            companion.setDeltaMovement(dx * horizontal, swimVertical(c, step, target, velocity.y, up), dz * horizontal);
         }
         if (up && (step.move() == Move.CLIMB || step.move() == Move.SWIM || step.move() == Move.ASCEND
                 || step.move() == Move.DIG_ASCEND)
@@ -363,6 +369,22 @@ public final class PathExecutor {
             begin(c, next);
         }
         return State.RUNNING;
+    }
+
+    /**
+     * The vertical speed while in water. A step that ends with its head under water holds the depth of its cell:
+     * nothing else makes a mob dive, and the float goal pushes it back up every tick. A step on the surface is left to
+     * the float goal, which keeps the body at the right height by itself.
+     */
+    private static double swimVertical(TaskContext c, PathStep step, FeetTarget target, double current, boolean up) {
+        if (step.move() == Move.SWIM || step.move() == Move.DESCEND) {
+            BlockPos head = new BlockPos(step.to().x(), step.to().y() + 1, step.to().z());
+            if (c.level().getFluidState(head).is(FluidTags.WATER)) {
+                double error = target.y() - c.companion().getY();
+                return Math.max(-DIVE_SPEED, Math.min(RISE_SPEED, error * 0.5));
+            }
+        }
+        return up ? Math.max(current, RISE_SPEED) : current;
     }
 
     /**
@@ -430,7 +452,7 @@ public final class PathExecutor {
             return 0.5;
         }
         PathStep next = path.steps().get(index + 1);
-        boolean plain = (step.move() == Move.WALK || step.move() == Move.WALK_DIAGONAL)
+        boolean plain = (step.move() == Move.WALK || step.move() == Move.WALK_DIAGONAL || step.move() == Move.SWIM)
                 && next.move() == step.move() && next.breaks().isEmpty() && next.places().isEmpty()
                 && step.to().x() - step.from().x() == next.to().x() - next.from().x()
                 && step.to().z() - step.from().z() == next.to().z() - next.from().z();
