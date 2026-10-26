@@ -70,4 +70,116 @@ class FarmPlannerTest {
     void growingCellsAreLeftAlone() {
         assertTrue(plan(FarmFixtures.field(Map.of(), "gk")).steps().isEmpty());
     }
+
+    private static List<FarmStep.Sow> sows(FarmPlan plan) {
+        return plan.steps().stream().filter(FarmStep.Sow.class::isInstance).map(FarmStep.Sow.class::cast).toList();
+    }
+
+    private static List<FarmStep.NeedSeeds> needs(FarmPlan plan) {
+        return plan.steps().stream().filter(FarmStep.NeedSeeds.class::isInstance)
+                .map(FarmStep.NeedSeeds.class::cast).toList();
+    }
+
+    private static long count(FarmPlan plan, Class<? extends FarmStep> type) {
+        return plan.steps().stream().filter(type::isInstance).count();
+    }
+
+    @Test
+    void sowsEmptyFarmlandWithCarriedSeeds() {
+        FarmPlan plan = plan(FarmFixtures.field(Map.of(WHEAT_SEEDS, 2), ".."));
+        assertEquals(2, sows(plan).size());
+        assertTrue(sows(plan).stream().allMatch(sow -> sow.seed().equals(WHEAT_SEEDS)));
+        assertEquals(0, plan.unsown());
+        assertTrue(needs(plan).isEmpty());
+    }
+
+    @Test
+    void foodNeedHighPrefersCarrots() {
+        Map<String, Integer> seeds = Map.of(WHEAT_SEEDS, 5, FarmFixtures.CARROT, 5);
+        FarmSnapshot hungry = FarmFixtures.withFoodNeed(FarmFixtures.field(seeds, ".."), FoodNeed.HIGH);
+        assertTrue(sows(plan(hungry)).stream().allMatch(sow -> sow.seed().equals(FarmFixtures.CARROT)));
+        assertEquals(2, sows(plan(hungry)).size());
+    }
+
+    @Test
+    void diversityPrefersTheLeastRepresentedCrop() {
+        Map<String, Integer> seeds = Map.of(WHEAT_SEEDS, 5, FarmFixtures.CARROT, 5);
+        FarmPlan plan = plan(FarmFixtures.field(seeds, "kk."));
+        assertEquals(WHEAT_SEEDS, sows(plan).get(0).seed());
+    }
+
+    @Test
+    void soilConstrainsChoice() {
+        FarmPlan soulSand = plan(FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), "S"));
+        assertTrue(sows(soulSand).isEmpty());
+        assertEquals(1, soulSand.unsown());
+        FarmPlan farmland = plan(FarmFixtures.field(Map.of(FarmFixtures.NETHER_WART, 3), "."));
+        assertTrue(sows(farmland).isEmpty());
+        assertEquals(1, farmland.unsown());
+    }
+
+    @Test
+    void explicitCropWins() {
+        Map<String, Integer> seeds = Map.of(WHEAT_SEEDS, 3, FarmFixtures.CARROT, 3);
+        FarmSnapshot field = FarmFixtures.field(seeds, ".");
+        FarmPlan carrots = FarmPlanner.plan(field, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512),
+                FarmFixtures.book());
+        assertEquals(FarmFixtures.CARROT, sows(carrots).get(0).seed());
+
+        FarmSnapshot onlyWheat = FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), ".");
+        FarmPlan missing = FarmPlanner.plan(onlyWheat, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512),
+                FarmFixtures.book());
+        assertEquals(1, missing.unsown());
+        assertEquals(List.of(new FarmStep.NeedSeeds(FarmFixtures.CARROT, 1)), needs(missing));
+    }
+
+    @Test
+    void shortageKeepsUsefulPartialPlan() {
+        FarmPlan plan = plan(FarmFixtures.field(Map.of(), "RR.."));
+        assertEquals(2, count(plan, FarmStep.Harvest.class));
+        assertEquals(2, count(plan, FarmStep.Replant.class));
+        assertEquals(2, plan.unsown());
+        assertEquals(List.of(new FarmStep.NeedSeeds(WHEAT_SEEDS, 2)), needs(plan));
+    }
+
+    @Test
+    void oneCarriedSeedSowsOneOfTwoCells() {
+        FarmPlan plan = plan(FarmFixtures.field(Map.of(WHEAT_SEEDS, 1), "RR.."));
+        assertEquals(1, sows(plan).size());
+        assertEquals(1, plan.unsown());
+        assertEquals(List.of(new FarmStep.NeedSeeds(WHEAT_SEEDS, 1)), needs(plan));
+    }
+
+    @Test
+    void noSeedsAtAllStillHarvests() {
+        FarmPlan plan = plan(FarmFixtures.field(Map.of(), "R."));
+        assertEquals(1, count(plan, FarmStep.Harvest.class));
+        assertEquals(1, count(plan, FarmStep.Replant.class));
+        assertEquals(1, plan.unsown());
+        assertEquals(1, needs(plan).size());
+    }
+
+    @Test
+    void replantShortageIsReported() {
+        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(), "R"), FarmGoal.defaults(), FarmFixtures.book(0.0));
+        assertEquals(1, count(plan, FarmStep.Replant.class));
+        assertEquals(List.of(new FarmStep.NeedSeeds(WHEAT_SEEDS, 1)), needs(plan));
+    }
+
+    @Test
+    void reserveBlocksSowingNotReplanting() {
+        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(WHEAT_SEEDS, 2), "R."),
+                new FarmGoal(null, false, false, 2, 512), FarmFixtures.book());
+        assertEquals(1, count(plan, FarmStep.Replant.class));
+        assertTrue(sows(plan).isEmpty());
+        assertEquals(1, plan.unsown());
+    }
+
+    @Test
+    void usesExpectedHarvestSeedsForSowing() {
+        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(), "R."), FarmGoal.defaults(), FarmFixtures.book(3.0));
+        assertEquals(1, count(plan, FarmStep.Replant.class));
+        assertEquals(1, sows(plan).size());
+        assertEquals(0, plan.unsown());
+    }
 }

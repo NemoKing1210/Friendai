@@ -2,7 +2,10 @@ package dev.friendai.farming;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
 
@@ -18,14 +21,88 @@ public final class FarmPlanner {
         Objects.requireNonNull(goal, "goal");
         Objects.requireNonNull(crops, "crops");
         List<FarmStep> steps = new ArrayList<>();
+        Map<String, Integer> replants = new HashMap<>();
+        Map<String, Double> expected = new HashMap<>();
+        Map<String, Integer> represented = new HashMap<>();
+        for (FieldCell cell : ofKind(snapshot, CellKind.GROWING)) {
+            represented.merge(cell.crop(), 1, Integer::sum);
+        }
         for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.RIPE))) {
             steps.add(new FarmStep.Harvest(cell));
+            represented.merge(cell.crop(), 1, Integer::sum);
             if (cell.seed() != null) {
                 steps.add(new FarmStep.Replant(cell, cell.seed()));
+                replants.merge(cell.seed(), 1, Integer::sum);
+                crops.byCrop(cell.crop()).ifPresent(info -> expected.merge(cell.seed(), info.seedYield(), Double::sum));
             }
         }
-        List<FarmStep> capped = steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps;
-        return new FarmPlan(capped, 0, List.of());
+
+        Map<String, Integer> free = new HashMap<>();
+        Map<String, Integer> shortfall = new LinkedHashMap<>();
+        for (String seed : replants.keySet().stream().sorted().toList()) {
+            int have = snapshot.inventory().getOrDefault(seed, 0) + (int) Math.floor(expected.getOrDefault(seed, 0.0));
+            if (have < replants.get(seed)) {
+                shortfall.put(seed, replants.get(seed) - have);
+            }
+        }
+        for (CropInfo info : crops.plantable()) {
+            String seed = info.seed();
+            int have = snapshot.inventory().getOrDefault(seed, 0) + (int) Math.floor(expected.getOrDefault(seed, 0.0));
+            free.put(seed, Math.max(0, have - replants.getOrDefault(seed, 0) - goal.seedReserve()));
+        }
+
+        int unsown = 0;
+        for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.EMPTY_SOIL))) {
+            List<CropInfo> options = options(crops, goal, cell.soil());
+            if (options.isEmpty()) {
+                unsown++;
+                continue;
+            }
+            Comparator<CropInfo> preference = preference(snapshot.foodNeed(), represented, crops);
+            CropInfo pick = options.stream().filter(info -> free.getOrDefault(info.seed(), 0) > 0)
+                    .min(preference).orElse(null);
+            if (pick == null) {
+                unsown++;
+                shortfall.merge(options.stream().min(wanted(snapshot.foodNeed(), crops)).orElseThrow().seed(), 1, Integer::sum);
+                continue;
+            }
+            free.merge(pick.seed(), -1, Integer::sum);
+            represented.merge(pick.crop(), 1, Integer::sum);
+            steps.add(new FarmStep.Sow(cell, pick.seed()));
+        }
+
+        List<FarmStep> capped = new ArrayList<>(
+                steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps);
+        shortfall.forEach((item, count) -> capped.add(new FarmStep.NeedSeeds(item, count)));
+        return new FarmPlan(capped, unsown, List.of());
+    }
+
+    /** Crops that may go on this soil: only the goal's crop when one is set. */
+    private static List<CropInfo> options(CropBook crops, FarmGoal goal, Soil soil) {
+        List<CropInfo> compatible = crops.plantable().stream().filter(info -> info.soil() == soil).toList();
+        if (goal.crop() == null) {
+            return compatible;
+        }
+        return compatible.stream()
+                .filter(info -> info.seed().equals(goal.crop()) || info.crop().equals(goal.crop())).toList();
+    }
+
+    /** What to ask for when nothing is in stock: the most nourishing crop when hungry, else the first in book order. */
+    private static Comparator<CropInfo> wanted(FoodNeed need, CropBook crops) {
+        List<CropInfo> order = crops.plantable();
+        Comparator<CropInfo> primary = need == FoodNeed.HIGH
+                ? Comparator.comparingInt((CropInfo info) -> -info.foodValue())
+                : (a, b) -> 0;
+        return primary.thenComparingInt(order::indexOf);
+    }
+
+    /** Hungry: the most nourishing crop; otherwise the one least represented in the field. Ties keep book order. */
+    private static Comparator<CropInfo> preference(FoodNeed need, Map<String, Integer> represented, CropBook crops) {
+        List<CropInfo> order = crops.plantable();
+        Comparator<CropInfo> primary = need == FoodNeed.HIGH
+                ? Comparator.comparingInt((CropInfo info) -> -info.foodValue())
+                : Comparator.comparingInt((CropInfo info) -> represented.getOrDefault(info.crop(), 0));
+        return primary.thenComparingInt(order::indexOf);
     }
 
     static List<FieldCell> ofKind(FarmSnapshot snapshot, CellKind kind) {
