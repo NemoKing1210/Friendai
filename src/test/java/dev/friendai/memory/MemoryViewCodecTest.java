@@ -181,6 +181,32 @@ class MemoryViewCodecTest {
     }
 
     @Test
+    void personaRoundTrips() {
+        for (MemoryView.PersonaView persona : List.of(
+                new MemoryView.PersonaView("Calm guide", true),
+                new MemoryView.PersonaView("Спокойный проводник", false))) {
+            MemoryView view = new MemoryView(
+                    true, MemoryLimits.DEFAULTS, List.of(), List.of(), Optional.empty(), persona);
+            assertEquals(persona, MemoryViewCodec.decode(MemoryViewCodec.encode(view)).persona());
+        }
+    }
+
+    @Test
+    void encodeFittingKeepsThePersonaWhenDroppingFacts() {
+        List<MemoryView.FactRow> facts = new ArrayList<>();
+        for (int i = 1; i <= 50; i++) {
+            facts.add(new MemoryView.FactRow(i, "world", Category.NOTE, "текст ".repeat(20), ""));
+        }
+        MemoryView.PersonaView persona = new MemoryView.PersonaView("Calm guide", true);
+        MemoryView view =
+                new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty(), persona);
+        byte[] fitted = MemoryViewCodec.encodeFitting(view, MemoryViewCodec.encode(view).length / 2);
+        MemoryView decoded = MemoryViewCodec.decode(fitted);
+        assertEquals(persona, decoded.persona());
+        assertTrue(decoded.facts().size() < facts.size());
+    }
+
+    @Test
     void encodeFittingLeavesASmallViewAlone() {
         MemoryView view = sample(Optional.empty());
         assertEquals(

@@ -34,6 +34,30 @@ class MemoryViewBuilderTest {
                 .orElseThrow();
     }
 
+    private MemoryView.PersonaView personaFor(String serverDefault) {
+        return MemoryViewBuilder.build(
+                        book, O, "Steve", List.of(), true, L, Optional.empty(), serverDefault)
+                .persona();
+    }
+
+    @Test
+    void viewShowsOwnPersonaAsCustom() {
+        book.setPersona("Calm guide");
+        assertEquals(new MemoryView.PersonaView("Calm guide", true), personaFor("Default"));
+    }
+
+    @Test
+    void viewShowsServerDefaultWhenNoPersona() {
+        assertEquals(new MemoryView.PersonaView("Default", false), personaFor("Default"));
+    }
+
+    @Test
+    void viewFollowsAChangedServerDefault() {
+        assertEquals("Default", personaFor("Default").text());
+        assertEquals("Changed", personaFor("Changed").text());
+        assertFalse(personaFor("Changed").custom());
+    }
+
     @Test
     void groupOrderIsOwnerWorldThenByName() {
         book.ensurePlayer(ZED, "zed");

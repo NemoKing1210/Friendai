@@ -56,6 +56,8 @@ public final class MemoryViewCodec {
             } else {
                 out.writeBoolean(false);
             }
+            writeString(out, view.persona().text());
+            out.writeBoolean(view.persona().custom());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -85,7 +87,7 @@ public final class MemoryViewCodec {
 
     private static MemoryView withFacts(MemoryView view, List<MemoryView.FactRow> facts) {
         return new MemoryView(
-                view.enabled(), view.limits(), view.groups(), List.copyOf(facts), view.status());
+                view.enabled(), view.limits(), view.groups(), List.copyOf(facts), view.status(), view.persona());
     }
 
     public static MemoryView decode(byte[] data) {
@@ -128,10 +130,11 @@ public final class MemoryViewCodec {
                 }
                 status = Optional.of(new MenuStatus(ok, new UserMessage(key, args)));
             }
+            MemoryView.PersonaView persona = new MemoryView.PersonaView(readString(in), in.readBoolean());
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
-            return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status);
+            return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed memory view", e);
         }

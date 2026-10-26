@@ -21,6 +21,19 @@ public final class MemoryViewBuilder {
             boolean enabled,
             MemoryLimits limits,
             Optional<MenuStatus> status) {
+        return build(book, owner, ownerName, online, enabled, limits, status, "");
+    }
+
+    /** As above, with the server's default personality for a book that has none of its own. */
+    public static MemoryView build(
+            MemoryBook book,
+            UUID owner,
+            String ownerName,
+            List<PlayerRef> online,
+            boolean enabled,
+            MemoryLimits limits,
+            Optional<MenuStatus> status,
+            String serverPersona) {
         Map<UUID, String> onlineNames = new LinkedHashMap<>();
         for (PlayerRef ref : online) {
             onlineNames.put(ref.uuid(), ref.name());
@@ -81,7 +94,9 @@ public final class MemoryViewBuilder {
                 facts = new ArrayList<>(facts.subList(0, MemoryViewCodec.MAX_FACTS));
             }
         }
-        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status);
+        MemoryView.PersonaView persona = new MemoryView.PersonaView(
+                book.persona().orElse(serverPersona == null ? "" : serverPersona), book.persona().isPresent());
+        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
     }
 
     private static String label(String name) {
