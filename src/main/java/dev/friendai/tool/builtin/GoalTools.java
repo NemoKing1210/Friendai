@@ -37,7 +37,7 @@ final class GoalTools {
                         .array("criteria", "How you will know it is done", text, 0, 6)
                         .bool("background", "Add as a background goal instead of the primary one")
                         .required("text").build(),
-                AccessLevel.TRUSTED, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
                     GoalResult<Goal> result = board.set(
                             args.get("text").getAsString(),
                             criteria(args),
@@ -53,7 +53,7 @@ final class GoalTools {
                         .array("criteria", "Replacement criteria", text, 0, 6)
                         .enumeration("status", "New status", "active", "blocked")
                         .required("id").build(),
-                AccessLevel.TRUSTED, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
                     Optional<List<Criterion>> criteria = args.has("criteria")
                             ? Optional.of(criteria(args)) : Optional.empty();
                     Optional<GoalStatus> status = args.has("status")
@@ -72,7 +72,7 @@ final class GoalTools {
                         .bool("done", "True if achieved, false if abandoned")
                         .string("reason", "Why it ended")
                         .required("id", "done").build(),
-                AccessLevel.TRUSTED, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
                     GoalResult<Goal> result = board.finish(
                             args.get("id").getAsLong(),
                             args.get("done").getAsBoolean(),

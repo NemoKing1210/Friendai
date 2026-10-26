@@ -29,6 +29,11 @@ public interface PlannerPort {
         }
     };
 
+    /** Whether this queue plan is the one the owner's primary goal follows; other plans' failures are not its business. */
+    default boolean ownsPlan(long planId) {
+        return true;
+    }
+
     /** The planner input for the owner's primary goal, or empty when there is no goal or no planner. */
     Optional<PlannerInput> input(Caller caller, String failure);
 

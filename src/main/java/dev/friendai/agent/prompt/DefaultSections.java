@@ -33,7 +33,7 @@ public final class DefaultSections {
     /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
     static PromptSection protocol() {
         return of("protocol", PromptSection.NEVER_CUT, ctx -> {
-            boolean acts = ctx.caller().access().allows(AccessLevel.TRUSTED);
+            boolean acts = ctx.caller().access().allows(AccessLevel.OWNER);
             return "Working method:\n"
                     + (acts
                             ? "- Understand the goal first. For a multi-step objective, record it with set_goal and say how you will know it is done.\n"

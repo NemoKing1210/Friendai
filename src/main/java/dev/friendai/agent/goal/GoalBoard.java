@@ -108,6 +108,10 @@ public final class GoalBoard {
             if (status.get().terminal()) {
                 return GoalResult.fail("Use finish_goal to end a goal.");
             }
+            if (status.get() == GoalStatus.ACTIVE && goal.status() == GoalStatus.BLOCKED) {
+                // The owner (or the model, on their word) lifted the block: start over with a fresh budget.
+                goal = goal.withReplans(0);
+            }
             goal = goal.withStatus(status.get());
         }
         replace(goal);

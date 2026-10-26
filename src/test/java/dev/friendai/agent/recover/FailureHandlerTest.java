@@ -76,6 +76,22 @@ class FailureHandlerTest {
     }
 
     @Test
+    void aStopOrCancelIsNotAFailureAndSpendsNothing() {
+        GoalBoard board = boardWithPlan(1, 7);
+        for (String text : new String[] {"stopped by request", "cancelled by the LLM", "Cancelled", "stopped"}) {
+            assertTrue(FailureHandler.isCancellation(text), text);
+            assertEquals("facts: -1 minecraft:stick",
+                    handler.onFailure(board, 7, "plan", text, "facts: -1 minecraft:stick"));
+        }
+        assertEquals(0, board.primary().orElseThrow().replans());
+        assertTrue(board.primary().orElseThrow().lessons().isEmpty());
+        assertEquals(GoalStatus.ACTIVE, board.primary().orElseThrow().status());
+        assertFalse(FailureHandler.isCancellation("can't reach 1 2 3"));
+        assertFalse(FailureHandler.isCancellation("the bridge collapsed and the stop sign fell"));
+        assertFalse(FailureHandler.isCancellation(null));
+    }
+
+    @Test
     void unknownFailureAddsNoDiagnosisAndNoLesson() {
         GoalBoard board = boardWithPlan(3, 7);
         String extra = handler.onFailure(board, 7, "stay", "gremlins", "");

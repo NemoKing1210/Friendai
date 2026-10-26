@@ -84,6 +84,8 @@ public final class BrainService {
 
     private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
     private final Map<UUID, Long> lastGoalTick = new HashMap<>();
+    /** Unanswered goal nudges per owner; reset when the owner speaks or the companion starts working. */
+    private final Map<UUID, Integer> nudgeStreak = new HashMap<>();
     private long lastAgentCheck;
     private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
@@ -233,6 +235,9 @@ public final class BrainService {
     }
 
     public void post(UUID owner, BrainEvent event) {
+        if (event instanceof BrainEvent.PlayerSaid) {
+            nudgeStreak.remove(owner);
+        }
         entryFor(owner).ifPresent(entry -> entry.brain().post(event));
     }
 
@@ -377,9 +382,17 @@ public final class BrainService {
             boolean active = primary.isPresent()
                     && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
             long last = lastGoalTick.computeIfAbsent(owner, id -> now);
+            boolean idle = queueIdleOrBlocked(companion);
+            if (!idle) {
+                nudgeStreak.remove(owner); // working again: the next idle spell starts with a fresh interval
+            }
+            int streak = nudgeStreak.getOrDefault(owner, 0);
+            if (dev.friendai.agent.tick.NudgeBackoff.exhausted(streak)) {
+                continue;
+            }
             var facts = new dev.friendai.agent.tick.TickFacts(
                     active,
-                    queueIdleOrBlocked(companion),
+                    idle,
                     companion.owner().isPresent(),
                     companion.taskRunner().paused() || companion.taskRunner().suspended()
                             || companion.isSleeping() || companion.getTarget() != null,
@@ -387,12 +400,14 @@ public final class BrainService {
                     now,
                     last,
                     autonomy,
-                    config.agent.goalTickSec);
+                    dev.friendai.agent.tick.NudgeBackoff.intervalSec(config.agent.goalTickSec, streak));
             if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
                 lastGoalTick.put(owner, now);
+                nudgeStreak.merge(owner, 1, Integer::sum);
                 post(owner, new BrainEvent.IdleNudge());
             } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
                 lastGoalTick.put(owner, now);
+                nudgeStreak.merge(owner, 1, Integer::sum);
                 var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
                 guard.refresh();
                 post(owner, new BrainEvent.GoalTick(primary.get().text(),
@@ -423,10 +438,20 @@ public final class BrainService {
     private final class GamePlannerPort implements dev.friendai.brain.PlannerPort {
         private final UUID owner;
         private final CompanionEntity companion;
+        /** Plans the planner cancels itself; their end is not news and must not trigger another replan. */
+        private final java.util.Set<Long> replaced;
 
-        GamePlannerPort(UUID owner, CompanionEntity companion) {
+        GamePlannerPort(UUID owner, CompanionEntity companion, java.util.Set<Long> replaced) {
             this.owner = owner;
             this.companion = companion;
+            this.replaced = replaced;
+        }
+
+        @Override
+        public boolean ownsPlan(long planId) {
+            return FriendaiServerState.get(server).goals().board(owner).primary()
+                    .map(goal -> goal.planId() == planId)
+                    .orElse(false);
         }
 
         @Override
@@ -472,9 +497,13 @@ public final class BrainService {
             var executor = tools.bind(companion);
             if (primary.isPresent() && primary.get().planId() != 0
                     && companion.taskRunner().queue().plan(primary.get().planId()).isPresent()) {
+                long oldPlan = primary.get().planId();
+                // Unlink first and silence the plan's end event: cancelling must not count as a failure.
+                board.linkPlan(primary.get().id(), 0);
+                replaced.add(oldPlan);
                 JsonObject cancel = new JsonObject();
                 cancel.addProperty("action", "cancel");
-                cancel.addProperty("plan", primary.get().planId());
+                cancel.addProperty("plan", oldPlan);
                 executor.execute(new ToolCall("planner", "queue_edit", cancel, cancel.toString(), null), caller);
             }
             // queue_add links a new plan only to a goal that has none.
@@ -579,7 +608,8 @@ public final class BrainService {
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
-        brain.setPlannerPort(new GamePlannerPort(owner, companion));
+        java.util.Set<Long> replaced = new java.util.HashSet<>();
+        brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
         brain.setAgentSettings(() -> new dev.friendai.brain.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy),
@@ -629,12 +659,18 @@ public final class BrainService {
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
+                if (replaced.remove(planId)) {
+                    return;
+                }
                 post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary,
                         agent.extra(success, planId, goal, summary)));
             }
 
             @Override
             public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
+                if (replaced.contains(planId)) {
+                    return;
+                }
                 post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining,
                         agent.extra(false, planId, toolName, reason)));
             }

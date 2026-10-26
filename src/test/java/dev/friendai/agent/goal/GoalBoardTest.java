@@ -86,6 +86,27 @@ class GoalBoardTest {
     }
 
     @Test
+    void reactivatingABlockedGoalGivesItAFreshReplanBudget() {
+        GoalBoard board = new GoalBoard(3, 1);
+        long id = board.set("g", List.of(), false, 1).value().id();
+        assertTrue(board.recordReplan(id));
+        assertFalse(board.recordReplan(id));
+        assertEquals(GoalStatus.BLOCKED, board.primary().orElseThrow().status());
+        board.update(id, Optional.empty(), Optional.empty(), Optional.of(GoalStatus.ACTIVE));
+        assertEquals(0, board.primary().orElseThrow().replans());
+        assertTrue(board.recordReplan(id), "the budget is available again");
+    }
+
+    @Test
+    void settingAnActiveGoalToActiveKeepsItsReplanCount() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long id = board.set("g", List.of(), false, 1).value().id();
+        board.recordReplan(id);
+        board.update(id, Optional.of("renamed"), Optional.empty(), Optional.of(GoalStatus.ACTIVE));
+        assertEquals(1, board.primary().orElseThrow().replans());
+    }
+
+    @Test
     void unmetUsesGuardChecksAgainstFacts() {
         GoalBoard board = new GoalBoard(3, 3);
         Criterion logs = new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)));

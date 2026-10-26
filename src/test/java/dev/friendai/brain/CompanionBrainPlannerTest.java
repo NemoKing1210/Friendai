@@ -39,6 +39,12 @@ class CompanionBrainPlannerTest {
         final List<String> failures = new ArrayList<>();
         final List<Caller> appliedFor = new ArrayList<>();
         boolean hasGoal = true;
+        boolean owned = true;
+
+        @Override
+        public boolean ownsPlan(long planId) {
+            return owned;
+        }
         CompletableFuture<PlanProposal> answer = CompletableFuture.completedFuture(proposal());
         ToolResult applyResult = ToolResult.ok("plan #5 added: 1 jobs");
 
@@ -206,6 +212,23 @@ class CompanionBrainPlannerTest {
                 FailureHandler.BUDGET_SPENT));
         assertTrue(port.failures.isEmpty(), "no replans left");
         assertEquals(List.of("I am stuck, can you help?"), speaker.said);
+    }
+
+    @Test
+    void aPlayerStopIsNotAReasonToReplan() {
+        activeGoal();
+        gateway.enqueue(text("[silent]"));
+        brain.post(new BrainEvent.PlanFinished(5, "house", false, "stopped by request"));
+        assertTrue(port.failures.isEmpty(), "a stopped plan must not be re-planned");
+    }
+
+    @Test
+    void aFailedPlanThatIsNotTheGoalsPlanIsLeftAlone() {
+        activeGoal();
+        port.owned = false;
+        gateway.enqueue(text("[silent]"));
+        brain.post(new BrainEvent.PlanBlocked(6, "errand", 9, "go_to", "can't reach 1 2 3", 1));
+        assertTrue(port.failures.isEmpty(), "plan #6 does not belong to the goal");
     }
 
     @Test

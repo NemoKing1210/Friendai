@@ -68,6 +68,38 @@ public class PlannerTests {
         });
     }
 
+    @GameTest(maxTicks = 700)
+    public void replacing_a_plan_spends_exactly_one_replan_and_asks_once(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        FriendaiServerState state = FriendaiServerState.get(server);
+        BrainService brains = state.brains();
+        AtomicInteger asked = new AtomicInteger();
+        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
+        AtomicInteger requests = new AtomicInteger();
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
+            requests.incrementAndGet();
+            return CompletableFuture.completedFuture(new dev.friendai.llm.model.LlmResponse(
+                    "[silent]", List.of(), dev.friendai.llm.model.StopReason.END, new dev.friendai.llm.model.Usage(0, 0)));
+        });
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
+        Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
+        h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
+        h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "failing plan queued and linked");
+        // Give the failure, the replan and any wrongly triggered second replan time to happen.
+        h.runAfterDelay(400, () -> {
+            h.assertTrue(asked.get() == 1, "exactly one planner call, got " + asked.get());
+            var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
+            h.assertTrue(goal.replans() == 1, "the replan is spent once, got " + goal.replans());
+            h.assertTrue(goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE, "the goal is not blocked");
+            // One turn for the first notice and one for the blocked plan; cancelling the old plan is silent.
+            h.assertTrue(requests.get() == 2, "cancelling the replaced plan must not start a turn, requests=" + requests.get());
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void recovery_replan_cancels_only_the_linked_plan(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

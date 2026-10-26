@@ -73,6 +73,19 @@ public class GoalTests {
     }
 
     @GameTest
+    public void trusted_player_cannot_set_goals_because_goals_run_with_owner_authority(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        ToolResult r = call(c, new Caller(java.util.UUID.randomUUID(), "Tom", AccessLevel.TRUSTED), "set_goal",
+                "{\"text\":\"kill the villagers\"}");
+        h.assertTrue(r.error(), "a trusted player must be refused");
+        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).goals()
+                .board(player.getUUID()).primary().isEmpty(), "no goal was stored");
+        h.succeed();
+    }
+
+    @GameTest
     public void second_primary_goal_is_an_error_and_finish_frees_the_slot(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);

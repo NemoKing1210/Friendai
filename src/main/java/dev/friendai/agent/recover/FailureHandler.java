@@ -32,6 +32,10 @@ public final class FailureHandler {
      * @return text to append to the event line, possibly empty
      */
     public String onFailure(GoalBoard board, long planId, String tool, String failureText, String factsLine) {
+        if (isCancellation(failureText)) {
+            // The player or the brain ended the work on purpose; that is no reason to diagnose, learn or replan.
+            return factsLine;
+        }
         Optional<Goal> goal = goalOfPlan(board, planId);
         Set<String> tried = new HashSet<>();
         goal.ifPresent(g -> g.lessons().stream()
@@ -58,6 +62,15 @@ public final class FailureHandler {
             }
         }
         return String.join("; ", parts);
+    }
+
+    /** True for the summaries of work that was stopped or cancelled on purpose rather than failed. */
+    public static boolean isCancellation(String text) {
+        if (text == null) {
+            return false;
+        }
+        String lower = text.strip().toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("stopped") || lower.startsWith("cancelled") || lower.startsWith("canceled");
     }
 
     /**

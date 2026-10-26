@@ -65,6 +65,8 @@ public final class CompanionBrain {
     private GoalSource goalSource = GoalSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
     private boolean plannedThisTurn;
+    /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
+    private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
@@ -273,8 +275,12 @@ public final class CompanionBrain {
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         turnCaller = new Caller(principal, name == null ? "" : name, level);
-        boolean planTrouble = batch.stream().anyMatch(event -> event instanceof BrainEvent.PlanBlocked
-                || (event instanceof BrainEvent.PlanFinished finished && !finished.success()));
+        List<Long> troubledPlans = batch.stream()
+                .map(CompanionBrain::troubledPlanId)
+                .filter(id -> id >= 0)
+                .toList();
+        boolean planTrouble = !troubledPlans.isEmpty();
+        ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
         decision = router.route(new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
@@ -296,7 +302,8 @@ public final class CompanionBrain {
         plannedThisTurn = false;
         plannerNote = "";
         // A failed plan that still has replans left is worked out by the planner before the model answers.
-        if (decision.mode() == TurnMode.RECOVERY && decision.wantPlanner() && !lines.contains(BUDGET_SPENT)) {
+        if (decision.mode() == TurnMode.RECOVERY && decision.wantPlanner() && ownsTroubledPlan
+                && !lines.contains(BUDGET_SPENT)) {
             plan(generation, lines);
         } else {
             requestStep(generation);
@@ -431,6 +438,18 @@ public final class CompanionBrain {
             return;
         }
         requestStep(gen);
+    }
+
+    /** The plan an event reports as failed or blocked, or -1 for anything else (a stop or cancel is not trouble). */
+    private static long troubledPlanId(BrainEvent event) {
+        if (event instanceof BrainEvent.PlanBlocked blocked) {
+            return blocked.planId();
+        }
+        if (event instanceof BrainEvent.PlanFinished finished && !finished.success()
+                && !FailureHandler.isCancellation(finished.summary())) {
+            return finished.planId();
+        }
+        return -1;
     }
 
     /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */
