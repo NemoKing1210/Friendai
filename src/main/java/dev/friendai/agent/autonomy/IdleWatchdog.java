@@ -25,11 +25,14 @@ public final class IdleWatchdog {
     }
 
     /**
+     * @param freeTimeActive free time is on and enabled on this server; neither a paused server rule nor a passive
+     *                       ceiling is a stall
      * @param quietSinceMillis when the companion last had something to do; {@code 0} or less means the driver has not
      *                         seen a quiet tick yet
      */
-    public static boolean due(boolean freeTimeOn, Busy busy, long quietSinceMillis, long nowMillis, int windowSec) {
-        return freeTimeOn && !busy.anything() && quietSinceMillis > 0
+    public static boolean due(boolean freeTimeActive, Busy busy, long quietSinceMillis, long nowMillis,
+                              int windowSec) {
+        return freeTimeActive && !busy.anything() && quietSinceMillis > 0
                 && nowMillis - quietSinceMillis >= Math.max(1, windowSec) * 1000L;
     }
 }

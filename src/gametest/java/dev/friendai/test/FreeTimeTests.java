@@ -371,6 +371,21 @@ public class FreeTimeTests {
         });
     }
 
+    /** "Come back" must turn following on even when free time was already off. */
+    @GameTest(maxTicks = 200)
+    public void endFreeTimeBringsTheCompanionBack(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        c.setFollowMode(false);
+        h.assertTrue(!c.followMode(), "following is off");
+        var result = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains()
+                .runTool(owner, "end_free_time", "{}");
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(c.followMode(), "the order to come back turns following on: " + result.content());
+        h.succeed();
+    }
+
     private static dev.friendai.agent.plan.PlanProposal jumpPlan() {
         return new dev.friendai.agent.plan.PlanProposal(java.util.List.of(),
                 com.google.gson.JsonParser.parseString("[{\"tool\":\"jump\",\"args\":\"{}\"},{\"tool\":\"jump\","

@@ -26,8 +26,9 @@ class IdleWatchdogTest {
         assertFalse(due(-5));
     }
 
+    /** Off is one flag whether free time is off for the owner or on a server that disabled it. */
     @Test
-    void freeTimeOffNeverFires() {
+    void freeTimeOffOrDisabledNeverFires() {
         assertFalse(IdleWatchdog.due(false, IdleWatchdog.Busy.NONE, QUIET_SINCE, NOW, 120));
     }
 

@@ -38,11 +38,12 @@ final class FreeTimeTools {
                 SchemaBuilder.object().build(),
                 AccessLevel.OWNER, () -> true, (c, caller, args) -> {
                     FreeTimeDriver driver = driver(c);
+                    // "Come back" turns following on even when free time was already off: that is the whole order.
+                    c.setFollowMode(true);
                     if (!driver.state(c.ownerUuid()).on()) {
-                        return ToolResult.ok("free time was already off");
+                        return ToolResult.ok("free time was already off; following the owner again");
                     }
                     driver.stop(c.ownerUuid(), "owner ended free time");
-                    c.setFollowMode(true);
                     return ToolResult.ok("free time off; following the owner again");
                 }));
         registry.register(ToolKit.callerTool("choose_activity",

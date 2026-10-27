@@ -327,7 +327,9 @@ public final class FreeTimeDriver {
             return;
         }
         long since = quietSince.computeIfAbsent(owner, id -> nowMillis);
-        if (!IdleWatchdog.due(true, busy, since, nowMillis, TaskSettings.freeTimeWatchdogSec)) {
+        // Free time switched off on this server is not a stall: nothing may start anyway.
+        if (!IdleWatchdog.due(state.on() && s.enabled(), busy, since, nowMillis,
+                TaskSettings.freeTimeWatchdogSec)) {
             return;
         }
         quietSince.put(owner, nowMillis);
