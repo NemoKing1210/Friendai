@@ -200,7 +200,7 @@ pure Java  (llm, brain, tool, memory, place, crafting, pathing, build, survival,
 
 ### Task lifecycle
 
-`TaskRunner.start` cancels the current task, calls `stop`, and starts the new one. Each tick enforces the timeout and isolates crashes (a throwing task becomes `FAILED`, not a broken runner); with nothing to do it falls back to `FollowTask`. Pausing (companion menu, combat retreat) suspends ticking without losing the task. `TaskFactory.restore` rebuilds only the saved task kinds after a reload; anything else starts fresh.
+`TaskRunner.start` cancels the current task, calls `stop`, and starts the new one. Each tick enforces the timeout and isolates crashes (a throwing task becomes `FAILED`, not a broken runner); with nothing to do it falls back to `FollowTask`. Pausing suspends ticking without losing the task: `CombatController` sets it around a retreat and around a fight it did not order, and the companion inventory window holds it through `hold()`/`release()`. The companion menu pauses nothing today — see `TODO.md` item 7.5. `TaskFactory.restore` rebuilds only the saved task kinds after a reload; anything else starts fresh.
 
 ### Companion menu
 
