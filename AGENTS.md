@@ -292,7 +292,18 @@ A full run is about 9 minutes of GameTests plus the unit suite, so an agent does
 - **At merge to `main`** the full gate runs: CI (`.github/workflows/ci.yml`) runs all unit tests and all GameTests on every pull request, merge-queue entry and push to `main`, and `CI gate` is the required check. A local full run is the maintainer's call (before tagging a release), not an agent's default.
 - In the task report, state which group you ran and its real result, and say plainly that the full suite was left to CI. A failure in an unrelated test on the full run is CI's finding to triage, not a reason to widen your own scope.
 
-- **TDD.** Write the failing test first and watch it fail for the right reason. Unit tests use the fakes in `src/test/java/dev/friendai/testutil` — no mocking frameworks.
+### Batch the loop: write everything, run once
+
+An agent slows itself down by running Gradle after every edit: a unit run costs tens of seconds, a GameTest boot minutes, the edit itself seconds. The rule:
+
+1. Write the whole slice first: the logic, the tests that pin it, the language keys, the call sites, the doc line.
+2. Run once, only the group that covers it (see "Test scope"), and read every failure before touching anything.
+3. Fix all of them in one pass, then re-run. Do not restart the loop after each individual fix.
+4. Treat compilation as part of the batch: write against the type system, not against the compiler's first error message.
+
+**Keep the tests honest while batching.** A test written next to its implementation is still the specification, but a test that passes on the first run has proven nothing until you know it can fail. Write it against the current behavior when you can, or break the one line it guards and watch the red once, inside the same batch. Also watch for a failure that is not the one you are testing: a missing floor, a GameTest class absent from `fabric-gametest`, a fixture that throws, a test that fails on setup — each hides whether the behavior is right.
+
+- **TDD, batched.** Write the test before the implementation and keep it honest (see "Batch the loop" above), but do not run it alone after each edit. Unit tests use the fakes in `src/test/java/dev/friendai/testutil` — no mocking frameworks.
 - **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView`), `RecordingSpeaker` (captures speech/errors/thinking).
 - **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive a `TaskRunner` yourself inside `h.succeedWhen(() -> { runner.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
 - **Entities tick only in the chunk(s) the test structure covers.** A mob that walks or is knocked out of them freezes mid-step: it keeps its velocity, stops falling and stops taking damage, so a fight against it never lands another hit and a companion that walks out stops arriving. Arenas are wider than the 8x8 structure, so build them with `GameTestSupport.platform`/`platformAt`, which force-load every chunk they cover; add `GameTestSupport.enclose(h, y, size, height)` when a hurt or fleeing mob could run off the edge.
@@ -474,7 +485,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble` (compiles every source set and packages) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session.
 1. Tests are not a gate for a commit: commit a coherent change when it is ready. Run only your group's tests (see "Test scope" under Testing); the full suite is CI's job at merge to `main`. Quote the real result of what you ran (unit-test count and GameTest line) instead of assuming.
 2. New player-facing strings exist in both language files.
-3. New behavior has a test that failed first; bugs get a regression test.
+3. New behavior has a test that pins it and would fail without the change (see "Batch the loop" for how to prove that inside one run); bugs get a regression test.
 4. Layer boundaries respected (no Minecraft imports in the pure layers).
 5. `mod_version` bumped according to "Versioning" (or a stated reason why no bump is needed).
 6. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
