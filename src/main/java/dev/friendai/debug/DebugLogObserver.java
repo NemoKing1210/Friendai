@@ -40,6 +40,14 @@ public final class DebugLogObserver implements BrainObserver {
     }
 
     @Override
+    public void onInstructions(java.util.List<String> ids,int chars,int promptChars,boolean overrun) {
+        log.add(LogKind.TOOL_RESULT,"Instructions: " + ids + "; characters=" + chars + "; prompt=" + promptChars
+                + "; estimated instruction tokens=" + ((chars+3)/4) + "; mandatory overrun=" + overrun);
+    }
+    @Override public void onUsage(dev.friendai.llm.model.Usage usage) {
+        log.add(LogKind.TOOL_RESULT,"Provider token usage: " + usage);
+    }
+    @Override
     public void onError(Throwable error) {
         log.add(LogKind.ERROR, error.toString());
     }

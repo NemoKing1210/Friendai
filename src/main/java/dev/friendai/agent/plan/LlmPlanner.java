@@ -34,7 +34,7 @@ public final class LlmPlanner implements Planner {
 
     @Override
     public CompletableFuture<PlanProposal> propose(PlannerInput input) {
-        String system = PlannerPrompt.system();
+        String system = PlannerPrompt.system(input);
         String user = PlannerPrompt.user(input, redact);
         return attempt(input, system, user, 1);
     }

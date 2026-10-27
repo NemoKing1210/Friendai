@@ -45,6 +45,7 @@ public final class FriendaiServerState {
     private final BrainService brains;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
     private final SkinStore skins;
@@ -80,6 +81,8 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
+        this.skills = new SkillService(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
+                () -> this.config, memory);
         this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
         this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
@@ -147,6 +150,8 @@ public final class FriendaiServerState {
     }
 
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */
+    public SkillService skills() { return skills; }
+
     public MemoryStore memory() {
         return memory;
     }
@@ -186,6 +191,7 @@ public final class FriendaiServerState {
         trading.close();
         knowledge.close();
         places.close();
+        skills.close();
     }
 
     /** The name the owner gave their companion, or the configured default. */
@@ -210,6 +216,7 @@ public final class FriendaiServerState {
 
     /** Expires pending trust requests, checked once per second. */
     public void tick(long now) {
+        skills.tick();
         if (now - lastTrustTick < 1_000) {
             return;
         }

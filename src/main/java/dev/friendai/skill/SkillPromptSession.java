@@ -27,8 +27,10 @@ public final class SkillPromptSession {
         String details=context.description().details();
         boolean include=context.caller().access()==AccessLevel.OWNER
                 &&(SkillSelector.normalize(context.message()).contains("profile")||selection.skills().stream().anyMatch(InstructionSkill::includeProfile));
-        String profile="Description details:\n"+details;
-        if(include&&!details.isBlank()&&profile.length()+1<=remaining-selection.renderedChars())out.add(new SkillPromptSection("skill:profile",profile,10));
+        String address=context.caller().access()==AccessLevel.OWNER?context.ownerProfile().address():"";
+        String profile=(address.isBlank()?"":"Owner preferred address: "+address+"\n")
+                +(include&&!details.isBlank()?"Description details:\n"+details:"");
+        if(!profile.isBlank()&&profile.length()+1<=remaining-selection.renderedChars())out.add(new SkillPromptSection("skill:profile",profile,10));
         return List.copyOf(out);
     }
     public ToolResult request(String id) {

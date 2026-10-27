@@ -137,7 +137,9 @@ public final class BrainService {
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
-        return plannerFor(owner).propose(input);
+        var session = FriendaiServerState.get(server).skills().begin(owner,new Caller(owner,"",AccessLevel.OWNER),
+                input.goal().text(),dev.friendai.brain.TurnKind.EVENT,"",freeTime.state(owner).on(),true);
+        return plannerFor(owner).propose(input.withInstructions(session.sections(),config.agent.promptBudget));
     }
 
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
@@ -570,7 +572,7 @@ public final class BrainService {
 
         @Override
         public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(dev.friendai.agent.plan.PlannerInput input) {
-            return plannerFor(owner).propose(input);
+            return BrainService.this.propose(owner,input);
         }
 
         @Override
@@ -731,6 +733,8 @@ public final class BrainService {
                     level.getServer().overworld().getGameTime(), tradingConfig.quoteFreshTicks,
                     tradingConfig.locationFreshTicks);
         });
+        brain.setSkillSource((caller,message,turn) -> FriendaiServerState.get(server).skills().begin(owner,caller,message,turn,
+                companion.taskRunner().currentToolName(),freeTime.state(owner).on(),false));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
