@@ -230,6 +230,26 @@ public final class ResourceSearchTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 80)
+    public void unsupportedFamilyIsReportedNotCrashed(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        Result result = new Result();
+        companion.taskRunner().setListener(result);
+
+        var started = tools().bind(companion).execute(searchCall("minecraft:gravel", "auto", "local"),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("no search strategy"), result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 120)
     public void searchDoesNotTravelWhenWoodIsVisible(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

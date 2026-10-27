@@ -63,6 +63,10 @@ public final class SearchResourceTask implements Task {
         String family = resolved.family();
         ResourceSearchProfile profile = ResourceSearchProfile.builtin(family,
                 context.level().dimension().identifier().toString());
+        if (profile.strategies().isEmpty()) {
+            summary = "no search strategy for " + family + " in " + profile.dimensions();
+            return;
+        }
         ResourceSearchProfile.Strategy strategy = chooseStrategy(profile);
         if (!profile.allows(context.level().dimension().identifier().toString(), strategy)) {
             summary = "unsupported search strategy " + strategy.name().toLowerCase(java.util.Locale.ROOT)
@@ -125,10 +129,6 @@ public final class SearchResourceTask implements Task {
     @Override public String saveData() { return session == null ? null : "resource_session:v1:" + session.snapshot().id(); }
 
     private ResourceSearchProfile.Strategy chooseStrategy(ResourceSearchProfile profile) {
-        if (profile.strategies().isEmpty()) {
-            throw new IllegalArgumentException("no search strategy for " + profile.family()
-                    + " in " + profile.dimensions());
-        }
         if (!requestedStrategy.equalsIgnoreCase("auto")) {
             try { return ResourceSearchProfile.Strategy.valueOf(requestedStrategy.toUpperCase(java.util.Locale.ROOT)); }
             catch (IllegalArgumentException e) { throw new IllegalArgumentException("unknown search strategy: " + requestedStrategy); }
