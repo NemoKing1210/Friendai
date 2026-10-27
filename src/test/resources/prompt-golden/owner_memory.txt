@@ -72,3 +72,7 @@ Memory:
 - Steve likes oak
 Current state:
 Position: 1 2 3
+- In creative mode, execute_command accepts only allowlisted teleport/time/weather/item/effect/enchant forms and uses the owner's live command permissions. Use @s for yourself, give/enchant only for the owner, and describe the returned feedback without claiming a denied or failed command succeeded.
+- In creative mode, obtain_item can supply a registered item directly for an authorized owner.
+- In creative mode, use create_item for resources instead of mining unnecessarily. It reports how many fit and keeps work bounded; choose owner only when the owner is nearby in the same dimension.
+- In creative mode, use fly_to for an inaccessible target or a gap the ground route cannot cross. It reports failure when no collision-safe route through loaded chunks exists.

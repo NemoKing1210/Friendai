@@ -73,13 +73,15 @@ final class QueueTools {
         FailurePolicy policy=args.has("on_failure")?QueueParser.policy(args.get("on_failure").getAsString()).orElse(null):FailurePolicy.ASK;
         if(policy==null)return ToolResult.error("Invalid plan: on_failure must be ask, skip or stop_plan");
         long time=args.has("time_limit_min")?args.get("time_limit_min").getAsLong()*1200L:0;
-        List<QueuedStep> steps=parsed.steps().stream().map(step -> bindCaller(step, allowed.get(step.tool()), caller)).toList();
+        List<QueuedStep> steps;
+        try { steps=parsed.steps().stream().map(step -> bindCaller(step, allowed.get(step.tool()), caller)).toList(); }
+        catch (IllegalArgumentException e) { return ToolResult.error("Invalid plan: " + e.getMessage()); }
         if (steps.stream().anyMatch(QueuedStep::creativeSensitive)
                 && !CreativeModeService.mayStartWorldChangingTask(c, caller.uuid())) {
             return ToolResult.error("Creative mode is active; only its online operator owner can request world-changing tasks.");
         }
         UUID principal = caller.uuid();
-        List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),currentCaller(ctx.companion(),principal),s.args())).toList();        boolean optimize=args.has("optimize")&&args.get("optimize").getAsBoolean();
+        List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),currentCaller(ctx.companion(),principal).withTradingScope(QueueTradeScope.read(s.args())),s.args())).toList();        boolean optimize=args.has("optimize")&&args.get("optimize").getAsBoolean();
         long id;try{id=c.taskRunner().enqueuePlan(goal,steps,factories,new PlanOptions(priority,policy,time),planId->{
             if(!optimize)return;
             // Merge before the first job starts, then rebuild the factories so merged counts are used.
@@ -103,6 +105,9 @@ final class QueueTools {
                             && !CreativeModeService.mayStartWorldChangingTask(c, caller.uuid())) {
                         return error("Creative mode is active; only its online operator owner can retry world-changing tasks.");
                     }
+                    TaskToolDef def = all.get(job.tool());
+                    boolean spending = job.args().has(TRADING_SCOPE_ARG) || (def != null && def.queueTraits().requiresTradingScope());
+                    QueueTradeScope.retry(job.args(), spending, caller.access() == AccessLevel.OWNER);
                     var r = q.retry(id);
                     if (!r.ok()) return error(r.text());
                 }
@@ -118,8 +123,14 @@ final class QueueTools {
         runner.wakeQueue();return ToolResult.ok("queue updated");
     }
     private static Map<String,TaskToolDef> allowed(Caller caller,Map<String,TaskToolDef> all){Map<String,TaskToolDef> map=new LinkedHashMap<>();all.forEach((n,d)->{if(caller.access().allows(d.minAccess()))map.put(n,d);});return map;}
-    private static void registerFactories(CompanionEntity c,List<Long> ids,Map<String,TaskToolDef> allowed,UUID principal){for(long id:ids){var job=c.taskRunner().queue().job(id).orElse(null);if(job==null)continue;TaskToolDef def=allowed.get(job.tool());if(def!=null){JsonObject savedArgs=job.args();c.taskRunner().registerFactory(id,ctx->createTask(def,ctx.companion(),currentCaller(ctx.companion(),principal),savedArgs.deepCopy()));}}}
-    private static QueuedStep bindCaller(QueuedStep step,TaskToolDef def,Caller caller){return new QueuedStep(step.tool(),step.args(),step.priority(),step.guards(),step.onUnmet(),step.onFailure(),step.maxAttempts(),step.afterSteps(),caller==null?null:caller.uuid(),def.creativeSensitive());}
+    private static void registerFactories(CompanionEntity c,List<Long> ids,Map<String,TaskToolDef> allowed,UUID principal){for(long id:ids){var job=c.taskRunner().queue().job(id).orElse(null);if(job==null)continue;TaskToolDef def=allowed.get(job.tool());if(def!=null){JsonObject savedArgs=job.args();c.taskRunner().registerFactory(id,ctx->createTask(def,ctx.companion(),currentCaller(ctx.companion(),principal).withTradingScope(QueueTradeScope.read(savedArgs)),savedArgs.deepCopy()));}}}
+    private static QueuedStep bindCaller(QueuedStep step,TaskToolDef def,Caller caller){
+        boolean spending = def != null && def.queueTraits().requiresTradingScope();
+        JsonObject scoped = QueueTradeScope.capture(step.args(), caller == null ? null : caller.tradingScope(), spending);
+        return new QueuedStep(step.tool(), scoped, step.priority(), step.guards(), step.onUnmet(), step.onFailure(),
+                spending ? 1 : step.maxAttempts(), step.afterSteps(), caller == null ? null : caller.uuid(),
+                def != null && def.creativeSensitive());
+    }
     private static dev.friendai.task.Task createTask(TaskToolDef def,CompanionEntity c,Caller caller,JsonObject args){return def.callerFactory()==null?def.factory().create(c,args.deepCopy()):def.callerFactory().create(c,caller,args.deepCopy());}
     private static Caller currentCaller(CompanionEntity c,UUID principal){if(principal==null)return new Caller(null,"",AccessLevel.GUEST);AccessLevel access=c.ownerUuid()!=null&&c.ownerUuid().equals(principal)?AccessLevel.OWNER:AccessLevel.GUEST;if(c.level() instanceof ServerLevel level&&access!=AccessLevel.OWNER&&c.ownerUuid()!=null&&FriendaiServerState.get(level.getServer()).memory().book(c.ownerUuid()).isTrusted(principal))access=AccessLevel.TRUSTED;return new Caller(principal,"",access);}    private static String validateGuards(List<QueuedStep> steps){for(int i=0;i<steps.size();i++)for(var guard:steps.get(i).guards()){if(guard instanceof Guard.HasItem g&&ItemMatcher.parse(g.item()).isEmpty())return "step "+(i+1)+": unknown item '"+g.item()+"'";if(guard instanceof Guard.BlockWithin g&&BlockMatcher.parse(g.block()).isEmpty())return "step "+(i+1)+": unknown block '"+g.block()+"'";}return null;}
     private static long required(JsonObject a,String key){if(!a.has(key))throw new IllegalArgumentException("queue_edit requires "+key);return a.get(key).getAsLong();}

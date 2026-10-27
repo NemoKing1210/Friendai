@@ -128,7 +128,8 @@ public final class ToolCatalog {
         hint(metas, "mine_blocks",
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.");
         hint(metas, "obtain_item",
-                "- In creative mode, obtain_item can supply a registered item directly for an authorized owner. In survival, use it instead of a long hand-written plan; use plan_obtain to explain the steps.");
+                "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
+                        + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.");
         hint(metas, "create_item",
                 "- In creative mode, use create_item for resources instead of mining unnecessarily. It reports how many fit and keeps work bounded; choose owner only when the owner is nearby in the same dimension.");
         hint(metas, "fly_to",

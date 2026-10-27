@@ -23,7 +23,7 @@ class TradingSettingsTest {
         assertEquals(12_000, trading.maxWaitTicks);
         assertEquals(64, trading.maxBarterIngots);
         assertEquals(8, trading.barterDefaultIngots);
-        assertEquals(11, config.version);
+        assertEquals(ServerConfig.VERSION, config.version);
     }
 
     @Test

@@ -6,7 +6,7 @@ import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.Task;
 import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.QueuedStep;import dev.friendai.queue.FailurePolicy;
+import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
@@ -58,11 +58,16 @@ final class ToolKit {
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
             try {
-                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
-                                FailurePolicy.STOP_PLAN, 1, List.of(), caller == null ? null : caller.uuid(),
+                QueueTradeScope.EnqueueCapture capture = QueueTradeScope.captureEnqueue(args,
+                        caller == null ? null : caller.tradingScope(), def.queueTraits().requiresTradingScope(), 1);
+                JsonObject queuedArgs = capture.args();
+                Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
+                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), queuedArgs, null, List.of(), GuardAction.WAIT,
+                                FailurePolicy.STOP_PLAN, capture.maxAttempts(), List.of(), caller == null ? null : caller.uuid(),
                                 def.creativeSensitive()),
-                        ctx -> def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), caller),
-                                args.deepCopy()));                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
+                        ctx -> def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), queuedCaller),
+                                queuedArgs.deepCopy()));
+                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
                 return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
                         : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
             } catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
@@ -71,6 +76,7 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
+        validateRegistration(def, false);
         return callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, (c, caller, args) -> {
             if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
                     caller == null ? null : caller.uuid())) {
@@ -87,13 +93,19 @@ final class ToolKit {
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
             Task preview = task;
+            QueueTradeScope.EnqueueCapture capture;
+            try { capture = QueueTradeScope.captureEnqueue(args, caller == null ? null : caller.tradingScope(),
+                    def.queueTraits().requiresTradingScope(), 1); }
+            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
+            JsonObject queuedArgs = capture.args();
+            Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
             long id;
-            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
-                            FailurePolicy.STOP_PLAN, 1, List.of(), caller == null ? null : caller.uuid(),
+            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), queuedArgs, null, List.of(), GuardAction.WAIT,
+                            FailurePolicy.STOP_PLAN, capture.maxAttempts(), List.of(), caller == null ? null : caller.uuid(),
                             def.creativeSensitive()),
-                    ctx -> def.callerFactory() == null ? def.factory().create(ctx.companion(), args.deepCopy())
-                            : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), caller),
-                                    args.deepCopy())); }
+                    ctx -> def.callerFactory() == null ? def.factory().create(ctx.companion(), queuedArgs.deepCopy())
+                            : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), queuedCaller),
+                                    queuedArgs.deepCopy())); }
             catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
             boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
             return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
