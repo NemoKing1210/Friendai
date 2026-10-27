@@ -590,7 +590,7 @@ public final class BuildTask implements Task {
                 case IN_REACH -> {
                 }
             }
-            Optional<PlaceSpot.Spot> spot = spot(c.level(), spec.pos());
+            Optional<PlaceSpot.Spot> spot = spot(c.level(), spec.pos(), spec.wanted());
             if (spot.isEmpty()) {
                 return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
                         + ": nothing to place it against");
@@ -716,7 +716,7 @@ public final class BuildTask implements Task {
             if (!c.companion().hands().canInteract(currentPos)) {
                 return fail(c, coords(currentPos) + " is protected");
             }
-            Optional<PlaceSpot.Spot> spot = spot(level, currentPos);
+            Optional<PlaceSpot.Spot> spot = spot(level, currentPos, wanted.wanted());
             if (spot.isEmpty()) {
                 // A block without a neighbour waits to the end of the queue: a neighbour placed later in the same
                 // layer is better than scaffold material, and support is only placed once nothing else can help.
@@ -781,7 +781,7 @@ public final class BuildTask implements Task {
                 refused = coords(cell);
                 continue;
             }
-            if (spot(c.level(), pos).isEmpty()) {
+            if (spot(c.level(), pos, spec.wanted()).isEmpty()) {
                 continue;
             }
             queue = deferred;
@@ -915,9 +915,36 @@ public final class BuildTask implements Task {
     }
 
     /** A spot for pos: a full support face first, then any placed block that can be clicked. */
-    private static Optional<PlaceSpot.Spot> spot(ServerLevel level, BlockPos pos) {
+    private static Optional<PlaceSpot.Spot> spot(ServerLevel level, BlockPos pos, BlockState wanted) {
+        BlockPos support = SupportNeeds.supportOf(wanted, pos);
+        if (support != null) {
+            // A wall torch clicked against the floor becomes a standing torch; only the cell it survives on is right.
+            if (!wanted.canSurvive(level, pos)) {
+                return Optional.empty();
+            }
+            Direction face = faceBetween(support, pos);
+            return face == null
+                    ? Optional.empty()
+                    : Optional.of(new PlaceSpot.Spot(pos, support, face));
+        }
         Optional<PlaceSpot.Spot> strict = PlaceSpot.spotAt(level, pos);
         return strict.isPresent() ? strict : PlaceSpot.standingSpotAt(level, pos);
+    }
+
+    private static Direction faceBetween(BlockPos from, BlockPos to) {
+        int dx = Integer.signum(to.getX() - from.getX());
+        int dy = Integer.signum(to.getY() - from.getY());
+        int dz = Integer.signum(to.getZ() - from.getZ());
+        if (dx != 0) {
+            return dx > 0 ? Direction.EAST : Direction.WEST;
+        }
+        if (dy != 0) {
+            return dy > 0 ? Direction.UP : Direction.DOWN;
+        }
+        if (dz != 0) {
+            return dz > 0 ? Direction.SOUTH : Direction.NORTH;
+        }
+        return null;
     }
 
     /** A foreign block the companion must not break. */

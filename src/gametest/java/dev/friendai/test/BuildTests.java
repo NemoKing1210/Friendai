@@ -870,6 +870,81 @@ public class BuildTests {
     }
 
     @GameTest(maxTicks = 2000)
+    public void wallTorchOnItsWallBuildsInOnePass(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 1));
+        companion.inventory().addItem(new ItemStack(Items.TORCH, 1));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 2));
+        Blueprint blueprint = parse("""
+                {
+                  "name": "torch wall",
+                  "palette": { "C": "minecraft:cobblestone", "T": "minecraft:wall_torch[facing=south]" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" },
+                    { "op": "box", "from": [0,0,1], "to": [0,0,1], "block": "T" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.COBBLESTONE), "the wall");
+            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 5))
+                            .equals(state("minecraft:wall_torch[facing=south]")),
+                    "the torch: " + h.getBlockState(new BlockPos(4, 2, 5)) + "; summary " + result.summary);
+            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+                    "a planned wall needs no scaffold: " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
+        });
+    }
+
+    @GameTest(maxTicks = 4000)
+    public void stairRoofOnTemporarySupport(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_STAIRS, 6));
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 12));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        Blueprint blueprint = parse("""
+                {
+                  "name": "roof",
+                  "palette": { "S": "minecraft:oak_stairs", "P": "minecraft:oak_planks" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [2,0,2], "block": "P" },
+                    { "op": "roof", "from": [0,1,0], "to": [2,1,2], "style": "gable",
+                      "block": "S", "axis": "x" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            for (int x = 4; x <= 6; x++) {
+                h.assertTrue(h.getBlockState(new BlockPos(x, 3, 4))
+                                .equals(state("minecraft:oak_stairs[facing=south,half=bottom]")),
+                        "south slope at " + x + ": " + h.getBlockState(new BlockPos(x, 3, 4)));
+                h.assertTrue(h.getBlockState(new BlockPos(x, 3, 6))
+                                .equals(state("minecraft:oak_stairs[facing=north,half=bottom]")),
+                        "north slope at " + x + ": " + h.getBlockState(new BlockPos(x, 3, 6)));
+                h.assertTrue(h.getBlockState(new BlockPos(x, 4, 5)).is(Blocks.OAK_PLANKS),
+                        "ridge at " + x + ": " + h.getBlockState(new BlockPos(x, 4, 5)));
+            }
+            h.assertTrue(result.summary.contains("scaffold blocks (removed)"),
+                    "the roof must use a temporary support and clean it: " + result.summary);
+            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+                    "scaffold dirt left behind at " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
     public void rotationKeepsAxisAndFacing(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
