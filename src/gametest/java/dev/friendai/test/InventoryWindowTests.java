@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.menu.CompanionInventoryLayout;
 import dev.friendai.menu.CompanionInventoryMenu;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.tool.InventoryAccess;
@@ -81,21 +82,29 @@ public class InventoryWindowTests {
         CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertTrue(FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.NONE, "the owner was denied");
         AbstractContainerMenu menu = owner.containerMenu;
+        int pitch = CompanionInventoryLayout.PITCH;
 
         // Armor in a column on the left, as in the player inventory.
-        h.assertValueEqual(menu.slots.get(0).x, 8, "helmet x");
-        h.assertValueEqual(menu.slots.get(0).y, 18, "helmet y");
-        h.assertValueEqual(menu.slots.get(3).y, 72, "boots y");
+        h.assertValueEqual(menu.slots.get(0).x, CompanionInventoryLayout.SLOT_X, "helmet x");
+        h.assertValueEqual(menu.slots.get(0).y, CompanionInventoryLayout.GEAR_Y, "helmet y");
+        h.assertValueEqual(menu.slots.get(1).y, CompanionInventoryLayout.GEAR_Y + pitch, "chestplate y");
+        h.assertValueEqual(menu.slots.get(3).y, CompanionInventoryLayout.GEAR_Y + 3 * pitch, "boots y");
         // The two hands sit together under the model.
-        h.assertValueEqual(menu.slots.get(4).x, 77, "main hand x");
-        h.assertValueEqual(menu.slots.get(5).x, 95, "off hand x");
-        h.assertValueEqual(menu.slots.get(4).y, 62, "hand y");
-        // The companion grid, the player's grid and the hotbar keep the vanilla offsets.
-        h.assertValueEqual(menu.slots.get(CompanionInventoryMenu.GEAR_SLOTS).y, 104, "companion grid y");
-        int playerStart = CompanionInventoryMenu.GEAR_SLOTS + CompanionInventoryMenu.COMPANION_SLOTS;
-        h.assertValueEqual(menu.slots.get(playerStart).y, 174, "player grid y");
+        h.assertValueEqual(menu.slots.get(4).x, CompanionInventoryLayout.HANDS_X, "main hand x");
+        h.assertValueEqual(menu.slots.get(5).x, CompanionInventoryLayout.HANDS_X + pitch, "off hand x");
+        h.assertValueEqual(menu.slots.get(4).y, CompanionInventoryLayout.HANDS_Y, "hand y");
+        // The companion grid, the player's grid and the hotbar are three rows each, one pitch apart.
+        int companionStart = CompanionInventoryMenu.GEAR_SLOTS;
+        h.assertValueEqual(menu.slots.get(companionStart).x, CompanionInventoryLayout.SLOT_X, "companion grid x");
+        h.assertValueEqual(menu.slots.get(companionStart).y, CompanionInventoryLayout.ITEMS_Y, "companion grid y");
+        h.assertValueEqual(menu.slots.get(companionStart + 9).y, CompanionInventoryLayout.ITEMS_Y + pitch,
+                "companion grid second row");
+        int playerStart = companionStart + CompanionInventoryMenu.COMPANION_SLOTS;
+        h.assertValueEqual(menu.slots.get(playerStart).y, CompanionInventoryLayout.PLAYER_Y, "player grid y");
+        h.assertValueEqual(menu.slots.get(playerStart + 9).y, CompanionInventoryLayout.PLAYER_Y + pitch,
+                "player grid second row");
         h.assertValueEqual(menu.slots.size() - 9, playerStart + 27, "hotbar start");
-        h.assertValueEqual(menu.slots.get(playerStart + 27).y, 232, "hotbar y");
+        h.assertValueEqual(menu.slots.get(playerStart + 27).y, CompanionInventoryLayout.HOTBAR_Y, "hotbar y");
 
         owner.closeContainer();
         h.succeed();

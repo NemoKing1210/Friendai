@@ -51,22 +51,29 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
         Container items = live ? companion.inventory() : new SimpleContainer(COMPANION_SLOTS);
         for (int slot = 0; slot < GEAR_SLOTS; slot++) {
             // Armor in a column on the left like the player inventory; the two hands together under the model.
-            int x = slot < 4 ? 8 : 77 + (slot - 4) * 18;
-            int y = slot < 4 ? 18 + slot * 18 : 62;
+            int x = slot < 4
+                    ? CompanionInventoryLayout.columnX(0)
+                    : CompanionInventoryLayout.HANDS_X + (slot - 4) * CompanionInventoryLayout.PITCH;
+            int y = slot < 4
+                    ? CompanionInventoryLayout.rowY(CompanionInventoryLayout.GEAR_Y, slot)
+                    : CompanionInventoryLayout.HANDS_Y;
             addSlot(new GearSlot(gear, slot, CompanionEquipmentContainer.SLOTS[slot], x, y));
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(items, row * 9 + col, 8 + col * 18, 104 + row * 18));
+                addSlot(new Slot(items, row * 9 + col, CompanionInventoryLayout.columnX(col),
+                        CompanionInventoryLayout.rowY(CompanionInventoryLayout.ITEMS_Y, row)));
             }
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, 9 + row * 9 + col, 8 + col * 18, 174 + row * 18));
+                addSlot(new Slot(playerInventory, 9 + row * 9 + col, CompanionInventoryLayout.columnX(col),
+                        CompanionInventoryLayout.rowY(CompanionInventoryLayout.PLAYER_Y, row)));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 232));
+            addSlot(new Slot(playerInventory, col, CompanionInventoryLayout.columnX(col),
+                    CompanionInventoryLayout.HOTBAR_Y));
         }
     }
 

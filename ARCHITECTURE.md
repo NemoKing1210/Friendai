@@ -111,7 +111,7 @@ pure Java  (llm, brain, agent, queue, tool, memory, knowledge, store, place,
 - `chat/` — `ChatRouter` (hooks `CHAT_MESSAGE`), `CompanionRouting`, `CompanionSpeaker` (chat lines plus the speech packet), `AddressDetector`, `CompanionPicker`, `ConfirmationMatcher`, `ReplySplitter`.
 - `command/` — `/friendai` tree: `summon`, `dismiss`, `stop`, `inventory`, `status`, `trust`/`untrust`/`trusted`, `pending`/`confirm`/`cancel`, `memory list`/`forget`/`clear`, `reload`.
 - `net/` — `FriendaiNetworking` (payload registration), C2S `CompanionRequestC2SPayload` + `CompanionRequestHandler`, `VoiceTranscriptC2SPayload` + `VoiceTranscriptHandler`, S2C `CompanionSnapshotS2CPayload` + `PromptS2CPayload` + `MemoryViewS2CPayload` + `PlacesViewS2CPayload` + `CompanionSpeechS2CPayload`, `DebugStream`, `MemoryViewStream`, `PlaceViewStream`, `SnapshotBuilder`, `Operators`.
-- `menu/` — the companion inventory GUI: `FriendaiMenus` (type + open), `CompanionInventoryMenu`, `CompanionEquipmentContainer` (6 gear slots + 27 inventory slots + viewer inventory).
+- `menu/` — the companion inventory GUI: `FriendaiMenus` (type + open), `CompanionInventoryMenu`, `CompanionInventoryLayout` (the slot origins and bands the client draws around), `CompanionEquipmentContainer` (6 gear slots + 27 inventory slots + viewer inventory).
 - `perception/` — `PerceptionBuilder` (brief radius 8, detailed 16) and `OwnerFocusBuilder`; they fill the pure snapshots on the server thread.
 
 ## Client

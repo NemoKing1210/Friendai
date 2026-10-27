@@ -159,12 +159,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Companion inventory window
 
-- [ ] Shift+right-click the companion as its owner: a 176x202 window opens with six equipment slots, its 27 inventory slots and your own inventory; the companion stops where it is.
+- [ ] Shift+right-click the companion as its owner: a 184x254 window opens with six equipment slots, its 27 inventory slots and your own inventory; the companion stops where it is.
 - [ ] Take items and put them back; shift-click both ways; a helmet only fits the head slot and the hands take anything.
 - [ ] Another player shift+right-clicks the companion: only the action-bar line "Only the owner can open the companion's inventory." appears and no window opens.
 - [ ] Walk more than 8 blocks away with the window open: it closes, and the companion carries on with what it was doing.
 - [ ] `/friendai inventory` opens the same window; with a real model, "show me your inventory" makes the companion open it.
-- [ ] Dedicated server, GUI scales 1-4, English and Russian: the panel, slot sprites and labels line up and nothing overlaps.
+- [ ] A survival companion shows ten hearts and ten food icons in two separated groups, the experience bar under them and the level beside the model; a creative one shows no hearts and no food, and the bar and level stay where they were.
+- [ ] Dedicated server, GUI scales 1-4, English and Russian: the panel, slot sprites and labels line up, the armor column, model, hands and the label above your inventory have visible gaps, and nothing overlaps.
 
 ## World lifecycle
 

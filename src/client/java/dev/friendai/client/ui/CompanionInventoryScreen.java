@@ -1,6 +1,7 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.menu.CompanionInventoryLayout;
 import dev.friendai.menu.CompanionInventoryMenu;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -13,9 +14,12 @@ import net.minecraft.world.inventory.Slot;
 
 /**
  * The companion's inventory in the shape of the vanilla player inventory: armor in a column on the left, the
- * companion standing in the middle, its two hands under the model, health and hunger in vanilla icons, then the
+ * companion standing in the middle, its two hands beside the model, health and hunger in vanilla icons, then the
  * companion's 27 slots, the viewer's inventory and hotbar. All sprites are the vanilla ones; the panel is drawn with
  * the same colours and bevel as the vanilla windows, so there is no custom texture to keep in sync.
+ *
+ * <p>The geometry is not decided here: {@link CompanionInventoryLayout} holds every origin the menu also uses, so a
+ * slot and the icons drawn around it cannot drift apart.
  */
 public final class CompanionInventoryScreen extends AbstractContainerScreen<CompanionInventoryMenu> {
     private static final Identifier SLOT = Identifier.withDefaultNamespace("container/slot");
@@ -30,22 +34,14 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private static final int HIGHLIGHT = 0xFFFFFFFF;
     private static final int SHADOW = 0xFF555555;
     private static final int OUTLINE = 0xFF000000;
-    private static final int ICON = 9;
-    private static final int ICON_STEP = 8;
-    private static final int ICONS = 10;
-    private static final int VITALS_Y = 88;
-    private static final int HEARTS_X = 8;
-    private static final int FOOD_RIGHT = 168;
-    private static final int XP_BAR_Y = 99;
-    private static final int XP_BAR_HEIGHT = 3;
-    private static final int XP_LEVEL_X = 82;
-    private static final int XP_LEVEL_Y = 28;
     private static final int XP_GREEN = 0xFF80FF20;
     private static final int XP_BAR_BACK = 0xFF555555;
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
-        super(menu, inventory, title, 176, 254);
-        this.inventoryLabelY = 162;
+        super(menu, inventory, title, CompanionInventoryLayout.WIDTH, CompanionInventoryLayout.HEIGHT);
+        this.titleLabelX = CompanionInventoryLayout.LABEL_X;
+        this.inventoryLabelX = CompanionInventoryLayout.LABEL_X;
+        this.inventoryLabelY = CompanionInventoryLayout.LABEL_Y;
     }
 
     @Override
@@ -62,16 +58,17 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         }
         InventoryScreen.extractEntityInInventoryFollowsMouse(
                 graphics,
-                leftPos + 26,
-                topPos + 18,
-                leftPos + 75,
-                topPos + 84,
+                leftPos + CompanionInventoryLayout.PORTRAIT_X,
+                topPos + CompanionInventoryLayout.PORTRAIT_Y,
+                leftPos + CompanionInventoryLayout.PORTRAIT_X + CompanionInventoryLayout.PORTRAIT_WIDTH,
+                topPos + CompanionInventoryLayout.PORTRAIT_Y + CompanionInventoryLayout.PORTRAIT_HEIGHT,
                 30,
                 0.0625f,
                 mouseX,
                 mouseY,
                 companion);
         drawVitals(graphics, companion);
+        drawExperience(graphics, companion);
     }
 
     /** The vanilla window body: a black outline, a light top-left bevel, grey fill and a dark bottom-right bevel. */
@@ -87,48 +84,57 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         graphics.fill(x1 - 3, y0 + 2, x1 - 1, y1 - 3, SHADOW);
     }
 
-    /** Ten vanilla hearts on the left and ten food icons on the right, like the HUD. */
+    /**
+     * Ten vanilla hearts on the left and ten food icons on the right, like the HUD, as two groups with a gap between
+     * them. A creative companion is invulnerable and does not go hungry, so those icons would show values that cannot
+     * change; the row keeps its place either way, so the window does not jump between modes.
+     */
     private void drawVitals(GuiGraphicsExtractor graphics, CompanionEntity companion) {
-        int y = topPos + VITALS_Y;
-        float health = companion.getHealth();
-        int hearts = Math.min(ICONS, (int) Math.ceil(companion.getMaxHealth() / 2.0f));
-        for (int i = 0; i < ICONS; i++) {
-            int x = leftPos + HEARTS_X + i * ICON_STEP;
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_CONTAINER, x, y, ICON, ICON);
-            if (i >= hearts) {
-                continue;
+        if (!companion.creativeMode()) {
+            int y = topPos + CompanionInventoryLayout.VITALS_Y;
+            int icons = CompanionInventoryLayout.ICONS;
+            int icon = CompanionInventoryLayout.ICON;
+            int step = CompanionInventoryLayout.ICON_STEP;
+            float health = companion.getHealth();
+            int hearts = Math.min(icons, (int) Math.ceil(companion.getMaxHealth() / 2.0f));
+            for (int i = 0; i < icons; i++) {
+                int x = leftPos + CompanionInventoryLayout.heartsX() + i * step;
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_CONTAINER, x, y, icon, icon);
+                if (i >= hearts) {
+                    continue;
+                }
+                float remaining = health - i * 2.0f;
+                if (remaining >= 2.0f) {
+                    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_FULL, x, y, icon, icon);
+                } else if (remaining >= 1.0f) {
+                    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_HALF, x, y, icon, icon);
+                }
             }
-            float remaining = health - i * 2.0f;
-            if (remaining >= 2.0f) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_FULL, x, y, ICON, ICON);
-            } else if (remaining >= 1.0f) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HEART_HALF, x, y, ICON, ICON);
+            int food = companion.syncedFood();
+            for (int i = 0; i < icons; i++) {
+                // Right to left, as the vanilla HUD fills the hunger bar.
+                int x = leftPos + CompanionInventoryLayout.foodRight() - icon - i * step;
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_EMPTY, x, y, icon, icon);
+                int remaining = food - i * 2;
+                if (remaining >= 2) {
+                    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_FULL, x, y, icon, icon);
+                } else if (remaining == 1) {
+                    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_HALF, x, y, icon, icon);
+                }
             }
         }
-        int food = companion.syncedFood();
-        for (int i = 0; i < ICONS; i++) {
-            // Right to left, as the vanilla HUD fills the hunger bar.
-            int x = leftPos + FOOD_RIGHT - ICON - i * ICON_STEP;
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_EMPTY, x, y, ICON, ICON);
-            int remaining = food - i * 2;
-            if (remaining >= 2) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_FULL, x, y, ICON, ICON);
-            } else if (remaining == 1) {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, FOOD_HALF, x, y, ICON, ICON);
-            }
-        }
-        drawExperience(graphics, companion);
     }
 
-    /** A thin bar between the vitals and the slots, and the level beside the portrait, in the vanilla XP green. */
+    /** A thin bar under the vitals, and the level beside the portrait, in the vanilla XP green. */
     private void drawExperience(GuiGraphicsExtractor graphics, CompanionEntity companion) {
-        int x0 = leftPos + HEARTS_X;
-        int x1 = leftPos + FOOD_RIGHT;
-        int y = topPos + XP_BAR_Y;
-        graphics.fill(x0, y, x1, y + XP_BAR_HEIGHT, XP_BAR_BACK);
+        int x0 = leftPos + CompanionInventoryLayout.heartsX();
+        int x1 = leftPos + CompanionInventoryLayout.foodRight();
+        int y = topPos + CompanionInventoryLayout.XP_Y;
+        int height = CompanionInventoryLayout.XP_HEIGHT;
+        graphics.fill(x0, y, x1, y + height, XP_BAR_BACK);
         int filled = Math.round((x1 - x0) * Math.max(0.0f, Math.min(1.0f, companion.syncedXpProgress())));
-        graphics.fill(x0, y, x0 + filled, y + XP_BAR_HEIGHT, XP_GREEN);
+        graphics.fill(x0, y, x0 + filled, y + height, XP_GREEN);
         graphics.text(font, Component.translatable("friendai.menu.vital.level", companion.syncedXpLevel()),
-                leftPos + XP_LEVEL_X, topPos + XP_LEVEL_Y, XP_GREEN);
+                leftPos + CompanionInventoryLayout.LEVEL_X, topPos + CompanionInventoryLayout.LEVEL_Y, XP_GREEN);
     }
 }
