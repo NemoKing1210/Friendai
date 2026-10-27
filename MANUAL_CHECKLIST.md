@@ -96,8 +96,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Places
 
 - [ ] "Remember this as home": `remember_place` stores it; `/friendai place list` and the Places tab show it, and after a server restart it is still there (`<world>/friendai/places/<uuid>.json`).
-- [ ] "Where is the wheat farm?": `find_place` lists it with the distance and the compass side; `go_to_place` then walks there and the visit count grows.
-- [ ] Mine or build at a new spot with auto-registration on: one place appears per site rather than one per block, and returning to it updates the visits instead of adding a duplicate.
+- [ ] "Where is the wheat farm?": `find_place` lists it with its coordinates and, in the same dimension, the distance; `go_to_place` then walks there and the visit count grows.
+- [ ] Mine or build at a new spot with auto-registration on: one place appears per site rather than one per block, and working the same site again refreshes that place's geometry instead of adding a second one.
 - [ ] Remember a place in the Nether, return to the Overworld and ask the companion to go there: `go_to_place` refuses, saying the place is in `minecraft:the_nether` and that it cannot cross dimensions.
 - [ ] Fill the book to `places.maxPlaces`, then ask to remember one more: the tool refuses and says to forget one first; renaming an existing place still works.
 - [ ] `/friendai place add`, `info`, `rename` and `remove` work for the owner, and their replies read correctly in English and Russian.
@@ -126,7 +126,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Personality pane at GUI scales 1–4 in English and Russian: presets, box and buttons do not overlap.
 - [ ] Two players with their own companions set different personalities: each companion keeps its own.
 - [ ] Places tab: remembered places appear as cards with the kind badge, name, label, dimension and position, visit count and, in the same dimension, the distance; the newest change is first and the list scrolls.
-- [ ] Places tab: select a row, type a new name and press Rename; the row and the status line update and the new name works in chat. An empty, taken or too long name shows the error in the status line and changes nothing.
+- [ ] Places tab: select a row, type a new name and press Rename; the row and the status line update and the new name works in chat. A name another place already uses shows the error in the status line and changes nothing; the field refuses an empty or over-long name before the request is sent.
 - [ ] Places tab: Delete asks "Sure?" and removes the place only on the second click; the row disappears and the status line names what was forgotten.
 - [ ] Places tab at GUI scales 1-4 in English and Russian: badges, rows, the rename field and both buttons do not overlap, and every label is translated.
 - [ ] Places turned off on the server (`places.enabled: false`, `/friendai reload`): the tab shows the notice instead of rows.
