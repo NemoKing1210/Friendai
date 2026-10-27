@@ -1,14 +1,15 @@
 package dev.friendai.place;
 
 import dev.friendai.pathing.Pos;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * One place the companion knows. The name is stored in canonical form so a name and its aliases can be looked
- * up case-insensitively within a dimension; the compact constructor rejects anything the model cannot store
- * and explains the bound in its message.
+ * One place the companion knows. Names and aliases are stored as the owner typed them (trimmed); the
+ * case-insensitive, per-dimension lookup uses {@link PlaceNames#key(String, String)}. The compact constructor
+ * rejects anything the model cannot store and explains the bound in its message.
  */
 public record Place(
         long id,
@@ -37,7 +38,8 @@ public record Place(
         if (id < 1) {
             throw new IllegalArgumentException("A place needs a positive id.");
         }
-        name = PlaceNames.normalize(name);
+        PlaceNames.normalize(name); // rejects blank names and control characters; the lookup form
+        name = name.strip();
         if (name.length() > PlaceLimits.NAME_MAX) {
             throw new IllegalArgumentException("A place name is too long (" + name.length() + " chars, max "
                     + PlaceLimits.NAME_MAX + "). Shorten it.");
@@ -60,9 +62,16 @@ public record Place(
             throw new IllegalArgumentException(
                     "A place radius must be 1-" + RADIUS_MAX + ", not " + radius + ".");
         }
-        aliases = canonicalAliases(aliases);
+        aliases = typedAliases(aliases);
         if (source == null) {
             throw new IllegalArgumentException("A place needs a source.");
+        }
+        if (note != null) {
+            for (int i = 0; i < note.length(); i++) {
+                if (Character.isISOControl(note.charAt(i))) {
+                    throw new IllegalArgumentException("A place note cannot contain control characters.");
+                }
+            }
         }
         note = note == null ? "" : note.strip();
         if (note.length() > PlaceLimits.NOTE_MAX) {
@@ -71,7 +80,7 @@ public record Place(
         }
     }
 
-    private static Set<String> canonicalAliases(Set<String> aliases) {
+    private static Set<String> typedAliases(Set<String> aliases) {
         if (aliases == null || aliases.isEmpty()) {
             return Set.of();
         }
@@ -79,16 +88,17 @@ public record Place(
             throw new IllegalArgumentException(
                     "A place can have at most " + PlaceLimits.ALIASES_MAX + " aliases.");
         }
-        Set<String> canonical = new LinkedHashSet<>();
+        Map<String, String> byKey = new LinkedHashMap<>();
         for (String alias : aliases) {
-            String value = PlaceNames.normalize(alias);
-            if (value.length() > PlaceLimits.NAME_MAX) {
-                throw new IllegalArgumentException("A place alias is too long (" + value.length() + " chars, max "
+            String normalized = PlaceNames.normalize(alias);
+            String typed = alias.strip();
+            if (typed.length() > PlaceLimits.NAME_MAX) {
+                throw new IllegalArgumentException("A place alias is too long (" + typed.length() + " chars, max "
                         + PlaceLimits.NAME_MAX + "). Shorten it.");
             }
-            canonical.add(value);
+            byKey.putIfAbsent(normalized, typed);
         }
-        return Set.copyOf(canonical);
+        return Set.copyOf(byKey.values());
     }
 
     private static void checkCoordinate(int value) {

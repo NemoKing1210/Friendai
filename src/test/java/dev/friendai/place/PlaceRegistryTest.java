@@ -96,12 +96,28 @@ class PlaceRegistryTest {
         assertTrue(error.getMessage().contains("mine"));
 
         Place renamed = registry.rename(home.id(), "  Дом  ", 4);
-        assertEquals("дом", renamed.name());
+        assertEquals("Дом", renamed.name());
         assertEquals(Set.of("house"), renamed.aliases());
         assertEquals(4, renamed.updatedTick());
         assertEquals(home.id(), registry.find("дом", OVERWORLD).orElseThrow().id());
         assertEquals(home.id(), registry.find("house", OVERWORLD).orElseThrow().id());
         assertTrue(registry.find("home", OVERWORLD).isEmpty());
+
+        Place recased = registry.rename(home.id(), "ДОМ", 5);
+        assertEquals("ДОМ", recased.name());
+        assertEquals(5, recased.updatedTick());
+        assertEquals(home.id(), registry.find("дом", OVERWORLD).orElseThrow().id());
+    }
+
+    @Test
+    void rememberKeepsTheTypedNameAndAliases() {
+        PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
+        Place place = registry.remember(
+                values("  Home Base  ", PlaceKind.HOUSE, new Pos(0, 64, 0), Set.of("  Base ")), 1);
+        assertEquals("Home Base", place.name());
+        assertEquals(Set.of("Base"), place.aliases());
+        assertEquals(place.id(), registry.find("home base", OVERWORLD).orElseThrow().id());
+        assertEquals(place.id(), registry.find("BASE", OVERWORLD).orElseThrow().id());
     }
 
     @Test
@@ -147,7 +163,7 @@ class PlaceRegistryTest {
         assertTrue(registry.revision() > afterCreate);
         registry.rename(registry.all().get(0).id(), "дом", 6);
         long afterRename = registry.revision();
-        registry.rename(registry.all().get(0).id(), "ДОМ", 7);
+        registry.rename(registry.all().get(0).id(), "дом", 7);
         assertEquals(afterRename, registry.revision());
     }
 
@@ -172,8 +188,8 @@ class PlaceRegistryTest {
 
     @Test
     void thePlaceRecordEnforcesItsBounds() {
-        Place normalized = place(1, "  Дом ", PlaceKind.HOUSE, new Pos(0, 64, 0));
-        assertEquals("дом", normalized.name());
+        Place typed = place(1, "  Дом ", PlaceKind.HOUSE, new Pos(0, 64, 0));
+        assertEquals("Дом", typed.name());
 
         assertThrows(IllegalArgumentException.class, () -> place(0, "home", PlaceKind.HOUSE, new Pos(0, 64, 0)));
         assertThrows(IllegalArgumentException.class, () -> place(1, "   ", PlaceKind.HOUSE, new Pos(0, 64, 0)));
@@ -213,10 +229,15 @@ class PlaceRegistryTest {
                 () -> new Place(
                         1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
                         PlaceSource.MANUAL, null, 0, 0, 0, 0, "x".repeat(161)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Place(
+                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
+                        PlaceSource.MANUAL, null, 0, 0, 0, 0, "look\n- [99] evil (house)"));
         Place aliased = new Place(
                 2, "house", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("HOME"),
                 PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
-        assertEquals(Set.of("home"), aliased.aliases());
+        assertEquals(Set.of("HOME"), aliased.aliases());
     }
 
     private static PlaceValues values(String name, PlaceKind kind, Pos pos) {

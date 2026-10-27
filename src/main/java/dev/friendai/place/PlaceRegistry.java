@@ -1,6 +1,7 @@
 package dev.friendai.place;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,9 +40,10 @@ public final class PlaceRegistry {
         if (values == null) {
             throw new IllegalArgumentException("A place needs values.");
         }
-        String name = PlaceNames.normalize(values.name());
+        PlaceNames.normalize(values.name()); // validates; the lookup form is derived per key
+        String name = values.name().strip();
         String dimension = requireDimension(values.dimension());
-        Set<String> aliases = canonicalAliases(values.aliases());
+        Set<String> aliases = typedAliases(values.aliases());
 
         String nameKey = PlaceNames.key(name, dimension);
         Long matchedId = keys.get(nameKey);
@@ -76,12 +78,18 @@ public final class PlaceRegistry {
             return place;
         }
 
-        Set<String> merged = new LinkedHashSet<>(existing.aliases());
-        merged.addAll(aliases);
+        Map<String, String> merged = new LinkedHashMap<>();
+        for (String alias : existing.aliases()) {
+            merged.putIfAbsent(PlaceNames.normalize(alias), alias);
+        }
+        for (String alias : aliases) {
+            merged.putIfAbsent(PlaceNames.normalize(alias), alias);
+        }
         Place updated = new Place(
                 existing.id(), existing.name(), values.kind(), values.label(), existing.dimension(),
-                values.anchor(), values.radius(), merged, existing.source(), existing.author(),
-                existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(), values.note());
+                values.anchor(), values.radius(), new LinkedHashSet<>(merged.values()), existing.source(),
+                existing.author(), existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(),
+                values.note());
         checkLimits(updated);
         if (updated.equals(existing)) {
             return existing;
@@ -131,7 +139,7 @@ public final class PlaceRegistry {
     /** Renames a place, keeping its id and aliases, and rebuilds the lookup. Throws when the name is taken. */
     public Place rename(long id, String newName, long tick) {
         Place existing = require(id);
-        String name = PlaceNames.normalize(newName);
+        String name = newName == null ? null : newName.strip();
         Long ownerId = keys.get(PlaceNames.key(name, existing.dimension()));
         if (ownerId != null && ownerId.longValue() != id) {
             Place owner = byId.get(ownerId);
@@ -222,14 +230,14 @@ public final class PlaceRegistry {
         return dimension.strip();
     }
 
-    private static Set<String> canonicalAliases(Set<String> aliases) {
+    private static Set<String> typedAliases(Set<String> aliases) {
         if (aliases == null || aliases.isEmpty()) {
             return Set.of();
         }
-        Set<String> canonical = new LinkedHashSet<>();
+        Map<String, String> byKey = new LinkedHashMap<>();
         for (String alias : aliases) {
-            canonical.add(PlaceNames.normalize(alias));
+            byKey.putIfAbsent(PlaceNames.normalize(alias), alias.strip());
         }
-        return canonical;
+        return new LinkedHashSet<>(byKey.values());
     }
 }
