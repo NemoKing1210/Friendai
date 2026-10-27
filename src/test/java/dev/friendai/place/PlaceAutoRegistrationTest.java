@@ -190,6 +190,65 @@ class PlaceAutoRegistrationTest {
         assertEquals("wheat farm 2", outcome.name());
     }
 
+    @Test
+    void aDigBelowTheThresholdEarnsNoMine() {
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        8, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+                .isEmpty());
+    }
+
+    @Test
+    void aDigExactlyAtTheThresholdEarnsAMine() {
+        PlaceCandidate mine = PlaceAutoRegistration.mineCandidate(
+                        16, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+                .orElseThrow();
+        assertEquals(PlaceKind.MINE, mine.kind());
+        assertEquals(PlaceSource.MINE, mine.source());
+        assertEquals(OVERWORLD, mine.dimension());
+        assertEquals(new Pos(8, 121, 5), mine.anchor());
+    }
+
+    @Test
+    void aDigAboveTheThresholdEarnsAMine() {
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        20, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+                .isPresent());
+    }
+
+    @Test
+    void mineLabelsDropTheTagMarkerAndNamespace() {
+        assertEquals("white wool", mineLabel("minecraft:white_wool"));
+        assertEquals("logs", mineLabel("#minecraft:logs"));
+        assertEquals("oak log", mineLabel("minecraft:oak_log"));
+    }
+
+    @Test
+    void mineRadiusIsClampedToTheBoxAPlaceCovers() {
+        assertEquals(1, mineRadius(0));
+        assertEquals(5, mineRadius(5));
+        assertEquals(Place.RADIUS_MAX, mineRadius(999));
+    }
+
+    @Test
+    void aDigWithoutADimensionEarnsNoMine() {
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        16, 16, "  ", new Pos(8, 121, 5), 5, "minecraft:white_wool")
+                .isEmpty());
+    }
+
+    private static String mineLabel(String matcherLabel) {
+        return PlaceAutoRegistration.mineCandidate(16, 16, OVERWORLD, new Pos(8, 121, 5), 5, matcherLabel)
+                .orElseThrow()
+                .label();
+    }
+
+    private static int mineRadius(int radius) {
+        return PlaceAutoRegistration.mineCandidate(
+                        16, 16, OVERWORLD, new Pos(8, 121, 5), radius, "minecraft:white_wool")
+                .orElseThrow()
+                .radius();
+    }
+
     private static Place apply(
             PlaceRegistry registry,
             PlaceCandidate candidate,

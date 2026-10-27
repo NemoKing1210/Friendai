@@ -98,6 +98,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Remember this as home": `remember_place` stores it; `/friendai place list` and the Places tab show it, and after a server restart it is still there (`<world>/friendai/places/<uuid>.json`).
 - [ ] "Where is the wheat farm?": `find_place` lists it with its coordinates and, in the same dimension, the distance; `go_to_place` then walks there and the visit count grows.
 - [ ] Mine or build at a new spot with auto-registration on: one place appears per site rather than one per block, and working the same site again refreshes that place's geometry instead of adding a second one.
+- [ ] Mine at least 16 blocks in one dig with auto-registration on (`places.autoMineMinBlocks`): a `MINE` place appears, labelled after the block dug (e.g. "cobblestone"), while a dig of a few blocks leaves the book untouched.
 - [ ] Remember a place in the Nether, return to the Overworld and ask the companion to go there: `go_to_place` refuses, saying the place is in `minecraft:the_nether` and that it cannot cross dimensions.
 - [ ] Fill the book to `places.maxPlaces`, then ask to remember one more: the tool refuses and says to forget one first; renaming an existing place still works.
 - [ ] `/friendai place add`, `info`, `rename` and `remove` work for the owner, and their replies read correctly in English and Russian.

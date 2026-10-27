@@ -1,11 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.pathing.Pos;
-import dev.friendai.place.Place;
+import dev.friendai.place.PlaceAutoRegistration;
 import dev.friendai.place.PlaceCandidate;
-import dev.friendai.place.PlaceKind;
-import dev.friendai.place.PlaceNames;
-import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -376,31 +373,17 @@ public final class MineBlocksTask implements Task {
      */
     @Override
     public PlaceCandidate placeCandidate() {
-        if (dimension.isBlank() || mined < autoMinBlocks) {
-            return null;
-        }
         BlockPos anchor = origin != null ? origin : firstMined;
         if (anchor == null) {
             return null;
         }
-        return new PlaceCandidate(PlaceKind.MINE, placeLabel(matcher.label()), "", dimension,
-                new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
-                Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.MINE);
-    }
-
-    /**
-     * The label a matcher becomes: the tag marker and the namespace are dropped, so {@code minecraft:oak_log} is
-     * "oak log" and {@code #minecraft:logs} is "logs" in the book, the prompt and the merge key.
-     */
-    private static String placeLabel(String matcherLabel) {
-        String text = matcherLabel == null ? "" : matcherLabel.strip();
-        if (text.startsWith("#")) {
-            text = text.substring(1);
-        }
-        int colon = text.indexOf(':');
-        if (colon >= 0) {
-            text = text.substring(colon + 1);
-        }
-        return PlaceNames.humanize(text);
+        return PlaceAutoRegistration.mineCandidate(
+                        mined,
+                        autoMinBlocks,
+                        dimension,
+                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                        radius,
+                        matcher.label())
+                .orElse(null);
     }
 }
