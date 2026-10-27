@@ -12,6 +12,18 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 4. Follow "Testing" and "Definition of done".
 5. If several sessions work in this checkout, read "Parallel sessions" first.
 
+**Taking a task from `TODO.md`?** Read "Working from TODO.md" first: most items need a spec and a plan before any code.
+
+## Working from TODO.md
+
+`TODO.md` at the repo root is the list of work that was asked for but not started yet. Picking an item from it is a different entry point than "do this now":
+
+1. **Write a specification and then a plan before writing code**, unless the item is trivial (see below). The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to.
+2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
+3. Close the loop: when the item is done, delete it from `TODO.md` (or tick it off) in the same commit that carries the change.
+
+**When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
+
 ## Commands
 
 Java **25** is required (Gradle and Loom refuse to run on older JVMs). If your default `java` is older, point Gradle at a JDK 25 for the command:
@@ -59,7 +71,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `docs/superpowers/{specs,plans}/` | Local design specs and implementation plans. **Git-ignored**; read for context, never commit. |
 | `test-builds/` | Exported test jars (`friendai-<version>.jar`). Git-ignored. |
 | `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local runtime/generated files. Git-ignored. |
-| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, commit rules. |
+| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the backlog of accepted work (see "Working from TODO.md"), commit rules. |
 
 ### Source sets
 
