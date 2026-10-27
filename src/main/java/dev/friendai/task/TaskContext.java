@@ -14,4 +14,9 @@ public record TaskContext(CompanionEntity companion, ServerLevel level, TaskRunn
     public Optional<ServerPlayer> owner() {
         return companion.owner();
     }
+
+    /** The running task belongs to free time, which follows stricter rules than an owner order. */
+    public boolean autonomous() {
+        return runner != null && runner.autonomousActive();
+    }
 }

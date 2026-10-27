@@ -107,6 +107,65 @@ public class FreeTimeTests {
         });
     }
 
+    /** Finishes on its first tick, like a quick owner order. */
+    private static final class QuickTask implements dev.friendai.task.Task {
+        @Override public String type() { return "quick"; }
+        @Override public void start(dev.friendai.task.TaskContext c) {}
+        @Override public TaskStatus tick(dev.friendai.task.TaskContext c) { return TaskStatus.SUCCESS; }
+        @Override public void stop(dev.friendai.task.TaskContext c) {}
+        @Override public String describe() { return "quick"; }
+        @Override public String resultSummary() { return "done"; }
+    }
+
+    @GameTest(maxTicks = 200)
+    public void marker(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = companion(h);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        var stay = new dev.friendai.queue.QueuedStep("stay", new com.google.gson.JsonObject(), null,
+                java.util.List.of(), dev.friendai.queue.GuardAction.WAIT, dev.friendai.queue.FailurePolicy.ASK, 1,
+                java.util.List.of());
+        long plan = runner.enqueuePlan("free time", java.util.List.of(stay),
+                java.util.List.of(ctx -> new dev.friendai.task.builtin.StayTask()),
+                new dev.friendai.queue.PlanOptions(-10, dev.friendai.queue.FailurePolicy.ASK, 0));
+        runner.markAutonomousPlan(plan);
+        runner.tick();
+        h.assertTrue(runner.autonomousActive(), "the free-time job runs");
+        runner.start(new QuickTask(), "quick");
+        h.assertTrue(!runner.autonomousActive(), "an owner order is not free time");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(runner.autonomousActive(), "the free-time job resumes after the owner order");
+            runner.unmarkAutonomousPlan(plan);
+            h.assertTrue(!runner.autonomousActive(), "an unmarked plan is not free time");
+            runner.markAutonomousPlan(plan);
+        });
+    }
+
+    @GameTest
+    public void deniedToolsAreRefused(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = companion(h);
+        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(() -> 16,
+                dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        var args = com.google.gson.JsonParser.parseString(
+                "{\"goal\":\"g\",\"priority\":-10,\"steps\":[{\"tool\":\"stay\"},{\"tool\":\"attack_player\","
+                        + "\"args\":\"{\\\"player\\\":\\\"x\\\"}\"}]}").getAsJsonObject();
+        var caller = new dev.friendai.tool.Caller(c.ownerUuid(), "owner", dev.friendai.tool.AccessLevel.OWNER);
+        var refused = dev.friendai.tool.builtin.FriendaiTools.addPlan(c, caller, args, builtins.plannable(), false,
+                Set.of("attack_player"));
+        h.assertTrue(refused.error(), "a denied step must be refused: " + refused.content());
+        h.assertTrue(refused.content().contains("attack_player is not allowed in free time"), refused.content());
+        h.assertValueEqual(c.taskRunner().queue().planCount(), 0, "nothing queued");
+        var ok = dev.friendai.tool.builtin.FriendaiTools.addPlan(c, caller, com.google.gson.JsonParser.parseString(
+                "{\"goal\":\"g\",\"priority\":-10,\"steps\":[{\"tool\":\"stay\"}]}").getAsJsonObject(),
+                builtins.taskTools(), false, Set.of("attack_player"));
+        h.assertTrue(!ok.error(), "an allowed plan is queued: " + ok.content());
+        h.assertValueEqual(c.taskRunner().queue().plans().getFirst().priority(), -10, "free-time priority");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

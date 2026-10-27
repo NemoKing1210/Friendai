@@ -16,6 +16,17 @@ public final class FriendaiTools {
 
     private FriendaiTools() {}
 
+    /**
+     * Queues a plan the way {@code queue_add} does, for callers outside the model's turn (free time). The plan is
+     * not linked to the owner's goal when {@code linkGoal} is false, and any step using a {@code denied} tool
+     * refuses the whole plan. Never throws for a bad plan.
+     */
+    public static dev.friendai.tool.ToolResult addPlan(CompanionEntity companion, dev.friendai.tool.Caller caller,
+            com.google.gson.JsonObject args, Map<String, TaskToolDef> plannable, boolean linkGoal,
+            java.util.Set<String> denied) {
+        return QueueTools.addPlan(companion, caller, args, plannable, linkGoal, denied);
+    }
+
     public static ToolRegistry<CompanionEntity> create(IntSupplier mineRadius) {
         return create(mineRadius, MemoryAccess.DISABLED);
     }
