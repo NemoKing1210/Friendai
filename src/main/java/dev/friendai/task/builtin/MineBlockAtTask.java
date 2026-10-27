@@ -1,10 +1,13 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.state.BlockState;
@@ -28,6 +31,11 @@ public final class MineBlockAtTask implements Task {
     @Override
     public String type() {
         return "mine_block_at";
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, ""));
     }
 
     @Override

@@ -2,13 +2,19 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.GoToTask;
+import dev.friendai.task.builtin.MineBlockAtTask;
+import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.builtin.UseBlockTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import java.util.ArrayList;
@@ -17,6 +23,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -99,6 +106,23 @@ public class TaskTests {
                 }
             }
         }
+    }
+
+    @GameTest
+    public void fixedBlockTasksExposeDebugTargets(GameTestHelper h) {
+        BlockPos target = new BlockPos(4, 5, 6);
+        h.assertTrue(new StayTask().debugTargets().isEmpty(), "tasks without a block action have no debug targets");
+        h.assertTrue(new MineBlockAtTask(target).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))), "mine target should be exposed");
+        h.assertTrue(new PlaceBlockTask((net.minecraft.world.item.BlockItem) Blocks.DIRT.asItem(), target)
+                .debugTargets().equals(List.of(new DebugTarget(4, 5, 6, DebugAction.PLACE, "minecraft:dirt"))),
+                "explicit placement position should be exposed before walking");
+        h.assertTrue(new UseBlockTask(target, null).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, ""))), "use target should be exposed");
+        h.assertTrue(new CheckContainerTask(target).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, "container"))),
+                "container target should be exposed by the base task");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 400)

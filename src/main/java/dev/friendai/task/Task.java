@@ -1,6 +1,8 @@
 package dev.friendai.task;
 
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.place.PlaceCandidate;
+import java.util.List;
 
 /** A long-running activity of the companion. {@code describe()} and {@code resultSummary()} are English, LLM-facing. */
 public interface Task {
@@ -15,6 +17,11 @@ public interface Task {
     String describe();
 
     String resultSummary();
+
+    /** Concrete block targets for the debug overlay while this task is running; empty when it has none. */
+    default List<DebugTarget> debugTargets() {
+        return List.of();
+    }
 
     /** Whether a {@code stop} aimed at this tool name means this task; the runner also matches the name it started it under. */
     default boolean matches(String name) {
