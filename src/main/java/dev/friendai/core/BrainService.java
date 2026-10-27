@@ -94,6 +94,8 @@ public final class BrainService {
     private final Map<UUID, Long> lastGoalTick = new HashMap<>();
     /** Unanswered goal nudges per owner; reset when the owner speaks or the companion starts working. */
     private final Map<UUID, Integer> nudgeStreak = new HashMap<>();
+    /** How the companion learns the owner's language: seeded from the book, fed only by the owner's own messages. */
+    private final Map<UUID, dev.friendai.text.LanguageMemory> ownerLanguages = new HashMap<>();
     private long lastAgentCheck;
     private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
@@ -268,9 +270,24 @@ public final class BrainService {
             nudgeStreak.remove(owner);
             if (owner.equals(said.playerUuid())) {
                 freeTime.ownerActivity(owner, FreeTimeDriver.now());
+                observeOwnerLanguage(owner, said.playerName(), said.text());
             }
         }
         entryFor(owner).ifPresent(entry -> entry.brain().post(event));
+    }
+
+    /**
+     * Learns the language the owner writes in. Only the owner's own message reaches here, so a guest cannot set
+     * it, and the tracker switches only on a sustained change: one short reply or one quoted command is not
+     * evidence. An explicit request wins in the prompt, which treats the learned language as a default.
+     */
+    private void observeOwnerLanguage(UUID owner, String name, String text) {
+        MemoryBook book = memory.book(owner);
+        book.ensurePlayer(owner, name);
+        dev.friendai.text.LanguageMemory tracker = ownerLanguages.computeIfAbsent(owner,
+                id -> dev.friendai.text.LanguageMemory.startingAt(book.ownerLanguage(id).orElse(null)));
+        tracker.observe(dev.friendai.text.LanguageDetector.detect(text))
+                .ifPresent(language -> book.setOwnerLanguage(owner, language));
     }
 
     private Optional<Entry> entryFor(UUID owner) {
@@ -706,7 +723,8 @@ public final class BrainService {
                 () -> new Persona(
                         companion.getName().getString(),
                         memory.book(owner).persona().orElse(config.companion.persona),
-                        config.companion.language),
+                        config.companion.language,
+                        memory.book(owner).ownerLanguage(owner).orElse(null)),
                 () -> new BrainSettings(
                         config.brain.maxToolStepsPerTurn,
                         config.brain.historyMessages,

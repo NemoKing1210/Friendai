@@ -5,7 +5,7 @@ import java.util.List;
 
 /** The on-disk shape of a memory file. Gson POJO; keep field names stable for old saves. */
 public final class MemoryFile {
-    public int version = 3;
+    public int version = 4;
     public int nextId = 1;
     /** The name the owner gave their companion; null means the configured default. */
     public String companionName;
@@ -24,6 +24,8 @@ public final class MemoryFile {
         public String lastName;
         public boolean trusted;
         public long lastSeen;
+        /** The language the owner writes in, learned from their messages; null on an old file or before it is known. */
+        public String language;
     }
 
     /** One food the owner allowed or forbade; {@code allowed} false means an explicit ban. */

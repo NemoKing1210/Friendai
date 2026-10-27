@@ -63,9 +63,20 @@ public final class DefaultSections {
     static PromptSection identity() {
         return of("identity", PromptSection.NEVER_CUT, ctx -> {
             var p = ctx.persona();
-            String languageRule = p.language() == null || p.language().isBlank() || p.language().equalsIgnoreCase("auto")
-                    ? "Reply in the same language the player uses."
-                    : "Always reply in " + p.language() + ".";
+            String configured = p.language();
+            boolean auto = configured == null || configured.isBlank() || configured.equalsIgnoreCase("auto");
+            String ownerLanguage = p.ownerLanguage();
+            String languageRule;
+            if (!auto) {
+                languageRule = "Always reply in " + configured + ".";
+            } else if (ownerLanguage != null && ctx.caller().access() == AccessLevel.OWNER) {
+                // A learned default: the owner still switches languages by asking, and the detector follows a
+                // sustained change. A guest's turn keeps the per-turn guess instead.
+                languageRule = "The owner usually writes in " + ownerLanguage + ": reply in " + ownerLanguage
+                        + " unless they ask for another language.";
+            } else {
+                languageRule = "Reply in the same language the player uses.";
+            }
             String turnLine = ctx.turn() == dev.friendai.brain.TurnKind.EVENT
                     ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent]."
                     : "This turn: the player is talking to you now.";

@@ -41,6 +41,29 @@ class PromptBuilderTest {
     }
 
     @Test
+    void theLearnedOwnerLanguageBecomesTheDefaultForTheOwner() {
+        String s = system(new Persona("F", "d", "auto", "Russian"), "p");
+        assertTrue(s.contains("The owner usually writes in Russian: reply in Russian unless they ask for another "
+                + "language."), s);
+        assertFalse(s.contains("Reply in the same language the player uses"), s);
+    }
+
+    @Test
+    void theLearnedOwnerLanguageDoesNotLeakToAGuest() {
+        String s = PromptBuilder.system(
+                new Persona("F", "d", "auto", "Russian"), "p", new Caller(ID, "Bob", AccessLevel.GUEST));
+        assertTrue(s.contains("Reply in the same language the player uses"), s);
+        assertFalse(s.contains("usually writes in Russian"), s);
+    }
+
+    @Test
+    void aConfiguredLanguageBeatsTheLearnedOne() {
+        String s = system(new Persona("F", "d", "German", "Russian"), "p");
+        assertTrue(s.contains("Always reply in German"), s);
+        assertFalse(s.contains("usually writes in Russian"), s);
+    }
+
+    @Test
     void speakerAndRoleRules() {
         String guest = PromptBuilder.system(new Persona("F", "d", "auto"), "p", new Caller(ID, "Bob", AccessLevel.GUEST));
         assertTrue(guest.contains("Players are tagged by role: owner, trusted or guest."));

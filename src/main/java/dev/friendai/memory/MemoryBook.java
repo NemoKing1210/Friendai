@@ -40,6 +40,32 @@ public final class MemoryBook {
         return Optional.ofNullable(players.get(uuid));
     }
 
+    /** The language the owner writes in, once it was learned from their own messages. */
+    public Optional<String> ownerLanguage(UUID uuid) {
+        return Optional.ofNullable(players.get(uuid)).map(PlayerRecord::language);
+    }
+
+    /**
+     * Stores the owner's language on an existing record.
+     *
+     * @return whether the stored value changed
+     */
+    public boolean setOwnerLanguage(UUID uuid, String language) {
+        PlayerRecord existing = players.get(uuid);
+        if (existing == null) {
+            return false;
+        }
+        String normalized = language == null || language.isBlank() ? null : language.strip();
+        if (java.util.Objects.equals(existing.language(), normalized)) {
+            return false;
+        }
+        players.put(uuid, new PlayerRecord(uuid, existing.lastName(), existing.trusted(), existing.lastSeen(),
+                normalized));
+        dirty = true;
+        revision++;
+        return true;
+    }
+
     /** Case-insensitive name lookup; among records sharing the name the most recently seen wins. */
     public Optional<PlayerRecord> findByName(String name) {
         if (name == null) {
@@ -66,17 +92,17 @@ public final class MemoryBook {
             return;
         }
         if (name != null && !name.equals(existing.lastName())) {
-            players.put(uuid, new PlayerRecord(uuid, name, existing.trusted(), existing.lastSeen()));
+            players.put(uuid, new PlayerRecord(uuid, name, existing.trusted(), existing.lastSeen(), existing.language()));
             dirty = true;
             revision++;
         }
     }
 
-    /** Records that the player spoke to the companion. Trust is kept. */
+    /** Records that the player spoke to the companion. Trust and the learned language are kept. */
     public void touch(UUID uuid, String name, long now) {
         PlayerRecord existing = players.get(uuid);
         boolean trusted = existing != null && existing.trusted();
-        players.put(uuid, new PlayerRecord(uuid, name, trusted, now));
+        players.put(uuid, new PlayerRecord(uuid, name, trusted, now, existing == null ? null : existing.language()));
         dirty = true;
         revision++;
     }
@@ -86,14 +112,14 @@ public final class MemoryBook {
         PlayerRecord existing = players.get(uuid);
         if (existing != null && existing.trusted() == trusted) {
             if (name != null && !name.equals(existing.lastName())) {
-                players.put(uuid, new PlayerRecord(uuid, name, trusted, existing.lastSeen()));
+                players.put(uuid, new PlayerRecord(uuid, name, trusted, existing.lastSeen(), existing.language()));
                 dirty = true;
                 revision++;
             }
             return false;
         }
         long lastSeen = existing == null ? now : existing.lastSeen();
-        players.put(uuid, new PlayerRecord(uuid, name, trusted, lastSeen));
+        players.put(uuid, new PlayerRecord(uuid, name, trusted, lastSeen, existing == null ? null : existing.language()));
         dirty = true;
         revision++;
         return true;
@@ -423,6 +449,7 @@ public final class MemoryBook {
             entry.lastName = record.lastName();
             entry.trusted = record.trusted();
             entry.lastSeen = record.lastSeen();
+            entry.language = record.language();
             file.players.add(entry);
         }
         foodRules.forEach((item, allowed) -> {
@@ -458,7 +485,8 @@ public final class MemoryBook {
                 } catch (IllegalArgumentException e) {
                     continue;
                 }
-                book.players.put(uuid, new PlayerRecord(uuid, entry.lastName, entry.trusted, entry.lastSeen));
+                book.players.put(uuid, new PlayerRecord(uuid, entry.lastName, entry.trusted, entry.lastSeen,
+                        entry.language));
             }
         }
         if (file != null && file.facts != null) {

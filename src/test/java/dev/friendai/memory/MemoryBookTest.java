@@ -395,4 +395,51 @@ class MemoryBookTest {
         assertThrows(IllegalArgumentException.class, () -> new MemoryBook().setFoodRule("", true));
         assertThrows(IllegalArgumentException.class, () -> new MemoryBook().clearFoodRule(null));
     }
+
+    @Test
+    void ownerLanguageIsStoredWithoutDisturbingTrustOrLastSeen() {
+        var b = new MemoryBook();
+        b.setTrusted(A, "Bob", true, 5);
+        assertTrue(b.setOwnerLanguage(A, "Russian"));
+        assertEquals(new PlayerRecord(A, "Bob", true, 5, "Russian"), b.player(A).orElseThrow());
+        assertEquals(Optional.of("Russian"), b.ownerLanguage(A));
+    }
+
+    @Test
+    void aGuestRecordCannotBeTouchedBeforeItExists() {
+        var b = new MemoryBook();
+        assertFalse(b.setOwnerLanguage(A, "Russian"));
+        assertTrue(b.ownerLanguage(A).isEmpty());
+    }
+
+    @Test
+    void touchingAPlayerKeepsTheLearnedLanguage() {
+        var b = new MemoryBook();
+        b.touch(A, "Bob", 1);
+        b.setOwnerLanguage(A, "Russian");
+        b.touch(A, "Robert", 9);
+        assertEquals(Optional.of("Russian"), b.ownerLanguage(A));
+    }
+
+    @Test
+    void ownerLanguageSurvivesTheFile() {
+        var b = new MemoryBook();
+        b.touch(A, "Bob", 7);
+        b.setOwnerLanguage(A, "German");
+        var loaded = MemoryBook.fromFile(b.toFile());
+        assertEquals(Optional.of("German"), loaded.ownerLanguage(A));
+        assertEquals(new PlayerRecord(A, "Bob", false, 7, "German"), loaded.player(A).orElseThrow());
+    }
+
+    @Test
+    void anOldFileWithoutALanguageLoadsAsUnknown() {
+        var file = new MemoryFile();
+        var entry = new MemoryFile.PlayerEntry();
+        entry.uuid = A.toString();
+        entry.lastName = "Bob";
+        file.players.add(entry);
+        var loaded = MemoryBook.fromFile(file);
+        assertTrue(loaded.ownerLanguage(A).isEmpty());
+        assertEquals(new PlayerRecord(A, "Bob", false, 0), loaded.player(A).orElseThrow());
+    }
 }

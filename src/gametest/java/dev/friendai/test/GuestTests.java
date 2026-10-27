@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.brain.BrainEvent;
 import dev.friendai.brain.LlmGateway;
 import dev.friendai.brain.Speaker;
 import dev.friendai.chat.ChatRouter;
@@ -144,6 +145,38 @@ public class GuestTests {
                     script.requests.get(1).messages().stream()
                             .anyMatch(m -> m.role() == Role.TOOL && m.text().contains("started")),
                     "messages were " + script.requests.get(1).messages());
+        });
+    }
+
+    /** A guest's words must not teach the companion its owner's language; the owner's own words do. */
+    @GameTest(maxTicks = 1200)
+    public void onlyTheOwnersOwnWordsSetTheirLanguage(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        var server = h.getLevel().getServer();
+        FriendaiServerState state = FriendaiServerState.get(server);
+        var brains = state.brains();
+        brains.setGatewayOverride(owner.getUUID(), (system, messages, tools) -> CompletableFuture.completedFuture(
+                new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        CompanionManager.get(server).summon(owner);
+        var book = state.memory().book(owner.getUUID());
+        String russian = "Привет! Расскажи мне, пожалуйста, как построить дом из дерева.";
+        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
+                guest.getUUID(), guest.getName().getString(), russian, BrainEvent.Source.CHAT));
+        h.assertTrue(book.ownerLanguage(owner.getUUID()).isEmpty(), "a guest set the owner's language");
+        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
+                owner.getUUID(), owner.getName().getString(), russian, BrainEvent.Source.CHAT));
+        h.assertTrue(book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
+                "the owner's own message did not set the language: " + book.ownerLanguage(owner.getUUID()));
+        // A two-word reply in another language is not evidence either: the stored language keeps saying Russian.
+        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
+                owner.getUUID(), owner.getName().getString(), "ok thanks", BrainEvent.Source.CHAT));
+        h.succeedWhen(() -> {
+            h.assertTrue(book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
+                    "a short English reply flipped the language: " + book.ownerLanguage(owner.getUUID()));
+            String prompt = brains.currentPrompt(owner.getUUID()).orElse("");
+            h.assertTrue(prompt.contains("usually writes in Russian"),
+                    "the prompt lost the learned language: " + prompt);
         });
     }
 }
