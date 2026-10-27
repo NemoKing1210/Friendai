@@ -15,6 +15,7 @@ import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.mining.BreakAction;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.ExcavationGuard;
+import dev.friendai.task.nav.Sight;
 import java.util.List;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -23,6 +24,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.VineBlock;
 
 public class MiningTests {
 
@@ -103,6 +105,18 @@ public class MiningTests {
         h.assertFalse(guard(companion, h).allowBreak(new TaskContext(companion, h.getLevel()), step,
                 new Pos(target.getX(), target.getY(), target.getZ())), "corridor break next to water was allowed");
         h.assertTrue(h.getLevel().getBlockState(target).is(Blocks.STONE), "corridor block changed");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void vineIsNotASightObstruction(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        h.setBlock(new BlockPos(4, 3, 2), Blocks.CRIMSON_STEM);
+        h.setBlock(new BlockPos(3, 3, 2), Blocks.VINE.defaultBlockState().setValue(VineBlock.EAST, true));
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos log = h.absolutePos(new BlockPos(4, 3, 2));
+        h.assertTrue(Sight.firstBlockOnRay(h.getLevel(), companion, log) == null,
+                "a vine has no collision and must not be a sight obstruction");
         h.succeed();
     }
 

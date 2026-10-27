@@ -11,9 +11,10 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * What a player's crosshair would reach. The game lets a player act on a block only when the ray from the eyes meets
- * it before any other block, so leaves or a wall in front hide it. The companion has no crosshair, so it asks here
- * before breaking a block instead of reaching through whatever happens to be in the way.
+ * What the companion can reach without a solid block in the way: the first <em>colliding</em> block its eye ray meets,
+ * so leaves or a wall hide a target but a vine, tall grass or an open door does not. A player's crosshair also catches
+ * a vine's thin outline; the companion acts with its hands instead, and a block with no collision shape cannot stop
+ * them, so it must not cause a pointless detour around or dig through a jungle vine.
  */
 public final class Sight {
     /** How far around a block the companion looks for a free cell with a view of it. */
@@ -35,7 +36,17 @@ public final class Sight {
      */
     public static BlockPos firstBlockOnRay(ServerLevel level, Entity viewer, BlockPos pos) {
         BlockHitResult hit = raycast(level, viewer, viewer.getEyePosition(), Vec3.atCenterOf(pos));
-        return hit.getType() == HitResult.Type.BLOCK && !hit.getBlockPos().equals(pos) ? hit.getBlockPos() : null;
+        if (hit.getType() != HitResult.Type.BLOCK || hit.getBlockPos().equals(pos)) {
+            return null;
+        }
+        // A target without a collision shape (a vine, tall grass) cannot itself stop the ray; a collider met after
+        // its centre lies behind it and is not an obstruction either.
+        if (isColliding(level, pos)) {
+            return hit.getBlockPos();
+        }
+        double targetDistance = viewer.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos));
+        return hit.getLocation().distanceToSqr(viewer.getEyePosition()) <= targetDistance + EPSILON
+                ? hit.getBlockPos() : null;
     }
 
     /** Whether a ray from {@code eye} meets pos before any other block. */
@@ -57,7 +68,18 @@ public final class Sight {
 
     private static boolean meets(ServerLevel level, Entity viewer, Vec3 eye, Vec3 aim, BlockPos pos) {
         BlockHitResult hit = raycast(level, viewer, eye, aim);
-        return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos);
+        if (hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos)) {
+            return true;
+        }
+        // The target may have no collision shape (a vine, tall grass): then any collider met after the aim lies
+        // behind it and does not hide it. A target with collision of its own must be the block the ray meets.
+        return !isColliding(level, pos)
+                && (hit.getType() != HitResult.Type.BLOCK
+                        || hit.getLocation().distanceToSqr(eye) >= aim.distanceToSqr(eye) - EPSILON);
+    }
+
+    private static boolean isColliding(ServerLevel level, BlockPos pos) {
+        return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
     /**
@@ -97,7 +119,9 @@ public final class Sight {
     }
 
     private static BlockHitResult raycast(ServerLevel level, Entity viewer, Vec3 from, Vec3 to) {
-        return level.clip(new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, viewer));
+        // A block without a collision shape (a vine, tall grass, an open door) cannot stop a body reaching through
+        // it, even though it may have a selectable outline a player's crosshair would catch.
+        return level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, viewer));
     }
 
     /** Whether the ray from the eyes reaches {@code point} before any block does. */
