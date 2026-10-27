@@ -1,6 +1,7 @@
 package dev.friendai.config;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.llm.provider.LlmProfile;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.llm.provider.RoutingRule;
@@ -14,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 11;
+    public static final int VERSION = 12;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -28,6 +29,7 @@ public class ServerConfig {
     public PlacesSection places = new PlacesSection();
     public StructuresSection structures = new StructuresSection();
     public AgentSection agent = new AgentSection();
+    public AutonomySection autonomy = new AutonomySection();
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -162,6 +164,27 @@ public class ServerConfig {
         public int plannerLimit = 40;
     }
 
+    /** Free time: when the companion may work on its own, how often it asks the model, and what it protects. */
+    public static class AutonomySection {
+        public boolean enabled = true;
+        public boolean idleStart = true;
+        public int idleMinutes = 5;
+        public int resumeAfterSec = 60;
+        public boolean whileOffline = true;
+        public int shiftMinutes = 20;
+        public int maxShiftsPerHour = 6;
+        public int offlineShiftsPerHour = 2;
+        public int failCooldownMin = 10;
+        public boolean protectPlaces = true;
+        public boolean allowBuilding = true;
+        public List<String> keepItems = new ArrayList<>(AutonomySettings.DEFAULT_KEEP);
+
+        public AutonomySettings toSettings() {
+            return new AutonomySettings(enabled, idleStart, idleMinutes, resumeAfterSec, whileOffline, shiftMinutes,
+                    maxShiftsPerHour, offlineShiftsPerHour, failCooldownMin, protectPlaces, allowBuilding, keepItems);
+        }
+    }
+
     public static ServerConfig defaults() {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
@@ -173,6 +196,7 @@ public class ServerConfig {
      * Version 9 added the {@code agent} section, whose field defaults fill in old files.
      * Version 10 enables resource observations out to 64 blocks by default.
      * Version 11 added the {@code places} section, whose field defaults fill in old files.
+     * Version 12 added the {@code autonomy} section, whose field defaults fill in old files.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
@@ -280,6 +304,18 @@ public class ServerConfig {
         } else {
             agent.autonomy = agent.autonomy.toLowerCase(java.util.Locale.ROOT);
         }
+        if (autonomy == null) {
+            autonomy = new AutonomySection();
+            problems.add("autonomy was missing");
+        }
+        autonomy.idleMinutes = clamp(problems, "autonomy.idleMinutes", autonomy.idleMinutes, 1, 120);
+        autonomy.resumeAfterSec = clamp(problems, "autonomy.resumeAfterSec", autonomy.resumeAfterSec, 10, 900);
+        autonomy.shiftMinutes = clamp(problems, "autonomy.shiftMinutes", autonomy.shiftMinutes, 3, 120);
+        autonomy.maxShiftsPerHour = clamp(problems, "autonomy.maxShiftsPerHour", autonomy.maxShiftsPerHour, 1, 60);
+        autonomy.offlineShiftsPerHour =
+                clamp(problems, "autonomy.offlineShiftsPerHour", autonomy.offlineShiftsPerHour, 0, 60);
+        autonomy.failCooldownMin = clamp(problems, "autonomy.failCooldownMin", autonomy.failCooldownMin, 1, 240);
+        autonomy.keepItems = keepItems(problems, autonomy.keepItems);
         structures.maxNearbySpawned = clamp(problems, "structures.maxNearbySpawned", structures.maxNearbySpawned, 1, 16);
         if (pathing.breakBlacklist == null) {
             pathing.breakBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.breakBlacklist());
@@ -312,6 +348,30 @@ public class ServerConfig {
         memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 100);
         memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);
         return problems;
+    }
+
+    private static final int MAX_KEEP_ITEMS = 32;
+    private static final java.util.regex.Pattern ITEM_OR_TAG =
+            java.util.regex.Pattern.compile("#?[a-z0-9_.-]+:[a-z0-9_./-]+");
+
+    /** Drops entries that are not an item id or a {@code #tag}, and keeps at most {@value #MAX_KEEP_ITEMS}. */
+    private static List<String> keepItems(List<String> problems, List<String> items) {
+        if (items == null) {
+            problems.add("autonomy.keepItems was missing");
+            return new ArrayList<>(AutonomySettings.DEFAULT_KEEP);
+        }
+        List<String> valid = new ArrayList<>();
+        for (String item : items) {
+            if (item == null || !ITEM_OR_TAG.matcher(item).matches()) {
+                problems.add("autonomy.keepItems entry " + item + " is not an item id or tag, dropped");
+            } else if (valid.size() < MAX_KEEP_ITEMS) {
+                valid.add(item);
+            }
+        }
+        if (items.size() > valid.size() && valid.size() == MAX_KEEP_ITEMS) {
+            problems.add("autonomy.keepItems keeps only the first " + MAX_KEEP_ITEMS + " entries");
+        }
+        return valid;
     }
 
     private static int clamp(List<String> problems, String name, int value, int min, int max) {
