@@ -11,6 +11,7 @@ import dev.friendai.net.DebugStream;
 import dev.friendai.net.FriendaiNetworking;
 import dev.friendai.net.MemoryViewStream;
 import dev.friendai.net.MovementDebugStream;
+import dev.friendai.net.PlaceViewStream;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -64,6 +65,7 @@ public class FriendaiMod implements ModInitializer {
             state.places().flushIfDue();
             DebugStream.tick(server);
             MemoryViewStream.tick(server);
+            PlaceViewStream.tick(server);
             MovementDebugStream.tick(server);
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -85,6 +87,7 @@ public class FriendaiMod implements ModInitializer {
             DebugStream.onDisconnect(handler.getPlayer());
             MovementDebugStream.onDisconnect(handler.getPlayer());
             MemoryViewStream.onDisconnect(handler.getPlayer());
+            PlaceViewStream.onDisconnect(handler.getPlayer());
             FriendaiServerState.get(server).brains().onOwnerLeft(handler.getPlayer().getUUID());
         });
         LOGGER.info("Friendai initialized");

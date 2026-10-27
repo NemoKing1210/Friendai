@@ -25,6 +25,10 @@ public enum RequestType {
     RENAME(DebugAccess.Action.RENAME),
     PERSONA_SET(DebugAccess.Action.EDIT_MEMORY),
     SET_AUTO_RESPAWN(DebugAccess.Action.SET_AUTO_RESPAWN),
+    PLACES_OPEN(DebugAccess.Action.VIEW_PLACES),
+    PLACES_CLOSE(DebugAccess.Action.VIEW_PLACES),
+    PLACES_RENAME(DebugAccess.Action.EDIT_PLACES),
+    PLACES_FORGET(DebugAccess.Action.EDIT_PLACES),
     INVALID(null);
 
     private final DebugAccess.Action action;

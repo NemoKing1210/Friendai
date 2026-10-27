@@ -44,6 +44,7 @@ public final class FriendaiServerState {
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
+    private final MemoryViewers placeViewers = new MemoryViewers();
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
@@ -148,6 +149,11 @@ public final class FriendaiServerState {
     /** Who has the memory tab open, and the last book revision each received. */
     public MemoryViewers memoryViewers() {
         return memoryViewers;
+    }
+
+    /** Who has the places tab open, and the last registry revision each received. */
+    public MemoryViewers placeViewers() {
+        return placeViewers;
     }
 
     /** Trust changes waiting for the owner's confirmation. */
