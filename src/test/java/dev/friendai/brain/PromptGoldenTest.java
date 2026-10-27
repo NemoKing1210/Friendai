@@ -1,7 +1,9 @@
 package dev.friendai.brain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import dev.friendai.agent.goal.GoalView;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 /**
@@ -27,6 +30,8 @@ class PromptGoldenTest {
     private static final Persona PERSONA = new Persona("Frida", "Cheerful helper", "auto");
     private static final String PERCEPTION = "Position: 1 2 3";
     private static final String MEMORY = "Memory:\n- Steve likes oak";
+    private static final String PLACES =
+            "Known places (ids in brackets; go_to_place takes a name or id):\n- [3] дом (house), 12 blocks south";
 
     private static Map<String, String> cases() {
         Map<String, String> cases = new LinkedHashMap<>();
@@ -41,7 +46,22 @@ class PromptGoldenTest {
         cases.put("guest_russian", PromptBuilder.system(
                 new Persona("Frida", "Cheerful helper", "Russian"), PERCEPTION,
                 new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER));
+        cases.put("owner_places", PromptBuilder.system(
+                PERSONA, PERCEPTION, new Caller(ID, "Steve", AccessLevel.OWNER), MEMORY, TurnKind.PLAYER,
+                GoalView.EMPTY, 0, List.of(), PLACES));
+        cases.put("guest_places", PromptBuilder.system(
+                PERSONA, PERCEPTION, new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER,
+                GoalView.EMPTY, 0, List.of(), PLACES));
         return cases;
+    }
+
+    @Test
+    void guestPromptOmitsThePlacesBlock() {
+        String prompt = PromptBuilder.system(
+                PERSONA, PERCEPTION, new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER,
+                GoalView.EMPTY, 0, List.of(), PLACES);
+        assertFalse(prompt.contains(PLACES), prompt);
+        assertFalse(prompt.contains("Known places"), prompt);
     }
 
     private static List<String> sortedLines(String text) {

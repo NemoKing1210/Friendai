@@ -54,11 +54,20 @@ public final class PromptBuilder {
         return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, "");
     }
 
-    /** @param plannerNote what the planner just did for this turn, shown once in the Mission block */
+    /** @param places the rendered places block, or {@code ""} when the caller sees none */
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
-            int budget, List<String> toolHints, String plannerNote) {
+            int budget, List<String> toolHints, String places) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "");
+    }
+
+    /**
+     * @param plannerNote what the planner just did for this turn, shown once in the Mission block
+     */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget, List<String> toolHints, String places, String plannerNote) {
         return PromptAssembler.defaults(budget).assemble(new TurnContext(
-                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints));
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints, places));
     }
 }

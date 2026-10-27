@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class PromptAssemblerTest {
     private static final TurnContext CTX = new TurnContext(
             new Persona("F", "d", "auto"), "p", new Caller(UUID.randomUUID(), "S", AccessLevel.OWNER),
-            "", TurnKind.PLAYER, "", List.of());
+            "", TurnKind.PLAYER, "", List.of(), "");
 
     private static PromptSection section(String id, int priority, String text) {
         return new PromptSection() {

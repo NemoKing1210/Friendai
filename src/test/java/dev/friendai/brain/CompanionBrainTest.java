@@ -78,6 +78,15 @@ class CompanionBrainTest {
         assertTrue(system.contains("gather 12 logs"), system);
     }
 
+    @Test
+    void systemPromptCarriesKnownPlaces() {
+        brain.setPlaceSource(caller -> "Known places: home at 1 2 3");
+        gateway.enqueue(text("ok"));
+        brain.post(said("hi"));
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("home at 1 2 3"), system);
+    }
+
     private static ToolSpec spec(String name) {
         JsonObject schema = new JsonObject();
         schema.addProperty("type", "object");

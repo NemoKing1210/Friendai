@@ -63,6 +63,7 @@ public final class CompanionBrain {
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
+    private PlaceSource placeSource = PlaceSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
     private boolean plannedThisTurn;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
@@ -201,6 +202,10 @@ public final class CompanionBrain {
         this.goalSource = java.util.Objects.requireNonNull(goalSource);
     }
 
+    public void setPlaceSource(PlaceSource placeSource) {
+        this.placeSource = java.util.Objects.requireNonNull(placeSource);
+    }
+
     public void setPlannerPort(PlannerPort plannerPort) {
         this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
     }
@@ -220,6 +225,7 @@ public final class CompanionBrain {
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
                 catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)),
+                placeSource.describe(turnCaller),
                 note);
     }
 

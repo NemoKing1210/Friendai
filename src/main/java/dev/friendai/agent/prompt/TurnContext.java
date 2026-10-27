@@ -10,6 +10,7 @@ import java.util.List;
  *
  * @param mission the rendered goal block, empty when there is no goal
  * @param toolHints the "when to use" lines of the tools visible this turn
+ * @param places the rendered places block, empty when the caller sees none; it carries its own header
  */
 public record TurnContext(
         Persona persona,
@@ -18,10 +19,12 @@ public record TurnContext(
         String memoryBlock,
         TurnKind turn,
         String mission,
-        List<String> toolHints) {
+        List<String> toolHints,
+        String places) {
     public TurnContext {
         memoryBlock = memoryBlock == null ? "" : memoryBlock;
         mission = mission == null ? "" : mission;
         toolHints = toolHints == null ? List.of() : List.copyOf(toolHints);
+        places = places == null ? "" : places;
     }
 }
