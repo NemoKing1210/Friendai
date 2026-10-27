@@ -153,6 +153,47 @@ public final class ResourceCandidates {
                 .toList();
     }
 
+    /** Confirmed recent evidence as a position-to-block map. */
+    public Map<BlockPos, String> confirmedRecentBlockIds(CompanionEntity companion, int radius) {
+        Map<BlockPos, String> result = new HashMap<>();
+        confirmedRecent(companion, radius).forEach(observation -> {
+            var pos = observation.location().pos();
+            result.put(new BlockPos(pos.x(), pos.y(), pos.z()), observation.blockId());
+        });
+        return Map.copyOf(result);
+    }
+
+    /** Confirmed recent positions first, then remembered positions whose block is still present. */
+    public Map<BlockPos, String> recentOrRememberedBlockIds(CompanionEntity companion, int radius, int limit) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)
+                || radius < 0 || limit < 1) return Map.of();
+        Map<BlockPos, String> result = new java.util.LinkedHashMap<>();
+        confirmedRecentBlockIds(companion, radius).entrySet().stream()
+                .sorted(Comparator.comparingDouble(entry ->
+                        companion.position().distanceToSqr(Vec3.atCenterOf(entry.getKey()))))
+                .forEach(entry -> result.putIfAbsent(entry.getKey(), entry.getValue()));
+        if (result.size() >= limit) return Map.copyOf(result);
+        String dimension = level.dimension().identifier().toString();
+        double radiusSquared = (double) radius * radius;
+        for (var record : knowledge.book(companion.ownerUuid()).snapshot().records()) {
+            if (result.size() >= limit) break;
+            if (!record.dimension().equals(dimension)) continue;
+            BlockPos pos = new BlockPos(record.x(), record.y(), record.z());
+            if (result.containsKey(pos)
+                    || companion.position().distanceToSqr(Vec3.atCenterOf(pos)) > radiusSquared
+                    || !level.hasChunkAt(pos)) continue;
+            BlockState state = level.getBlockState(pos);
+            if (!BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString().equals(record.blockId())) continue;
+            result.put(pos, record.blockId());
+        }
+        return Map.copyOf(result);
+    }
+
+    /** Recent or remembered positions matching a block id or tag; remembered positions are not re-validated here. */
+    public Set<BlockPos> recentOrRemembered(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+        return Set.copyOf(knownOrVisible(companion, matcher, radius, limit));
+    }
+
     private static boolean stillPresent(ServerLevel level, ResourceObservation observation) {
         var pos = observation.location().pos();
         BlockPos block = new BlockPos(pos.x(), pos.y(), pos.z());

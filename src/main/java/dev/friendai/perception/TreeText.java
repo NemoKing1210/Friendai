@@ -11,6 +11,13 @@ public final class TreeText {
         return "Trees: " + trees.stream().map(TreeSummary::toPromptText).collect(Collectors.joining("; "));
     }
 
+    /** Trees nearest first, then log structures, with the evidence scope named. */
+    public static String toolListing(List<TreeSummary> trees, List<TreeSummary> structures, int radius,
+            String provenance) {
+        String listing = toolListing(trees, structures, radius);
+        return provenance == null || provenance.isBlank() ? listing : provenance + ": " + listing;
+    }
+
     /** Trees nearest first, then log structures; an empty result still says how far it looked. */
     public static String toolListing(List<TreeSummary> trees, List<TreeSummary> structures, int radius) {
         String within = " within " + radius + " blocks";

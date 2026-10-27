@@ -366,6 +366,32 @@ public class ObtainTests {
         });
     }
 
+    @GameTest(maxTicks = 9600)
+    public void stonePickaxeFromAcaciaOnly(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.ACACIA_LOG);
+        BlockPos[] stones = {new BlockPos(6, 2, 6), new BlockPos(7, 2, 8), new BlockPos(7, 2, 4)};
+        for (BlockPos stone : stones) h.setBlock(stone, Blocks.STONE);
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos pos : logs) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "acacia log should be directly visible at " + pos);
+        for (BlockPos pos : stones) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "stone should be directly visible at " + pos);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, true));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("acacia_log"), result.summary);
+            h.assertFalse(result.summary.contains("explored for"), result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 2400)
     public void obtainTakesFromChest(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
