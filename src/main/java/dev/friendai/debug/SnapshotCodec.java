@@ -80,6 +80,8 @@ public final class SnapshotCodec {
             }
             out.writeBoolean(s.autoRespawn());
             out.writeBoolean(s.autoRespawnAvailable());
+            out.writeBoolean(s.creativeMode());
+            out.writeBoolean(s.creativeModeAvailable());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -144,16 +146,23 @@ public final class SnapshotCodec {
             }
             boolean autoRespawn = true;
             boolean autoRespawnAvailable = present;
+            boolean creativeMode = false;
+            boolean creativeModeAvailable = false;
             if (in.available() == 2) {
                 autoRespawn = in.readBoolean();
                 autoRespawnAvailable = in.readBoolean();
+            } else if (in.available() == 4) {
+                autoRespawn = in.readBoolean();
+                autoRespawnAvailable = in.readBoolean();
+                creativeMode = in.readBoolean();
+                creativeModeAvailable = in.readBoolean();
             }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
                     present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals,
-                    queue, autoRespawn, autoRespawnAvailable);
+                    queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

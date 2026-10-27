@@ -59,6 +59,18 @@ public final class CompanionHands {
      * fake player; whatever it does not use comes back to the companion.
      */
     public InteractionResult place(ItemStack stack, BlockPos against, Direction face) {
+        return place(stack, against, face, true);
+    }
+
+    /** Uses a temporary creative item that must never be inserted into either inventory. */
+    public InteractionResult placeTemporary(ItemStack stack, BlockPos against, Direction face) {
+        if (!companion.creativeMode()) {
+            throw new IllegalStateException("temporary placement items require creative mode");
+        }
+        return place(stack, against, face, false);
+    }
+
+    private InteractionResult place(ItemStack stack, BlockPos against, Direction face, boolean returnRemainder) {
         ServerLevel level = level();
         FakePlayer hands = handsPlayer();
         Vec3 hitPoint = Vec3.atCenterOf(against).relative(face, 0.5);
@@ -69,7 +81,12 @@ public final class CompanionHands {
         try {
             return hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
         } finally {
-            returnItems(hands);
+            if (returnRemainder) {
+                returnItems(hands);
+            } else {
+                hands.getInventory().clearContent();
+                hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            }
         }
     }
 
@@ -182,8 +199,9 @@ public final class CompanionHands {
         hands.setYRot(yaw);
         hands.setXRot(pitch);
         hands.setYHeadRot(yaw);
-        if (hands.gameMode.getGameModeForPlayer() != GameType.SURVIVAL) {
-            hands.setGameMode(GameType.SURVIVAL);
+        GameType desiredGameMode = companion.creativeMode() ? GameType.CREATIVE : GameType.SURVIVAL;
+        if (hands.gameMode.getGameModeForPlayer() != desiredGameMode) {
+            hands.setGameMode(desiredGameMode);
         }
         companion.getLookControl().setLookAt(lookAt.x, lookAt.y, lookAt.z);
         companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);

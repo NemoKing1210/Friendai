@@ -3,8 +3,11 @@ package dev.friendai.task.mining;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskSettings;
+import dev.friendai.task.nav.LevelCellView;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.component.SwingAnimation;
@@ -55,10 +58,28 @@ public final class BreakAction {
             stop(c);
             return State.GONE;
         }
+        boolean creative = companion.creativeMode();
+        boolean blacklisted = creative && TaskSettings.breakList.matches(
+                BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state));
         if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
-                || state.getDestroySpeed(level, pos) < 0) {
+                || blacklisted || (!creative && state.getDestroySpeed(level, pos) < 0)) {
             stop(c);
             return State.BLOCKED;
+        }
+        if (creative) {
+            Vec3 center = Vec3.atCenterOf(pos);
+            companion.getLookControl().setLookAt(center.x, center.y, center.z);
+            if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))) {
+                stop(c);
+                return State.BLOCKED;
+            }
+            if (!level.destroyBlock(pos, false, companion)) {
+                stop(c);
+                return level.getBlockState(pos).isAir() ? State.GONE : State.BLOCKED;
+            }
+            FriendaiServerState.get(level.getServer()).resources().ownBreak(companion, pos);
+            broken = true;
+            return State.BROKEN;
         }
         if (breakNeeded == 0) {
             ToolSelector.equipBest(companion, state);

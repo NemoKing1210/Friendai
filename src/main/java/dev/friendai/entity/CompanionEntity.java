@@ -46,6 +46,8 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -63,6 +65,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -72,6 +75,7 @@ import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /** The player's AI companion: a player-looking mob that never despawns and carries its own inventory. */
@@ -92,6 +96,8 @@ public class CompanionEntity extends PathfinderMob {
     private static final EntityDataAccessor<String> DATA_SKIN =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Boolean> DATA_SLIM =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> DATA_CREATIVE_MODE =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
@@ -116,6 +122,7 @@ public class CompanionEntity extends PathfinderMob {
     private static final double STATION_RECOVERY_RADIUS = 32.0;
 
     private UUID ownerUuid;
+    private long creativeModeRevision;
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final HungerModel hunger = new HungerModel();
     private final ExperienceModel experience = new ExperienceModel();
@@ -135,6 +142,10 @@ public class CompanionEntity extends PathfinderMob {
     /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
     private transient dev.friendai.task.nav.Navigator lastNavigator;
     private transient long lastNavigatorTick;
+    /** Flight and landing are runtime-only; the mode preference itself is persisted separately. */
+    private transient boolean creativeFlightActive;
+    private transient boolean creativeLanding;
+    private transient int creativeLandingTicks;
     private int furnaceWatchTicks;
     private int hungerWatchTicks;
     private int stationWatchTicks;
@@ -160,6 +171,7 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_XP_PROGRESS, 0.0f);
         builder.define(DATA_SKIN, "");
         builder.define(DATA_SLIM, false);
+        builder.define(DATA_CREATIVE_MODE, false);
     }
 
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
@@ -340,10 +352,13 @@ public class CompanionEntity extends PathfinderMob {
             pathingTicks--;
         }
         if (!level().isClientSide() && isAlive()) {
+            tickCreativeLanding();
             if (previewOutline != null && !previewOutline.tick((ServerLevel) level())) {
                 previewOutline = null;
             }
-            tickHunger((ServerLevel) level());
+            if (!creativeMode()) {
+                tickHunger((ServerLevel) level());
+            }
             collectExperienceOrbs();
             combatController.tick();
             taskRunner.tick();
@@ -426,6 +441,10 @@ public class CompanionEntity extends PathfinderMob {
 
     /** Vanilla player hunger: movement, effects, then the model; heal and starve come back from it. */
     private void tickHunger(ServerLevel level) {
+        if (creativeMode()) {
+            entityData.set(DATA_FOOD, hunger.food());
+            return;
+        }
         if (isInWater()) {
             double dx = getX() - xo;
             double dz = getZ() - zo;
@@ -465,15 +484,21 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     public void jumpFromGround() {
         super.jumpFromGround();
-        if (!level().isClientSide()) {
+        if (!level().isClientSide() && !creativeMode()) {
             hunger.addExhaustion(EXHAUSTION_JUMP);
         }
     }
 
     @Override
+    public boolean isInvulnerableTo(ServerLevel level, DamageSource source) {
+        return creativeMode() && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)
+                || super.isInvulnerableTo(level, source);
+    }
+
+    @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         boolean hurt = super.hurtServer(level, source, amount);
-        if (hurt) {
+        if (hurt && !creativeMode()) {
             hunger.addExhaustion(EXHAUSTION_DAMAGE);
         }
         return hurt;
@@ -599,7 +624,113 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     public void setOwner(UUID owner) {
-        this.ownerUuid = owner;
+        if (!java.util.Objects.equals(this.ownerUuid, owner)) {
+            this.ownerUuid = owner;
+            creativeModeRevision++;
+        }
+        syncCreativeModePreference();
+    }
+
+    /** The persisted owner preference mirrored into entity data for clients and server-side capabilities. */
+    public boolean creativeMode() {
+        return entityData.get(DATA_CREATIVE_MODE);
+    }
+
+    /** Runtime generation used to revoke queued work after a mode change or entity rebinding. */
+    public long creativeModeRevision() {
+        return creativeModeRevision;
+    }
+
+    /** Applies runtime mode only; the transition service owns the canonical saved preference. */
+    public void setCreativeMode(boolean enabled) {
+        if (creativeMode() != enabled) {
+            entityData.set(DATA_CREATIVE_MODE, enabled);
+            creativeModeRevision++;
+            if (enabled) {
+                creativeLanding = false;
+                creativeLandingTicks = 0;
+                setNoGravity(false);
+            } else {
+                beginCreativeLanding();
+            }
+        }
+    }
+
+    /** Starts collision-resolved flight movement for one authorized task. */
+    public void beginCreativeFlight() {
+        if (!creativeMode() || level().isClientSide()) return;
+        creativeFlightActive = true;
+        creativeLanding = false;
+        creativeLandingTicks = 0;
+        setNoGravity(true);
+        getNavigation().stop();
+    }
+
+    /** Stops task-owned flight; disabling creative starts a separate bounded landing transition. */
+    public void endCreativeFlight() {
+        creativeFlightActive = false;
+        if (!creativeLanding) setNoGravity(false);
+        setDeltaMovement(Vec3.ZERO);
+        fallDistance = 0;
+    }
+
+    public boolean creativeLanding() {
+        return creativeLanding;
+    }
+
+    private void beginCreativeLanding() {
+        creativeFlightActive = false;
+        creativeLandingTicks = 0;
+        setDeltaMovement(Vec3.ZERO);
+        fallDistance = 0;
+        if (level().isClientSide() || onGround()) {
+            creativeLanding = false;
+            setNoGravity(false);
+            return;
+        }
+        creativeLanding = true;
+        setNoGravity(true);
+        getNavigation().stop();
+    }
+
+    /** Descends at a bounded speed with ordinary collision resolution; timeout returns to normal gravity. */
+    private void tickCreativeLanding() {
+        if (!creativeLanding) return;
+        if (creativeMode()) {
+            creativeLanding = false;
+            creativeLandingTicks = 0;
+            setNoGravity(false);
+            return;
+        }
+        if (onGround()) {
+            finishCreativeLanding();
+            return;
+        }
+        move(MoverType.SELF, new Vec3(0.0, -0.15, 0.0));
+        fallDistance = 0;
+        if (onGround()) {
+            finishCreativeLanding();
+        } else if (++creativeLandingTicks >= 100) {
+            // No safe support was reached (for example above the void); restore ordinary survival physics.
+            creativeLanding = false;
+            setNoGravity(false);
+            fallDistance = 0;
+        }
+    }
+
+    private void finishCreativeLanding() {
+        creativeLanding = false;
+        creativeLandingTicks = 0;
+        setNoGravity(false);
+        setDeltaMovement(Vec3.ZERO);
+        fallDistance = 0;
+    }
+
+    /** Refreshes the runtime mirror from the single per-owner saved preference. */
+    public void syncCreativeModePreference() {
+        if (ownerUuid != null && level() instanceof ServerLevel serverLevel) {
+            setCreativeMode(FriendaiServerState.get(serverLevel.getServer()).companionLife().creativeMode(ownerUuid));
+        }
     }
 
     /**
@@ -832,7 +963,12 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
+        creativeFlightActive = false;
+        creativeLanding = false;
+        creativeLandingTicks = 0;
+        setNoGravity(false);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
+        syncCreativeModePreference();
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
         String savedSettings = input.getString("CombatSettings").orElse(null);
         this.combatSettings = savedSettings != null

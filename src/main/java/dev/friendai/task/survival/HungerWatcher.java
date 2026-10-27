@@ -57,6 +57,15 @@ public final class HungerWatcher {
 
     /** One look at the hunger; the entity calls this every 20 server ticks. */
     public void tick() {
+        if (companion.creativeMode()) {
+            int stage = stageOf(companion.hunger().food());
+            lastStage = stage;
+            pending = stage >= STAGE_THREE;
+            questRunning = false;
+            waitStartTick = companion.tickCount;
+            readyAtTick = waitStartTick + autoDelayTicks;
+            return;
+        }
         TaskRunner runner = companion.taskRunner();
         int now = companion.tickCount;
         int food = companion.hunger().food();

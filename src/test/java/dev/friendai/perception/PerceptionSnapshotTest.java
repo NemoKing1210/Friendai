@@ -11,6 +11,27 @@ import org.junit.jupiter.api.Test;
 
 class PerceptionSnapshotTest {
     @Test
+    void promptReportsCreativeCapabilitiesAndKeepsSurvivalAsTheLegacyDefault() {
+        PerceptionSnapshot creative = new PerceptionSnapshot(
+                "0 64 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing", "none",
+                null, null, null, null, List.of(), 17, true);
+        String creativeText = creative.toPromptText();
+        assertTrue(creativeText.contains("Mode: creative"), creativeText);
+        assertTrue(creativeText.contains("Ordinary damage and hunger are disabled"), creativeText);
+        assertTrue(creativeText.contains("flight, free materials, item creation and command execution require the online owner's live permissions"),
+                creativeText);
+
+        PerceptionSnapshot survival = new PerceptionSnapshot(
+                "0 64 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,
+                Map.of(), Map.of(), Map.of(), "Wearing: nothing", "none",
+                null, null, null, null, List.of());
+        assertTrue(survival.toPromptText().contains("Mode: survival"), survival.toPromptText());
+        assertTrue(survival.toPromptText().contains("Normal damage, hunger, material use and ground movement apply"),
+                survival.toPromptText());
+    }
+
+    @Test
     void reportsExperienceLevel() {
         PerceptionSnapshot snapshot = new PerceptionSnapshot(
                 "0 64 0", "overworld", 20f, 20f, 20, "day", "plains", "clear", null,

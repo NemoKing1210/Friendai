@@ -27,7 +27,20 @@ public record PerceptionSnapshot(
         List<Threat> threats,
         List<Landmark> landmarks,
         List<TreeSummary> trees,
-        int experienceLevel) {
+        int experienceLevel,
+        boolean creativeMode) {
+
+    /** Constructor retained for snapshots created before the mode field was added. */
+    public PerceptionSnapshot(
+            String position, String dimension, float health, float maxHealth, int food, String timeOfDay,
+            String biome, String weather, Double ownerDistance, Map<String, Integer> nearbyBlocks,
+            Map<String, Integer> nearbyEntities, Map<String, Integer> inventory, String equipment,
+            String currentTask, OwnerFocus ownerFocus, SelfStatus self, List<Threat> threats,
+            List<Landmark> landmarks, List<TreeSummary> trees, int experienceLevel) {
+        this(position, dimension, health, maxHealth, food, timeOfDay, biome, weather, ownerDistance, nearbyBlocks,
+                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees,
+                experienceLevel, false);
+    }
 
     /** A snapshot of a companion with no experience levels. */
     public PerceptionSnapshot(
@@ -37,12 +50,17 @@ public record PerceptionSnapshot(
             String currentTask, OwnerFocus ownerFocus, SelfStatus self, List<Threat> threats,
             List<Landmark> landmarks, List<TreeSummary> trees) {
         this(position, dimension, health, maxHealth, food, timeOfDay, biome, weather, ownerDistance, nearbyBlocks,
-                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees, 0);
+                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees, 0, false);
     }
 
     public String toPromptText() {
         StringBuilder sb = new StringBuilder();
         sb.append("Position: ").append(position).append(" (").append(dimension).append(")\n");
+        if (creativeMode) {
+            sb.append("Mode: creative. Ordinary damage and hunger are disabled; flight, free materials, item creation and command execution require the online owner's live permissions.\n");
+        } else {
+            sb.append("Mode: survival. Normal damage, hunger, material use and ground movement apply.\n");
+        }
         if (self != null) {
             sb.append(self.toPromptText()).append('\n');
         }

@@ -6,6 +6,8 @@ import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.creative.CreativeAction;
+import dev.friendai.core.CreativeModeService;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
@@ -93,6 +95,14 @@ public final class FollowTask implements Task {
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
     private static Vec3 followTarget(TaskContext c, ServerPlayer owner) {
+        boolean passiveFlight = c.runner() != null && c.runner().currentIsDefaultActivity()
+                && CreativeModeService.ownerMayUsePassiveFlight(c.companion());
+        if (c.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFlight) {
+            Vec3 away = c.companion().position().subtract(owner.position());
+            away = new Vec3(away.x, 0.0, away.z);
+            if (away.lengthSqr() < 1.0E-6) away = new Vec3(1.0, 0.0, 0.0);
+            return owner.position().add(away.normalize().scale(1.5));
+        }
         boolean grounded = owner.onGround() || owner.isInWater() || owner.onClimbable()
                 || owner.getVehicle() != null && owner.getVehicle().onGround();
         if (grounded) {

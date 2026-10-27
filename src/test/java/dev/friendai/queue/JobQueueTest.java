@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class JobQueueTest {
@@ -71,5 +72,20 @@ class JobQueueTest {
         q.archivePlan(added.planId());
         assertEquals(0, q.jobCount());
         assertEquals(1, q.archives().size());
+    }
+
+    @Test
+    void editingPendingJobRebindsItsInitiatorAndCreativeSensitivityAtomically() {
+        UUID original = UUID.randomUUID();
+        UUID editor = UUID.randomUUID();
+        QueuedStep originalStep = new QueuedStep("place_block", new JsonObject(), null, List.of(),
+                GuardAction.WAIT, null, 1, List.of(), original, true);
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        long id = q.addDirect(originalStep).id();
+
+        assertTrue(q.updateArgs(id, new JsonObject(), editor, false).ok());
+
+        assertEquals(editor, q.job(id).orElseThrow().principal());
+        assertTrue(!q.job(id).orElseThrow().creativeSensitive());
     }
 }

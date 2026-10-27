@@ -49,7 +49,7 @@ public final class MineBlockAtTask implements Task {
             summary = "there is no block at " + coords();
             return TaskStatus.FAILED;
         }
-        if (startBlock.getDestroySpeed(c.level(), pos) < 0) {
+        if (!c.companion().creativeMode() && startBlock.getDestroySpeed(c.level(), pos) < 0) {
             summary = blockId() + " at " + coords() + " can't be broken";
             return TaskStatus.FAILED;
         }

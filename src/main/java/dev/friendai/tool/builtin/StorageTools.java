@@ -55,6 +55,6 @@ final class StorageTools {
                         .integer("z", "Container Z coordinate")
                         .build(),
                 (c, a) -> new CheckContainerTask(ToolKit.optionalPos(a).orElse(null)),
-                true));
+                true).asCreativeSafe());
     }
 }

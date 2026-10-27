@@ -73,6 +73,7 @@ public final class CompanionManager {
             entity.discard();
             return;
         }
+        entity.syncCreativeModePreference();
         byOwner.put(owner, entity);
         FriendaiServerState.get(entity.level().getServer())
                 .skins()

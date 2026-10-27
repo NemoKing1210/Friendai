@@ -82,7 +82,8 @@ public final class PerceptionBuilder {
                 threats(c, level),
                 LandmarkScanner.scan(c, resources),
                 trees(c, resources, pos),
-                c.experience().level());
+                c.experience().level(),
+                c.creativeMode());
     }
 
     private static String equipmentText(CompanionEntity c) {

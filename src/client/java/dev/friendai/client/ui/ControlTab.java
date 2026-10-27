@@ -6,13 +6,14 @@ import dev.friendai.debug.CompanionVitals;
 import dev.friendai.debug.RequestType;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
 /** The companion at a glance (identity, state, vitals, current work) and its four actions. */
 final class ControlTab implements MenuTab {
     private static final int GAP = 6;
     private static final int BUTTON_HEIGHT = 20;
-    private static final int HEADER_HEIGHT = 52;
+    private static final int HEADER_HEIGHT = 62;
     private static final int VITALS_HEIGHT = 64;
     private static final int PAD = 8;
 
@@ -22,6 +23,7 @@ final class ControlTab implements MenuTab {
     private FlatButton stop;
     private FlatButton movementDebug;
     private FlatButton autoRespawn;
+    private FlatButton creativeMode;
     private int buttonsTop;
 
     @Override
@@ -43,6 +45,8 @@ final class ControlTab implements MenuTab {
                 Component.empty(), Ui.PURPLE, ControlTab::toggleMovementDebug));
         autoRespawn = host.add(new FlatButton(left, buttonsTop - 2 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
                 Component.empty(), Ui.ACCENT, ControlTab::toggleAutoRespawn));
+        creativeMode = host.add(new FlatButton(left, buttonsTop - 3 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
+                Component.empty(), Ui.PURPLE, ControlTab::toggleCreativeMode));
         tick();
     }
 
@@ -55,6 +59,11 @@ final class ControlTab implements MenuTab {
     private static void toggleAutoRespawn() {
         CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
                 RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
+    }
+
+    private static void toggleCreativeMode() {
+        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
+                RequestType.SET_CREATIVE_MODE, Boolean.toString(!snapshot.creativeMode()), ""));
     }
 
     private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
@@ -84,6 +93,29 @@ final class ControlTab implements MenuTab {
                         : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
                 .orElse("friendai.menu.auto_respawn.off");
         autoRespawn.setMessage(Component.translatable(autoRespawnKey));
+        boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
+        boolean creativeAvailable = snapshot.map(CompanionSnapshot::creativeModeAvailable).orElse(false);
+        creativeMode.visible = true;
+        creativeMode.active = connected && present && creativeAvailable;
+        creativeMode.setMessage(Component.translatable(creative
+                ? "friendai.menu.creative.on"
+                : "friendai.menu.creative.off"));
+        String tooltipKey = !connected ? "friendai.menu.creative.connection"
+                : !present ? "friendai.menu.creative.no_companion"
+                : !creativeAvailable ? "friendai.menu.creative.operator_required"
+                : creative ? "friendai.menu.creative.disable"
+                : "friendai.menu.creative.enable";
+        creativeMode.setTooltip(Tooltip.create(Component.translatable(tooltipKey)));
+        layoutControls();
+    }
+
+    private void layoutControls() {
+        int row = 0;
+        for (FlatButton control : new FlatButton[] {creativeMode, autoRespawn, movementDebug}) {
+            if (!control.visible) continue;
+            control.setY(buttonsTop - GAP - BUTTON_HEIGHT - row * (GAP + BUTTON_HEIGHT));
+            row++;
+        }
     }
 
     @Override
@@ -96,9 +128,9 @@ final class ControlTab implements MenuTab {
         CompanionSnapshot s = snapshot.get();
         drawHeader(g, font, s, left, top, width);
         int y = top + HEADER_HEIGHT + GAP;
-        int limit = buttonsTop - GAP
-                - (movementDebug.visible ? BUTTON_HEIGHT + GAP : 0)
-                - (autoRespawn.visible ? BUTTON_HEIGHT + GAP : 0);
+        int controls = (creativeMode.visible ? 1 : 0) + (movementDebug.visible ? 1 : 0)
+                + (autoRespawn.visible ? 1 : 0);
+        int limit = buttonsTop - GAP - controls * (BUTTON_HEIGHT + GAP);
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
             y += VITALS_HEIGHT + GAP;
@@ -140,6 +172,11 @@ final class ControlTab implements MenuTab {
                     combatName(v.protection(), v.style())).getString(), x, top + PAD + 25, Ui.PURPLE) + 4;
             Ui.badge(g, font, Component.translatable("friendai.menu.mode.pace", paceName(v.paceMode())).getString(),
                     x, top + PAD + 25, Ui.ACCENT);
+            Component creative = Component.translatable(s.creativeMode()
+                    ? "friendai.menu.mode.creative"
+                    : "friendai.menu.mode.survival");
+            g.text(font, Component.translatable("friendai.menu.mode.current", creative), textX,
+                    top + PAD + 39, s.creativeMode() ? Ui.PURPLE : Ui.DIM);
         }
     }
 

@@ -21,13 +21,18 @@ public record TaskToolDef(
         boolean plannable,
         AccessLevel minAccess,
         QueueTraits queueTraits,
-        CallerFactory callerFactory) {
+        CallerFactory callerFactory,
+        boolean creativeSensitive) {
     public record QueueTraits(boolean interrupts, String mergeableCountArg) {
         public static final QueueTraits DEFAULT = new QueueTraits(false, null);
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
                        AccessLevel minAccess, QueueTraits queueTraits) {
         this(name, description, schema, factory, plannable, minAccess, queueTraits, null);
+    }
+    public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
+                       AccessLevel minAccess, QueueTraits queueTraits, CallerFactory callerFactory) {
+        this(name, description, schema, factory, plannable, minAccess, queueTraits, callerFactory, true);
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable, AccessLevel minAccess) {
         this(name, description, schema, factory, plannable, minAccess, QueueTraits.DEFAULT, null);
@@ -38,6 +43,11 @@ public record TaskToolDef(
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable, QueueTraits queueTraits) {
         this(name, description, schema, factory, plannable, AccessLevel.TRUSTED, queueTraits, null);
+    }
+
+    public TaskToolDef asCreativeSafe() {
+        return new TaskToolDef(name, description, schema, factory, plannable, minAccess, queueTraits,
+                callerFactory, false);
     }
 
     @FunctionalInterface

@@ -5,6 +5,7 @@ import dev.friendai.crafting.obtain.ObtainPlanner;
 import dev.friendai.crafting.obtain.ObtainStep;
 import dev.friendai.crafting.obtain.ObtainText;
 import dev.friendai.crafting.obtain.WorldFacts;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -16,6 +17,7 @@ import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.tool.Caller;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.task.builtin.CreateItemsTask;
 import dev.friendai.task.obtain.DropIndex;
 import dev.friendai.task.obtain.WorldScan;
 import java.util.ArrayList;
@@ -68,6 +70,7 @@ public final class ObtainTask implements Task {
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
     private Task current;
     private ObtainStep currentStep;
+    private boolean creativeCreationStep;
     private String summary = "";
     private String lastFailedKey;
     private int ticks;
@@ -115,6 +118,7 @@ public final class ObtainTask implements Task {
     public void start(TaskContext c) {
         current = null;
         currentStep = null;
+        creativeCreationStep = false;
         summary = "";
         lastFailedKey = null;
         ticks = 0;
@@ -133,6 +137,17 @@ public final class ObtainTask implements Task {
             TaskStatus status = current.tick(c);
             if (status == TaskStatus.RUNNING) {
                 return TaskStatus.RUNNING;
+            }
+            if (creativeCreationStep) {
+                String creationSummary = current.resultSummary();
+                safeStop(current, c);
+                current = null;
+                creativeCreationStep = false;
+                currentStep = null;
+                if (status == TaskStatus.SUCCESS) {
+                    return succeed();
+                }
+                return fail("couldn't finish creative delivery: " + creationSummary);
             }
             String subSummary = current.resultSummary();
             var visitVerification = current instanceof VisitResourceTask visit ? visit.result()
@@ -166,6 +181,20 @@ public final class ObtainTask implements Task {
         int have = have(companion);
         if (have >= count) {
             return succeed();
+        }
+        if (c.canUseCreativeAction(CreativeAction.CREATE_ITEM)) {
+            Identifier id = Identifier.tryParse(item);
+            if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
+                ItemStack prototype = new ItemStack(BuiltInRegistries.ITEM.getValue(id));
+                if (!prototype.isEmpty()) {
+                    current = new CreateItemsTask(prototype, (long) count - have,
+                            CreateItemsTask.Destination.SELF);
+                    currentStep = null;
+                    creativeCreationStep = true;
+                    current.start(c);
+                    return TaskStatus.RUNNING;
+                }
+            }
         }
         if (stepsRun >= maxSteps) {
             return fail("gave up after " + maxSteps + " steps; have " + have + " of " + count + " " + item);

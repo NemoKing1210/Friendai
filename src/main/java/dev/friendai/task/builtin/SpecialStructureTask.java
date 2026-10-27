@@ -18,6 +18,8 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.PlaceSpot;
+import dev.friendai.creative.CreativeAction;
+import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.nav.Approach;
@@ -31,6 +33,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Rotation;
@@ -189,7 +192,8 @@ public final class SpecialStructureTask implements Task {
                 face = Direction.UP;
             }
         }
-        if (matcher == null || !hasItem(companion, matcher)) {
+        boolean freeMaterials = c.canUseCreativeAction(CreativeAction.FREE_MATERIALS);
+        if (matcher == null || (!hasItem(companion, matcher) && !freeMaterials)) {
             summary = "I don't have " + (matcher == null ? "the finishing item" : matcher.label());
             return TaskStatus.FAILED;
         }
@@ -224,11 +228,21 @@ public final class SpecialStructureTask implements Task {
             face = spot.get().face();
         }
         ItemStack held = takeOne(companion, matcher);
-        if (held.isEmpty()) {
+        CreativeItemLease lease;
+        if (held.isEmpty() && freeMaterials) {
+            Identifier itemId = Identifier.tryParse(matcher.label());
+            if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
+                summary = "the finishing item cannot be supplied in creative mode";
+                return TaskStatus.FAILED;
+            }
+            lease = CreativeItemLease.synthetic(new ItemStack(BuiltInRegistries.ITEM.getValue(itemId)));
+        } else if (!held.isEmpty()) {
+            lease = CreativeItemLease.carried(held);
+        } else {
             summary = "I don't have " + matcher.label();
             return TaskStatus.FAILED;
         }
-        companion.hands().place(held, against, face);
+        lease.place(companion.hands(), against, face);
         approach.stop(companion);
         approach = null;
         waited = 0;

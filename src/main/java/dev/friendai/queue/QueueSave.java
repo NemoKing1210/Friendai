@@ -47,6 +47,8 @@ public final class QueueSave {
             o.addProperty("onFailure", j.onFailure().name()); o.addProperty("maxAttempts", j.maxAttempts());
             o.addProperty("attempts", j.attempts()); o.addProperty("result", bounded(j.result(), 200));
             o.addProperty("retryAt", j.retryAtTick());
+            if (j.principal() != null) o.addProperty("principal", j.principal().toString());
+            if (!j.creativeSensitive()) o.addProperty("creativeSensitive", false);
             JsonArray guards = new JsonArray(); j.guards().forEach(g -> guards.add(g.toJson())); o.add("guards", guards);
             JsonArray after = new JsonArray(); j.after().forEach(after::add); o.add("after", after); jobs.add(o);
         }
@@ -100,7 +102,9 @@ public final class QueueSave {
                 j.get("priority").getAsInt(), j.get("explicit").getAsBoolean(), j.get("order").getAsLong(),
                 JobState.valueOf(j.get("state").getAsString()), guards, GuardAction.valueOf(j.get("onUnmet").getAsString()),
                 FailurePolicy.valueOf(j.get("onFailure").getAsString()), j.get("maxAttempts").getAsInt(), j.get("attempts").getAsInt(),
-                after, field(j,"result"), j.get("retryAt").getAsLong());
+                after, field(j,"result"), j.get("retryAt").getAsLong(),
+                j.has("principal") ? java.util.UUID.fromString(field(j,"principal")) : null,
+                !j.has("creativeSensitive") || j.get("creativeSensitive").getAsBoolean());
     }
     private static String bounded(String value) { return bounded(value, MAX_FIELD_CHARS); }
     private static String bounded(String value, int max) { return value == null ? "" : value.substring(0, Math.min(value.length(), max)); }

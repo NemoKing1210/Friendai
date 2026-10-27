@@ -29,6 +29,14 @@ What it can do: follow you, stay, go to a point, pick up items, give you items, 
 
 The companion keeps the chunks around itself loaded, so it keeps working when you walk away, and it resumes at its last position after a server restart. `companion.chunkLoading.radius` sets how many chunks around it keep ticking (0–4); the default of 1 keeps a 3×3 area ticking inside a 5×5 loaded area, and the dimension itself stays active. Turn this off with `companion.chunkLoading.enabled` in `config/friendai-server.json`.
 
+## Creative mode
+
+Open the companion screen from the pause menu and turn on **Creative** in the Control tab. It is off by default. A dedicated-server owner must be an operator to enable it; in singleplayer, the world owner may enable it even when cheats are off. The owner can turn it off at any time, and the preference survives dismissal, resummoning and world reloads.
+
+In creative mode the companion ignores ordinary damage and hunger, can fly around collisions, breaks permitted blocks instantly without normal drops, and does not consume building materials. Protection rules still apply. Use the owner-only `create_item` tool to deliver registered items with their default components to the companion or a nearby owner; delivery stops at the destination inventory's capacity and reports any remainder. `fly_to` follows a bounded route through loaded chunks.
+
+The owner-only `execute_command` tool accepts a limited gameplay allowlist: teleport the companion, change or query time/weather, give items to the owner, apply or clear effects on the companion, and enchant the owner's held item. The owner must be online and retain normal command permission when a command runs. Singleplayer activation with cheats off does not grant command permission. The tool rejects `execute`, `function`, `schedule`, other command roots and player targets other than the owner. Turning creative off cancels queued creative work and restores survival movement, hunger and damage rules; items already created remain in inventories.
+
 ## Setting up a provider
 
 Open **Mod Menu → Friendai → Provider**, or edit `config/friendai-server.json`. On a dedicated server edit the file and run `/friendai reload`.

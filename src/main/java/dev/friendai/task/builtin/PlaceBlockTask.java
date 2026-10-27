@@ -3,7 +3,9 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.task.interact.PlaceSpot;
+import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.nav.Approach;
@@ -58,7 +60,7 @@ public final class PlaceBlockTask implements Task {
     public TaskStatus tick(TaskContext c) {
         var companion = c.companion();
         if (!prepared) {
-            if (!hasItem(companion)) {
+            if (!hasItem(companion) && !c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)) {
                 summary = "I don't have " + itemId();
                 return TaskStatus.FAILED;
             }
@@ -120,11 +122,17 @@ public final class PlaceBlockTask implements Task {
         }
 
         ItemStack held = takeOne(c);
+        CreativeItemLease lease;
         if (held.isEmpty()) {
-            summary = "I don't have " + itemId();
-            return TaskStatus.FAILED;
+            if (!c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)) {
+                summary = "I don't have " + itemId();
+                return TaskStatus.FAILED;
+            }
+            lease = CreativeItemLease.synthetic(item.getDefaultInstance());
+        } else {
+            lease = CreativeItemLease.carried(held);
         }
-        companion.hands().place(held, against, face);
+        lease.place(companion.hands(), against, face);
         if (c.level().getBlockState(spot).getBlock().asItem() == item) {
             placedAt = spot;
             summary = "placed " + itemId() + " at " + coords(spot);

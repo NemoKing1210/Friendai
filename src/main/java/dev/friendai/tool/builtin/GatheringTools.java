@@ -57,7 +57,7 @@ final class GatheringTools {
                         (c, caller, a) -> createFellTask(c, caller, a, treeRadius)),
                 (c, caller, a) -> {
                     try {
-                        return ToolKit.startTask(c, "fell_tree", createFellTask(c, caller, a, treeRadius));
+                        return ToolKit.startTask(c, "fell_tree", createFellTask(c, caller, a, treeRadius), caller);
                     } catch (IllegalArgumentException e) {
                         return ToolResult.error(e.getMessage());
                     }
@@ -85,7 +85,7 @@ final class GatheringTools {
                         (c, caller, a) -> createMineTask(c, caller, a, mineRadius)),
                 (c, caller, a) -> {
                     try {
-                        return ToolKit.startTask(c, "mine_blocks", createMineTask(c, caller, a, mineRadius));
+                        return ToolKit.startTask(c, "mine_blocks", createMineTask(c, caller, a, mineRadius), caller);
                     } catch (IllegalArgumentException e) {
                         return ToolResult.error(e.getMessage());
                     }

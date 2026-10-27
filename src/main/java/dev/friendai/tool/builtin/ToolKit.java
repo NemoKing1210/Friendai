@@ -2,6 +2,8 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.CreativeModeService;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.Task;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueuedStep;
@@ -16,8 +18,10 @@ import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 
 /** Helpers shared by the tool groups: turning a definition into a {@link Tool} and parsing item/block arguments. */
 final class ToolKit {
@@ -35,18 +39,25 @@ final class ToolKit {
     static void addCaller(
             ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def, CallerAction action) {
         defs.add(def);
-        CallerAction routed = def.callerFactory() == null ? action : (c, caller, args) -> {
+        CallerAction routed = (c, caller, args) -> {
+            if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
+                    caller == null ? null : caller.uuid())) {
+                return creativeAuthorizationError();
+            }
+            if (def.callerFactory() == null) return action.run(c, caller, args);
             Task task;
             try { task = def.callerFactory().create(c, caller, args.deepCopy()); }
             catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
             if (def.queueTraits().interrupts()) {
-                c.taskRunner().interrupt(task, def.name());
+                c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
             try {
                 long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
-                                FailurePolicy.STOP_PLAN, 1, List.of()),
-                        ctx -> def.callerFactory().create(ctx.companion(), caller, args.deepCopy()));
+                                FailurePolicy.STOP_PLAN, 1, List.of(), caller == null ? null : caller.uuid(),
+                                def.creativeSensitive()),
+                        ctx -> def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), caller),
+                                args.deepCopy()));
                 boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
                 return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
                         : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
@@ -56,21 +67,30 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
-        return tool(def.name(), def.description(), def.schema(), def.minAccess(), (c, args) -> {
+        return callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, (c, caller, args) -> {
+            if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
+                    caller == null ? null : caller.uuid())) {
+                return creativeAuthorizationError();
+            }
             Task task;
             try {
-                task = def.factory().create(c, args);
+                task = def.callerFactory() == null ? def.factory().create(c, args)
+                        : def.callerFactory().create(c, caller, args.deepCopy());
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
             if (def.queueTraits().interrupts()) {
-                c.taskRunner().interrupt(task, def.name());
+                c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
             Task preview = task;
             long id;
-            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT, FailurePolicy.STOP_PLAN, 1, List.of()),
-                    ctx -> def.factory().create(ctx.companion(), args.deepCopy())); }
+            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
+                            FailurePolicy.STOP_PLAN, 1, List.of(), caller == null ? null : caller.uuid(),
+                            def.creativeSensitive()),
+                    ctx -> def.callerFactory() == null ? def.factory().create(ctx.companion(), args.deepCopy())
+                            : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), caller),
+                                    args.deepCopy())); }
             catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
             boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
             return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
@@ -81,6 +101,35 @@ final class ToolKit {
     static ToolResult startTask(CompanionEntity c, String name, Task task) {
         int id = c.taskRunner().start(task, name);
         return ToolResult.ok("task #" + id + " started: " + task.describe());
+    }
+
+    static ToolResult startTask(CompanionEntity c, String name, Task task, Caller caller) {
+        if (!CreativeModeService.mayStartWorldChangingTask(c, caller == null ? null : caller.uuid())) {
+            return creativeAuthorizationError();
+        }
+        int id = c.taskRunner().start(task, name, caller, true);
+        return ToolResult.ok("task #" + id + " started: " + task.describe());
+    }
+
+    private static ToolResult creativeAuthorizationError() {
+        return ToolResult.error("Creative mode is active; only its online operator owner can request world-changing tasks.");
+    }
+
+    private static Caller currentCaller(CompanionEntity companion, Caller submitted) {
+        return currentCaller(companion, submitted == null ? null : submitted.uuid());
+    }
+
+    private static Caller currentCaller(CompanionEntity companion, UUID principal) {
+        if (principal == null) return new Caller(null, "", AccessLevel.GUEST);
+        AccessLevel access = companion.ownerUuid() != null && companion.ownerUuid().equals(principal)
+                ? AccessLevel.OWNER : AccessLevel.GUEST;
+        if (companion.level() instanceof ServerLevel level) {
+            if (access != AccessLevel.OWNER && companion.ownerUuid() != null
+                    && FriendaiServerState.get(level.getServer()).memory().book(companion.ownerUuid()).isTrusted(principal)) {
+                access = AccessLevel.TRUSTED;
+            }
+        }
+        return new Caller(principal, "", access);
     }
 
     static Tool<CompanionEntity> instantTool(String name, String description, JsonObject schema, Action action) {

@@ -1,6 +1,8 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.CreativeModeService;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.Pos;
@@ -36,6 +38,7 @@ public final class MoveHelper {
     private int sinceCheckpoint;
     private double checkpointDistance;
     private Navigator navigator;
+    private FlightNavigator flightNavigator;
     private Vec3 lastGoal;
     /** Distance to the owner while following, or NaN: the pace policy runs automatic followers by it. */
     private double ownerDistance = Double.NaN;
@@ -101,6 +104,26 @@ public final class MoveHelper {
 
     private State tickCompanion(CompanionEntity companion, Vec3 target) {
         companion.pace().update(!Double.isNaN(ownerDistance), ownerDistance);
+        TaskContext context = companion.taskRunner().activeTaskContext();
+        boolean passiveFollow = companion.taskRunner().currentIsDefaultActivity()
+                && CreativeModeService.ownerMayUsePassiveFlight(companion);
+        boolean mayFly = context.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFollow;
+        if (companion.creativeMode() && mayFly) {
+            if (navigator != null) {
+                navigator.stop(context);
+                navigator = null;
+            }
+            if (flightNavigator == null) flightNavigator = new FlightNavigator();
+            return switch (flightNavigator.tick(context, target, passiveFollow)) {
+                case ARRIVED -> State.ARRIVED;
+                case UNREACHABLE -> State.STUCK;
+                case SEARCHING, MOVING -> State.MOVING;
+            };
+        }
+        if (flightNavigator != null) {
+            flightNavigator.stop(context);
+            flightNavigator = null;
+        }
         if (navigator == null) {
             navigator = new Navigator(companion, mayPlace);
         }
@@ -108,7 +131,6 @@ public final class MoveHelper {
             lastGoal = target;
             navigator.setGoal(goalFor(companion, target));
         }
-        TaskContext context = new TaskContext(companion, (ServerLevel) companion.level());
         return switch (navigator.tick(context)) {
             case ARRIVED -> finishAlignment(companion);
             case UNREACHABLE -> State.STUCK;
@@ -157,6 +179,10 @@ public final class MoveHelper {
     }
 
     public void reset(TaskContext c) {
+        if (flightNavigator != null) {
+            flightNavigator.stop(c);
+            flightNavigator = null;
+        }
         if (navigator != null) {
             navigator.stop(c);
             navigator = null;

@@ -101,7 +101,7 @@ public final class ToolCatalog {
                 "survey_area");
         group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "go_to_place", "rename_place", "forget_place");
         group(metas, ToolGroup.TRUST, Cost.LOW, "trust_player", "untrust_player");
-        group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name");
+        group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name", "create_item", "fly_to", "execute_command");
         group(metas, ToolGroup.BODY, Cost.LOW, "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait",
                 "swap_hands", "set_idle_behavior", "set_follow_distance");
         group(metas, ToolGroup.INTERACTION, Cost.MEDIUM, "interact_entity", "mount", "dismount", "sleep",
@@ -112,7 +112,13 @@ public final class ToolCatalog {
         hint(metas, "mine_blocks",
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.");
         hint(metas, "obtain_item",
-                "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.");
+                "- In creative mode, obtain_item can supply a registered item directly for an authorized owner. In survival, use it instead of a long hand-written plan; use plan_obtain to explain the steps.");
+        hint(metas, "create_item",
+                "- In creative mode, use create_item for resources instead of mining unnecessarily. It reports how many fit and keeps work bounded; choose owner only when the owner is nearby in the same dimension.");
+        hint(metas, "fly_to",
+                "- In creative mode, use fly_to for an inaccessible target or a gap the ground route cannot cross. It reports failure when no collision-safe route through loaded chunks exists.");
+        hint(metas, "execute_command",
+                "- In creative mode, execute_command accepts only allowlisted teleport/time/weather/item/effect/enchant forms and uses the owner's live command permissions. Use @s for yourself, give/enchant only for the owner, and describe the returned feedback without claiming a denied or failed command succeeded.");
         hint(metas, "build_structure",
                 "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.");
         hint(metas, "set_pace",

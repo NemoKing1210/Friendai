@@ -3,6 +3,7 @@ package dev.friendai.task.builtin;
 import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
@@ -24,6 +25,7 @@ import dev.friendai.task.build.Site;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
+import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
@@ -314,7 +316,7 @@ public final class BuildTask implements Task {
      * here rather than starved of its own walls.
      */
     private String unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
-        if (scaffold.canScaffold()) {
+        if (scaffold.canScaffold(c)) {
             return null;
         }
         BlockPos pos = Reach.firstOutOfReach(c.level(), remaining, origin);
@@ -392,6 +394,9 @@ public final class BuildTask implements Task {
     }
 
     private Map<Item, Integer> missing(TaskContext c) {
+        if (c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)) {
+            return Map.of();
+        }
         Map<Item, Integer> needed = Materials.needed(remaining(c.level()), site.foundation());
         Map<Item, Integer> have = Materials.carried(c.companion());
         Map<Item, Integer> missing = new LinkedHashMap<>();
@@ -493,11 +498,11 @@ public final class BuildTask implements Task {
                 return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
                         + ": nothing to place it against");
             }
-            ItemStack held = takeOne(c, spec.wanted());
-            if (held.isEmpty()) {
+            CreativeItemLease lease = takeOne(c, spec.wanted());
+            if (lease == null) {
                 return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(spec.wanted())));
             }
-            c.companion().hands().place(held, spot.get().against(), spot.get().face());
+            lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = c.level().getBlockState(spec.pos());
             if (after.getBlock() == spec.wanted().getBlock()) {
                 Parts.reconcile(c.level(), spec.pos(), spec.wanted());
@@ -516,7 +521,7 @@ public final class BuildTask implements Task {
         ServerLevel level = c.level();
         // Finish jump/place before reevaluating reach or moving to another column.
         if (pillarTargetY != null) {
-            switch (scaffold.pillarTo(pillarTargetY)) {
+            switch (scaffold.pillarTo(c, pillarTargetY)) {
                 case CLIMBING -> { return TaskStatus.RUNNING; }
                 case FAILED -> {
                     pillarTargetY = null;
@@ -610,11 +615,11 @@ public final class BuildTask implements Task {
                 approach = null;
                 continue;
             }
-            ItemStack held = takeOne(c, wanted.wanted());
-            if (held.isEmpty()) {
+            CreativeItemLease lease = takeOne(c, wanted.wanted());
+            if (lease == null) {
                 return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(wanted.wanted())));
             }
-            c.companion().hands().place(held, spot.get().against(), spot.get().face());
+            lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = level.getBlockState(currentPos);
             if (after.getBlock() == wanted.wanted().getBlock()) {
                 Parts.reconcile(level, currentPos, wanted.wanted());
@@ -644,7 +649,7 @@ public final class BuildTask implements Task {
             return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
                     + ": nothing to place it against");
         }
-        if (!scaffold.support(below) || spot(c.level(), pos).isEmpty()) {
+        if (!scaffold.support(c, below) || spot(c.level(), pos).isEmpty()) {
             if (scaffold.outOfMaterial()) {
                 return fail(c, scaffold.failure());
             }
@@ -885,24 +890,25 @@ public final class BuildTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    private ItemStack takeOne(TaskContext c, BlockState wanted) {
+    private CreativeItemLease takeOne(TaskContext c, BlockState wanted) {
         Item item = Materials.itemFor(wanted);
         ItemMatcher matcher = ItemMatcher.parse(itemId(item)).orElse(null);
         if (matcher != null) {
             List<ItemStack> removed = InventoryOps.remove(c.companion().inventory(), matcher, 1);
             if (!removed.isEmpty()) {
                 scaffold.spend(item);
-                return removed.get(0);
+                return CreativeItemLease.carried(removed.get(0));
             }
         }
         if (c.companion().getMainHandItem().is(item)) {
             ItemStack held = c.companion().getMainHandItem().split(1);
             if (!held.isEmpty()) {
                 scaffold.spend(item);
+                return CreativeItemLease.carried(held);
             }
-            return held;
         }
-        return ItemStack.EMPTY;
+        return c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)
+                ? CreativeItemLease.synthetic(new ItemStack(item)) : null;
     }
 
     private TaskStatus fail(TaskContext c, String text) {

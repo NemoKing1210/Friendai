@@ -287,7 +287,10 @@ public final class BrainService {
     /** The owner left the game: keep the task (a build can resume), but make no progress while they are away. */
     public void onOwnerLeft(UUID owner) {
         cancel(owner);
-        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().suspend());
+        CompanionManager.get(server).find(owner).ifPresent(c -> {
+            if (c.creativeMode()) c.taskRunner().cancelForCapabilityChange();
+            c.taskRunner().suspend();
+        });
     }
 
     /** The owner came back to a still-loaded companion. */
@@ -315,10 +318,11 @@ public final class BrainService {
                 continue;
             }
             JsonObject args = job.args().deepCopy();
-            Caller owner = new Caller(companion.ownerUuid(), "", AccessLevel.OWNER);
+            UUID principal = job.principal();
             factories.put(job.id(), ctx -> def.callerFactory() == null
                     ? def.factory().create(ctx.companion(), args.deepCopy())
-                    : def.callerFactory().create(ctx.companion(), owner, args.deepCopy()));
+                    : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion().ownerUuid(), principal),
+                            args.deepCopy()));
         }
         companion.taskRunner().restoreQueue(decoded.get(), factories);
         for (Job job : companion.taskRunner().queue().jobs()) {
@@ -326,6 +330,14 @@ public final class BrainService {
                 companion.taskRunner().notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool() + " is no longer available");
             }
         }
+    }
+
+    /** Reconstructs a caller from current owner/trust data; queue saves never carry an access level. */
+    private Caller currentCaller(UUID owner, UUID principal) {
+        if (principal == null) return new Caller(null, "", AccessLevel.GUEST);
+        AccessLevel access = principal.equals(owner) ? AccessLevel.OWNER
+                : owner != null && memory.book(owner).isTrusted(principal) ? AccessLevel.TRUSTED : AccessLevel.GUEST;
+        return new Caller(principal, "", access);
     }
 
     /**

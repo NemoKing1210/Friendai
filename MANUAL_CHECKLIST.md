@@ -85,6 +85,24 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dedicated server: edit `config/friendai-server.json`, run `/friendai reload` as an operator, behaviour changes.
 - [ ] The settings screen on a client connected to a dedicated server shows "These settings are configured on the server."
 
+## Companion creative mode
+
+- [ ] Singleplayer world owner enables creative from the Control tab with cheats off; creative abilities work, but `execute_command` still follows normal command permissions and cannot run privileged commands.
+- [ ] On a dedicated server, an operator owner can enable and disable creative; a non-operator owner and a guest cannot enable it, and a guest cannot change another owner's mode.
+- [ ] Revoke the owner's operator status while creative is active: new creative-only tasks stop, but the owner can still turn creative off.
+- [ ] Creative preference survives dismiss/resummon, world save/reload and companion dimension transfer.
+- [ ] At narrow and wide GUI scales, the Creative toggle, movement controls and status do not overlap; stale snapshots and unavailable permission show the correct disabled state and tooltip.
+- [ ] Fire, drowning, falls, ordinary attacks and hunger do not affect a creative companion; toggling does not heal or refill food.
+- [ ] The companion breaks permitted bedrock instantly without drops or XP; a protected or blacklisted block stays intact.
+- [ ] Place a block and use an item in creative: materials and durability are not consumed or duplicated; the same interactions consume materials normally after disabling creative.
+- [ ] Build a blueprint without materials; denied protection checks still stop placement. A guest or trusted player's ordinary build/obtain request does not gain free materials.
+- [ ] Create stackable and non-stackable registered items for self and a nearby owner; a full inventory reports the remaining count, cancellation stops later batches, and owner logout/operator revocation blocks further batches.
+- [ ] Fly up/down and across a gap around walls and ceilings; the route does not cross unloaded chunks or world bounds. Stop, dimension transfer and mode exit leave no stale movement or no-gravity state.
+- [ ] Disable creative while airborne and above a void: bounded landing or its safe timeout finishes, then survival gravity and damage rules apply.
+- [ ] `execute_command` runs allowed teleport/time/weather commands from the companion; `@s` is the companion, and `give`/`enchant` can target only the owner.
+- [ ] `execute`, `function`, `schedule`, unknown roots, malformed commands, unregistered item/effect ids and non-owner targets are rejected without claiming success.
+- [ ] In dedicated-server testing, revoke operator permission or disconnect the owner between queueing and dispatch; the command is rejected and does not continue from a stale entity after teleport/removal.
+
 ## Memory
 
 - [ ] With a real model: tell the companion your name and where your base is; it calls `remember`, and after a server restart it still knows both.

@@ -69,6 +69,7 @@ public final class FriendaiTools {
         BodyTools.register(registry, defs);
         RelativeMovementTools.register(registry, defs);
         InteractionTools.register(registry, defs);
+        CreativeTools.register(registry, defs);
         GoalTools.register(registry);
         RoutingTools.register(registry);
         Map<String, TaskToolDef> plannable = new LinkedHashMap<>();

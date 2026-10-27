@@ -211,9 +211,10 @@ public final class MineBlocksTask implements Task {
         }
         // Historical evidence can outlive a registry block's current state. Keep the old scanner's
         // safety property: an unbreakable match is not an executable mining target.
+        boolean creative = c.companion().creativeMode();
         candidates.removeIf(pos -> {
             BlockState state = c.level().getBlockState(pos);
-            return !matcher.test(state) || state.getDestroySpeed(c.level(), pos) < 0;
+            return !matcher.test(state) || (!creative && state.getDestroySpeed(c.level(), pos) < 0);
         });
         if (candidates.isEmpty()) {
             if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
@@ -240,6 +241,12 @@ public final class MineBlocksTask implements Task {
             return TaskStatus.FAILED;
         }
         pendingObservation = null;
+        if (creative) {
+            // In creative, mine candidates directly: the survival excavation planner rejects unbreakable states
+            // and may plan corridor breaks that have no corresponding creative-player semantics.
+            breaker = new BlockBreaker(candidates, matcher::test, true, false, true);
+            return TaskStatus.RUNNING;
+        }
         boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
         if (!logs) {
             if (miningSession == null) {

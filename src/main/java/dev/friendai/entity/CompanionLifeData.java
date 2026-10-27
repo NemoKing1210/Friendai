@@ -22,10 +22,11 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 public final class CompanionLifeData extends SavedData {
     public record RespawnPoint(ResourceKey<Level> dimension, BlockPos bed) {}
 
-    private record OwnerState(boolean autoRespawn, String respawnPoint) {
+    private record OwnerState(boolean autoRespawn, String respawnPoint, boolean creativeMode) {
         static final Codec<OwnerState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.BOOL.optionalFieldOf("autoRespawn", true).forGetter(OwnerState::autoRespawn),
-                Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint))
+                Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint),
+                Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode))
                 .apply(instance, OwnerState::new));
     }
 
@@ -47,11 +48,19 @@ public final class CompanionLifeData extends SavedData {
     }
 
     public boolean autoRespawn(UUID owner) {
-        return owners.getOrDefault(owner, new OwnerState(true, "")).autoRespawn();
+        return state(owner).autoRespawn();
+    }
+
+    public boolean creativeMode(UUID owner) {
+        return state(owner).creativeMode();
+    }
+
+    private OwnerState state(UUID owner) {
+        return owners.getOrDefault(owner, new OwnerState(true, "", false));
     }
 
     public Optional<RespawnPoint> respawnPoint(UUID owner) {
-        String saved = owners.getOrDefault(owner, new OwnerState(true, "")).respawnPoint();
+        String saved = state(owner).respawnPoint();
         if (saved.isBlank()) {
             return Optional.empty();
         }
@@ -73,18 +82,26 @@ public final class CompanionLifeData extends SavedData {
     }
 
     public void setAutoRespawn(UUID owner, boolean enabled) {
-        OwnerState current = owners.getOrDefault(owner, new OwnerState(true, ""));
+        OwnerState current = state(owner);
         if (current.autoRespawn() != enabled) {
-            owners.put(owner, new OwnerState(enabled, current.respawnPoint()));
+            owners.put(owner, new OwnerState(enabled, current.respawnPoint(), current.creativeMode()));
             setDirty();
         }
     }
 
     public void setRespawnPoint(UUID owner, RespawnPoint point) {
-        OwnerState current = owners.getOrDefault(owner, new OwnerState(true, ""));
+        OwnerState current = state(owner);
         String next = point == null ? "" : point.dimension().identifier() + "|" + point.bed().asLong();
         if (!current.respawnPoint().equals(next)) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), next));
+            owners.put(owner, new OwnerState(current.autoRespawn(), next, current.creativeMode()));
+            setDirty();
+        }
+    }
+
+    public void setCreativeMode(UUID owner, boolean enabled) {
+        OwnerState current = state(owner);
+        if (current.creativeMode() != enabled) {
+            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled));
             setDirty();
         }
     }

@@ -2,6 +2,9 @@ package dev.friendai.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.core.CreativeModeService;
+import dev.friendai.creative.CreativeAction;
+import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
@@ -22,6 +25,7 @@ import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.queue.CompanionGuardFacts;
+import dev.friendai.tool.Caller;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -39,7 +43,13 @@ public final class TaskRunner {
     private static final int POLL_INTERVAL_TICKS = 10;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
     private record Active(int id, long jobId, long planId, String toolName, Task task, boolean emit,
-                          boolean defaultActivity, boolean interrupt, int startActiveTick) {}
+                          boolean defaultActivity, boolean interrupt, int startActiveTick,
+                          CreativeActionContext creativeActionContext, boolean creativeSensitive) {
+        private Active(int id, long jobId, long planId, String toolName, Task task, boolean emit,
+                       boolean defaultActivity, boolean interrupt, int startActiveTick) {
+            this(id, jobId, planId, toolName, task, emit, defaultActivity, interrupt, startActiveTick, null, false);
+        }
+    }
 
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
@@ -77,6 +87,13 @@ public final class TaskRunner {
     public void notice(String text) { if(listener!=null)listener.onNotice(text);else if(text!=null){if(pendingNotices.size()==16)pendingNotices.removeFirst();pendingNotices.add(text);} }
     public void debug(String text) { if(listener!=null)listener.onDebug(text); }
     public Optional<Task> current() { return Optional.ofNullable(current).map(Active::task); }
+    /** Current task context for adapters such as movement controllers that tick below the Task boundary. */
+    public TaskContext activeTaskContext() { return context(); }
+    public boolean currentIsDefaultActivity() { return current != null && current.defaultActivity(); }
+    public boolean currentCreativeActionAllowed(CreativeAction action) {
+        return current != null && CreativeModeService.isActionAuthorized(
+                companion, current.creativeActionContext(), action);
+    }
     public int currentId() { return current==null?0:current.id(); }
     public JobQueue queue() { return queue; }
     public Optional<Job> activeJob() { return queue.active(); }
@@ -86,6 +103,7 @@ public final class TaskRunner {
     public String queueSummary() { return queue.jobCount()==0?current().map(Task::describe).orElse("none"):QueueText.summary(queue,facts(),current==null?null:current.task().describe()); }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
+        requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job=queue.addDirect(step); factories.put(job.id(),factory); wakeQueue();
         if(current==null || current.defaultActivity()) startNextQueued(); return job.id();
     }
@@ -93,6 +111,7 @@ public final class TaskRunner {
     /** {@code prepare} runs with the new plan id after it is queued but before any of its jobs can start. */
     public long enqueuePlan(String goal,List<QueuedStep> steps,List<StepFactory> stepFactories,PlanOptions options,java.util.function.LongConsumer prepare) {
         if(steps.size()!=stepFactories.size())throw new IllegalArgumentException("steps and factories differ");
+        for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         JobQueue.Added added=queue.addPlan(goal,steps,options); for(int i=0;i<stepFactories.size();i++)factories.put(added.jobIds().get(i),stepFactories.get(i));
         prepare.accept(added.planId());
         wakeQueue(); if(current==null || current.defaultActivity())startNextQueued(); return added.planId();
@@ -102,19 +121,29 @@ public final class TaskRunner {
 
     /** Legacy task entry point. A new task freezes a queue job so the queue can resume afterwards. */
     public int start(Task task,String toolName) {
+        return start(task, toolName, null, false);
+    }
+    public int start(Task task, String toolName, Caller caller, boolean creativeSensitive) {
+        CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
+        requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
         if(current!=null && current.jobId()>0 && !current.interrupt()) freezeCurrent();
         else if(current!=null && current.defaultActivity()) clearCurrentSilently();
         else if(current!=null) cancelCurrent("replaced by a new task",true);
-        return begin(task,toolName,task.emitsEvents(),false);
+        return begin(task,toolName,task.emitsEvents(),false,actionContext,creativeSensitive);
     }
     public void restore(Task task) { begin(task,task.type(),false,false); }
 
     public void interrupt(Task task,String toolName) {
+        interrupt(task, toolName, null, false);
+    }
+    public void interrupt(Task task, String toolName, Caller caller, boolean creativeSensitive) {
+        CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
+        requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
         if(current!=null && current.interrupt()) { cancelCurrent("replaced by urgent task",false); }
         else if(current!=null && current.jobId()>0) freezeCurrent();
         else if(current!=null && current.defaultActivity()) clearCurrentSilently();
         else if(current!=null) cancelCurrent("interrupted by urgent task",true);
-        begin(task,toolName,task.emitsEvents(),true);
+        begin(task,toolName,task.emitsEvents(),true,actionContext,creativeSensitive);
     }
     private void freezeCurrent() { frozen=current; frozenElapsed=Math.max(0,activeTicks-current.startActiveTick()); current=null; }
 
@@ -138,6 +167,27 @@ public final class TaskRunner {
         if(frozen!=null){safeStop(frozen.task(),context());frozen=null;}
         queue.clear();factories.clear();startDefault();
     }
+    /** Cancels stale work during a capability transition without reporting task failures to the brain. */
+    public void cancelForCapabilityChange() {
+        Active active = current;
+        Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
+        if (frozen != null) {
+            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context()));
+            safeStop(frozen.task(), context());
+            frozen = null;
+        }
+        if (active != null) {
+            safeStop(active.task(), context());
+            current = null;
+        }
+        queue.clear();
+        factories.clear();
+        blockedPlans.clear();
+        frozenElapsed = 0;
+        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
+        else startDefault();
+    }
+
     public void stopAll(String reason) {
         Active active=current;
         Task cleanup=active==null?null:active.task().cleanupAfterCancel(context());
@@ -190,6 +240,12 @@ public final class TaskRunner {
         if(current==null) { if(!pollQueue())startDefault(); return; }
         if(current.defaultActivity() && pollQueue())return;
         activeTicks++; Active active=current; TaskStatus status; String summary=null;
+        if (active.creativeSensitive() && companion.creativeMode()
+                && !CreativeModeService.isActionAuthorized(companion, active.creativeActionContext(),
+                CreativeAction.WORLD_CHANGING_TASK)) {
+            cancelForCapabilityChange();
+            return;
+        }
         try { status=active.task().tick(context()); }
         catch(RuntimeException e){ LOGGER.warn("Task {} crashed",active.toolName(),e);status=TaskStatus.FAILED;summary="task crashed: "+e.getClass().getSimpleName(); }
         if(status==TaskStatus.RUNNING&&active.task().hasTimeout()&&activeTicks-active.startActiveTick()>timeoutSec.getAsInt()*20){safeStop(active.task(),context());status=TaskStatus.FAILED;summary="timed out";}
@@ -224,7 +280,13 @@ public final class TaskRunner {
         if(!startNextQueued())startDefault();
     }
     private int begin(Task task,String name,boolean emit,boolean interrupt) {
-        Active active=new Active(emit?nextId++:0,0,0,name,task,emit,false,interrupt,activeTicks); current=active;
+        return begin(task, name, emit, interrupt, null, false);
+    }
+    private int begin(Task task, String name, boolean emit, boolean interrupt,
+                      CreativeActionContext actionContext, boolean creativeSensitive) {
+        Active active=new Active(emit?nextId++:0,0,0,name,task,emit,false,interrupt,activeTicks,
+                actionContext,creativeSensitive);
+        current=active;
         try { task.start(context()); }
         catch(RuntimeException e){current=null;LOGGER.warn("Task {} failed to start",name,e);if(emit&&listener!=null)listener.onFinished(active.id(),name,TaskStatus.FAILED,"task crashed: "+e.getClass().getSimpleName());if(interrupt)resumeFrozen();else startNextOrDefault();}
         return active.id();
@@ -249,7 +311,13 @@ public final class TaskRunner {
         if(current!=null&&current.defaultActivity())clearCurrentSilently(); else if(current!=null)return false;
         Job job=candidate.get(); StepFactory factory=factories.get(job.id());
         if(factory==null){queue.fail(job.id(),"task factory is unavailable");if(job.planId()>0)notifyBlocked(job.planId(),job.id(),"task factory is unavailable");return startNextQueued();}
-        try { Task task=factory.create(context());queue.markRunning(job.id());Active active=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks);current=active;task.start(context());blockedSince=-1;return true; }
+        CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
+        if (companion.creativeMode() && job.creativeSensitive()
+                && !CreativeModeService.isActionAuthorized(companion, actionContext, CreativeAction.WORLD_CHANGING_TASK)) {
+            cancelForCapabilityChange();
+            return false;
+        }
+        try { Task task=factory.create(new TaskContext(companion,(ServerLevel)companion.level(),this,actionContext));queue.markRunning(job.id());Active active=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks,actionContext,job.creativeSensitive());current=active;task.start(context());blockedSince=-1;return true; }
         catch(RuntimeException e){String reason=e instanceof IllegalArgumentException?e.getMessage():"task crashed: "+e.getClass().getSimpleName();var failed=queue.fail(job.id(),reason);if(!failed.retried()&&job.planId()>0){if(queue.planStatus(job.planId())==PlanStatus.NEEDS_DECISION)notifyBlocked(job.planId(),job.id(),reason);else if(queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),reason,false);}return startNextQueued();}
     }
     private void skipUnmet(GuardFacts facts) { for(Job j:queue.jobs())if(j.state()==JobState.PENDING&&j.onUnmet()==GuardAction.SKIP&&j.guards().stream().anyMatch(g->!g.holds(facts))){queue.skip(j.id());if(j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),QueueText.planSummary(queue,j.planId()),queue.planStatus(j.planId())==PlanStatus.DONE);} }
@@ -270,16 +338,80 @@ public final class TaskRunner {
     private void notifyBlocked(long plan,long jobId,String reason) { Job job=queue.job(jobId).orElse(null);if(job==null)return;String goal=queue.plan(plan).map(PlanRecord::goal).orElse("");int remaining=(int)queue.jobsOfPlan(plan).stream().filter(j->j.state()==JobState.PENDING).count();String bounded=QueueText.truncate(reason,QueueText.MAX_BLOCKED_REASON);blockedPlans.put(plan,bounded);if(listener!=null)listener.onPlanBlocked(plan,goal,jobId,job.tool(),bounded,remaining); }
     private void finishPlan(long id,String summary,boolean success) { PlanRecord p=queue.plan(id).orElse(null);if(p==null)return;String goal=p.goal();queue.archivePlan(id,success,summary);factories.entrySet().removeIf(e->queue.job(e.getKey()).isEmpty());blockedPlans.remove(id);if(listener!=null)listener.onPlanFinished(id,goal,success,summary); }
     private void expireDeadlines() { for(long id:queue.expiredPlans()){Active a=current;if(a!=null&&a.planId()==id){Task cleanup=a.task().cleanupAfterCancel(context());cancelCurrent("ran out of time",false);if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);}queue.cancelPlan(id);finishPlan(id,"ran out of time",false);} }
-    private void resumeFrozen(){Active old=frozen;frozen=null;if(old!=null&&queue.job(old.jobId()).filter(j->j.state()==JobState.RUNNING).isPresent()){current=new Active(old.id(),old.jobId(),old.planId(),old.toolName(),old.task(),old.emit(),false,false,activeTicks-frozenElapsed);}else{if(old!=null)safeStop(old.task(),context());startNextOrDefault();}}
+    private void resumeFrozen(){Active old=frozen;frozen=null;if(old!=null&&queue.job(old.jobId()).filter(j->j.state()==JobState.RUNNING).isPresent()){current=new Active(old.id(),old.jobId(),old.planId(),old.toolName(),old.task(),old.emit(),false,false,activeTicks-frozenElapsed,old.creativeActionContext(),old.creativeSensitive());}else{if(old!=null)safeStop(old.task(),context());startNextOrDefault();}}
     private void startNextOrDefault(){if(current!=null)return;if(frozen!=null){resumeFrozen();return;}if(!startNextQueued())startDefault();}
     private Task combineCleanup(Task first,Task second){if(first==null)return second;if(second==null)return first;return new SequenceTask("scaffold cleanup",List.of(new PlanEntry("scaffold_cleanup",ctx->first),new PlanEntry("scaffold_cleanup",ctx->second)),()->timeoutSec.getAsInt()*20);}
     private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&defaultFollow.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
     public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
-    public void restoreQueue(QueueSave.Decoded decoded,Map<Long,StepFactory> restoredFactories){queue=decoded.queue();factories.clear();factories.putAll(restoredFactories);current=null;frozen=null;if(decoded.activeJobId()>0){Job job=queue.job(decoded.activeJobId()).orElse(null);if(job!=null&&job.state()==JobState.RUNNING){if(interruptedSearch(job,decoded.activeTaskSave())){interruptSearchLedger(decoded.activeTaskSave());queue.cancel(job.id(),"interrupted by restart");}else{Task task=null;if(!decoded.activeTaskSave().isBlank())task=TaskFactory.restore(decoded.activeTaskSave(),(ServerLevel)companion.level()).orElse(null);if(task==null){StepFactory factory=factories.get(job.id());if(factory!=null)task=factory.create(context());}if(task!=null){current=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks);try{task.start(context());}catch(RuntimeException e){current=null;queue.fail(job.id(),"task crashed: "+e.getClass().getSimpleName());}}}}}
+    public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories) {
+        queue = decoded.queue();
+        factories.clear();
+        factories.putAll(restoredFactories);
+        current = null;
+        frozen = null;
+        if (companion.creativeMode()) {
+            Set<Long> creativePlans = new HashSet<>();
+            for (Job job : queue.jobs()) {
+                if (!job.creativeSensitive() || job.state() == JobState.DONE || job.state() == JobState.CANCELLED
+                        || job.state() == JobState.SKIPPED) continue;
+                if (job.planId() > 0) creativePlans.add(job.planId());
+                else queue.cancel(job.id(), "creative task cancelled after reload");
+            }
+            for (long planId : creativePlans) queue.cancelPlan(planId);
+            if (!creativePlans.isEmpty() || queue.jobs().stream().anyMatch(j -> j.creativeSensitive()
+                    && j.planId() == 0 && j.state() == JobState.CANCELLED
+                    && "creative task cancelled after reload".equals(j.result()))) {
+                notice("Saved creative tasks were cancelled after reload; submit them again.");
+            }
+        }
+        if (decoded.activeJobId() > 0) {
+            Job job = queue.job(decoded.activeJobId()).orElse(null);
+            if (job != null && job.state() == JobState.RUNNING) {
+                if (interruptedSearch(job, decoded.activeTaskSave())) {
+                    interruptSearchLedger(decoded.activeTaskSave());
+                    queue.cancel(job.id(), "interrupted by restart");
+                } else {
+                    Task task = null;
+                    if (!decoded.activeTaskSave().isBlank()) {
+                        task = TaskFactory.restore(decoded.activeTaskSave(), (ServerLevel) companion.level()).orElse(null);
+                    }
+                    if (task == null) {
+                        StepFactory factory = factories.get(job.id());
+                        if (factory != null) task = factory.create(context());
+                    }
+                    if (task != null) {
+                        CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
+                        current = new Active((int) job.id(), job.id(), job.planId(), job.tool(), task, true, false,
+                                false, activeTicks, actionContext, job.creativeSensitive());
+                        try {
+                            task.start(context());
+                        } catch (RuntimeException e) {
+                            current = null;
+                            queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName());
+                        }
+                    }
+                }
+            }
+        }
         for(Job job:List.copyOf(queue.jobs()))if(job.state()==JobState.RUNNING&&(current==null||current.jobId()!=job.id()))queue.requeue(job.id());
         nextPoll=0;}
     private static boolean interruptedSearch(Job job,String save){if(save!=null&&save.startsWith("resource_session:v1:"))return true;if(job.tool().equals("search_resource"))return true;return job.tool().equals("obtain_item")&&job.args().has("explore")&&job.args().get("explore").getAsBoolean();}
     private void interruptSearchLedger(String save){var owner=companion.ownerUuid();if(owner==null)return;var ledger=FriendaiServerState.get(((ServerLevel)companion.level()).getServer()).knowledge().book(owner).searchLedger();if(save!=null&&save.startsWith("resource_session:v1:")){try{ledger.interrupt(java.util.UUID.fromString(save.substring("resource_session:v1:".length())));return;}catch(IllegalArgumentException malformed){LOGGER.warn("Malformed saved resource session marker; interrupting active ledger sessions");}}ledger.interruptActive();}
     private void safeStop(Task task,TaskContext ctx){try{task.stop(ctx);}catch(RuntimeException e){LOGGER.warn("Task {} failed to stop",task.type(),e);}}
-    private TaskContext context(){return new TaskContext(companion,(ServerLevel)companion.level(),this);}
+    private TaskContext context(){return new TaskContext(companion,(ServerLevel)companion.level(),this,current==null?null:current.creativeActionContext());}
+    private CreativeActionContext actionContext(Caller caller, boolean creativeSensitive) {
+        return caller == null || caller.uuid() == null || !creativeSensitive ? null
+                : new CreativeActionContext(caller.uuid(), companion.creativeModeRevision());
+    }
+    private CreativeActionContext actionContext(java.util.UUID principal, boolean creativeSensitive) {
+        return principal == null || !creativeSensitive ? null
+                : new CreativeActionContext(principal, companion.creativeModeRevision());
+    }
+    private void requireCreativeAuthorization(java.util.UUID principal, boolean creativeSensitive) {
+        if (!companion.creativeMode() || !creativeSensitive) return;
+        CreativeActionContext context = actionContext(principal, true);
+        if (!CreativeModeService.isActionAuthorized(companion, context, CreativeAction.WORLD_CHANGING_TASK)) {
+            throw new IllegalArgumentException("creative mode requires its online operator owner for world-changing tasks");
+        }
+    }
 }

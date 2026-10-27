@@ -77,7 +77,7 @@ public final class JobQueue {
         long id = nextJob++;
         Job job = new Job(id, 0, step.tool(), step.args(), step.priority() == null ? 0 : step.priority(), step.priority() != null,
                 nextOrder, JobState.PENDING, step.guards(), step.onUnmet(), step.onFailure() == null ? FailurePolicy.STOP_PLAN : step.onFailure(),
-                step.maxAttempts(), 0, List.of(), "", 0);
+                step.maxAttempts(), 0, List.of(), "", 0, step.principal(), step.creativeSensitive());
         nextOrder += 100; jobs.put(id, job); return job;
     }
 
@@ -88,7 +88,7 @@ public final class JobQueue {
         long id = nextJob++;
         Job job = new Job(id, planId, step.tool(), step.args(), step.priority() == null ? plan.priority() : step.priority(), step.priority() != null,
                 nextOrder, JobState.PENDING, step.guards(), step.onUnmet(), step.onFailure() == null ? plan.onFailure() : step.onFailure(),
-                step.maxAttempts(), 0, List.of(), "", 0);
+                step.maxAttempts(), 0, List.of(), "", 0, step.principal(), step.creativeSensitive());
         nextOrder += 100; jobs.put(id, job); return job;
     }
 
@@ -96,7 +96,8 @@ public final class JobQueue {
         List<Long> after = step.afterSteps().stream().map(index -> ids.get(index - 1)).toList();
         Job job = new Job(id, planId, step.tool(), step.args(), step.priority() == null ? options.priority() : step.priority(),
                 step.priority() != null, nextOrder, JobState.PENDING, step.guards(), step.onUnmet(),
-                step.onFailure() == null ? options.onFailure() : step.onFailure(), step.maxAttempts(), 0, after, "", 0);
+                step.onFailure() == null ? options.onFailure() : step.onFailure(), step.maxAttempts(), 0, after, "", 0,
+                step.principal(), step.creativeSensitive());
         nextOrder += 100; jobs.put(id, job);
     }
     private void ensureJobCapacity(int add) { if (jobs.size() + add > limits.maxJobs()) throw new IllegalArgumentException("queue has too many jobs"); }
@@ -110,7 +111,8 @@ public final class JobQueue {
     }
     private void replace(Job old, JobState state, String result, int attempts, long retryAt) {
         jobs.put(old.id(), new Job(old.id(), old.planId(), old.tool(), old.args(), old.priority(), old.priorityExplicit(), old.order(), state,
-                old.guards(), old.onUnmet(), old.onFailure(), old.maxAttempts(), attempts, old.after(), result, retryAt));
+                old.guards(), old.onUnmet(), old.onFailure(), old.maxAttempts(), attempts, old.after(), result, retryAt,
+                old.principal(), old.creativeSensitive()));
     }
     /** Returns a job that was running when the world saved, but has no live task, to the pending pool. */
     public void requeue(long id) { Job job = require(id); if (job.state() == JobState.RUNNING) replace(job, JobState.PENDING, job.result(), job.attempts(), 0); }
@@ -151,21 +153,26 @@ public final class JobQueue {
     }
     public Result setPriority(long id, int priority) {
         Job job = jobs.get(id); if (job == null) return Result.error("unknown job #" + id);
-        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), job.args(), priority, true, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), job.args(), priority, true, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick(), job.principal(), job.creativeSensitive()));
         return Result.ok("#" + id + " priority is now " + priority);
     }
     public Result setPlanPriority(long planId, int priority) {
         PlanRecord plan = plans.get(planId); if (plan == null) return Result.error("unknown plan #" + planId);
         plans.put(planId, new PlanRecord(plan.id(), plan.goal(), priority, plan.addedTick(), plan.deadlineTick(), plan.onFailure()));
-        for (Job job : jobsOfPlan(planId)) if (job.state() == JobState.PENDING && !job.priorityExplicit()) jobs.put(job.id(), new Job(job.id(), job.planId(), job.tool(), job.args(), priority, false, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        for (Job job : jobsOfPlan(planId)) if (job.state() == JobState.PENDING && !job.priorityExplicit()) jobs.put(job.id(), new Job(job.id(), job.planId(), job.tool(), job.args(), priority, false, job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick(), job.principal(), job.creativeSensitive()));
         return Result.ok("plan #" + planId + " priority is now " + priority);
     }
     public Result updateArgs(long id, JsonObject args) {
+        Job current = jobs.get(id);
+        if (current == null) return Result.error("job cannot be updated");
+        return updateArgs(id, args, current.principal(), current.creativeSensitive());
+    }
+    public Result updateArgs(long id, JsonObject args, java.util.UUID principal, boolean creativeSensitive) {
         Job job = jobs.get(id); if (job == null || job.state() != JobState.PENDING) return Result.error("job cannot be updated");
         if (args == null || args.toString().length() > limits.maxArgsChars()) return Result.error("arguments are too large");
         int total = jobs.values().stream().filter(j -> j.id() != id).mapToInt(j -> j.args().toString().length()).sum() + args.toString().length();
         if (total > limits.maxQueueArgsChars()) return Result.error("queue arguments are too large");
-        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), args, job.priority(), job.priorityExplicit(), job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick()));
+        jobs.put(id, new Job(job.id(), job.planId(), job.tool(), args, job.priority(), job.priorityExplicit(), job.order(), job.state(), job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), job.attempts(), job.after(), job.result(), job.retryAtTick(), principal, creativeSensitive));
         return Result.ok("updated #" + id);
     }
     public Result merge(long firstId, long secondId, JsonObject args) {
@@ -229,7 +236,7 @@ public final class JobQueue {
         nextOrder = order;
     }
     private static String bound(String text) { return text == null ? "" : text.length() <= MAX_STORED_RESULT ? text : text.substring(0, MAX_STORED_RESULT); }
-    private static Job copy(Job j,JsonObject args,int priority,boolean explicit,long order,JobState state,List<Long> after,String result,long retryAt){return new Job(j.id(),j.planId(),j.tool(),args,priority,explicit,order,state,j.guards(),j.onUnmet(),j.onFailure(),j.maxAttempts(),j.attempts(),after,result,retryAt);}
+    private static Job copy(Job j,JsonObject args,int priority,boolean explicit,long order,JobState state,List<Long> after,String result,long retryAt){return new Job(j.id(),j.planId(),j.tool(),args,priority,explicit,order,state,j.guards(),j.onUnmet(),j.onFailure(),j.maxAttempts(),j.attempts(),after,result,retryAt,j.principal(),j.creativeSensitive());}
     public Result cancelPlan(long planId) { if (!plans.containsKey(planId)) return Result.error("unknown plan #" + planId); for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0); return Result.ok("cancelled plan #" + planId); }
     public Result remove(long id) { return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id); }
     public Result clear() {

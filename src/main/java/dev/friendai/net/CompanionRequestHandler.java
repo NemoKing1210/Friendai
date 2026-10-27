@@ -1,6 +1,7 @@
 package dev.friendai.net;
 
 import dev.friendai.core.BrainService;
+import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.debug.RequestType;
@@ -118,6 +119,23 @@ public final class CompanionRequestHandler {
                     return;
                 }
                 state.companionLife().setAutoRespawn(owner, enabled);
+            }
+            case SET_CREATIVE_MODE -> {
+                if (!a.equals("true") && !a.equals("false")) {
+                    return;
+                }
+                var companion = companions.find(owner);
+                if (companion.isEmpty()) {
+                    player.sendSystemMessage(Component.translatable("friendai.menu.no_companion"));
+                    return;
+                }
+                CreativeModeService.Result result = CreativeModeService.requestMode(companion.get(), player,
+                        a.equals("true"));
+                if (result == CreativeModeService.Result.DENIED) {
+                    player.sendSystemMessage(Component.translatable("friendai.menu.creative.denied"));
+                    DebugStream.sendNow(player);
+                    return;
+                }
             }
             case STOP -> companions.find(owner).ifPresent(c -> {
                 c.taskRunner().stop("stopped from menu");

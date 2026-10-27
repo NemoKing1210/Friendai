@@ -92,4 +92,15 @@ class ToolCatalogTest {
         long distinct = catalog.all().stream().map(ToolMeta::name).distinct().count();
         assertEquals(catalog.all().size(), distinct);
     }
+
+    @Test
+    void creativeToolsExplainWhenToUseThemAndTheirLimits() {
+        List<String> hints = catalog.hints(EnumSet.of(ToolGroup.CONTROL));
+        assertTrue(hints.stream().anyMatch(line -> line.contains("create_item")
+                && line.contains("instead of mining unnecessarily")), hints.toString());
+        assertTrue(hints.stream().anyMatch(line -> line.contains("fly_to")
+                && line.contains("collision-safe route")), hints.toString());
+        assertTrue(hints.stream().anyMatch(line -> line.contains("execute_command")
+                && line.contains("without claiming a denied or failed command succeeded")), hints.toString());
+    }
 }

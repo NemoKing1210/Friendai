@@ -1,9 +1,11 @@
 package dev.friendai.task.build;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
+import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import java.util.ArrayList;
@@ -93,6 +95,10 @@ public final class Scaffold {
         return surplus(Items.DIRT) > 0 || surplus(Items.COBBLESTONE) > 0;
     }
 
+    public boolean canScaffold(TaskContext context) {
+        return canScaffold() || context.canUseCreativeAction(CreativeAction.FREE_MATERIALS);
+    }
+
     /** The blocks this scaffold placed and that are expected to be removed again. */
     public List<BlockPos> placed() {
         return List.copyOf(placed);
@@ -129,6 +135,10 @@ public final class Scaffold {
      * support can be placed there (no sturdy neighbour, the cell is not free, or no material).
      */
     public boolean support(BlockPos below) {
+        return support(new TaskContext(companion, level()), below);
+    }
+
+    public boolean support(TaskContext context, BlockPos below) {
         failure = "";
         ServerLevel level = level();
         BlockState there = level.getBlockState(below);
@@ -148,12 +158,12 @@ public final class Scaffold {
         if (spot.isEmpty()) {
             return false;
         }
-        ItemStack stack = takeMaterial();
-        if (stack.isEmpty()) {
+        CreativeItemLease lease = takeMaterial(context);
+        if (lease == null) {
             failure = OUT_OF_MATERIAL;
             return false;
         }
-        companion.hands().place(stack, spot.get().against(), spot.get().face());
+        lease.place(companion.hands(), spot.get().against(), spot.get().face());
         if (!isScaffold(level.getBlockState(below))) {
             failure = "can't place a scaffold block at " + coords(below);
             return false;
@@ -169,6 +179,10 @@ public final class Scaffold {
      * column is blocked, a block has no support face or the inventory has no scaffolding left.
      */
     public State pillarTo(int y) {
+        return pillarTo(new TaskContext(companion, level()), y);
+    }
+
+    public State pillarTo(TaskContext context, int y) {
         failure = "";
         ServerLevel level = level();
         if (pillarPhase == Pillar.JUMPING) {
@@ -191,13 +205,13 @@ public final class Scaffold {
                 resetPillar();
                 return State.FAILED;
             }
-            ItemStack stack = takeMaterial();
-            if (stack.isEmpty()) {
+            CreativeItemLease lease = takeMaterial(context);
+            if (lease == null) {
                 failure = OUT_OF_MATERIAL;
                 resetPillar();
                 return State.FAILED;
             }
-            companion.hands().place(stack, spot.get().against(), spot.get().face());
+            lease.place(companion.hands(), spot.get().against(), spot.get().face());
             if (!isScaffold(level.getBlockState(pillarFeet))) {
                 // CompanionHands returns the unconsumed item even when placement fails.
                 failure = "can't place a scaffold block at " + coords(pillarFeet);
@@ -232,7 +246,7 @@ public final class Scaffold {
             failure = "can't place a scaffold block at " + coords(feet) + ": nothing to place it against";
             return State.FAILED;
         }
-        if (!canScaffold()) {
+        if (!canScaffold(context)) {
             failure = OUT_OF_MATERIAL;
             return State.FAILED;
         }
@@ -354,17 +368,24 @@ public final class Scaffold {
         return count(companion, item) - reserved.getOrDefault(item, 0);
     }
 
-    private ItemStack takeMaterial() {
+    private CreativeItemLease takeMaterial(TaskContext context) {
         Item item = preferred();
+        boolean free = context.canUseCreativeAction(CreativeAction.FREE_MATERIALS);
+        if (item == null && free) {
+            item = Items.DIRT;
+        }
         if (item == null) {
-            return ItemStack.EMPTY;
+            return null;
         }
         ItemMatcher matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString()).orElse(null);
         if (matcher == null) {
-            return ItemStack.EMPTY;
+            return null;
         }
         List<ItemStack> removed = InventoryOps.remove(companion.inventory(), matcher, 1);
-        return removed.isEmpty() ? ItemStack.EMPTY : removed.get(0);
+        if (!removed.isEmpty()) {
+            return CreativeItemLease.carried(removed.get(0));
+        }
+        return free ? CreativeItemLease.synthetic(new ItemStack(item)) : null;
     }
 
     private void remember(BlockPos pos) {
