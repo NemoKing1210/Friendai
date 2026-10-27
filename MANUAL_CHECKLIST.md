@@ -258,6 +258,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Go fishing" by a river: catches arrive, the rod wears out.
 - [ ] Honey from a hive with a campfire below; a hive without one is refused.
 
+## Fire
+
+- [ ] "Put that fire out": the companion walks over, pours a bucket, the fire goes out, the bucket comes back and no water is left behind.
+- [ ] It catches fire (lava, a nether walk) and douses itself before burning down, then carries on with what it was doing; the chat line arrives once.
+- [ ] You catch fire next to it: one line in chat and it puts you out; when you are far away it does not come running.
+- [ ] A lit campfire it is cooking on stays lit, and a nether portal next to the fire is untouched.
+
 ## Obtaining items
 
 - [ ] Fresh world, "get me an iron pickaxe": the companion explains the trip, digs down safely, smelts, crafts and hands over the pickaxe; progress events arrive along the way.
