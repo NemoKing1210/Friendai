@@ -26,7 +26,8 @@ public enum ToolGroup {
     TRUST,
     CONTROL,
     BODY,
-    INTERACTION;
+    INTERACTION,
+    PLACE;
 
     /** The group named by the model, ignoring case; empty for anything unknown. */
     public static Optional<ToolGroup> parse(String text) {

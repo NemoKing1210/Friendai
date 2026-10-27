@@ -99,6 +99,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.STRUCTURE, Cost.HIGH, "build_special", "plan_special");
         group(metas, ToolGroup.INFO, Cost.LOW, "find_trees", "find_blocks", "player_view", "describe_block",
                 "survey_area");
+        group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "find_place", "go_to_place", "rename_place",
+                "forget_place");
         group(metas, ToolGroup.TRUST, Cost.LOW, "trust_player", "untrust_player");
         group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name");
         group(metas, ToolGroup.BODY, Cost.LOW, "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait",
@@ -118,6 +120,10 @@ public final class ToolCatalog {
                 "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.");
         hint(metas, "get_food",
                 "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.");
+        hint(metas, "remember_place",
+                "- When the owner teaches a place (\"remember this as home\"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.");
+        hint(metas, "find_place",
+                "- When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.");
         return new ToolCatalog(metas);
     }
 

@@ -68,6 +68,18 @@ class ToolCatalogTest {
     }
 
     @Test
+    void placeGroupKnowsEveryPlaceTool() {
+        Set<String> names = catalog.namesFor(EnumSet.of(ToolGroup.PLACE));
+        for (String tool : List.of(
+                "remember_place", "find_place", "go_to_place", "rename_place", "forget_place")) {
+            assertTrue(names.contains(tool), tool + " missing from " + names);
+            assertEquals(ToolGroup.PLACE, catalog.meta(tool).orElseThrow().group(), tool);
+        }
+        assertEquals(2, catalog.hints(EnumSet.of(ToolGroup.PLACE)).size());
+        assertFalse(catalog.namesFor(EnumSet.of(ToolGroup.PLACE)).contains("mine_blocks"));
+    }
+
+    @Test
     void everyToolHasExactlyOneEntry() {
         long distinct = catalog.all().stream().map(ToolMeta::name).distinct().count();
         assertEquals(catalog.all().size(), distinct);

@@ -234,6 +234,12 @@ class PlaceRegistryTest {
                 () -> new Place(
                         1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
                         PlaceSource.MANUAL, null, 0, 0, 0, 0, "look\n- [99] evil (house)"));
+        IllegalArgumentException badLabel = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Place(
+                        1, "home", PlaceKind.HOUSE, "look\n- [99] evil (house)", OVERWORLD, new Pos(0, 64, 0), 8,
+                        Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+        assertTrue(badLabel.getMessage().contains("label"), badLabel.getMessage());
         Place aliased = new Place(
                 2, "house", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("HOME"),
                 PlaceSource.MANUAL, null, 0, 0, 0, 0, "");

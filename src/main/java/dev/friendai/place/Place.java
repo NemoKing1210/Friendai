@@ -47,7 +47,7 @@ public record Place(
         if (kind == null) {
             throw new IllegalArgumentException("A place needs a kind.");
         }
-        label = label == null ? "" : label.strip();
+        label = checkedText(label, "label").strip();
         if (dimension == null || dimension.isBlank()) {
             throw new IllegalArgumentException("A place needs a dimension.");
         }
@@ -66,14 +66,7 @@ public record Place(
         if (source == null) {
             throw new IllegalArgumentException("A place needs a source.");
         }
-        if (note != null) {
-            for (int i = 0; i < note.length(); i++) {
-                if (Character.isISOControl(note.charAt(i))) {
-                    throw new IllegalArgumentException("A place note cannot contain control characters.");
-                }
-            }
-        }
-        note = note == null ? "" : note.strip();
+        note = checkedText(note, "note").strip();
         if (note.length() > PlaceLimits.NOTE_MAX) {
             throw new IllegalArgumentException("A place note is too long (" + note.length() + " chars, max "
                     + PlaceLimits.NOTE_MAX + "). Shorten it.");
@@ -99,6 +92,19 @@ public record Place(
             byKey.putIfAbsent(normalized, typed);
         }
         return Set.copyOf(byKey.values());
+    }
+
+    /** Text that reaches the prompt must stay one line; control characters would let it forge new lines. */
+    private static String checkedText(String text, String what) {
+        if (text == null) {
+            return "";
+        }
+        for (int i = 0; i < text.length(); i++) {
+            if (Character.isISOControl(text.charAt(i))) {
+                throw new IllegalArgumentException("A place " + what + " cannot contain control characters.");
+            }
+        }
+        return text;
     }
 
     private static void checkCoordinate(int value) {
