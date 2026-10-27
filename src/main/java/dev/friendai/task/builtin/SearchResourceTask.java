@@ -60,9 +60,13 @@ public final class SearchResourceTask implements Task {
 
         ResourceResolver.Resolution resolved = ResourceResolver.resolve(context.level(), resource);
         if (!resolved.executable() || resolved.blockIds().isEmpty()) throw new IllegalArgumentException(resolved.reason());
-        String family = profileFamily(resolved.family());
+        String family = resolved.family();
         ResourceSearchProfile profile = ResourceSearchProfile.builtin(family,
                 context.level().dimension().identifier().toString());
+        if (profile.strategies().isEmpty()) {
+            summary = "no search strategy for " + family + " in " + profile.dimensions();
+            return;
+        }
         ResourceSearchProfile.Strategy strategy = chooseStrategy(profile);
         if (!profile.allows(context.level().dimension().identifier().toString(), strategy)) {
             summary = "unsupported search strategy " + strategy.name().toLowerCase(java.util.Locale.ROOT)
@@ -132,19 +136,6 @@ public final class SearchResourceTask implements Task {
         if (profile.strategies().contains(ResourceSearchProfile.Strategy.SURFACE)) return ResourceSearchProfile.Strategy.SURFACE;
         if (profile.strategies().contains(ResourceSearchProfile.Strategy.MINE)) return ResourceSearchProfile.Strategy.MINE;
         return ResourceSearchProfile.Strategy.CAVE;
-    }
-
-    private static String profileFamily(String family) {
-        if (family.endsWith("_ore")) {
-            String ore = family.substring(family.lastIndexOf(':') + 1).replace("deepslate_", "");
-            if (ore.equals("coal_ore")) return "minecraft:coal";
-            if (ore.equals("redstone_ore")) return "minecraft:redstone";
-            if (ore.equals("lapis_ore")) return "minecraft:lapis_lazuli";
-            if (ore.equals("diamond_ore")) return "minecraft:diamond";
-            if (ore.equals("emerald_ore")) return "minecraft:emerald";
-            return "minecraft:raw_" + ore.substring(0, ore.length() - 4);
-        }
-        return family;
     }
 
     private static Pos position(TaskContext context) {

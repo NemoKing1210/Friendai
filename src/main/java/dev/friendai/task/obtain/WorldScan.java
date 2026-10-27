@@ -41,7 +41,7 @@ public final class WorldScan {
             boolean explore, Set<Long> verifiedSiteIds, Set<Long> excludedSiteIds) {
         ResourceCandidates evidence = FriendaiServerState.get(level.getServer()).resources();
         Map<String, Integer> blocks = new LinkedHashMap<>();
-        for (var observation : evidence.currentVisible(companion, radius)) blocks.merge(observation.blockId(), 1, Integer::sum);
+        for (var observation : evidence.confirmedRecent(companion, radius)) blocks.merge(observation.blockId(), 1, Integer::sum);
         Map<String, Integer> mobs = countVisibleMobs(level, companion, MOB_RADIUS);
         Map<String, Integer> crops = countVisibleCrops(level, companion, evidence);
         Map<String, Integer> containerItems = containers ? countKnownContainerItems(level, companion) : Map.of();
@@ -91,7 +91,7 @@ public final class WorldScan {
 
     private static Map<String, Integer> countVisibleCrops(ServerLevel level, CompanionEntity companion, ResourceCandidates evidence) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (var observation : evidence.currentVisible(companion, CROP_RADIUS)) {
+        for (var observation : evidence.confirmedRecent(companion, CROP_RADIUS)) {
             var p = observation.location().pos();
             BlockPos pos = new BlockPos(p.x(), p.y(), p.z());
             if (Crops.harvestable(level, pos).isPresent()) counts.merge(observation.blockId(), 1, Integer::sum);

@@ -30,6 +30,14 @@ public final class ResourceToolsTests {
         var ingot = ResourceResolver.resolve(h.getLevel(), "minecraft:iron_ingot");
         h.assertTrue(ingot.reason().contains("smelting"), "iron ingot should explain smelting source");
 
+        var logs = ResourceResolver.resolve(h.getLevel(), "#minecraft:logs");
+        h.assertTrue(logs.executable(), logs.reason());
+        h.assertTrue(logs.blockIds().contains("minecraft:acacia_log"), logs.blockIds().toString());
+        h.assertTrue(logs.family().equals("#minecraft:logs"), logs.family());
+        var planks = ResourceResolver.resolve(h.getLevel(), "minecraft:oak_planks");
+        h.assertTrue(planks.executable(), planks.reason());
+        h.assertTrue(planks.family().equals("#minecraft:logs"), planks.family());
+
         var state = FriendaiServerState.get(h.getLevel().getServer());
         BlockPos sitePos = companion.blockPosition().offset(3, 0, 4);
         var location = new ResourceObservation.Location(h.getLevel().dimension().identifier().toString(),
@@ -76,6 +84,24 @@ public final class ResourceToolsTests {
                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
         h.assertTrue(!result.error(), "known resource query should not require a loaded chunk");
         h.assertTrue(!level.hasChunkAt(far), "known resource query loaded an unloaded chunk");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 60)
+    public void searchResourceAcceptsWoodTag(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        JsonObject args = new JsonObject();
+        args.addProperty("resource", "#minecraft:logs");
+        var result = FriendaiTools.create(() -> 16, MemoryAccess.DISABLED).bind(companion).execute(
+                new ToolCall("test", "search_resource", args, args.toString(), null),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(companion.taskRunner().current()
+                        .map(task -> task.type().equals("search_resource")).orElse(false),
+                "a wood search should start: " + result.content());
         h.succeed();
     }
 

@@ -393,4 +393,54 @@ public class TreeFellingTests {
         h.assertTrue(found.get(1).kind() == TreeFinder.Kind.LOG_STRUCTURE, "last: " + found);
         h.succeed();
     }
+
+    @GameTest(maxTicks = 1600)
+    public void acaciaTreeIsFelledCompletely(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        int[][] logs = {{6, 2, 6}, {6, 3, 6}, {7, 3, 6}, {7, 4, 6}, {5, 3, 6}, {5, 4, 6}};
+        for (int[] p : logs) h.setBlock(new BlockPos(p[0], p[1], p[2]), Blocks.ACACIA_LOG);
+        for (int x = 4; x <= 8; x++) {
+            for (int z = 5; z <= 7; z++) {
+                BlockPos leaf = new BlockPos(x, 5, z);
+                if (h.getBlockState(leaf).isAir()) {
+                    h.setBlock(leaf, Blocks.ACACIA_LEAVES.defaultBlockState()
+                            .setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
+                "acacia base should be directly visible");
+        var tools = FriendaiTools.create(() -> 32).bind(c);
+        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
+        boolean[] started = {false};
+        h.succeedWhen(() -> {
+            if (!started[0]) {
+                started[0] = true;
+                ToolResult result = run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":16}");
+                h.assertTrue(!result.error(), result.content());
+            }
+            for (int[] p : logs) {
+                h.assertTrue(h.getBlockState(new BlockPos(p[0], p[1], p[2])).isAir(),
+                        "log left at " + p[0] + "," + p[1] + "," + p[2]);
+            }
+            h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 6, "acacia drops");
+        });
+    }
+
+    @GameTest(maxTicks = 120)
+    public void findTreesAfterTheObservationTick(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 4; y++) h.setBlock(new BlockPos(6, y, 6), Blocks.ACACIA_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
+                "acacia base should be directly visible");
+        var tools = FriendaiTools.create(() -> 32).bind(c);
+        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
+        h.succeedWhen(() -> {
+            ToolResult result = run(tools, anonymous, "find_trees", "{\"near\":\"self\",\"radius\":16}");
+            h.assertTrue(!result.error(), result.content());
+            h.assertTrue(result.content().contains("acacia_log"), result.content());
+        });
+    }
 }

@@ -22,7 +22,7 @@ public final class AreaMapBuilder {
         BlockPos speaker = OwnerFocusBuilder.speakerBlock(c, principal).orElse(null);
         Map<Long, String> observed = new HashMap<>();
         if (candidates != null) {
-            for (ResourceObservation observation : candidates.currentVisible(c, radius + 1)) {
+            for (ResourceObservation observation : candidates.confirmedRecent(c, radius + 1)) {
                 var pos = observation.location().pos();
                 observed.put(new BlockPos(pos.x(), pos.y(), pos.z()).asLong(), observation.blockId());
             }

@@ -28,8 +28,7 @@ public record ResourceSearchProfile(String family, Set<String> dimensions, Optio
             allowed = family.equals("minecraft:coal") || family.equals("minecraft:raw_iron")
                     ? Set.of(Strategy.SURFACE, Strategy.CAVE, Strategy.MINE)
                     : Set.of(Strategy.CAVE, Strategy.MINE);
-        } else if (family != null && (family.endsWith("_log") || family.endsWith("_stem")
-                || family.endsWith("_leaves") || family.endsWith("_sapling") || family.endsWith("_flower"))) {
+        } else if (ResourceFamily.isPlant(family)) {
             allowed = Set.of(Strategy.SURFACE);
         } else {
             allowed = Set.of();

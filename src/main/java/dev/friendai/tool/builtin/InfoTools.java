@@ -37,8 +37,9 @@ final class InfoTools {
             IntSupplier mineRadius,
             IntSupplier treeRadius) {
         registry.register(ToolKit.callerTool("find_trees",
-                "List the nearest trees with their kind, height, log count, distance and direction. A log structure "
-                        + "has no leaves and is not felled automatically. Use it to choose a tree before fell_tree.",
+                "List trees recently seen or remembered with their kind, height, log count, distance and direction; "
+                        + "a remembered tree is not guaranteed to still be there. A log structure has no leaves and "
+                        + "is not felled automatically. Use it to choose a tree before fell_tree.",
                 SchemaBuilder.object()
                         .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
                         .enumeration("near", "Search around the speaker (me, default) or around yourself (self)",
@@ -64,14 +65,14 @@ final class InfoTools {
                     // radius around origin, and this does not inspect the world for unseen blocks.
                     int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
                     BlockMatcher logs = matcher == null ? ToolKit.parseBlockMatcher("#minecraft:logs") : matcher;
-                    var observedIds = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
+                    var observedIds = resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024).entrySet().stream()
                             .filter(entry -> {
                                 var id = Identifier.tryParse(entry.getValue());
                                 return id != null && BuiltInRegistries.BLOCK.containsKey(id)
                                         && logs.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
                             }).collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
                     BlockMatcher leavesMatcher = ToolKit.parseBlockMatcher("#minecraft:leaves");
-                    Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
+                    Set<BlockPos> leaves = resources.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024).stream()
                             .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                             .collect(java.util.stream.Collectors.toUnmodifiableSet());
                     List<TreeFinder.TreeInfo> found = TreeFinder.findObserved((ServerLevel) c.level(), origin,
@@ -84,7 +85,7 @@ final class InfoTools {
                             .filter(t -> t.kind() == TreeFinder.Kind.LOG_STRUCTURE)
                             .map(TreeFinder.TreeInfo::summary)
                             .toList();
-                    return ToolResult.ok(TreeText.toolListing(trees, structures, radius));
+                    return ToolResult.ok(TreeText.toolListing(trees, structures, radius, "recently seen or remembered"));
                 }));
         registry.register(ToolKit.instantTool("look_around", "Describe the surroundings in detail.",
                 AccessLevel.GUEST,

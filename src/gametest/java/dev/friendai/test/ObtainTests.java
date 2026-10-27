@@ -192,6 +192,27 @@ public class ObtainTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 100)
+    public void worldScanCountsRecentlyObservedLogs(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos log = h.absolutePos(new BlockPos(4, 2, 4));
+        h.setBlock(4, 2, 4, Blocks.ACACIA_LOG);
+        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var level = h.getLevel();
+        state.resources().observe(c, new dev.friendai.knowledge.ResourceObservation("minecraft:acacia_log",
+                new dev.friendai.knowledge.ResourceObservation.Location(
+                        level.dimension().identifier().toString(),
+                        new dev.friendai.pathing.Pos(log.getX(), log.getY(), log.getZ())),
+                new dev.friendai.pathing.Pos(2, 2, 2), level.getServer().overworld().getGameTime()));
+        h.runAfterDelay(20, () -> {
+            WorldFacts world = WorldScan.scan(level, c, 32, false, false);
+            h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:acacia_log", 0), 1,
+                    "a log seen 20 ticks ago should still count as nearby");
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void surfaceExploreFindsLogs(GameTestHelper h) {
         GameTestSupport.platformAt(h, 240, 32);
@@ -342,6 +363,32 @@ public class ObtainTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 1, "pickaxes");
+        });
+    }
+
+    @GameTest(maxTicks = 9600)
+    public void stonePickaxeFromAcaciaOnly(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7),
+                new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.ACACIA_LOG);
+        BlockPos[] stones = {new BlockPos(6, 2, 6), new BlockPos(7, 2, 8), new BlockPos(7, 2, 4)};
+        for (BlockPos stone : stones) h.setBlock(stone, Blocks.STONE);
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (BlockPos pos : logs) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "acacia log should be directly visible at " + pos);
+        for (BlockPos pos : stones) h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(pos)),
+                "stone should be directly visible at " + pos);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
+        Result result = new Result();
+        TaskRunner runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, true));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("acacia_log"), result.summary);
+            h.assertFalse(result.summary.contains("explored for"), result.summary);
         });
     }
 

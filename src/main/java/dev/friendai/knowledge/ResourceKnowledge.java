@@ -111,6 +111,7 @@ public final class ResourceKnowledge {
         target.depleted = false;
         target.representative = representative(target.positions);
         target.blockIds.add(observation.blockId());
+        target.blockCounts.merge(observation.blockId(), 1, Integer::sum);
         indexMember(id, family, observation.blockId());
         revision++;
         return id;
@@ -230,6 +231,7 @@ public final class ResourceKnowledge {
             }
             site.positions.add(location.pos());
             site.blockIds.add(record.blockId());
+            site.blockCounts.merge(record.blockId(), 1, Integer::sum);
             site.firstSeen = Math.min(site.firstSeen, record.firstSeen());
             site.lastSeen = Math.max(site.lastSeen, record.lastSeen());
             if (record.lastSeen() >= site.lastSeen) site.approach = new Pos(record.viewX(), record.viewY(), record.viewZ());
@@ -300,6 +302,7 @@ public final class ResourceKnowledge {
         if (retained == null || removed == null) return;
         retained.positions.addAll(removed.positions);
         retained.blockIds.addAll(removed.blockIds);
+        removed.blockCounts.forEach((blockId, count) -> retained.blockCounts.merge(blockId, count, Integer::sum));
         retained.firstSeen = Math.min(retained.firstSeen, removed.firstSeen);
         retained.lastSeen = Math.max(retained.lastSeen, removed.lastSeen);
         retained.representative = representative(retained.positions);
@@ -332,26 +335,24 @@ public final class ResourceKnowledge {
         if (site == null) return false;
         site.positions.remove(location.pos());
         site.lastSeen = Math.max(site.lastSeen, logicalTick);
+        int remaining = site.blockCounts.getOrDefault(member.blockId, 0) - 1;
+        if (remaining <= 0) {
+            site.blockCounts.remove(member.blockId);
+            if (site.blockIds.remove(member.blockId)) {
+                removeIndexEntry(byBlockId, member.blockId, resolved);
+            }
+        } else {
+            site.blockCounts.put(member.blockId, remaining);
+        }
         if (site.positions.isEmpty()) {
             site.depleted = true;
             unindexSite(resolved, site);
             site.blockIds.clear();
+            site.blockCounts.clear();
         } else {
             site.representative = representative(site.positions);
-            recomputeBlockIds(resolved, site);
         }
         return true;
-    }
-
-    private void recomputeBlockIds(long id, MutableSite site) {
-        for (String blockId : site.blockIds) {
-            removeIndexEntry(byBlockId, blockId, id);
-        }
-        site.blockIds.clear();
-        for (Map.Entry<ResourceObservation.Location, Member> entry : members.entrySet()) {
-            if (resolve(entry.getValue().siteId) == id) site.blockIds.add(entry.getValue().blockId);
-        }
-        for (String blockId : site.blockIds) byBlockId.computeIfAbsent(blockId, ignored -> new LinkedHashSet<>()).add(id);
     }
 
     private boolean compactOne(Set<Long> protectedSites) {
@@ -481,6 +482,7 @@ public final class ResourceKnowledge {
         final String dimension;
         final Set<Pos> positions = new LinkedHashSet<>();
         final Set<String> blockIds = new LinkedHashSet<>();
+        final Map<String, Integer> blockCounts = new HashMap<>();
         Pos representative;
         Pos approach;
         long firstSeen;

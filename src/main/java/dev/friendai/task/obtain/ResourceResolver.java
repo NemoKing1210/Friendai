@@ -2,6 +2,7 @@ package dev.friendai.task.obtain;
 
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.obtain.Source;
+import dev.friendai.knowledge.search.ResourceFamily;
 import dev.friendai.task.crafting.RecipeIndex;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
@@ -33,7 +34,12 @@ public final class ResourceResolver {
         Identifier id = Identifier.tryParse(text);
         if (id == null) return new Resolution(Set.of(), text, false, "resource id is invalid");
         if (BuiltInRegistries.BLOCK.containsKey(id)) {
-            return new Resolution(Set.of(id.toString()), oreFamily(id.toString()), true, "block id");
+            String blockId = id.toString();
+            if (crafted(level, blockId)) {
+                return resolveItem(level, blockId);
+            }
+            return new Resolution(Set.of(blockId),
+                    ResourceFamily.ofBlocks(Set.of(blockId)).orElse(blockId), true, "block id");
         }
         if (!BuiltInRegistries.ITEM.containsKey(id)) {
             return new Resolution(Set.of(), id.toString(), false, "unknown block tag, block id or item id");
@@ -49,7 +55,9 @@ public final class ResourceResolver {
         for (Block block : BuiltInRegistries.BLOCK) {
             if (block.builtInRegistryHolder().is(tag)) blocks.add(BuiltInRegistries.BLOCK.getKey(block).toString());
         }
-        return new Resolution(blocks, "#" + id, !blocks.isEmpty(), blocks.isEmpty() ? "block tag has no registered members" : "block tag");
+        String family = ResourceFamily.ofBlocks(blocks).orElse("#" + id);
+        return new Resolution(blocks, family, !blocks.isEmpty(),
+                blocks.isEmpty() ? "block tag has no registered members" : "block tag");
     }
 
     private static Resolution resolveItem(ServerLevel level, String itemId) {
@@ -63,8 +71,12 @@ public final class ResourceResolver {
         while (!pending.isEmpty()) {
             ItemDepth current = pending.removeFirst();
             if (!visited.add(current.id()) || current.depth() > 5) continue;
+            boolean crafted = crafted(level, current.id());
             for (Source source : drops.sourcesOf(current.id())) {
-                if (source instanceof Source.Mine mine) blocks.add(mine.block());
+                if (source instanceof Source.Mine mine) {
+                    // A placed block of a crafted item is not the source of the item: follow the recipe instead.
+                    if (!crafted || !mine.block().equals(current.id())) blocks.add(mine.block());
+                }
                 if (source instanceof Source.Harvest harvest) blocks.add(harvest.crop());
             }
             for (var recipe : recipes.producing(current.id())) {
@@ -78,14 +90,12 @@ public final class ResourceResolver {
         }
         String reason = blocks.isEmpty() ? "no block source is indexed for this item"
                 : smelting ? "source chain includes smelting" : "source chain resolved";
-        return new Resolution(blocks, itemId, !blocks.isEmpty(), reason);
+        String family = ResourceFamily.ofBlocks(blocks).orElse(itemId);
+        return new Resolution(blocks, family, !blocks.isEmpty(), reason);
     }
 
-    private static String oreFamily(String blockId) {
-        String prefix = "minecraft:deepslate_";
-        String path = blockId.substring(blockId.indexOf(':') + 1);
-        if (blockId.startsWith(prefix) && path.endsWith("_ore")) return "minecraft:" + path.substring("deepslate_".length());
-        return blockId;
+    private static boolean crafted(ServerLevel level, String itemId) {
+        return RecipeIndex.of(level).producing(itemId).stream().anyMatch(recipe -> !recipe.station().isCooking());
     }
 
     private record ItemDepth(String id, int depth) {}

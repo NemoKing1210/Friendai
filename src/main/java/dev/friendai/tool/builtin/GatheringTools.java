@@ -4,6 +4,8 @@ import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.TaskSettings;
+import dev.friendai.task.Task;
+import dev.friendai.task.builtin.FellTreeSearchTask;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.MineBlocksTask;
@@ -43,9 +45,9 @@ final class GatheringTools {
                 .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
                 .build();
         String fellDescription = "Fell one whole tree from the lowest log up and collect the logs. Picks the "
-                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; a log "
-                + "structure such as a cabin is never felled unless its block id is named. Use find_trees first "
-                + "when the choice matters.";
+                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; if no tree "
+                + "is in view it looks around for a bounded time and starts when one is seen. A log structure such "
+                + "as a cabin is never felled unless its block id is named. Use find_trees when the choice matters.";
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("fell_tree", fellDescription, fellSchema,
                         (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true,
@@ -133,7 +135,7 @@ final class GatheringTools {
     }
 
     /** Picks the tree for a {@code fell_tree} call; throws {@link IllegalArgumentException} with the reason. */
-    private static FellTreeTask createFellTask(
+    private static Task createFellTask(
             CompanionEntity c, Caller caller, JsonObject a, IntSupplier treeRadius) {
         BlockPos origin = NearResolver.resolve(c, caller, a);
         int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
@@ -148,7 +150,7 @@ final class GatheringTools {
         // the evidence radius here; the exact requested radius is applied around origin below.
         int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
         BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
-        var observed = resources.visibleBlockIds(c, evidenceRadius).entrySet().stream()
+        var observed = resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024).entrySet().stream()
                 .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                 .filter(entry -> {
                     var id = net.minecraft.resources.Identifier.tryParse(entry.getValue());
@@ -158,29 +160,31 @@ final class GatheringTools {
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
         var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
-        Set<BlockPos> leaves = resources.visible(c, leavesMatcher, evidenceRadius, 1024).stream()
+        Set<BlockPos> leaves = resources.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024).stream()
                 .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        List<TreeFinder.TreeInfo> found = TreeFinder.findObserved(level, origin, observed, leaves, 1).stream()
-                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE).toList();
-        if (found.isEmpty()) {
-            String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
-            String hint = "";
-            if (treesOnly) {
-                List<TreeFinder.TreeInfo> structures = TreeFinder.findObserved(level, origin, observed, leaves, 1);
-                if (!structures.isEmpty()) {
-                    TreeFinder.TreeInfo s = structures.get(0);
-                    hint = "; the nearest " + s.type() + " is a log structure at " + s.base().getX() + " "
-                            + s.base().getY() + " " + s.base().getZ();
-                }
-            }
-            throw new IllegalArgumentException("no tree within " + radius + " blocks of " + where + hint
-                    + "; use mine_blocks to take named blocks");
-        }
         int limit = a.has("limit") ? a.get("limit").getAsInt() : 0;
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : TaskSettings.fellCollectDrops;
+        List<TreeFinder.TreeInfo> all = TreeFinder.findObserved(level, origin, observed, leaves, 1 + 8);
+        List<TreeFinder.TreeInfo> found = all.stream()
+                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE).toList();
+        if (found.isEmpty()) {
+            if (treesOnly) {
+                List<TreeFinder.TreeInfo> structures = all.stream()
+                        .filter(tree -> tree.kind() == TreeFinder.Kind.LOG_STRUCTURE).toList();
+                if (!structures.isEmpty()) {
+                    TreeFinder.TreeInfo s = structures.get(0);
+                    String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
+                    throw new IllegalArgumentException("no tree within " + radius + " blocks of " + where
+                            + "; the nearest " + s.type() + " is a log structure at " + s.base().getX() + " "
+                            + s.base().getY() + " " + s.base().getZ()
+                            + "; use mine_blocks to take named blocks");
+                }
+            }
+            return new FellTreeSearchTask(matcher, origin, radius, limit, collect);
+        }
         return new FellTreeTask(found.get(0), logs, limit, collect);
     }
 }

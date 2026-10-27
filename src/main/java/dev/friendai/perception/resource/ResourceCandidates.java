@@ -2,6 +2,7 @@ package dev.friendai.perception.resource;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.KnowledgeStore;
+import dev.friendai.knowledge.ObservationWindow;
 import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.ResourceQuery;
@@ -20,18 +21,22 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Shared access to direct visible evidence and remembered resource sites. */
 public final class ResourceCandidates {
     private static final long CAVE_ENTRANCE_TTL = 6_000;
     private static final int MAX_CAVE_ENTRANCES = 32;
+    /** How long a direct sighting stays usable as recent evidence. */
+    public static final long RECENT_EVIDENCE_TICKS = 200;
+    private static final int MAX_RECENT_OBSERVATIONS = 2_048;
 
     public enum Verification { PENDING, PRESENT, ABSENT, OCCLUDED, UNLOADED }
 
     private final KnowledgeStore knowledge;
-    /** Current sight is attached to the observing entity; only durable history is owner scoped. */
-    private final Map<UUID, List<ResourceObservation>> visibleNow = new HashMap<>();
+    /** Recent sight is attached to the observing entity; only durable history is owner scoped. */
+    private final Map<UUID, ObservationWindow> recent = new HashMap<>();
     private final Map<UUID, List<ScopedCaveEntrance>> observedCaveEntrances = new HashMap<>();
     private ObservationScheduler observations;
 
@@ -42,9 +47,8 @@ public final class ResourceCandidates {
     public void observe(CompanionEntity companion, ResourceObservation observation) {
         UUID owner = companion.ownerUuid();
         if (owner != null) knowledge.book(owner).observe(observation, observation.blockId());
-        List<ResourceObservation> current = visibleNow.computeIfAbsent(companion.getUUID(), ignored -> new ArrayList<>());
-        current.removeIf(previous -> previous.observedTick() != observation.observedTick());
-        if (current.stream().noneMatch(previous -> previous.location().equals(observation.location()))) current.add(observation);
+        recent.computeIfAbsent(companion.getUUID(),
+                ignored -> new ObservationWindow(MAX_RECENT_OBSERVATIONS, RECENT_EVIDENCE_TICKS)).record(observation);
     }
 
     /** Retains a short-lived owner-scoped entrance sighting without reading the world. */
@@ -91,10 +95,10 @@ public final class ResourceCandidates {
 
     private record ScopedCaveEntrance(UUID owner, CaveEntranceObservation entrance) {}
 
-    /** Returns only evidence observed in the current world tick and still locally loaded. */
+    /** Recent evidence matching a block id or tag, nearest first, still present in the world. */
     public List<BlockPos> visible(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
         if (matcher == null || limit < 1) return List.of();
-        return currentVisible(companion, radius).stream()
+        return confirmedRecent(companion, radius).stream()
                 .filter(observation -> matches(matcher, observation.blockId()))
                 .map(observation -> new BlockPos(observation.location().pos().x(), observation.location().pos().y(),
                         observation.location().pos().z()))
@@ -104,24 +108,99 @@ public final class ResourceCandidates {
 
     public Map<BlockPos, String> visibleBlockIds(CompanionEntity companion, int radius) {
         Map<BlockPos, String> result = new HashMap<>();
-        currentVisible(companion, radius).forEach(observation -> {
+        confirmedRecent(companion, radius).forEach(observation -> {
             var pos = observation.location().pos();
             result.put(new BlockPos(pos.x(), pos.y(), pos.z()), observation.blockId());
         });
         return Map.copyOf(result);
     }
 
-    /** Direct observations from the current tick, bounded to the companion's visible radius. */
+    /**
+     * Direct observations from the current tick, bounded to the companion's visible radius. This is the strict
+     * "what was completed this tick" view; planning and tools use {@link #confirmedRecent}.
+     */
     public List<ResourceObservation> currentVisible(CompanionEntity companion, int radius) {
-        if (!(companion.level() instanceof ServerLevel level) || radius < 0) return List.of();
-        long now = logicalTick(level);
-        double radiusSquared = (double) radius * radius;
-        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream()
+        long now = companion.level() instanceof ServerLevel level ? logicalTick(level) : Long.MIN_VALUE;
+        return recentObservations(companion, radius).stream()
                 .filter(observation -> observation.observedTick() == now)
-                .filter(observation -> observation.location().dimension().equals(level.dimension().identifier().toString()))
+                .toList();
+    }
+
+    /** Direct observations from the recent window, bounded to the companion's visible radius, nearest first. */
+    public List<ResourceObservation> recentVisible(CompanionEntity companion, int radius) {
+        return recentObservations(companion, radius);
+    }
+
+    /** Recent observations whose block at the recorded position is still the recorded block. */
+    public List<ResourceObservation> confirmedRecent(CompanionEntity companion, int radius) {
+        if (!(companion.level() instanceof ServerLevel level)) return List.of();
+        return recentObservations(companion, radius).stream()
+                .filter(observation -> stillPresent(level, observation))
+                .toList();
+    }
+
+    private List<ResourceObservation> recentObservations(CompanionEntity companion, int radius) {
+        if (!(companion.level() instanceof ServerLevel level) || radius < 0) return List.of();
+        ObservationWindow window = recent.get(companion.getUUID());
+        if (window == null) return List.of();
+        long now = logicalTick(level);
+        String dimension = level.dimension().identifier().toString();
+        double radiusSquared = (double) radius * radius;
+        return window.recent(now).stream()
+                .filter(observation -> observation.location().dimension().equals(dimension))
                 .filter(observation -> distanceSquared(companion, observation) <= radiusSquared)
                 .sorted(Comparator.comparingDouble(observation -> distanceSquared(companion, observation)))
                 .toList();
+    }
+
+    /** Confirmed recent evidence as a position-to-block map. */
+    public Map<BlockPos, String> confirmedRecentBlockIds(CompanionEntity companion, int radius) {
+        Map<BlockPos, String> result = new HashMap<>();
+        confirmedRecent(companion, radius).forEach(observation -> {
+            var pos = observation.location().pos();
+            result.put(new BlockPos(pos.x(), pos.y(), pos.z()), observation.blockId());
+        });
+        return Map.copyOf(result);
+    }
+
+    /** Confirmed recent positions first, then remembered positions whose block is still present. */
+    public Map<BlockPos, String> recentOrRememberedBlockIds(CompanionEntity companion, int radius, int limit) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)
+                || radius < 0 || limit < 1) return Map.of();
+        Map<BlockPos, String> result = new java.util.LinkedHashMap<>();
+        confirmedRecentBlockIds(companion, radius).entrySet().stream()
+                .sorted(Comparator.comparingDouble(entry ->
+                        companion.position().distanceToSqr(Vec3.atCenterOf(entry.getKey()))))
+                .forEach(entry -> result.putIfAbsent(entry.getKey(), entry.getValue()));
+        if (result.size() >= limit) return Map.copyOf(result);
+        String dimension = level.dimension().identifier().toString();
+        double radiusSquared = (double) radius * radius;
+        for (var record : knowledge.book(companion.ownerUuid()).snapshot().records()) {
+            if (result.size() >= limit) break;
+            if (!record.dimension().equals(dimension)) continue;
+            BlockPos pos = new BlockPos(record.x(), record.y(), record.z());
+            if (result.containsKey(pos)
+                    || companion.position().distanceToSqr(Vec3.atCenterOf(pos)) > radiusSquared
+                    || !level.hasChunkAt(pos)) continue;
+            BlockState state = level.getBlockState(pos);
+            if (!BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString().equals(record.blockId())) continue;
+            result.put(pos, record.blockId());
+        }
+        return Map.copyOf(result);
+    }
+
+    /** Recent or remembered positions matching a block id or tag; remembered positions are not re-validated here. */
+    public Set<BlockPos> recentOrRemembered(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+        return Set.copyOf(knownOrVisible(companion, matcher, radius, limit));
+    }
+
+    private static boolean stillPresent(ServerLevel level, ResourceObservation observation) {
+        var pos = observation.location().pos();
+        BlockPos block = new BlockPos(pos.x(), pos.y(), pos.z());
+        if (!observation.location().dimension().equals(level.dimension().identifier().toString())
+                || !level.hasChunkAt(block)) return false;
+        BlockState state = level.getBlockState(block);
+        return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString().equals(observation.blockId());
     }
 
     /** Exact remembered positions matching a block id or tag, with no world or chunk reads. */
@@ -154,9 +233,11 @@ public final class ResourceCandidates {
 
     public boolean currentlyVisible(CompanionEntity companion, BlockPos pos) {
         if (!(companion.level() instanceof ServerLevel level)) return false;
+        ObservationWindow window = recent.get(companion.getUUID());
+        if (window == null) return false;
         String dimension = level.dimension().identifier().toString();
         long tick = logicalTick(level);
-        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream().anyMatch(observation ->
+        return window.recent(tick).stream().anyMatch(observation ->
                 observation.observedTick() == tick && observation.location().dimension().equals(dimension)
                         && observation.location().pos().x() == pos.getX()
                         && observation.location().pos().y() == pos.getY()
@@ -212,9 +293,8 @@ public final class ResourceCandidates {
                 double dy = Math.abs(approach.y() - companion.getY());
                 boolean fresh = site.availability() == ResourceSite.Availability.OBSERVED;
                 double cost = 4.6 * Math.hypot(dx, dz) + 10 * dy + (fresh ? 0 : 200);
-                boolean visible = site.members().stream().anyMatch(pos -> visibleNow.getOrDefault(companion.getUUID(), List.of()).stream()
-                        .anyMatch(observation -> observation.observedTick() == now
-                                && observation.location().pos().equals(pos)));
+                boolean visible = site.members().stream().anyMatch(pos ->
+                        currentlyVisible(companion, new BlockPos(pos.x(), pos.y(), pos.z())));
                 ResourceCandidate candidate = new ResourceCandidate(site.id(), blockId, site.dimension(),
                         site.representative(), approach, found.lastObservedBlocks(), found.ageTicks(), visible,
                         site.approximate(), cost);
@@ -249,10 +329,12 @@ public final class ResourceCandidates {
 
     public boolean siteVisible(CompanionEntity companion, long siteId) {
         ResourceSite site = site(companion, siteId).orElse(null);
-        if (site == null) return false;
-        String dimension = ((ServerLevel) companion.level()).dimension().identifier().toString();
-        long tick = logicalTick((ServerLevel) companion.level());
-        return visibleNow.getOrDefault(companion.getUUID(), List.of()).stream().anyMatch(observation ->
+        if (site == null || !(companion.level() instanceof ServerLevel level)) return false;
+        ObservationWindow window = recent.get(companion.getUUID());
+        if (window == null) return false;
+        String dimension = level.dimension().identifier().toString();
+        long tick = logicalTick(level);
+        return window.recent(tick).stream().anyMatch(observation ->
                 observation.observedTick() == tick && observation.location().dimension().equals(dimension)
                         && site.members().contains(observation.location().pos())
                         && site.family().equals(observation.blockId()));
@@ -264,6 +346,8 @@ public final class ResourceCandidates {
         ResourceObservation.Location location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
         knowledge.book(companion.ownerUuid()).extracted(location, logicalTick(level));
+        ObservationWindow window = recent.get(companion.getUUID());
+        if (window != null) window.forget(location);
         observations.observer(companion).changed(pos);
     }
 

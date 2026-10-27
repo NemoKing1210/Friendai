@@ -113,13 +113,25 @@ public final class TreeFinder {
     /** Groups exact remembered/visible log positions without expanding into concealed connected blocks. */
     public static List<TreeInfo> findObserved(ServerLevel level, BlockPos origin, Map<BlockPos, String> observedLogs,
             Set<BlockPos> observedLeaves, int limit) {
-        Set<BlockPos> scanned = new LinkedHashSet<>(observedLogs.keySet().stream().limit(MAX_SCANNED_LOGS).toList());
+        Set<BlockPos> scanned = new LinkedHashSet<>();
+        for (Map.Entry<BlockPos, String> entry : observedLogs.entrySet()) {
+            if (scanned.size() >= MAX_SCANNED_LOGS) break;
+            BlockPos pos = entry.getKey();
+            if (!level.hasChunkAt(pos)) continue;
+            BlockState state = level.getBlockState(pos);
+            if (!BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString().equals(entry.getValue())) continue;
+            scanned.add(pos);
+        }
+        Set<BlockPos> leaves = new LinkedHashSet<>();
+        for (BlockPos pos : observedLeaves) {
+            if (level.hasChunkAt(pos) && level.getBlockState(pos).is(BlockTags.LEAVES)) leaves.add(pos);
+        }
         List<TreeInfo> trees = new ArrayList<>();
         Set<BlockPos> seen = new LinkedHashSet<>();
         for (BlockPos start : scanned) {
             if (seen.contains(start)) continue;
             Set<BlockPos> cluster = cluster(level, start, scanned, seen, state -> false, false);
-            TreeInfo info = describeObserved(origin, cluster, observedLogs, observedLeaves);
+            TreeInfo info = describeObserved(origin, cluster, observedLogs, leaves);
             trees.add(info);
         }
         orderAndLimit(trees, limit);

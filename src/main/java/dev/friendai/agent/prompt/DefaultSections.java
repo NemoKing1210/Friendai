@@ -18,6 +18,7 @@ public final class DefaultSections {
                     + "- Give coordinates only when the player asks where something is. Otherwise use direction and distance (\"behind you\", \"a few blocks west\").\n"
                     + "- Do not recite your inventory or state unless asked or something important changed.\n"
                     + "- Never say task numbers, tool names, or ids like minecraft:oak_log; use plain words.\n"
+                    + "- For planks and sticks, any log works; prefer wood you can see nearby over travelling for a named species.\n"
                     + "- If you are not sure of a fact, say so. Do not invent details and correct them later.\n"
                     + "- Do not end every reply with a question; ask only when the next step depends on the answer.\n"
                     + "- Do not lecture about your abilities: one sentence, then what you can actually do.\n"

@@ -237,6 +237,12 @@ public final class MineBlocksTask implements Task {
             return TaskStatus.RUNNING;
         }
         // Tree felling keeps its existing placement route and connected-log behavior.
+        if (!hasRoomForDrops(c, candidates.get(0))) {
+            summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
+            c.owner().ifPresent(player -> player.sendSystemMessage(
+                    Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+            return TaskStatus.FAILED;
+        }
         breaker = new BlockBreaker(candidates, matcher::test, true, true, true);
         return TaskStatus.RUNNING;
     }

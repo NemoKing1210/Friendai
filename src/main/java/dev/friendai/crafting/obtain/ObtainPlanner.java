@@ -23,6 +23,8 @@ import java.util.Set;
 public final class ObtainPlanner {
     /** How many nested obtain steps the search may chain. */
     public static final int MAX_DEPTH = 8;
+    /** Upper bound on recursive provider evaluations in one plan, so many ingredient alternatives cannot stall. */
+    private static final int MAX_PROVIDER_EVALUATIONS = 20_000;
 
     /** Items the planner will burn; the first obtainable one is used. */
     private static final List<String> FUELS = List.of(
@@ -55,6 +57,7 @@ public final class ObtainPlanner {
         Objects.requireNonNull(sources, "sources");
         Objects.requireNonNull(world, "world");
         Sim sim = new Sim();
+        sim.mineBudget.putAll(world.blocksNearby());
         if (inventory != null) {
             inventory.forEach((item, amount) -> {
                 if (item != null && amount != null && amount > 0) {
@@ -143,6 +146,8 @@ public final class ObtainPlanner {
         final Set<String> reserved = new LinkedHashSet<>();
         final Set<Long> reservedSites = new LinkedHashSet<>();
         final Map<Long, Integer> siteBlocks = new LinkedHashMap<>();
+        final Set<String> searchReserved = new LinkedHashSet<>();
+        final Map<String, Integer> mineBudget = new LinkedHashMap<>();
 
         Sim copy() {
             Sim copy = new Sim();
@@ -151,6 +156,8 @@ public final class ObtainPlanner {
             copy.reserved.addAll(reserved);
             copy.reservedSites.addAll(reservedSites);
             copy.siteBlocks.putAll(siteBlocks);
+            copy.searchReserved.addAll(searchReserved);
+            copy.mineBudget.putAll(mineBudget);
             return copy;
         }
 
@@ -165,6 +172,10 @@ public final class ObtainPlanner {
             reservedSites.addAll(other.reservedSites);
             siteBlocks.clear();
             siteBlocks.putAll(other.siteBlocks);
+            searchReserved.clear();
+            searchReserved.addAll(other.searchReserved);
+            mineBudget.clear();
+            mineBudget.putAll(other.mineBudget);
         }
 
         int available(String item) {
@@ -231,6 +242,7 @@ public final class ObtainPlanner {
         private final RecipeBook book;
         private final SourceBook sources;
         private final WorldFacts world;
+        private int evaluations;
 
         Search(RecipeBook book, SourceBook sources, WorldFacts world) {
             this.book = book;
@@ -244,9 +256,18 @@ public final class ObtainPlanner {
          * intermediates to the crafting task.
          */
         Attempt need(String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft) {
+            return need(item, qty, depth, path, sim, emitCraft, true);
+        }
+
+        Attempt need(String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft,
+                boolean allowExplore) {
             Attempt total = new Attempt();
             qty -= sim.take(item, qty);
             if (qty <= 0) {
+                return total;
+            }
+            if (++evaluations > MAX_PROVIDER_EVALUATIONS) {
+                total.missing.merge(item, qty, Integer::sum);
                 return total;
             }
             if (depth > MAX_DEPTH || path.contains(item)) {
@@ -255,7 +276,7 @@ public final class ObtainPlanner {
             }
             Set<String> nextPath = new LinkedHashSet<>(path);
             nextPath.add(item);
-            List<Provider> pool = new ArrayList<>(providers(item, sim));
+            List<Provider> pool = new ArrayList<>(providers(item, sim, allowExplore));
             while (qty > 0) {
                 Candidate best = null;
                 for (Provider provider : pool) {
@@ -319,16 +340,16 @@ public final class ObtainPlanner {
                     .map(ObtainStep.VisitResource.class::cast).findFirst().orElse(null);
         }
 
-        private List<Provider> providers(String item, Sim sim) {
+        private List<Provider> providers(String item, Sim sim, boolean allowExplore) {
             List<Provider> providers = new ArrayList<>();
             if (sim.containers.getOrDefault(item, 0) > 0) {
                 providers.add(new ContainerProvider(item));
             }
             for (Recipe recipe : book.producing(item)) {
                 if (recipe.station().isCooking()) {
-                    providers.add(new SmeltProvider(recipe));
+                    providers.add(new SmeltProvider(recipe, allowExplore));
                 } else {
-                    providers.add(new CraftProvider(recipe));
+                    providers.add(new CraftProvider(recipe, allowExplore));
                 }
             }
             for (Source source : sources.sourcesOf(item)) {
@@ -345,7 +366,7 @@ public final class ObtainPlanner {
                                             .thenComparing(ResourceCandidate::blockId))
                                     .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
                         }
-                        if (world.exploreAllowed() && explorable(item, mine)) {
+                        if (allowExplore && world.exploreAllowed() && explorable(item, mine)) {
                             boolean hasRememberedSite = world.resourceCandidates().stream()
                                     .anyMatch(candidate -> !candidate.visibleNow() && candidate.blockId().equals(mine.block())
                                             && !world.excludedSiteIds().contains(candidate.siteId()));
@@ -355,7 +376,7 @@ public final class ObtainPlanner {
                     case Source.Hunt hunt -> providers.add(new HuntProvider(hunt));
                     case Source.Harvest harvest -> providers.add(new HarvestProvider(harvest));
                     case Source.Shear shear -> providers.add(new ShearProvider(shear));
-                    case Source.Milk milk -> providers.add(new MilkProvider(item, milk));
+                    case Source.Milk milk -> providers.add(new MilkProvider(item, milk, allowExplore));
                 }
             }
             return providers;
@@ -509,7 +530,7 @@ public final class ObtainPlanner {
         }
 
         private boolean fillIngredient(Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim,
-                Attempt attempt) {
+                Attempt attempt, boolean allowExplore) {
             for (String id : ingredient.items()) {
                 if (sim.available(id) > 0) {
                     qty -= sim.take(id, qty);
@@ -518,22 +539,56 @@ public final class ObtainPlanner {
                     }
                 }
             }
+            Choice best = bestIngredient(ingredient, qty, depth, path, sim, false);
+            if (best != null) {
+                attempt.merge(best.attempt);
+                sim.adopt(best.sim);
+                return !best.attempt.conditional;
+            }
+            Optional<String> family = IngredientFamilies.searchTag(ingredient);
+            if (allowExplore && world.exploreAllowed() && family.isPresent()) {
+                if (sim.searchReserved.add(family.get())) {
+                    attempt.add(new ObtainStep.Explore(family.get(), false, 0));
+                    attempt.cost += 20;
+                }
+                return true;
+            }
+            if (!allowExplore) {
+                return false;
+            }
+            best = bestIngredient(ingredient, qty, depth, path, sim, true);
+            if (best == null) {
+                return false;
+            }
+            attempt.merge(best.attempt);
+            sim.adopt(best.sim);
+            return !best.attempt.conditional;
+        }
+
+        private Choice bestIngredient(Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim,
+                boolean allowExplore) {
+            Choice best = null;
             for (String id : ingredient.items()) {
                 Sim copy = sim.copy();
-                Attempt planned = need(id, qty, depth + 1, path, copy, false);
-                if (planned.conditional) {
-                    attempt.merge(planned);
-                    sim.adopt(copy);
-                    return false;
+                Attempt planned = need(id, qty, depth + 1, path, copy, false, allowExplore);
+                if (!planned.ok() && !planned.conditional) {
+                    continue;
                 }
-                if (planned.ok()) {
-                    attempt.merge(planned);
-                    sim.adopt(copy);
-                    return true;
+                if (best == null || betterIngredient(planned, best.attempt)) {
+                    best = new Choice(planned, copy);
                 }
             }
+            return best;
+        }
+
+        private static boolean betterIngredient(Attempt candidate, Attempt best) {
+            if (candidate.conditional != best.conditional) return !candidate.conditional;
+            if (candidate.cost != best.cost) return candidate.cost < best.cost;
+            if (candidate.steps.size() != best.steps.size()) return candidate.steps.size() < best.steps.size();
             return false;
         }
+
+        private record Choice(Attempt attempt, Sim sim) {}
 
         private final class ContainerProvider implements Provider {
             private final String item;
@@ -568,9 +623,15 @@ public final class ObtainPlanner {
 
         private final class CraftProvider implements Provider {
             private final Recipe recipe;
+            private final boolean allowExplore;
 
             CraftProvider(Recipe recipe) {
+                this(recipe, true);
+            }
+
+            CraftProvider(Recipe recipe, boolean allowExplore) {
                 this.recipe = recipe;
+                this.allowExplore = allowExplore;
             }
 
             @Override
@@ -588,7 +649,7 @@ public final class ObtainPlanner {
                 }
                 for (int craft = 0; craft < times; craft++) {
                     for (Map.Entry<Ingredient, Integer> slot : slots.entrySet()) {
-                        if (!fillIngredient(slot.getKey(), slot.getValue(), depth, path, sim, attempt)) {
+                        if (!fillIngredient(slot.getKey(), slot.getValue(), depth, path, sim, attempt, allowExplore)) {
                             if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
                             return null;
                         }
@@ -611,9 +672,15 @@ public final class ObtainPlanner {
 
         private final class SmeltProvider implements Provider {
             private final Recipe recipe;
+            private final boolean allowExplore;
 
             SmeltProvider(Recipe recipe) {
+                this(recipe, true);
+            }
+
+            SmeltProvider(Recipe recipe, boolean allowExplore) {
                 this.recipe = recipe;
+                this.allowExplore = allowExplore;
             }
 
             @Override
@@ -632,7 +699,7 @@ public final class ObtainPlanner {
                 String inputItem = null;
                 for (String id : input.items()) {
                     Sim copy = sim.copy();
-                    Attempt planned = need(id, times, depth + 1, path, copy, true);
+                    Attempt planned = need(id, times, depth + 1, path, copy, true, allowExplore);
                     if (planned.conditional) {
                         attempt.merge(planned);
                         sim.adopt(copy);
@@ -675,7 +742,7 @@ public final class ObtainPlanner {
                 if (explore) {
                     return want;
                 }
-                int nearby = world.blocksNearby().getOrDefault(source.block(), 0);
+                int nearby = sim.mineBudget.getOrDefault(source.block(), 0);
                 if (nearby <= 0) {
                     return 0;
                 }
@@ -701,6 +768,12 @@ public final class ObtainPlanner {
                     }
                     attempt.add(new ObtainStep.Explore(source.block(), !source.surface(), depthY));
                     attempt.cost += 20;
+                } else {
+                    int available = sim.mineBudget.getOrDefault(source.block(), 0);
+                    if (available < blocks) {
+                        return null;
+                    }
+                    sim.mineBudget.put(source.block(), available - blocks);
                 }
                 attempt.add(new ObtainStep.Mine(source.block(), blocks, source.tool()));
                 attempt.cost += 4 * blocks;
@@ -825,10 +898,16 @@ public final class ObtainPlanner {
         private final class MilkProvider implements Provider {
             private final String item;
             private final Source.Milk source;
+            private final boolean allowExplore;
 
             MilkProvider(String item, Source.Milk source) {
+                this(item, source, true);
+            }
+
+            MilkProvider(String item, Source.Milk source, boolean allowExplore) {
                 this.item = item;
                 this.source = source;
+                this.allowExplore = allowExplore;
             }
 
             @Override
@@ -839,7 +918,7 @@ public final class ObtainPlanner {
             @Override
             public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 Attempt attempt = new Attempt();
-                Attempt buckets = need("minecraft:bucket", want, depth + 1, path, sim, true);
+                Attempt buckets = need("minecraft:bucket", want, depth + 1, path, sim, true, allowExplore);
                 if (!buckets.ok()) {
                     return null;
                 }
