@@ -103,6 +103,7 @@ public final class FriendaiCommands {
             return 0;
         }
         companion.get().taskRunner().stop("stopped by command");
+        FriendaiServerState.get(server).brains().freeTime().stop(player.getUUID(), "stopped by command");
         FriendaiServerState.get(server).brains().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
         return 1;

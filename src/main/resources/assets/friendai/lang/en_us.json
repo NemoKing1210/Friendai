@@ -31,6 +31,9 @@
   "friendai.companion.too_far": "Your companion is too far away to hear you.",
 
   "friendai.command.stopped": "Stopped.",
+  "friendai.freetime.idle_start": "Nothing to do, so I'll get on with my own things.",
+  "friendai.freetime.storage_full": "The storage is full; we need more chests.",
+  "friendai.freetime.away": "While you were away: %s",
   "friendai.command.status": "Provider: %s / %s. Task: %s. Thinking: %s.",
   "friendai.common.yes": "yes",
   "friendai.common.no": "no",

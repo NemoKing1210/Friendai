@@ -166,6 +166,120 @@ public class FreeTimeTests {
         h.succeed();
     }
 
+    private static dev.friendai.core.FreeTimeDriver driver(GameTestHelper h) {
+        return dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains().freeTime();
+    }
+
+    /** A registered companion, so the server's free-time tick sees it. */
+    private static CompanionEntity registered(GameTestHelper h, UUID owner) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner);
+        dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(c);
+        return c;
+    }
+
+    /** Queues a free-time shift by hand: one plan the driver owns, the way a reflex would. */
+    private static long shiftPlan(GameTestHelper h, CompanionEntity c, String steps) {
+        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(() -> 16,
+                dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        var caller = new dev.friendai.tool.Caller(c.ownerUuid(), "", dev.friendai.tool.AccessLevel.OWNER);
+        var result = dev.friendai.tool.builtin.FriendaiTools.addPlan(c, caller, com.google.gson.JsonParser.parseString(
+                "{\"goal\":\"free time\",\"priority\":-10,\"on_failure\":\"stop_plan\",\"steps\":" + steps + "}")
+                .getAsJsonObject(), builtins.taskTools(), false, Set.of());
+        h.assertTrue(!result.error(), result.content());
+        long plan = c.taskRunner().queue().plans().stream().mapToLong(dev.friendai.queue.PlanRecord::id).max()
+                .orElseThrow();
+        c.taskRunner().markAutonomousPlan(plan);
+        var service = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).freeTime();
+        service.beginShift(c.ownerUuid(), "free time", java.util.List.of(), "",
+                dev.friendai.agent.autonomy.NeedKind.EXPLORE, true, 0, Long.MAX_VALUE);
+        service.linkPlan(c.ownerUuid(), plan);
+        return plan;
+    }
+
+    @GameTest(maxTicks = 800)
+    public void unloadReflex(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        UUID owner = UUID.randomUUID();
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setGatewayOverride(owner, (system, messages, tools) -> {
+            throw new AssertionError("a reflex must not ask the model");
+        });
+        CompanionEntity c = registered(h, owner);
+        storagePlace(h, c, "unload chest", 6, 2, 6, 2);
+        for (int i = 0; i < 25; i++) {
+            c.inventory().setItem(i, new ItemStack(Items.ANDESITE, 64));
+        }
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        h.succeedWhen(() -> {
+            h.assertTrue(count(chest(h, 6, 2, 6), Items.ANDESITE) > 0, "the reflex deposits the loot");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void ownerOrderPauses(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        UUID owner = UUID.randomUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
+        c.taskRunner().tick();
+        h.assertTrue(c.taskRunner().autonomousActive(), "the free-time job runs");
+        c.taskRunner().start(new QuickTask(), "quick");
+        h.assertTrue(!c.taskRunner().autonomousActive(), "the owner order runs first");
+        h.succeedWhen(() -> {
+            h.assertTrue(c.taskRunner().autonomousActive(), "the free-time job resumes");
+            var shift = driver(h).state(owner).shift();
+            h.assertTrue(shift != null && shift.planId() == plan, "the shift is kept: " + shift);
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void stopEnds(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        UUID owner = UUID.randomUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
+        var caller = new dev.friendai.tool.Caller(owner, "", dev.friendai.tool.AccessLevel.OWNER);
+        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(() -> 16,
+                dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        dev.friendai.tool.builtin.FriendaiTools.addPlan(c, caller, com.google.gson.JsonParser.parseString(
+                "{\"goal\":\"owner\",\"steps\":[{\"tool\":\"stay\"}]}").getAsJsonObject(), builtins.taskTools(),
+                true, Set.of());
+        long ownerPlan = c.taskRunner().queue().plans().stream().mapToLong(dev.friendai.queue.PlanRecord::id).max()
+                .orElseThrow();
+        driver(h).stop(owner, "owner asked to stop");
+        h.assertTrue(!driver(h).state(owner).on(), "free time is off");
+        h.assertTrue(c.taskRunner().queue().plan(plan).isEmpty()
+                || c.taskRunner().queue().planStatus(plan) != dev.friendai.queue.PlanStatus.ACTIVE,
+                "the shift plan is cancelled");
+        h.assertTrue(c.taskRunner().queue().plan(ownerPlan).isPresent(), "the owner plan is untouched");
+        h.assertValueEqual(driver(h).state(owner).history().get(0).summary(), "owner asked to stop", "record");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void idleStart(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        UUID owner = player.getUUID();
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setGatewayOverride(owner, (system, messages, tools) ->
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no model in tests")));
+        CompanionEntity c = registered(h, owner);
+        driver(h).ownerActivity(owner, System.currentTimeMillis() - 6 * 60_000L);
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.on(), "free time starts after the idle spell");
+            h.assertValueEqual(state.origin(), dev.friendai.agent.autonomy.FreeTime.Origin.IDLE, "origin");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

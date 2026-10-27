@@ -31,6 +31,9 @@
   "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
 
   "friendai.command.stopped": "Остановился.",
+  "friendai.freetime.idle_start": "Раз дел нет, займусь пока своими.",
+  "friendai.freetime.storage_full": "Склад забит, нужны ещё сундуки.",
+  "friendai.freetime.away": "Пока тебя не было: %s",
   "friendai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",
   "friendai.common.yes": "да",
   "friendai.common.no": "нет",

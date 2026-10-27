@@ -38,6 +38,7 @@ public final class FriendaiServerState {
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
     private final GoalService goals;
+    private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final PlaceStore places;
@@ -64,6 +65,7 @@ public final class FriendaiServerState {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
         this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
+        this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
         this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
@@ -111,6 +113,11 @@ public final class FriendaiServerState {
     }
 
     /** The owners' goal boards, kept in their memory books. */
+    /** Each owner's free-time state, kept in their memory book. */
+    public dev.friendai.agent.autonomy.FreeTimeService freeTime() {
+        return freeTime;
+    }
+
     public GoalService goals() {
         return goals;
     }
