@@ -138,6 +138,45 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
+    void entersWaterOnceAtItsSurface() {
+        // Bank top at y=3, a lake three deep beside it. Walking off the bank enters at the surface; below it the
+        // swim moves take over, so no fall may land on a block under the water.
+        GridCellView lake = new GridCellView("##", "#~", "#~", "#~", "..", "..");
+        List<PathStep> steps = stepsFrom(lake, new Node(0, 4, 0));
+        PathStep entry = stepTo(steps, 1, 3, 0);
+        assertEquals(Move.DESCEND, entry.move());
+        assertEquals(COSTS.walk() + COSTS.fall(), entry.cost(), 1e-9);
+        assertNull(stepTo(steps, 1, 2, 0), "fell below the surface");
+        assertNull(stepTo(steps, 1, 1, 0), "fell below the surface");
+    }
+
+    @Test
+    void doesNotFallDeeperInsideWater() {
+        // A shelf: water at y=3 drops to water at y=2 beside it. Stepping off is a swim down, not a fall.
+        GridCellView shelf = new GridCellView("##", "#~", "~~", "~.", "..", "..");
+        PathStep down = stepTo(stepsFrom(shelf, new Node(0, 3, 0)), 1, 2, 0);
+        assertEquals(Move.SWIM, down.move());
+        assertEquals(COSTS.swim() * Math.sqrt(2.0), down.cost(), 1e-9);
+        assertEquals(0, down.headUnderwater());
+    }
+
+    @Test
+    void risesInWaterBySwimmingNotJumping() {
+        // A stepped shore: water at y=2 next to water at y=3. Rising is one swim stroke, never a jump.
+        GridCellView stepped = new GridCellView("##", "#~", "~~", ".~", "..", "..");
+        PathStep up = stepTo(stepsFrom(stepped, new Node(0, 2, 0)), 1, 3, 0);
+        assertEquals(Move.SWIM, up.move());
+        assertEquals(COSTS.swim() * Math.sqrt(2.0), up.cost(), 1e-9);
+    }
+
+    @Test
+    void doesNotLongJumpOutOfWater() {
+        // Water at y=1..2, the bank at the same level two cells away. A swimmer has no footing for a running jump.
+        GridCellView view = new GridCellView("###", "~~.", "~~.", "...", "...");
+        assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0));
+    }
+
+    @Test
     void climbsLadder() {
         GridCellView view = new GridCellView("#", "H", "H", "H", ".");
         PathStep up = stepTo(stepsFrom(view, new Node(0, 1, 0)), 0, 2, 0);

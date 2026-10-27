@@ -239,6 +239,26 @@ class PathSearchTest {
     }
 
     @Test
+    void crossesALakeOnItsSurface() {
+        // Bank at y=4, a lake five wide and three deep. The route swims across the top layer instead of diving to
+        // the bottom, where everything is water and only swim moves exist.
+        GridCellView lake = new GridCellView(
+                "#############", "####~~~~~####", "####~~~~~####", "####~~~~~####", ".............", ".............");
+        Path path = path(lake, new Node(1, 4, 0), point(11.5, 4, 0.5), 0);
+        for (PathStep step : path.steps()) {
+            if (lake.at(step.to().pos()).kind() != Cell.Kind.WATER) {
+                continue;
+            }
+            // Only the first step in from the bank may be a drop, and it lands on the surface cell.
+            assertEquals(3, step.to().y(), "a waypoint under the surface: " + step);
+            if (lake.at(step.from().pos()).kind() == Cell.Kind.WATER) {
+                assertEquals(Move.SWIM, step.move(), "moved through water without swimming: " + step);
+            }
+        }
+        assertTrue(hasMove(path, Move.SWIM));
+    }
+
+    @Test
     void startsOnLadder() {
         GridCellView view = new GridCellView("##", "H.", "..");
         Path path = path(view, new Node(1, 1, 0), point(0.5, 1, 0.5), 0);

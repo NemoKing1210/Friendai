@@ -51,11 +51,14 @@ class MoveGeneratorDescendTest {
     }
 
     @Test
-    void fallsIntoDeepWaterFromAnyHeight() {
+    void entersDeepWaterAtItsSurfaceFromAnyHeight() {
         GridCellView view = new GridCellView("###", "#~~", "#~~", "#~~", "#~~", "#~~", "...", "...");
-        List<PathStep> steps = stepsFrom(view, new Node(0, 6, 0));
-        assertNotNull(stepTo(steps, 1, 5, 0));
-        assertNotNull(stepTo(steps, 1, 1, 0));
+        PathStep entry = stepTo(stepsFrom(view, new Node(0, 6, 0)), 1, 5, 0);
+        assertNotNull(entry);
+        assertEquals(Move.DESCEND, entry.move());
+        assertEquals(COSTS.walk() + COSTS.fall(), entry.cost(), 1e-9);
+        assertNull(stepTo(stepsFrom(view, new Node(0, 6, 0)), 1, 1, 0),
+                "landed under the water instead of on its surface");
     }
 
     @Test

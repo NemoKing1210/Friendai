@@ -78,6 +78,7 @@ public final class MoveGenerator {
     }
 
     private void walkAndJump(Node from, Consumer<PathStep> out) {
+        boolean swimming = view.at(from.pos()).kind() == Cell.Kind.WATER;
         for (int[] d : DIRECTIONS) {
             Node to = new Node(from.x() + d[0], from.y(), from.z() + d[1]);
             if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER) {
@@ -99,7 +100,8 @@ public final class MoveGenerator {
             // as a gap, because swimming through it costs more than the jump.
             boolean walkableGap = standable(view, new Node(gap.x(), gap.y(), gap.z()))
                     && view.at(gap).kind() != Cell.Kind.WATER;
-            if (!walkableGap && enterable(view.at(gap)) && enterable(view.at(gap.offset(0, 1, 0)))
+            // A swimming companion has no footing for a running jump: it swims out instead of leaping onto a bank.
+            if (!swimming && !walkableGap && enterable(view.at(gap)) && enterable(view.at(gap.offset(0, 1, 0)))
                     && enterable(view.at(gap.offset(0, 2, 0)))) {
                 emit(from, landing, Move.JUMP_GAP, costs.walk() + costs.jump(), 0, out);
             }
@@ -133,7 +135,8 @@ public final class MoveGenerator {
         }
         for (int[] d : DIRECTIONS) {
             Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
-            if (standable(view, to)) {
+            if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER) {
+                // Rising inside water is a swim, priced and counted as one; a jump out of it is for dry land.
                 emit(from, to, Move.ASCEND, costs.walk() + costs.jump(), 0, out);
             }
         }
@@ -145,7 +148,7 @@ public final class MoveGenerator {
         }
         for (int[] d : DIAGONALS) {
             Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
-            if (standable(view, to) && cornersClear(from, d)) {
+            if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER && cornersClear(from, d)) {
                 emit(from, to, Move.ASCEND, costs.walk() + costs.jump(), 0, out);
             }
         }
@@ -181,6 +184,7 @@ public final class MoveGenerator {
         if (!enterable(view.at(x, from.y(), z)) || !enterable(view.at(x, from.y() + 1, z))) {
             return;
         }
+        boolean fromWater = view.at(from.pos()).kind() == Cell.Kind.WATER;
         for (int k = 1; k <= MAX_WATER_DROP; k++) {
             Node to = new Node(x, from.y() - k, z);
             if (!enterable(view.at(to.pos()))) {
@@ -190,23 +194,43 @@ public final class MoveGenerator {
                 continue;
             }
             boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER;
-            if (k <= MAX_SAFE_FALL || water) {
+            if (!water) {
+                if (k <= MAX_SAFE_FALL) {
+                    emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
+                }
+                if (k >= MAX_SAFE_FALL) {
+                    return;
+                }
+                continue;
+            }
+            // Water is entered once, at its surface, and only from dry ground: every move below that surface is a
+            // swim, so the search cannot dive under a lake at fall prices instead of swimming across it.
+            if (!fromWater) {
                 emit(from, to, Move.DESCEND, costs.walk() + costs.fall() * k, 0, out);
             }
-            if (!water && k >= MAX_SAFE_FALL) {
-                return;
-            }
+            return;
         }
     }
 
     private void swim(Node from, int headUnderwater, Consumer<PathStep> out) {
+        // A swimming mob moves in three dimensions: a diagonal dip or rise is one stroke, so the surface is
+        // reachable from a shore cell without an extra lateral swim, and priced by its length.
         for (int[] d : DIRECTIONS) {
             swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]), headUnderwater, out);
+            for (int dy = -1; dy <= 1; dy += 2) {
+                swimTo(from, new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]), headUnderwater,
+                        costs.swim() * Math.sqrt(2.0), out);
+            }
         }
         for (int[] d : DIAGONALS) {
-            if (cornersClear(from, d)) {
-                swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]),
-                        headUnderwater, costs.swim() * Math.sqrt(2.0), out);
+            if (!cornersClear(from, d)) {
+                continue;
+            }
+            swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]),
+                    headUnderwater, costs.swim() * Math.sqrt(2.0), out);
+            for (int dy = -1; dy <= 1; dy += 2) {
+                swimTo(from, new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]), headUnderwater,
+                        costs.swim() * Math.sqrt(3.0), out);
             }
         }
         swimTo(from, new Node(from.x(), from.y() + 1, from.z()), headUnderwater, out);

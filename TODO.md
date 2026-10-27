@@ -6,8 +6,6 @@ Work items to implement later, newest at the bottom. Pick one by its number ("do
 
 ## Open
 
-- [ ] **1. Fix water pathfinding.** The companion puts waypoints on blocks under water even when it could simply swim straight forward. Where to look: `pathing/MoveGenerator` (swim move) and its adapter `task/nav/LevelCellView` (how fluids and collision are reported), then `task/nav/PathExecutor`.
-
 - [ ] **2. Rework building.** Today the companion only replays blueprint cells in a fixed order; it should understand the building and place what vanilla refuses to put in mid-air. Large item: write a spec and a plan first (see AGENTS.md, "Working from TODO.md").
   - [ ] **2.1. Structure understanding.** Recognise the parts of a building — floor, walls, roof, entrance/doorway, interior — and expose them as actions and prompt facts instead of one opaque `build_structure`.
   - [ ] **2.2. Site clearing.** A first-class "clear this area" action (vegetation, snow, water, stray blocks, respecting the config break/place blacklists and place protection). Today only `BuildTask`'s `Site`/`toClear()` and `light_area` touch this.
@@ -67,3 +65,7 @@ Work items to implement later, newest at the bottom. Pick one by its number ("do
   - [ ] **10.3. Make it faster.** Keep momentum through step-downs and turns, string-pull the path so straight runs collapse (`pathing/LineOfSight` already answers "can I walk this in one line"), sprint on long legs (`PacePolicy` AUTO already does above 10 blocks), and stop re-issuing the same wanted position while only sub-block drift changed.
   - [ ] **10.4. Cut the per-tick cost.** `MoveHelper.goalFor` builds a fresh `LevelCellView.terrain(companion)` every tick (`MoveHelper.java:141`), `FollowTask.followTarget` does the same whenever the owner is airborne, and a re-search can run while nothing moved. Cache the view for a few ticks, keep `PathSearch`'s per-tick budget, skip the repath when the goal moved less than half a block, and record before/after numbers: ticks per 32 blocks and A* nodes expanded.
   - [ ] **10.5. Tests.** Unit tests in `pathing/` for the node order of a descent and for the string-pull; a GameTest walking a companion down one and three blocks that asserts the yaw never changes by more than ~30° per tick and never flips 180°; a timed GameTest for distance covered per 100 ticks, so a later "optimisation" that only looks faster fails.
+
+## Done
+
+- [x] **1. Fix water pathfinding.** The companion puts waypoints on blocks under water even when it could simply swim straight forward. Where to look: `pathing/MoveGenerator` (swim move) and its adapter `task/nav/LevelCellView` (how fluids and collision are reported), then `task/nav/PathExecutor`. Done: water is entered once at its surface, every move inside it is a swim (vertical and diagonal swims included, priced by length), rising is never a jump, and a swimmer no longer long-jumps out onto a bank.
