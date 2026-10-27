@@ -103,6 +103,7 @@ public final class FriendaiServerState {
                 () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
         this.brains = new BrainService(server, config, memory);
+        this.skills.setTeachingContextSource(brains::teachingContext);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
         CompanionManager.get(server).addListener(brains::onCompanionRemoved);

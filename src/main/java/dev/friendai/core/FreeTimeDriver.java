@@ -209,6 +209,8 @@ public final class FreeTimeDriver {
                 config.get().autonomy.toSettings());
         service().finishShift(owner, outcome.record().success(), outcome.record().summary(), now);
         outcome.lesson().ifPresent(lesson -> service().addLesson(owner, lesson));
+        brains.skillOutcome(owner,"shift:"+planId,success?dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_SUCCESS
+                :dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_FAILURE,summary);
         outcome.cooldownUntil().ifPresent(until -> service().cooldown(owner, shift.need(), until));
         if (success) {
             // Any finished shift, template included, shows the companion is working: retry the director later.

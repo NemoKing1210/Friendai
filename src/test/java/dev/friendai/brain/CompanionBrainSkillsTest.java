@@ -9,6 +9,18 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CompanionBrainSkillsTest {
+    @Test void outcomeContextExpiresOnCancelAndOrdinaryChatHasNone() {
+        UUID owner=UUID.randomUUID();var gateway=new FakeGateway();
+        gateway.enqueuePending();
+        var brain=new CompanionBrain(()->new Persona("Friendai","Guide","auto"),()->new BrainSettings(8,30,0,0),
+                ()->gateway,new FakeToolExecutor(),()->"state",new RecordingSpeaker(),new ManualScheduler(),AccessResolver.of(owner,id->false));
+        brain.post(new BrainEvent.SkillOutcome("goal:1",TeachingContext.OutcomeKind.GOAL_SUCCESS,"Stone tools made"));
+        assertNotNull(brain.teachingContext());
+        brain.cancel();assertNull(brain.teachingContext());
+        gateway.enqueuePending();
+        brain.post(new BrainEvent.PlayerSaid(owner,"Owner","hello",BrainEvent.Source.CHAT));
+        assertNull(brain.teachingContext());
+    }
     @Test void gatewayReceivesCurrentTurnSnapshotAndOwnerLanguageOnlyForOwner() {
         UUID owner=UUID.randomUUID(),guest=UUID.randomUUID();
         var book=new SkillBook(SkillLimits.defaults(),s->s,InstructionSkill.Scope.COMPANION);

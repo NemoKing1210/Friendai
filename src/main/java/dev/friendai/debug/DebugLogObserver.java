@@ -31,12 +31,13 @@ public final class DebugLogObserver implements BrainObserver {
 
     @Override
     public void onToolCall(ToolCall call) {
-        log.add(LogKind.TOOL_CALL, call.name() + " " + call.rawArguments());
+        log.add(LogKind.TOOL_CALL, call.name() + (call.name().equals("manage_skill")||call.name().equals("use_skill") ? " [instruction fields omitted]" : " " + call.rawArguments()));
     }
 
     @Override
     public void onToolResult(ToolCall call, ToolResult result) {
-        log.add(LogKind.TOOL_RESULT, call.name() + ": " + (result.error() ? "ERROR " : "") + result.content());
+        log.add(LogKind.TOOL_RESULT, call.name() + ": " + (result.error() ? "ERROR " : "")
+                + (call.name().equals("manage_skill")||call.name().equals("use_skill") ? "[instruction fields omitted]" : result.content()));
     }
 
     @Override

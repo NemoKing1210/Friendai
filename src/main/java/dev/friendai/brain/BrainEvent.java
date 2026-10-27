@@ -23,6 +23,18 @@ public sealed interface BrainEvent {
         VOICE
     }
 
+    record SkillOutcome(String outcomeId,dev.friendai.skill.TeachingContext.OutcomeKind kind,String summary) implements BrainEvent {
+        public SkillOutcome {
+            if(outcomeId==null||outcomeId.length()>120||kind==null)throw new IllegalArgumentException("Invalid outcome.");
+            summary=summary==null?"":summary.substring(0,Math.min(summary.length(),512));
+        }
+        @Override public String toPromptLine() {
+            return "[event] completed work outcome: " + kind + ": " + summary
+                    + ". If a reusable procedure was learned, manage_skill may save it. Personal facts belong in remember. "
+                    + "Do not create another goal or shift just to teach yourself. Otherwise reply [silent].";
+        }
+    }
+
     record PlayerSaid(UUID playerUuid, String playerName, String text, Source source) implements BrainEvent {
         @Override
         public String toPromptLine() {

@@ -184,6 +184,7 @@ public final class CompanionBrain {
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
     public void cancel() {
         generation++;
+        teachingContext = null;
         skillSession = dev.friendai.skill.SkillPromptSession.NONE;
         queue.clear();
         if (thinking) {
@@ -211,6 +212,9 @@ public final class CompanionBrain {
     public void setPlaceSource(PlaceSource placeSource) {
         this.placeSource = java.util.Objects.requireNonNull(placeSource);
     }
+
+    private dev.friendai.skill.TeachingContext teachingContext;
+    public dev.friendai.skill.TeachingContext teachingContext() { return thinking ? teachingContext : null; }
 
     private SkillSource skillSource = SkillSource.NONE;
     private dev.friendai.skill.SkillPromptSession skillSession = dev.friendai.skill.SkillPromptSession.NONE;
@@ -338,6 +342,11 @@ public final class CompanionBrain {
                         && decision.groups().contains(ToolGroup.TRADING)
                         && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
         skillSession = skillSource.begin(turnCaller, String.join("\n", turnPlayerTexts), turnKind);
+        teachingContext = null;
+        if (turnPlayerTexts.isEmpty()) {
+            batch.stream().filter(e -> e instanceof BrainEvent.SkillOutcome).map(e -> (BrainEvent.SkillOutcome)e)
+                    .findFirst().ifPresent(e -> teachingContext = new dev.friendai.skill.TeachingContext(access.owner(),e.outcomeId(),generation,e.kind()));
+        }
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
@@ -419,7 +428,8 @@ public final class CompanionBrain {
         step++;
         CompletableFuture<LlmResponse> future;
         try {
-            List<ToolSpec> specs = tools.specs(turnCaller.access());
+            List<ToolSpec> specs = tools.specs(turnCaller.access()).stream()
+                    .filter(spec -> !spec.name().equals("manage_skill") || teachingContext != null).toList();
             Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
             List<ToolSpec> sent = catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
             // ReplyGuard sanitizes internal names across the full registry, even when routing hid a schema.
@@ -584,6 +594,7 @@ public final class CompanionBrain {
     }
 
     private void endTurn() {
+        teachingContext = null;
         thinking = false;
         hasFinishedTurn = true;
         lastTurnEnd = scheduler.nowMillis();

@@ -295,6 +295,18 @@ public final class BrainService {
         return secrets;
     }
 
+    public dev.friendai.skill.SkillPromptSession skillSession(UUID owner) {
+        Entry entry=entries.get(owner);
+        return entry==null?dev.friendai.skill.SkillPromptSession.NONE:entry.brain().skillSession();
+    }
+    public dev.friendai.skill.TeachingContext teachingContext(UUID owner) {
+        Entry entry=entries.get(owner);
+        return entry==null?null:entry.brain().teachingContext();
+    }
+    public void skillOutcome(UUID owner,String id,dev.friendai.skill.TeachingContext.OutcomeKind kind,String summary) {
+        if(config.skills.enabled)post(owner,new BrainEvent.SkillOutcome(id,kind,summary));
+    }
+
     public void cancel(UUID owner) {
         Entry entry = entries.get(owner);
         if (entry != null) {
@@ -648,6 +660,7 @@ public final class BrainService {
                 last = after;
                 var goals = FriendaiServerState.get(server).goals();
                 var board = goals.board(owner);
+                var priorGoals = board.all();
                 String extra;
                 if (success) {
                     var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
@@ -657,6 +670,10 @@ public final class BrainService {
                     extra = handler.onFailure(board, planId, tool, text, factsLine);
                 }
                 goals.save(owner);
+                for (var prior : priorGoals) {
+                    if (board.find(prior.id()).isEmpty()) skillOutcome(owner,"goal:"+prior.id(),
+                            success?dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS:dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,text);
+                }
                 return extra;
             } catch (RuntimeException e) {
                 FriendaiMod.LOGGER.warn("Could not build event facts", e);
