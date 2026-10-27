@@ -192,6 +192,18 @@ public final class TradeBook {
         return true;
     }
 
+    /** Remove the oldest terminal summary; live authorization and running progress are never evicted. */
+    public boolean evictOldestTerminalProgress() {
+        var candidate = history.entrySet().stream()
+                .filter(entry -> entry.getValue().state() != TradeProgress.State.AUTHORIZED
+                        && entry.getValue().state() != TradeProgress.State.RUNNING)
+                .findFirst();
+        if (candidate.isEmpty()) return false;
+        changed();
+        history.remove(candidate.get().getKey());
+        return true;
+    }
+
     private void requireTrader(UUID id) {
         if (!traders.containsKey(Objects.requireNonNull(id))) throw new IllegalArgumentException("unknown trader UUID");
     }
@@ -199,10 +211,21 @@ public final class TradeBook {
     public void record(TradeProgress progress) {
         Objects.requireNonNull(progress);
         if (progress.equals(history.get(progress.orderId()))) return;
+        var terminalToEvict = history.entrySet().stream()
+                .filter(entry -> !entry.getKey().equals(progress.orderId()))
+                .filter(entry -> entry.getValue().state() != TradeProgress.State.AUTHORIZED
+                        && entry.getValue().state() != TradeProgress.State.RUNNING)
+                .findFirst();
+        if (!history.containsKey(progress.orderId()) && history.size() >= TradeFile.MAX_HISTORY
+                && terminalToEvict.isEmpty()) {
+            throw new IllegalStateException("trade history capacity is occupied by active orders");
+        }
         changed();
+        if (!history.containsKey(progress.orderId()) && history.size() >= TradeFile.MAX_HISTORY) {
+            history.remove(terminalToEvict.orElseThrow().getKey());
+        }
         history.remove(progress.orderId());
         history.put(progress.orderId(), progress);
-        while (history.size() > TradeFile.MAX_HISTORY) history.remove(history.keySet().iterator().next());
     }
 
     public long revision() {

@@ -17,6 +17,7 @@ import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.task.TaskSettings;
+import dev.friendai.trading.TradeStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ public final class FriendaiServerState {
     private final GoalService goals;
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
+    private final TradeStore trading;
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
@@ -63,6 +65,8 @@ public final class FriendaiServerState {
         this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
+        this.trading = new TradeStore(server.getWorldPath(LevelResource.ROOT)
+                .resolve("friendai").resolve("trading"));
         this.resources = new ResourceCandidates(knowledge);
         this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
@@ -121,11 +125,15 @@ public final class FriendaiServerState {
 
     public KnowledgeStore knowledge() { return knowledge; }
 
+    /** Per-owner trader observations and informational order history. */
+    public TradeStore trading() { return trading; }
+
     public ObservationScheduler observations() { return observations; }
 
     public ResourceCandidates resources() { return resources; }
 
     private void shutdown() {
+        trading.close();
         knowledge.close();
     }
 
