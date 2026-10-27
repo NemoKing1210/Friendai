@@ -78,6 +78,12 @@ public final class TradeAuthority implements TradingTurnPort {
             if (!sameIntent(requested, existing)) {
                 throw denied("an existing order id cannot be retargeted");
             }
+            // Caller-aware task factories may be evaluated once for a preview and again when queued work starts.
+            // Reusing the same intent must keep its original absolute deadline instead of extending it by the
+            // ticks elapsed between those factory calls.
+            if (requested.deadlineTick() > existing.deadlineTick()) {
+                requested = withDeadline(requested, existing.deadlineTick());
+            }
             if (!isNarrower(requested, existing.budget(), existing.deadlineTick(), existing.allowedPaymentFingerprints())) {
                 throw denied("retry cannot increase its original limits");
             }
@@ -270,6 +276,13 @@ public final class TradeAuthority implements TradingTurnPort {
                 requested.observationRevision(), requested.desiredOutputCount(), requested.budget(),
                 requested.allowedPaymentFingerprints(), requested.allowOvershoot(), requested.allowPartial(),
                 requested.deadlineTick());
+    }
+
+    private static TradeOrder withDeadline(TradeOrder requested, long deadlineTick) {
+        return new TradeOrder(requested.orderId(), requested.owner(), requested.scopeId(), requested.trader(),
+                requested.offerRef(), requested.observationRevision(), requested.desiredOutputCount(),
+                requested.budget(), requested.allowedPaymentFingerprints(), requested.allowOvershoot(),
+                requested.allowPartial(), deadlineTick);
     }
 
     private static Map<String, Long> scopeSpent(Scope scope) {

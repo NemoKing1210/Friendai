@@ -35,6 +35,11 @@ public final class ToolCatalog {
         return meta == null || meta.core() || groups.contains(meta.group());
     }
 
+    /** Hides the only spending tool on a chat turn while leaving remembered market facts queryable. */
+    public boolean visible(String tool, Set<ToolGroup> groups, boolean readOnlyTrading) {
+        return !(readOnlyTrading && tool.equals("trade_item")) && visible(tool, groups);
+    }
+
     /** Names of the cataloged tools shown when exactly these groups are unlocked, core tools included. */
     public Set<String> namesFor(Set<ToolGroup> groups) {
         Set<String> names = new LinkedHashSet<>();
@@ -48,9 +53,13 @@ public final class ToolCatalog {
 
     /** The specs a turn with these groups may send, in their original order. */
     public List<ToolSpec> filter(List<ToolSpec> specs, Set<ToolGroup> groups) {
+        return filter(specs, groups, false);
+    }
+
+    public List<ToolSpec> filter(List<ToolSpec> specs, Set<ToolGroup> groups, boolean readOnlyTrading) {
         List<ToolSpec> kept = new ArrayList<>();
         for (ToolSpec spec : specs) {
-            if (visible(spec.name(), groups)) {
+            if (visible(spec.name(), groups, readOnlyTrading)) {
                 kept.add(spec);
             }
         }
@@ -59,9 +68,13 @@ public final class ToolCatalog {
 
     /** One {@code name: whenToUse} line per visible tool that has guidance. */
     public List<String> hints(Set<ToolGroup> groups) {
+        return hints(groups, false);
+    }
+
+    public List<String> hints(Set<ToolGroup> groups, boolean readOnlyTrading) {
         List<String> lines = new ArrayList<>();
         for (ToolMeta meta : byName.values()) {
-            if (!meta.whenToUse().isBlank() && (meta.core() || groups.contains(meta.group()))) {
+            if (!meta.whenToUse().isBlank() && visible(meta.name(), groups, readOnlyTrading)) {
                 lines.add(meta.whenToUse());
             }
         }
@@ -93,6 +106,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.ANIMALS, Cost.MEDIUM, "breed_animals", "shear", "milk", "tame_animal", "lead_animals",
                 "harvest_honey", "fish");
         group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "plan_obtain");
+        group(metas, ToolGroup.TRADING, Cost.HIGH, "find_traders", "inspect_trader", "known_trades",
+                "plan_trade", "trade_item");
         group(metas, ToolGroup.RESOURCE, Cost.HIGH, "search_resource", "known_resources");
         group(metas, ToolGroup.BLUEPRINT, Cost.HIGH, "blueprint_help", "preview_structure", "build_structure",
                 "save_blueprint", "list_blueprints");
@@ -118,6 +133,14 @@ public final class ToolCatalog {
                 "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.");
         hint(metas, "get_food",
                 "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.");
+        hint(metas, "find_traders",
+                "- Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.");
+        hint(metas, "known_trades",
+                "- Known prices are historical quotes. Check freshness and inspect a trader before any purchase; never promise a piglin barter reward.");
+        hint(metas, "plan_trade",
+                "- plan_trade is read-only: check exact stock, output batches and every required currency before placing an order.");
+        hint(metas, "trade_item",
+                "- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.");
         return new ToolCatalog(metas);
     }
 

@@ -46,6 +46,7 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.trading.TradeAuthority;
+import dev.friendai.trading.TradePromptSummary;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobState;
 import dev.friendai.queue.QueueSave;
@@ -630,6 +631,13 @@ public final class BrainService {
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
         brain.setTradingTurnPort(tradeAuthority(owner));
+        brain.setTradingPromptSource((caller, request) -> {
+            if (caller.access() != AccessLevel.OWNER || !owner.equals(caller.uuid())
+                    || !(companion.level() instanceof ServerLevel level)) return "";
+            var book = FriendaiServerState.get(server).trading().book(owner);
+            return TradePromptSummary.render(book, companion.hands().player().getUUID(), request,
+                    level.getServer().overworld().getGameTime());
+        });
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));

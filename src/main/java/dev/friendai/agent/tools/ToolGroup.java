@@ -18,6 +18,7 @@ public enum ToolGroup {
     FARMING,
     ANIMALS,
     OBTAIN,
+    TRADING,
     RESOURCE,
     BLUEPRINT,
     STRUCTURE,

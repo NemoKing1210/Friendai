@@ -28,7 +28,7 @@ public final class DefaultSections {
 
     /** Identity, speech, rules, role, memory and state; priorities decide what a tight budget cuts first. */
     public static List<PromptSection> all() {
-        return List.of(identity(), speech(), protocol(), rules(), toolHints(), role(), memory(), mission(), state());
+        return List.of(identity(), speech(), protocol(), rules(), toolHints(), trading(), role(), memory(), mission(), state());
     }
 
     /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
@@ -107,6 +107,16 @@ public final class DefaultSections {
         return of("tool_hints", 40, ctx -> ctx.toolHints().isEmpty()
                 ? ""
                 : "Tool notes:\n" + String.join("\n", ctx.toolHints()));
+    }
+
+    /** Observed market context is private to the owner and always labeled as historical evidence. */
+    static PromptSection trading() {
+        return of("trading", 35, ctx -> ctx.caller().access() == AccessLevel.OWNER
+                && ctx.tradingSummary().length() > 0
+                ? "Owner's observed trading offers (historical; inspect the live trader and price before spending):\n"
+                        + ctx.tradingSummary()
+                        + "\nPiglin barter rewards are random; never promise a specific drop."
+                : "");
     }
 
     static PromptSection role() {

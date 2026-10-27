@@ -68,6 +68,26 @@ class ToolCatalogTest {
     }
 
     @Test
+    void tradingToolsBelongToTheirOwnGroupWithSafeUsageGuidance() {
+        Set<String> names = catalog.namesFor(EnumSet.of(ToolGroup.TRADING));
+        assertTrue(names.containsAll(List.of("find_traders", "inspect_trader", "known_trades",
+                "plan_trade", "trade_item")));
+        assertFalse(names.contains("mine_blocks"));
+        List<String> hints = catalog.hints(EnumSet.of(ToolGroup.TRADING));
+        assertTrue(hints.stream().anyMatch(hint -> hint.contains("historical")));
+        assertTrue(hints.stream().anyMatch(hint -> hint.contains("cap") && hint.contains("reserve")));
+    }
+
+    @Test
+    void shoppingQuestionsMayReadMarketDataButCannotSeeSpendingTool() {
+        List<ToolSpec> specs = List.of(spec("known_trades"), spec("plan_trade"), spec("trade_item"));
+        assertEquals(List.of("known_trades", "plan_trade"), names(
+                catalog.filter(specs, EnumSet.of(ToolGroup.TRADING), true)));
+        assertTrue(catalog.hints(EnumSet.of(ToolGroup.TRADING), true).stream()
+                .noneMatch(hint -> hint.contains("Spend only")));
+    }
+
+    @Test
     void everyToolHasExactlyOneEntry() {
         long distinct = catalog.all().stream().map(ToolMeta::name).distinct().count();
         assertEquals(catalog.all().size(), distinct);

@@ -1,0 +1,374 @@
+package dev.friendai.tool.builtin;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.queue.QueueTradeScope;
+import dev.friendai.task.builtin.InspectTraderTask;
+import dev.friendai.task.builtin.TradeTask;
+import dev.friendai.trading.TradeBudget;
+import dev.friendai.trading.TradeItem;
+import dev.friendai.trading.TradeOffer;
+import dev.friendai.trading.TradeOrder;
+import dev.friendai.trading.TradePlan;
+import dev.friendai.trading.TradePlanner;
+import dev.friendai.trading.TradeQuery;
+import dev.friendai.trading.TradeText;
+import dev.friendai.trading.TraderRecord;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
+import dev.friendai.tool.SchemaBuilder;
+import dev.friendai.tool.ToolRegistry;
+import dev.friendai.tool.ToolResult;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.ItemStack;
+
+/** Owner-only discovery, inspection, quote queries and explicit budgeted merchant orders. */
+final class TradingTools {
+    private static final int MAX_TRADE_INPUTS = 2;
+    private static final int MAX_PLAN_INPUTS = TradeBudget.MAX_INPUT_KINDS;
+    private static final int MAX_COUNT = TradeItem.MAX_COUNT;
+    private static final int MAX_DEADLINE_TICKS = 1_200;
+
+    private TradingTools() {}
+
+    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
+        registry.register(ToolKit.callerTool("find_traders",
+                "Find loaded merchants within the observation radius. This only records who is visible; it does not inspect offers.",
+                strict(SchemaBuilder.object().build()), AccessLevel.OWNER, () -> true,
+                TradingTools::findTraders));
+        ToolKit.addCaller(registry, defs, new TaskToolDef("inspect_trader",
+                "Approach the exact remembered merchant UUID and inspect its live offers. Never use a different nearest merchant as a substitute.",
+                strict(SchemaBuilder.object().string("trader", "Exact trader UUID from find_traders or known_trades")
+                        .required("trader").build()),
+                (c, args) -> { throw new IllegalArgumentException("inspection requires an owner caller"); }, true,
+                AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, args) -> {
+                    rejectExtra(args, Set.of("trader"), false);
+                    requireOwner(c, caller);
+                    return new InspectTraderTask(parseUuid(requiredString(args, "trader"), "trader"));
+                }), (c, caller, args) -> ToolResult.error("inspection requires an owner caller"));
+        registry.register(ToolKit.callerTool("known_trades",
+                "Query remembered buy or sell offers. Results show freshness and stock; a quote is historical and is never permission to pay.",
+                strict(SchemaBuilder.object()
+                        .enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
+                        .string("item_id", "Exact namespaced item id, such as minecraft:emerald")
+                        .string("components_json", "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
+                        .integer("limit", "Maximum results", 1, TradeQuery.MAX_RESULTS)
+                        .required("direction", "item_id").build()), AccessLevel.OWNER, () -> true,
+                TradingTools::knownTrades));
+        JsonObject inputRows = inputRowsSchema();
+        registry.register(ToolKit.callerTool("plan_trade",
+                "Explain which remembered offers can satisfy a buy or sell request using the companion's current inventory and explicit per-input caps. Planning never spends.",
+                strict(SchemaBuilder.object()
+                        .enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
+                        .string("item_id", "Exact namespaced item id")
+                        .string("components_json", "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
+                        .integer("desired_count", "Positive target quantity", 1, MAX_COUNT)
+                        .array("input_caps", "Maximum item totals to spend and amounts to preserve", inputRows, 1, MAX_PLAN_INPUTS)
+                        .bool("allow_overshoot", "Allow complete vanilla output batches to exceed the requested count")
+                        .required("direction", "item_id", "desired_count", "input_caps").build()),
+                AccessLevel.OWNER, () -> true, TradingTools::planTrade));
+
+        JsonObject tradeSchema = strict(SchemaBuilder.object()
+                .string("trader", "Exact trader UUID from a remembered offer")
+                .string("offer_ref", "Stable offer reference returned by known_trades")
+                .integer("revision", "Trader observation revision returned by known_trades", 0, Integer.MAX_VALUE)
+                .integer("desired_output_count", "Positive exact component output quantity to receive", 1, MAX_COUNT)
+                .array("input_caps", "Explicit maximum spend and reserve for every offer input", inputRows, 1, MAX_TRADE_INPUTS)
+                .array("allowed_payment_fingerprints", "Optional SHA-256 stack fingerprints authorizing modified payment stacks", fingerprintSchema(), 0, 256)
+                .bool("allow_overshoot", "Allow full output batches to exceed desired_output_count")
+                .bool("allow_partial", "Accept a real partial receipt if execution stops early")
+                .integer("deadline_ticks", "Execution deadline from now, in ticks", 1, MAX_DEADLINE_TICKS)
+                .required("trader", "offer_ref", "revision", "desired_output_count", "input_caps",
+                        "allow_overshoot", "allow_partial", "deadline_ticks").build());
+        ToolKit.addCaller(registry, defs, new TaskToolDef("trade_item",
+                "Execute one remembered merchant offer for an explicit output count and per-input spending caps. The live merchant and offer are reread before every fill; stale quotes must be inspected again.",
+                tradeSchema,
+                (c, args) -> { throw new IllegalArgumentException("trade execution requires an owner caller"); }, true,
+                AccessLevel.OWNER, new TaskToolDef.QueueTraits(false, null, true), TradingTools::createTradeTask),
+                (c, caller, args) -> ToolResult.error("trade execution requires an owner caller"));
+    }
+
+    private static ToolResult findTraders(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of(), false);
+        UUID owner = requireOwner(companion, caller);
+        var state = state(companion);
+        List<TraderRecord> records = state.traderObserver().observe(companion);
+        return ToolResult.ok(records.isEmpty() ? "No loaded merchants were observed nearby."
+                : "Observed " + records.size() + " loaded merchant(s):\n"
+                        + String.join("\n", records.stream().limit(40).map(TradeText::describe).toList()));
+    }
+
+    private static ToolResult knownTrades(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of("direction", "item_id", "components_json", "limit"), false);
+        UUID owner = requireOwner(companion, caller);
+        TradeQuery query = parseQuery(args);
+        var state = state(companion);
+        var actor = companion.hands().player().getUUID();
+        var book = state.trading().book(owner);
+        book.activatePricingActor(actor);
+        long now = currentTick(companion);
+        List<TradeQuery.Match> matches = book.query(query, now);
+        return ToolResult.ok(matches.isEmpty() ? "No remembered offers match this exact item and component query."
+                : "Remembered offers (historical quotes; inspect before spending):\n"
+                        + String.join("\n", matches.stream().map(TradeText::describe).toList()));
+    }
+
+    private static ToolResult planTrade(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of("direction", "item_id", "components_json", "desired_count", "input_caps",
+                "allow_overshoot"), false);
+        UUID owner = requireOwner(companion, caller);
+        TradeQuery query = parseQuery(args);
+        int desired = args.get("desired_count").getAsInt();
+        if (desired < 1 || desired > MAX_COUNT) throw new IllegalArgumentException("desired_count is out of range");
+        TradeBudget budget = parseBudget(args.getAsJsonArray("input_caps"), MAX_PLAN_INPUTS);
+        var state = state(companion);
+        UUID actor = companion.hands().player().getUUID();
+        var book = state.trading().book(owner);
+        book.activatePricingActor(actor);
+        List<TraderRecord> records = book.snapshot().traders();
+        Map<String, Integer> inventory = inventoryByItem(companion);
+        TradePlan plan = TradePlanner.plan(query, desired, records, inventory, budget,
+                currentTick(companion), args.has("allow_overshoot") && args.get("allow_overshoot").getAsBoolean(), actor);
+        return ToolResult.ok(describePlan(plan, records));
+    }
+
+    private static dev.friendai.task.Task createTradeTask(CompanionEntity companion, Caller caller, JsonObject args) {
+        // QueueTradeScope is injected only after the first caller-aware preview. It must agree with the caller.
+        rejectExtra(args, Set.of("trader", "offer_ref", "revision", "desired_output_count", "input_caps",
+                "allowed_payment_fingerprints", "allow_overshoot", "allow_partial", "deadline_ticks",
+                QueueTradeScope.ARG), true);
+        UUID owner = requireOwner(companion, caller);
+        if (caller.tradingScope() == null) {
+            throw new IllegalArgumentException("spending requires an owner-initiated player turn");
+        }
+        UUID savedScope = QueueTradeScope.read(args);
+        if (savedScope != null && !savedScope.equals(caller.tradingScope())) {
+            throw new IllegalArgumentException("queued trading scope does not match this owner turn");
+        }
+        UUID traderId = parseUuid(requiredString(args, "trader"), "trader");
+        String offerRef = args.get("offer_ref").getAsString();
+        if (offerRef.isBlank() || offerRef.length() > 160) throw new IllegalArgumentException("invalid offer_ref");
+        long revision = args.get("revision").getAsLong();
+        int desired = args.get("desired_output_count").getAsInt();
+        if (desired < 1 || desired > MAX_COUNT) throw new IllegalArgumentException("desired_output_count is out of range");
+        TradeBudget budget = parseBudget(args.getAsJsonArray("input_caps"), MAX_TRADE_INPUTS);
+        Set<String> fingerprints = parseFingerprints(args.getAsJsonArray("allowed_payment_fingerprints"));
+        boolean overshoot = args.get("allow_overshoot").getAsBoolean();
+        boolean partial = args.get("allow_partial").getAsBoolean();
+        int deadlineTicks = args.get("deadline_ticks").getAsInt();
+        if (deadlineTicks < 1 || deadlineTicks > MAX_DEADLINE_TICKS) {
+            throw new IllegalArgumentException("deadline_ticks is out of range");
+        }
+
+        var state = state(companion);
+        var book = state.trading().book(owner);
+        UUID actor = companion.hands().player().getUUID();
+        book.activatePricingActor(actor);
+        TraderRecord trader = book.trader(traderId).orElseThrow(() -> new IllegalArgumentException("unknown trader UUID"));
+        if (trader.revision() != revision) throw new IllegalArgumentException("trader revision changed; query offers again");
+        TradeOffer offer = book.resolveOffer(traderId, offerRef)
+                .orElseThrow(() -> new IllegalArgumentException("unknown or ambiguous offer reference"));
+        long now = currentTick(companion);
+        if (trader.status() != TraderRecord.Status.VERIFIED || !actor.equals(offer.pricingActor())
+                || offer.observedTick() > now || now - offer.observedTick() >= dev.friendai.trading.TradeBook.QUOTE_FRESH_TICKS) {
+            throw new IllegalArgumentException("offer quote is stale; inspect this trader again before spending");
+        }
+        if (offer.exhausted()) throw new IllegalArgumentException("offer is exhausted; inspect again for restock");
+        validateBudgetMatchesOffer(budget, offer);
+        long deadline = Math.addExact(now, deadlineTicks);
+        UUID orderId = orderId(caller.tradingScope(), traderId, offerRef, revision, desired, budget, fingerprints,
+                overshoot, partial, deadlineTicks);
+        TradeOrder requested = new TradeOrder(orderId, owner, caller.tradingScope(), traderId, offerRef,
+                revision, desired, budget, fingerprints, overshoot, partial, deadline);
+        TradeOrder authorized = state.brains().tradeAuthorityFor(owner).authorize(caller, requested);
+        return new TradeTask(authorized);
+    }
+
+    private static TradeQuery parseQuery(JsonObject args) {
+        String direction = requiredString(args, "direction");
+        TradeQuery.Direction parsedDirection = switch (direction) {
+            case "buy" -> TradeQuery.Direction.BUY;
+            case "sell" -> TradeQuery.Direction.SELL;
+            default -> throw new IllegalArgumentException("direction must be buy or sell");
+        };
+        String item = requiredString(args, "item_id");
+        String components = args.has("components_json") ? args.get("components_json").getAsString() : "{}";
+        int limit = args.has("limit") ? args.get("limit").getAsInt() : TradeQuery.MAX_RESULTS;
+        return new TradeQuery(parsedDirection, item, components, limit);
+    }
+
+    private static TradeBudget parseBudget(JsonArray values, int maximumRows) {
+        if (values == null || values.size() < 1 || values.size() > maximumRows) {
+            throw new IllegalArgumentException("input_caps row count is outside the supported range");
+        }
+        Map<String, Integer> caps = new HashMap<>();
+        Map<String, Integer> reserves = new HashMap<>();
+        Map<String, Integer> unitCosts = new HashMap<>();
+        for (JsonElement element : values) {
+            if (!element.isJsonObject()) throw new IllegalArgumentException("each input cap must be an object");
+            JsonObject row = element.getAsJsonObject();
+            rejectExtra(row, Set.of("item_id", "max_count", "reserve_count", "max_unit_cost"), false);
+            String item = requiredString(row, "item_id");
+            int cap = row.get("max_count").getAsInt();
+            if (cap < 1 || cap > MAX_COUNT) throw new IllegalArgumentException("max_count is out of range");
+            if (caps.putIfAbsent(item, cap) != null) throw new IllegalArgumentException("duplicate input cap for " + item);
+            if (row.has("reserve_count")) {
+                int reserve = row.get("reserve_count").getAsInt();
+                if (reserve < 0 || reserve > MAX_COUNT || reserve > cap) {
+                    throw new IllegalArgumentException("reserve_count must be between zero and max_count");
+                }
+                if (reserve > 0) reserves.put(item, reserve);
+            }
+            if (row.has("max_unit_cost")) {
+                int maxUnit = row.get("max_unit_cost").getAsInt();
+                if (maxUnit < 1 || maxUnit > MAX_COUNT) throw new IllegalArgumentException("max_unit_cost is out of range");
+                unitCosts.put(item, maxUnit);
+            }
+        }
+        return new TradeBudget(caps, reserves, unitCosts);
+    }
+
+    private static Set<String> parseFingerprints(JsonArray values) {
+        if (values == null) return Set.of();
+        if (values.size() > 256) throw new IllegalArgumentException("too many payment fingerprints");
+        Set<String> result = new LinkedHashSet<>();
+        for (JsonElement element : values) {
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                throw new IllegalArgumentException("payment fingerprints must be strings");
+            }
+            String value = element.getAsString();
+            if (!value.matches("[0-9a-f]{64}")) throw new IllegalArgumentException("invalid payment fingerprint");
+            if (!result.add(value)) throw new IllegalArgumentException("duplicate payment fingerprint");
+        }
+        return Set.copyOf(result);
+    }
+
+    /** Preview and queued task construction must refer to one runtime authorization for the same intent. */
+    private static UUID orderId(UUID scope, UUID trader, String offerRef, long revision, int desired,
+                                TradeBudget budget, Set<String> fingerprints, boolean overshoot,
+                                boolean partial, int deadlineTicks) {
+        String intent = trader + "\n" + offerRef + "\n" + revision + "\n" + desired + "\n"
+                + new TreeMap<>(budget.inputCaps()) + "\n" + new TreeMap<>(budget.reserves()) + "\n"
+                + new TreeMap<>(budget.maxUnitCosts()) + "\n" + fingerprints.stream().sorted().toList() + "\n"
+                + overshoot + "\n" + partial + "\n" + deadlineTicks;
+        return UUID.nameUUIDFromBytes((scope + "\n" + intent).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void validateBudgetMatchesOffer(TradeBudget budget, TradeOffer offer) {
+        Set<String> inputs = new HashSet<>();
+        offer.effectiveInputs().forEach(input -> inputs.add(input.itemId()));
+        if (!budget.inputCaps().keySet().equals(inputs)) {
+            throw new IllegalArgumentException("input_caps must name every exact offer input and no other items");
+        }
+    }
+
+    private static Map<String, Integer> inventoryByItem(CompanionEntity companion) {
+        Map<String, Integer> result = new HashMap<>();
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            ItemStack stack = companion.inventory().getItem(slot);
+            if (stack.isEmpty()) continue;
+            String item = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            result.merge(item, stack.getCount(), Math::addExact);
+        }
+        return Map.copyOf(result);
+    }
+
+    private static String describePlan(TradePlan plan, List<TraderRecord> records) {
+        StringBuilder out = new StringBuilder("Trade plan (no items spent):");
+        if (plan.fills().isEmpty()) out.append("\nNo affordable fill is currently known.");
+        for (TradePlan.Fill fill : plan.fills()) {
+            TraderRecord trader = records.stream().filter(record -> record.id().equals(fill.trader())).findFirst().orElse(null);
+            out.append("\n").append(trader == null ? fill.trader() : (trader.label().isBlank() ? trader.entityType() : trader.label()))
+                    .append(" [").append(fill.trader()).append("] ").append(fill.offerRef())
+                    .append(" revision=").append(fill.revision()).append(": ");
+            out.append(fill.inputs().stream().map(input -> (long) input.count() * fill.repeats() + " " + input.itemId())
+                    .collect(java.util.stream.Collectors.joining(" + ")))
+                    .append(" -> ").append((long) fill.output().count() * fill.repeats()).append(" ")
+                    .append(fill.output().itemId()).append(" in ").append(fill.repeats()).append(" fill(s)");
+        }
+        if (!plan.missing().isEmpty()) out.append("\nMissing input resources: ").append(plan.missing());
+        if (!plan.needsInspection().isEmpty()) out.append("\nNeeds live inspection: ").append(plan.needsInspection());
+        if (plan.conditional()) out.append("\nConditional: current price/stock must be rechecked live, and exact item component predicates must match.");
+        out.append("\nA plan is informational; the live quote and owner budget are checked again before each payment.");
+        return out.toString();
+    }
+
+    private static UUID requireOwner(CompanionEntity companion, Caller caller) {
+        if (companion == null || caller == null || caller.access() != AccessLevel.OWNER
+                || companion.ownerUuid() == null || !companion.ownerUuid().equals(caller.uuid())) {
+            throw new IllegalArgumentException("trading tools are available only to the companion owner");
+        }
+        return companion.ownerUuid();
+    }
+
+    private static FriendaiServerState state(CompanionEntity companion) {
+        if (companion.level().isClientSide() || companion.level().getServer() == null) {
+            throw new IllegalArgumentException("trading tools require a server companion");
+        }
+        return FriendaiServerState.get(companion.level().getServer());
+    }
+
+    private static long currentTick(CompanionEntity companion) {
+        return companion.level().getServer().overworld().getGameTime();
+    }
+
+    private static UUID parseUuid(String text, String label) {
+        if (text == null || !text.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new IllegalArgumentException(label + " must be a canonical UUID");
+        }
+        return UUID.fromString(text);
+    }
+
+    private static String requiredString(JsonObject args, String name) {
+        if (args == null || !args.has(name) || !args.get(name).isJsonPrimitive()
+                || !args.getAsJsonPrimitive(name).isString()) {
+            throw new IllegalArgumentException("missing or invalid " + name);
+        }
+        return args.get(name).getAsString();
+    }
+
+    private static void rejectExtra(JsonObject args, Set<String> allowed, boolean allowScope) {
+        if (args == null) throw new IllegalArgumentException("arguments must be an object");
+        for (String key : args.keySet()) {
+            if (!allowed.contains(key) && !(allowScope && QueueTradeScope.ARG.equals(key))) {
+                throw new IllegalArgumentException("unknown argument: " + key);
+            }
+        }
+    }
+
+    private static JsonObject strict(JsonObject schema) {
+        schema.addProperty("additionalProperties", false);
+        return schema;
+    }
+
+    private static JsonObject inputRowsSchema() {
+        JsonObject item = SchemaBuilder.object()
+                .string("item_id", "Exact namespaced item id")
+                .integer("max_count", "Maximum total payment", 1, MAX_COUNT)
+                .integer("reserve_count", "Amount to leave in inventory", 0, MAX_COUNT)
+                .integer("max_unit_cost", "Optional maximum cost per output item", 1, MAX_COUNT)
+                .required("item_id", "max_count").build();
+        item.addProperty("additionalProperties", false);
+        return item;
+    }
+
+    private static JsonObject fingerprintSchema() {
+        JsonObject item = new JsonObject();
+        item.addProperty("type", "string");
+        item.addProperty("pattern", "^[0-9a-f]{64}$");
+        return item;
+    }
+}

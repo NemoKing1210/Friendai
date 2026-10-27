@@ -366,6 +366,36 @@ class CompanionBrainTest {
     }
 
     @Test
+    void tradingQuestionsCannotCreateAScopeForAQueuedSpendingStep() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("The remembered quotes are old."));
+
+        brain.post(said("What trades does the villager have?"));
+
+        assertEquals(List.of(false), initiated,
+                "a chat response must not have an owner scope that queue_add could capture");
+    }
+
+    @Test
+    void fallbackRoutingDoesNotCreateSpendingScopeWithoutAnExplicitTradeVerb() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("Okay."));
+
+        brain.post(said("hmm okay then"));
+
+        assertEquals(List.of(false), initiated,
+                "fallback routing exposes every schema but must not mint trade authority");
+    }
+
+    @Test
     void toolsKeepTheScopeCreatedForTheirOwnOwnerTurn() {
         brain.setTradingTurnPort((caller, playerInitiated) ->
                 caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null));
@@ -374,9 +404,9 @@ class CompanionBrainTest {
         gateway.enqueue(calls("", call("b", "second")));
         gateway.enqueue(text("second done"));
 
-        brain.post(said("first request"));
+        brain.post(said("buy an emerald from the villager"));
         UUID firstScope = tools.executeCallers.getFirst().tradingScope();
-        brain.post(said("second request"));
+        brain.post(said("sell wheat to a villager"));
         UUID secondScope = tools.executeCallers.get(1).tradingScope();
 
         assertTrue(firstScope != null && secondScope != null && !firstScope.equals(secondScope));

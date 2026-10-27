@@ -63,6 +63,7 @@
 			"dev.friendai.test.TradingAuthorityTests",
 			"dev.friendai.test.TradingTransactionTests",
 			"dev.friendai.test.TradingTaskTests",
+			"dev.friendai.test.TradingToolsTests",
 			"dev.friendai.test.EnchantSkillTests",
 			"dev.friendai.test.AnvilSkillTests",
 			"dev.friendai.test.GrindstoneSkillTests",

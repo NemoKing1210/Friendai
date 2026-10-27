@@ -10,6 +10,7 @@ import java.util.List;
  *
  * @param mission the rendered goal block, empty when there is no goal
  * @param toolHints the "when to use" lines of the tools visible this turn
+ * @param tradingSummary private, bounded market notes for the current owner's turn
  */
 public record TurnContext(
         Persona persona,
@@ -18,10 +19,17 @@ public record TurnContext(
         String memoryBlock,
         TurnKind turn,
         String mission,
-        List<String> toolHints) {
+        List<String> toolHints,
+        String tradingSummary) {
+    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
+                       String mission, List<String> toolHints) {
+        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, "");
+    }
+
     public TurnContext {
         memoryBlock = memoryBlock == null ? "" : memoryBlock;
         mission = mission == null ? "" : mission;
         toolHints = toolHints == null ? List.of() : List.copyOf(toolHints);
+        tradingSummary = tradingSummary == null ? "" : tradingSummary;
     }
 }

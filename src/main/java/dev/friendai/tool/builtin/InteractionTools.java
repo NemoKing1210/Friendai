@@ -14,6 +14,9 @@ import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.piglin.Piglin;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /** Simple contact with the world: animals, vehicles, beds, tossing things. */
@@ -76,6 +79,9 @@ final class InteractionTools {
     private static Task interactEntity(CompanionEntity c, JsonObject a) {
         Entity target = named(c, a.get("target").getAsString());
         var item = a.has("item") ? ToolKit.parseItemMatcher(a.get("item").getAsString()) : null;
+        if (target instanceof Piglin && item != null && item.test(new ItemStack(Items.GOLD_INGOT))) {
+            throw new IllegalArgumentException("generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
+        }
         return new InteractEntityTask(target, item, c);
     }
 
@@ -84,16 +90,25 @@ final class InteractionTools {
         int count = a.has("count") ? a.get("count").getAsInt() : 1;
         Supplier<Vec3> aim = null;
         String label = "";
+        Entity targetEntity = null;
         if (a.has("target")) {
-            Entity target = named(c, a.get("target").getAsString());
-            aim = () -> target.isAlive() && !target.isRemoved() ? target.getEyePosition() : null;
-            label = EntityTargets.label(target);
+            targetEntity = named(c, a.get("target").getAsString());
+            if (targetEntity instanceof Piglin && matcher.test(new ItemStack(Items.GOLD_INGOT))) {
+                throw new IllegalArgumentException("generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
+            }
+            Entity exactTarget = targetEntity;
+            aim = () -> exactTarget.isAlive() && !exactTarget.isRemoved() ? exactTarget.getEyePosition() : null;
+            label = EntityTargets.label(targetEntity);
         } else if (a.has("x") && a.has("y") && a.has("z")) {
             Vec3 fixed = new Vec3(a.get("x").getAsDouble(), a.get("y").getAsDouble(), a.get("z").getAsDouble());
+            if (matcher.test(new ItemStack(Items.GOLD_INGOT)) && c.level().getEntitiesOfClass(Piglin.class,
+                    net.minecraft.world.phys.AABB.ofSize(fixed, 2.0, 2.0, 2.0), Entity::isAlive).size() > 0) {
+                throw new IllegalArgumentException("generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
+            }
             aim = () -> fixed;
             label = (int) Math.floor(fixed.x) + " " + (int) Math.floor(fixed.y) + " " + (int) Math.floor(fixed.z);
         }
-        return new ThrowItemTask(matcher, count, aim, label);
+        return new ThrowItemTask(matcher, count, aim, label, targetEntity);
     }
 
     private static Entity named(CompanionEntity c, String name) {

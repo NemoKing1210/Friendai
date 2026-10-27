@@ -25,6 +25,14 @@ public final class TurnRouter {
         this.vocabulary = vocabulary;
     }
 
+    /** True only when the text contains a recognized trading action verb, not merely a trading topic. */
+    public boolean explicitlyRequestsTrading(String playerText) {
+        if (playerText == null || playerText.isBlank()) return false;
+        String lower = playerText.length() > MAX_TEXT ? playerText.substring(0, MAX_TEXT) : playerText;
+        return vocabulary.verbsIn(tokens(lower.toLowerCase(Locale.ROOT))).values().stream()
+                .anyMatch(groups -> groups.contains(ToolGroup.TRADING));
+    }
+
     public RouteDecision route(RouteSignals s) {
         if (s.planBlockedOrFailed()) {
             return new RouteDecision(TurnMode.RECOVERY, all(), s.hasActiveGoal(), "a plan failed or needs a decision");
@@ -43,8 +51,21 @@ public final class TurnRouter {
         groups.addAll(vocabulary.topicGroupsIn(tokens));
 
         boolean question = lower.endsWith("?") || vocabulary.startsWithQuestionMarker(lower, tokens);
-        if (question && verbs.isEmpty()) {
+        if (question && vocabulary.isAdviceQuestion(lower)) {
             return new RouteDecision(TurnMode.CHAT, EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
+                    false, "a shopping advice question, not an order");
+        }
+        if (question && groups.contains(ToolGroup.TRADING)
+                && vocabulary.startsWithQuestionMarker(lower, tokens)) {
+            Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY,
+                    ToolGroup.TRADING);
+            return new RouteDecision(TurnMode.CHAT, chatGroups, false,
+                    "a question about remembered market facts, not an order");
+        }
+        if (question && verbs.isEmpty()) {
+            Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY);
+            if (groups.contains(ToolGroup.TRADING)) chatGroups.add(ToolGroup.TRADING);
+            return new RouteDecision(TurnMode.CHAT, chatGroups,
                     false, "a question with no action in it");
         }
         int score = kinds(verbs.values())

@@ -89,6 +89,21 @@ class TradeAuthorityTest {
         assertThrows(RuntimeException.class, () -> authority.authorize(caller, order(caller.tradingScope(), budget(11), 1)));
     }
 
+    @Test void repeatedSameIntentKeepsItsOriginalAbsoluteDeadline() {
+        var authority = new TradeAuthority(OWNER);
+        var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
+        var first = order(caller.tradingScope(), budget(10), 1);
+        var bound = authority.authorize(caller, first);
+        var laterFactoryCall = new TradeOrder(first.orderId(), first.owner(), first.scopeId(), first.trader(),
+                first.offerRef(), first.observationRevision(), first.desiredOutputCount(), first.budget(),
+                first.allowedPaymentFingerprints(), first.allowOvershoot(), first.allowPartial(), 150);
+
+        var repeated = authority.authorize(caller, laterFactoryCall);
+
+        assertEquals(bound.deadlineTick(), repeated.deadlineTick(),
+                "a second caller-aware factory invocation must not extend the spending window");
+    }
+
     @Test void foreignAndInvalidatedScopesNeverAuthorizeAndRestartHasNoAuthority() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);

@@ -58,7 +58,15 @@ public final class PromptBuilder {
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
             int budget, List<String> toolHints, String plannerNote) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, plannerNote, "");
+    }
+
+    /** @param tradingSummary owner-private observed offers relevant to this player turn */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget, List<String> toolHints, String plannerNote, String tradingSummary) {
         return PromptAssembler.defaults(budget).assemble(new TurnContext(
-                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints));
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints,
+                tradingSummary));
     }
 }
