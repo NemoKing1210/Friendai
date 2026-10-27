@@ -262,6 +262,19 @@ public final class CombatController {
         }
         int now = companion.tickCount;
         tickArmor();
+        if (companion.creativeMode() && !taskDriven) {
+            if (state == State.FIGHTING) {
+                abandonFight();
+                companion.taskRunner().setPaused(false);
+            } else if (state == State.RETREATING) {
+                finishRetreat();
+            } else if (state == State.EATING) {
+                interruptEating(level);
+                state = State.IDLE;
+                decision = CombatDecision.none();
+            }
+            return;
+        }
         Creeper creeper = swellingCreeper(level);
         if (creeper != null) {
             if (state != State.RETREATING || !retreatFromCreeper) {

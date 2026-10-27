@@ -335,6 +335,26 @@ public class CombatTests {
                         + ", companion at " + c.position()));
     }
 
+    @GameTest(maxTicks = 80)
+    public void creativeCompanionIsIgnoredUnlessGivenAnAttackOrder(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 2, 7);
+        c.setCreativeMode(true);
+        Zombie zombie = h.spawn(EntityTypes.ZOMBIE, 10, 2, 7);
+        zombie.setCustomName(Component.literal("test-creative-ignored-zombie"));
+
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(zombie.getTarget() != c,
+                    "a hostile mob must not target the companion in creative mode");
+            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+                    "the companion must ignore nearby mobs without an attack order");
+            c.combatController().fight(zombie);
+            h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
+                    "an explicit attack order must still allow a creative companion to fight");
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void retreatsAtLowHealth(GameTestHelper h) {
         GameTestSupport.platform(h, 15);

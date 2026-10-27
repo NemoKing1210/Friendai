@@ -568,6 +568,12 @@ public class CompanionEntity extends PathfinderMob {
         this.goalSelector.addGoal(8, new LookAtOwnerGoal(this));
     }
 
+    /** Hostile mobs treat the companion like a creative player while its creative preference is active. */
+    @Override
+    public boolean canBeSeenAsEnemy() {
+        return !creativeMode() && super.canBeSeenAsEnemy();
+    }
+
     public UUID ownerUuid() {
         return ownerUuid;
     }
