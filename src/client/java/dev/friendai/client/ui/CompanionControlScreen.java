@@ -13,18 +13,18 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 /**
- * The companion menu: control and status for everyone, log and debug tools for operators.
+ * The companion menu: its status and actions for everyone, log and debug tools for operators.
  * It subscribes to the server's snapshot stream while it is open.
  */
 public final class CompanionControlScreen extends Screen implements MenuTab.Host {
-    private static final int MAX_WIDTH = 480;
-    private static final int TAB_HEIGHT = 20;
+    private static final int MAX_WIDTH = 560;
     private static final int PANEL_PAD = 10;
 
     private record Entry(String titleKey, MenuTab tab) {}
 
     private final Screen parent;
-    private final Entry control = new Entry("friendai.menu.tab.control", new ControlTab());
+    private final Entry overview = new Entry("friendai.menu.tab.overview", new ControlTab());
+    private final Entry toggles = new Entry("friendai.menu.tab.toggles", new TogglesTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
     private final Entry places = new Entry("friendai.menu.tab.places", new PlacesTab());
@@ -33,14 +33,13 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
-    private Entry selected = control;
+    private Entry selected = overview;
     private String builtFor = "";
     private int left;
     private int top;
     private int contentWidth;
     private int contentHeight;
-    private int tabBarLeft;
-    private int tabWidth;
+    private int tabBarBottom;
     private List<Entry> shownTabs = List.of();
 
     public CompanionControlScreen(Screen parent) {
@@ -102,7 +101,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, places, appearance, traders));
+        List<Entry> tabs = new ArrayList<>(List.of(overview, toggles, tasks, memory, places, appearance, traders));
         if (operator()) {
             tabs.add(log);
             tabs.add(debug);
@@ -139,21 +138,24 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         builtFor = layoutKey();
         shownTabs = visibleTabs();
         if (!shownTabs.contains(selected)) {
-            selected = control;
+            selected = overview;
         }
         contentWidth = Math.min(width - 2 * (PANEL_PAD + 4), MAX_WIDTH);
         left = (width - contentWidth) / 2;
-        top = 24 + TAB_HEIGHT + 10;
-        contentHeight = height - top - 36 - PANEL_PAD;
 
-        // Five tabs no longer fit at small GUI scales, so they share the width they have.
-        tabWidth = Math.min(contentWidth / shownTabs.size(), 96);
-        tabBarLeft = left;
+        // Nine tabs do not fit in one row at small GUI scales, so the bar wraps into as many rows as it needs.
+        TabBarLayout.Bar bar = TabBarLayout.arrange(shownTabs.size(), contentWidth, left, 24);
+        tabBarBottom = 24 + bar.height();
         for (int i = 0; i < shownTabs.size(); i++) {
             Entry entry = shownTabs.get(i);
-            addRenderableWidget(new FlatButton(tabBarLeft + i * tabWidth, 24, tabWidth, TAB_HEIGHT,
-                    Component.translatable(entry.titleKey()), Ui.ACCENT, () -> select(entry)).asTab(entry == selected));
+            TabBarLayout.Slot slot = bar.slots().get(i);
+            addRenderableWidget(new FlatButton(slot.x(), slot.y(), bar.tabWidth(), TabBarLayout.TAB_HEIGHT,
+                    Component.translatable(entry.titleKey()), Ui.ACCENT, () -> select(entry))
+                    .asTab(entry == selected));
         }
+        top = tabBarBottom + 10;
+        contentHeight = height - top - 36 - PANEL_PAD;
+
         addRenderableWidget(new FlatButton(width / 2 - 60, height - 28, 120, 20,
                 CommonComponents.GUI_DONE, Ui.ACCENT, this::onClose));
         selected.tab().init(this, left, top, contentWidth, contentHeight);
@@ -181,7 +183,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         Ui.panel(g, panelLeft, panelTop, contentWidth + 2 * PANEL_PAD, height - 36 - panelTop);
         g.text(font, title, left, 12, Ui.TEXT);
         drawConnection(g);
-        g.fill(tabBarLeft, 24 + TAB_HEIGHT - 1, left + contentWidth, 24 + TAB_HEIGHT, Ui.BORDER);
+        g.fill(left, tabBarBottom - 1, left + contentWidth, tabBarBottom, Ui.BORDER);
     }
 
     @Override

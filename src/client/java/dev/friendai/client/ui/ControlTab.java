@@ -1,15 +1,16 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.CompanionVitals;
 import dev.friendai.debug.RequestType;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
-/** The companion at a glance (identity, state, vitals, current work) and its four actions. */
+/**
+ * The companion at a glance (identity, state, vitals, current work) and its four actions.
+ * Per-companion switches live on {@link TogglesTab}.
+ */
 final class ControlTab implements MenuTab {
     private static final int GAP = 6;
     private static final int BUTTON_HEIGHT = 20;
@@ -21,10 +22,6 @@ final class ControlTab implements MenuTab {
     private FlatButton teleport;
     private FlatButton dismiss;
     private FlatButton stop;
-    private FlatButton movementDebug;
-    private FlatButton autoRespawn;
-    private FlatButton creativeMode;
-    private FlatButton freeTime;
     private int buttonsTop;
 
     @Override
@@ -42,31 +39,7 @@ final class ControlTab implements MenuTab {
         dismiss = button(host, "friendai.menu.dismiss", RequestType.DISMISS, Ui.WARN, dismissX, secondRow, buttonWidth);
         stop = button(host, "friendai.menu.stop", RequestType.STOP, Ui.BAD,
                 dismissX + buttonWidth + GAP, secondRow, buttonWidth);
-        movementDebug = host.add(new FlatButton(left, buttonsTop - GAP - BUTTON_HEIGHT, width, BUTTON_HEIGHT,
-                Component.empty(), Ui.PURPLE, ControlTab::toggleMovementDebug));
-        autoRespawn = host.add(new FlatButton(left, buttonsTop - 2 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
-                Component.empty(), Ui.ACCENT, ControlTab::toggleAutoRespawn));
-        creativeMode = host.add(new FlatButton(left, buttonsTop - 3 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
-                Component.empty(), Ui.PURPLE, ControlTab::toggleCreativeMode));
-        freeTime = host.add(new FlatButton(left, buttonsTop - 4 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
-                Component.empty(), Ui.GOOD, () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
         tick();
-    }
-
-    private static void toggleMovementDebug() {
-        boolean on = !MovementDebugState.enabled();
-        MovementDebugState.setEnabled(on);
-        CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
-    }
-
-    private static void toggleAutoRespawn() {
-        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
-                RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
-    }
-
-    private static void toggleCreativeMode() {
-        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
-                RequestType.SET_CREATIVE_MODE, Boolean.toString(!snapshot.creativeMode()), ""));
     }
 
     private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
@@ -83,50 +56,6 @@ final class ControlTab implements MenuTab {
         teleport.active = connected && present;
         dismiss.active = connected && present;
         stop.active = connected && present;
-        boolean operator = CompanionClientState.snapshot().map(CompanionSnapshot::operator).orElse(false);
-        movementDebug.visible = operator;
-        movementDebug.active = connected;
-        movementDebug.setMessage(Component.translatable(MovementDebugState.enabled()
-                ? "friendai.menu.debug.on"
-                : "friendai.menu.debug.off"));
-        autoRespawn.visible = present;
-        autoRespawn.active = connected && present && snapshot.map(CompanionSnapshot::autoRespawnAvailable).orElse(false);
-        String autoRespawnKey = snapshot.map(s -> !s.autoRespawnAvailable()
-                        ? "friendai.menu.auto_respawn.hardcore"
-                        : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
-                .orElse("friendai.menu.auto_respawn.off");
-        autoRespawn.setMessage(Component.translatable(autoRespawnKey));
-        freeTime.visible = present;
-        freeTime.active = connected && present;
-        freeTime.setMessage(snapshot.map(s -> !s.freeTimeOn()
-                        ? Component.translatable("friendai.menu.free_time.off")
-                        : s.freeTimeActivity().isEmpty()
-                                ? Component.translatable("friendai.menu.free_time.on")
-                                : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity()))
-                .orElse(Component.translatable("friendai.menu.free_time.off")));
-        boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
-        boolean creativeAvailable = snapshot.map(CompanionSnapshot::creativeModeAvailable).orElse(false);
-        creativeMode.visible = true;
-        creativeMode.active = connected && present && creativeAvailable;
-        creativeMode.setMessage(Component.translatable(creative
-                ? "friendai.menu.creative.on"
-                : "friendai.menu.creative.off"));
-        String tooltipKey = !connected ? "friendai.menu.creative.connection"
-                : !present ? "friendai.menu.creative.no_companion"
-                : !creativeAvailable ? "friendai.menu.creative.operator_required"
-                : creative ? "friendai.menu.creative.disable"
-                : "friendai.menu.creative.enable";
-        creativeMode.setTooltip(Tooltip.create(Component.translatable(tooltipKey)));
-        layoutControls();
-    }
-
-    private void layoutControls() {
-        int row = 0;
-        for (FlatButton control : new FlatButton[] {freeTime, creativeMode, autoRespawn, movementDebug}) {
-            if (!control.visible) continue;
-            control.setY(buttonsTop - GAP - BUTTON_HEIGHT - row * (GAP + BUTTON_HEIGHT));
-            row++;
-        }
     }
 
     @Override
@@ -139,9 +68,7 @@ final class ControlTab implements MenuTab {
         CompanionSnapshot s = snapshot.get();
         drawHeader(g, font, s, left, top, width);
         int y = top + HEADER_HEIGHT + GAP;
-        int controls = (creativeMode.visible ? 1 : 0) + (movementDebug.visible ? 1 : 0)
-                + (autoRespawn.visible ? 1 : 0) + (freeTime.visible ? 1 : 0);
-        int limit = buttonsTop - GAP - controls * (BUTTON_HEIGHT + GAP);
+        int limit = buttonsTop - GAP;
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
             y += VITALS_HEIGHT + GAP;

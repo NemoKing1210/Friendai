@@ -42,7 +42,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] An owner order during free time runs first; free time resumes about a minute after the owner goes quiet.
 - [ ] Leave the companion idle for five minutes: it says it will get on with its own things and starts free time.
 - [ ] Log out during free time and log back in: the "While you were away" summary arrives once.
-- [ ] The Control tab's free-time button toggles it and shows the current activity, in both UI languages.
+- [ ] The Toggles tab's free-time button toggles it and shows the current activity, in both UI languages.
 
 ## Voice
 
@@ -94,11 +94,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Companion creative mode
 
-- [ ] Singleplayer world owner enables creative from the Control tab with cheats off; creative abilities work, but `execute_command` still follows normal command permissions and cannot run privileged commands.
+- [ ] Singleplayer world owner enables creative from the Toggles tab with cheats off; creative abilities work, but `execute_command` still follows normal command permissions and cannot run privileged commands.
 - [ ] On a dedicated server, an operator owner can enable and disable creative; a non-operator owner and a guest cannot enable it, and a guest cannot change another owner's mode.
 - [ ] Revoke the owner's operator status while creative is active: new creative-only tasks stop, but the owner can still turn creative off.
 - [ ] Creative preference survives dismiss/resummon, world save/reload and companion dimension transfer.
-- [ ] At narrow and wide GUI scales, the Creative toggle, movement controls and status do not overlap; stale snapshots and unavailable permission show the correct disabled state and tooltip.
+- [ ] At narrow and wide GUI scales, the switches on the Toggles tab stack without overlapping and each shows its state; stale snapshots and unavailable permission show the correct disabled state and tooltip.
 - [ ] Fire, drowning, falls, ordinary attacks and hunger do not affect a creative companion; toggling does not heal or refill food.
 - [ ] The companion breaks permitted bedrock instantly without drops or XP; a protected or blacklisted block stays intact.
 - [ ] Place a block and use an item in creative: materials and durability are not consumed or duplicated; the same interactions consume materials normally after disabling creative.
@@ -132,11 +132,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Esc in a world: the companion icon sits in the icon row next to the other icons, has a tooltip, and looks right at GUI scales 1-4 and in both languages.
 - [ ] The button opens the menu; Done returns to the pause menu; Esc closes it.
-- [ ] Control tab: Summon, Dismiss and Stop work and the status block follows them within about half a second.
+- [ ] Overview tab: Summon, Teleport to me, Dismiss and Stop work and the status block follows them within about half a second.
+- [ ] Toggles tab: creative mode, auto respawn, free time and the operator's movement overlay each show their current state and change it without a reload.
+- [ ] The mod's own settings screen (Mod Menu → Friendai) and the Toggles tab are separate things; no tab is called Settings, and switching a companion switch never opens the settings screen.
 - [ ] Tasks tab: a finished task shows up in the history with its status; scrolling works.
 - [ ] Log tab (operator): messages, tool calls and errors appear live; kind filters work; Copy puts the visible lines on the clipboard.
 - [ ] Debug tab (operator): perception text is shown; "Show prompt" shows the system prompt; Send reaches the companion; Run executes a tool (empty arguments = `{}`) and shows up in the log as "Manual".
-- [ ] Dedicated server as a normal player: Control, Tasks, Memory, Places and Appearance tabs; as an operator: all seven (Log and Debug appear too).
+- [ ] Dedicated server as a normal player: Overview, Toggles, Tasks, Memory, Places, Appearance and Traders tabs; as an operator: all nine (Log and Debug appear too).
+- [ ] At GUI scales 1-4 in English and Russian, the tab bar wraps into as many rows as it needs, no label is clipped, and the tab underlines and the panel rule line up under the last row.
 - [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
 - [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
 - [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
@@ -159,7 +162,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Debug overlay
 
-- [ ] Control tab operator button reads **Отладка** / **Debug** and enables/disables the overlay.
+- [ ] Toggles tab operator button reads **Отладка** / **Debug** and enables/disables the overlay.
 - [ ] Mining and long navigation show the route plus colored break/place targets; labels remain readable while moving the camera.
 - [ ] Build/place, crafting table, furnace, collection and farm tasks show the active block action with a distinct color and label.
 - [ ] A queued multi-step plan shows the current action and the next two pending steps in queue order.
@@ -325,7 +328,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Companion skin and name
 
-- [ ] Appearance tab: type a new name and press **Rename**; the name tag, the Control tab and chat replies use it, in English and in Русский.
+- [ ] Appearance tab: type a new name and press **Rename**; the name tag, the Overview tab and chat replies use it, in English and in Русский.
 - [ ] Appearance tab: **Choose a PNG file...** with a real 64x64 skin; the companion changes for you and for a second player on a LAN or server.
 - [ ] A skin chosen by Minecraft username (wide and slim accounts) applies with the right arm model.
 - [ ] A skin from an `https://` link applies; an `http://` link, a non-image link and a 128x128 image each show an error and change nothing.

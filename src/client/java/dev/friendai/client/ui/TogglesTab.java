@@ -1,0 +1,129 @@
+package dev.friendai.client.ui;
+
+import dev.friendai.client.debug.MovementDebugState;
+import dev.friendai.debug.CompanionSnapshot;
+import dev.friendai.debug.RequestType;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.network.chat.Component;
+
+/**
+ * Per-companion switches: creative mode, auto respawn, free time and the movement overlay.
+ * The mod's own settings are a separate screen; nothing here is called "settings".
+ */
+final class TogglesTab implements MenuTab {
+    private static final int GAP = 6;
+    private static final int BUTTON_HEIGHT = 20;
+    private static final int PAD = 8;
+    private static final int HEADER_HEIGHT = 32;
+
+    private int left;
+    private int top;
+    private FlatButton creativeMode;
+    private FlatButton autoRespawn;
+    private FlatButton freeTime;
+    private FlatButton movementDebug;
+
+    @Override
+    public void init(Host host, int left, int top, int width, int height) {
+        this.left = left;
+        this.top = top;
+        int y = top + HEADER_HEIGHT;
+        creativeMode = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE,
+                TogglesTab::toggleCreativeMode));
+        y += BUTTON_HEIGHT + GAP;
+        autoRespawn = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT,
+                TogglesTab::toggleAutoRespawn));
+        y += BUTTON_HEIGHT + GAP;
+        freeTime = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.GOOD,
+                () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
+        y += BUTTON_HEIGHT + GAP;
+        movementDebug = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE,
+                TogglesTab::toggleMovementDebug));
+        tick();
+    }
+
+    private static void toggleMovementDebug() {
+        boolean on = !MovementDebugState.enabled();
+        MovementDebugState.setEnabled(on);
+        CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
+    }
+
+    private static void toggleAutoRespawn() {
+        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
+                RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
+    }
+
+    private static void toggleCreativeMode() {
+        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
+                RequestType.SET_CREATIVE_MODE, Boolean.toString(!snapshot.creativeMode()), ""));
+    }
+
+    @Override
+    public void tick() {
+        var snapshot = CompanionClientState.snapshot();
+        boolean present = snapshot.map(CompanionSnapshot::present).orElse(false);
+        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+
+        movementDebug.visible = snapshot.map(CompanionSnapshot::operator).orElse(false);
+        movementDebug.active = connected;
+        movementDebug.setMessage(Component.translatable(MovementDebugState.enabled()
+                ? "friendai.menu.debug.on"
+                : "friendai.menu.debug.off"));
+
+        autoRespawn.visible = present;
+        autoRespawn.active = connected && present && snapshot.map(CompanionSnapshot::autoRespawnAvailable).orElse(false);
+        autoRespawn.setMessage(Component.translatable(snapshot.map(s -> !s.autoRespawnAvailable()
+                        ? "friendai.menu.auto_respawn.hardcore"
+                        : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
+                .orElse("friendai.menu.auto_respawn.off")));
+
+        freeTime.visible = present;
+        freeTime.active = connected && present;
+        freeTime.setMessage(snapshot.map(s -> !s.freeTimeOn()
+                        ? Component.translatable("friendai.menu.free_time.off")
+                        : s.freeTimeActivity().isEmpty()
+                                ? Component.translatable("friendai.menu.free_time.on")
+                                : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity()))
+                .orElse(Component.translatable("friendai.menu.free_time.off")));
+
+        boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
+        boolean creativeAvailable = snapshot.map(CompanionSnapshot::creativeModeAvailable).orElse(false);
+        creativeMode.visible = true;
+        creativeMode.active = connected && present && creativeAvailable;
+        creativeMode.setMessage(Component.translatable(creative
+                ? "friendai.menu.creative.on"
+                : "friendai.menu.creative.off"));
+        String tooltipKey = !connected ? "friendai.menu.creative.connection"
+                : !present ? "friendai.menu.creative.no_companion"
+                : !creativeAvailable ? "friendai.menu.creative.operator_required"
+                : creative ? "friendai.menu.creative.disable"
+                : "friendai.menu.creative.enable";
+        creativeMode.setTooltip(Tooltip.create(Component.translatable(tooltipKey)));
+
+        layout();
+    }
+
+    /** Stacks the visible switches so a hidden one leaves no gap. */
+    private void layout() {
+        int y = top + HEADER_HEIGHT;
+        for (FlatButton control : new FlatButton[] {creativeMode, autoRespawn, freeTime, movementDebug}) {
+            if (!control.visible) {
+                continue;
+            }
+            control.setX(left);
+            control.setY(y);
+            y += BUTTON_HEIGHT + GAP;
+        }
+    }
+
+    @Override
+    public void render(
+            GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
+        Ui.heading(g, font, Component.translatable("friendai.menu.toggles.heading"), left + PAD, top + PAD,
+                width - 2 * PAD);
+        String hint = Component.translatable("friendai.menu.toggles.hint").getString();
+        g.text(font, Ui.clip(font, hint, width - 2 * PAD), left + PAD, top + PAD + 12, Ui.DIM);
+    }
+}
