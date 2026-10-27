@@ -56,6 +56,5 @@ class QueueSaveTest {
         Job restored = QueueSave.decode(QueueSave.encode(queue, null), QueueLimits.DEFAULTS)
                 .orElseThrow().queue().job(1).orElseThrow();
 
-        assertEquals(null, restored.principal());
-    }
+        assertEquals(null, restored.principal());    }
 }

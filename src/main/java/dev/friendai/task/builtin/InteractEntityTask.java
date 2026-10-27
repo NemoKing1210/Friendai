@@ -11,8 +11,10 @@ import java.util.List;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -26,6 +28,9 @@ public final class InteractEntityTask extends ReachEntityTask {
 
     public InteractEntityTask(Entity target, @Nullable ItemMatcher item, CompanionEntity companion) {
         super(target, REACH);
+        if (target instanceof Piglin && item != null && item.test(new ItemStack(Items.GOLD_INGOT))) {
+            throw new IllegalArgumentException("generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
+        }
         if (!(target instanceof Animal animal)) {
             throw new IllegalArgumentException("I can only interact with animals, not a " + EntityTargets.label(target));
         }

@@ -35,6 +35,11 @@ public final class ToolCatalog {
         return meta == null || meta.core() || groups.contains(meta.group());
     }
 
+    /** Hides the only spending tool on a chat turn while leaving remembered market facts queryable. */
+    public boolean visible(String tool, Set<ToolGroup> groups, boolean readOnlyTrading) {
+        return !(readOnlyTrading && tool.equals("trade_item")) && visible(tool, groups);
+    }
+
     /** Names of the cataloged tools shown when exactly these groups are unlocked, core tools included. */
     public Set<String> namesFor(Set<ToolGroup> groups) {
         Set<String> names = new LinkedHashSet<>();
@@ -48,9 +53,13 @@ public final class ToolCatalog {
 
     /** The specs a turn with these groups may send, in their original order. */
     public List<ToolSpec> filter(List<ToolSpec> specs, Set<ToolGroup> groups) {
+        return filter(specs, groups, false);
+    }
+
+    public List<ToolSpec> filter(List<ToolSpec> specs, Set<ToolGroup> groups, boolean readOnlyTrading) {
         List<ToolSpec> kept = new ArrayList<>();
         for (ToolSpec spec : specs) {
-            if (visible(spec.name(), groups)) {
+            if (visible(spec.name(), groups, readOnlyTrading)) {
                 kept.add(spec);
             }
         }
@@ -59,9 +68,13 @@ public final class ToolCatalog {
 
     /** One {@code name: whenToUse} line per visible tool that has guidance. */
     public List<String> hints(Set<ToolGroup> groups) {
+        return hints(groups, false);
+    }
+
+    public List<String> hints(Set<ToolGroup> groups, boolean readOnlyTrading) {
         List<String> lines = new ArrayList<>();
         for (ToolMeta meta : byName.values()) {
-            if (!meta.whenToUse().isBlank() && (meta.core() || groups.contains(meta.group()))) {
+            if (!meta.whenToUse().isBlank() && visible(meta.name(), groups, readOnlyTrading)) {
                 lines.add(meta.whenToUse());
             }
         }
@@ -94,6 +107,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.ANIMALS, Cost.MEDIUM, "breed_animals", "shear", "milk", "tame_animal", "lead_animals",
                 "harvest_honey", "fish");
         group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "plan_obtain");
+        group(metas, ToolGroup.TRADING, Cost.HIGH, "find_traders", "inspect_trader", "refresh_trades",
+                "wait_for_restock", "known_trades", "plan_trade", "trade_item", "level_trader", "barter");
         group(metas, ToolGroup.RESOURCE, Cost.HIGH, "search_resource", "known_resources");
         group(metas, ToolGroup.BLUEPRINT, Cost.HIGH, "blueprint_help", "preview_structure", "build_structure",
                 "save_blueprint", "list_blueprints");
@@ -137,6 +152,22 @@ public final class ToolCatalog {
                 "- To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item.");
         hint(metas, "find_place",
                 "- When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.");
+        hint(metas, "find_traders",
+                "- Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.");
+        hint(metas, "refresh_trades",
+                "- Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.");
+        hint(metas, "wait_for_restock",
+                "- Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.");
+        hint(metas, "known_trades",
+                "- Known prices are historical quotes. Check freshness and inspect a trader before any purchase; never promise a piglin barter reward.");
+        hint(metas, "plan_trade",
+                "- plan_trade is read-only: check exact stock, output batches and every required currency before placing an order.");
+        hint(metas, "trade_item",
+                "- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.");
+        hint(metas, "level_trader",
+                "- Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.");
+        hint(metas, "barter",
+                "- Piglin barter is random. Pay only one plain gold ingot at a time under the owner's explicit cap, attribute only drops owned by the selected piglin, and never retry accepted gold with no output.");
         return new ToolCatalog(metas);
     }
 

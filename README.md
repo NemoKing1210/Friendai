@@ -111,6 +111,14 @@ A complex request, or a failed plan with replans left, is first drafted by a sep
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
 | `plannerTimeoutSec` | `60` | How long a planner call may take (10–300). |
 
+## Trading
+
+The owner can ask the companion to find loaded villagers, wandering traders and adult piglins, inspect exact vanilla offers, query remembered prices and preview explicit spending limits. Market notes are saved per owner under `<world>/friendai/trading/`; quotes and locations expire independently, and every purchase rechecks the live merchant offer. Orders use the companion's own reputation and inventory and never refresh stock or change professions by force.
+
+Merchant orders require per-item caps and reserves. Queue retries share the original owner turn's scope and cannot increase its limits; pending purchases are not replayed after a restart. `obtain_item` considers a merchant only when that same owner turn already supplied an explicit trade budget and payment fingerprint. It only plans component-neutral outputs; exact component trades use `trade_item`.
+
+The `barter` tool uses a real adult piglin and vanilla gold interaction. Its outputs are random, so the companion reports only drops attributed to that attempt and stops rather than paying again if an accepted ingot has no observed result. It defaults to at most eight gold ingots per order. Trading controls are owner-private in the Traders tab. Server defaults live under `tasks.trading` in `config/friendai-server.json`; `enabled` can turn all trading tools and UI actions off.
+
 ## Languages
 
 The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).

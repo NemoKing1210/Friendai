@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -212,5 +213,22 @@ class PromptBuilderTest {
                 TurnKind.EVENT);
         assertTrue(s.contains("This turn: task events or world notices"));
         assertTrue(s.contains("reply exactly [silent]"));
+    }
+
+    @Test
+    void tradingSummaryIsOwnerOnlyAndCarriesFreshnessWarnings() {
+        String owner = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Steve", AccessLevel.OWNER),
+                "", TurnKind.PLAYER, dev.friendai.agent.goal.GoalView.EMPTY, 0, List.of(), "",
+                "Remembered offer: 2 minecraft:emerald -> 1 minecraft:map; stale quote.\n"
+                        + "Historical prices must be inspected before spending.");
+        assertTrue(owner.contains("Remembered offer"), owner);
+        assertTrue(owner.contains("stale quote"), owner);
+
+        String trusted = PromptBuilder.system(
+                new Persona("F", "d", "auto"), "p", new Caller(ID, "Alex", AccessLevel.TRUSTED),
+                "", TurnKind.PLAYER, dev.friendai.agent.goal.GoalView.EMPTY, 0, List.of(), "",
+                "Remembered offer: private owner's villager.");
+        assertFalse(trusted.contains("private owner's villager"), trusted);
     }
 }

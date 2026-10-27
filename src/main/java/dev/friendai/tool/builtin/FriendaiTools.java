@@ -76,6 +76,7 @@ public final class FriendaiTools {
         MemoryTools.register(registry, memory);
         TrustTools.register(registry);
         ControlTools.register(registry, defs);
+        TradingTools.register(registry, defs);
         QueueTools.register(registry, defs);
         BodyTools.register(registry, defs);
         RelativeMovementTools.register(registry, defs);

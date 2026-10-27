@@ -23,6 +23,7 @@ import java.util.Set;
  */
 public final class IntentVocabulary {
     private final List<String> questionMarkers;
+    private final List<String> adviceQuestionMarkers;
     private final Map<String, Set<ToolGroup>> actionVerbs;
     private final Map<String, Set<ToolGroup>> topicWords;
     private final List<String> complexMarkers;
@@ -30,11 +31,13 @@ public final class IntentVocabulary {
 
     IntentVocabulary(
             List<String> questionMarkers,
+            List<String> adviceQuestionMarkers,
             Map<String, Set<ToolGroup>> actionVerbs,
             Map<String, Set<ToolGroup>> topicWords,
             List<String> complexMarkers,
             List<String> planMarkers) {
         this.questionMarkers = questionMarkers;
+        this.adviceQuestionMarkers = adviceQuestionMarkers;
         this.actionVerbs = actionVerbs;
         this.topicWords = topicWords;
         this.complexMarkers = complexMarkers;
@@ -44,6 +47,7 @@ public final class IntentVocabulary {
     /** Both languages merged. */
     public static IntentVocabulary load() {
         List<String> questions = new ArrayList<>();
+        List<String> adviceQuestions = new ArrayList<>();
         Map<String, Set<ToolGroup>> verbs = new LinkedHashMap<>();
         Map<String, Set<ToolGroup>> topics = new LinkedHashMap<>();
         List<String> complex = new ArrayList<>();
@@ -51,12 +55,13 @@ public final class IntentVocabulary {
         for (String file : List.of("/agent/intents_en.json", "/agent/intents_ru.json")) {
             JsonObject json = read(file);
             strings(json, "question_markers", questions);
+            strings(json, "advice_question_markers", adviceQuestions);
             groups(json, "action_verbs", verbs);
             groups(json, "topic_words", topics);
             strings(json, "complex_markers", complex);
             strings(json, "plan_request_markers", plans);
         }
-        return new IntentVocabulary(questions, verbs, topics, complex, plans);
+        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans);
     }
 
     public boolean startsWithQuestionMarker(String lowerText, List<String> tokens) {
@@ -66,6 +71,11 @@ public final class IntentVocabulary {
             }
         }
         return false;
+    }
+
+    /** Questions asking for a recommendation should not expose tools that can spend items. */
+    public boolean isAdviceQuestion(String lowerText) {
+        return adviceQuestionMarkers.stream().anyMatch(lowerText::contains);
     }
 
     /** The groups of every action verb in the tokens, keyed by verb stem, in first-seen order. */
@@ -102,6 +112,10 @@ public final class IntentVocabulary {
     static boolean matches(String token, String stem) {
         if (token.equals(stem)) {
             return true;
+        }
+        // "farmer" is a noun/topic, not an inflection of the action verb "farm".
+        if (stem.equals("farm") && (token.equals("farmer") || token.equals("farmers"))) {
+            return false;
         }
         if (stem.length() >= 4 && token.startsWith(stem)) {
             return true;

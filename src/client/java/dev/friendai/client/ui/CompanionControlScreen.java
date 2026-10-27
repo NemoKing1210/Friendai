@@ -29,6 +29,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
     private final Entry places = new Entry("friendai.menu.tab.places", new PlacesTab());
     private final Entry appearance = new Entry("friendai.menu.tab.appearance", new AppearanceTab());
+    private final Entry traders = new Entry("friendai.menu.tab.traders", new TradersTab());
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
@@ -56,6 +57,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public void removed() {
         CompanionRequests.send(RequestType.UNSUBSCRIBE);
+        CompanionRequests.trade(dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                CompanionClientState.tradeView().map(view -> view.queryId().toString()).orElse("00000000-0000-0000-0000-000000000000"),
+                "", "{}", 0, 0, "");
         if (selected == memory) {
             CompanionRequests.send(RequestType.MEMORY_CLOSE);
         }
@@ -98,7 +102,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, places, appearance));
+        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, places, appearance, traders));
         if (operator()) {
             tabs.add(log);
             tabs.add(debug);
@@ -116,6 +120,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (selected == places) {
             CompanionRequests.send(RequestType.PLACES_CLOSE);
         }
+        if (selected == traders) CompanionRequests.trade(dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                CompanionClientState.tradeView().map(view -> view.queryId().toString()).orElse("00000000-0000-0000-0000-000000000000"),
+                "", "{}", 0, 0, "");
         selected = entry;
         if (entry == memory) {
             CompanionRequests.send(RequestType.MEMORY_OPEN);
@@ -123,6 +130,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (entry == places) {
             CompanionRequests.send(RequestType.PLACES_OPEN);
         }
+        if (entry == traders) ((TradersTab) entry.tab()).open();
         rebuildWidgets();
     }
 

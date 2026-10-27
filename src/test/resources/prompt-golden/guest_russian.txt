@@ -44,6 +44,14 @@ Tool notes:
 - To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item.
 - When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.
 - To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.
+- Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.
+- Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.
+- Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.
+- Known prices are historical quotes. Check freshness and inspect a trader before any purchase; never promise a piglin barter reward.
+- plan_trade is read-only: check exact stock, output batches and every required currency before placing an order.
+- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.
+- Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.
+- Piglin barter is random. Pay only one plain gold ingot at a time under the owner's explicit cap, attribute only drops owned by the selected piglin, and never retry accepted gold with no output.
 - For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.
 - When the owner teaches a place ("remember this as home"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.
 - When the owner releases you ("do your own thing", "do whatever you want"), call start_free_time with their hint as wish; call end_free_time when they call you back.

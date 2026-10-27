@@ -347,3 +347,16 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Ask a plain question ("where are you?") with `agent.toolRouting` on: it answers without walking anywhere; ask for work afterwards and it still has its tools (check `request_tools` in the log if it needed one).
 - [ ] `agent.autonomy` = `passive`: an idle companion with a goal stays silent; `assistive`: it reports or continues after `agent.goalTickSec`; `autonomous`: with no goal it may ask what to do next but never starts work unasked.
 - [ ] Set `agent.planner` to a second profile and confirm the planner call uses it (the main profile sees no planner request).
+
+## Trading and barter
+
+- [ ] With two players nearby, have the owner discover and inspect a villager; confirm the Traders tab and `known_trades` expose the offers only to that owner.
+- [ ] Replace the villager or reorder its offers; confirm UUID identity stays distinct and a stale/ambiguous offer requires a fresh inspection.
+- [ ] Preview an offer with explicit input caps and reserves, then submit it; confirm the vanilla result slot consumes exactly one fill and the companion receives the exact component-bearing output.
+- [ ] Queue or retry the same order after a partial fill; confirm the shared scope does not restore spent currency or exceed the original caps.
+- [ ] Wait for a villager restock at its job site; confirm uses change only through vanilla restock. A wandering trader reports unsupported waiting.
+- [ ] Ask `obtain_item` for a plain item after granting an explicit trade scope; confirm the planner can choose an affordable merchant route. Without that scope, confirm no trade is submitted.
+- [ ] Barter with an adult piglin using a bounded gold budget; confirm only its attributed random drops are collected and logged, and accepted gold is never paid again after a missing or interrupted result.
+- [ ] Open the Traders tab as another player; confirm pages, actions, and market records are private. Search and page through offers without losing the selected partner.
+- [ ] Restart with a pending merchant or piglin action; confirm the action is not replayed and the journal reports interrupted or uncertain progress.
+- [ ] Run the Traders tab at default and large GUI scales in English and Russian; inspect long labels, component previews, narration, keyboard focus and pagination.

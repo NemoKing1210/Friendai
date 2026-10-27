@@ -26,6 +26,7 @@ import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import dev.friendai.tool.Caller;
+import dev.friendai.queue.QueueTradeScope;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -202,26 +203,26 @@ public final class TaskRunner {
     public void stopAll(String reason) {
         Active active=current;
         Task cleanup=active==null?null:active.task().cleanupAfterCancel(context());
-        if(frozen!=null)cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));
+        if(frozen!=null){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));safeStop(frozen.task(),context());frozen=null;}
         if(active!=null)cancelCurrent(reason,false);
         for(PlanRecord p:queue.plans()) finishPlan(p.id(),"stopped by request",false);
-        queue.clear(); factories.clear(); frozen=null;
+        queue.clear(); factories.clear();
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else startDefault();
     }
     public String clearQueue(String reason) {
         Active active=current;
         Task cleanup=active!=null&&active.jobId()>0?active.task().cleanupAfterCancel(context()):null;
-        if(frozen!=null)cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));
+        if(frozen!=null){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));safeStop(frozen.task(),context());frozen=null;}
         if(active!=null&&active.jobId()>0)cancelCurrent(reason,false);
         for(PlanRecord plan:queue.plans())finishPlan(plan.id(),reason,false);
-        String result=queue.clear().text(); factories.clear(); frozen=null;
+        String result=queue.clear().text(); factories.clear();
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else startNextOrDefault(); return result;
     }
     public void cancelJob(long id,String reason) {
         Job original=queue.job(id).orElse(null);Active active=current;
         Task cleanup=null;
         if(active!=null&&active.jobId()==id) { cleanup=active.task().cleanupAfterCancel(context()); cancelCurrent(reason,false); queue.cancel(id); factories.remove(id); }
-        else { if(frozen!=null&&frozen.jobId()==id){cleanup=frozen.task().cleanupAfterCancel(context());frozen=null;} queue.cancel(id); factories.remove(id); }
+        else { if(frozen!=null&&frozen.jobId()==id){cleanup=frozen.task().cleanupAfterCancel(context());safeStop(frozen.task(),context());frozen=null;} queue.cancel(id); factories.remove(id); }
         Job j=queue.job(id).orElse(null); if(j!=null&&j.planId()==0)queue.remove(id);else if(j!=null&&j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),"cancelled",false);
         if(original!=null&&original.planId()==0&&(active==null||active.jobId()!=id)&&listener!=null)listener.onCancelled((int)original.id(),original.tool(),reason);
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else if(current==null)startNextOrDefault();
@@ -236,7 +237,7 @@ public final class TaskRunner {
     public void cancelPlan(long id,String reason) {
         Active active=current; Task cleanup=null;
         if(active!=null&&active.planId()==id){cleanup=active.task().cleanupAfterCancel(context());cancelCurrent(reason,false);}
-        if(frozen!=null&&frozen.planId()==id){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));frozen=null;}
+        if(frozen!=null&&frozen.planId()==id){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));safeStop(frozen.task(),context());frozen=null;}
         queue.cancelPlan(id); finishPlan(id,"cancelled",false);
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else if(current==null)startNextOrDefault();
     }
@@ -383,6 +384,17 @@ public final class TaskRunner {
                 notice("Saved creative tasks were cancelled after reload; submit them again.");
             }
         }
+        Set<Long> expiredTradingPlans = new HashSet<>();
+        for (Job job : List.copyOf(queue.jobs())) {
+            if (!QueueTradeScope.requiresFreshAuthority(job.args(), false)) continue;
+            factories.remove(job.id());
+            if (job.planId() > 0) expiredTradingPlans.add(job.planId());
+            else queue.cancel(job.id(), "trading authority expired after restart");
+        }
+        for (long planId : expiredTradingPlans) {
+            queue.cancelPlan(planId);
+            finishPlan(planId, "trading authority expired after restart", false);
+        }
         if (decoded.activeJobId() > 0) {
             Job job = queue.job(decoded.activeJobId()).orElse(null);
             if (job != null && job.state() == JobState.RUNNING) {
@@ -411,9 +423,12 @@ public final class TaskRunner {
                     }
                 }
             }
-        }
-        for(Job job:List.copyOf(queue.jobs()))if(job.state()==JobState.RUNNING&&(current==null||current.jobId()!=job.id()))queue.requeue(job.id());
-        nextPoll=0;}
+        }        for(Job job:List.copyOf(queue.jobs()))if(job.state()==JobState.RUNNING&&(current==null||current.jobId()!=job.id()))queue.requeue(job.id());
+        nextPoll=0;
+    }
+    private static boolean requiresFreshTradingAuthority(Job job) {
+        return QueueTradeScope.requiresFreshAuthority(job.args(), false);
+    }
     private static boolean interruptedSearch(Job job,String save){if(save!=null&&save.startsWith("resource_session:v1:"))return true;if(job.tool().equals("search_resource"))return true;return job.tool().equals("obtain_item")&&job.args().has("explore")&&job.args().get("explore").getAsBoolean();}
     private void interruptSearchLedger(String save){var owner=companion.ownerUuid();if(owner==null)return;var ledger=FriendaiServerState.get(((ServerLevel)companion.level()).getServer()).knowledge().book(owner).searchLedger();if(save!=null&&save.startsWith("resource_session:v1:")){try{ledger.interrupt(java.util.UUID.fromString(save.substring("resource_session:v1:".length())));return;}catch(IllegalArgumentException malformed){LOGGER.warn("Malformed saved resource session marker; interrupting active ledger sessions");}}ledger.interruptActive();}
     private void safeStop(Task task,TaskContext ctx){try{task.stop(ctx);}catch(RuntimeException e){LOGGER.warn("Task {} failed to stop",task.type(),e);}}

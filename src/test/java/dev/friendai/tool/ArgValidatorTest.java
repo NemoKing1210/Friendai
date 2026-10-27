@@ -24,6 +24,16 @@ class ArgValidatorTest {
                     .build(), 1, 3)
             .build();
 
+    private static final JsonObject UUIDS = SchemaBuilder.object()
+            .array("ids", "UUID strings", stringSchema(), 1, 3)
+            .build();
+
+    private static JsonObject stringSchema() {
+        JsonObject schema = new JsonObject();
+        schema.addProperty("type", "string");
+        return schema;
+    }
+
     private static JsonObject args(String json) {
         return JsonParser.parseString(json).getAsJsonObject();
     }
@@ -79,6 +89,13 @@ class ArgValidatorTest {
     @Test
     void nonObjectItemRejected() {
         assertEquals(List.of("'steps[1]' must be an object"), ArgValidator.validate(PLAN, args("{\"steps\":[5]}")));
+    }
+
+    @Test
+    void primitiveArrayItemsAreValidatedByTheirDeclaredSchema() {
+        assertTrue(ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",\"two\"]}")).isEmpty());
+        assertEquals(List.of("'ids[2]' must be a string"),
+                ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",2]}")));
     }
 
     @Test

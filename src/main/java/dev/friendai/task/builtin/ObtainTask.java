@@ -6,8 +6,7 @@ import dev.friendai.crafting.obtain.ObtainStep;
 import dev.friendai.crafting.obtain.ObtainText;
 import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.creative.CreativeAction;
-import dev.friendai.debug.DebugTarget;
-import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.DebugTarget;import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -66,6 +66,7 @@ public final class ObtainTask implements Task {
     private final int exploreTicks;
     private final String searchScope;
     private final Caller caller;
+    private final TradingContext tradingContext;
 
     private final List<String> history = new ArrayList<>();
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
@@ -87,11 +88,18 @@ public final class ObtainTask implements Task {
     public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
             int exploreRadius, int exploreBlocks, int exploreTicks) {
         this(item, count, useContainers, explore, maxSteps, maxTicks, exploreRadius, exploreBlocks,
-                exploreTicks, "local", null);
+                exploreTicks, "local", null, null);
     }
 
     public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
             int exploreRadius, int exploreBlocks, int exploreTicks, String searchScope, Caller caller) {
+        this(item, count, useContainers, explore, maxSteps, maxTicks, exploreRadius, exploreBlocks, exploreTicks,
+                searchScope, caller, null);
+    }
+
+    public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
+            int exploreRadius, int exploreBlocks, int exploreTicks, String searchScope, Caller caller,
+            TradingContext tradingContext) {
         this.item = item;
         this.count = count;
         this.useContainers = useContainers;
@@ -103,6 +111,7 @@ public final class ObtainTask implements Task {
         this.exploreTicks = exploreTicks;
         this.searchScope = searchScope == null ? "local" : searchScope;
         this.caller = caller;
+        this.tradingContext = tradingContext;
     }
 
     @Override
@@ -204,7 +213,7 @@ public final class ObtainTask implements Task {
         WorldFacts facts = WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore,
                 Set.of(), excludedSiteIds);
         ObtainPlan plan = ObtainPlanner.plan(item, count, inventoryMap(companion), RecipeIndex.of(level),
-                DropIndex.of(level), facts);
+                DropIndex.of(level), facts, tradingContext);
         if (!plan.actionable()) {
             return fail("can't get " + count + " " + item + " here: "
                     + ObtainText.missingText(plan.missing(), !explore));
@@ -252,7 +261,33 @@ public final class ObtainTask implements Task {
                     ? new ExploreTask(blockMatcher(explore.block()), explore.down(), explore.depthY(), exploreRadius,
                             exploreBlocks, exploreTicks)
                     : new SearchResourceTask(explore.block(), "auto", searchScope, null, caller);
+            case ObtainStep.Trade trade -> tradeTask(c, trade);
+            case ObtainStep.InspectTrader inspect -> new InspectTraderTask(inspect.trader());
         };
+    }
+
+    private Task tradeTask(TaskContext c, ObtainStep.Trade step) {
+        if (caller == null || tradingContext == null || !tradingContext.scopeId().equals(step.scopeId())) {
+            throw new IllegalStateException("obtain trade has no captured owner scope");
+        }
+        var state = dev.friendai.core.FriendaiServerState.get(c.level().getServer());
+        var trader = tradingContext.traders().stream().filter(value -> value.id().equals(step.trader()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("planned trader disappeared"));
+        var offer = trader.offers().stream().filter(value -> value.ref().equals(step.offerRef()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("planned offer disappeared"));
+        if (trader.revision() != step.revision() || !state.brains().tradeAuthorityFor(caller.uuid())
+                .permitsPayment(step.scopeId(), offer.fingerprint())) {
+            throw new IllegalStateException("planned offer or payment authority is stale");
+        }
+        var authority = state.brains().tradeAuthorityFor(caller.uuid());
+        long deadline = authority.deadlineFor(step.scopeId());
+        long now = c.level().getServer().overworld().getGameTime();
+        if (deadline <= now) throw new IllegalStateException("owner trading scope expired");
+        UUID id = UUID.randomUUID();
+        int desired = Math.multiplyExact(step.count(), offer.output().count());
+        TradeOrder order = new TradeOrder(id, caller.uuid(), step.scopeId(), step.trader(), step.offerRef(),
+                step.revision(), desired, tradingContext.budget(), Set.of(offer.fingerprint()), true, true, deadline);
+        return new TradeTask(authority.authorize(caller, order));
     }
 
     private Optional<String> ensureRoom(TaskContext c, ObtainPlan plan) {
@@ -314,6 +349,8 @@ public final class ObtainTask implements Task {
                 }
                 case ObtainStep.Explore ignored -> {
                 }
+                case ObtainStep.Trade ignored -> { }
+                case ObtainStep.InspectTrader ignored -> { }
             }
         }
         return used;
@@ -407,6 +444,8 @@ public final class ObtainTask implements Task {
             case ObtainStep.Shear shear -> "shear:" + shear.mob();
             case ObtainStep.Milk ignored -> "milk";
             case ObtainStep.Explore explore -> "explore:" + explore.block();
+            case ObtainStep.Trade trade -> "trade:" + trade.trader() + ":" + trade.offerRef();
+            case ObtainStep.InspectTrader inspect -> "inspect:" + inspect.trader();
         };
     }
 
@@ -424,6 +463,8 @@ public final class ObtainTask implements Task {
             case ObtainStep.Shear shear -> "sheared " + shear.count() + " " + shear.mob();
             case ObtainStep.Milk milk -> "milked " + milk.count();
             case ObtainStep.Explore explore -> "explored for " + explore.block();
+            case ObtainStep.Trade trade -> "traded " + trade.count() + " fill(s) with " + trade.trader();
+            case ObtainStep.InspectTrader inspect -> "inspected " + inspect.trader();
         };
     }
 

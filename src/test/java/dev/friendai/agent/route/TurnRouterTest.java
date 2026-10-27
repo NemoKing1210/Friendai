@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.brain.TurnKind;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TurnRouterTest {
@@ -70,6 +71,48 @@ class TurnRouterTest {
     @Test
     void aQuestionThatContainsAnActionStaysAnAction() {
         assertEquals(TurnMode.ACTION, player("can you mine some iron?", false).mode());
+    }
+
+    @Test
+    void tradingQuestionsStayChatAndMayUseReadOnlyTradeContext() {
+        RouteDecision en = player("What trades does the villager have?", false);
+        assertEquals(TurnMode.CHAT, en.mode());
+        assertTrue(en.groups().contains(ToolGroup.TRADING));
+        assertFalse(en.groups().contains(ToolGroup.COMBAT));
+
+        RouteDecision ru = player("Какие сделки есть у жителя?", false);
+        assertEquals(TurnMode.CHAT, ru.mode());
+        assertTrue(ru.groups().contains(ToolGroup.TRADING));
+    }
+
+    @Test
+    void shoppingAdviceQuestionsDoNotUnlockSpendingTools() {
+        for (String text : List.of("Should I buy a diamond sword?", "Стоит ли покупать карту?")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.CHAT, d.mode(), text);
+            assertFalse(d.groups().contains(ToolGroup.TRADING), text);
+        }
+    }
+
+    @Test
+    void explicitBuyingAndSellingRequestsRouteToTrading() {
+        for (String text : List.of("Buy a map from the villager", "Sell my wheat to the farmer",
+                "Купи карту у жителя", "Продай пшеницу фермеру")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertTrue(d.groups().contains(ToolGroup.TRADING), text);
+        }
+    }
+
+    @Test
+    void onlyTradingActionVerbsCreateSpendingIntent() {
+        TurnRouter router = new TurnRouter(IntentVocabulary.load());
+        for (String text : List.of("Buy a map", "Продай пшеницу", "barter with the piglin", "пополнить запасы жителя")) {
+            assertTrue(router.explicitlyRequestsTrading(text), text);
+        }
+        for (String text : List.of("get emeralds", "What offers does the villager have?", "hmm okay then")) {
+            assertFalse(router.explicitlyRequestsTrading(text), text);
+        }
     }
 
     @Test

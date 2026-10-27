@@ -81,7 +81,6 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 The rest of the map lives in `ARCHITECTURE.md`: the source sets, the **Where to start** table, the dependency rule, every package with its classes, the runtime flows (one chat turn, the task lifecycle, the menu, configuration, speech in and out), data and persistence, the network protocol and the access rules. Read it before changing a package you have not touched.
 
 Both files are part of the contract: add or move a package that either one names, and update it in the same commit.
-
 ## Rules that keep it working
 
 1. **Threads.** The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back with `server.execute(...)` through `ServerBrainScheduler.execute`. Client speech stays on the client: recognition and synthesis run on worker threads and hop back with `Minecraft.getInstance().execute(...)`, and only the server-side transcript handler uses `server.execute(...)`. A `CompletableFuture` callback never touches entities directly.

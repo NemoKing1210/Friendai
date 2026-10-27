@@ -1,5 +1,7 @@
 package dev.friendai.crafting.obtain;
 
+import java.util.UUID;
+
 /** One step of an obtain plan, in the order the tasks should run it. */
 public sealed interface ObtainStep {
     /** Take items from a nearby container. */
@@ -79,4 +81,19 @@ public sealed interface ObtainStep {
 
     /** Look for {@code block}, either on the surface or down at {@code depthY}. */
     record Explore(String block, boolean down, int depthY) implements ObtainStep {}
+
+    /** Execute one captured, component-neutral merchant fill under an existing owner scope. */
+    record Trade(UUID trader, String offerRef, long revision, int count, UUID scopeId) implements ObtainStep {
+        public Trade {
+            if (trader == null || scopeId == null || offerRef == null || offerRef.isBlank()
+                    || offerRef.length() > 160 || revision < 0 || count <= 0) {
+                throw new IllegalArgumentException("invalid obtain trade step");
+            }
+        }
+    }
+
+    /** The candidate quote is stale or ambiguous; inspect before planning a trade. */
+    record InspectTrader(UUID trader) implements ObtainStep {
+        public InspectTrader { if (trader == null) throw new IllegalArgumentException("trader is required"); }
+    }
 }

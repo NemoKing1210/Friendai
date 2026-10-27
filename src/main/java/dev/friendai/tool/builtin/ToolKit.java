@@ -6,8 +6,11 @@ import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.Task;
 import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.QueuedStep;import dev.friendai.queue.FailurePolicy;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
-import dev.friendai.queue.FailurePolicy;
+import dev.friendai.task.Task;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
@@ -29,6 +32,7 @@ final class ToolKit {
 
     /** Registers a task tool and contributes its definition to the task registry. */
     static void add(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def) {
+        validateRegistration(def, false);
         defs.add(def);
         registry.register(taskTool(def));
     }
@@ -38,6 +42,7 @@ final class ToolKit {
      */
     static void addCaller(
             ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def, CallerAction action) {
+        validateRegistration(def, true);
         defs.add(def);
         CallerAction routed = (c, caller, args) -> {
             if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
@@ -57,8 +62,7 @@ final class ToolKit {
                                 FailurePolicy.STOP_PLAN, 1, List.of(), caller == null ? null : caller.uuid(),
                                 def.creativeSensitive()),
                         ctx -> def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), caller),
-                                args.deepCopy()));
-                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
+                                args.deepCopy()));                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
                 return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
                         : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
             } catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
@@ -71,8 +75,7 @@ final class ToolKit {
             if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
                     caller == null ? null : caller.uuid())) {
                 return creativeAuthorizationError();
-            }
-            Task task;
+            }            Task task;
             try {
                 task = def.callerFactory() == null ? def.factory().create(c, args)
                         : def.callerFactory().create(c, caller, args.deepCopy());
@@ -95,6 +98,22 @@ final class ToolKit {
             boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
             return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
         });
+    }
+
+    static boolean requiresFreshAuthority(JsonObject args, TaskToolDef def) {
+        return QueueTradeScope.requiresFreshAuthority(args, def.queueTraits().requiresTradingScope());
+    }
+
+    static void validateRegistration(TaskToolDef def, boolean callerAware) {
+        if (def == null) throw new IllegalArgumentException("task tool definition is required");
+        if (def.queueTraits().requiresTradingScope()) {
+            if (!callerAware) {
+                throw new IllegalArgumentException("spending tools must be registered through a caller-aware path");
+            }
+            if (def.callerFactory() == null) {
+                throw new IllegalArgumentException("spending tools require a caller-aware task factory");
+            }
+        }
     }
 
     /** Starts a task the tool has already built and reports its id. */

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,12 +68,14 @@ public final class CompanionBrain {
     private GoalSource goalSource = GoalSource.NONE;
     private PlaceSource placeSource = PlaceSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
+    private TradingTurnPort tradingTurnPort = TradingTurnPort.NOOP;
     private boolean plannedThisTurn;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
+    private BiFunction<Caller, String, String> tradingPromptSource = (caller, text) -> "";
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
     private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
@@ -212,6 +215,15 @@ public final class CompanionBrain {
         this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
     }
 
+    public void setTradingTurnPort(TradingTurnPort tradingTurnPort) {
+        this.tradingTurnPort = tradingTurnPort == null ? TradingTurnPort.NOOP : tradingTurnPort;
+    }
+
+    /** Supplies owner-private observed offers for this principal's current prompt only. */
+    public void setTradingPromptSource(BiFunction<Caller, String, String> source) {
+        this.tradingPromptSource = source == null ? (caller, text) -> "" : source;
+    }
+
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
         return buildSystemPrompt(plannerNote);
@@ -226,9 +238,20 @@ public final class CompanionBrain {
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
-                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)),
-                placeSource.describe(turnCaller),
-                note);
+                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
+                        decision.mode() == TurnMode.CHAT),
+                placeSource.describe(turnCaller), note, safeTradingPrompt());
+    }
+
+    private String safeTradingPrompt() {
+        if (turnCaller == null || turnCaller.access() != AccessLevel.OWNER
+                || !turnCaller.uuid().equals(access.owner())) return "";
+        try {
+            return tradingPromptSource.apply(turnCaller, String.join("\n", turnPlayerTexts));
+        } catch (RuntimeException e) {
+            LOGGER.debug("Trading prompt summary unavailable", e);
+            return "";
+        }
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -282,7 +305,9 @@ public final class CompanionBrain {
         }
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
-        turnCaller = new Caller(principal, name == null ? "" : name, level);
+        Caller candidateCaller = new Caller(principal, name == null ? "" : name, level);
+        boolean ownerInitiated = batch.stream().anyMatch(event -> event instanceof BrainEvent.PlayerSaid said
+                && said.playerUuid().equals(access.owner()));
         List<Long> troubledPlans = batch.stream()
                 .map(CompanionBrain::troubledPlanId)
                 .filter(id -> id >= 0)
@@ -292,9 +317,15 @@ public final class CompanionBrain {
         decision = router.route(new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
-                !goalSource.view(turnCaller).isEmpty(),
+                !goalSource.view(candidateCaller).isEmpty(),
                 planTrouble,
                 0));
+        // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
+        // work cannot turn a read-only question into authority behind the chat tool filter.
+        turnCaller = tradingTurnPort.begin(candidateCaller,
+                ownerInitiated && decision.mode() != TurnMode.CHAT
+                        && decision.groups().contains(ToolGroup.TRADING)
+                        && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
@@ -377,9 +408,10 @@ public final class CompanionBrain {
         CompletableFuture<LlmResponse> future;
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access());
-            // Speech is checked against every tool this caller has, not just the routed subset.
+            Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
+            List<ToolSpec> sent = catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
+            // ReplyGuard sanitizes internal names across the full registry, even when routing hid a schema.
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-            List<ToolSpec> sent = agentSettings.get().toolRouting() ? catalog.filter(specs, visibleGroups) : specs;
             String system = buildSystemPrompt(plannerNote);
             plannerNote = "";
             future = gateway.get().complete(system, memory.snapshot(), sent);
@@ -430,7 +462,13 @@ public final class CompanionBrain {
             ToolResult result;
             observe(o -> o.onToolCall(call));
             try {
-                result = REQUEST_TOOLS.equals(call.name()) ? requestTools(call) : tools.execute(call, turnCaller);
+                if ("trade_item".equals(call.name())
+                        && (decision.mode() == TurnMode.CHAT
+                                || !decision.groups().contains(ToolGroup.TRADING))) {
+                    result = ToolResult.error("trading is not available for this request");
+                } else {
+                    result = REQUEST_TOOLS.equals(call.name()) ? requestTools(call) : tools.execute(call, turnCaller);
+                }
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
@@ -483,7 +521,10 @@ public final class CompanionBrain {
         visibleGroups.add(group.get());
         String unlocked = tools.specs(turnCaller.access()).stream()
                 .map(ToolSpec::name)
-                .filter(name -> catalog.meta(name).map(meta -> meta.group() == group.get()).orElse(false))
+                .filter(name -> catalog.meta(name)
+                        .map(meta -> meta.group() == group.get()
+                                && catalog.visible(name, visibleGroups, decision.mode() == TurnMode.CHAT))
+                        .orElse(false))
                 .collect(Collectors.joining(", "));
         return ToolResult.ok("tools unlocked: " + group.get().name().toLowerCase(java.util.Locale.ROOT)
                 + (unlocked.isEmpty() ? "" : " (" + unlocked + ")"));

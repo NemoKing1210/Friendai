@@ -115,12 +115,14 @@ public final class ArgValidator {
         for (int i = 0; i < array.size(); i++) {
             String itemLabel = label + "[" + (i + 1) + "]";
             JsonElement element = array.get(i);
-            if (!element.isJsonObject()) {
-                errors.add("'" + itemLabel + "' must be an object");
-                continue;
-            }
             if (objectItems) {
+                if (!element.isJsonObject()) {
+                    errors.add("'" + itemLabel + "' must be an object");
+                    continue;
+                }
                 validateObject(itemLabel + ".", itemSchema, element.getAsJsonObject(), errors);
+            } else {
+                checkProperty(itemLabel, itemSchema, element, errors);
             }
         }
     }

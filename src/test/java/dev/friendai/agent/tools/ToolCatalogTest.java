@@ -84,8 +84,7 @@ class ToolCatalogTest {
         assertTrue(find.core(), "find_place must be core: reading the book unlocks no group");
         assertEquals(ToolGroup.CORE, find.group(), "find_place");
         assertEquals(List.of("find_place"), names(catalog.filter(List.of(spec("find_place")), Set.of())));
-        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));
-    }
+        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));    }
 
     @Test
     void everyToolHasExactlyOneEntry() {

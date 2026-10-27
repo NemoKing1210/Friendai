@@ -24,6 +24,8 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.memory.MemoryViewCodec;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.MemoryViewS2CPayload;
+import dev.friendai.net.TradeViewS2CPayload;
+import dev.friendai.trading.TradeViewCodec;
 import dev.friendai.net.MovementDebugS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
 import dev.friendai.client.ui.CompanionInventoryScreen;
@@ -105,6 +107,9 @@ public class FriendaiClient implements ClientModInitializer {
                         FriendaiMod.LOGGER.warn("Dropping a malformed places view: {}", e.getMessage());
                     }
                 }));
+        ClientPlayNetworking.registerGlobalReceiver(TradeViewS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> TradeViewCodec.decode(payload.encoded()).ifPresent(CompanionClientState::onTradeView)));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> CompanionClientState.clearTradeView());
         ClientPlayNetworking.registerGlobalReceiver(MovementDebugS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     try {

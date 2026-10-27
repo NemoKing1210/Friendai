@@ -58,16 +58,22 @@ public final class PromptBuilder {
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
             int budget, List<String> toolHints, String places) {
-        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "");
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "", "");
     }
 
-    /**
-     * @param plannerNote what the planner just did for this turn, shown once in the Mission block
-     */
+    /** Compatibility overload for an owner-private trading context without a planner note. */
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
-            int budget, List<String> toolHints, String places, String plannerNote) {
+            int budget, List<String> toolHints, String places, String tradingSummary) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "", tradingSummary);
+    }
+
+    /** @param plannerNote what the planner just did for this turn, shown once in the Mission block */
+    public static String system(
+            Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
+            int budget, List<String> toolHints, String places, String plannerNote, String tradingSummary) {
         return PromptAssembler.defaults(budget).assemble(new TurnContext(
-                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints, places));
+                p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints,
+                places, tradingSummary));
     }
 }

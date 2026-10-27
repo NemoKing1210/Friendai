@@ -7,21 +7,26 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.fabricmc.fabric.api.entity.FakePlayer;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
+import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,6 +40,8 @@ import org.jetbrains.annotations.Nullable;
 public final class CompanionHands {
     private final CompanionEntity companion;
     private FakePlayer player;
+    private @Nullable Merchant openMerchant;
+    private boolean merchantSessionAcquired;
     private Predicate<BlockPos> protectionOverride;
 
     public CompanionHands(CompanionEntity companion) {
@@ -148,18 +155,104 @@ public final class CompanionHands {
     }
 
     /**
+     * Opens a merchant as this companion's own acting player. Vanilla interaction initializes personalized prices;
+     * only Fabric's swallowed screen opening is replaced. The caller must close the session in a finally block.
+     */
+    public @Nullable MerchantMenu openMerchant(Entity target) {
+        FakePlayer hands = handsPlayer();
+        if (!(target instanceof Merchant merchant) || target.level() != level() || !target.isAlive()
+                || merchant.getTradingPlayer() != null || hands.containerMenu != hands.inventoryMenu
+                || !canInteract(target.blockPosition())) {
+            return null;
+        }
+        sync(hands, target.getEyePosition());
+        if (!hands.isWithinEntityInteractionRange(target, 0.0)) {
+            return null;
+        }
+        mirrorExperienceIn(hands);
+        openMerchant = merchant;
+        merchantSessionAcquired = false;
+        boolean opened = false;
+        try {
+            hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            // The Fabric callback normally lives in the network handler, which these server-side hands bypass.
+            InteractionResult event = UseEntityCallback.EVENT.invoker()
+                    .interact(hands, level(), InteractionHand.MAIN_HAND, target,
+                            new EntityHitResult(target, target.position().add(0.0, target.getBbHeight() * 0.5, 0.0)));
+            if (event != InteractionResult.PASS) {
+                return null;
+            }
+            interact(target, ItemStack.EMPTY);
+            if (merchant.getTradingPlayer() != hands) {
+                return null;
+            }
+            merchantSessionAcquired = true;
+            if (hands.containerMenu == hands.inventoryMenu) {
+                hands.containerMenu = new MerchantMenu(1, hands.getInventory(), merchant);
+            }
+            if (!(hands.containerMenu instanceof MerchantMenu menu) || !menu.stillValid(hands)) {
+                return null;
+            }
+            menu.setCanRestock(merchant.canRestock());
+            menu.setShowProgressBar(merchant.showProgressBar());
+            opened = true;
+            return menu;
+        } finally {
+            if (!opened) {
+                closeMenu();
+            }
+        }
+    }
+
+    /**
      * Closes the fake player's menu: vanilla hands the menu's input slots back to the fake player, everything it holds
-     * returns to the companion, and the fake player's experience is copied back. Does nothing when no menu is open.
+     * returns to the companion, and block-menu experience costs are copied back. Merchant XP stays on the companion.
      */
     public void closeMenu() {
-        if (player == null || player.containerMenu == player.inventoryMenu) {
+        if (player == null) {
             return;
         }
         FakePlayer hands = player;
-        hands.closeContainer();
-        returnItems(hands);
-        companion.experience().loadLevel(hands.experienceLevel, hands.experienceProgress);
-        companion.syncExperience();
+        Merchant merchant = openMerchant;
+        boolean acquiredMerchant = merchantSessionAcquired;
+        openMerchant = null;
+        merchantSessionAcquired = false;
+        boolean ownsMerchant = merchant != null && merchant.getTradingPlayer() == hands;
+        boolean hasMenu = hands.containerMenu != hands.inventoryMenu;
+        if (!hasMenu && merchant == null) {
+            return;
+        }
+        try {
+            if (hands.containerMenu instanceof MerchantMenu && merchant != null && !ownsMerchant) {
+                // MerchantMenu.removed unconditionally clears the customer (and their special prices). A stale
+                // menu may only return its own unpaid inputs; its result is a preview, never an owned item.
+                for (int slot = 0; slot < 2; slot++) {
+                    ItemStack input = hands.containerMenu.getSlot(slot).remove(Integer.MAX_VALUE);
+                    hands.getInventory().placeItemBackInInventory(input, Prediction.SERVER_ONLY);
+                }
+                ItemStack carried = hands.containerMenu.getCarried();
+                hands.containerMenu.setCarried(ItemStack.EMPTY);
+                hands.getInventory().placeItemBackInInventory(carried, Prediction.SERVER_ONLY);
+                hands.containerMenu = hands.inventoryMenu;
+            } else if (hasMenu) {
+                hands.closeContainer();
+            }
+        } finally {
+            if (merchant != null && merchant.getTradingPlayer() == hands) {
+                merchant.setTradingPlayer(null);
+            }
+            if (merchant != null && (acquiredMerchant || ownsMerchant) && merchant.getTradingPlayer() == null) {
+                // 26.3 recalculates special prices on open, but leaves them on offers after vanilla close.
+                merchant.getOffers().forEach(offer -> offer.resetSpecialPriceDiff());
+            }
+            returnItems(hands);
+            if (merchant == null) {
+                // Block menus can spend levels. Merchant rewards are orbs collected by the companion itself, so
+                // copying the merchant's old mirrored snapshot back would erase XP picked up while it was open.
+                companion.experience().loadLevel(hands.experienceLevel, hands.experienceProgress);
+            }
+            companion.syncExperience();
+        }
     }
 
     private void mirrorExperienceIn(FakePlayer hands) {

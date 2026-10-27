@@ -4,6 +4,12 @@ import dev.friendai.crafting.Ingredient;
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.RecipeBook;
 import dev.friendai.crafting.Station;
+import dev.friendai.trading.TradePlanner;
+import dev.friendai.trading.TradeBudget;
+import dev.friendai.trading.TradeQuery;
+import dev.friendai.trading.TradePlan;
+import dev.friendai.trading.TradeItem;
+import dev.friendai.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -46,6 +52,12 @@ public final class ObtainPlanner {
 
     public static ObtainPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook recipes,
             SourceBook sources, WorldFacts world) {
+        return plan(target, count, inventory, recipes, sources, world, null);
+    }
+
+    /** Adds merchant candidates only when the caller supplies an explicit, owner-authorized trading context. */
+    public static ObtainPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook recipes,
+            SourceBook sources, WorldFacts world, TradingContext trading) {
         Objects.requireNonNull(target, "target");
         if (target.isEmpty()) {
             throw new IllegalArgumentException("target must not be empty");
@@ -70,7 +82,7 @@ public final class ObtainPlanner {
                 sim.containers.put(item, amount);
             }
         });
-        Attempt attempt = new Search(recipes, sources, world)
+        Attempt attempt = new Search(recipes, sources, world, trading)
                 .need(target, count, 0, new LinkedHashSet<>(), sim, true);
         List<ObtainStep> steps = merge(attempt.steps);
         return new ObtainPlan(steps, attempt.missing, steps.size(), attempt.conditional);
@@ -148,6 +160,7 @@ public final class ObtainPlanner {
         final Map<Long, Integer> siteBlocks = new LinkedHashMap<>();
         final Set<String> searchReserved = new LinkedHashSet<>();
         final Map<String, Integer> mineBudget = new LinkedHashMap<>();
+        final Map<String, Integer> tradeSpent = new LinkedHashMap<>();
 
         Sim copy() {
             Sim copy = new Sim();
@@ -158,6 +171,7 @@ public final class ObtainPlanner {
             copy.siteBlocks.putAll(siteBlocks);
             copy.searchReserved.addAll(searchReserved);
             copy.mineBudget.putAll(mineBudget);
+            copy.tradeSpent.putAll(tradeSpent);
             return copy;
         }
 
@@ -176,6 +190,8 @@ public final class ObtainPlanner {
             searchReserved.addAll(other.searchReserved);
             mineBudget.clear();
             mineBudget.putAll(other.mineBudget);
+            tradeSpent.clear();
+            tradeSpent.putAll(other.tradeSpent);
         }
 
         int available(String item) {
@@ -242,12 +258,14 @@ public final class ObtainPlanner {
         private final RecipeBook book;
         private final SourceBook sources;
         private final WorldFacts world;
+        private final TradingContext trading;
         private int evaluations;
 
-        Search(RecipeBook book, SourceBook sources, WorldFacts world) {
+        Search(RecipeBook book, SourceBook sources, WorldFacts world, TradingContext trading) {
             this.book = book;
             this.sources = sources;
             this.world = world;
+            this.trading = trading;
         }
 
         /**
@@ -379,7 +397,90 @@ public final class ObtainPlanner {
                     case Source.Milk milk -> providers.add(new MilkProvider(item, milk, allowExplore));
                 }
             }
+            if (trading != null && neutralItem(item)) {
+                TradeQuery query = new TradeQuery(TradeQuery.Direction.BUY, item, "{}", TradeQuery.MAX_RESULTS);
+                TradeBudget budget = remainingBudget(sim);
+                if (budget == null) return providers;
+                TradePlan plan = TradePlanner.plan(query, TradeItem.MAX_COUNT, trading.traders(), sim.items,
+                        budget, trading.nowTick(), false, trading.pricingActor());
+                for (TradePlan.Fill fill : plan.fills()) {
+                    TraderRecord trader = trading.traders().stream().filter(value -> value.id().equals(fill.trader()))
+                            .findFirst().orElse(null);
+                    var offer = trader == null ? null : trader.offers().stream()
+                            .filter(value -> value.ref().equals(fill.offerRef())).findFirst().orElse(null);
+                    if (offer == null || !neutralItem(offer.output().itemId())
+                            || !offer.output().componentsJson().equals("{}")
+                            || offer.effectiveInputs().stream().anyMatch(cost -> cost.itemId().equals(item))) continue;
+                    providers.add(new TradeProvider(item, fill, offer));
+                }
+                for (java.util.UUID traderId : plan.needsInspection()) providers.add(new InspectTraderProvider(traderId));
+            }
             return providers;
+        }
+
+        private TradeBudget remainingBudget(Sim sim) {
+            var caps = new LinkedHashMap<String, Integer>();
+            trading.budget().inputCaps().forEach((id, cap) -> {
+                int left = Math.max(0, cap - sim.tradeSpent.getOrDefault(id, 0));
+                if (left > 0) caps.put(id, left);
+            });
+            if (caps.isEmpty()) return null;
+            var reserves = new LinkedHashMap<String, Integer>();
+            trading.budget().reserves().forEach((id, amount) -> { if (caps.containsKey(id)) reserves.put(id, amount); });
+            var unit = new LinkedHashMap<String, Integer>();
+            trading.budget().maxUnitCosts().forEach((id, amount) -> { if (caps.containsKey(id)) unit.put(id, amount); });
+            return new TradeBudget(caps, reserves, unit);
+        }
+
+        private static boolean neutralItem(String id) {
+            return id != null && !id.isBlank();
+        }
+
+        private final class TradeProvider implements Provider {
+            private final String item;
+            private final TradePlan.Fill fill;
+            private final dev.friendai.trading.TradeOffer offer;
+
+            TradeProvider(String item, TradePlan.Fill fill, dev.friendai.trading.TradeOffer offer) {
+                this.item = item;
+                this.fill = fill;
+                this.offer = offer;
+            }
+
+            @Override public int capacity(Sim sim, int want) {
+                return Math.min(want, Math.multiplyExact(offer.output().count(), fill.repeats()));
+            }
+
+            @Override public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path,
+                    boolean emitCraft) {
+                int repeats = Math.min(fill.repeats(), (want + offer.output().count() - 1) / offer.output().count());
+                var working = sim.copy();
+                Attempt attempt = new Attempt();
+                for (var input : offer.effectiveInputs()) {
+                    int total = Math.multiplyExact(input.count(), repeats);
+                    if (working.take(input.itemId(), total) != total) return null;
+                    working.tradeSpent.merge(input.itemId(), total, Math::addExact);
+                }
+                int output = Math.multiplyExact(offer.output().count(), repeats);
+                working.add(item, output);
+                attempt.add(new ObtainStep.Trade(fill.trader(), fill.offerRef(), fill.revision(), repeats,
+                        trading.scopeId()));
+                attempt.cost = 10 + repeats;
+                return new Candidate(this, attempt, working, Math.min(want, output));
+            }
+        }
+
+        private final class InspectTraderProvider implements Provider {
+            private final java.util.UUID trader;
+            InspectTraderProvider(java.util.UUID trader) { this.trader = trader; }
+            @Override public int capacity(Sim sim, int want) { return want; }
+            @Override public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path,
+                    boolean emitCraft) {
+                Attempt attempt = new Attempt();
+                attempt.add(new ObtainStep.InspectTrader(trader));
+                attempt.conditional = true;
+                return new Candidate(this, attempt, sim.copy(), 0);
+            }
         }
 
         private boolean explorable(String item, Source.Mine mine) {

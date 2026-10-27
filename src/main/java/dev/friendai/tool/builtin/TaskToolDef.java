@@ -23,12 +23,13 @@ public record TaskToolDef(
         QueueTraits queueTraits,
         CallerFactory callerFactory,
         boolean creativeSensitive) {
-    public record QueueTraits(boolean interrupts, String mergeableCountArg) {
-        public static final QueueTraits DEFAULT = new QueueTraits(false, null);
+    public record QueueTraits(boolean interrupts, String mergeableCountArg, boolean requiresTradingScope) {
+        public QueueTraits(boolean interrupts, String mergeableCountArg) { this(interrupts, mergeableCountArg, false); }
+        public static final QueueTraits DEFAULT = new QueueTraits(false, null, false);
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
                        AccessLevel minAccess, QueueTraits queueTraits) {
-        this(name, description, schema, factory, plannable, minAccess, queueTraits, null);
+        this(name, description, schema, factory, plannable, minAccess, queueTraits, null, true);
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
                        AccessLevel minAccess, QueueTraits queueTraits, CallerFactory callerFactory) {

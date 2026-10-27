@@ -1,5 +1,6 @@
 {
   "question_markers": ["what", "where", "how", "why", "who", "when", "which", "whose", "tell me", "do you know", "are you", "is there", "can you tell"],
+  "advice_question_markers": ["should i", "should we", "is it worth", "worth buying", "worth selling", "do you recommend", "would you recommend", "would you buy", "would you purchase", "do you think i should", "do you think we should"],
   "action_verbs": {
     "mine": ["GATHERING"], "dig": ["GATHERING"], "gather": ["GATHERING"], "collect": ["GATHERING"], "chop": ["GATHERING"], "fell": ["GATHERING"],
     "build": ["BLUEPRINT", "BUILDING"], "construct": ["BLUEPRINT", "BUILDING"],
@@ -16,7 +17,9 @@
     "place": ["BUILDING"], "light": ["BUILDING"],
     "explore": ["RESOURCE"], "search": ["RESOURCE"], "locate": ["RESOURCE"],
     "trust": ["TRUST"], "rename": ["CONTROL"],
-    "give": ["INVENTORY"], "drop": ["INVENTORY"]
+    "give": ["INVENTORY"], "drop": ["INVENTORY"],
+    "buy": ["TRADING"], "purchase": ["TRADING"], "sell": ["TRADING"], "trade": ["TRADING"],
+    "barter": ["TRADING"], "restock": ["TRADING"], "replenish": ["TRADING"], "level": ["TRADING"]
   },
   "topic_words": {
     "wood": ["GATHERING"], "logs": ["GATHERING"], "tree": ["GATHERING"], "ore": ["GATHERING"], "stone": ["GATHERING"],
@@ -26,8 +29,9 @@
     "crops": ["FARMING"], "wheat": ["FARMING"],
     "iron": ["OBTAIN"], "diamond": ["OBTAIN"], "gold": ["OBTAIN"],
     "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"],
-    "own": ["AUTONOMY"], "whatever": ["AUTONOMY"], "free": ["AUTONOMY"], "yourself": ["AUTONOMY"]
-  },
+    "own": ["AUTONOMY"], "whatever": ["AUTONOMY"], "free": ["AUTONOMY"], "yourself": ["AUTONOMY"],
+    "villager": ["TRADING"], "trader": ["TRADING"], "merchant": ["TRADING"], "emerald": ["TRADING"],
+    "price": ["TRADING"], "offer": ["TRADING"], "restock": ["TRADING"], "barter": ["TRADING"]  },
   "complex_markers": ["and then", "after that", "afterwards", "first", "then", "once you", "when you are done", "before you"],
   "plan_request_markers": ["plan", "step by step", "make a plan", "organize", "organise", "figure out how"]
 }

@@ -1,0 +1,10 @@
+{
+  "name": "trading_question_uses_knowledge_without_spending",
+  "access": "owner",
+  "playerSays": "What trades does the villager have?",
+  "replies": [
+    {"text": "I remember a librarian offer, but I will check the live price before buying.", "tools": ["known_trades"]},
+    {"text": "The remembered offer is one enchanted book for emeralds. It is only a historical quote.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["known_trades"], "toolsNotCalled": ["trade_item", "barter"], "spokenContains": ["historical quote"]}
+}
