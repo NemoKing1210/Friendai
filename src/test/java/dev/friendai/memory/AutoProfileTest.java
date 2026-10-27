@@ -53,6 +53,14 @@ class AutoProfileTest {
     }
 
     @Test
+    void anAddressIsNotAClause() {
+        MemoryBook book = book();
+        say(book, "Call me when you arrive.");
+        say(book, "Зови меня когда придёшь.");
+        assertTrue(facts(book).isEmpty(), "a clause was stored as a name: " + facts(book));
+    }
+
+    @Test
     void aNegatedAddressCapturesNothing() {
         MemoryBook book = book();
         say(book, "Don't call me Bob.");

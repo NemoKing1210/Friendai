@@ -58,6 +58,11 @@ public final class AutoProfile {
             "anything", "это", "этого", "этот", "эту", "его", "её", "ее", "их", "тебя", "вас", "себя", "всё",
             "все", "ничего");
 
+    /** "Call me when you arrive" is a request, not a name. */
+    private static final Set<String> CLAUSE_STARTS = Set.of(
+            "when", "whenever", "if", "once", "after", "before", "later", "tomorrow", "now", "back", "again",
+            "как", "когда", "если", "потом", "завтра", "сейчас", "обратно");
+
     private static final Pattern ADDRESS_CALL_EN = address("call me\\s+");
     private static final Pattern ADDRESS_NAME_EN = address("my name is\\s+");
     private static final Pattern ADDRESS_CALL_RU = address("(?:зови|называй) меня\\s+");
@@ -219,7 +224,11 @@ public final class AutoProfile {
         if (value.isBlank() || value.length() > MAX_ADDRESS_CHARS) {
             return null;
         }
-        if (value.split("\\s+").length > MAX_ADDRESS_WORDS) {
+        String[] words = value.split("\\s+");
+        if (words.length > MAX_ADDRESS_WORDS) {
+            return null;
+        }
+        if (CLAUSE_STARTS.contains(words[0].toLowerCase(Locale.ROOT))) {
             return null;
         }
         return acceptable(value) ? value : null;
