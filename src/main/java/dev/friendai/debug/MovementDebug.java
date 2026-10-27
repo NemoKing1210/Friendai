@@ -1,12 +1,17 @@
 package dev.friendai.debug;
 
+import dev.friendai.queue.Job;
+import dev.friendai.queue.JobState;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * What the movement debug overlay draws: the route the companion is walking, the cells it will break or fill, its goal
@@ -41,6 +46,56 @@ public record MovementDebug(
     public record Segment(int fromX, int fromY, int fromZ, int toX, int toY, int toZ, int move) {}
 
     public record Cell(int x, int y, int z) {}
+
+    /** Combines task actions with path obstacles, keeping first-seen order and exact duplicates out. */
+    public static List<DebugTarget> combineTargets(List<DebugTarget> taskTargets,
+            List<Cell> routeBreaks, List<Cell> routePlaces) {
+        Set<DebugTarget> seen = new LinkedHashSet<>();
+        List<DebugTarget> result = new ArrayList<>(MAX_TARGETS);
+        if (taskTargets != null) {
+            for (DebugTarget target : taskTargets) {
+                if (target != null && seen.add(target) && !appendTarget(result, target)) {
+                    return List.copyOf(result);
+                }
+            }
+        }
+        if (routeBreaks != null) {
+            for (Cell cell : routeBreaks) {
+                DebugTarget target = new DebugTarget(cell.x(), cell.y(), cell.z(), DebugAction.BREAK, "Path obstacle");
+                if (seen.add(target) && !appendTarget(result, target)) {
+                    return List.copyOf(result);
+                }
+            }
+        }
+        if (routePlaces != null) {
+            for (Cell cell : routePlaces) {
+                DebugTarget target = new DebugTarget(cell.x(), cell.y(), cell.z(), DebugAction.PLACE, "Path support");
+                if (seen.add(target) && !appendTarget(result, target)) {
+                    return List.copyOf(result);
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean appendTarget(List<DebugTarget> targets, DebugTarget target) {
+        targets.add(target);
+        return targets.size() < MAX_TARGETS;
+    }
+
+    /** The next two pending queue jobs, ordered by their plan order. */
+    public static List<String> upcomingSteps(List<Job> jobs) {
+        if (jobs == null || jobs.isEmpty()) {
+            return List.of();
+        }
+        return jobs.stream()
+                .filter(job -> job.state() == JobState.PENDING)
+                .sorted(Comparator.comparingLong(Job::order))
+                .limit(MAX_UPCOMING_STEPS)
+                .map(Job::tool)
+                .map(tool -> tool.length() > MAX_LINE_CHARS ? tool.substring(0, MAX_LINE_CHARS) : tool)
+                .toList();
+    }
 
     public MovementDebug {
         route = List.copyOf(route);

@@ -3,6 +3,13 @@ package dev.friendai.debug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.google.gson.JsonObject;
+import dev.friendai.queue.FailurePolicy;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.Job;
+import dev.friendai.queue.JobQueue;
+import dev.friendai.queue.QueueLimits;
+import dev.friendai.queue.QueuedStep;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -11,6 +18,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MovementDebugTest {
+    private static QueuedStep step(String tool) {
+        return new QueuedStep(tool, new JsonObject(), null, List.of(), GuardAction.WAIT,
+                FailurePolicy.STOP_PLAN, 1, List.of());
+    }
+
     private static MovementDebug sample() {
         return new MovementDebug(7, 2,
                 List.of(new MovementDebug.Segment(0, 64, 0, 1, 64, 0, 0), new MovementDebug.Segment(1, 64, 0, 1, 65, 1, 2)),
@@ -149,6 +161,48 @@ class MovementDebugTest {
         out.writeUTF("x".repeat(MovementDebug.MAX_LINE_CHARS + 1));
 
         assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes.toByteArray()));
+    }
+
+    @Test
+    void combinesTaskAndPathTargetsInFirstSeenOrderAndDeduplicatesExactMatches() {
+        DebugTarget task = new DebugTarget(1, 2, 3, DebugAction.BREAK, "Path obstacle");
+        List<MovementDebug.Cell> routeBreaks = List.of(new MovementDebug.Cell(1, 2, 3),
+                new MovementDebug.Cell(4, 5, 6));
+        List<MovementDebug.Cell> routePlaces = List.of(new MovementDebug.Cell(7, 8, 9));
+
+        assertEquals(List.of(task,
+                        new DebugTarget(4, 5, 6, DebugAction.BREAK, "Path obstacle"),
+                        new DebugTarget(7, 8, 9, DebugAction.PLACE, "Path support")),
+                MovementDebug.combineTargets(List.of(task), routeBreaks, routePlaces));
+        assertEquals(List.of(), MovementDebug.combineTargets(List.of(), List.of(), List.of()));
+    }
+
+    @Test
+    void capsCombinedTargetsAtProtocolLimit() {
+        List<DebugTarget> taskTargets = new ArrayList<>();
+        for (int i = 0; i < MovementDebug.MAX_TARGETS + 5; i++) {
+            taskTargets.add(new DebugTarget(i, 0, 0, DebugAction.USE, "target"));
+        }
+        assertEquals(MovementDebug.MAX_TARGETS,
+                MovementDebug.combineTargets(taskTargets, List.of(), List.of()).size());
+    }
+
+    @Test
+    void upcomingStepsArePendingOnlyOrderedAndBounded() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        Job first = queue.addDirect(step("first_tool"));
+        Job running = queue.addDirect(step("running_tool"));
+        Job third = queue.addDirect(step("third_tool"));
+        Job terminal = queue.addDirect(step("terminal_tool"));
+        queue.markRunning(running.id());
+        queue.finish(terminal.id(), "done");
+
+        assertEquals(List.of("first_tool", "third_tool"),
+                MovementDebug.upcomingSteps(List.of(queue.job(terminal.id()).orElseThrow(),
+                        queue.job(third.id()).orElseThrow(), queue.job(running.id()).orElseThrow(),
+                        queue.job(first.id()).orElseThrow())));
+        assertEquals(List.of(), MovementDebug.upcomingSteps(List.of()));
+        assertEquals(List.of("first_tool"), MovementDebug.upcomingSteps(List.of(first)));
     }
 
     private static byte[] emptySnapshotWithOneTarget(int action) throws IOException {

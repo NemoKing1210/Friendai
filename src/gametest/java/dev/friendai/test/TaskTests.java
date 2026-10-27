@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.debug.MovementDebug;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
@@ -14,6 +15,7 @@ import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.builtin.UseBlockTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
@@ -53,6 +55,18 @@ public class TaskTests {
         TaskRunner r = new TaskRunner(c, () -> timeoutSec, () -> defaultFollow);
         r.setListener(events);
         return r;
+    }
+
+    @GameTest
+    public void debugPreviewShowsPendingPlanStepsInQueueOrder(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        TaskRunner runner = runner(c, new Events(), 300, false);
+        runner.queue().addDirect(new QueuedStep("first_tool", null, null, List.of(), null, null, 1, List.of()));
+        runner.queue().addDirect(new QueuedStep("second_tool", null, null, List.of(), null, null, 1, List.of()));
+        runner.queue().addDirect(new QueuedStep("third_tool", null, null, List.of(), null, null, 1, List.of()));
+        h.assertTrue(MovementDebug.upcomingSteps(runner.queue().jobs())
+                .equals(List.of("first_tool", "second_tool")), "debug preview should show the next two queued steps");
+        h.succeed();
     }
 
     /** A plan step that hands the runner a cleanup task when cancelled, like a build with its scaffold. */

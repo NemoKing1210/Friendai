@@ -2,6 +2,7 @@ package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugService;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -120,6 +121,9 @@ public final class MovementDebugStream {
         lines.add(String.format(Locale.ROOT, "vel %.3f %.3f %.3f (%.3f b/t)", v.x, v.y, v.z, Math.hypot(v.x, v.z)));
         lines.add("ground " + c.onGround() + ", water " + c.isInWater() + ", head in water "
                 + c.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) + ", pathing " + c.pathing());
-        return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines);
+        List<DebugTarget> targets = MovementDebug.combineTargets(
+                c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
+        List<String> upcoming = MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
+        return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming);
     }
 }
