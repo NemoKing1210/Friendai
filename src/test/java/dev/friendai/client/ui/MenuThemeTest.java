@@ -50,6 +50,7 @@ class MenuThemeTest {
     void theDarkListSurfaceKeepsItsTextReadable() {
         assertTrue(MenuTheme.readable(MenuTheme.ON_WELL, MenuTheme.WELL, BODY));
         assertTrue(MenuTheme.readable(MenuTheme.ON_WELL_DIM, MenuTheme.WELL, BODY));
+        assertTrue(MenuTheme.readable(MenuTheme.ON_WELL_BAD, MenuTheme.WELL, BODY));
     }
 
     @Test
@@ -74,6 +75,20 @@ class MenuThemeTest {
         for (int color : MenuTheme.PALETTE) {
             assertTrue(MenuTheme.readable(color, MenuTheme.WINDOW_FACE, BODY), hex(color) + " on the face");
             assertTrue(seen.add(color), "duplicate " + hex(color));
+            assertTrue(MenuTheme.readable(MenuTheme.ON_WELL, color, BODY), "white on " + hex(color));
+        }
+    }
+
+    @Test
+    void everyBarFillStandsOffItsTrack() {
+        for (int color : new int[] {
+                MenuTheme.ACCENT,
+                MenuTheme.GOOD,
+                MenuTheme.WARN,
+                MenuTheme.BAD,
+                MenuTheme.PURPLE
+        }) {
+            assertTrue(MenuTheme.readable(color, MenuTheme.TRACK, 3.0), hex(color) + " on the track");
         }
     }
 

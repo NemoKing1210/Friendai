@@ -68,10 +68,10 @@ final class LogTab implements MenuTab {
             case USER -> Ui.ACCENT;
             case ASSISTANT -> Ui.GOOD;
             case TOOL_CALL -> Ui.PURPLE;
-            case TOOL_RESULT -> 0xFF7FD6D6;
+            case TOOL_RESULT -> Ui.PALETTE[5];
             case ERROR -> Ui.BAD;
             case TASK -> Ui.WARN;
-            case MANUAL -> 0xFFC0A080;
+            case MANUAL -> Ui.PALETTE[6];
         };
     }
 
@@ -254,12 +254,16 @@ final class LogTab implements MenuTab {
             boolean hot = mouseX >= chip.x() && mouseX < chip.x() + chip.w()
                     && mouseY >= chip.y() && mouseY < chip.y() + CHIP_HEIGHT;
             int color = kindColor(chip.kind());
-            int tint = on ? color : Ui.DIM;
-            g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT,
-                    Ui.alpha(tint, on ? (hot ? 0x60 : 0x38) : (hot ? 0x30 : 0x14)));
-            Ui.border(g, chip.x(), chip.y(), chip.w(), CHIP_HEIGHT, Ui.alpha(tint, on ? 0xB0 : 0x50));
-            Ui.dot(g, chip.x() + 4, chip.y() + CHIP_HEIGHT / 2 - 2, 4, on ? color : Ui.alpha(Ui.DIM, 0x80));
-            g.text(font, kindName(chip.kind()), chip.x() + 11, chip.y() + 3, on ? Ui.TEXT : Ui.DIM);
+            if (on) {
+                g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT,
+                        hot ? Ui.alpha(color, 0xE0) : color);
+                Ui.text(g, font, kindName(chip.kind()), chip.x() + 6, chip.y() + 3, Ui.ON_WELL);
+            } else {
+                g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT,
+                        hot ? Ui.CARD_HOVER : Ui.CARD);
+                Ui.border(g, chip.x(), chip.y(), chip.w(), CHIP_HEIGHT, Ui.BORDER);
+                Ui.text(g, font, kindName(chip.kind()), chip.x() + 6, chip.y() + 3, Ui.DIM);
+            }
         }
     }
 
@@ -295,12 +299,12 @@ final class LogTab implements MenuTab {
         drawChips(g, font, mouseX, mouseY);
         int listTop = top + headerHeight + GAP + 2;
         int listHeight = top + height - listTop;
-        Ui.card(g, left, listTop, width, listHeight, Ui.alpha(Ui.TRACK, 0xA0), Ui.BORDER);
+        Ui.well(g, left, listTop, width, listHeight);
         List<LogEntry> entries = visibleEntries();
         if (entries.isEmpty()) {
             rows = List.of();
             rowsKey = "";
-            g.text(font, Component.translatable("friendai.menu.log.empty"), left + 8, listTop + 8, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.log.empty"), left + 8, listTop + 8, Ui.ON_WELL_DIM);
             return;
         }
         rebuildRows(font, entries, width - 8);
@@ -345,7 +349,7 @@ final class LogTab implements MenuTab {
                 }
                 g.fill(left + 1, y, left + 3, y + row.height(), Ui.alpha(color, 0xC0));
                 int x = left + 8;
-                g.text(font, TIME.format(Instant.ofEpochMilli(row.entry().timeMillis())), x, y + 2, Ui.DIM);
+                Ui.text(g, font, TIME.format(Instant.ofEpochMilli(row.entry().timeMillis())), x, y + 2, Ui.ON_WELL_DIM);
                 Ui.badge(g, font, kindName(row.entry().kind()), x + timeWidth + 6, y + 1, color);
                 String text = row.entry().text();
                 int lineY = y + 2;
@@ -360,7 +364,7 @@ final class LogTab implements MenuTab {
                             g.fill(x0, lineY - 1, x1, lineY + font.lineHeight, Ui.alpha(Ui.ACCENT, 0x70));
                         }
                     }
-                    g.text(font, line, textX, lineY, row.entry().kind() == LogKind.ERROR ? Ui.BAD : Ui.TEXT);
+                    Ui.text(g, font, line, textX, lineY, row.entry().kind() == LogKind.ERROR ? Ui.ON_WELL_BAD : Ui.ON_WELL);
                     lineY += font.lineHeight + 1;
                 }
             }

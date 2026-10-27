@@ -189,7 +189,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         int panelLeft = left - PANEL_PAD;
         int panelTop = 6;
         Ui.panel(g, panelLeft, panelTop, contentWidth + 2 * PANEL_PAD, height - 36 - panelTop);
-        g.text(font, title, left, 12, Ui.TEXT);
+        Ui.text(g, font, title, left, 12, Ui.TEXT);
         drawConnection(g);
         g.fill(left, tabBarBottom - 1, left + contentWidth, tabBarBottom, Ui.BORDER);
     }
@@ -205,7 +205,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         Component label = Component.translatable(connected ? "friendai.menu.connected" : "friendai.menu.no_data");
         int color = connected ? Ui.GOOD : Ui.BAD;
         int x = left + contentWidth - font.width(label);
-        g.text(font, label, x, 12, color);
+        Ui.text(g, font, label, x, 12, color);
         Ui.dot(g, x - 8, 14, 4, color);
     }
 }

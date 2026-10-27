@@ -59,7 +59,7 @@ final class QueuePanel {
         int cursor = y;
         for (FormattedCharSequence line : font.split(shown, width)) {
             if (g != null) {
-                g.text(font, line, x, cursor, color);
+                Ui.text(g, font, line, x, cursor, color);
             }
             cursor += font.lineHeight + 1;
         }
@@ -76,13 +76,12 @@ final class QueuePanel {
         int textX = x + labelWidth + 4;
         int cursor = y;
         if (g != null) {
-            g.fill(x, y, x + labelWidth, y + Ui.BADGE_HEIGHT, Ui.alpha(color, 0x38));
-            g.fill(x, y, x + 1, y + Ui.BADGE_HEIGHT, color);
-            g.text(font, label, x + 5, y + 2, color);
+            g.fill(x, y, x + labelWidth, y + Ui.BADGE_HEIGHT, color);
+            Ui.text(g, font, label, x + 5, y + 2, Ui.ON_WELL);
         }
         for (FormattedCharSequence line : font.split(Component.literal(body), Math.max(20, width - labelWidth - 4))) {
             if (g != null) {
-                g.text(font, line, textX, cursor + 2, Ui.TEXT);
+                Ui.text(g, font, line, textX, cursor + 2, Ui.TEXT);
             }
             cursor += font.lineHeight + 1;
         }

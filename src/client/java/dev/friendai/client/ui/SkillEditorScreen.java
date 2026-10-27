@@ -156,14 +156,14 @@ final class SkillEditorScreen extends Screen {
         super.extractBackground(g,mouseX,mouseY,partialTick);Ui.panel(g,left-6,4,w+12,height-8);
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mouseX,int mouseY,float partialTick) {
-        super.extractRenderState(g,mouseX,mouseY,partialTick);g.text(font,title,left,12,Ui.TEXT);
+        super.extractRenderState(g,mouseX,mouseY,partialTick);Ui.text(g, font,title,left,12,Ui.TEXT);
         if(mode!=Mode.TRANSFER) {
-            g.text(font,Component.translatable(mode==Mode.DESCRIPTION?"friendai.menu.description.summary":"friendai.menu.skills.name"),left,24,Ui.DIM);
-            g.text(font,Component.translatable(mode==Mode.DESCRIPTION?"friendai.menu.description.language":"friendai.menu.skills.trigger_description"),left,58,Ui.DIM);
-            if(mode==Mode.SKILL)g.text(font,Component.translatable("friendai.menu.skills.selection_hint"),left,92,Ui.DIM);
+            Ui.text(g, font,Component.translatable(mode==Mode.DESCRIPTION?"friendai.menu.description.summary":"friendai.menu.skills.name"),left,24,Ui.DIM);
+            Ui.text(g, font,Component.translatable(mode==Mode.DESCRIPTION?"friendai.menu.description.language":"friendai.menu.skills.trigger_description"),left,58,Ui.DIM);
+            if(mode==Mode.SKILL)Ui.text(g, font,Component.translatable("friendai.menu.skills.selection_hint"),left,92,Ui.DIM);
         }
-        g.text(font,Component.translatable(mode==Mode.TRANSFER?"friendai.menu.skills.transfer_hint":mode==Mode.DESCRIPTION?"friendai.menu.description.details":"friendai.menu.skills.body"),left,bodyY-10,Ui.DIM);
-        if(current!=null&&mode==Mode.SKILL)g.text(font,Ui.clip(font,(current.author()==null?SkillLabels.value("BUILTIN").getString():current.author().toString())+" · "+java.time.Instant.ofEpochMilli(current.updatedAt())+" · v"+current.version()+" · "+SkillLabels.value(current.activation().name()).getString(),w),left,height-68,Ui.DIM);
-        if(!statusKey.isEmpty())g.text(font,Component.translatable(statusKey),left,height-(mode==Mode.SKILL?57:39),Ui.WARN);
+        Ui.text(g, font,Component.translatable(mode==Mode.TRANSFER?"friendai.menu.skills.transfer_hint":mode==Mode.DESCRIPTION?"friendai.menu.description.details":"friendai.menu.skills.body"),left,bodyY-10,Ui.DIM);
+        if(current!=null&&mode==Mode.SKILL)Ui.text(g, font,Ui.clip(font,(current.author()==null?SkillLabels.value("BUILTIN").getString():current.author().toString())+" · "+java.time.Instant.ofEpochMilli(current.updatedAt())+" · v"+current.version()+" · "+SkillLabels.value(current.activation().name()).getString(),w),left,height-68,Ui.DIM);
+        if(!statusKey.isEmpty())Ui.text(g, font,Component.translatable(statusKey),left,height-(mode==Mode.SKILL?57:39),Ui.WARN);
     }
 }

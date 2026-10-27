@@ -105,11 +105,11 @@ final class TradersTab implements MenuTab {
         var view = CompanionClientState.tradeView().orElse(null);
         int y = top + 68;
         if (view == null || !view.queryId().toString().equals(queryId)) {
-            g.text(font, Component.translatable("friendai.menu.traders.loading"), left + 10, y, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.traders.loading"), left + 10, y, Ui.DIM);
             return;
         }
         if (view.traders().isEmpty()) {
-            g.text(font, Component.translatable("friendai.menu.traders.empty"), left + 10, y, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.traders.empty"), left + 10, y, Ui.DIM);
             return;
         }
         long now = net.minecraft.client.Minecraft.getInstance().level == null
@@ -119,7 +119,7 @@ final class TradersTab implements MenuTab {
         for (TraderRecord trader : view.traders()) {
             String label = trader.label().isBlank() ? trader.profession() : trader.label();
             long traderAge = Math.max(0, now - trader.lastSeen());
-            g.text(font, Component.literal(label + "  " + trader.dimension() + " " + trader.x() + ", "
+            Ui.text(g, font, Component.literal(label + "  " + trader.dimension() + " " + trader.x() + ", "
                     + trader.y() + ", " + trader.z() + "  L" + trader.level() + "  " + trader.status()
                     + "  seen " + traderAge + "t ago"),
                     left + 10, y, trader.id().equals(selectedTrader) ? Ui.ACCENT : Ui.TEXT);
@@ -131,14 +131,14 @@ final class TradersTab implements MenuTab {
                         + "  " + offer.uses() + "/" + offer.maxUses()
                         + "  " + (Math.max(0, now - offer.observedTick()) <= view.quoteFreshTicks() ? "current" : "stale")
                         + (offer.output().componentsJson().equals("{}") ? "" : "  " + offer.output().componentsJson());
-                g.text(font, Component.literal(line), left + 18, y, Ui.DIM);
+                Ui.text(g, font, Component.literal(line), left + 18, y, Ui.DIM);
                 y += 11;
                 if (y > top + height - 30) break;
             }
             y += 3;
             if (y > top + height - 30) break;
         }
-        g.text(font, Component.literal((view.page() + 1) + " / " + view.totalPages()), left + width / 2 - 10,
+        Ui.text(g, font, Component.literal((view.page() + 1) + " / " + view.totalPages()), left + width / 2 - 10,
                 top + height - 18, Ui.DIM);
     }
 

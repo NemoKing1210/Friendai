@@ -99,14 +99,14 @@ final class DebugTab implements MenuTab {
         int bottom = top + height;
         int toolY = bottom - FIELD;
         int messageY = toolY - HEADING - FIELD - GAP;
-        g.text(font, Component.translatable("friendai.menu.debug.tool_section"), left, toolY - HEADING + 2, Ui.DIM);
-        g.text(font, Component.translatable("friendai.menu.debug.message_hint"), left, messageY - HEADING + 2, Ui.DIM);
-        perceptionButton.setColor(showPrompt ? Ui.DIM : Ui.ACCENT);
-        promptButton.setColor(showPrompt ? Ui.ACCENT : Ui.DIM);
+        Ui.text(g, font, Component.translatable("friendai.menu.debug.tool_section"), left, toolY - HEADING + 2, Ui.DIM);
+        Ui.text(g, font, Component.translatable("friendai.menu.debug.message_hint"), left, messageY - HEADING + 2, Ui.DIM);
+        perceptionButton.setStatus(showPrompt ? Ui.DIM : Ui.ACCENT);
+        promptButton.setStatus(showPrompt ? Ui.ACCENT : Ui.DIM);
 
         int bodyTop = top + 16 + GAP;
         int bodyHeight = bottom - bodyBottomOffset - bodyTop;
-        Ui.card(g, left, bodyTop, width, bodyHeight, Ui.alpha(Ui.TRACK, 0xA0), Ui.BORDER);
+        Ui.well(g, left, bodyTop, width, bodyHeight);
         String body = showPrompt && !CompanionClientState.prompt().isEmpty()
                 ? CompanionClientState.prompt()
                 : CompanionClientState.snapshot().map(CompanionSnapshot::perception).orElse("");
@@ -125,7 +125,7 @@ final class DebugTab implements MenuTab {
         int y = view.top() + 4;
         for (FormattedCharSequence line : wrapped) {
             if (view.visible(y, lineHeight)) {
-                g.text(font, line, left + 8, y, Ui.TEXT);
+                Ui.text(g, font, line, left + 8, y, Ui.ON_WELL);
             }
             y += lineHeight;
         }

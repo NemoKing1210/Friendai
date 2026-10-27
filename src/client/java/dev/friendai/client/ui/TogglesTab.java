@@ -142,6 +142,6 @@ final class TogglesTab implements MenuTab {
         Ui.heading(g, font, Component.translatable("friendai.menu.toggles.heading"), left + PAD, top + PAD,
                 width - 2 * PAD);
         String hint = Component.translatable("friendai.menu.toggles.hint").getString();
-        g.text(font, Ui.clip(font, hint, width - 2 * PAD), left + PAD, top + PAD + 12, Ui.DIM);
+        Ui.text(g, font, Ui.clip(font, hint, width - 2 * PAD), left + PAD, top + PAD + 12, Ui.DIM);
     }
 }

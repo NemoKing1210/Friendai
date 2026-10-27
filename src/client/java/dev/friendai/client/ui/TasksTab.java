@@ -80,7 +80,7 @@ final class TasksTab implements MenuTab {
                 Ui.heading(g, font, Component.translatable("friendai.menu.chain"), x, y, w)));
         if (rows.isEmpty()) {
             blocks.add(new Block(14, (g, x, y, w) ->
-                    g.text(font, Component.translatable("friendai.menu.activity.idle"), x + 2, y + 2, Ui.DIM)));
+                    Ui.text(g, font, Component.translatable("friendai.menu.activity.idle"), x + 2, y + 2, Ui.DIM)));
             return;
         }
         int index = 0;
@@ -98,7 +98,7 @@ final class TasksTab implements MenuTab {
             index = end;
         }
         if (rows.size() >= QueueRows.MAX_ROWS) {
-            blocks.add(new Block(14, (g, x, y, w) -> g.text(font,
+            blocks.add(new Block(14, (g, x, y, w) -> Ui.text(g, font,
                     Component.translatable("friendai.menu.chain.more", QueueRows.MAX_ROWS), x + 2, y + 2, Ui.DIM)));
         }
     }
@@ -120,9 +120,9 @@ final class TasksTab implements MenuTab {
                 badgeWidth = Ui.badgeWidth(font, status.getString());
                 Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
             }
-            g.text(font, Ui.clip(font, title.getString(), w - badgeWidth - 2 * PAD - 6), x + PAD + 2, y + 5, Ui.TEXT);
+            Ui.text(g, font, Ui.clip(font, title.getString(), w - badgeWidth - 2 * PAD - 6), x + PAD + 2, y + 5, Ui.TEXT);
             String progress = Component.translatable("friendai.menu.chain.progress", done, group.size()).getString();
-            g.text(font, progress, x + PAD + 2, y + 15, Ui.DIM);
+            Ui.text(g, font, progress, x + PAD + 2, y + 15, Ui.DIM);
             int barX = x + PAD + 2 + font.width(progress) + 6;
             Ui.bar(g, barX, y + 16, Math.max(10, x + w - PAD - barX), 5, done / (float) group.size(), color);
         });
@@ -148,20 +148,20 @@ final class TasksTab implements MenuTab {
             Component state = Component.translatable(jobKey(row.state()));
             int badgeWidth = Ui.badgeWidth(font, state.getString());
             Ui.badge(g, font, state.getString(), x + w - badgeWidth - 5, y + 3, color);
-            g.text(font, "#" + row.id(), tx, y + 5, Ui.DIM);
+            Ui.text(g, font, "#" + row.id(), tx, y + 5, Ui.DIM);
             int idWidth = font.width("#" + row.id()) + 5;
-            g.text(font, Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14), tx + idWidth, y + 5, Ui.TEXT);
+            Ui.text(g, font, Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14), tx + idWidth, y + 5, Ui.TEXT);
             int lineY = y + 18;
             if (hasArgs) {
-                g.text(font, Ui.clip(font, row.args(), textWidth), tx, lineY, Ui.DIM);
+                Ui.text(g, font, Ui.clip(font, row.args(), textWidth), tx, lineY, Ui.DIM);
                 lineY += 10;
             }
             for (FormattedCharSequence line : note) {
-                g.text(font, line, tx, lineY, noteColor(row.state()));
+                Ui.text(g, font, line, tx, lineY, noteColor(row.state()));
                 lineY += font.lineHeight + 1;
             }
             if (!meta.isEmpty()) {
-                g.text(font, Ui.clip(font, meta, textWidth), tx, lineY, Ui.DIM);
+                Ui.text(g, font, Ui.clip(font, meta, textWidth), tx, lineY, Ui.DIM);
             }
         });
     }
@@ -189,7 +189,7 @@ final class TasksTab implements MenuTab {
                 Ui.heading(g, font, Component.translatable("friendai.menu.history"), x, y, w)));
         if (records.isEmpty()) {
             blocks.add(new Block(14, (g, x, y, w) ->
-                    g.text(font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
+                    Ui.text(g, font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
             return;
         }
         for (TaskRecord record : records) {
@@ -206,15 +206,15 @@ final class TasksTab implements MenuTab {
         Ui.card(g, x, y, w, h);
         g.fill(x, y, x + 3, y + h, color);
         int textX = x + PAD + 2;
-        g.text(font, "#" + r.id(), textX, y + 5, Ui.DIM);
+        Ui.text(g, font, "#" + r.id(), textX, y + 5, Ui.DIM);
         int idWidth = font.width("#" + r.id()) + 5;
         Component status = Component.translatable(historyKey(r.status()));
         int badgeWidth = Ui.badgeWidth(font, status.getString());
         Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
-        g.text(font, Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8), textX + idWidth, y + 5, Ui.TEXT);
+        Ui.text(g, font, Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8), textX + idWidth, y + 5, Ui.TEXT);
         int lineY = y + 18;
         for (FormattedCharSequence line : summary) {
-            g.text(font, line, textX, lineY, Ui.DIM);
+            Ui.text(g, font, line, textX, lineY, Ui.DIM);
             lineY += font.lineHeight + 1;
         }
     }

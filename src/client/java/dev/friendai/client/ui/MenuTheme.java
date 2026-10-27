@@ -33,13 +33,14 @@ final class MenuTheme {
     static final int WELL = 0xFF1A1A1A;
     static final int ON_WELL = 0xFFFFFFFF;
     static final int ON_WELL_DIM = 0xFFA0A0A0;
+    static final int ON_WELL_BAD = 0xFFFF8A80;
 
     /** Rows sit on the face; the hover wash is the vanilla white overlay. */
     static final int CARD = WINDOW_FACE;
     static final int CARD_HOVER = 0x66FFFFFF;
 
     static final int BORDER = WINDOW_SHADOW;
-    static final int TRACK = 0xFF373737;
+    static final int TRACK = 0xFFE0E0E0;
 
     /** Fixed colours for things that come in a handful of kinds (fact categories, log kinds). */
     static final int[] PALETTE = {ACCENT, GOOD, WARN, PURPLE, BAD, 0xFF155654, 0xFF6B4A1F};

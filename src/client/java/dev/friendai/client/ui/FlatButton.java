@@ -1,83 +1,50 @@
 package dev.friendai.client.ui;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
-/** A flat, tinted button that matches the companion menu's panels. */
-final class FlatButton extends AbstractWidget {
-    private final Runnable action;
-    private int color;
-    private boolean tab;
+/**
+ * The menu's only button: a vanilla {@link Button.Plain}, so it draws the game's widget sprite, label, focus and
+ * hover exactly like any other screen, with two additions the menu needs — a status dot on the right (a toggle is
+ * on, a delete is armed, this category is the current one) and a selected state for the navigation rail.
+ */
+final class FlatButton extends Button.Plain {
+    private int status;
     private boolean selected;
 
-    FlatButton(int x, int y, int width, int height, Component label, int color, Runnable action) {
-        super(x, y, width, height, label);
-        this.action = action;
-        this.color = color;
+    FlatButton(int x, int y, int width, int height, Component label, int status, Runnable action) {
+        super(x, y, width, height, label, button -> action.run(), DEFAULT_NARRATION);
+        this.status = status;
     }
 
-    /** Draws as a tab: no frame, a coloured underline when selected. */
+    /** Draws as a rail entry: selected entries keep the highlighted vanilla sprite, and say so in narration. */
     FlatButton asTab(boolean selected) {
-        this.tab = true;
         this.selected = selected;
+        setOverrideRenderHighlightedSprite(() -> this.selected);
         return this;
     }
 
-    void setColor(int color) {
-        this.color = color;
+    /** The dot on the right edge; it is an indicator, not a second button style. */
+    void setStatus(int color) {
+        this.status = color;
     }
 
     @Override
-    public void onClick(MouseButtonEvent event, boolean doubleClick) {
-        action.run();
-    }
-
-    @Override
-    protected void extractWidgetRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        int x = getX();
-        int y = getY();
-        int w = getWidth();
-        int h = getHeight();
-        boolean hot = active && isHoveredOrFocused();
-        if (tab) {
-            drawTab(g, x, y, w, h, hot);
-            return;
+    protected void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractContents(g, mouseX, mouseY, partialTick);
+        if (status != 0) {
+            Ui.dot(g, getX() + getWidth() - 6, getY() + (getHeight() - 4) / 2, 4, active ? status : Ui.DIM);
         }
-        int tint = active ? color : Ui.DIM;
-        g.fill(x, y, x + w, y + h, Ui.alpha(tint, hot ? 0x70 : active ? 0x40 : 0x20));
-        Ui.border(g, x, y, w, h, Ui.alpha(tint, hot ? 0xFF : active ? 0xB0 : 0x60));
-        var font = Minecraft.getInstance().font;
-        String label = Ui.clip(font, getMessage().getString(), w - 8);
-        g.text(font, label, x + (w - font.width(label)) / 2, y + (h - font.lineHeight) / 2 + 1,
-                active ? Ui.TEXT : Ui.DIM);
     }
 
-    private void drawTab(GuiGraphicsExtractor g, int x, int y, int w, int h, boolean hot) {
+    @Override
+    protected MutableComponent createNarrationMessage() {
+        MutableComponent message = super.createNarrationMessage();
         if (selected) {
-            g.fill(x, y, x + w, y + h - 1, Ui.alpha(Ui.ACCENT, 0x28));
-            g.fill(x, y + h - 2, x + w, y + h, Ui.ACCENT);
-        } else if (hot) {
-            g.fill(x, y, x + w, y + h - 1, Ui.alpha(0xFFFFFF, 0x10));
+            message.append(", ").append(Component.translatable("friendai.menu.selected"));
         }
-        var font = Minecraft.getInstance().font;
-        String label = Ui.clip(font, getMessage().getString(), w - 6);
-        g.text(font, label, x + (w - font.width(label)) / 2, y + 6, selected ? Ui.TEXT : Ui.DIM);
-    }
-
-    @Override
-    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        if (active && visible && isFocused() && event.isSelection()) {
-            action.run();return true;
-        }
-        return super.keyPressed(event);
-    }
-
-    @Override
-    protected void updateWidgetNarration(NarrationElementOutput output) {
-        defaultButtonNarrationText(output);
+        return message;
     }
 }

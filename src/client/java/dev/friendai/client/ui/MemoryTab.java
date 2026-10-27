@@ -164,7 +164,7 @@ final class MemoryTab implements MenuTab {
     private void setCategory(Category category) {
         draftCategory = category;
         categoryButton.setMessage(categoryLabel(category));
-        categoryButton.setColor(categoryColor(category));
+        categoryButton.setStatus(categoryColor(category));
     }
 
     @Override
@@ -244,7 +244,7 @@ final class MemoryTab implements MenuTab {
             boolean trusted = current.role() == MemoryView.Role.TRUSTED;
             trust.setMessage(Component.translatable(
                     trusted ? "friendai.menu.memory.trust_on" : "friendai.menu.memory.trust_off"));
-            trust.setColor(trusted ? Ui.GOOD : Ui.DIM);
+            trust.setStatus(trusted ? Ui.GOOD : Ui.DIM);
         } else {
             trust.visible = false;
         }
@@ -372,7 +372,7 @@ final class MemoryTab implements MenuTab {
         }
         model.group().ifPresent(group -> drawHeader(g, font, view.get(), group));
         if (!view.get().enabled()) {
-            g.text(font, Component.translatable("friendai.menu.memory.error.disabled"), listLeft, listTop + 4, Ui.BAD);
+            Ui.text(g, font, Component.translatable("friendai.menu.memory.error.disabled"), listLeft, listTop + 4, Ui.BAD);
         } else {
             drawFacts(g, font);
         }
@@ -389,13 +389,13 @@ final class MemoryTab implements MenuTab {
             boolean current = model.personaSelected();
             boolean hot = groupsView.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + GROUP_ROW;
             if (current) {
-                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(Ui.ACCENT, 0x30));
+                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
                 g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
             } else if (hot) {
                 g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
             }
             Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, Ui.PURPLE);
-            g.text(font, Ui.clip(font, Component.translatable("friendai.menu.description.title").getString(),
+            Ui.text(g, font, Ui.clip(font, Component.translatable("friendai.menu.description.title").getString(),
                     sideWidth - 16 - 8), sideLeft + 16, y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     current ? Ui.TEXT : Ui.DIM);
         }
@@ -406,7 +406,7 @@ final class MemoryTab implements MenuTab {
                 boolean current = group.key().equals(selected);
                 boolean hot = groupsView.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + GROUP_ROW;
                 if (current) {
-                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(Ui.ACCENT, 0x30));
+                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
                     g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
                 } else if (hot) {
                     g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
@@ -414,9 +414,9 @@ final class MemoryTab implements MenuTab {
                 Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, roleColor(group.role()));
                 String count = String.valueOf(group.count());
                 int nameWidth = sideWidth - 8 - 8 - 6 - font.width(count) - 8;
-                g.text(font, Ui.clip(font, groupName(group).getString(), nameWidth), sideLeft + 16,
+                Ui.text(g, font, Ui.clip(font, groupName(group).getString(), nameWidth), sideLeft + 16,
                         y + (GROUP_ROW - font.lineHeight) / 2 + 1, current ? Ui.TEXT : Ui.DIM);
-                g.text(font, count, sideLeft + sideWidth - 8 - font.width(count),
+                Ui.text(g, font, count, sideLeft + sideWidth - 8 - font.width(count),
                         y + (GROUP_ROW - font.lineHeight) / 2 + 1, Ui.DIM);
                 if (group.online() && group.role() != MemoryView.Role.WORLD) {
                     Ui.dot(g, sideLeft + sideWidth - 6, y + 2, 3, Ui.GOOD);
@@ -440,7 +440,7 @@ final class MemoryTab implements MenuTab {
         int counterWidth = font.width(counter);
         int nameWidth = Math.max(20, right - headLeft - badgeWidth - counterWidth - 12);
         String shown = Ui.clip(font, name, nameWidth);
-        g.text(font, shown, headLeft, y, Ui.TEXT);
+        Ui.text(g, font, shown, headLeft, y, Ui.TEXT);
         int x = headLeft + font.width(shown) + 6;
         if (badgeWidth > 0 && x + badgeWidth <= right) {
             Ui.badge(g, font, role.getString(), x, sideTop + 4, roleColor(group.role()));
@@ -448,26 +448,26 @@ final class MemoryTab implements MenuTab {
         }
         if (x + counterWidth <= right) {
             boolean full = group.count() >= limit;
-            g.text(font, counter, x, y, full ? Ui.WARN : Ui.DIM);
+            Ui.text(g, font, counter, x, y, full ? Ui.WARN : Ui.DIM);
         }
     }
 
     private void drawPersona(GuiGraphicsExtractor g, Font font, MemoryView view) {
         int y = sideTop + (ROW - font.lineHeight) / 2;
         Component title = Component.translatable("friendai.menu.description.title");
-        g.text(font, title, headLeft, y, Ui.TEXT);
+        Ui.text(g, font, title, headLeft, y, Ui.TEXT);
         if (view.persona().custom()) {
             Component custom = Component.translatable("friendai.menu.description.custom");
             Ui.badge(g, font, custom.getString(), headLeft + font.width(title) + 6, sideTop + 4, Ui.PURPLE);
         }
         String current = personaBox.getValue().strip();
         for (int i = 0; i < presetButtons.size(); i++) {
-            presetButtons.get(i).setColor(
+            presetButtons.get(i).setStatus(
                     PersonaPresets.all().get(i).text().equals(current) ? Ui.GOOD : Ui.ACCENT);
         }
         String counter = personaBox.getValue().length() + "/" + PersonaText.MAX_LENGTH;
         int counterY = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + 2;
-        g.text(font, counter, headLeft + headWidth - font.width(counter), counterY, Ui.DIM);
+        Ui.text(g, font, counter, headLeft + headWidth - font.width(counter), counterY, Ui.DIM);
     }
 
     private void rebuildRows(Font font, List<MemoryView.FactRow> facts, int width) {
@@ -488,7 +488,7 @@ final class MemoryTab implements MenuTab {
             rebuildRows(font, facts, listWidth);
         }
         if (facts.isEmpty()) {
-            g.text(font, Component.translatable("friendai.menu.memory.empty_group"), listLeft + 2, listTop + 4, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.memory.empty_group"), listLeft + 2, listTop + 4, Ui.DIM);
             return;
         }
         int total = 0;
@@ -508,15 +508,15 @@ final class MemoryTab implements MenuTab {
                 g.fill(listLeft, y, listLeft + 3, y + row.height(), color);
                 int x = listLeft + PAD;
                 x += Ui.badge(g, font, categoryLabel(row.fact().category()).getString(), x, y + 3, color) + 5;
-                g.text(font, "#" + row.factId(), x, y + 5, Ui.DIM);
+                Ui.text(g, font, "#" + row.factId(), x, y + 5, Ui.DIM);
                 if (!row.fact().authorName().isEmpty()) {
                     String from = Component.translatable("friendai.menu.memory.from", row.fact().authorName()).getString();
                     from = Ui.clip(font, from, cardWidth / 2);
-                    g.text(font, from, listLeft + cardWidth - PAD - font.width(from), y + 5, Ui.DIM);
+                    Ui.text(g, font, from, listLeft + cardWidth - PAD - font.width(from), y + 5, Ui.DIM);
                 }
                 int lineY = y + 18;
                 for (FormattedCharSequence line : row.lines()) {
-                    g.text(font, line, listLeft + PAD, lineY, Ui.TEXT);
+                    Ui.text(g, font, line, listLeft + PAD, lineY, Ui.TEXT);
                     lineY += font.lineHeight + 1;
                 }
             }
@@ -534,7 +534,7 @@ final class MemoryTab implements MenuTab {
         int color = status.get().ok() ? Ui.GOOD : Ui.BAD;
         int y = top + height - LINE;
         g.enableScissor(headLeft, y, headLeft + headWidth, y + LINE + 2);
-        g.text(font, message, headLeft, y + 1, color);
+        Ui.text(g, font, message, headLeft, y + 1, color);
         g.disableScissor();
     }
 

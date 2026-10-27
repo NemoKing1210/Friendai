@@ -3,31 +3,43 @@ package dev.friendai.client.ui;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
-/** Colours and small drawing helpers shared by the companion menu. */
+/**
+ * Colours and small drawing helpers shared by the companion menu, all taken from {@link MenuTheme}: a vanilla
+ * window with its bevel, vanilla container labels in dark grey, status chips in white-on-colour, and a dark list
+ * surface for long running text. Nothing here invents a colour; a new role is added to the theme and measured
+ * there.
+ */
 final class Ui {
-    static final int TEXT = 0xFFE8EDF2;
-    static final int DIM = 0xFF8B98A5;
-    static final int ACCENT = 0xFF4FC3F7;
-    static final int GOOD = 0xFF55D68A;
-    static final int WARN = 0xFFF2B84B;
-    static final int BAD = 0xFFE5534B;
-    static final int PURPLE = 0xFFB794F6;
-    static final int PANEL = 0xD0121820;
-    static final int CARD = 0xB01D2630;
-    static final int CARD_HOVER = 0xC02A3647;
-    static final int BORDER = 0xFF2E3A47;
-    static final int TRACK = 0xFF0B0F14;
+    static final int TEXT = MenuTheme.TEXT;
+    static final int DIM = MenuTheme.DIM;
+    static final int ACCENT = MenuTheme.ACCENT;
+    static final int GOOD = MenuTheme.GOOD;
+    static final int WARN = MenuTheme.WARN;
+    static final int BAD = MenuTheme.BAD;
+    static final int PURPLE = MenuTheme.PURPLE;
 
-    /** Fixed colours for things that come in a handful of kinds (fact categories, log kinds). */
-    static final int[] PALETTE = {ACCENT, GOOD, WARN, PURPLE, 0xFFFF8FA3, 0xFF7FD6D6, 0xFFC0A080};
+    static final int PANEL = MenuTheme.WINDOW_FACE;
+    static final int CARD = MenuTheme.CARD;
+    static final int CARD_HOVER = MenuTheme.CARD_HOVER;
+    static final int BORDER = MenuTheme.BORDER;
+    static final int TRACK = MenuTheme.TRACK;
 
-    static final int BADGE_HEIGHT = 12;
+    /** The dark list surface and its text, for running logs and long bodies. */
+    static final int WELL = MenuTheme.WELL;
+    static final int ON_WELL = MenuTheme.ON_WELL;
+    static final int ON_WELL_DIM = MenuTheme.ON_WELL_DIM;
+    static final int ON_WELL_BAD = MenuTheme.ON_WELL_BAD;
+
+    static final int[] PALETTE = MenuTheme.PALETTE;
+
+    static final int BADGE_HEIGHT = MenuTheme.BADGE_HEIGHT;
 
     private Ui() {}
 
     static int alpha(int color, int alpha) {
-        return (alpha << 24) | (color & 0xFFFFFF);
+        return MenuTheme.alpha(color, alpha);
     }
 
     static void border(GuiGraphicsExtractor g, int x, int y, int w, int h, int color) {
@@ -37,8 +49,23 @@ final class Ui {
         g.fill(x + w - 1, y + 1, x + w, y + h - 1, color);
     }
 
+    /** The vanilla window: black outline, light top-left bevel, grey face, dark bottom-right shadow. */
     static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-        g.fill(x, y, x + w, y + h, PANEL);
+        if (w < 6 || h < 6) {
+            g.fill(x, y, x + w, y + h, PANEL);
+            border(g, x, y, w, h, MenuTheme.WINDOW_OUTLINE);
+            return;
+        }
+        g.fill(x, y, x + w, y + h, MenuTheme.WINDOW_OUTLINE);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, MenuTheme.WINDOW_HIGHLIGHT);
+        g.fill(x + 3, y + 3, x + w - 3, y + h - 3, PANEL);
+        g.fill(x + 2, y + h - 3, x + w - 1, y + h - 1, MenuTheme.WINDOW_SHADOW);
+        g.fill(x + w - 3, y + 2, x + w - 1, y + h - 3, MenuTheme.WINDOW_SHADOW);
+    }
+
+    /** A vanilla list surface: dark, flat, one border. Text on it uses {@link #ON_WELL}. */
+    static void well(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        g.fill(x, y, x + w, y + h, WELL);
         border(g, x, y, w, h, BORDER);
     }
 
@@ -62,12 +89,11 @@ final class Ui {
         border(g, x, y, w, h, BORDER);
     }
 
-    /** A tinted pill with the text inside; returns its width so callers can lay out the next one. */
+    /** A status chip: an opaque status-coloured pill with white text, like a vanilla tooltip. */
     static int badge(GuiGraphicsExtractor g, Font font, String text, int x, int y, int color) {
         int w = badgeWidth(font, text);
-        g.fill(x, y, x + w, y + BADGE_HEIGHT, alpha(color, 0x38));
-        g.fill(x, y, x + 1, y + BADGE_HEIGHT, color);
-        g.text(font, text, x + 5, y + 2, color);
+        g.fill(x, y, x + w, y + BADGE_HEIGHT, color);
+        text(g, font, text, x + 5, y + 2, ON_WELL);
         return w;
     }
 
@@ -87,12 +113,29 @@ final class Ui {
         return font.plainSubstrByWidth(text, Math.max(0, width - font.width("..."))) + "...";
     }
 
-    /** A section caption: a small dim label with a rule to its right. */
+    /** A section caption: a dark label with a rule to its right. */
     static void heading(GuiGraphicsExtractor g, Font font, Component label, int x, int y, int w) {
-        g.text(font, label, x, y, DIM);
+        text(g, font, label, x, y, TEXT);
         int lineX = x + font.width(label) + 6;
         if (lineX < x + w) {
             g.fill(lineX, y + font.lineHeight / 2, x + w, y + font.lineHeight / 2 + 1, BORDER);
         }
+    }
+
+    /** Text with the game's own shadow rule: light text casts a shadow, dark text on the face does not. */
+    static void text(GuiGraphicsExtractor g, Font font, Component text, int x, int y, int color) {
+        g.text(font, text, x, y, color, shadow(color));
+    }
+
+    static void text(GuiGraphicsExtractor g, Font font, String text, int x, int y, int color) {
+        g.text(font, text, x, y, color, shadow(color));
+    }
+
+    static void text(GuiGraphicsExtractor g, Font font, FormattedCharSequence text, int x, int y, int color) {
+        g.text(font, text, x, y, color, shadow(color));
+    }
+
+    private static boolean shadow(int color) {
+        return MenuTheme.luminance(color) > 0.5;
     }
 }

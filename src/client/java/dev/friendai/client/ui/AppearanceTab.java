@@ -151,8 +151,8 @@ final class AppearanceTab implements MenuTab {
         for (FlatButton button : new FlatButton[] {file, userApply, urlApply, wide, slimButton, reset}) {
             button.active = skins;
         }
-        wide.setColor(slim ? Ui.DIM : Ui.GOOD);
-        slimButton.setColor(slim ? Ui.GOOD : Ui.DIM);
+        wide.setStatus(slim ? Ui.DIM : Ui.GOOD);
+        slimButton.setStatus(slim ? Ui.GOOD : Ui.DIM);
     }
 
     @Override
@@ -161,6 +161,6 @@ final class AppearanceTab implements MenuTab {
         Ui.heading(g, font, Component.translatable("friendai.menu.appearance.name"), left, top, width);
         Ui.heading(g, font, Component.translatable("friendai.menu.appearance.skin"), left,
                 top + HEADING + FIELD + GAP, width);
-        g.text(font, Ui.clip(font, status.getString(), width), left, statusY, statusColor);
+        Ui.text(g, font, Ui.clip(font, status.getString(), width), left, statusY, statusColor);
     }
 }

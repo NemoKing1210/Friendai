@@ -96,7 +96,7 @@ final class PlacesTab implements MenuTab {
         delete.active = enabled && hasSelection;
         delete.setMessage(Component.translatable(
                 armed ? "friendai.menu.places.delete_confirm" : "friendai.menu.places.delete"));
-        delete.setColor(armed ? Ui.BAD : Ui.WARN);
+        delete.setStatus(armed ? Ui.BAD : Ui.WARN);
 
         if (!renameField.isFocused() && !renameField.getValue().equals(model.renameDraft())) {
             renameField.setValue(model.renameDraft());
@@ -111,7 +111,7 @@ final class PlacesTab implements MenuTab {
         }
         drawHeader(g, font);
         if (!model.view().get().enabled()) {
-            g.text(font, Component.translatable("friendai.menu.places.disabled"), listLeft + 2, listTop + 4, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.places.disabled"), listLeft + 2, listTop + 4, Ui.DIM);
         } else {
             drawPlaces(g, font);
         }
@@ -120,9 +120,9 @@ final class PlacesTab implements MenuTab {
 
     private void drawHeader(GuiGraphicsExtractor g, Font font) {
         int y = topOfHeader(font);
-        g.text(font, Component.translatable("friendai.menu.tab.places"), headLeft, y, Ui.TEXT);
+        Ui.text(g, font, Component.translatable("friendai.menu.tab.places"), headLeft, y, Ui.TEXT);
         String count = String.valueOf(model.rows().size());
-        g.text(font, count, headLeft + headWidth - font.width(count), y, Ui.DIM);
+        Ui.text(g, font, count, headLeft + headWidth - font.width(count), y, Ui.DIM);
     }
 
     private int topOfHeader(Font font) {
@@ -132,7 +132,7 @@ final class PlacesTab implements MenuTab {
     private void drawPlaces(GuiGraphicsExtractor g, Font font) {
         List<PlaceView.Row> places = model.rows();
         if (places.isEmpty()) {
-            g.text(font, Component.translatable("friendai.menu.places.empty"), listLeft + 2, listTop + 4, Ui.DIM);
+            Ui.text(g, font, Component.translatable("friendai.menu.places.empty"), listLeft + 2, listTop + 4, Ui.DIM);
             return;
         }
         int total = places.size() * (PLACE_ROW + GAP);
@@ -154,12 +154,12 @@ final class PlacesTab implements MenuTab {
                 if (!place.label().isBlank()) {
                     title += " — " + place.label();
                 }
-                g.text(font, Ui.clip(font, title, Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
+                Ui.text(g, font, Ui.clip(font, title, Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
                         x + badgeWidth + 5, y + 5, Ui.TEXT);
                 String meta = Component.translatable("friendai.menu.places.meta",
                         place.dimension(), place.x(), place.y(), place.z(), place.visits()).getString();
                 meta += distanceLabel(place);
-                g.text(font, Ui.clip(font, meta, Math.max(20, cardWidth - 2 * PAD)),
+                Ui.text(g, font, Ui.clip(font, meta, Math.max(20, cardWidth - 2 * PAD)),
                         listLeft + PAD, y + 5 + font.lineHeight + 1, Ui.DIM);
             }
             y += PLACE_ROW + GAP;
@@ -188,7 +188,7 @@ final class PlacesTab implements MenuTab {
         int color = status.get().ok() ? Ui.GOOD : Ui.BAD;
         int y = top + height - LINE;
         g.enableScissor(headLeft, y, headLeft + headWidth, y + LINE + 2);
-        g.text(font, message, headLeft, y + 1, color);
+        Ui.text(g, font, message, headLeft, y + 1, color);
         g.disableScissor();
     }
 

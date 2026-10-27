@@ -97,10 +97,10 @@ final class SkillsTab implements MenuTab {
         var detail=view.get().detail();
         if(detail!=null&&detail.id().equals(selected)) {
             for(var line:font.split(Component.literal(detail.description()),Math.max(40,width-(right-left)))) {
-                if(y>top+height-72)break;g.text(font,line,right,y,Ui.TEXT);y+=font.lineHeight+1;
+                if(y>top+height-72)break;Ui.text(g, font,line,right,y,Ui.TEXT);y+=font.lineHeight+1;
             }
-            if(y<top+height-72)g.text(font,Component.translatable("friendai.menu.skills.metadata",SkillLabels.value(detail.source().name()),SkillLabels.value(detail.activation().name()),detail.version()),right,y,Ui.DIM);
+            if(y<top+height-72)Ui.text(g, font,Component.translatable("friendai.menu.skills.metadata",SkillLabels.value(detail.source().name()),SkillLabels.value(detail.activation().name()),detail.version()),right,y,Ui.DIM);
         }
-        if(!view.get().statusKey().isEmpty())g.text(font,Component.translatable(view.get().statusKey()),right,top+height-20,view.get().ok()?Ui.GOOD:Ui.BAD);
+        if(!view.get().statusKey().isEmpty())Ui.text(g, font,Component.translatable(view.get().statusKey()),right,top+height-20,view.get().ok()?Ui.GOOD:Ui.BAD);
     }
 }

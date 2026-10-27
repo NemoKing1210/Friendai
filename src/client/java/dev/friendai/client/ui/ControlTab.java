@@ -89,7 +89,7 @@ final class ControlTab implements MenuTab {
         g.pose().pushMatrix();
         g.pose().translate(ax + 18, ay + 18 - font.lineHeight);
         g.pose().scale(2f, 2f);
-        g.text(font, initial, -font.width(initial) / 2, 0, stateColor);
+        Ui.text(g, font, initial, -font.width(initial) / 2, 0, stateColor);
         g.pose().popMatrix();
 
         int textX = ax + 36 + PAD;
@@ -99,10 +99,10 @@ final class ControlTab implements MenuTab {
                 : s.thinking() ? "friendai.menu.state.thinking" : "friendai.menu.state.idle");
         int badgeWidth = Ui.badgeWidth(font, stateLabel.getString());
         String name = s.present() ? s.companionName() : Component.translatable("friendai.menu.no_companion").getString();
-        g.text(font, Ui.clip(font, name, Math.max(20, textWidth - badgeWidth - 6)), textX, top + PAD + 1, Ui.TEXT);
+        Ui.text(g, font, Ui.clip(font, name, Math.max(20, textWidth - badgeWidth - 6)), textX, top + PAD + 1, Ui.TEXT);
         Ui.badge(g, font, stateLabel.getString(), left + width - PAD - badgeWidth, top + PAD - 1, stateColor);
         String model = Component.translatable("friendai.menu.model", s.model(), s.provider()).getString();
-        g.text(font, Ui.clip(font, model, textWidth), textX, top + PAD + 13, Ui.DIM);
+        Ui.text(g, font, Ui.clip(font, model, textWidth), textX, top + PAD + 13, Ui.DIM);
         if (s.present()) {
             int x = textX;
             CompanionVitals v = s.vitals();
@@ -113,7 +113,7 @@ final class ControlTab implements MenuTab {
             Component creative = Component.translatable(s.creativeMode()
                     ? "friendai.menu.mode.creative"
                     : "friendai.menu.mode.survival");
-            g.text(font, Component.translatable("friendai.menu.mode.current", creative), textX,
+            Ui.text(g, font, Component.translatable("friendai.menu.mode.current", creative), textX,
                     top + PAD + 39, s.creativeMode() ? Ui.PURPLE : Ui.DIM);
         }
     }
@@ -139,9 +139,9 @@ final class ControlTab implements MenuTab {
 
     private static void row(GuiGraphicsExtractor g, Font font, String labelKey, float fraction, int color,
             String value, int left, int y, int barX, int barWidth, int width) {
-        g.text(font, Component.translatable(labelKey), left + PAD, y, Ui.DIM);
+        Ui.text(g, font, Component.translatable(labelKey), left + PAD, y, Ui.DIM);
         Ui.bar(g, barX, y + 1, barWidth, 7, fraction, color);
-        g.text(font, value, left + width - PAD - font.width(value), y, Ui.TEXT);
+        Ui.text(g, font, value, left + width - PAD - font.width(value), y, Ui.TEXT);
     }
 
     private static String trim(float value) {
