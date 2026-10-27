@@ -176,6 +176,8 @@ public class MineBlocksTests {
         h.setBlock(6, 2, 2, Blocks.EMERALD_BLOCK);
         h.setBlock(6, 2, 4, Blocks.EMERALD_BLOCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // An emerald block only drops with an iron pickaxe or better, as in vanilla.
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, target), "emerald target should be directly visible");
         Result result = new Result();
