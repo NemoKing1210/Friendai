@@ -570,5 +570,6 @@
   "friendai.menu.skills.exported": "Skill exported.",
   "friendai.menu.skills.saved": "Skill saved.",
   "friendai.menu.skills.invalid": "Cannot apply this change. Check permissions, limits and the current version.",
-  "friendai.menu.skills.exported": "Skill exported."
+  "friendai.menu.skills.exported": "Skill exported.",
+  "friendai.command.skills.result": "%s"
 }

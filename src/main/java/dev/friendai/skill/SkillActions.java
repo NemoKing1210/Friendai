@@ -17,6 +17,7 @@ public final class SkillActions {
         List<InstructionSkill> all=new ArrayList<>(builtins);all.addAll(store.global().snapshot());all.addAll(local.snapshot());
         return all.stream().filter(s->!local.disabledIds().contains(s.id())).sorted(Comparator.comparing(InstructionSkill::id)).toList();
     }
+    public boolean enabled(UUID owner,String id) { return effective(owner).stream().anyMatch(s->s.id().equals(id)&&s.enabled()); }
     public List<InstructionSkill> listed(UUID owner) {
         List<InstructionSkill> all=new ArrayList<>(builtins);all.addAll(store.global().snapshot());all.addAll(store.book(owner).snapshot());
         return all.stream().sorted(Comparator.comparing(InstructionSkill::id)).toList();

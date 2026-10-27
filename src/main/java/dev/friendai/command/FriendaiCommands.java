@@ -37,6 +37,7 @@ public final class FriendaiCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        SkillCommands.register(dispatcher);
         dispatcher.register(Commands.literal("friendai")
                 .then(Commands.literal("summon").executes(FriendaiCommands::summon))
                 .then(Commands.literal("dismiss").executes(FriendaiCommands::dismiss))

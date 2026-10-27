@@ -69,6 +69,7 @@ public class FriendaiMod implements ModInitializer {
             state.trading().flushIfDue();
             DebugStream.tick(server);
             MemoryViewStream.tick(server);
+            dev.friendai.net.SkillsViewStream.tick(server);
             PlaceViewStream.tick(server);
             MovementDebugStream.tick(server);
         });
@@ -92,6 +93,7 @@ public class FriendaiMod implements ModInitializer {
             DebugStream.onDisconnect(handler.getPlayer());
             MovementDebugStream.onDisconnect(handler.getPlayer());
             MemoryViewStream.onDisconnect(handler.getPlayer());
+            dev.friendai.net.SkillsViewStream.onDisconnect(handler.getPlayer());
             PlaceViewStream.onDisconnect(handler.getPlayer());
             FriendaiServerState.get(server).brains().onOwnerLeft(handler.getPlayer().getUUID());
         });

@@ -567,5 +567,6 @@
   "friendai.menu.traders.barter": "Бартер",
   "friendai.menu.skills.saved": "Навык сохранён.",
   "friendai.menu.skills.invalid": "Не удалось применить изменение. Проверьте права, лимиты и текущую версию.",
-  "friendai.menu.skills.exported": "Навык экспортирован."
+  "friendai.menu.skills.exported": "Навык экспортирован.",
+  "friendai.command.skills.result": "%s"
 }
