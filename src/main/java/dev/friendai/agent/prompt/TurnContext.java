@@ -15,7 +15,11 @@ public record TurnContext(
         String mission,
         List<String> toolHints,
         String places,
-        String tradingSummary) {
+        String tradingSummary, List<PromptSection> instructionSections) {
+    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
+            String mission, List<String> toolHints, String places, String tradingSummary) {
+        this(persona,perception,caller,memoryBlock,turn,mission,toolHints,places,tradingSummary,List.of());
+    }
     public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
                        String mission, List<String> toolHints) {
         this(persona, perception, caller, memoryBlock, turn, mission, toolHints, "", "");
@@ -27,6 +31,7 @@ public record TurnContext(
     }
 
     public TurnContext {
+        instructionSections = instructionSections == null ? List.of() : List.copyOf(instructionSections);
         memoryBlock = memoryBlock == null ? "" : memoryBlock;
         mission = mission == null ? "" : mission;
         toolHints = toolHints == null ? List.of() : List.copyOf(toolHints);

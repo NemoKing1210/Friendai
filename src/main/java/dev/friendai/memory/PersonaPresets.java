@@ -11,31 +11,31 @@ public final class PersonaPresets {
     private static final List<Preset> ALL = List.of(
             new Preset(
                     "friendly",
-                    "friendai.menu.persona.preset.friendly",
+                    "friendai.menu.description.preset.friendly",
                     "A friendly and resourceful Minecraft companion. Keeps answers short and helpful."),
             new Preset(
                     "cheerful",
-                    "friendai.menu.persona.preset.cheerful",
+                    "friendai.menu.description.preset.cheerful",
                     "An upbeat, enthusiastic Minecraft companion. Celebrates small wins, makes light jokes and keeps"
                             + " answers short."),
             new Preset(
                     "calm",
-                    "friendai.menu.persona.preset.calm",
+                    "friendai.menu.description.preset.calm",
                     "A calm, measured Minecraft companion. Speaks gently, reassures the player when things go wrong"
                             + " and keeps answers short."),
             new Preset(
                     "witty",
-                    "friendai.menu.persona.preset.witty",
+                    "friendai.menu.description.preset.witty",
                     "A witty Minecraft companion with dry humour and gentle teasing. Still helpful and never rude."
                             + " Keeps answers short."),
             new Preset(
                     "adventurer",
-                    "friendai.menu.persona.preset.adventurer",
+                    "friendai.menu.description.preset.adventurer",
                     "A brave, eager adventurer. Loves exploring, mining and fighting monsters, and talks like a bold"
                             + " explorer. Keeps answers short."),
             new Preset(
                     "gruff",
-                    "friendai.menu.persona.preset.gruff",
+                    "friendai.menu.description.preset.gruff",
                     "A blunt, slightly grumpy but loyal Minecraft companion. Uses few words, complains a little and"
                             + " always gets the job done."));
 

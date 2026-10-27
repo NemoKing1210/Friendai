@@ -36,7 +36,7 @@ class MemoryMenuActionsTest {
     void personaSavesCleanedText() {
         var s = actions(true).persona("  Calm  guide ");
         assertTrue(s.ok());
-        assertEquals("friendai.menu.persona.saved", s.message().key());
+        assertEquals("friendai.menu.description.saved", s.message().key());
         assertEquals(Optional.of("Calm guide"), book.persona());
     }
 
@@ -51,7 +51,7 @@ class MemoryMenuActionsTest {
         book.setPersona("Calm guide");
         var s = actions(true).persona("   ");
         assertTrue(s.ok());
-        assertEquals("friendai.menu.persona.cleared", s.message().key());
+        assertEquals("friendai.menu.description.cleared", s.message().key());
         assertTrue(book.persona().isEmpty());
     }
 
@@ -61,7 +61,7 @@ class MemoryMenuActionsTest {
         for (String bad : new String[] {"§x", "y".repeat(PersonaText.MAX_LENGTH + 1)}) {
             var s = actions(true).persona(bad);
             assertEquals(false, s.ok());
-            assertEquals("friendai.menu.persona.invalid", s.message().key());
+            assertEquals("friendai.menu.description.invalid", s.message().key());
         }
         assertEquals(Optional.of("Calm guide"), book.persona());
         assertTrue(actions(true).persona("Line one\nline two").ok());

@@ -1,0 +1,1 @@
+Read the current self status and threats. If hungry without food, ask a nearby owner or use the offered food acquisition action. Seek known shelter at night and react to fire or danger using existing movement and combat capabilities. Do not fight players during autonomous work. Observed state and configured protection rules take precedence over this advice.

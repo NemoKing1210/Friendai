@@ -9,6 +9,10 @@ public final class FriendaiNetworking {
 
     /** Registers packets on both sides and the server-side receivers. */
     public static void register() {
+        PayloadTypeRegistry.serverboundPlay().register(SkillsRequestC2SPayload.TYPE, SkillsRequestC2SPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SkillsViewS2CPayload.TYPE, SkillsViewS2CPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(SkillsRequestC2SPayload.TYPE,
+                (payload,context) -> context.server().execute(() -> SkillRequestHandler.handle(context.player(),payload)));
         PayloadTypeRegistry.serverboundPlay().register(VoiceTranscriptC2SPayload.TYPE, VoiceTranscriptC2SPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(CompanionRequestC2SPayload.TYPE, CompanionRequestC2SPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(CompanionSnapshotS2CPayload.TYPE, CompanionSnapshotS2CPayload.CODEC);

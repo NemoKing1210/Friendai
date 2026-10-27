@@ -33,7 +33,7 @@ class PersonaPresetsTest {
     @Test
     void labelKeysUseThePresetNamespace() {
         for (PersonaPresets.Preset preset : PersonaPresets.all()) {
-            assertEquals("friendai.menu.persona.preset." + preset.id(), preset.labelKey());
+            assertEquals("friendai.menu.description.preset." + preset.id(), preset.labelKey());
         }
     }
 
@@ -41,7 +41,7 @@ class PersonaPresetsTest {
     void friendlyIsTheServerDefault() {
         PersonaPresets.Preset first = PersonaPresets.all().get(0);
         assertEquals("friendly", first.id());
-        assertEquals(new ServerConfig.CompanionSection().persona, first.text());
+        assertEquals(new ServerConfig.CompanionSection().description, first.text());
     }
 
     @Test

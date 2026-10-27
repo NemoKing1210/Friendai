@@ -72,8 +72,23 @@ public final class PromptBuilder {
     public static String system(
             Persona p, String perception, Caller caller, String memoryBlock, TurnKind turn, GoalView goal,
             int budget, List<String> toolHints, String places, String plannerNote, String tradingSummary) {
-        return PromptAssembler.defaults(budget).assemble(new TurnContext(
+        return system(p,perception,caller,memoryBlock,turn,goal,budget,toolHints,places,plannerNote,tradingSummary,List.of());
+    }
+
+    public static String system(Persona p,String perception,Caller caller,String memoryBlock,TurnKind turn,GoalView goal,
+            int budget,List<String> toolHints,String places,String plannerNote,String tradingSummary,
+            List<dev.friendai.agent.prompt.PromptSection> instructions) {
+        return system(p,perception,caller,memoryBlock,turn,goal,budget,toolHints,places,plannerNote,tradingSummary,instructions,a -> {});
+    }
+
+    public static String system(Persona p,String perception,Caller caller,String memoryBlock,TurnKind turn,GoalView goal,
+            int budget,List<String> toolHints,String places,String plannerNote,String tradingSummary,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
+        var result = PromptAssembler.defaults(budget).assembleDetailed(new TurnContext(
                 p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints,
-                places, tradingSummary));
+                places, tradingSummary, instructions));
+        diagnostics.accept(result);
+        return result.text();
     }
 }

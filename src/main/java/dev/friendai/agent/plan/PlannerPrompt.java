@@ -23,6 +23,13 @@ public final class PlannerPrompt {
                 + "- Never invent tools, items or coordinates that the inputs do not support.";
     }
 
+    public static String system(PlannerInput input) {
+        var protocol = new dev.friendai.skill.SkillPromptSection("planner-protocol",system(),Integer.MAX_VALUE);
+        var context = new dev.friendai.agent.prompt.TurnContext(new dev.friendai.brain.Persona("","","auto"),"",null,"",
+                dev.friendai.brain.TurnKind.EVENT,"",java.util.List.of(),"","",input.instructions());
+        return new dev.friendai.agent.prompt.PromptAssembler(java.util.List.of(protocol),input.promptBudget()).assemble(context);
+    }
+
     /** @param redact removes configured secrets from the text before it leaves the server */
     public static String user(PlannerInput in, UnaryOperator<String> redact) {
         StringBuilder out = new StringBuilder("Goal: ").append(in.goal().text()).append('\n');

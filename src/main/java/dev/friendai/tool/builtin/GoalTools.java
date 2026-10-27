@@ -77,6 +77,11 @@ final class GoalTools {
                             args.get("id").getAsLong(),
                             args.get("done").getAsBoolean(),
                             args.has("reason") ? args.get("reason").getAsString() : "");
+                    if (result.ok() && c.level() instanceof net.minecraft.server.level.ServerLevel level) {
+                        FriendaiServerState.get(level.getServer()).brains().skillOutcome(owner,"goal:"+result.value().id(),
+                                args.get("done").getAsBoolean()?dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                                        :dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,result.value().text());
+                    }
                     return result.ok() ? describe("finished", result.value()) : ToolResult.error(result.error());
                 })));
     }

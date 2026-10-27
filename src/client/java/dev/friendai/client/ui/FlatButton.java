@@ -69,6 +69,14 @@ final class FlatButton extends AbstractWidget {
     }
 
     @Override
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        if (active && visible && isFocused() && event.isSelection()) {
+            action.run();return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    @Override
     protected void updateWidgetNarration(NarrationElementOutput output) {
         defaultButtonNarrationText(output);
     }

@@ -20,10 +20,14 @@ public final class PromptAssembler {
         return new PromptAssembler(DefaultSections.all(), maxChars);
     }
 
-    public String assemble(TurnContext ctx) {
+    public record Assembly(String text, List<String> keptSectionIds, boolean mandatoryOverrun) {}
+    public String assemble(TurnContext ctx) { return assembleDetailed(ctx).text(); }
+    public Assembly assembleDetailed(TurnContext ctx) {
         List<PromptSection> kept = new ArrayList<>();
         List<String> texts = new ArrayList<>();
-        for (PromptSection section : sections) {
+        List<PromptSection> all = new ArrayList<>(sections);
+        all.addAll(ctx.instructionSections());
+        for (PromptSection section : all) {
             Optional<String> text = section.render(ctx);
             if (text.isPresent() && !text.get().isEmpty()) {
                 kept.add(section);
@@ -40,7 +44,8 @@ public final class PromptAssembler {
                 texts.remove(cut);
             }
         }
-        return String.join("\n", texts);
+        String text = String.join("\n", texts);
+        return new Assembly(text, kept.stream().map(PromptSection::id).toList(), maxChars > 0 && text.length() > maxChars);
     }
 
     private static int length(List<String> texts) {

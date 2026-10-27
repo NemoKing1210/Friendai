@@ -141,13 +141,13 @@ public final class MemoryMenuActions {
     public MenuStatus persona(String text) {
         if (text == null || text.isBlank()) {
             book.clearPersona();
-            return ok("friendai.menu.persona.cleared");
+            return ok("friendai.menu.description.cleared");
         }
         try {
             book.setPersona(text);
-            return ok("friendai.menu.persona.saved");
+            return ok("friendai.menu.description.saved");
         } catch (IllegalArgumentException e) {
-            return error("friendai.menu.persona.invalid");
+            return error("friendai.menu.description.invalid");
         }
     }
 

@@ -140,7 +140,15 @@ public final class BrainService {
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
-        return plannerFor(owner).propose(input);
+        return propose(owner,input,false);
+    }
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input,boolean autonomous) {
+        var companion=CompanionManager.get(server).find(owner);
+        String task=companion.map(c->c.taskRunner().currentToolName()).orElse("");
+        boolean combat=companion.map(c->c.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE).orElse(false);
+        var session = FriendaiServerState.get(server).skills().begin(owner,new Caller(owner,"",AccessLevel.OWNER),
+                input.goal().text(),dev.friendai.brain.TurnKind.EVENT,task,autonomous,true,combat);
+        return plannerFor(owner).propose(input.withInstructions(session.sections(),config.agent.promptBudget));
     }
 
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
@@ -319,6 +327,18 @@ public final class BrainService {
             secrets.add(SecretResolver.resolve(profile.apiKey, System::getenv));
         }
         return secrets;
+    }
+
+    public dev.friendai.skill.SkillPromptSession skillSession(UUID owner) {
+        Entry entry=entries.get(owner);
+        return entry==null?dev.friendai.skill.SkillPromptSession.NONE:entry.brain().skillSession();
+    }
+    public dev.friendai.skill.TeachingContext teachingContext(UUID owner) {
+        Entry entry=entries.get(owner);
+        return entry==null?null:entry.brain().teachingContext();
+    }
+    public void skillOutcome(UUID owner,String id,dev.friendai.skill.TeachingContext.OutcomeKind kind,String summary) {
+        if(config.skills.enabled)post(owner,new BrainEvent.SkillOutcome(id,kind,summary));
     }
 
     public void cancel(UUID owner) {
@@ -598,7 +618,7 @@ public final class BrainService {
 
         @Override
         public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(dev.friendai.agent.plan.PlannerInput input) {
-            return plannerFor(owner).propose(input);
+            return BrainService.this.propose(owner,input);
         }
 
         @Override
@@ -674,6 +694,7 @@ public final class BrainService {
                 last = after;
                 var goals = FriendaiServerState.get(server).goals();
                 var board = goals.board(owner);
+                var priorGoals = board.all();
                 String extra;
                 if (success) {
                     var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
@@ -683,6 +704,10 @@ public final class BrainService {
                     extra = handler.onFailure(board, planId, tool, text, factsLine);
                 }
                 goals.save(owner);
+                for (var prior : priorGoals) {
+                    if (board.find(prior.id()).isEmpty()) skillOutcome(owner,"goal:"+prior.id(),
+                            success?dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS:dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,text);
+                }
                 return extra;
             } catch (RuntimeException e) {
                 FriendaiMod.LOGGER.warn("Could not build event facts", e);
@@ -733,7 +758,7 @@ public final class BrainService {
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
-                        memory.book(owner).persona().orElse(config.companion.persona),
+                        memory.book(owner).persona().orElse(config.companion.description),
                         config.companion.language,
                         memory.book(owner).ownerLanguage(owner).orElse(null)),
                 () -> new BrainSettings(
@@ -760,6 +785,9 @@ public final class BrainService {
                     level.getServer().overworld().getGameTime(), tradingConfig.quoteFreshTicks,
                     tradingConfig.locationFreshTicks);
         });
+        brain.setSkillSource((caller,message,turn) -> FriendaiServerState.get(server).skills().begin(owner,caller,message,turn,
+                companion.taskRunner().currentToolName(),brain.isSkillFreeTimeTurn(),false,
+                companion.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));

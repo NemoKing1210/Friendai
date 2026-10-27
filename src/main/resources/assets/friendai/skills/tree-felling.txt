@@ -1,0 +1,1 @@
+Find a detected tree before starting to fell it. Check the tool and inventory space. Prefer visible nearby wood to an unnecessary journey for a named species. Use the tree-felling tool instead of guessing a trunk from an arbitrary block. Wait for its outcome before reporting the harvested result.

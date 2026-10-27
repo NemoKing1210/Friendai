@@ -10,7 +10,11 @@ public final class MemoryFile {
     /** The name the owner gave their companion; null means the configured default. */
     public String companionName;
     /** The personality the owner gave their companion; null means the configured default. */
-    public String persona;
+    public String persona; // Legacy read-only field, absent in new saves.
+    public DescriptionEntry description;
+    public record DescriptionEntry(String summary,String details) {}
+    public OwnerProfileEntry ownerProfile;
+    public record OwnerProfileEntry(String language,String address) {}
     /** The encoded goal board ({@code goals:v1:...}); null means no goals. */
     public String goals;
     /** The encoded free-time state ({@code freetime:v1:...}); null means free time was never used. */

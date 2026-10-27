@@ -27,8 +27,17 @@ public record PlannerInput(
         List<String> lessons,
         String failure,
         Map<String, JsonObject> schemas,
-        Set<String> allTools) {
+        Set<String> allTools,
+        List<dev.friendai.agent.prompt.PromptSection> instructions, int promptBudget) {
+    public PlannerInput(Goal goal,String world,String toolDigest,String knowledge,Optional<String> queueState,
+            List<String> lessons,String failure,Map<String,JsonObject> schemas,Set<String> allTools) {
+        this(goal,world,toolDigest,knowledge,queueState,lessons,failure,schemas,allTools,List.of(),0);
+    }
+    public PlannerInput withInstructions(List<dev.friendai.agent.prompt.PromptSection> sections,int budget) {
+        return new PlannerInput(goal,world,toolDigest,knowledge,queueState,lessons,failure,schemas,allTools,sections,budget);
+    }
     public PlannerInput {
+        instructions = instructions == null ? List.of() : List.copyOf(instructions);
         world = world == null ? "" : world;
         toolDigest = toolDigest == null ? "" : toolDigest;
         knowledge = knowledge == null ? "" : knowledge;
