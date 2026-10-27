@@ -60,6 +60,11 @@ public final class TaskRunner {
     private JobQueue queue;
     private final Map<Long, StepFactory> factories = new HashMap<>();
     private final Map<Long, String> blockedPlans = new HashMap<>();
+    /**
+     * Plans whose remaining steps wait for a decision (a failed step, a missing tool result). The companion stands
+     * and reports them instead of walking to the owner: a follow would preempt the work the failure is about.
+     */
+    private final java.util.Set<Long> awaitingDecision = new java.util.HashSet<>();
     /** Queue plans that free time started; their jobs are autonomous work. */
     private final java.util.Set<Long> autonomousPlans = new java.util.HashSet<>();
     private Active current;
@@ -191,7 +196,7 @@ public final class TaskRunner {
         if(current!=null)cancelCurrent(reason,false);
         for(PlanRecord plan:queue.plans()){queue.cancelPlan(plan.id());finishPlan(plan.id(),reason,false);}
         if(frozen!=null){safeStop(frozen.task(),context());frozen=null;}
-        queue.clear();factories.clear();startDefault();
+        queue.clear();factories.clear();awaitingDecision.clear();startDefault();
     }
     /** Cancels stale work during a capability transition without reporting task failures to the brain. */
     public void cancelForCapabilityChange() {
@@ -209,6 +214,7 @@ public final class TaskRunner {
         queue.clear();
         factories.clear();
         blockedPlans.clear();
+        awaitingDecision.clear();
         frozenElapsed = 0;
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
         else startDefault();
@@ -220,7 +226,7 @@ public final class TaskRunner {
         if(frozen!=null){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));safeStop(frozen.task(),context());frozen=null;}
         if(active!=null)cancelCurrent(reason,false);
         for(PlanRecord p:queue.plans()) finishPlan(p.id(),"stopped by request",false);
-        queue.clear(); factories.clear();
+        queue.clear(); factories.clear(); awaitingDecision.clear();
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else startDefault();
     }
     public String clearQueue(String reason) {
@@ -229,7 +235,7 @@ public final class TaskRunner {
         if(frozen!=null){cleanup=combineCleanup(cleanup,frozen.task().cleanupAfterCancel(context()));safeStop(frozen.task(),context());frozen=null;}
         if(active!=null&&active.jobId()>0)cancelCurrent(reason,false);
         for(PlanRecord plan:queue.plans())finishPlan(plan.id(),reason,false);
-        String result=queue.clear().text(); factories.clear();
+        String result=queue.clear().text(); factories.clear(); awaitingDecision.clear();
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else startNextOrDefault(); return result;
     }
     public void cancelJob(long id,String reason) {
@@ -308,7 +314,7 @@ public final class TaskRunner {
                     queue.remove(active.jobId());factories.remove(active.jobId());
                 }
             }
-            else if(queue.planStatus(active.planId())==PlanStatus.NEEDS_DECISION) notifyBlocked(active.planId(),active.jobId(),result);
+            else if(queue.planStatus(active.planId())==PlanStatus.NEEDS_DECISION){awaitingDecision.add(active.planId());notifyBlocked(active.planId(),active.jobId(),result);}
             else if(queue.planStatus(active.planId())==PlanStatus.DONE||queue.planStatus(active.planId())==PlanStatus.FAILED) finishPlan(active.planId(),QueueText.planSummary(queue,active.planId()),queue.planStatus(active.planId())==PlanStatus.DONE);
         } else if(active.emit()&&listener!=null)listener.onFinished(active.id(),active.toolName(),status,result);
         if (frozen != null) { resumeFrozen(); return; }
@@ -352,8 +358,8 @@ public final class TaskRunner {
             cancelForCapabilityChange();
             return false;
         }
-        try { Task task=factory.create(new TaskContext(companion,(ServerLevel)companion.level(),this,actionContext));queue.markRunning(job.id());Active active=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks,actionContext,job.creativeSensitive());current=active;task.start(context());blockedSince=-1;return true; }
-        catch(RuntimeException e){String reason=e instanceof IllegalArgumentException?e.getMessage():"task crashed: "+e.getClass().getSimpleName();var failed=queue.fail(job.id(),reason);if(!failed.retried()&&job.planId()>0){if(queue.planStatus(job.planId())==PlanStatus.NEEDS_DECISION)notifyBlocked(job.planId(),job.id(),reason);else if(queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),reason,false);}return startNextQueued();}
+        try { Task task=factory.create(new TaskContext(companion,(ServerLevel)companion.level(),this,actionContext));queue.markRunning(job.id());awaitingDecision.remove(job.planId());Active active=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks,actionContext,job.creativeSensitive());current=active;task.start(context());blockedSince=-1;return true; }
+        catch(RuntimeException e){String reason=e instanceof IllegalArgumentException?e.getMessage():"task crashed: "+e.getClass().getSimpleName();var failed=queue.fail(job.id(),reason);if(!failed.retried()&&job.planId()>0){if(queue.planStatus(job.planId())==PlanStatus.NEEDS_DECISION){awaitingDecision.add(job.planId());notifyBlocked(job.planId(),job.id(),reason);}else if(queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),reason,false);}return startNextQueued();}
     }
     private void skipUnmet(GuardFacts facts) { for(Job j:queue.jobs())if(j.state()==JobState.PENDING&&j.onUnmet()==GuardAction.SKIP&&j.guards().stream().anyMatch(g->!g.holds(facts))){queue.skip(j.id());if(j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),QueueText.planSummary(queue,j.planId()),queue.planStatus(j.planId())==PlanStatus.DONE);} }
     private void maybeNoticeBlocked() {
@@ -371,12 +377,17 @@ public final class TaskRunner {
         }
     }
     private void notifyBlocked(long plan,long jobId,String reason) { Job job=queue.job(jobId).orElse(null);if(job==null)return;String goal=queue.plan(plan).map(PlanRecord::goal).orElse("");int remaining=(int)queue.jobsOfPlan(plan).stream().filter(j->j.state()==JobState.PENDING).count();String bounded=QueueText.truncate(reason,QueueText.MAX_BLOCKED_REASON);blockedPlans.put(plan,bounded);if(listener!=null)listener.onPlanBlocked(plan,goal,jobId,job.tool(),bounded,remaining); }
-    private void finishPlan(long id,String summary,boolean success) { PlanRecord p=queue.plan(id).orElse(null);if(p==null)return;String goal=p.goal();queue.archivePlan(id,success,summary);factories.entrySet().removeIf(e->queue.job(e.getKey()).isEmpty());blockedPlans.remove(id);if(listener!=null)listener.onPlanFinished(id,goal,success,summary); }
+    private void finishPlan(long id,String summary,boolean success) { PlanRecord p=queue.plan(id).orElse(null);if(p==null)return;String goal=p.goal();queue.archivePlan(id,success,summary);factories.entrySet().removeIf(e->queue.job(e.getKey()).isEmpty());blockedPlans.remove(id);awaitingDecision.remove(id);if(listener!=null)listener.onPlanFinished(id,goal,success,summary); }
     private void expireDeadlines() { for(long id:queue.expiredPlans()){Active a=current;if(a!=null&&a.planId()==id){Task cleanup=a.task().cleanupAfterCancel(context());cancelCurrent("ran out of time",false);if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);}queue.cancelPlan(id);finishPlan(id,"ran out of time",false);} }
     private void resumeFrozen(){Active old=frozen;frozen=null;if(old!=null&&queue.job(old.jobId()).filter(j->j.state()==JobState.RUNNING).isPresent()){current=new Active(old.id(),old.jobId(),old.planId(),old.toolName(),old.task(),old.emit(),false,false,activeTicks-frozenElapsed,old.creativeActionContext(),old.creativeSensitive());}else{if(old!=null)safeStop(old.task(),context());startNextOrDefault();}}
     private void startNextOrDefault(){if(current!=null)return;if(frozen!=null){resumeFrozen();return;}if(!startNextQueued())startDefault();}
     private Task combineCleanup(Task first,Task second){if(first==null)return second;if(second==null)return first;return new SequenceTask("scaffold cleanup",List.of(new PlanEntry("scaffold_cleanup",ctx->first),new PlanEntry("scaffold_cleanup",ctx->second)),()->timeoutSec.getAsInt()*20);}
-    private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&defaultFollow.getAsBoolean()&&mayFollowOwner.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
+    private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&!plansAwaitingDecision()&&defaultFollow.getAsBoolean()&&mayFollowOwner.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
+    /**
+     * A plan whose remaining steps wait for a decision is not idleness: the companion stands where it is and the
+     * failure is reported from there, so the follow cannot preempt the work it is about.
+     */
+    private boolean plansAwaitingDecision(){if(awaitingDecision.isEmpty())return false;awaitingDecision.removeIf(id->queue.planStatus(id)!=PlanStatus.NEEDS_DECISION);return !awaitingDecision.isEmpty();}
     public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
     public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories) {
         queue = decoded.queue();
@@ -439,6 +450,8 @@ public final class TaskRunner {
                 }
             }
         }        for(Job job:List.copyOf(queue.jobs()))if(job.state()==JobState.RUNNING&&(current==null||current.jobId()!=job.id()))queue.requeue(job.id());
+        awaitingDecision.clear();
+        for(PlanRecord plan:queue.plans())if(queue.planStatus(plan.id())==PlanStatus.NEEDS_DECISION)awaitingDecision.add(plan.id());
         nextPoll=0;
     }
     private static boolean requiresFreshTradingAuthority(Job job) {
