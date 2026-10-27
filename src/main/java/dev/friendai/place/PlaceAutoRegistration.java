@@ -2,6 +2,7 @@ package dev.friendai.place;
 
 import dev.friendai.pathing.Pos;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Decides what a task's {@link PlaceCandidate} means for one owner's book: refresh a place the task passed again,
@@ -79,6 +80,45 @@ public final class PlaceAutoRegistration {
             return new Outcome(Decision.SKIP, 0, "");
         }
         return new Outcome(Decision.CREATE, 0, name);
+    }
+
+    /**
+     * The mine a finished dig earns, or empty when the dig was too small to be one ({@code mined} below
+     * {@code autoMinBlocks}) or nothing says where it happened. The label drops the tag marker and the namespace
+     * before humanizing, so {@code minecraft:oak_log} is "oak log" and {@code #minecraft:logs} is "logs"; the radius
+     * is the job's own search radius, kept within the box a place may cover.
+     */
+    public static Optional<PlaceCandidate> mineCandidate(
+            int mined,
+            int autoMinBlocks,
+            String dimension,
+            Pos anchor,
+            int radius,
+            String matcherLabel) {
+        if (mined < autoMinBlocks || dimension == null || dimension.isBlank() || anchor == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new PlaceCandidate(
+                PlaceKind.MINE,
+                PlaceNames.humanize(stripNamespaceAndTag(matcherLabel)),
+                "",
+                dimension,
+                anchor,
+                Math.clamp(radius, 1, Place.RADIUS_MAX),
+                PlaceSource.MINE));
+    }
+
+    /** {@code "#minecraft:logs"} and {@code "minecraft:oak_log"} become "logs" and "oak_log". */
+    private static String stripNamespaceAndTag(String matcherLabel) {
+        String text = matcherLabel == null ? "" : matcherLabel.strip();
+        if (text.startsWith("#")) {
+            text = text.substring(1);
+        }
+        int colon = text.indexOf(':');
+        if (colon >= 0) {
+            text = text.substring(colon + 1);
+        }
+        return text;
     }
 
     private static String freePreferredName(PlaceRegistry registry, PlaceCandidate candidate) {

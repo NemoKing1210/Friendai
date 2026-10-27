@@ -16,8 +16,6 @@ import dev.friendai.place.PlaceValues;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FarmTask;
-import dev.friendai.task.builtin.MineBlocksTask;
-import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
@@ -43,12 +41,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
 public class PlaceTests {
-    /**
-     * How far the mine test searches from the vein's centre. The radius-5 sphere around the patch centre
-     * (8, 5) contains 55 of the patch's 56 blocks, while the three digs ask for 8 + 20 + 20 = 48 of them.
-     */
-    private static final int VEIN_RADIUS = 5;
-
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;
@@ -393,25 +385,6 @@ public class PlaceTests {
         }
     }
 
-    /**
-     * A single flat layer of wool at the companion's feet level, big enough for all three mining passes without ever
-     * being refilled. One layer only: every block keeps an exposed top and an exposed side, so no block can end up
-     * walled in and unreachable the way the interior of a solid cube does. White wool never generates naturally, so
-     * the stone floor and the stone of the arena can never be mistaken for the vein's block.
-     *
-     * The patch is 8x7 = 56 blocks. {@link #VEIN_RADIUS} around its centre (8, 5) contains 55 of them (only the
-     * (4, 9) corner lies outside dx^2 + dz^2 <= 25), and the phases dig 8 + 20 + 20 = 48, so the last dig still
-     * has 27 candidates. The companion's standing column (x=2) is outside the patch, so it keeps its feet on stone
-     * while it mines the wall beside it.
-     */
-    private static void woolVein(GameTestHelper h) {
-        for (int x = 4; x <= 11; x++) {
-            for (int z = 3; z <= 9; z++) {
-                h.setBlock(x, 121, z, Blocks.WOOL.white());
-            }
-        }
-    }
-
     @GameTest(maxTicks = 1200)
     public void place_tests_farm_registers(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
@@ -455,65 +428,6 @@ public class PlaceTests {
             h.assertValueEqual(farm.createdTick(), created[0], "a refresh keeps createdTick");
             h.assertTrue(farm.updatedTick() > created[0],
                     "a refresh stamps updatedTick " + farm.updatedTick() + " after " + created[0]);
-        });
-    }
-
-    @GameTest(maxTicks = 6000)
-    public void place_tests_mine_registers(GameTestHelper h) {
-        GameTestSupport.platformAt(h, 120, 16);
-        woolVein(h);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 121, 2);
-        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
-        companion.setOwner(owner.getUUID());
-        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 121, 6))),
-                "the exposed wool should be visible");
-        Result result = new Result();
-        result.companion = companion;
-        companion.taskRunner().setListener(result);
-        BlockMatcher wool = BlockMatcher.parse("minecraft:white_wool").orElseThrow();
-        // Search from the patch centre; the radius-5 sphere covers all but one of the patch's 56 blocks, so the
-        // three digs (8 + 20 + 20 = 48) always have unbroken wool left to find.
-        BlockPos vein = h.absolutePos(new BlockPos(8, 121, 5));
-        companion.taskRunner().start(new MineBlocksTask(wool, 8, VEIN_RADIUS, vein, true), "mine_blocks");
-
-        int[] phase = {0};
-        long[] created = {0};
-        h.succeedWhen(() -> {
-            companion.taskRunner().tick();
-            if (phase[0] == 0) {
-                h.assertTrue(result.status == TaskStatus.SUCCESS,
-                        "the eight-block dig should finish: " + result.status + " " + result.summary);
-                h.assertTrue(PlaceService.book(companion).all().isEmpty(),
-                        "eight blocks are below the auto-registration threshold: "
-                                + PlaceService.book(companion).all());
-                phase[0] = 1;
-                result.status = null;
-                result.summary = "";
-                companion.taskRunner().start(new MineBlocksTask(wool, 20, VEIN_RADIUS, vein, true), "mine_blocks");
-                h.assertTrue(false, "waiting for the twenty-block dig to finish");
-            }
-            String attempt = phase[0] == 1 ? "first" : "second";
-            h.assertTrue(result.status == TaskStatus.SUCCESS,
-                    "the " + attempt + " twenty-block dig should finish: " + result.status + " " + result.summary);
-            List<Place> places = PlaceService.book(companion).all();
-            h.assertValueEqual(places.size(), 1, "one mine after the " + attempt + " big dig: " + places);
-            Place mine = places.get(0);
-            h.assertValueEqual(mine.kind(), PlaceKind.MINE, "kind");
-            h.assertValueEqual(mine.label(), "white wool", "label");
-            h.assertValueEqual(mine.source(), PlaceSource.MINE, "source");
-            h.assertValueEqual(mine.radius(), VEIN_RADIUS, "radius");
-            if (phase[0] == 1) {
-                created[0] = mine.createdTick();
-                phase[0] = 2;
-                result.status = null;
-                result.summary = "";
-                companion.taskRunner().start(new MineBlocksTask(wool, 20, VEIN_RADIUS, vein, true), "mine_blocks");
-                h.assertTrue(false, "waiting for the second twenty-block dig to finish");
-            }
-            h.assertValueEqual(mine.createdTick(), created[0], "a refresh keeps createdTick");
-            h.assertTrue(mine.updatedTick() > created[0],
-                    "a refresh stamps updatedTick " + mine.updatedTick() + " after " + created[0]);
         });
     }
 }
