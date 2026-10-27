@@ -23,6 +23,7 @@ import dev.friendai.task.build.Placement;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.ScaffoldCleanupTask;
+import dev.friendai.task.build.SupportNeeds;
 import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.task.builtin.ObtainTask;
 import java.nio.file.Files;
@@ -44,7 +45,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.LanternBlock;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.TripWireHookBlock;
+import net.minecraft.world.level.block.WallBannerBlock;
+import net.minecraft.world.level.block.WallSignBlock;
+import net.minecraft.world.level.block.WallTorchBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 
@@ -1654,6 +1661,55 @@ public class BuildTests {
         equal(ownerPos.getX() - 5, west.origin().getX(), "west-facing: the whole depth lies ahead");
         equal(ownerPos.getZ() - 1, west.origin().getZ(), "west-facing: centred across the owner");
         equal(Rotation.COUNTERCLOCKWISE_90, west.rotation(), "the front faces the owner");
+        h.succeed();
+    }
+
+    /**
+     * The support table is a claim about vanilla, so it is checked against vanilla itself: every row must refuse to
+     * stand in mid-air, name the cell that {@code canSurvive} needs, and survive once that cell is stone.
+     */
+    @GameTest(maxTicks = 60)
+    public void derivedSupportMatchesVanilla(GameTestHelper h) {
+        ServerLevel level = h.getLevel();
+        record Row(String name, BlockState state, int dx, int dy, int dz) {}
+        List<Row> rows = List.of(
+                new Row("wall torch", Blocks.WALL_TORCH.defaultBlockState()
+                        .setValue(WallTorchBlock.FACING, Direction.EAST), -1, 0, 0),
+                new Row("ladder", Blocks.LADDER.defaultBlockState()
+                        .setValue(LadderBlock.FACING, Direction.SOUTH), 0, 0, -1),
+                new Row("wall sign", Blocks.OAK_WALL_SIGN.defaultBlockState()
+                        .setValue(WallSignBlock.FACING, Direction.SOUTH), 0, 0, -1),
+                new Row("tripwire hook", Blocks.TRIPWIRE_HOOK.defaultBlockState()
+                        .setValue(TripWireHookBlock.FACING, Direction.SOUTH), 0, 0, -1),
+                new Row("wall banner", Blocks.WALL_BANNER.pick(DyeColor.WHITE).defaultBlockState()
+                        .setValue(WallBannerBlock.FACING, Direction.SOUTH), 0, 0, -1),
+                new Row("hanging lantern", Blocks.LANTERN.defaultBlockState()
+                        .setValue(LanternBlock.HANGING, true), 0, 1, 0),
+                new Row("floor lantern", Blocks.LANTERN.defaultBlockState(), 0, -1, 0),
+                new Row("hanging sign", Blocks.OAK_HANGING_SIGN.defaultBlockState(), 0, 1, 0),
+                new Row("door", Blocks.OAK_DOOR.defaultBlockState(), 0, -1, 0),
+                new Row("snow layer", Blocks.SNOW.defaultBlockState(), 0, -1, 0),
+                new Row("carpet", Blocks.CARPET.pick(DyeColor.WHITE).defaultBlockState(), 0, -1, 0),
+                new Row("candle", Blocks.CANDLE.defaultBlockState(), 0, -1, 0),
+                new Row("rail", Blocks.RAIL.defaultBlockState(), 0, -1, 0),
+                new Row("torch", Blocks.TORCH.defaultBlockState(), 0, -1, 0));
+        int row = 0;
+        for (Row c : rows) {
+            BlockPos pos = h.absolutePos(new BlockPos(4, 20 + row * 3, 4));
+            row++;
+            h.assertTrue(!c.state().canSurvive(level, pos), c.name() + ": must not survive in mid-air");
+            BlockPos support = SupportNeeds.supportOf(c.state(), pos);
+            h.assertTrue(support != null, c.name() + ": support cell expected");
+            h.assertValueEqual(support, pos.offset(c.dx(), c.dy(), c.dz()), c.name() + ": support cell");
+            level.setBlockAndUpdate(support, Blocks.STONE.defaultBlockState());
+            h.assertTrue(c.state().canSurvive(level, pos), c.name() + ": must survive on stone");
+            level.setBlockAndUpdate(support, Blocks.AIR.defaultBlockState());
+        }
+        for (BlockState free : List.of(Blocks.STONE.defaultBlockState(), Blocks.OAK_STAIRS.defaultBlockState(),
+                Blocks.OAK_PLANKS.defaultBlockState())) {
+            BlockPos pos = h.absolutePos(new BlockPos(4, 80, 4));
+            h.assertTrue(SupportNeeds.supportOf(free, pos) == null, free + " needs no support");
+        }
         h.succeed();
     }
 

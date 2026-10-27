@@ -24,6 +24,7 @@ import dev.friendai.task.build.Reach;
 import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.ScaffoldCleanupTask;
 import dev.friendai.task.build.Site;
+import dev.friendai.task.build.SupportNeeds;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
@@ -36,6 +37,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -288,7 +290,7 @@ public final class BuildTask implements Task {
         foundation = site.foundation().stream()
                 .sorted(Comparator.comparingInt(spec -> spec.pos().getY()))
                 .toList();
-        order = BuildOrder.order(blueprint, BuildTask::needsSupport, origin.getX(), origin.getZ());
+        order = BuildOrder.order(blueprint, supportLookup()::get, origin.getX(), origin.getZ());
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
@@ -307,9 +309,36 @@ public final class BuildTask implements Task {
         return remaining;
     }
 
-    /** A block is an attachment when it cannot hang in the air without a neighbour. */
-    private static boolean needsSupport(String state) {
-        return state.contains("torch") || state.contains("door") || state.contains("ladder");
+    /**
+     * What each planned block needs first, mapped back from world cells to blueprint cells: the orderer asks this
+     * for every spec and places a support before the blocks that use it. {@link SupportNeeds} owns the vanilla rules;
+     * a state whose family is unknown answers no dependency and keeps the runtime deferral.
+     */
+    private Map<BlockSpec, BuildOrder.Support> supportLookup() {
+        Map<BlockPos, BlockSpec> byWorld = new HashMap<>();
+        for (BlockSpec spec : blueprint.blocks()) {
+            byWorld.put(worldPos(spec), spec);
+        }
+        Map<BlockSpec, BuildOrder.Support> lookup = new HashMap<>();
+        for (BlockSpec spec : blueprint.blocks()) {
+            BlockPos pos = worldPos(spec);
+            BlockState wanted = Placement.parseState(spec.state()).rotate(rotation);
+            BlockPos support = SupportNeeds.supportOf(wanted, pos);
+            if (support == null) {
+                lookup.put(spec, BuildOrder.Support.NONE);
+                continue;
+            }
+            BlockSpec cell = byWorld.get(support);
+            lookup.put(spec, cell == null || Placement.parseState(cell.state()).isAir()
+                    ? BuildOrder.Support.needed()
+                    : BuildOrder.Support.on(cell));
+        }
+        return lookup;
+    }
+
+    private BlockPos worldPos(BlockSpec spec) {
+        return origin.offset(Placement.rotate(
+                new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth()));
     }
 
     /** The cells the blueprint fills with a block, which a support block must never occupy. */

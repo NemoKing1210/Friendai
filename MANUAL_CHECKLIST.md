@@ -272,6 +272,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Save this design": save_blueprint, then list_blueprints shows it and a build_structure by name builds it again.
 - [ ] "Build this village house here": list_blueprints with a query finds the template id, then build_structure with "structure" builds the vanilla house.
 - [ ] A tall tower (8+ blocks): it is built using scaffolding, and the dirt/cobblestone pillars are removed afterwards.
+- [ ] A blueprint with a wall torch on a wall built in the same pass: the torch ends up on the wall, never in mid-air, and the wall goes down first whichever layer it is in.
+- [ ] A lantern hanging under a beam is placed after the beam; a door's upper half appears from the lower half and is never counted or placed twice.
 - [ ] Save and reload the world mid-build: the build resumes where it stopped and finishes.
 - [ ] Missing materials with "gather": the companion obtains them with obtain_item instead of failing, then builds.
 
