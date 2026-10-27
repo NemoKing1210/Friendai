@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -25,6 +25,7 @@ public class ServerConfig {
     public TasksSection tasks = new TasksSection();
     public MemorySection memory = new MemorySection();
     public PathingSection pathing = new PathingSection();
+    public PlacesSection places = new PlacesSection();
     public StructuresSection structures = new StructuresSection();
     public AgentSection agent = new AgentSection();
 
@@ -149,6 +150,18 @@ public class ServerConfig {
         }
     }
 
+    /** What the companion remembers about noteworthy places, and how many of them reach the model. */
+    public static class PlacesSection {
+        public boolean enabled = true;
+        public boolean autoRemember = true;
+        public int autoMineMinBlocks = 16;
+        public int maxPlaces = 128;
+        public int mergeRadius = 16;
+        public int promptLimit = 6;
+        public int promptBudget = 1_200;
+        public int plannerLimit = 40;
+    }
+
     public static ServerConfig defaults() {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
@@ -159,6 +172,7 @@ public class ServerConfig {
      * Version 8 enabled expeditions for existing servers once; later config edits retain their chosen value.
      * Version 9 added the {@code agent} section, whose field defaults fill in old files.
      * Version 10 enables resource observations out to 64 blocks by default.
+     * Version 11 added the {@code places} section, whose field defaults fill in old files.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
@@ -235,6 +249,16 @@ public class ServerConfig {
             pathing = new PathingSection();
             problems.add("pathing was missing");
         }
+        if (places == null) {
+            places = new PlacesSection();
+            problems.add("places was missing");
+        }
+        places.autoMineMinBlocks = clamp(problems, "places.autoMineMinBlocks", places.autoMineMinBlocks, 1, 256);
+        places.maxPlaces = clamp(problems, "places.maxPlaces", places.maxPlaces, 8, 1_024);
+        places.mergeRadius = clamp(problems, "places.mergeRadius", places.mergeRadius, 1, 64);
+        places.promptLimit = clamp(problems, "places.promptLimit", places.promptLimit, 1, 12);
+        places.promptBudget = clamp(problems, "places.promptBudget", places.promptBudget, 200, 4_000);
+        places.plannerLimit = clamp(problems, "places.plannerLimit", places.plannerLimit, 1, 128);
         if (structures == null) {
             structures = new StructuresSection();
             problems.add("structures was missing");
