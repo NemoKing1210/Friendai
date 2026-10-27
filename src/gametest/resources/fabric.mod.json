@@ -20,6 +20,7 @@
 			"dev.friendai.test.UseBlockTests",
 			"dev.friendai.test.LightAreaTests",
 			"dev.friendai.test.StorageTests",
+			"dev.friendai.test.FreeTimeTests",
 			"dev.friendai.test.ToolTests",
 			"dev.friendai.test.PlaceTests",
 			"dev.friendai.test.GuestTests",

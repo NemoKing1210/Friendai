@@ -292,7 +292,7 @@ public class ToolTests {
         List<String> names = FriendaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "fell_tree", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
-                "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
+                "take_items", "check_container", "deposit_items", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player",
                 "set_combat_mode", "get_combat_settings", "set_combat_settings", "equip_item", "eat",
                 "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
