@@ -302,11 +302,14 @@ public class ToolTests {
                 "remember_place", "find_place", "go_to_place", "rename_place", "forget_place",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "build_special", "plan_special", "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
-                "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",
+                "untrust_player", "show_inventory", "set_name", "set_follow_mode", "stop", "find_traders",
+                "inspect_trader", "refresh_trades", "wait_for_restock", "level_trader", "barter",
+                "known_trades", "plan_trade", "trade_item", "queue_add", "queue_show", "queue_edit",
                 "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait", "swap_hands",
                 "set_idle_behavior", "set_follow_distance", "step", "back_away", "approach", "circle",
-                "interact_entity", "mount", "dismount", "sleep", "throw_item", "create_item", "fly_to",
-                "execute_command", "set_goal", "update_goal", "finish_goal", "request_tools",
+                "interact_entity", "mount", "dismount", "sleep", "throw_item", "extinguish_fire",
+                "create_item", "fly_to", "execute_command", "set_goal", "update_goal", "finish_goal",
+                "use_skill", "manage_skill", "request_tools",
                 "start_free_time", "end_free_time", "choose_activity")),
                 "names were " + names);
         h.succeed();
@@ -461,15 +464,21 @@ public class ToolTests {
     @GameTest
     public void ownerOrderAttacksProtectedSpecies(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // The queued job re-reads the caller against the companion's owner, so the fixture must have one: with an
+        // ownerless companion an accepted owner order becomes a guest call when the job starts.
+        java.util.UUID owner = java.util.UUID.randomUUID();
+        c.setOwner(owner);
+        Caller ownerCaller = new Caller(owner, "", AccessLevel.OWNER);
         ToolExecutor tools = tools(c);
-        ToolResult golem = run(tools, "attack", "{\"target\":\"minecraft:iron_golem\",\"count\":1}");
+        ToolResult golem = runAs(tools, "attack", "{\"target\":\"minecraft:iron_golem\",\"count\":1}", ownerCaller);
         h.assertTrue(!golem.error() && golem.content().startsWith("task #"),
                 "the owner's order should start the hunt: " + golem.content());
         h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("attack")).orElse(false),
                 "the hunt task should be running");
         c.taskRunner().stop("test");
-        ToolResult companion = run(tools, "attack",
-                "{\"target\":\"" + BuiltInRegistries.ENTITY_TYPE.getKey(FriendaiEntities.COMPANION) + "\",\"count\":1}");
+        ToolResult companion = runAs(tools, "attack",
+                "{\"target\":\"" + BuiltInRegistries.ENTITY_TYPE.getKey(FriendaiEntities.COMPANION) + "\",\"count\":1}",
+                ownerCaller);
         h.assertTrue(companion.error(), "a companion must stay off limits: " + companion.content());
         h.succeed();
     }
