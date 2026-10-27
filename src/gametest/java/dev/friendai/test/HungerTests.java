@@ -151,14 +151,16 @@ public class HungerTests {
     }
 
     @GameTest
-    public void hungerInPerception(GameTestHelper h) {        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+    public void hungerInPerception(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.hunger().load(14, 0.0f, 0.0f);
         String text = PerceptionBuilder.brief(c).toPromptText();
         h.assertTrue(text.contains("Health: 20/20\nHunger: 14/20\n"), text);
-        // Only the dedicated line: hunger must not leak into the equipment field as well.
-        String lower = text.toLowerCase(java.util.Locale.ROOT);
-        h.assertTrue(lower.indexOf("hunger") == lower.lastIndexOf("hunger"),
-                "hunger appears more than once:\n" + text);
+        // Only the dedicated line: hunger must not leak into the equipment field as well. The Mode line names
+        // hunger on purpose (what survival applies), so check that field, not the whole snapshot.
+        String equipment = text.lines().filter(line -> line.startsWith("Wearing:")).findFirst().orElseThrow();
+        h.assertFalse(equipment.toLowerCase(java.util.Locale.ROOT).contains("hunger"),
+                "hunger leaked into the equipment field:\n" + text);
         h.succeed();
     }
 
