@@ -718,6 +718,12 @@ public final class BrainService {
         return tradeAuthorities.computeIfAbsent(owner, TradeAuthority::new);
     }
 
+    /** The single runtime authority ledger for this owner; tasks must reuse it and never rebuild scopes. */
+    public TradeAuthority tradeAuthorityFor(UUID owner) {
+        if (owner == null) throw new IllegalArgumentException("trade authority owner is required");
+        return tradeAuthority(owner);
+    }
+
     private boolean spendingJob(Job job) {
         TaskToolDef def = taskTools.get(job.tool());
         return QueueTradeScope.requiresFreshAuthority(job.args(),
