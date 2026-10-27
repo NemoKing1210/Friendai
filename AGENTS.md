@@ -229,6 +229,8 @@ Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `suba
 
 **You are the orchestrator.** Split the work, write the briefs, integrate the results, and own the final verification. Subagents do bounded pieces.
 
+**Children run on a cheap model.** A subagent does bounded, mechanical work — a search, a slice of a diff, a review pass — so it runs on the default or the cheapest model that can do the job. Never hand a child an expensive model: no `astra` (or anything in that price class) as a `model`/`model_profile` argument, no `.codex/agents/*.toml` pinned to one, and no copying a pricey session model into a child. If a piece of work seems to need the expensive model, the brief is wrong: split it smaller or do that piece yourself. Say which model a child ran on when a delegation's cost matters.
+
 ### When to delegate
 
 - The task splits into 2+ independent parts (separate modules or files, parallel searches, comparing several options, writing tests, reviewing). Launch them **in parallel in one step**, not one after another, if the tool allows it.
@@ -271,7 +273,7 @@ A subagent does not see this conversation. Make each brief self-contained:
 
 - **oh-my-pi (`omp`)**: tool `task` (parallel, optionally worktree-isolated); `wait` collects background results; `/review` spawns reviewers. Custom agents: `.omp/agents/*.md` (project) or `~/.omp/agent/agents/*.md`; `.claude/agents` is not read. Bundled: `scout` (read-only), `reviewer`, `task`.
 - **Claude Code**: tool `Agent` (formerly `Task`). Custom agents: `.claude/agents/*.md` with YAML frontmatter (`name`, `description`, `tools`, `model`; `isolation: worktree` for an isolated checkout). Default cap is 20 concurrent subagents.
-- **Codex CLI**: enabled by default; ask for it explicitly ("spawn agents for X, Y, Z in parallel"). Custom agents: TOML in `.codex/agents/` (`name`, `description`, `developer_instructions`). Cap: `agents.max_concurrent_threads_per_session`. Prefer parallelism for read-heavy work; be careful with concurrent writes.
+- **Codex CLI**: enabled by default; ask for it explicitly ("spawn agents for X, Y, Z in parallel"). Custom agents: TOML in `.codex/agents/` (`name`, `description`, `developer_instructions`). Cap: `agents.max_concurrent_threads_per_session`. Prefer parallelism for read-heavy work; be careful with concurrent writes. If Codex children would inherit the session's model, that is exactly the case the cheap-model rule above forbids: pass the cheap model explicitly and keep the TOMLs free of `model` pins — a session running `astra` spawns cheap children or none.
 - **opencode**: `Task` tool and `@name` mentions. Built-in subagents: `general`, `explore`, `scout`. Custom agents: `.opencode/agents/*.md` with `mode: subagent`. Not an import: opencode does not expand `@file` in `AGENTS.md`.
 - **pi**: no built-in subagents; they come from an installed extension (typically `.pi/agents/*.md` definitions, which may need project trust). Check which extension is loaded before relying on delegation.
 
