@@ -257,7 +257,7 @@ public final class ResourceSearchTests {
             if (result.status == null) {
                 h.assertTrue(companion.blockPosition().distManhattan(start) < 4,
                         "search should inspect locally before travelling");
-                return;
+                h.assertTrue(false, "search should finish locally");
             }
             h.assertTrue(result.status == TaskStatus.SUCCESS,
                     "status " + result.status + " " + result.summary);

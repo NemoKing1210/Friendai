@@ -413,15 +413,12 @@ public class TreeFellingTests {
                 "acacia base should be directly visible");
         var tools = FriendaiTools.create(() -> 32).bind(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
-        int[] ticks = {0};
         boolean[] started = {false};
         h.succeedWhen(() -> {
-            if (ticks[0]++ < 20) return;
             if (!started[0]) {
                 started[0] = true;
                 ToolResult result = run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":16}");
                 h.assertTrue(!result.error(), result.content());
-                return;
             }
             for (int[] p : logs) {
                 h.assertTrue(h.getBlockState(new BlockPos(p[0], p[1], p[2])).isAir(),
@@ -440,13 +437,10 @@ public class TreeFellingTests {
                 "acacia base should be directly visible");
         var tools = FriendaiTools.create(() -> 32).bind(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
-        int[] ticks = {0};
         h.succeedWhen(() -> {
-            if (ticks[0]++ < 20) return;
             ToolResult result = run(tools, anonymous, "find_trees", "{\"near\":\"self\",\"radius\":16}");
             h.assertTrue(!result.error(), result.content());
             h.assertTrue(result.content().contains("acacia_log"), result.content());
-            h.succeed();
         });
     }
 }
