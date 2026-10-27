@@ -1,5 +1,6 @@
 package dev.friendai.task.nav;
 
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalReach;
@@ -7,7 +8,9 @@ import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
@@ -46,7 +49,11 @@ public final class Approach {
     private final List<BlockPos> candidates;
     /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
     private final boolean mayPlace;
+    /** Cells a caller needs to reserve for future work, such as the rest of a blueprint being built. */
+    private final Set<BlockPos> excludedFlightCells;
     private Navigator navigator;
+    private FlightNavigator flightNavigator;
+    private Vec3 flightGoal;
     private BlockPos reached;
     private Phase phase;
     private int closerTicks;
@@ -67,11 +74,17 @@ public final class Approach {
      *     at the cost of the material in the companion's inventory.
      */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace) {
+        this(candidates, mayPlace, Set.of());
+    }
+
+    /** Excludes planned cells from creative flight landings so an approach cannot trap the companion in a build. */
+    public Approach(Collection<BlockPos> candidates, boolean mayPlace, Set<BlockPos> excludedFlightCells) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
         this.mayPlace = mayPlace;
+        this.excludedFlightCells = Set.copyOf(excludedFlightCells);
     }
 
     /** The block the companion reached, or the first candidate before it got there. */
@@ -80,12 +93,54 @@ public final class Approach {
     }
 
     public State tick(CompanionEntity companion) {
+        return tick(companion.taskRunner().activeTaskContext());
+    }
+
+    /** Uses authorized creative flight when available; survival approaches keep their walking and planning path. */
+    public State tick(TaskContext context) {
+        CompanionEntity companion = context.companion();
         BlockPos near = nearestWithinReach(companion);
         if (near != null) {
             reached = near;
-            companion.getNavigation().stop();
+            stop(context, context.canUseCreativeAction(CreativeAction.FLIGHT));
             lookAt(companion, near);
             return State.IN_REACH;
+        }
+        if (companion.creativeMode() && context.canUseCreativeAction(CreativeAction.FLIGHT)) {
+            if (navigator != null) {
+                navigator.stop(context);
+                navigator = null;
+            }
+            companion.getNavigation().stop();
+            if (flightNavigator == null) flightNavigator = new FlightNavigator();
+            if (flightGoal == null) flightGoal = flightApproachGoal(context);
+            if (flightGoal == null) {
+                stop(context);
+                return State.UNREACHABLE;
+            }
+            return switch (flightNavigator.tick(context, flightGoal)) {
+                case MOVING, SEARCHING -> State.MOVING;
+                case UNREACHABLE -> {
+                    stop(context);
+                    yield State.UNREACHABLE;
+                }
+                case ARRIVED -> {
+                    BlockPos arrived = nearestWithinReach(companion);
+                    if (arrived == null) {
+                        stop(context);
+                        yield State.UNREACHABLE;
+                    }
+                    reached = arrived;
+                    lookAt(companion, arrived);
+                    stop(context, true);
+                    yield State.IN_REACH;
+                }
+            };
+        }
+        if (flightNavigator != null) {
+            flightNavigator.stop(context);
+            flightNavigator = null;
+            flightGoal = null;
         }
         if (phase == null) {
             // A block a few steps away is not worth a search: the plain walk answers in a fraction of the time, and
@@ -99,7 +154,6 @@ public final class Approach {
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }
-            TaskContext context = new TaskContext(companion, (ServerLevel) companion.level());
             switch (navigator.tick(context)) {
                 case MOVING, SEARCHING, GATHERING -> {
                     return State.MOVING;
@@ -163,11 +217,75 @@ public final class Approach {
     }
 
     public void stop(CompanionEntity companion) {
+        stop(companion.taskRunner().activeTaskContext());
+    }
+
+    public void stop(TaskContext context) {
+        stop(context, false);
+    }
+
+    private void stop(TaskContext context, boolean keepHovering) {
+        CompanionEntity companion = context.companion();
         companion.getNavigation().stop();
         if (navigator != null) {
-            navigator.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+            navigator.stop(context);
             navigator = null;
         }
+        if (flightNavigator != null) {
+            flightNavigator.stop(context, keepHovering);
+            flightNavigator = null;
+        }
+        flightGoal = null;
+    }
+
+    /** Finds an unoccupied flight cell with enough reach left to tolerate FlightNavigator's arrival radius. */
+    private Vec3 flightApproachGoal(TaskContext context) {
+        CompanionEntity companion = context.companion();
+        ServerLevel level = context.level();
+        double maxEyeDistance = REACH - FlightNavigator.ARRIVAL_TOLERANCE - 0.1;
+        Vec3 eye = companion.getEyePosition();
+        Vec3 best = null;
+        double bestTravel = Double.POSITIVE_INFINITY;
+        int span = (int) Math.ceil(REACH);
+        for (BlockPos target : candidates) {
+            Vec3 center = Vec3.atCenterOf(target);
+            for (int y = target.getY() - span; y <= target.getY() + span; y++) {
+                for (int x = target.getX() - span; x <= target.getX() + span; x++) {
+                    for (int z = target.getZ() - span; z <= target.getZ() + span; z++) {
+                        Vec3 feet = new Vec3(x + 0.5, y, z + 0.5);
+                        if (feet.add(0.0, companion.getEyeHeight(), 0.0).distanceTo(center) > maxEyeDistance) {
+                            continue;
+                        }
+                        BlockPos feetCell = BlockPos.containing(feet);
+                        if (excludedFlightCells.contains(feetCell) || excludedFlightCells.contains(feetCell.above())) {
+                            continue;
+                        }
+                        AABB box = companion.getBoundingBox().move(feet.subtract(companion.position()));
+                        if (!flightCellFree(level, companion, box)) {
+                            continue;
+                        }
+                        double travel = companion.position().distanceToSqr(feet);
+                        if (travel < bestTravel) {
+                            best = feet;
+                            bestTravel = travel;
+                        }
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean flightCellFree(ServerLevel level, CompanionEntity companion, AABB box) {
+        if (box.minY < level.getMinY() || box.maxY > level.getMaxY() + 1.0) return false;
+        for (int x : new int[] {BlockPos.containing(box.minX, box.minY, box.minZ).getX(),
+                BlockPos.containing(box.maxX, box.minY, box.minZ).getX()}) {
+            for (int z : new int[] {BlockPos.containing(box.minX, box.minY, box.minZ).getZ(),
+                    BlockPos.containing(box.minX, box.minY, box.maxZ).getZ()}) {
+                if (!level.hasChunkAt(x, z)) return false;
+            }
+        }
+        return level.noCollision(companion, box);
     }
 
     private GoalReach goal(CompanionEntity companion) {

@@ -316,6 +316,9 @@ public final class BuildTask implements Task {
      * here rather than starved of its own walls.
      */
     private String unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
+        if (c.canUseCreativeAction(CreativeAction.FLIGHT)) {
+            return null;
+        }
         if (scaffold.canScaffold(c)) {
             return null;
         }
@@ -481,9 +484,9 @@ public final class BuildTask implements Task {
                 continue;
             }
             if (approach == null) {
-                approach = new Approach(spec.pos());
+                approach = new Approach(List.of(spec.pos()), false, plannedCells);
             }
-            switch (approach.tick(c.companion())) {
+            switch (approach.tick(c)) {
                 case MOVING -> {
                     return TaskStatus.RUNNING;
                 }
@@ -574,12 +577,26 @@ public final class BuildTask implements Task {
                 return TaskStatus.RUNNING;
             }
             if (!inReach(c.companion(), currentPos)) {
+                if (c.canUseCreativeAction(CreativeAction.FLIGHT)) {
+                    if (approach == null) {
+                        approach = new Approach(List.of(currentPos), false, plannedCells);
+                    }
+                    Approach.State state = approach.tick(c);
+                    if (state == Approach.State.MOVING) {
+                        return TaskStatus.RUNNING;
+                    }
+                    approach = null;
+                    if (state == Approach.State.IN_REACH && inReach(c.companion(), currentPos)) {
+                        continue;
+                    }
+                    return fail(c, "can't reach " + coords(currentPos));
+                }
                 int feetY = pillarFeetY(c.companion(), currentPos);
                 if (feetY < 0) {
                     if (approach == null) {
                         approach = new Approach(currentPos);
                     }
-                    Approach.State state = approach.tick(c.companion());
+                    Approach.State state = approach.tick(c);
                     if (state == Approach.State.MOVING) {
                         return TaskStatus.RUNNING;
                     }
@@ -776,7 +793,9 @@ public final class BuildTask implements Task {
     private TaskStatus stepAside(TaskContext c, BlockPos pos) {
         CompanionEntity companion = c.companion();
         if (asideTarget == null) {
-            asideTarget = freeSpotNear(c.level(), companion, pos);
+            asideTarget = c.canUseCreativeAction(CreativeAction.FLIGHT)
+                    ? freeFlightSpotNear(c, pos)
+                    : freeSpotNear(c.level(), companion, pos);
             if (asideTarget == null) {
                 return TaskStatus.FAILED;
             }
@@ -789,9 +808,64 @@ public final class BuildTask implements Task {
         if (state == MoveHelper.State.MOVING) {
             return TaskStatus.RUNNING;
         }
-        asideMover.reset(c);
+        if (state == MoveHelper.State.ARRIVED) {
+            asideMover.stopAtDestination(c);
+        } else {
+            asideMover.reset(c);
+        }
         asideTarget = null;
         return state == MoveHelper.State.ARRIVED ? TaskStatus.RUNNING : TaskStatus.FAILED;
+    }
+
+    /** Finds a collision-free airborne spot so creative building can clear its own placement cell. */
+    private BlockPos freeFlightSpotNear(TaskContext c, BlockPos target) {
+        CompanionEntity companion = c.companion();
+        ServerLevel level = c.level();
+        int feetY = companion.blockPosition().getY();
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        Vec3 targetCenter = Vec3.atCenterOf(target);
+        for (int dy = -3; dy <= 3; dy++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    double horizontal = Math.sqrt(dx * dx + dz * dz);
+                    if (horizontal < 1.5 || horizontal > 3.0) {
+                        continue;
+                    }
+                    BlockPos candidate = new BlockPos(target.getX() + dx, feetY + dy, target.getZ() + dz);
+                    if (plannedCells.contains(candidate)
+                            || plannedCells.contains(candidate.above())
+                            || plannedCells.contains(candidate.above(2))) {
+                        continue;
+                    }
+                    Vec3 feet = Vec3.atBottomCenterOf(candidate);
+                    if (feet.add(0.0, companion.getEyeHeight(), 0.0).distanceTo(targetCenter) > Approach.REACH) {
+                        continue;
+                    }
+                    AABB box = companion.getBoundingBox().move(feet.subtract(companion.position()));
+                    if (box.minY < level.getMinY() || box.maxY > level.getMaxY() + 1.0
+                            || !flightCellLoaded(level, box)
+                            || !level.noCollision(companion, box)) {
+                        continue;
+                    }
+                    double distance = companion.position().distanceToSqr(feet);
+                    if (distance < bestDistance) {
+                        best = candidate;
+                        bestDistance = distance;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean flightCellLoaded(ServerLevel level, AABB box) {
+        int minX = BlockPos.containing(box.minX, box.minY, box.minZ).getX();
+        int maxX = BlockPos.containing(box.maxX, box.minY, box.maxZ).getX();
+        int minZ = BlockPos.containing(box.minX, box.minY, box.minZ).getZ();
+        int maxZ = BlockPos.containing(box.maxX, box.minY, box.maxZ).getZ();
+        return level.hasChunkAt(minX, minZ) && level.hasChunkAt(minX, maxZ)
+                && level.hasChunkAt(maxX, minZ) && level.hasChunkAt(maxX, maxZ);
     }
 
     /**

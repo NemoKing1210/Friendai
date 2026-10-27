@@ -179,8 +179,12 @@ public final class MoveHelper {
     }
 
     public void reset(TaskContext c) {
+        reset(c, false);
+    }
+
+    private void reset(TaskContext c, boolean keepHovering) {
         if (flightNavigator != null) {
-            flightNavigator.stop(c);
+            flightNavigator.stop(c, keepHovering);
             flightNavigator = null;
         }
         if (navigator != null) {
@@ -195,6 +199,12 @@ public final class MoveHelper {
 
     public void stop(TaskContext c) {
         reset(c);
+        c.companion().getNavigation().stop();
+    }
+
+    /** Stops at the requested position without dropping creative hover. */
+    public void stopAtDestination(TaskContext c) {
+        reset(c, true);
         c.companion().getNavigation().stop();
     }
 }
