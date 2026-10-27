@@ -20,6 +20,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 
 /** Purposeful surface search over a deterministic set of local viewpoints; resource identity comes from sight only. */
 public final class ResourceSearchDriver implements Task {
+    private static final int LOCAL_INSPECT_TICKS = 40;
+    private static final int ARRIVAL_WAIT_TICKS = 40;
+
     private final SearchSession session;
     private final ResourceSearchProfile profile;
     private final Set<String> targetBlocks;
@@ -42,6 +45,10 @@ public final class ResourceSearchDriver implements Task {
     private SearchPlanner.Frontier activeFrontier;
     private boolean caveScanning;
     private int caveScanTicks;
+    private int localWaitTicks;
+    private int arrivalWaitTicks;
+    private boolean awaitingArrival;
+    private SearchPlanner.Frontier pendingFrontier;
 
     public ResourceSearchDriver(SearchSession session, ResourceSearchProfile profile, Set<String> targetBlocks, int radius,
             boolean expedition, ResourceSearchProfile.Strategy selectedStrategy, String requestedHeading,
@@ -63,6 +70,11 @@ public final class ResourceSearchDriver implements Task {
         origin = current(context);
         lastPosition = origin;
         session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
+        if (selectedStrategy == ResourceSearchProfile.Strategy.SURFACE) {
+            localWaitTicks = 0;
+            FriendaiServerState.get(context.level().getServer()).observations()
+                    .observer(context.companion()).scheduleSweep(logicalTick(context));
+        }
         if (selectedStrategy == ResourceSearchProfile.Strategy.CAVE) {
             if (caveEntrance == null || !caveEntrance.dimension().equals(context.level().dimension().identifier().toString())) {
                 startupFailure = "observed cave entrance is unavailable in this dimension";
@@ -111,7 +123,30 @@ public final class ResourceSearchDriver implements Task {
             summary = diagnostic(startupFailure);
             return TaskStatus.FAILED;
         }
+        if (!returning && awaitingArrival) {
+            state.observations().observer(context.companion()).scheduleSweep(logicalTick(context));
+            if (targetVisible(context)) {
+                awaitingArrival = false;
+            } else if (++arrivalWaitTicks <= ARRIVAL_WAIT_TICKS) {
+                return TaskStatus.RUNNING;
+            } else {
+                awaitingArrival = false;
+                Pos approach = pendingFrontier == null ? position : pendingFrontier.approach();
+                state.knowledge().book(context.companion().ownerUuid()).recordCoverage(
+                        context.level().dimension().identifier().toString(), approach, profile.family(),
+                        strategy(), SearchCoverage.Outcome.INSPECTED, logicalTick(context));
+                activeFrontier = null;
+                inspected++;
+                session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, false, 0));
+            }
+        }
+        if (!returning && selectedStrategy == ResourceSearchProfile.Strategy.SURFACE
+                && journey == null && miningSearch == null && ++localWaitTicks <= LOCAL_INSPECT_TICKS) {
+            state.observations().observer(context.companion()).scheduleSweep(logicalTick(context));
+            return TaskStatus.RUNNING;
+        }
         if (!returning && targetVisible(context)) {
+            awaitingArrival = false;
             found = true;
             session.advance(input(context, null, SearchSession.LegOutcome.NONE, true, 0));
             if (journey != null) {
@@ -172,6 +207,14 @@ public final class ResourceSearchDriver implements Task {
                     caveScanning = true;
                     caveScanTicks = 0;
                     summary = diagnostic("inspecting the observed cave passage by direct sight");
+                    return TaskStatus.RUNNING;
+                }
+                if (selectedStrategy == ResourceSearchProfile.Strategy.SURFACE) {
+                    awaitingArrival = true;
+                    pendingFrontier = activeFrontier;
+                    arrivalWaitTicks = 0;
+                    state.observations().observer(context.companion()).scheduleSweep(logicalTick(context));
+                    summary = diagnostic("inspecting the reached surface viewpoint by direct sight");
                     return TaskStatus.RUNNING;
                 }
                 state.observations().observer(context.companion()).scheduleSweep(logicalTick(context));

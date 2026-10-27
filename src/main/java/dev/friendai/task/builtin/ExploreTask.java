@@ -1,9 +1,12 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.obtain.Spiral;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.pathing.Node;
+import dev.friendai.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -14,6 +17,7 @@ import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.MiningSession;
 import dev.friendai.task.nav.MoveHelper;
+import dev.friendai.task.nav.Sight;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -216,13 +220,22 @@ public final class ExploreTask implements Task {
     }
 
     private boolean found(ServerLevel level, CompanionEntity companion) {
-        BlockPos origin = companion.blockPosition();
-        var evidence = dev.friendai.core.FriendaiServerState.get(level.getServer()).resources();
+        var evidence = FriendaiServerState.get(level.getServer()).resources();
         return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream().findFirst()
                 .map(pos -> {
                     BlockState state = level.getBlockState(pos);
+                    if (!target.test(state) || !Sight.canSee(level, companion, pos)) {
+                        return false;
+                    }
                     summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at "
                             + pos.getX() + " " + pos.getY() + " " + pos.getZ();
+                    evidence.observe(companion, new ResourceObservation(
+                            BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
+                            new ResourceObservation.Location(level.dimension().identifier().toString(),
+                                    new Pos(pos.getX(), pos.getY(), pos.getZ())),
+                            new Pos(companion.blockPosition().getX(), companion.blockPosition().getY(),
+                                    companion.blockPosition().getZ()),
+                            level.getServer().overworld().getGameTime()));
                     return true;
                 })
                 .orElse(false);

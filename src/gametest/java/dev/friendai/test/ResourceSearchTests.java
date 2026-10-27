@@ -4,9 +4,12 @@ import com.google.gson.JsonObject;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.search.SearchSession;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.pathing.Pos;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskStatus;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolRegistry;
@@ -14,8 +17,10 @@ import dev.friendai.llm.model.ToolCall;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.MemoryAccess;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceSearchTests {
     @GameTest(maxTicks = 40)
@@ -96,8 +101,9 @@ public final class ResourceSearchTests {
 
         var task = companion.taskRunner().current().orElseThrow();
         var context = new dev.friendai.task.TaskContext(companion, h.getLevel());
-        task.tick(context);
-        task.tick(context);
+        for (int i = 0; i < 50 && state.chunkLoader().expeditionHorizon().activeLeases() == 0; i++) {
+            task.tick(context);
+        }
         h.assertTrue(state.chunkLoader().expeditionHorizon().activeLeases() == 1,
                 "an outbound expedition leg should hold exactly its next-leg ticket");
 
@@ -222,6 +228,56 @@ public final class ResourceSearchTests {
                 .orElse(false), "the active cave search should carry the restart interruption marker");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 120)
+    public void searchDoesNotTravelWhenWoodIsVisible(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var level = h.getLevel();
+        BlockPos start = companion.blockPosition();
+        h.setBlock(6, 2, 2, Blocks.ACACIA_LOG);
+        BlockPos log = h.absolutePos(new BlockPos(6, 2, 2));
+        var state = FriendaiServerState.get(level.getServer());
+        state.resources().observe(companion, new ResourceObservation("minecraft:acacia_log",
+                new ResourceObservation.Location(level.dimension().identifier().toString(),
+                        new Pos(log.getX(), log.getY(), log.getZ())),
+                new Pos(start.getX(), start.getY(), start.getZ()),
+                level.getServer().overworld().getGameTime()));
+        Result result = new Result();
+        companion.taskRunner().setListener(result);
+
+        var started = tools().bind(companion).execute(searchCall("#minecraft:logs", "auto", "local"),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            if (result.status == null) {
+                h.assertTrue(companion.blockPosition().distManhattan(start) < 4,
+                        "search should inspect locally before travelling");
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS,
+                    "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("found"), result.summary);
+            h.assertTrue(companion.blockPosition().distManhattan(start) < 4, "search travelled for a visible log");
+        });
+    }
+
+    private static final class Result implements TaskListener {
+        TaskStatus status;
+        String summary;
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
     }
 
     private static ToolRegistry<CompanionEntity> tools() {
