@@ -214,6 +214,63 @@ public class TradingMenuTests {
     }
 
     @GameTest
+    public void merchant_close_preserves_xp_collected_while_open(GameTestHelper h) {
+        Fixture f = setup(h);
+        f.villager().getOffers().add(bread(8));
+        f.companion().experience().load(127);
+        f.companion().syncExperience();
+        h.assertTrue(open(f.companion(), f.villager()) != null, "merchant did not open");
+        ExperienceOrb orb = new ExperienceOrb(h.getLevel(), f.companion().getX(),
+                f.companion().getY() + 0.5, f.companion().getZ(), 7);
+        h.getLevel().addFreshEntity(orb);
+        h.runAfterDelay(2, () -> {
+            try {
+                h.assertTrue(orb.isRemoved() && f.companion().experience().points() == 134,
+                        "the companion did not actually absorb the orb while its menu was open");
+            } finally {
+                f.companion().hands().closeMenu();
+            }
+            h.assertTrue(f.companion().experience().points() == 134,
+                    "closing the merchant erased XP collected while the menu was open");
+            h.assertTrue(f.companion().syncedXpLevel() == f.companion().experience().level(), "collected XP was not synced");
+            h.succeed();
+        });
+    }
+
+    @GameTest
+    public void merchant_close_clears_prices_after_vanilla_release(GameTestHelper h) {
+        Fixture f = setup(h);
+        MerchantOffer offer = bread(8);
+        f.villager().getOffers().add(offer);
+        f.villager().getGossips().add(f.companion().hands().player().getUUID(), GossipType.MAJOR_POSITIVE, 20);
+        for (boolean closeVanillaMenu : new boolean[] {false, true}) {
+            try {
+                h.assertTrue(open(f.companion(), f.villager()) != null, "merchant did not open");
+                h.assertTrue(offer.getSpecialPriceDiff() != 0, "personalized price fixture is missing");
+                if (closeVanillaMenu) {
+                    f.companion().hands().player().closeContainer();
+                } else {
+                    f.villager().setTradingPlayer(null);
+                }
+                h.assertTrue(f.villager().getTradingPlayer() == null, "vanilla did not release the customer");
+            } finally {
+                f.companion().hands().closeMenu();
+            }
+            h.assertTrue(offer.getSpecialPriceDiff() == 0, "tracked prices survived vanilla customer release");
+        }
+        offer.setSpecialPriceDiff(7);
+        try {
+            INTERACTIONS.put(f.villager().getUUID(), player -> {});
+            h.assertTrue(open(f.companion(), f.villager()) == null, "cancelled open acquired the merchant");
+            h.assertTrue(offer.getSpecialPriceDiff() == 7, "an unacquired cancelled session reset prices");
+        } finally {
+            INTERACTIONS.remove(f.villager().getUUID());
+            f.companion().hands().closeMenu();
+        }
+        h.succeed();
+    }
+
+    @GameTest
     public void busy_merchant_is_not_stolen(GameTestHelper h) {
         Fixture f = setup(h);
         MerchantOffer offer = bread(8);

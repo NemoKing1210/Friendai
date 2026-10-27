@@ -41,6 +41,7 @@ public final class CompanionHands {
     private final CompanionEntity companion;
     private FakePlayer player;
     private @Nullable Merchant openMerchant;
+    private boolean merchantSessionAcquired;
     private Predicate<BlockPos> protectionOverride;
 
     public CompanionHands(CompanionEntity companion) {
@@ -153,6 +154,7 @@ public final class CompanionHands {
         }
         mirrorExperienceIn(hands);
         openMerchant = merchant;
+        merchantSessionAcquired = false;
         boolean opened = false;
         try {
             hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
@@ -167,6 +169,7 @@ public final class CompanionHands {
             if (merchant.getTradingPlayer() != hands) {
                 return null;
             }
+            merchantSessionAcquired = true;
             if (hands.containerMenu == hands.inventoryMenu) {
                 hands.containerMenu = new MerchantMenu(1, hands.getInventory(), merchant);
             }
@@ -186,7 +189,7 @@ public final class CompanionHands {
 
     /**
      * Closes the fake player's menu: vanilla hands the menu's input slots back to the fake player, everything it holds
-     * returns to the companion, and the fake player's experience is copied back. Does nothing when no menu is open.
+     * returns to the companion, and block-menu experience costs are copied back. Merchant XP stays on the companion.
      */
     public void closeMenu() {
         if (player == null) {
@@ -194,7 +197,9 @@ public final class CompanionHands {
         }
         FakePlayer hands = player;
         Merchant merchant = openMerchant;
+        boolean acquiredMerchant = merchantSessionAcquired;
         openMerchant = null;
+        merchantSessionAcquired = false;
         boolean ownsMerchant = merchant != null && merchant.getTradingPlayer() == hands;
         boolean hasMenu = hands.containerMenu != hands.inventoryMenu;
         if (!hasMenu && merchant == null) {
@@ -219,12 +224,16 @@ public final class CompanionHands {
             if (merchant != null && merchant.getTradingPlayer() == hands) {
                 merchant.setTradingPlayer(null);
             }
-            if (ownsMerchant && merchant.getTradingPlayer() == null) {
+            if (merchant != null && (acquiredMerchant || ownsMerchant) && merchant.getTradingPlayer() == null) {
                 // 26.3 recalculates special prices on open, but leaves them on offers after vanilla close.
                 merchant.getOffers().forEach(offer -> offer.resetSpecialPriceDiff());
             }
             returnItems(hands);
-            companion.experience().loadLevel(hands.experienceLevel, hands.experienceProgress);
+            if (merchant == null) {
+                // Block menus can spend levels. Merchant rewards are orbs collected by the companion itself, so
+                // copying the merchant's old mirrored snapshot back would erase XP picked up while it was open.
+                companion.experience().loadLevel(hands.experienceLevel, hands.experienceProgress);
+            }
             companion.syncExperience();
         }
     }
