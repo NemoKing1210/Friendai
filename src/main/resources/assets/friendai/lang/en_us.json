@@ -33,6 +33,7 @@
   "friendai.command.stopped": "Stopped.",
   "friendai.freetime.idle_start": "Nothing to do, so I'll get on with my own things.",
   "friendai.freetime.storage_full": "The storage is full; we need more chests.",
+  "friendai.freetime.no_plan": "I couldn't plan that: %s",
   "friendai.freetime.away": "While you were away: %s",
   "friendai.freetime.stage_reached": "I've moved up to the %s stage.",
   "friendai.command.freetime.on": "Free time is on: your companion will work on its own.",

@@ -55,6 +55,8 @@ public final class TaskRunner {
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
     private final BooleanSupplier defaultFollow;
+    /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
+    private final BooleanSupplier mayFollowOwner;
     private JobQueue queue;
     private final Map<Long, StepFactory> factories = new HashMap<>();
     private final Map<Long, String> blockedPlans = new HashMap<>();
@@ -75,7 +77,14 @@ public final class TaskRunner {
     private int holds;
 
     public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
+        this(companion, timeoutSec, defaultFollow, () -> true);
+    }
+
+    /** A runner that knows whether following is its business at all; the real entity passes the free-time gate. */
+    public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow,
+                      BooleanSupplier mayFollowOwner) {
         this.companion=companion; this.timeoutSec=timeoutSec; this.defaultFollow=defaultFollow;
+        this.mayFollowOwner=mayFollowOwner;
         this.queue=new JobQueue(TaskSettings.queueLimits());
     }
     public void setListener(TaskListener listener) { this.listener=listener; if(listener!=null){for(String notice:pendingNotices)listener.onNotice(notice);pendingNotices.clear();} }
@@ -104,6 +113,11 @@ public final class TaskRunner {
     public void unmarkAutonomousPlan(long planId) { autonomousPlans.remove(planId); }
     /** True while the running task is a job of a plan free time started. */
     public boolean autonomousActive() { return current!=null && current.planId()>0 && autonomousPlans.contains(current.planId()); }
+    /** True while a queued job belongs to the owner rather than to a plan free time started. */
+    public boolean ownerWorkQueued() {
+        for(Job job:queue.jobs())if(!JobQueue.terminal(job)&&!autonomousPlans.contains(job.planId()))return true;
+        return false;
+    }
     /** The tool that started the running task, empty when nothing runs. */
     public String currentToolName() { return current==null?"":current.toolName(); }
     /** True while a task that is neither the default activity nor free time's runs: owner work comes first. */
@@ -249,6 +263,7 @@ public final class TaskRunner {
     public void tick() {
         revalidateCreativeHover();
         if(paused||suspended||held())return;
+        if(current!=null&&current.defaultActivity()&&!mayFollowOwner.getAsBoolean())clearCurrentSilently();
         queue.advanceClock(); expireDeadlines();
         if(current==null) { if(!pollQueue())startDefault(); return; }
         if(current.defaultActivity() && pollQueue())return;
@@ -361,7 +376,7 @@ public final class TaskRunner {
     private void resumeFrozen(){Active old=frozen;frozen=null;if(old!=null&&queue.job(old.jobId()).filter(j->j.state()==JobState.RUNNING).isPresent()){current=new Active(old.id(),old.jobId(),old.planId(),old.toolName(),old.task(),old.emit(),false,false,activeTicks-frozenElapsed,old.creativeActionContext(),old.creativeSensitive());}else{if(old!=null)safeStop(old.task(),context());startNextOrDefault();}}
     private void startNextOrDefault(){if(current!=null)return;if(frozen!=null){resumeFrozen();return;}if(!startNextQueued())startDefault();}
     private Task combineCleanup(Task first,Task second){if(first==null)return second;if(second==null)return first;return new SequenceTask("scaffold cleanup",List.of(new PlanEntry("scaffold_cleanup",ctx->first),new PlanEntry("scaffold_cleanup",ctx->second)),()->timeoutSec.getAsInt()*20);}
-    private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&defaultFollow.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
+    private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&defaultFollow.getAsBoolean()&&mayFollowOwner.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
     public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
     public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories) {
         queue = decoded.queue();

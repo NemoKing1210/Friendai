@@ -105,7 +105,8 @@ public final class FriendaiCommands {
     private static int freeTimeOn(CommandContext<CommandSourceStack> ctx, String wish) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         var server = ctx.getSource().getServer();
-        if (CompanionManager.get(server).find(player.getUUID()).isEmpty()) {
+        var companion = CompanionManager.get(server).find(player.getUUID());
+        if (companion.isEmpty()) {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
             return 0;
         }
@@ -114,7 +115,7 @@ public final class FriendaiCommands {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.freetime.disabled"));
             return 0;
         }
-        driver.start(player.getUUID(), dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, wish);
+        driver.start(companion.get(), dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, wish);
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.on"), false);
         return 1;
     }

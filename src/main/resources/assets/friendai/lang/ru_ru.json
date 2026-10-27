@@ -33,6 +33,7 @@
   "friendai.command.stopped": "Остановился.",
   "friendai.freetime.idle_start": "Раз дел нет, займусь пока своими.",
   "friendai.freetime.storage_full": "Склад забит, нужны ещё сундуки.",
+  "friendai.freetime.no_plan": "Не получилось это спланировать: %s",
   "friendai.freetime.away": "Пока тебя не было: %s",
   "friendai.freetime.stage_reached": "Я дорос до этапа %s.",
   "friendai.command.freetime.on": "Свободное время включено: компаньон займётся своими делами.",

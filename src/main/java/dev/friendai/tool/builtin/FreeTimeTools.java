@@ -29,7 +29,7 @@ final class FreeTimeTools {
                     }
                     String wish = args.has("wish") && !args.get("wish").isJsonNull()
                             ? args.get("wish").getAsString() : "";
-                    driver.start(c.ownerUuid(), FreeTime.Origin.COMMAND, wish);
+                    driver.start(c, FreeTime.Origin.COMMAND, wish);
                     return ToolResult.ok("free time on; you will pick your own work in a moment");
                 }));
         registry.register(ToolKit.callerTool("end_free_time",

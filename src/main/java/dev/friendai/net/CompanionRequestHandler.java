@@ -140,13 +140,15 @@ public final class CompanionRequestHandler {
                 }
             }
             case FREE_TIME_TOGGLE -> {
-                if (companions.find(owner).isEmpty() || brains.freeTime().disabled()) {
+                var companion = companions.find(owner);
+                if (companion.isEmpty() || brains.freeTime().disabled()) {
                     return;
                 }
                 if (brains.freeTime().state(owner).on()) {
                     brains.freeTime().stop(owner, "owner ended free time");
                 } else {
-                    brains.freeTime().start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+                    brains.freeTime().start(companion.get(),
+                            dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
                 }
             }
             case STOP -> companions.find(owner).ifPresent(c -> {

@@ -127,7 +127,8 @@ public class CompanionEntity extends PathfinderMob {
     private final HungerModel hunger = new HungerModel();
     private final ExperienceModel experience = new ExperienceModel();
     private final TaskRunner taskRunner =
-            new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow);
+            new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow,
+                    this::mayFollowOwner);
     private final CombatController combatController = new CombatController(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher = new HungerWatcher(
@@ -264,6 +265,25 @@ public class CompanionEntity extends PathfinderMob {
 
     public TaskRunner taskRunner() {
         return taskRunner;
+    }
+
+    /**
+     * The idle fallback may walk to the owner unless free time is the companion's own business right now. The
+     * free-time state is per owner and persisted, so a reload does not turn the companion back into a follower.
+     */
+    public boolean mayFollowOwner() {
+        var server = level().getServer();
+        if (server == null || ownerUuid == null) {
+            return true;
+        }
+        var state = FriendaiServerState.get(server);
+        var cfg = state.config();
+        boolean inCombat = getTarget() != null || isSleeping()
+                || combatController.state() != CombatController.State.IDLE;
+        return dev.friendai.agent.autonomy.DefaultActivityPolicy.shouldFollow(
+                state.freeTime().state(ownerUuid), cfg.autonomy.toSettings(),
+                dev.friendai.brain.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
+                taskRunner.busyWithOther() || taskRunner.ownerWorkQueued(), inCombat);
     }
 
     public CombatController combatController() {

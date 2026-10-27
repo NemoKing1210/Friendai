@@ -144,6 +144,8 @@ public sealed interface BrainEvent {
             }
             sb.append("\nCall choose_activity exactly once with one concrete activity and the agenda need it serves, "
                     + "or reply exactly [silent] if nothing is worth doing.");
+            sb.append("\nFree time happens on its own: the owner is not a destination. Never walk to them, and do "
+                    + "not put approaching or following the owner into the plan.");
             return sb.toString();
         }
 

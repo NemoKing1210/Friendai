@@ -673,7 +673,10 @@ public final class BrainService {
 
             @Override
             public ToolResult execute(ToolCall call, Caller caller) {
-                Optional<String> refused = freeTime.refusalDuringChoice(owner, call.name());
+                Optional<String> refused = freeTime.refusalDuringShift(owner, call.name());
+                if (refused.isEmpty()) {
+                    refused = freeTime.refusalDuringChoice(owner, call.name());
+                }
                 if (refused.isPresent()) {
                     return ToolResult.error(refused.get());
                 }

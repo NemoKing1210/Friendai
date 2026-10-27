@@ -52,7 +52,7 @@ public final class FreeTimeDriver {
     public static final Set<String> DENIED = Set.of(
             "attack_player", "trust_player", "untrust_player", "forget", "set_name", "allow_food", "forbid_food",
             "reset_food_rule", "set_combat_settings", "set_combat_mode", "set_goal", "update_goal", "finish_goal",
-            "start_free_time", "end_free_time", "choose_activity");
+            "start_free_time", "end_free_time", "choose_activity", "follow_player");
     /** About one night: how long a shelter reflex stays home. */
     static final int SHELTER_MINUTES = 8;
     private static final Pattern PLAN_ID = Pattern.compile("plan #(\\d+)");
@@ -114,15 +114,37 @@ public final class FreeTimeDriver {
         return service().state(owner);
     }
 
-    /** Turns free time on. A command start does not wait for the quiet spell the order itself began. */
-    public FreeTime start(UUID owner, FreeTime.Origin origin, String wish) {
+    /**
+     * Turns free time on. A command that names a wish becomes a shift and a plan at once: the owner heard "I'll do
+     * that", so the work must start now instead of waiting for the director. A command start does not wait for the
+     * quiet spell the order itself began either.
+     */
+    public FreeTime start(CompanionEntity companion, FreeTime.Origin origin, String wish) {
+        UUID owner = companion.ownerUuid();
         long now = now();
+        String hint = wish == null ? "" : wish.strip();
         if (origin == FreeTime.Origin.COMMAND) {
             lastOwnerActivity.put(owner, now - config.get().autonomy.resumeAfterSec * 1000L);
         }
         facts.invalidate(owner);
         brains.ensureBrain(owner); // its task listener reports how free-time plans end
-        return service().start(owner, origin, wish, now);
+        FreeTime state = service().start(owner, origin, hint, now);
+        if (origin == FreeTime.Origin.COMMAND && !hint.isBlank() && state.shift() == null) {
+            startWishShift(companion, hint, now);
+        }
+        return service().state(owner);
+    }
+
+    /** The owner's wish is the shift's goal: the planner drafts it directly, without a director turn. */
+    private void startWishShift(CompanionEntity companion, String wish, long nowMillis) {
+        UUID owner = companion.ownerUuid();
+        AutonomySettings s = config.get().autonomy.toSettings();
+        AutonomyFacts f = facts.build(companion, owner, nowMillis);
+        NeedKind need = NeedsAssessor.kindNamed("", NeedsAssessor.assess(f, service().state(owner), s));
+        markStart(owner, f);
+        Shift shift = service().beginShift(owner, wish, List.of(), "the owner asked for it", need, false, nowMillis,
+                nowMillis + s.shiftMinutes() * 60_000L).shift();
+        requestPlan(owner, companion, shift.id(), s.shiftMinutes(), true);
     }
 
     /** Ends free time and cancels only free time's own plan. */
@@ -286,7 +308,20 @@ public final class FreeTimeDriver {
             "plan_obtain", "get_recipe", "request_tools");
 
     /**
-     * Why a tool call in a director turn is refused, or empty when it may run. Free time works only through plans,
+     * Why a movement order is refused while free time works, or empty when it may run. Proximity is never needed to
+     * speak: walking to the owner cancels the running task and drops its queue, so the companion says its line from
+     * where it stands.
+     */
+    public Optional<String> refusalDuringShift(UUID owner, String tool) {
+        FreeTime state = service().state(owner);
+        if (!state.on() || state.shift() == null || !"approach".equals(tool)) {
+            return Optional.empty();
+        }
+        return Optional.of("free time is running: stay where you are and let the work continue. You do not need "
+                + "to walk to the owner to talk; say your line from here.");
+    }
+
+    /** Why a tool call in a director turn is refused, or empty when it may run. Free time works only through plans,
      * where the deny list and the place guard apply; a director turn may not act directly.
      */
     public Optional<String> refusalDuringChoice(UUID owner, String tool) {
@@ -340,11 +375,11 @@ public final class FreeTimeDriver {
         if (!why.isBlank()) {
             say(owner, companion, why);
         }
-        requestPlan(owner, companion, shift.id(), length);
+        requestPlan(owner, companion, shift.id(), length, false);
         return ToolResult.ok("activity chosen; planning a plan for \"" + goal + "\"");
     }
 
-    private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes) {
+    private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes, boolean speakFailure) {
         Caller caller = ownerCaller(owner);
         dev.friendai.agent.plan.PlannerInput input = plannerInput(owner, companion, caller);
         planning.add(owner);
@@ -359,10 +394,15 @@ public final class FreeTimeDriver {
                     : queue(owner, companion, state.shift().goal(), proposal.stepsJson(), minutes, planTools);
             if (plan.isEmpty()) {
                 long now = now();
+                String reason = error == null || error.getMessage() == null ? "the plan was refused"
+                        : error.getMessage();
                 // The need did not fail, the planner could not draft work for it: only the director backs off.
-                service().finishShift(owner, false, "no plan: " + (error == null ? "the plan was refused"
-                        : error.getMessage()), now);
+                service().finishShift(owner, false, "no plan: " + reason, now);
                 budget(owner).failed();
+                if (speakFailure) {
+                    // The owner asked for this one: the sentence "I'll do that" must not be left hanging.
+                    tell(owner, companion, UserMessage.of("friendai.freetime.no_plan", reason));
+                }
                 return;
             }
             service().linkPlan(owner, plan.get());
