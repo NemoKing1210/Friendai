@@ -1,6 +1,7 @@
 package dev.friendai.client.debug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.friendai.debug.MovementDebug;
@@ -40,5 +41,14 @@ class MovementDebugStateTest {
 
         assertThrows(IllegalArgumentException.class, () -> MovementDebugState.onData(new byte[] {1, 2, 3}));
         assertEquals(java.util.Optional.of(valid), MovementDebugState.view());
+    }
+
+    @Test
+    void disconnectResetClearsTheViewAndDisablesTheOverlay() {
+        MovementDebugState.onData(validView().encode());
+        MovementDebugState.reset();
+
+        assertFalse(MovementDebugState.enabled());
+        assertEquals(java.util.Optional.empty(), MovementDebugState.view());
     }
 }

@@ -157,6 +157,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Places tab at GUI scales 1-4 in English and Russian: badges, rows, the rename field and both buttons do not overlap, and every label is translated.
 - [ ] Places turned off on the server (`places.enabled: false`, `/friendai reload`): the tab shows the notice instead of rows.
 
+## Debug overlay
+
+- [ ] Control tab operator button reads **Отладка** / **Debug** and enables/disables the overlay.
+- [ ] Mining and long navigation show the route plus colored break/place targets; labels remain readable while moving the camera.
+- [ ] Build/place, crafting table, furnace, collection and farm tasks show the active block action with a distinct color and label.
+- [ ] A queued multi-step plan shows the current action and the next two pending steps in queue order.
+- [ ] Turning the overlay off, disconnecting, losing operator status or having no companion clears the HUD and all world markers.
+
 ## Companion inventory window
 
 - [ ] Shift+right-click the companion as its owner: a 176x202 window opens with six equipment slots, its 27 inventory slots and your own inventory; the companion stops where it is.
