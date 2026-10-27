@@ -382,7 +382,9 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Instruction skills and Description (task 19)
 
 - [ ] In English and Russian, open Memory -> Description -> Details and preferences. Save summary, multiline details, language and address; verify next owner reply follows the explicit language while a guest receives no private profile.
-- [ ] At the smallest supported GUI/window scale, all ten tabs wrap and the Skills list/editor controls remain reachable with keyboard focus and scrolling. Resize while editing and confirm the draft remains intact.
+- [ ] The companion menu's navigation rail: at the smallest supported window (GUI scale 4) every entry is reachable — it scrolls, labels are readable and a compact entry's tooltip shows the full name; visit all tabs, then resize while editing and confirm the draft remains intact.
+- [ ] Keyboard-only pass over the menu: Tab walks the rail top to bottom, then the selected tab's widgets, then Done; focus is visible on every stop and the reader announces "selected" for the current tab.
+- [ ] Put the companion menu next to a vanilla inventory in the same world: the window bevel, button sprites and text colours match, and the log/debug dark list reads like the server list in both UI languages.
 - [ ] Create a skill with a 4,000-character Unicode body, edit twice without closing, toggle, duplicate and confirm-delete; rejected/stale saves retain the draft. Verify clear source, author, update date and approval state.
 - [ ] Export to text, copy/paste, import into the same or another companion, and verify imported metadata cannot grant global/model/builtin authority. Exercise the text-dialog fallback without using the clipboard.
 - [ ] After a real goal or failed free-time shift, inspect a proposed model procedure, approve/reject it, and confirm only approved guidance appears next turn. Restart the world and confirm records, approvals and hourly allowance survive.

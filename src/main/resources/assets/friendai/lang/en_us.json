@@ -239,6 +239,7 @@
   "friendai.menu.button_unavailable": "Companion control (the server does not have Friendai)",
   "friendai.menu.denied": "You need operator permissions for that.",
   "friendai.menu.no_data": "No data from the server",
+  "friendai.menu.selected": "selected",
   "friendai.menu.tab.overview": "Overview",
   "friendai.menu.tab.toggles": "Toggles",
   "friendai.menu.toggles.heading": "Companion switches",

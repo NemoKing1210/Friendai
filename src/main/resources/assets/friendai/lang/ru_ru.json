@@ -239,6 +239,7 @@
   "friendai.menu.button_unavailable": "Управление компаньоном (на сервере нет Friendai)",
   "friendai.menu.denied": "Для этого нужны права оператора.",
   "friendai.menu.no_data": "Нет данных от сервера",
+  "friendai.menu.selected": "выбрано",
   "friendai.menu.tab.overview": "Обзор",
   "friendai.menu.tab.toggles": "Переключатели",
   "friendai.menu.toggles.heading": "Переключатели спутника",

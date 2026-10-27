@@ -30,10 +30,10 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private static final Identifier FOOD_FULL = Identifier.withDefaultNamespace("hud/food_full");
     private static final Identifier FOOD_HALF = Identifier.withDefaultNamespace("hud/food_half");
 
-    private static final int PANEL = 0xFFC6C6C6;
-    private static final int HIGHLIGHT = 0xFFFFFFFF;
-    private static final int SHADOW = 0xFF555555;
-    private static final int OUTLINE = 0xFF000000;
+    private static final int PANEL = MenuTheme.WINDOW_FACE;
+    private static final int HIGHLIGHT = MenuTheme.WINDOW_HIGHLIGHT;
+    private static final int SHADOW = MenuTheme.WINDOW_SHADOW;
+    private static final int OUTLINE = MenuTheme.WINDOW_OUTLINE;
     private static final int XP_GREEN = 0xFF80FF20;
     private static final int XP_BAR_BACK = 0xFF555555;
 

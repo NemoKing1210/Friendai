@@ -53,15 +53,24 @@ final class TradersTab implements MenuTab {
                 () -> orderAction(TradeRequestC2SPayload.Action.BARTER)));
         host.add(new HitArea(left + 8, top + 68, width - 16, Math.max(1, height - 96),
                 (x, y) -> selectRow((int) y - top - 68)));
-        host.add(new FlatButton(left + 8, top + height - 22, 56, 18,
+        // Five buttons on one row: paging on the left, the trade actions on the right, compressed when narrow.
+        int rowY = top + height - 22;
+        int pageWidth = width < 360 ? 54 : 56;
+        int rowGap = width < 360 ? 4 : 6;
+        int previousX = left + 8;
+        int nextX = previousX + pageWidth + rowGap;
+        int forgetX = left + width - 8 - pageWidth;
+        int refreshX = forgetX - rowGap - pageWidth;
+        int inspectX = refreshX - rowGap - pageWidth;
+        host.add(new FlatButton(previousX, rowY, pageWidth, 18,
                 Component.translatable("friendai.menu.traders.previous"), Ui.ACCENT, () -> turnPage(-1)));
-        host.add(new FlatButton(left + 68, top + height - 22, 56, 18,
+        host.add(new FlatButton(nextX, rowY, pageWidth, 18,
                 Component.translatable("friendai.menu.traders.next"), Ui.ACCENT, () -> turnPage(1)));
-        host.add(new FlatButton(left + width - 188, top + height - 22, 58, 18,
+        host.add(new FlatButton(inspectX, rowY, pageWidth, 18,
                 Component.translatable("friendai.menu.traders.inspect"), Ui.ACCENT, () -> action(TradeRequestC2SPayload.Action.INSPECT)));
-        host.add(new FlatButton(left + width - 126, top + height - 22, 58, 18,
+        host.add(new FlatButton(refreshX, rowY, pageWidth, 18,
                 Component.translatable("friendai.menu.traders.refresh"), Ui.ACCENT, () -> action(TradeRequestC2SPayload.Action.REFRESH)));
-        host.add(new FlatButton(left + width - 64, top + height - 22, 56, 18,
+        host.add(new FlatButton(forgetX, rowY, pageWidth, 18,
                 Component.translatable("friendai.menu.traders.forget"), Ui.BAD, () -> action(TradeRequestC2SPayload.Action.FORGET)));
     }
 

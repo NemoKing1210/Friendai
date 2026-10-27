@@ -100,13 +100,16 @@ final class MemoryTab implements MenuTab {
         forget = host.add(new FlatButton(headLeft + 70 + GAP, actionY, 70, ROW,
                 Component.translatable("friendai.menu.memory.forget"), Ui.WARN, this::clickForget));
 
-        int cancelWidth = 58;
-        int addWidth = 64;
+        // At the smallest GUI the rail leaves a narrow content column: shrink the form instead of overlapping it.
+        boolean narrow = headWidth < 260;
+        int formGap = narrow ? 4 : GAP;
+        int cancelWidth = narrow ? 48 : 58;
+        int addWidth = narrow ? 52 : 64;
         int cancelX = headLeft + headWidth - cancelWidth;
-        int addX = cancelX - GAP - addWidth;
-        int categoryWidth = 92;
-        int textX = headLeft + categoryWidth + GAP;
-        int textWidth = Math.max(40, addX - GAP - textX);
+        int addX = cancelX - formGap - addWidth;
+        int categoryWidth = narrow ? 68 : 92;
+        int textX = headLeft + categoryWidth + formGap;
+        int textWidth = Math.max(narrow ? 30 : 40, addX - formGap - textX);
         draftCategory = model.draftCategory();
         categoryButton = host.add(new FlatButton(headLeft, formY, categoryWidth, ROW,
                 categoryLabel(draftCategory), categoryColor(draftCategory), this::cycleCategory));
