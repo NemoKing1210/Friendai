@@ -36,6 +36,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `queue_show` remains readable with 50+ jobs and truncates long arguments and results.
 - [ ] A fight and a starving entry each interrupt the running queue job and resume it afterwards.
 - [ ] Cancel a build with `queue_edit cancel`: scaffold cleanup finishes before the next job starts.
+- [ ] "Friendai, do your own thing" (and "займись своими делами"): free time starts, the companion names an activity within a minute and works on it.
+- [ ] Over one in-game day of free time with a real provider, the chosen activities are sensible (food when hungry, better tools, smelting, farm tending) and do not repeat a failed one right away.
+- [ ] With a storage place and a full bag, the companion unloads like with like and keeps its tools and food.
+- [ ] An owner order during free time runs first; free time resumes about a minute after the owner goes quiet.
+- [ ] Leave the companion idle for five minutes: it says it will get on with its own things and starts free time.
+- [ ] Log out during free time and log back in: the "While you were away" summary arrives once.
+- [ ] The Control tab's free-time button toggles it and shows the current activity, in both UI languages.
 
 ## Voice
 

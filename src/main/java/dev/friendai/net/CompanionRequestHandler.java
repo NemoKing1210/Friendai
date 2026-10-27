@@ -98,7 +98,10 @@ public final class CompanionRequestHandler {
                     brains.onCompanionReplaced(owner);
                 }
             }
-            case DISMISS -> companions.dismiss(player);
+            case DISMISS -> {
+                brains.freeTime().stop(owner, "dismissed");
+                companions.dismiss(player);
+            }
             case RENAME -> companions.find(owner).ifPresentOrElse(
                     c -> {
                         if (CompanionRenamer.rename(c, a).outcome() != CompanionRenamer.Outcome.RENAMED) {
@@ -119,7 +122,18 @@ public final class CompanionRequestHandler {
                 }
                 state.companionLife().setAutoRespawn(owner, enabled);
             }
+            case FREE_TIME_TOGGLE -> {
+                if (companions.find(owner).isEmpty() || brains.freeTime().disabled()) {
+                    return;
+                }
+                if (brains.freeTime().state(owner).on()) {
+                    brains.freeTime().stop(owner, "owner ended free time");
+                } else {
+                    brains.freeTime().start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+                }
+            }
             case STOP -> companions.find(owner).ifPresent(c -> {
+                brains.freeTime().stop(owner, "stopped from menu");
                 c.taskRunner().stop("stopped from menu");
                 brains.cancel(owner);
             });

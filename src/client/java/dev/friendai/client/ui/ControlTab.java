@@ -22,6 +22,7 @@ final class ControlTab implements MenuTab {
     private FlatButton stop;
     private FlatButton movementDebug;
     private FlatButton autoRespawn;
+    private FlatButton freeTime;
     private int buttonsTop;
 
     @Override
@@ -43,6 +44,8 @@ final class ControlTab implements MenuTab {
                 Component.empty(), Ui.PURPLE, ControlTab::toggleMovementDebug));
         autoRespawn = host.add(new FlatButton(left, buttonsTop - 2 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
                 Component.empty(), Ui.ACCENT, ControlTab::toggleAutoRespawn));
+        freeTime = host.add(new FlatButton(left, buttonsTop - 3 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
+                Component.empty(), Ui.GOOD, () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
         tick();
     }
 
@@ -84,6 +87,14 @@ final class ControlTab implements MenuTab {
                         : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
                 .orElse("friendai.menu.auto_respawn.off");
         autoRespawn.setMessage(Component.translatable(autoRespawnKey));
+        freeTime.visible = present;
+        freeTime.active = connected && present;
+        freeTime.setMessage(snapshot.map(s -> !s.freeTimeOn()
+                        ? Component.translatable("friendai.menu.free_time.off")
+                        : s.freeTimeActivity().isEmpty()
+                                ? Component.translatable("friendai.menu.free_time.on")
+                                : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity()))
+                .orElse(Component.translatable("friendai.menu.free_time.off")));
     }
 
     @Override
@@ -98,7 +109,8 @@ final class ControlTab implements MenuTab {
         int y = top + HEADER_HEIGHT + GAP;
         int limit = buttonsTop - GAP
                 - (movementDebug.visible ? BUTTON_HEIGHT + GAP : 0)
-                - (autoRespawn.visible ? BUTTON_HEIGHT + GAP : 0);
+                - (autoRespawn.visible ? BUTTON_HEIGHT + GAP : 0)
+                - (freeTime.visible ? BUTTON_HEIGHT + GAP : 0);
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
             y += VITALS_HEIGHT + GAP;

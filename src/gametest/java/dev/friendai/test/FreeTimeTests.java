@@ -483,6 +483,25 @@ public class FreeTimeTests {
         });
     }
 
+    @GameTest(maxTicks = 100)
+    public void command(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) ->
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no model in tests")));
+        registered(h, player.getUUID());
+        var commands = h.getLevel().getServer().getCommands();
+        commands.performPrefixedCommand(player.createCommandSourceStack(), "friendai freetime on chop some wood");
+        var on = driver(h).state(player.getUUID());
+        h.assertTrue(on.on(), "the command turns free time on");
+        h.assertValueEqual(on.origin(), dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "origin");
+        h.assertValueEqual(on.wish(), "chop some wood", "wish");
+        commands.performPrefixedCommand(player.createCommandSourceStack(), "friendai freetime off");
+        h.assertTrue(!driver(h).state(player.getUUID()).on(), "the command turns free time off");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

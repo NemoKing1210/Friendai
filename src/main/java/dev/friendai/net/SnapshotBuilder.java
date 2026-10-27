@@ -39,6 +39,7 @@ public final class SnapshotBuilder {
                     toolNames, CompanionVitals.NONE, List.of(), autoRespawn, false);
         }
         CompanionEntity c = companion.get();
+        var freeTime = state.freeTime().state(owner);
         return new CompanionSnapshot(
                 true,
                 operator,
@@ -54,7 +55,9 @@ public final class SnapshotBuilder {
                 vitalsOf(c),
                 c.taskRunner().queueRows(),
                 autoRespawn,
-                !server.isHardcore());
+                !server.isHardcore(),
+                freeTime.on(),
+                freeTime.shift() == null ? "" : freeTime.shift().goal());
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

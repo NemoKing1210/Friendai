@@ -29,6 +29,7 @@ public enum RequestType {
     PLACES_CLOSE(DebugAccess.Action.VIEW_PLACES),
     PLACES_RENAME(DebugAccess.Action.EDIT_PLACES),
     PLACES_FORGET(DebugAccess.Action.EDIT_PLACES),
+    FREE_TIME_TOGGLE(DebugAccess.Action.SET_FREE_TIME),
     INVALID(null);
 
     private final DebugAccess.Action action;
