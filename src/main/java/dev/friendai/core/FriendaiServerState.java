@@ -18,6 +18,10 @@ import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.trading.TradeStore;
+import dev.friendai.task.trading.MerchantAdapter;
+import dev.friendai.task.trading.MerchantLeases;
+import dev.friendai.task.trading.TradeSessionGuard;
+import dev.friendai.task.trading.TraderObserver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,10 @@ public final class FriendaiServerState {
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final TradeStore trading;
+    private final MerchantLeases merchantLeases;
+    private final TradeSessionGuard tradeSessionGuard;
+    private final TraderObserver traderObserver;
+    private final MerchantAdapter merchantAdapter;
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
@@ -67,6 +75,10 @@ public final class FriendaiServerState {
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
         this.trading = new TradeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("trading"));
+        this.merchantLeases = new MerchantLeases();
+        this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
+        this.traderObserver = new TraderObserver(trading);
+        this.merchantAdapter = new MerchantAdapter(trading, merchantLeases, tradeSessionGuard);
         this.resources = new ResourceCandidates(knowledge);
         this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
@@ -128,11 +140,20 @@ public final class FriendaiServerState {
     /** Per-owner trader observations and informational order history. */
     public TradeStore trading() { return trading; }
 
+    public MerchantLeases merchantLeases() { return merchantLeases; }
+
+    public TradeSessionGuard tradeSessionGuard() { return tradeSessionGuard; }
+
+    public TraderObserver traderObserver() { return traderObserver; }
+
+    public MerchantAdapter merchantAdapter() { return merchantAdapter; }
+
     public ObservationScheduler observations() { return observations; }
 
     public ResourceCandidates resources() { return resources; }
 
     private void shutdown() {
+        tradeSessionGuard.closeAll("server stopped");
         trading.close();
         knowledge.close();
     }

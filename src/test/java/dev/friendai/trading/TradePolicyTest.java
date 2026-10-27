@@ -90,6 +90,14 @@ class TradePolicyTest {
         assertFalse(TradePolicy.check(order, offer, Map.of("minecraft:emerald", 10), progress(order, 0), false, 1).allowed());
     }
 
+    @Test void merchantIdentityIsIndependentFromPricingActorIdentity() {
+        UUID companionActor = new UUID(0, 99);
+        var order = order(new TradeBudget(Map.of("minecraft:emerald", 10), Map.of(), Map.of()), 1, false);
+        var offer = offer(List.of(new TradeCost("minecraft:emerald", "{}", 1)), 1, companionActor);
+
+        assertAllowed(TradePolicy.check(order, offer, Map.of("minecraft:emerald", 10), progress(order, 0), true, 1));
+    }
+
     @Test void nonPartialPlanRejectsOvershootAcrossAllRequiredFills() {
         var order = new TradeOrder(UUID.randomUUID(), OWNER, SCOPE, TRADER, "offer", 1, 5,
                 new TradeBudget(Map.of("minecraft:emerald", 10), Map.of(), Map.of()),
@@ -115,9 +123,13 @@ class TradePolicyTest {
     }
 
     private static TradeOffer offer(List<TradeCost> inputs, int outputCount) {
+        return offer(inputs, outputCount, TRADER);
+    }
+
+    private static TradeOffer offer(List<TradeCost> inputs, int outputCount, UUID pricingActor) {
         var output = new TradeItem("minecraft:book", "{}", outputCount);
         return new TradeOffer("offer", TradeOffer.fingerprint(inputs, output, 0), inputs, inputs, output,
-                0, 100, 0, TRADER, 1);
+                0, 100, 0, pricingActor, 1);
     }
 
     private static TradeProgress progress(TradeOrder order, int spent) {

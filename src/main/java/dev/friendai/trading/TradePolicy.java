@@ -19,9 +19,7 @@ public final class TradePolicy {
         if (order == null || live == null || available == null || progress == null || nowTick < 0
                 || !order.orderId().equals(progress.orderId())) return deny("trade progress does not match order");
         if (nowTick > order.deadlineTick()) return deny("trade order expired");
-        if (!order.offerRef().equals(live.ref()) || !order.trader().equals(live.pricingActor())) {
-            return deny("live offer no longer matches order");
-        }
+        if (!order.offerRef().equals(live.ref())) return deny("live offer no longer matches order");
         if (live.exhausted()) return deny("offer is exhausted");
         if (!outputFits) return deny("output does not fit");
 

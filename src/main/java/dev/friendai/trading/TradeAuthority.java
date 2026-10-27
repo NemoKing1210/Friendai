@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -128,6 +129,39 @@ public final class TradeAuthority implements TradingTurnPort {
         } catch (ArithmeticException | IllegalArgumentException invalid) {
             return false;
         }
+    }
+
+    /** Release an exact reservation only when vanilla did not complete a transaction. */
+    public synchronized boolean releaseReservation(TradeOrder order, Map<String, Integer> payment) {
+        if (order == null || payment == null || payment.isEmpty()) return false;
+        Scope scope = validScope(order);
+        if (scope == null) return false;
+        TradeProgress recorded = scope.progress.get(order.orderId());
+        if (recorded != null && recorded.terminal()) return false;
+        Map<String, Integer> reservation = scope.reservations.get(order.orderId());
+        if (reservation == null) return false;
+        try {
+            for (var entry : payment.entrySet()) {
+                TradeItem.requireId(entry.getKey());
+                Integer count = entry.getValue();
+                if (count == null || count < 1 || reservation.getOrDefault(entry.getKey(), 0) < count) return false;
+            }
+            for (var entry : payment.entrySet()) {
+                reservation.compute(entry.getKey(), (item, held) -> held <= entry.getValue() ? null : held - entry.getValue());
+            }
+            if (reservation.isEmpty()) scope.reservations.remove(order.orderId());
+            return true;
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
+    }
+
+    /** Runtime progress for an order authorized by this owner ledger; persisted history is not authority. */
+    public synchronized Optional<TradeProgress> progress(UUID orderId) {
+        if (orderId == null || !orders.containsKey(orderId)) return Optional.empty();
+        UUID scopeId = orderScopes.get(orderId);
+        Scope scope = scopeId == null ? null : scopes.get(scopeId);
+        return scope == null ? Optional.empty() : Optional.ofNullable(scope.progress.get(orderId));
     }
 
     /** Reconcile cumulative observed payment; unused reservation is released when an order stops. */

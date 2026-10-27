@@ -112,6 +112,22 @@ class TradeAuthorityTest {
         assertThrows(IllegalArgumentException.class, () -> new TradeBudget(Map.of(), Map.of(), Map.of()));
     }
 
+    @Test void progressReadExposesOnlyAuthorizedRuntimeOrders() {
+        var authority = new TradeAuthority(OWNER);
+        var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
+        var order = order(caller.tradingScope(), budget(10), 2);
+
+        assertTrue(authority.progress(order.orderId()).isEmpty());
+        var bound = authority.authorize(caller, order);
+        assertTrue(authority.progress(bound.orderId()).isEmpty());
+        var progress = new TradeProgress(bound.orderId(), State.RUNNING,
+                Map.of("minecraft:emerald", 3), List.of(), 1, "one fill");
+        authority.record(progress);
+
+        assertEquals(progress, authority.progress(bound.orderId()).orElseThrow());
+        assertTrue(authority.progress(UUID.randomUUID()).isEmpty());
+    }
+
     @Test void terminalUncertainProgressCannotReserveAnotherPayment() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
@@ -126,6 +142,20 @@ class TradeAuthorityTest {
         var other = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
         assertFalse(authority.reserve(other, Map.of("minecraft:emerald", 8)),
                 "unresolved payment reservation must still consume the shared ceiling");
+    }
+
+    @Test void reservationCanBeReleasedForTheSameOrderOnlyBeforeAResultIsObserved() {
+        var authority = new TradeAuthority(OWNER);
+        var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
+        var order = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
+        Map<String, Integer> payment = Map.of("minecraft:emerald", 3);
+
+        assertTrue(authority.reserve(order, payment));
+        assertTrue(authority.releaseReservation(order, payment));
+        assertTrue(authority.reserve(order, payment), "safe retry could not reserve the same order again");
+        authority.record(new TradeProgress(order.orderId(), State.UNCERTAIN,
+                Map.of("minecraft:emerald", 3), List.of(), 1, "result uncertain"));
+        assertFalse(authority.releaseReservation(order, payment), "uncertain spend released its protective reservation");
     }
 
     @Test void reauthorizationCanNarrowBudgetButCannotChangeOrderTargetOrSelection() {
