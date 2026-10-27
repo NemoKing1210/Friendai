@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.pathing.Pos;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ResourceKnowledgeTest {
@@ -59,5 +60,28 @@ class ResourceKnowledgeTest {
         book.observe(observation("minecraft:gold_ore", "minecraft:overworld", new Pos(40, 10, 1), 3), "gold");
         assertTrue(book.site(pinned, 3).isPresent());
         assertTrue(book.site(2, 3).orElseThrow().approximate());
+    }
+
+    @Test
+    void removingOneMemberUpdatesTheBlockIndex() {
+        ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        Pos first = new Pos(0, 10, 0);
+        Pos second = new Pos(1, 10, 0);
+        long id = book.observe(observation("minecraft:coal_ore", "minecraft:overworld", first, 1), "coal");
+        book.observe(observation("minecraft:coal_ore", "minecraft:overworld", second, 2), "coal");
+        assertEquals(2, book.historicalBlockCount(id));
+
+        book.extracted(new ResourceObservation.Location("minecraft:overworld", first), 3);
+        assertEquals(1, book.historicalBlockCount(id));
+        var request = new ResourceQuery.Request(Set.of("minecraft:coal_ore"), "minecraft:overworld",
+                new Pos(0, 10, 0), 100, 5, true);
+        var results = ResourceQuery.find(book, request);
+        assertEquals(1, results.size());
+        assertEquals(1, results.get(0).lastObservedBlocks());
+
+        book.extracted(new ResourceObservation.Location("minecraft:overworld", second), 4);
+        assertEquals(0, book.historicalBlockCount(id));
+        assertEquals(ResourceSite.Availability.DEPLETED, book.site(id, 4).orElseThrow().availability());
+        assertTrue(ResourceQuery.find(book, request).isEmpty());
     }
 }
