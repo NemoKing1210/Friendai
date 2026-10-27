@@ -1,8 +1,9 @@
 @AGENTS.md
+@ARCHITECTURE.md
 
 # Claude Code specifics
 
-The shared project guide is `AGENTS.md` (imported above) — commands, architecture, rules, testing, git hygiene. This file adds only what is specific to working with Claude Code here.
+The shared project guide is two files: `AGENTS.md` (imported above) for commands, rules, testing, git hygiene, and `ARCHITECTURE.md` for the package map, runtime flows, persistence and protocol. This file adds only what is specific to working with Claude Code here.
 
 ## Working style
 
