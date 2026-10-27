@@ -137,7 +137,7 @@ public final class ToolCatalog {
         hint(metas, "execute_command",
                 "- In creative mode, execute_command accepts only allowlisted teleport/time/weather/item/effect/enchant forms and uses the owner's live command permissions. Use @s for yourself, give/enchant only for the owner, and describe the returned feedback without claiming a denied or failed command succeeded.");
         hint(metas, "build_structure",
-                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.");
+                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, windows, interior); pass parts to build only some of them.");
         hint(metas, "set_follow_mode",
                 "- \"Don't follow me\" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.");
         hint(metas, "set_pace",

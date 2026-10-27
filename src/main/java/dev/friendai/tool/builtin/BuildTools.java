@@ -1,9 +1,12 @@
 package dev.friendai.tool.builtin;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
+import dev.friendai.build.PartKind;
+import dev.friendai.build.StructureParts;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.build.BlueprintResolver;
 import dev.friendai.task.build.BlueprintStore;
@@ -15,10 +18,12 @@ import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -68,7 +73,8 @@ final class BuildTools {
             - bridge: length 3..32, width 1..5, block, railing (fence id, optional).
 
             preview_structure shows the size, materials and site problems. build_structure takes clear_site
-            (default true) and gather (default false, obtain missing materials with obtain_item instead of failing).
+            (default true), gather (default false, obtain missing materials with obtain_item instead of failing)
+            and parts (floor, walls, roof, entrance, window; omit it to build everything).
 
             Errors name the place and the reason, for example:
             palette: key "CC" must be one character, ops[1]: 'to' is below 'from', unknown block minecraft:oak_plank.
@@ -93,7 +99,8 @@ final class BuildTools {
                     Blueprint blueprint = parsed.blueprint().get();
                     Placement.PlacedBlueprint placed =
                             Placement.of(blueprint, origin(a), facing(a), c);
-                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a));
+                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a),
+                            parts(a));
                 },
                 true));
         registry.register(ToolKit.instantTool("save_blueprint",
@@ -130,7 +137,14 @@ final class BuildTools {
         return sourceSchema()
                 .bool("clear_site", "Break natural ground on the site (default true)")
                 .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
+                .array("parts", "Build only these parts: floor, walls, roof, entrance, window; omit for everything",
+                        partSchema(), 0, 5)
                 .build();
+    }
+
+    /** One part name; the tool validates it against {@link PartKind}. */
+    private static JsonObject partSchema() {
+        return com.google.gson.JsonParser.parseString("{\"type\":\"string\"}").getAsJsonObject();
     }
 
     private static ToolResult preview(CompanionEntity companion, JsonObject args) {
@@ -174,6 +188,7 @@ final class BuildTools {
                 + site.foundation().size() + " foundation; materials: "
                 + materialsText(needed, have, carried)
                 + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()))
+                + "; parts: " + StructureParts.analyse(blueprint).describe()
                 + (notes.isEmpty() ? "" : "; " + String.join("; ", notes));
     }
 
@@ -298,6 +313,34 @@ final class BuildTools {
 
     private static boolean clearSite(JsonObject args) {
         return !present(args, "clear_site") || args.get("clear_site").getAsBoolean();
+    }
+
+    private static Set<PartKind> parts(JsonObject args) {
+        if (!present(args, "parts")) {
+            return Set.of();
+        }
+        if (!args.get("parts").isJsonArray()) {
+            throw new IllegalArgumentException("parts must be an array of part names");
+        }
+        Set<PartKind> selected = new LinkedHashSet<>();
+        for (JsonElement element : args.getAsJsonArray("parts")) {
+            if (!element.isJsonPrimitive()) {
+                throw new IllegalArgumentException("parts must contain names, not objects");
+            }
+            String name = element.getAsString();
+            PartKind kind = PartKind.parse(name)
+                    .orElseThrow(() -> new IllegalArgumentException("unknown part '" + name
+                            + "'; use floor, walls, roof, entrance or window"));
+            if (kind == PartKind.INTERIOR) {
+                throw new IllegalArgumentException("the interior is empty space and is not built");
+            }
+            if (kind == PartKind.OTHER) {
+                throw new IllegalArgumentException(
+                        "'other' is not a part to build; use floor, walls, roof, entrance or window");
+            }
+            selected.add(kind);
+        }
+        return Set.copyOf(selected);
     }
 
     private static boolean gather(JsonObject args) {

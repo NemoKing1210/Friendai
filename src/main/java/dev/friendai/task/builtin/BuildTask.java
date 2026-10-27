@@ -5,6 +5,8 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
+import dev.friendai.build.PartKind;
+import dev.friendai.build.StructureParts;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
@@ -89,6 +91,12 @@ public final class BuildTask implements Task {
     private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE, CLEANUP }
 
     private final Blueprint blueprint;
+    /** The selected parts; an empty set means the whole blueprint. */
+    private final Set<PartKind> parts;
+    /** The blueprint scoped to the selected parts; the full blueprint before the check. */
+    private Blueprint buildPlan;
+    /** The part analysis of the full blueprint, filled at CHECK for progress and the result line. */
+    private StructureParts structure;
     private final BlockPos origin;
     private final Rotation rotation;
     private final boolean clearSite;
@@ -170,15 +178,23 @@ public final class BuildTask implements Task {
         this(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN);
     }
 
+    /** Builds only the selected parts; an empty set builds the whole blueprint. */
+    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+            Set<PartKind> parts) {
+        this(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, newId(), List.of(), parts);
+    }
+
     /** The full constructor, for tests that need tighter obtain limits through their own factory. */
     public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
             ObtainFactory obtainFactory) {
-        this(blueprint, origin, rotation, clearSite, gather, obtainFactory, newId(), List.of());
+        this(blueprint, origin, rotation, clearSite, gather, obtainFactory, newId(), List.of(), Set.of());
     }
 
     private BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
-            ObtainFactory obtainFactory, String id, List<BlockPos> adoptedScaffold) {
+            ObtainFactory obtainFactory, String id, List<BlockPos> adoptedScaffold, Set<PartKind> parts) {
         this.blueprint = blueprint;
+        this.buildPlan = blueprint;
+        this.parts = parts == null ? Set.of() : Set.copyOf(parts);
         this.origin = origin;
         this.rotation = rotation;
         this.clearSite = clearSite;
@@ -195,7 +211,13 @@ public final class BuildTask implements Task {
      */
     public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
             boolean gather, List<BlockPos> scaffold, String id) {
-        return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold);
+        return resume(blueprint, origin, rotation, clearSite, gather, scaffold, id, Set.of());
+    }
+
+    /** Resumes a partial build, keeping the parts it was asked for. */
+    public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
+            boolean gather, List<BlockPos> scaffold, String id, Set<PartKind> parts) {
+        return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold, parts);
     }
 
     /** A fresh file id: a UUID without dashes, so it is a legal, unique file name. */
@@ -214,13 +236,30 @@ public final class BuildTask implements Task {
     }
 
     /**
-     * {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>}. The blueprint and the scaffold live in the
-     * in-progress file named by {@code <id>}, under the world's blueprint directory.
+     * {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>[,<part>+<part>…]}. The blueprint and the scaffold
+     * live in the in-progress file named by {@code <id>}, under the world's blueprint directory. The optional eighth
+     * field keeps a partial build partial across a reload; an older seven-field save restores as the whole blueprint.
      */
     @Override
     public String saveData() {
-        return "build:" + id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
+        String data = "build:" + id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
                 + Placement.facingFor(rotation).getSerializedName() + "," + clearSite + "," + gather;
+        if (parts.isEmpty()) {
+            return data;
+        }
+        StringBuilder text = new StringBuilder(data).append(',');
+        boolean first = true;
+        for (PartKind kind : PartKind.values()) {
+            if (!parts.contains(kind)) {
+                continue;
+            }
+            if (!first) {
+                text.append('+');
+            }
+            text.append(kind.id());
+            first = false;
+        }
+        return text.toString();
     }
 
     @Override
@@ -268,7 +307,12 @@ public final class BuildTask implements Task {
         ServerLevel level = c.level();
         scaffold = new Scaffold(c.companion());
         scaffold.adopt(adoptedScaffold);
-        placed = Placement.at(blueprint, origin, rotation);
+        structure = StructureParts.analyse(blueprint);
+        buildPlan = parts.isEmpty()
+                ? blueprint
+                : new Blueprint(blueprint.name(), blueprint.width(), blueprint.height(), blueprint.depth(),
+                        structure.cells(parts));
+        placed = Placement.at(buildPlan, origin, rotation);
         site = Site.check(level, placed, c.companion(), clearSite);
         // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as
         // scaffold surplus: only what is still to place counts.
@@ -281,7 +325,8 @@ public final class BuildTask implements Task {
         } catch (IllegalArgumentException e) {
             materialError = e.getMessage();
         }
-        plannedCells = plannedCells(placed.specs());
+        // Every cell of the blueprint is off-limits to the scaffold, including the parts this run does not build.
+        plannedCells = plannedCells(Placement.at(blueprint, origin, rotation).specs());
         String unreachable = unreachable(c, remaining);
         if (unreachable != null) {
             return fail(c, unreachable);
@@ -296,7 +341,7 @@ public final class BuildTask implements Task {
         foundation = site.foundation().stream()
                 .sorted(Comparator.comparingInt(spec -> spec.pos().getY()))
                 .toList();
-        order = BuildOrder.order(blueprint, supportLookup()::get, origin.getX(), origin.getZ());
+        order = BuildOrder.order(buildPlan, supportLookup()::get, origin.getX(), origin.getZ());
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
@@ -322,11 +367,11 @@ public final class BuildTask implements Task {
      */
     private Map<BlockSpec, BuildOrder.Support> supportLookup() {
         Map<BlockPos, BlockSpec> byWorld = new HashMap<>();
-        for (BlockSpec spec : blueprint.blocks()) {
+        for (BlockSpec spec : buildPlan.blocks()) {
             byWorld.put(worldPos(spec), spec);
         }
         Map<BlockSpec, BuildOrder.Support> lookup = new HashMap<>();
-        for (BlockSpec spec : blueprint.blocks()) {
+        for (BlockSpec spec : buildPlan.blocks()) {
             BlockPos pos = worldPos(spec);
             BlockState wanted = Placement.parseState(spec.state()).rotate(rotation);
             BlockPos support = SupportNeeds.supportOf(wanted, pos);
@@ -1030,9 +1075,10 @@ public final class BuildTask implements Task {
     }
 
     private TaskStatus finish(TaskContext c) {
+        String selected = parts.isEmpty() || structure == null ? "" : " (" + structure.describe(parts) + ")";
         summary = "built " + blueprint.name() + " at " + coords(origin) + " facing "
-                + Placement.facingFor(rotation).getSerializedName() + ": " + placedCount + " placed, "
-                + clearedCount + " cleared, " + foundationCount + " foundation";
+                + Placement.facingFor(rotation).getSerializedName() + ": " + placedCount + " placed" + selected
+                + ", " + clearedCount + " cleared, " + foundationCount + " foundation";
         return complete(c, TaskStatus.SUCCESS);
     }
 
@@ -1161,7 +1207,14 @@ public final class BuildTask implements Task {
 
     @Override
     public String describe() {
-        return "building " + blueprint.name() + " (" + blueprint.blocks().size() + " blocks) at " + coords(origin);
+        String part = "";
+        if (structure != null && current != null) {
+            PartKind role = structure.roleOf(current);
+            if (role != null && role != PartKind.OTHER) {
+                part = ", " + role.id();
+            }
+        }
+        return "building " + blueprint.name() + part + ": " + done + "/" + total + " blocks at " + coords(origin);
     }
 
     @Override

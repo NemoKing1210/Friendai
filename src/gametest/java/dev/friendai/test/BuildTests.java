@@ -7,6 +7,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
+import dev.friendai.build.PartKind;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.Task;
@@ -31,6 +32,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
@@ -373,16 +375,23 @@ public class BuildTests {
         // A level-free restore cannot rebuild a build task; the in-progress file lives in the world.
         check(TaskFactory.restore(saved).isEmpty(), "a build needs a level");
 
-        String id = buildId(saved);
+        BuildTask partial = new BuildTask(parse(EXAMPLE), origin, Rotation.CLOCKWISE_90, true, false,
+                Set.of(PartKind.WALLS));
+        String partialSaved = partial.saveData();
+        String[] partialParts = partialSaved.split(",");
+        equal(8, partialParts.length, "partial field count");
+        equal("walls", partialParts[7], "parts");
+
+        String id = buildId(partialSaved);
         BlueprintStore store = store(h);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         try {
-            runner.start(task, "build_structure");
+            runner.start(partial, "build_structure");
             runner.tick();
             check(Files.exists(store.inProgressFile(id)), "the in-progress file must exist after the check");
-            Task restored = TaskFactory.restore(saved, h.getLevel()).orElseThrow();
-            equal(saved, restored.saveData(), "save data round trip");
+            Task restored = TaskFactory.restore(partialSaved, h.getLevel()).orElseThrow();
+            equal(partialSaved, restored.saveData(), "save data round trip");
         } finally {
             store.deleteInProgress(id);
             runner.stop("test");
@@ -823,6 +832,40 @@ public class BuildTests {
             h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.COBBLESTONE), "floor");
             h.assertTrue(h.getBlockState(new BlockPos(4, 3, 4)).is(Blocks.OAK_PLANKS), "wall");
             h.assertTrue(chest.getItem(0).getCount() < 64, "materials must come from the chest");
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void buildOnlyTheFloor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        Blueprint house = generator("""
+                { "type": "house", "width": 5, "depth": 5, "roof_style": "flat",
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        BuildTask task = new BuildTask(house, h.absolutePos(new BlockPos(4, 2, 4)), Rotation.NONE, true, false,
+                Set.of(PartKind.FLOOR));
+        runner.start(task, "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            for (int x = 4; x <= 8; x++) {
+                for (int z = 4; z <= 8; z++) {
+                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                            "floor at " + x + ",2," + z + ": " + h.getBlockState(new BlockPos(x, 2, z)));
+                }
+            }
+            for (int x = 4; x <= 8; x++) {
+                for (int z = 4; z <= 8; z++) {
+                    h.assertTrue(h.getBlockState(new BlockPos(x, 3, z)).isAir(),
+                            "walls were not selected: " + h.getBlockState(new BlockPos(x, 3, z)));
+                }
+            }
+            h.assertTrue(result.summary.contains("floor"), "summary was " + result.summary);
         });
     }
 

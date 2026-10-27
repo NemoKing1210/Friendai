@@ -75,6 +75,7 @@ public final class StructureParts {
         }
 
         boolean enclosed = interiorVolume > 0;
+        int lowestSolid = lowestSolid(blueprint);
         Map<BlockSpec, PartKind> roles = new LinkedHashMap<>();
         EnumMap<PartKind, Integer> counts = new EnumMap<>(PartKind.class);
         for (BlockSpec spec : blueprint.blocks()) {
@@ -90,7 +91,7 @@ public final class StructureParts {
                     continue;
                 }
             } else {
-                role = classify(grid, spec, interior, interiorTop, enclosed, width, height, depth);
+                role = classify(grid, spec, interior, interiorTop, enclosed, lowestSolid, width, height, depth);
             }
             roles.put(spec, role);
             counts.merge(role, 1, Integer::sum);
@@ -176,12 +177,23 @@ public final class StructureParts {
         };
     }
 
+    private static int lowestSolid(Blueprint blueprint) {
+        int lowest = Integer.MAX_VALUE;
+        for (BlockSpec spec : blueprint.blocks()) {
+            if (!isAir(spec.state())) {
+                lowest = Math.min(lowest, spec.y());
+            }
+        }
+        return lowest == Integer.MAX_VALUE ? -1 : lowest;
+    }
+
     private static PartKind classify(
             String[][][] grid,
             BlockSpec spec,
             boolean[][][] interior,
             int interiorTop,
             boolean enclosed,
+            int lowestSolid,
             int width,
             int height,
             int depth) {
@@ -198,6 +210,10 @@ public final class StructureParts {
         int x = spec.x();
         int y = spec.y();
         int z = spec.z();
+        // The whole bottom layer is the floor, including the cells the walls stand on.
+        if (y == lowestSolid) {
+            return PartKind.FLOOR;
+        }
         if (y + 1 < height && interior[x][y + 1][z]) {
             return PartKind.FLOOR;
         }

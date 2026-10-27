@@ -1,6 +1,7 @@
 package dev.friendai.task;
 
 import dev.friendai.build.Blueprint;
+import dev.friendai.build.PartKind;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.builtin.BuildTask;
@@ -8,7 +9,9 @@ import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.builtin.TendFarmTask;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -61,11 +64,11 @@ public final class TaskFactory {
         return Optional.empty();
     }
 
-    /** {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>} plus the in-progress file named by the id. */
+    /** {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>[,<part>+<part>…]} plus the in-progress file. */
     private static Optional<Task> restoreBuild(String saved, ServerLevel level) {
         try {
             String[] p = saved.substring("build:".length()).split(",");
-            if (p.length != 7) {
+            if (p.length != 7 && p.length != 8) {
                 return Optional.empty();
             }
             String id = p[0];
@@ -79,6 +82,12 @@ public final class TaskFactory {
             }
             boolean clearSite = bool(p[5]);
             boolean gather = bool(p[6]);
+            Set<PartKind> parts = new HashSet<>();
+            if (p.length == 8 && !p[7].isBlank()) {
+                for (String name : p[7].split("\\+")) {
+                    PartKind.parse(name).ifPresent(parts::add);
+                }
+            }
             Rotation rotation = Placement.rotationFor(facing);
             BlueprintStore.InProgress inProgress =
                     BlueprintStore.forLevel(level).loadInProgress(id).orElse(null);
@@ -87,7 +96,7 @@ public final class TaskFactory {
             }
             Blueprint blueprint = inProgress.blueprint();
             return Optional.of(BuildTask.resume(
-                    blueprint, origin, rotation, clearSite, gather, inProgress.scaffold(), id));
+                    blueprint, origin, rotation, clearSite, gather, inProgress.scaffold(), id, Set.copyOf(parts)));
         } catch (RuntimeException e) {
             return Optional.empty();
         }
