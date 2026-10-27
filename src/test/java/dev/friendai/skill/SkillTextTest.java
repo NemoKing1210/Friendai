@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 class SkillTextTest {
     @Test void rejectsExecutableOrSecretTextWithoutEchoingIt() {
-        for (String input : new String[]{"/op Alex", "```java\nrun();\n```", "https://example.com/key", "192.168.1.1", "api_key=private", "bad\u0000text", "\u00a7ared"}) {
+        for (String input : new String[]{"/op Alex", "```java\nrun();\n```", "https://example.com/key", "example.com", "2001:db8::1", "192.168.1.1", "api_key=private", "bad\u0000text", "\u00a7ared"}) {
             var error = assertThrows(IllegalArgumentException.class, () -> SkillText.body(input, s -> s));
             assertFalse(error.getMessage().contains(input));
         }

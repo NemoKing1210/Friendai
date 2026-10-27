@@ -96,7 +96,7 @@ Both files are part of the contract: add or move a package that either one names
 ## Rules that keep it working
 
 1. **Threads.** The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back with `server.execute(...)` through `ServerBrainScheduler.execute`. Client speech stays on the client: recognition and synthesis run on worker threads and hop back with `Minecraft.getInstance().execute(...)`, and only the server-side transcript handler uses `server.execute(...)`. A `CompletableFuture` callback never touches entities directly.
-2. **A skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in the matching `*Tools` group called from `FriendaiTools.build`, and adding a GameTest. The core does not change.
+2. **A world skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in the matching `*Tools` group called from `FriendaiTools.build`, and adding a GameTest. The core does not change.
 3. **Several tool calls in one response** must run in order, and Anthropic/Gemini must receive all the results in **one** user message (otherwise HTTP 400). Covered by tests; keep them green.
 4. **History trimming** must never leave a tool result or a call without results at the head, and must never drop the turn in progress.
 5. **A late LLM response** after `stop`/dismiss/owner logout must be dropped silently (generation counter in `CompanionBrain`).
@@ -351,6 +351,8 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 - **Brain** — `CompanionBrain`, the per-owner agent loop that turns messages into LLM requests and tool calls.
 - **Turn** — one user message plus the tool calls and final reply that answer it.
 - **Skill** — a player-facing ability exposed to the LLM as a `Tool`, usually implemented by a `Task`.
+- **Instruction skill** — bounded plain-text procedural guidance stored in `skill/`, selected per turn; it advises but never executes or changes tool permissions.
+- **Description** — the companion summary/details plus the owner’s explicit language/address profile in memory format 4.
 - **Tool** — the LLM-facing definition (schema, access level, executor) registered in `FriendaiTools`.
 - **Task** — long-running world work driven tick by tick by `TaskRunner`.
 - **Plan** — an ordered list of tasks (`run_plan` / `SequenceTask`).

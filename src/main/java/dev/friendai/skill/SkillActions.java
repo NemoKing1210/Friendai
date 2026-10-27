@@ -9,8 +9,14 @@ public final class SkillActions {
     private final SkillStore store;
     private final List<InstructionSkill> builtins;
     private final Clock clock;
+    private final java.util.function.UnaryOperator<String> redact;
+    private final java.util.function.Supplier<SkillLimits> limits;
     public SkillActions(SkillStore store,List<InstructionSkill> builtins,Clock clock) {
-        this.store=store;this.builtins=List.copyOf(builtins);this.clock=clock;
+        this(store,builtins,clock,s->s,SkillLimits::defaults);
+    }
+    public SkillActions(SkillStore store,List<InstructionSkill> builtins,Clock clock,java.util.function.UnaryOperator<String> redact,
+            java.util.function.Supplier<SkillLimits> limits) {
+        this.store=store;this.builtins=List.copyOf(builtins);this.clock=clock;this.redact=redact;this.limits=limits;
     }
     public List<InstructionSkill> effective(UUID owner) {
         SkillBook local=store.book(owner);
@@ -28,6 +34,7 @@ public final class SkillActions {
                     || !actor.owner().equals(actor.caller().uuid()) || (action.server()&&!actor.operator())) return SkillActionResult.error();
             SkillBook local=store.book(actor.owner());
             SkillBook target=action.server()?store.global():local;
+            target.setLimits(limits.get());
             long now=Math.max(0,clock.millis());
             if(action.operation()==SkillAction.Operation.CREATE || action.operation()==SkillAction.Operation.IMPORT) {
                 SkillDraft d=action.operation()==SkillAction.Operation.IMPORT?SkillTransfer.read(action.text()):action.draft();
@@ -38,7 +45,7 @@ public final class SkillActions {
             if(old.version()!=action.expectedVersion())return SkillActionResult.error();
             boolean external=old.source()==InstructionSkill.Source.BUILTIN || (!action.server()&&old.scope()==InstructionSkill.Scope.SERVER);
             switch(action.operation()) {
-                case EXPORT -> { return new SkillActionResult(dev.friendai.memory.MenuStatus.ok("friendai.menu.skills.exported"),Optional.empty(),SkillTransfer.write(old)); }
+                case EXPORT -> { SkillText.validate(old.draft(),redact); return new SkillActionResult(dev.friendai.memory.MenuStatus.ok("friendai.menu.skills.exported"),Optional.empty(),SkillTransfer.write(old)); }
                 case DUPLICATE -> {
                     InstructionSkill copy=target.create(old.draft(),InstructionSkill.Source.OWNER,actor.owner(),now,false);
                     if(external)local.override(old.id(),false);

@@ -425,8 +425,8 @@ public final class MemoryBook {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
         file.companionName = companionName;
-        file.description = description;
-        file.ownerProfile = ownerProfile;
+        file.description = new MemoryFile.DescriptionEntry(description.summary(),description.details());
+        file.ownerProfile = new MemoryFile.OwnerProfileEntry(ownerProfile.language(),ownerProfile.address());
         file.goals = goals;
         file.freeTime = freeTime;
         for (Fact fact : facts.values()) {

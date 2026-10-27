@@ -11,7 +11,8 @@ public final class SkillBook {
     final LinkedHashMap<String, Integer> outcomes = new LinkedHashMap<>();
     long clockHighWater;
     long revision;
-    private final SkillLimits limits;
+    private SkillLimits limits;
+    public void setLimits(SkillLimits value) { limits=java.util.Objects.requireNonNull(value); }
     private final UnaryOperator<String> redact;
     private final InstructionSkill.Scope scope;
 

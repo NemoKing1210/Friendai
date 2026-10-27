@@ -369,3 +369,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Open the Traders tab as another player; confirm pages, actions, and market records are private. Search and page through offers without losing the selected partner.
 - [ ] Restart with a pending merchant or piglin action; confirm the action is not replayed and the journal reports interrupted or uncertain progress.
 - [ ] Run the Traders tab at default and large GUI scales in English and Russian; inspect long labels, component previews, narration, keyboard focus and pagination.
+
+## Instruction skills and Description (task 19)
+
+- [ ] In English and Russian, open Memory -> Description -> Details and preferences. Save summary, multiline details, language and address; verify next owner reply follows the explicit language while a guest receives no private profile.
+- [ ] At the smallest supported GUI/window scale, all ten tabs wrap and the Skills list/editor controls remain reachable with keyboard focus and scrolling. Resize while editing and confirm the draft remains intact.
+- [ ] Create a skill with a 4,000-character Unicode body, edit twice without closing, toggle, duplicate and confirm-delete; rejected/stale saves retain the draft. Verify clear source, author, update date and approval state.
+- [ ] Export to text, copy/paste, import into the same or another companion, and verify imported metadata cannot grant global/model/builtin authority. Exercise the text-dialog fallback without using the clipboard.
+- [ ] After a real goal or failed free-time shift, inspect a proposed model procedure, approve/reject it, and confirm only approved guidance appears next turn. Restart the world and confirm records, approvals and hourly allowance survive.
+- [ ] On a dedicated server without YACL, exercise /friendai skills list|show|create|edit|duplicate|delete|enable|disable|approve|reject|import|export and /friendai description show|set|clear|language|address. Confirm global operations require operator permission.

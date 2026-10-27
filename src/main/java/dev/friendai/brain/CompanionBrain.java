@@ -216,6 +216,9 @@ public final class CompanionBrain {
     private dev.friendai.skill.TeachingContext teachingContext;
     public dev.friendai.skill.TeachingContext teachingContext() { return thinking ? teachingContext : null; }
 
+    private boolean skillFreeTimeTurn;
+    public boolean isSkillFreeTimeTurn() { return skillFreeTimeTurn; }
+
     private SkillSource skillSource = SkillSource.NONE;
     private dev.friendai.skill.SkillPromptSession skillSession = dev.friendai.skill.SkillPromptSession.NONE;
     public void setSkillSource(SkillSource source) { skillSource = java.util.Objects.requireNonNull(source); }
@@ -251,10 +254,11 @@ public final class CompanionBrain {
                 catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
                         decision.mode() == TurnMode.CHAT),
                 placeSource.describe(turnCaller), note, safeTradingPrompt(), skillSession.sections(), a -> {
+                    skillSession.recordAssembly(a.keptSectionIds());
                     var ids = a.keptSectionIds().stream().filter(id -> id.startsWith("skill:")).toList();
                     int chars = skillSession.sections().stream().filter(section -> ids.contains(section.id()))
                             .mapToInt(section -> ((dev.friendai.skill.SkillPromptSection)section).text().length()+1).sum();
-                    observe(o -> o.onInstructions(ids, chars, a.text().length(), a.mandatoryOverrun()));
+                    observe(o -> o.onInstructions(skillSession.versionedIds(ids), chars, a.text().length(), a.mandatoryOverrun()));
                 });
     }
 
@@ -341,9 +345,11 @@ public final class CompanionBrain {
                 ownerInitiated && decision.mode() != TurnMode.CHAT
                         && decision.groups().contains(ToolGroup.TRADING)
                         && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
+        skillFreeTimeTurn = batch.stream().anyMatch(e -> e instanceof BrainEvent.FreeTimeShift
+                || (e instanceof BrainEvent.SkillOutcome outcome && (outcome.kind()==dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_SUCCESS || outcome.kind()==dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_FAILURE)));
         skillSession = skillSource.begin(turnCaller, String.join("\n", turnPlayerTexts), turnKind);
         teachingContext = null;
-        if (turnPlayerTexts.isEmpty()) {
+        if (turnPlayerTexts.isEmpty() && batch.stream().noneMatch(e -> e instanceof BrainEvent.FreeTimeShift)) {
             batch.stream().filter(e -> e instanceof BrainEvent.SkillOutcome).map(e -> (BrainEvent.SkillOutcome)e)
                     .findFirst().ifPresent(e -> teachingContext = new dev.friendai.skill.TeachingContext(access.owner(),e.outcomeId(),generation,e.kind()));
         }

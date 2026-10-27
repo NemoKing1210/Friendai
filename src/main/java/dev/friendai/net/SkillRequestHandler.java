@@ -34,15 +34,17 @@ public final class SkillRequestHandler {
     public static void handle(ServerPlayer p,SkillsRequestC2SPayload payload) {
         if(payload.operation().equals("close")) { SkillsViewStream.close(p);return; }
         long now=p.level().getServer().getTickCount();
-        Long old=LAST.get(p.getUUID());if(old!=null&&now-old<2)return;LAST.put(p.getUUID(),now);
+        Long old=LAST.get(p.getUUID());boolean limited=old!=null&&now-old<2;if(!limited)LAST.put(p.getUUID(),now);
         try {
             if(Set.of("open","page","detail").contains(payload.operation())) {
                 var o=JsonParser.parseString(payload.json()).getAsJsonObject();
-                SkillsViewStream.open(p,o.has("page")?o.get("page").getAsInt():0,o.has("id")?o.get("id").getAsString():"");
+                SkillsViewStream.subscribe(p,o.has("page")?o.get("page").getAsInt():0,o.has("id")?o.get("id").getAsString():"");
+                if(!limited)SkillsViewStream.sendNow(p,null,payload.requestId());
                 return;
             }
+            if(limited){SkillsViewStream.sendNow(p,SkillActionResult.error(),payload.requestId());return;}
             SkillActionResult result=apply(p,payload.operation(),payload.json());
-            SkillsViewStream.sendNow(p,result);
-        } catch(RuntimeException|StackOverflowError e) { SkillsViewStream.sendNow(p,SkillActionResult.error()); }
+            SkillsViewStream.sendNow(p,result,payload.requestId());
+        } catch(RuntimeException|StackOverflowError e) { SkillsViewStream.sendNow(p,SkillActionResult.error(),payload.requestId()); }
     }
 }

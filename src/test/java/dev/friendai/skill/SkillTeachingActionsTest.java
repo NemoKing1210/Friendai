@@ -12,6 +12,32 @@ import org.junit.jupiter.api.io.TempDir;
 
 class SkillTeachingActionsTest {
     @TempDir Path dir;
+    @Test void ownerProfileLanguageStillAppliesWhenInstructionSkillsAreDisabled() {
+        UUID owner=UUID.randomUUID();var config=ServerConfig.defaults();config.skills.enabled=false;
+        var memory=new MemoryStore(dir.resolve("memory"),()->0L);memory.book(owner).setOwnerProfile(new dev.friendai.memory.OwnerProfile("ru","Alex"));
+        try(var service=new SkillService(dir.resolve("skills"),()->config,memory)) {
+            var ownerTurn=service.begin(owner,new Caller(owner,"Owner",AccessLevel.OWNER),"hello",dev.friendai.brain.TurnKind.PLAYER,"",false,false);
+            assertEquals("ru",ownerTurn.persona(new dev.friendai.brain.Persona("F","Guide","AUTO")).language());
+            assertTrue(ownerTurn.sections().isEmpty());
+            var guestTurn=service.begin(owner,new Caller(UUID.randomUUID(),"Guest",AccessLevel.GUEST),"hello",dev.friendai.brain.TurnKind.PLAYER,"",false,false);
+            assertEquals("auto",guestTurn.persona(new dev.friendai.brain.Persona("F","Guide","auto")).language());
+        }
+    }
+    @Test void currentSecretsCannotBeExportedAfterConfigChangesAndLiveCapsApply() {
+        UUID owner=UUID.randomUUID();var config=ServerConfig.defaults();
+        config.skills.ownerCount=1;
+        try(var service=new SkillService(dir.resolve("skills"),()->config,new MemoryStore(dir.resolve("memory"),()->0L))) {
+            var actor=new SkillActor(owner,new Caller(owner,"Owner",AccessLevel.OWNER),false);
+            var created=service.actions().apply(actor,SkillAction.create(SkillDraft.simple("One","future-private-value")));
+            assertTrue(created.status().ok());
+            assertFalse(service.actions().apply(actor,SkillAction.create(SkillDraft.simple("Two","Inspect facts."))).status().ok());
+            var skill=created.skill().orElseThrow();
+            config.profiles.get("main").apiKey="future-private-value";
+            var export=service.actions().apply(actor,new SkillAction(SkillAction.Operation.EXPORT,skill.id(),1,null,false,""));
+            assertFalse(export.status().ok());assertFalse(export.text().contains("future-private-value"));
+            assertTrue(service.listed(owner).stream().noneMatch(s->s.id().equals(skill.id())));
+        }
+    }
     @Test void teachingRequiresAnOutcomeAndCreatesPendingModelData() {
         UUID owner=UUID.randomUUID();var caller=new Caller(owner,"Owner",AccessLevel.OWNER);
         var config=ServerConfig.defaults();

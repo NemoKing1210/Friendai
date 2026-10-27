@@ -22,9 +22,12 @@ public final class SkillService implements AutoCloseable {
         this.config=config;this.memory=memory;
         redact=SecretRedactor.of(()->config.get().profiles.values().stream()
                 .map(p->SecretResolver.resolve(p.apiKey,System::getenv)).toList());
+        var builtins=BuiltinSkills.load(SkillService.class.getClassLoader());
         store=new SkillStore(dir,SkillLimits.defaults(),redact);
-        actions=new SkillActions(store,BuiltinSkills.load(SkillService.class.getClassLoader()),Clock.systemUTC());
+        actions=new SkillActions(store,builtins,Clock.systemUTC(),redact,this::limits);
     }
+    private SkillLimits limits() { var c=config.get().skills;return new SkillLimits(c.ownerCount,c.serverCount,c.totalChars); }
+    public List<InstructionSkill> globalListed() { return safe(store.global().snapshot()); }
     public SkillStore store() { return store; }
     public SkillActions actions() { return actions; }
     public List<InstructionSkill> listed(UUID owner) { return safe(actions.listed(owner)); }
@@ -33,19 +36,21 @@ public final class SkillService implements AutoCloseable {
             catch(RuntimeException e) { return false; } }).toList();
     }
     public SkillPromptSession begin(UUID owner,Caller caller,String message,TurnKind turn,String taskId,boolean freeTime,boolean planning) {
-        if(!config.get().skills.enabled)return SkillPromptSession.NONE;
+        return begin(owner,caller,message,turn,taskId,freeTime,planning,false);
+    }
+    public SkillPromptSession begin(UUID owner,Caller caller,String message,TurnKind turn,String taskId,boolean freeTime,boolean planning,boolean combat) {
         try {
             Set<InstructionSkill.Kind> kinds=EnumSet.of(turn==TurnKind.PLAYER?InstructionSkill.Kind.CHAT:InstructionSkill.Kind.EVENT);
             if(freeTime)kinds.add(InstructionSkill.Kind.FREE_TIME);
             if(planning)kinds.add(InstructionSkill.Kind.PLANNING);
             if(taskId.contains("build")||taskId.contains("place"))kinds.add(InstructionSkill.Kind.BUILDING);
-            if(taskId.contains("attack")||taskId.contains("combat"))kinds.add(InstructionSkill.Kind.COMBAT);
+            if(combat||taskId.contains("attack")||taskId.contains("combat"))kinds.add(InstructionSkill.Kind.COMBAT);
             MemoryBook book=memory.book(owner);
             boolean owns=caller!=null&&caller.access()==AccessLevel.OWNER&&owner.equals(caller.uuid());
             OwnerProfile profile=owns?book.ownerProfile():OwnerProfile.EMPTY;
             CompanionDescription description=owns?book.description():CompanionDescription.EMPTY;
             SkillContext context=new SkillContext(caller,message,taskId,kinds,owns&&profile.language().equals("auto"),description,profile);
-            return new SkillPromptSession(safe(actions.effective(owner)),context,config.get().agent.promptBudget,config.get().skills.promptBudget);
+            return new SkillPromptSession(config.get().skills.enabled?safe(actions.effective(owner)):List.of(),context,config.get().agent.promptBudget,config.get().skills.enabled?config.get().skills.promptBudget:0);
         } catch(RuntimeException e) { return SkillPromptSession.NONE; }
     }
     public ToolResult teach(UUID owner,Caller caller,com.google.gson.JsonObject args) {
@@ -53,7 +58,7 @@ public final class SkillService implements AutoCloseable {
             if(!config.get().skills.enabled)return ToolResult.error("Instruction skills are disabled.");
             var serverContext=teachingContextSource.apply(owner);
             if(!TeachingPolicy.authorize(serverContext,caller,serverContext==null?-1:serverContext.generation()))return ToolResult.error("Skills may only be learned after a completed goal or shift.");
-            SkillBook book=store.book(owner);
+            SkillBook book=store.book(owner);book.setLimits(limits());
             TeachingLedger ledger=new TeachingLedger(book);
             var cfg=config.get().skills;
             long now=System.currentTimeMillis();

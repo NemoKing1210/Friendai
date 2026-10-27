@@ -12,13 +12,18 @@ public final class SkillsViewStream {
     private static final Map<MinecraftServer,Map<UUID,Query>> QUERIES=new WeakHashMap<>();
     private SkillsViewStream() {}
     private static Map<UUID,Query> queries(MinecraftServer server) { return QUERIES.computeIfAbsent(server,s->new HashMap<>()); }
+    public static boolean isOpen(ServerPlayer p) { return queries(p.level().getServer()).containsKey(p.getUUID()); }
+    public static void subscribe(ServerPlayer p,int page,String selected) {
+        queries(p.level().getServer()).put(p.getUUID(),new Query(page,selected));
+    }
     public static void open(ServerPlayer p,int page,String selected) {
-        queries(p.level().getServer()).put(p.getUUID(),new Query(page,selected));sendNow(p,null);
+        subscribe(p,page,selected);sendNow(p,null);
     }
     public static void close(ServerPlayer p) { queries(p.level().getServer()).remove(p.getUUID()); }
-    public static void sendNow(ServerPlayer p,SkillActionResult result) {
+    public static void sendNow(ServerPlayer p,SkillActionResult result) { sendNow(p,result,0); }
+    public static void sendNow(ServerPlayer p,SkillActionResult result,long requestId) {
         var server=p.level().getServer();var query=queries(server).get(p.getUUID());
-        if(query==null||!ServerPlayNetworking.canSend(p,SkillsViewS2CPayload.TYPE))return;
+        if(!isOpen(p)||query==null||!ServerPlayNetworking.canSend(p,SkillsViewS2CPayload.TYPE))return;
         if(result!=null&&result.skill().isPresent()) {
             query=new Query(query.page(),result.skill().get().id());queries(server).put(p.getUUID(),query);
         }
@@ -28,11 +33,11 @@ public final class SkillsViewStream {
             long revision=local.revision()+service.store().global().revision()+memory.revision();
             var view=SkillViewBuilder.build(state.config().skills.enabled,revision,service.listed(p.getUUID()),local.disabledIds(),
                     query.page(),query.selected(),memory.description(),memory.ownerProfile(),result);
-            ServerPlayNetworking.send(p,new SkillsViewS2CPayload(SkillViewCodec.encode(view)));
+            ServerPlayNetworking.send(p,new SkillsViewS2CPayload(SkillViewCodec.encode(view.withResponseId(requestId))));
         } catch(RuntimeException e) {
             var view=new SkillView(false,0,0,0,List.of(),null,dev.friendai.memory.CompanionDescription.EMPTY,
                     dev.friendai.memory.OwnerProfile.EMPTY,"friendai.menu.skills.invalid",false,"");
-            ServerPlayNetworking.send(p,new SkillsViewS2CPayload(SkillViewCodec.encode(view)));
+            ServerPlayNetworking.send(p,new SkillsViewS2CPayload(SkillViewCodec.encode(view.withResponseId(requestId))));
         }
     }
     public static void tick(MinecraftServer server) {

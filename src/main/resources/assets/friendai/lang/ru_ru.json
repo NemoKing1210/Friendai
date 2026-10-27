@@ -621,5 +621,16 @@
   "friendai.skill.trade_etiquette": "Правила торговли",
   "friendai.skill.memory_discipline": "Порядок в памяти",
   "friendai.skill.verification": "Проверка результата",
-  "friendai.skill.first_contact": "Знакомство"
+  "friendai.skill.first_contact": "Знакомство",
+  "friendai.menu.skills.source_owner": "Владелец",
+  "friendai.menu.skills.source_model": "Изученный",
+  "friendai.menu.skills.source_builtin": "Встроенный",
+  "friendai.menu.skills.scope_companion": "Этот спутник",
+  "friendai.menu.skills.scope_server": "Весь сервер",
+  "friendai.menu.skills.pending": "Ждёт одобрения",
+  "friendai.menu.skills.active": "Активен",
+  "friendai.menu.skills.all": "Все",
+  "friendai.menu.skills.filter_source_value": "Источник: %s",
+  "friendai.menu.skills.filter_scope_value": "Область: %s",
+  "friendai.menu.skills.filter_state_value": "Состояние: %s"
 }

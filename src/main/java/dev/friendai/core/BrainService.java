@@ -137,8 +137,14 @@ public final class BrainService {
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
+        return propose(owner,input,false);
+    }
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input,boolean autonomous) {
+        var companion=CompanionManager.get(server).find(owner);
+        String task=companion.map(c->c.taskRunner().currentToolName()).orElse("");
+        boolean combat=companion.map(c->c.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE).orElse(false);
         var session = FriendaiServerState.get(server).skills().begin(owner,new Caller(owner,"",AccessLevel.OWNER),
-                input.goal().text(),dev.friendai.brain.TurnKind.EVENT,"",freeTime.state(owner).on(),true);
+                input.goal().text(),dev.friendai.brain.TurnKind.EVENT,task,autonomous,true,combat);
         return plannerFor(owner).propose(input.withInstructions(session.sections(),config.agent.promptBudget));
     }
 
@@ -751,7 +757,8 @@ public final class BrainService {
                     tradingConfig.locationFreshTicks);
         });
         brain.setSkillSource((caller,message,turn) -> FriendaiServerState.get(server).skills().begin(owner,caller,message,turn,
-                companion.taskRunner().currentToolName(),freeTime.state(owner).on(),false));
+                companion.taskRunner().currentToolName(),brain.isSkillFreeTimeTurn(),false,
+                companion.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));

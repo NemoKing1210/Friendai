@@ -5,6 +5,14 @@ public final class SkillEditorModel {
     private SkillView view;
     private SkillDraft draft;
     private String selected="";
+    private long pendingResponse=-1;
+    public void awaitResponse(long id) { pendingResponse=id; }
+    public boolean acceptResponse(SkillView response) {
+        if(pendingResponse<1||response.responseId()!=pendingResponse)return false;
+        pendingResponse=-1;
+        if(response.ok())draft=null;
+        return true;
+    }
     public void onView(SkillView incoming) {
         if(view!=null&&incoming.revision()<view.revision())return;
         view=incoming;

@@ -4,6 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class DescriptionMigrationTest {
+    @Test void malformedDescriptionDoesNotEraseUnrelatedFacts() {
+        String json="{\"version\":4,\"description\":{\"summary\":\""+"x".repeat(301)+"\",\"details\":\"\"},"
+                +"\"ownerProfile\":{\"language\":\"not a tag\",\"address\":\"\"},"
+                +"\"facts\":[{\"id\":1,\"subject\":\"world\",\"category\":\"NOTE\",\"text\":\"Known shelter\"}]}";
+        MemoryFile file=assertDoesNotThrow(()->new com.google.gson.Gson().fromJson(json,MemoryFile.class));
+        MemoryBook book=MemoryBook.fromFile(file);
+        assertEquals(1,book.allFacts().size());assertEquals("Known shelter",book.allFacts().getFirst().text());
+        assertEquals(CompanionDescription.EMPTY,book.description());assertEquals(OwnerProfile.EMPTY,book.ownerProfile());
+    }
     @Test void legacySummaryMigratesWithoutLosingWork() {
         MemoryFile old = new MemoryFile();
         old.version = 3;

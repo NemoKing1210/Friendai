@@ -19,5 +19,6 @@ public final class SkillStore implements AutoCloseable {
     }
     public SkillBook global() { return server.book(GLOBAL); }
     public void flushIfDue() { owners.flushIfDue(); server.flushIfDue(); }
+    public void flushAll() { owners.flushAll(); server.flushAll(); }
     @Override public void close() { owners.close(); server.close(); }
 }

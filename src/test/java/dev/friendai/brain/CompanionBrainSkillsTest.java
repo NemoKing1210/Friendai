@@ -9,6 +9,16 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CompanionBrainSkillsTest {
+    @Test void aDirectorChoiceCannotBorrowTeachingAuthorityFromABatchedOutcome() {
+        UUID owner=UUID.randomUUID();var gateway=new FakeGateway();var first=gateway.enqueuePending();gateway.enqueuePending();
+        var brain=new CompanionBrain(()->new Persona("Friendai","Guide","auto"),()->new BrainSettings(8,30,0,0),
+                ()->gateway,new FakeToolExecutor(),()->"state",new RecordingSpeaker(),new ManualScheduler(),AccessResolver.of(owner,id->false));
+        brain.post(new BrainEvent.PlayerSaid(owner,"Owner","hello",BrainEvent.Source.CHAT));
+        brain.post(new BrainEvent.SkillOutcome("shift:1",TeachingContext.OutcomeKind.SHIFT_FAILURE,"No materials"));
+        brain.post(new BrainEvent.FreeTimeShift(List.of(),"",List.of(),List.of(),""));
+        first.complete(FakeGateway.text("[silent]"));
+        assertEquals(2,gateway.requests.size());assertNull(brain.teachingContext());
+    }
     @Test void outcomeContextExpiresOnCancelAndOrdinaryChatHasNone() {
         UUID owner=UUID.randomUUID();var gateway=new FakeGateway();
         gateway.enqueuePending();

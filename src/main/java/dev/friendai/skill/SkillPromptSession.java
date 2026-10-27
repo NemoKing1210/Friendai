@@ -13,6 +13,9 @@ public final class SkillPromptSession {
     private final int agentBudget,cap;
     private final Set<String> delivered=new HashSet<>();
     private int deliveredChars;
+    private Set<String> actualActive=Set.of();
+    private boolean explicitProfile;
+    public void recordAssembly(List<String> keptSectionIds) { actualActive=Set.copyOf(keptSectionIds); }
     public SkillPromptSession(List<InstructionSkill> snapshot,SkillContext context,int agentBudget,int cap) {
         this.snapshot=List.copyOf(snapshot);this.context=context;this.agentBudget=agentBudget;this.cap=cap;
     }
@@ -26,7 +29,7 @@ public final class SkillPromptSession {
         for(var s:selection.skills())out.add(new SkillPromptSection("skill:"+s.id(),SkillSelector.render(s),priority--));
         String details=context.description().details();
         boolean include=context.caller().access()==AccessLevel.OWNER
-                &&(SkillSelector.normalize(context.message()).contains("profile")||selection.skills().stream().anyMatch(InstructionSkill::includeProfile));
+                &&(SkillSelector.normalize(context.message()).contains("profile")||explicitProfile||selection.skills().stream().anyMatch(InstructionSkill::includeProfile));
         String address=context.caller().access()==AccessLevel.OWNER?context.ownerProfile().address():"";
         String profile=(address.isBlank()?"":"Owner preferred address: "+address+"\n")
                 +(include&&!details.isBlank()?"Description details:\n"+details:"");
@@ -37,17 +40,21 @@ public final class SkillPromptSession {
         if(context==null||context.caller().access()!=AccessLevel.OWNER)return ToolResult.error("Skill access denied.");
         var found=snapshot.stream().filter(s->s.id().equals(id)&&SkillSelector.eligible(s,context)).findFirst();
         if(found.isEmpty())return ToolResult.error("Skill is unavailable.");
-        if(delivered.contains(id)||sections().stream().anyMatch(s->s.id().equals("skill:"+id)))return ToolResult.ok("Skill is already active this turn.");
+        if(delivered.contains(id)||actualActive.contains("skill:"+id))return ToolResult.ok("Skill is already active this turn.");
         String text=SkillSelector.render(found.get());
-        int occupied=sections().stream().mapToInt(s->((SkillPromptSection)s).text().length()+1).sum();
-        if(text.length()+1>SkillSelector.budget(agentBudget,cap)-deliveredChars-occupied)return ToolResult.error("Skill does not fit this turn's instruction budget.");
+        if(text.length()+1>SkillSelector.budget(agentBudget,cap)-deliveredChars)return ToolResult.error("Skill does not fit this turn's instruction budget.");
         delivered.add(id);deliveredChars+=text.length()+1;
+        explicitProfile |= found.get().includeProfile();
         return ToolResult.ok(text);
+    }
+    public List<String> versionedIds(List<String> sectionIds) {
+        return sectionIds.stream().map(id -> snapshot.stream().filter(s -> id.equals("skill:"+s.id()))
+                .findFirst().map(s -> id+"@v"+s.version()).orElse(id)).toList();
     }
     public Persona persona(Persona base) {
         if(context==null||context.caller().access()!=AccessLevel.OWNER)return base;
         String language=base.language();
-        if("auto".equals(language)&&!"auto".equals(context.ownerProfile().language()))language=context.ownerProfile().language();
+        if((language==null||language.isBlank()||"auto".equalsIgnoreCase(language))&&!"auto".equals(context.ownerProfile().language()))language=context.ownerProfile().language();
         return new Persona(base.name(),base.description(),language);
     }
     public String ownerAddress() {

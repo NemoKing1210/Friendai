@@ -23,10 +23,21 @@ public final class SkillFile implements StoreCodec<SkillBook> {
         Map<String,Integer> outcomes=new LinkedHashMap<>();
     }
     @Override public SkillBook load(String json) {
+        try { return decode(json); }
+        catch (UnsupportedStoreVersionException e) { throw e; }
+        catch (RuntimeException | StackOverflowError e) { throw new IllegalArgumentException("Invalid skill file."); }
+    }
+    private SkillBook decode(String json) {
         SkillBook book = new SkillBook(limits,redact,scope);
         if (json == null) return book;
         JsonObject raw = JsonParser.parseString(json).getAsJsonObject();
         if (!raw.has("version") || raw.get("version").getAsInt() != 1) throw new UnsupportedStoreVersionException();
+        if(raw.has("skills"))for(var entry:raw.getAsJsonArray("skills")) {
+            var row=entry.getAsJsonObject();
+            for(String field:new String[]{"createdAt","updatedAt"}) {
+                if(row.has(field)&&row.getAsJsonPrimitive(field).isString())row.addProperty(field,java.time.Instant.parse(row.get(field).getAsString()).toEpochMilli());
+            }
+        }
         Envelope file = GSON.fromJson(raw,Envelope.class);
         int max = scope == InstructionSkill.Scope.SERVER ? limits.serverCount() : limits.ownerCount();
         if (file.skills == null || file.skills.size()>max || file.disabled==null || file.disabled.size()>128
@@ -51,7 +62,12 @@ public final class SkillFile implements StoreCodec<SkillBook> {
         Envelope file=new Envelope(); file.skills=book.snapshot(); file.disabled=book.disabledIds();
         file.revision=book.revision(); file.clockHighWater=book.clockHighWater;
         file.writes=List.copyOf(book.writes); file.outcomes=Map.copyOf(book.outcomes);
-        return GSON.toJson(file);
+        JsonObject json=GSON.toJsonTree(file).getAsJsonObject();
+        for(var entry:json.getAsJsonArray("skills")) {
+            var row=entry.getAsJsonObject();
+            for(String field:new String[]{"createdAt","updatedAt"})row.addProperty(field,java.time.Instant.ofEpochMilli(row.get(field).getAsLong()).toString());
+        }
+        return GSON.toJson(json);
     }
     @Override public long revision(SkillBook book) { return book.revision(); }
     @Override public long maxBytes() { return SkillLimits.FILE_BYTES; }

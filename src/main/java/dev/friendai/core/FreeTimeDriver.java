@@ -385,7 +385,7 @@ public final class FreeTimeDriver {
         Caller caller = ownerCaller(owner);
         dev.friendai.agent.plan.PlannerInput input = plannerInput(owner, companion, caller);
         planning.add(owner);
-        brains.propose(owner, input).whenComplete((proposal, error) -> brains.onServerThread(() -> {
+        brains.propose(owner, input, true).whenComplete((proposal, error) -> brains.onServerThread(() -> {
             planning.remove(owner);
             FreeTime state = service().state(owner);
             if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {

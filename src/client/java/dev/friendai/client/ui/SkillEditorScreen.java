@@ -31,6 +31,15 @@ final class SkillEditorScreen extends Screen {
     static SkillEditorScreen edit(Screen parent,InstructionSkill skill) { return new SkillEditorScreen(parent,Mode.SKILL,skill,""); }
     static SkillEditorScreen description(Screen parent) { return new SkillEditorScreen(parent,Mode.DESCRIPTION,null,""); }
     static SkillEditorScreen transfer(Screen parent,String text) { return new SkillEditorScreen(parent,Mode.TRANSFER,null,text); }
+    @Override public void resize(int width,int height) {
+        String[] values=body==null?null:mode==Mode.SKILL?new String[]{name.getValue(),description.getValue(),kinds.getValue(),triggers.getValue(),tags.getValue(),body.getValue()}
+                :mode==Mode.DESCRIPTION?new String[]{name.getValue(),language.getValue(),address.getValue(),body.getValue()}:new String[]{body.getValue()};
+        super.resize(width,height);
+        if(values==null)return;
+        if(mode==Mode.SKILL){name.setValue(values[0]);description.setValue(values[1]);kinds.setValue(values[2]);triggers.setValue(values[3]);tags.setValue(values[4]);body.setValue(values[5]);}
+        else if(mode==Mode.DESCRIPTION){name.setValue(values[0]);language.setValue(values[1]);address.setValue(values[2]);body.setValue(values[3]);}
+        else body.setValue(values[0]);
+    }
     @Override public boolean isPauseScreen() { return false; }
     @Override public void added() { CompanionRequests.send(RequestType.SUBSCRIBE);CompanionRequests.skills("open","{}"); }
     @Override public void removed() { CompanionRequests.skills("close","{}");CompanionRequests.send(RequestType.UNSUBSCRIBE); }
@@ -93,7 +102,7 @@ final class SkillEditorScreen extends Screen {
             int bw=(w-12)/4;
             button("friendai.menu.skills.paste",left,height-24,bw,()->{String clip=minecraft.keyboardHandler.getClipboard();if(clip.length()<=32768)body.setValue(clip);else statusKey="friendai.menu.skills.invalid";});
             button("friendai.menu.skills.copy",left+bw+4,height-24,bw,()->minecraft.keyboardHandler.setClipboard(body.getValue()));
-            button("friendai.menu.skills.import",left+2*(bw+4),height-24,bw,()->{CompanionRequests.skills("import",body.getValue());statusKey="friendai.menu.skills.sent";});
+            button("friendai.menu.skills.import",left+2*(bw+4),height-24,bw,()->{model.awaitResponse(CompanionRequests.skills("import",body.getValue()));statusKey="friendai.menu.skills.sent";});
             button("friendai.menu.skills.back",left+3*(bw+4),height-24,bw,this::onClose);
         }
     }
@@ -113,12 +122,12 @@ final class SkillEditorScreen extends Screen {
             JsonObject o;
             if(mode==Mode.DESCRIPTION) {
                 o=new JsonObject();o.addProperty("summary",name.getValue());o.addProperty("details",body.getValue());
-                o.addProperty("language",language.getValue());o.addProperty("address",address.getValue());CompanionRequests.skills("description",o.toString());
+                o.addProperty("language",language.getValue());o.addProperty("address",address.getValue());model.awaitResponse(CompanionRequests.skills("description",o.toString()));
             } else {
                 SkillDraft d=SkillText.validate(draft(),s->s);model.edit(d);
                 o=new Gson().toJsonTree(d).getAsJsonObject();
                 if(current!=null) { o.addProperty("id",current.id());o.addProperty("expectedVersion",current.version()); }
-                CompanionRequests.skills(current==null?"create":"edit",o.toString());
+                model.awaitResponse(CompanionRequests.skills(current==null?"create":"edit",o.toString()));
             }
             awaitingSave=true;statusKey="friendai.menu.skills.sent";
         } catch(RuntimeException e) { statusKey="friendai.menu.skills.invalid"; }
@@ -126,18 +135,21 @@ final class SkillEditorScreen extends Screen {
     private void action(String operation) {
         if((operation.equals("delete")||operation.equals("reject"))&&!deleteArmed){deleteArmed=true;statusKey="friendai.menu.skills.confirm_delete";return;}
         JsonObject o=new JsonObject();o.addProperty("id",current.id());o.addProperty("expectedVersion",current.version());
-        awaitingAction=operation;CompanionRequests.skills(operation,o.toString());deleteArmed=false;
+        awaitingAction=operation;model.awaitResponse(CompanionRequests.skills(operation,o.toString()));deleteArmed=false;
     }
     @Override public void tick() {
         CompanionClientState.skillsView().ifPresent(v->{
-            model.onView(v);if(!v.statusKey().isEmpty())statusKey=v.statusKey();
-            if(v.ok()&&v.statusKey().equals("friendai.menu.skills.saved")) {
-                if(mode==Mode.SKILL&&v.detail()!=null&&(awaitingSave||!awaitingAction.isEmpty())) {
-                    current=v.detail();model.revert();awaitingSave=false;awaitingAction="";rebuildWidgets();
-                } else if(awaitingAction.equals("delete")||awaitingAction.equals("reject")) { awaitingAction="";onClose();return; }
-            }
+            model.onView(v);
             if(mode==Mode.DESCRIPTION&&!loaded){loaded=true;name.setValue(v.description().summary());body.setValue(v.description().details());language.setValue(v.ownerProfile().language());address.setValue(v.ownerProfile().address());}
-            if(mode==Mode.SKILL&&!v.exportText().isEmpty())minecraft.setScreenAndShow(transfer(parent,v.exportText()));
+        });
+        CompanionClientState.skillsResponse().filter(model::acceptResponse).ifPresent(v->{
+            statusKey=v.statusKey();
+            if(!v.ok()) { awaitingSave=false;awaitingAction="";return; }
+            if(awaitingAction.equals("delete")||awaitingAction.equals("reject")){awaitingAction="";onClose();return;}
+            if(awaitingAction.equals("export")){awaitingAction="";minecraft.setScreenAndShow(transfer(parent,v.exportText()));return;}
+            if(mode==Mode.SKILL&&v.detail()!=null&&(awaitingSave||!awaitingAction.isEmpty())) {
+                current=v.detail();awaitingSave=false;awaitingAction="";rebuildWidgets();
+            }
         });
     }
     @Override public void extractBackground(GuiGraphicsExtractor g,int mouseX,int mouseY,float partialTick) {
@@ -151,7 +163,7 @@ final class SkillEditorScreen extends Screen {
             if(mode==Mode.SKILL)g.text(font,Component.translatable("friendai.menu.skills.selection_hint"),left,92,Ui.DIM);
         }
         g.text(font,Component.translatable(mode==Mode.TRANSFER?"friendai.menu.skills.transfer_hint":mode==Mode.DESCRIPTION?"friendai.menu.description.details":"friendai.menu.skills.body"),left,bodyY-10,Ui.DIM);
-        if(current!=null&&mode==Mode.SKILL)g.text(font,Ui.clip(font,current.author()+" · "+java.time.Instant.ofEpochMilli(current.updatedAt())+" · v"+current.version()+" · "+current.activation(),w),left,height-68,Ui.DIM);
+        if(current!=null&&mode==Mode.SKILL)g.text(font,Ui.clip(font,(current.author()==null?SkillLabels.value("BUILTIN").getString():current.author().toString())+" · "+java.time.Instant.ofEpochMilli(current.updatedAt())+" · v"+current.version()+" · "+SkillLabels.value(current.activation().name()).getString(),w),left,height-68,Ui.DIM);
         if(!statusKey.isEmpty())g.text(font,Component.translatable(statusKey),left,height-(mode==Mode.SKILL?57:39),Ui.WARN);
     }
 }

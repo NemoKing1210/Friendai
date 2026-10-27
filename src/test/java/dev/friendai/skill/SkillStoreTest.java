@@ -9,6 +9,17 @@ import org.junit.jupiter.api.io.TempDir;
 class SkillStoreTest {
     @TempDir Path dir;
     final UUID owner = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    @Test void timestampsArePortableAndMalformedMetadataCannotLeakThroughErrors() {
+        var book=new SkillBook(SkillLimits.defaults(),s->s,InstructionSkill.Scope.COMPANION);
+        book.create(SkillDraft.simple("Time","Inspect facts."),InstructionSkill.Source.OWNER,owner,10,false);
+        var codec=new SkillFile(SkillLimits.defaults(),s->s,InstructionSkill.Scope.COMPANION);
+        String saved=codec.save(book);
+        var time=com.google.gson.JsonParser.parseString(saved).getAsJsonObject().getAsJsonArray("skills").get(0).getAsJsonObject().get("createdAt").getAsString();
+        assertEquals("1970-01-01T00:00:00.010Z",time);
+        assertEquals(10,codec.load(saved).snapshot().getFirst().createdAt());
+        var error=assertThrows(IllegalArgumentException.class,()->codec.load("{\"version\":\"private-value\"}"));
+        assertFalse(error.getMessage().contains("private-value"));
+    }
 
     @Test void editsRoundTripWithoutReusingIds() {
         String id;

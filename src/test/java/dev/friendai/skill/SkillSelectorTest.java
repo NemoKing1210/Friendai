@@ -35,9 +35,23 @@ class SkillSelectorTest {
     @Test void explicitToolDoesNotDuplicateBodyAcrossSteps() {
         var s=skill("owner:one",true,true,"Unique instruction.");
         var session=new SkillPromptSession(List.of(s),context(AccessLevel.OWNER,"hello"),24000,2400);
+        session.recordAssembly(session.sections().stream().map(dev.friendai.agent.prompt.PromptSection::id).toList());
         assertFalse(session.request(s.id()).error());
         assertFalse(session.request(s.id()).content().contains("Unique instruction."));
         assertEquals(1,session.sections().size());
+    }
+    @Test void explicitSkillDisplacesAutomaticSelectionAndCutSkillIsNotCalledActive() {
+        var automatic=skill("owner:a",true,true,"A".repeat(100));
+        var explicit=new InstructionSkill("owner:z","Other","","EXPLICIT_SENTINEL",true,automatic.scope(),automatic.source(),owner,
+                1,1,1,automatic.activation(),false,Set.of(InstructionSkill.Kind.COMBAT),List.of(),List.of(),false);
+        var session=new SkillPromptSession(List.of(automatic,explicit),context(AccessLevel.OWNER,"hello"),0,250);
+        session.recordAssembly(session.sections().stream().map(dev.friendai.agent.prompt.PromptSection::id).toList());
+        var result=session.request(explicit.id());
+        assertFalse(result.error());assertTrue(result.content().contains("EXPLICIT_SENTINEL"));
+        assertTrue(session.sections().isEmpty(),"the explicit result consumes the slice and evicts the automatic entry");
+        var cut=new SkillPromptSession(List.of(automatic),context(AccessLevel.OWNER,"hello"),0,250);
+        cut.recordAssembly(List.of());
+        assertTrue(cut.request(automatic.id()).content().contains("A".repeat(100)),"a preselected but cut entry must still be deliverable");
     }
     @Test void mandatorySectionsWinAndReportFinalCuts() {
         var mandatory=new SkillPromptSection("mandatory","M".repeat(300),Integer.MAX_VALUE);

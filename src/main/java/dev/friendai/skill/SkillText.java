@@ -10,6 +10,7 @@ public final class SkillText {
     private static final Pattern UNSAFE = Pattern.compile(
             "(?im)(```|^[ \\t]*(?:/|\\$ |powershell |cmd /|bash |curl |wget )|[a-z][a-z0-9+.-]*://|www\\.|"
             + "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b|\\b(?:api[_ -]?key|authorization|password|token|secret)\\s*[:=]|"
+            + "\\b(?:[a-z0-9-]+\\.)+[a-z]{2,63}\\b|(?<![a-z0-9])(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]{0,39}|"
             + "\\b(?:sk-[A-Za-z0-9_-]{12,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\b)");
     private SkillText() {}
     public static String body(String raw, UnaryOperator<String> redact) { return clean(raw, SkillLimits.BODY, true, redact); }

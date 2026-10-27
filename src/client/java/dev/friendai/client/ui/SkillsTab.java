@@ -15,6 +15,7 @@ final class SkillsTab implements MenuTab {
     private final List<Button> rows=new ArrayList<>();
     private final List<Button> actions=new ArrayList<>();
     private int offset,sourceFilter,scopeFilter,stateFilter;
+    private Button sourceButton,scopeButton,stateButton;
     private String selected="",deleteArmed="",lastExport="";
     private int right,width;
     static void open() { CompanionRequests.skills("open","{}"); }
@@ -27,11 +28,11 @@ final class SkillsTab implements MenuTab {
     @Override public void init(Host host,int left,int top,int width,int height) {
         this.width=width;this.right=left+Math.max(110,width/3)+8;rows.clear();actions.clear();
         int filterWidth=(width-8)/3;
-        host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_source"),b->{sourceFilter=(sourceFilter+1)%4;offset=0;})
+        sourceButton=host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_source"),b->{sourceFilter=(sourceFilter+1)%4;offset=0;})
                 .bounds(left,top,filterWidth,20).build());
-        host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_scope"),b->{scopeFilter=(scopeFilter+1)%3;offset=0;})
+        scopeButton=host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_scope"),b->{scopeFilter=(scopeFilter+1)%3;offset=0;})
                 .bounds(left+filterWidth+4,top,filterWidth,20).build());
-        host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_state"),b->{stateFilter=(stateFilter+1)%3;offset=0;})
+        stateButton=host.add(Button.builder(Component.translatable("friendai.menu.skills.filter_state"),b->{stateFilter=(stateFilter+1)%3;offset=0;})
                 .bounds(left+2*(filterWidth+4),top,filterWidth,20).build());
         int n=Math.max(1,(height-82)/23),listWidth=right-left-8;
         for(int i=0;i<n;i++) {
@@ -73,6 +74,9 @@ final class SkillsTab implements MenuTab {
     }
     @Override public void tick() {
         CompanionClientState.skillsView().ifPresent(model::onView);
+        sourceButton.setMessage(Component.translatable("friendai.menu.skills.filter_source_value",SkillLabels.value(switch(sourceFilter){case 1->"OWNER";case 2->"MODEL";case 3->"BUILTIN";default->"ALL";})));
+        scopeButton.setMessage(Component.translatable("friendai.menu.skills.filter_scope_value",SkillLabels.value(switch(scopeFilter){case 1->"COMPANION";case 2->"SERVER";default->"ALL";})));
+        stateButton.setMessage(Component.translatable("friendai.menu.skills.filter_state_value",SkillLabels.value(switch(stateFilter){case 1->"PENDING";case 2->"ON";default->"ALL";})));
         var list=filtered();offset=Math.clamp(offset,0,Math.max(0,list.size()-rows.size()));
         for(int i=0;i<rows.size();i++) {
             Button b=rows.get(i);int index=offset+i;b.visible=index<list.size();if(!b.visible)continue;
@@ -95,7 +99,7 @@ final class SkillsTab implements MenuTab {
             for(var line:font.split(Component.literal(detail.description()),Math.max(40,width-(right-left)))) {
                 if(y>top+height-72)break;g.text(font,line,right,y,Ui.TEXT);y+=font.lineHeight+1;
             }
-            if(y<top+height-72)g.text(font,Component.translatable("friendai.menu.skills.metadata",detail.source().name(),detail.activation().name(),detail.version()),right,y,Ui.DIM);
+            if(y<top+height-72)g.text(font,Component.translatable("friendai.menu.skills.metadata",SkillLabels.value(detail.source().name()),SkillLabels.value(detail.activation().name()),detail.version()),right,y,Ui.DIM);
         }
         if(!view.get().statusKey().isEmpty())g.text(font,Component.translatable(view.get().statusKey()),right,top+height-20,view.get().ok()?Ui.GOOD:Ui.BAD);
     }

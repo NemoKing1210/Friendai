@@ -21,14 +21,14 @@ final class SkillCommands {
         if(global)node.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS));
         node.then(Commands.literal("list").executes(ctx->{
             var p=ctx.getSource().getPlayerOrException();var s=FriendaiServerState.get(p.level().getServer()).skills();
-            String text=(global?s.store().global().snapshot():s.listed(p.getUUID())).stream()
+            String text=(global?s.globalListed():s.listed(p.getUUID())).stream()
                     .map(v->v.id()+" v"+v.version()+" "+v.name()).collect(java.util.stream.Collectors.joining("\n"));
             p.sendSystemMessage(Component.translatable("friendai.command.skills.result",text));return 1;
         }));
         node.then(Commands.literal("show").then(Commands.argument("id",StringArgumentType.word()).executes(ctx->{
             var p=ctx.getSource().getPlayerOrException();var service=FriendaiServerState.get(p.level().getServer()).skills();
             String id=StringArgumentType.getString(ctx,"id");
-            var found=(global?service.store().global().snapshot():service.listed(p.getUUID())).stream().filter(v->v.id().equals(id)).findFirst();
+            var found=(global?service.globalListed():service.listed(p.getUUID())).stream().filter(v->v.id().equals(id)).findFirst();
             p.sendSystemMessage(found.isPresent()?Component.translatable("friendai.command.skills.result",SkillTransfer.write(found.get()))
                     :Component.translatable("friendai.menu.skills.invalid"));return found.isPresent()?1:0;
         })));
