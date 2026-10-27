@@ -79,20 +79,15 @@ public final class StructureParts {
         Map<BlockSpec, PartKind> roles = new LinkedHashMap<>();
         EnumMap<PartKind, Integer> counts = new EnumMap<>(PartKind.class);
         for (BlockSpec spec : blueprint.blocks()) {
-            PartKind role;
             if (isAir(spec.state())) {
-                role = inside(spec, width, height, depth)
+                PartKind role = inside(spec, width, height, depth)
                                 && interior[spec.x()][spec.y()][spec.z()]
                         ? PartKind.INTERIOR
                         : PartKind.OTHER;
-                if (role == PartKind.INTERIOR) {
-                    // The volume below counts every interior cell once, listed or not.
-                    roles.put(spec, role);
-                    continue;
-                }
-            } else {
-                role = classify(grid, spec, interior, interiorTop, enclosed, lowestSolid, width, height, depth);
+                roles.put(spec, role);
+                continue;
             }
+            PartKind role = classify(grid, spec, interior, interiorTop, enclosed, lowestSolid, width, height, depth);
             roles.put(spec, role);
             counts.merge(role, 1, Integer::sum);
         }

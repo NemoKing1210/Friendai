@@ -355,7 +355,7 @@ public class BuildTests {
     }
 
     @GameTest(maxTicks = 400)
-    public void saveDataFormat(GameTestHelper h) {
+    public void saveDataFormat(GameTestHelper h) throws Exception {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
@@ -375,12 +375,14 @@ public class BuildTests {
         // A level-free restore cannot rebuild a build task; the in-progress file lives in the world.
         check(TaskFactory.restore(saved).isEmpty(), "a build needs a level");
 
-        BuildTask partial = new BuildTask(parse(EXAMPLE), origin, Rotation.CLOCKWISE_90, true, false,
-                Set.of(PartKind.WALLS));
+        BuildTask partial = new BuildTask(generator("""
+                { "type": "house", "width": 5, "depth": 5, "roof_style": "flat",
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
+                """), origin, Rotation.CLOCKWISE_90, true, false, Set.of(PartKind.FLOOR));
         String partialSaved = partial.saveData();
         String[] partialParts = partialSaved.split(",");
         equal(8, partialParts.length, "partial field count");
-        equal("walls", partialParts[7], "parts");
+        equal("floor", partialParts[7], "parts");
 
         String id = buildId(partialSaved);
         BlueprintStore store = store(h);
@@ -390,8 +392,16 @@ public class BuildTests {
             runner.start(partial, "build_structure");
             runner.tick();
             check(Files.exists(store.inProgressFile(id)), "the in-progress file must exist after the check");
-            Task restored = TaskFactory.restore(partialSaved, h.getLevel()).orElseThrow();
+            BlueprintStore.InProgress loaded = store.loadInProgress(id).orElse(null);
+            check(loaded != null, "the in-progress file must load: "
+                    + Files.readString(store.inProgressFile(id)));
+            equal(Rotation.CLOCKWISE_90, loaded.rotation(), "in-progress rotation");
+            Task restored = TaskFactory.restore(partialSaved, h.getLevel()).orElse(null);
+            check(restored != null, "the saved build must restore: " + partialSaved);
             equal(partialSaved, restored.saveData(), "save data round trip");
+            String corrupt = partialSaved.substring(0, partialSaved.lastIndexOf(',') + 1) + "nonsense";
+            check(TaskFactory.restore(corrupt, h.getLevel()).isEmpty(),
+                    "an unknown part must not restore the build");
         } finally {
             store.deleteInProgress(id);
             runner.stop("test");
@@ -941,6 +951,25 @@ public class BuildTests {
                     "the roof must use a temporary support and clean it: " + result.summary);
             h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
                     "scaffold dirt left behind at " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aPartSelectionThatMatchesNothingFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 15));
+        Blueprint wall = generator(
+                "{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(new BuildTask(wall, h.absolutePos(new BlockPos(4, 2, 6)), Rotation.NONE, true, false,
+                Set.of(PartKind.WALLS)), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("no walls"), result.summary);
         });
     }
 

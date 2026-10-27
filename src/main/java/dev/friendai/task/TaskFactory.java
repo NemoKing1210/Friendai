@@ -85,7 +85,11 @@ public final class TaskFactory {
             Set<PartKind> parts = new HashSet<>();
             if (p.length == 8 && !p[7].isBlank()) {
                 for (String name : p[7].split("\\+")) {
-                    PartKind.parse(name).ifPresent(parts::add);
+                    Optional<PartKind> kind = PartKind.parse(name);
+                    if (kind.isEmpty()) {
+                        return Optional.empty();
+                    }
+                    parts.add(kind.get());
                 }
             }
             Rotation rotation = Placement.rotationFor(facing);

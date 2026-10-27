@@ -61,6 +61,21 @@ class StructurePartsTest {
     }
 
     @Test
+    void listedAirIsNotCountedAsABlock() {
+        Blueprint wall = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone", "A": "minecraft:air" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [4,2,0], "block": "C" },
+                    { "op": "box", "from": [0,0,3], "to": [0,0,3], "block": "A" }
+                  ]
+                }
+                """);
+        String description = StructureParts.analyse(wall).describe();
+        assertTrue(description.contains("15 blocks"), description);
+    }
+
+    @Test
     void aWallHasNoInteriorOrRoof() {
         Blueprint wall = parse("""
                 {

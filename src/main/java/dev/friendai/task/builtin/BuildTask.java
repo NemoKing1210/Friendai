@@ -205,19 +205,24 @@ public final class BuildTask implements Task {
         this.adoptedScaffold = List.copyOf(adoptedScaffold);
     }
 
-    /**
-     * A task that resumes a build saved before a reload: same blueprint and placement, same file id, and the scaffold
-     * the earlier session left in the world. The check runs again, so blocks that are already correct are skipped.
-     */
-    public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
-            boolean gather, List<BlockPos> scaffold, String id) {
-        return resume(blueprint, origin, rotation, clearSite, gather, scaffold, id, Set.of());
-    }
-
     /** Resumes a partial build, keeping the parts it was asked for. */
     public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
             boolean gather, List<BlockPos> scaffold, String id, Set<PartKind> parts) {
         return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold, parts);
+    }
+
+    private static String partNames(Set<PartKind> parts) {
+        StringBuilder names = new StringBuilder();
+        for (PartKind kind : PartKind.values()) {
+            if (!parts.contains(kind)) {
+                continue;
+            }
+            if (names.length() > 0) {
+                names.append('/');
+            }
+            names.append(kind.id());
+        }
+        return names.toString();
     }
 
     /** A fresh file id: a UUID without dashes, so it is a legal, unique file name. */
@@ -312,6 +317,9 @@ public final class BuildTask implements Task {
                 ? blueprint
                 : new Blueprint(blueprint.name(), blueprint.width(), blueprint.height(), blueprint.depth(),
                         structure.cells(parts));
+        if (!parts.isEmpty() && buildPlan.blocks().isEmpty()) {
+            return fail(c, "the blueprint has no " + partNames(parts) + "; omit parts to build all of it");
+        }
         placed = Placement.at(buildPlan, origin, rotation);
         site = Site.check(level, placed, c.companion(), clearSite);
         // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as

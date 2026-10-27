@@ -113,6 +113,24 @@ public class ClearTests {
     }
 
     @GameTest(maxTicks = 600)
+    public void waterWithoutABucketIsLeftAndReported(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(3, 2, 3, Blocks.WATER);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(clear(h, 2, 2, 2, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.WATER),
+                    "the water must stay without a bucket");
+            h.assertTrue(result.summary.contains("no empty bucket"), result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
     public void aBlockEntityIsNeverCleared(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -143,7 +161,7 @@ public class ClearTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
                     "the stray block at 3,2,2: " + h.getBlockState(new BlockPos(3, 2, 2)));
-            h.assertTrue(result.summary.contains("block"), result.summary);
+            h.assertTrue(result.summary.contains("1 block"), result.summary);
         });
     }
 }
