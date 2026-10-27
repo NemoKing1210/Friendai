@@ -1,5 +1,6 @@
 package dev.friendai.place;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -185,6 +186,31 @@ public final class PlaceRegistry {
 
     public void markClean() {
         dirty = false;
+    }
+
+    /** An immutable file view of this registry, in id order. */
+    public PlaceFile snapshot() {
+        List<PlaceFile.Record> records = new ArrayList<>(byId.size());
+        for (Place place : byId.values()) {
+            records.add(PlaceFile.Record.of(place));
+        }
+        return new PlaceFile(nextId, records);
+    }
+
+    /**
+     * Rebuilds a registry from a file. The file is validated first; ids and {@code nextId} are taken as stored, so
+     * a remembered place can never reuse an id. The restored book starts clean, like a freshly loaded one.
+     */
+    public static PlaceRegistry restore(PlaceFile file, PlaceLimits limits) {
+        Objects.requireNonNull(file, "file");
+        Objects.requireNonNull(limits, "limits");
+        PlaceRegistry registry = new PlaceRegistry(limits);
+        for (Place place : file.validated(limits)) {
+            registry.byId.put(place.id(), place);
+            registry.addKeys(place);
+        }
+        registry.nextId = file.nextId();
+        return registry;
     }
 
     private Place require(long id) {
