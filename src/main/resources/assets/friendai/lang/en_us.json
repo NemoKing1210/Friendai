@@ -124,7 +124,7 @@
   "friendai.config.models_loaded": "Loaded %s models",
   "friendai.config.test_connection": "Test connection",
   "friendai.config.companion.name": "Name",
-  "friendai.config.companion.persona": "Personality",
+  "friendai.config.companion.description": "Description",
   "friendai.config.companion.language": "Reply language",
   "friendai.config.companion.language.tooltip": "\"auto\" means the language the player writes in.",
   "friendai.config.chat.prefix": "Prefix",

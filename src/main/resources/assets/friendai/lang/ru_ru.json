@@ -124,7 +124,7 @@
   "friendai.config.models_loaded": "Загружено моделей: %s",
   "friendai.config.test_connection": "Проверить соединение",
   "friendai.config.companion.name": "Имя",
-  "friendai.config.companion.persona": "Характер",
+  "friendai.config.companion.description": "Описание",
   "friendai.config.companion.language": "Язык ответов",
   "friendai.config.companion.language.tooltip": "«auto» — язык, на котором пишет игрок.",
   "friendai.config.chat.prefix": "Префикс",

@@ -705,7 +705,7 @@ public final class BrainService {
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
-                        memory.book(owner).persona().orElse(config.companion.persona),
+                        memory.book(owner).persona().orElse(config.companion.description),
                         config.companion.language),
                 () -> new BrainSettings(
                         config.brain.maxToolStepsPerTurn,

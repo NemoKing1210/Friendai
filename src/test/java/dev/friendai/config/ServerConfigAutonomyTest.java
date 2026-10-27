@@ -14,7 +14,6 @@ import org.junit.jupiter.api.io.TempDir;
 class ServerConfigAutonomyTest {
     @Test
     void defaultsMatchSpec() {
-        assertEquals(12, ServerConfig.VERSION);
         assertEquals(AutonomySettings.DEFAULTS, new ServerConfig().autonomy.toSettings());
     }
 
@@ -60,6 +59,6 @@ class ServerConfigAutonomyTest {
         ServerConfig loaded = new ConfigStore<>(temp.resolve("c.json"), ServerConfig.class,
                 ServerConfig::new, ServerConfig.VERSION, ServerConfig::migrate).load();
         assertEquals(AutonomySettings.DEFAULTS, loaded.autonomy.toSettings());
-        assertEquals(12, loaded.version);
+        assertEquals(ServerConfig.VERSION, loaded.version);
     }
 }

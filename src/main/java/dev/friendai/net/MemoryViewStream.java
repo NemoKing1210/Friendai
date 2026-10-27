@@ -107,7 +107,7 @@ public final class MemoryViewStream {
                 state.config().memory.enabled,
                 state.config().memory.limits(),
                 status,
-                state.config().companion.persona);
+                state.config().companion.description);
         if (ServerPlayNetworking.canSend(player, MemoryViewS2CPayload.TYPE)) {
             ServerPlayNetworking.send(player, new MemoryViewS2CPayload(
                     MemoryViewCodec.encodeFitting(view, MemoryViewS2CPayload.MAX_BYTES)));

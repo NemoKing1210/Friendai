@@ -41,7 +41,7 @@ class PersonaPresetsTest {
     void friendlyIsTheServerDefault() {
         PersonaPresets.Preset first = PersonaPresets.all().get(0);
         assertEquals("friendly", first.id());
-        assertEquals(new ServerConfig.CompanionSection().persona, first.text());
+        assertEquals(new ServerConfig.CompanionSection().description, first.text());
     }
 
     @Test

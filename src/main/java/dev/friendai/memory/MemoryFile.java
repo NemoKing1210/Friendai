@@ -5,12 +5,14 @@ import java.util.List;
 
 /** The on-disk shape of a memory file. Gson POJO; keep field names stable for old saves. */
 public final class MemoryFile {
-    public int version = 3;
+    public int version = 4;
     public int nextId = 1;
     /** The name the owner gave their companion; null means the configured default. */
     public String companionName;
     /** The personality the owner gave their companion; null means the configured default. */
-    public String persona;
+    public String persona; // Legacy read-only field, absent in new saves.
+    public CompanionDescription description;
+    public OwnerProfile ownerProfile;
     /** The encoded goal board ({@code goals:v1:...}); null means no goals. */
     public String goals;
     /** The encoded free-time state ({@code freetime:v1:...}); null means free time was never used. */

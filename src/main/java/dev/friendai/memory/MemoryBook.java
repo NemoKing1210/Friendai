@@ -22,7 +22,8 @@ public final class MemoryBook {
     /** The name the owner gave the companion; null means the configured default applies. */
     private String companionName;
     /** The personality the owner gave the companion; null means the configured default applies. */
-    private String persona;
+    private CompanionDescription description = CompanionDescription.EMPTY;
+    private OwnerProfile ownerProfile = OwnerProfile.EMPTY;
     /** The encoded goal board; null when there are no goals. */
     private String goals;
     /** The encoded free-time state; null when free time was never used. */
@@ -135,7 +136,7 @@ public final class MemoryBook {
 
     /** The personality the owner gave the companion, or empty when the configured default still applies. */
     public Optional<String> persona() {
-        return Optional.ofNullable(persona);
+        return description.summary().isEmpty() ? Optional.empty() : Optional.of(description.summary());
     }
 
     /**
@@ -147,10 +148,10 @@ public final class MemoryBook {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Invalid persona. Use 1-" + PersonaText.MAX_LENGTH
                                 + " characters, without formatting codes."));
-        if (normalized.equals(persona)) {
+        if (normalized.equals(description.summary())) {
             return false;
         }
-        persona = normalized;
+        description = new CompanionDescription(normalized, description.details());
         dirty = true;
         revision++;
         return true;
@@ -192,10 +193,10 @@ public final class MemoryBook {
 
     /** Returns to the configured default. True when a personality was set. */
     public boolean clearPersona() {
-        if (persona == null) {
+        if (description.summary().isEmpty()) {
             return false;
         }
-        persona = null;
+        description = new CompanionDescription("", description.details());
         dirty = true;
         revision++;
         return true;
@@ -399,11 +400,33 @@ public final class MemoryBook {
         dirty = false;
     }
 
+    public CompanionDescription description() { return description; }
+    public OwnerProfile ownerProfile() { return ownerProfile; }
+
+    public boolean setDescription(CompanionDescription value) {
+        java.util.Objects.requireNonNull(value);
+        if (value.equals(description)) return false;
+        description = value;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    public boolean setOwnerProfile(OwnerProfile value) {
+        java.util.Objects.requireNonNull(value);
+        if (value.equals(ownerProfile)) return false;
+        ownerProfile = value;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
     public MemoryFile toFile() {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
         file.companionName = companionName;
-        file.persona = persona;
+        file.description = description;
+        file.ownerProfile = ownerProfile;
         file.goals = goals;
         file.freeTime = freeTime;
         for (Fact fact : facts.values()) {
@@ -439,7 +462,16 @@ public final class MemoryBook {
         MemoryBook book = new MemoryBook();
         if (file != null) {
             CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
-            PersonaText.parse(file.persona).ifPresent(text -> book.persona = text);
+            if (file.description != null) {
+                try { book.description = new CompanionDescription(file.description.summary(), file.description.details()); }
+                catch (IllegalArgumentException ignored) { /* Keep other memory when description is malformed. */ }
+            } else {
+                PersonaText.parse(file.persona).ifPresent(text -> book.description = new CompanionDescription(text, ""));
+            }
+            if (file.ownerProfile != null) {
+                try { book.ownerProfile = new OwnerProfile(file.ownerProfile.language(), file.ownerProfile.address()); }
+                catch (IllegalArgumentException ignored) { /* Keep unrelated memory. */ }
+            }
             if (file.goals != null && !file.goals.isBlank()) {
                 book.goals = file.goals;
             }

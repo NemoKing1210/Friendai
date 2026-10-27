@@ -319,7 +319,7 @@ public final class FriendaiConfigScreen {
         return ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.companion"))
                 .option(stringOption("friendai.config.companion.name", () -> c.name, "Friendai", v -> c.name = v.isBlank() ? "Friendai" : v.strip()))
-                .option(stringOption("friendai.config.companion.persona", () -> c.persona, c.persona, v -> c.persona = v))
+                .option(stringOption("friendai.config.companion.description", () -> c.description, c.description, v -> c.description = v))
                 .option(Option.<String>createBuilder()
                         .name(tr("friendai.config.companion.language"))
                         .description(OptionDescription.of(tr("friendai.config.companion.language.tooltip")))

@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 12;
+    public static final int VERSION = 13;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -30,6 +30,18 @@ public class ServerConfig {
     public StructuresSection structures = new StructuresSection();
     public AgentSection agent = new AgentSection();
     public AutonomySection autonomy = new AutonomySection();
+    public SkillsSection skills = new SkillsSection();
+
+    public static class SkillsSection {
+        public boolean enabled = true;
+        public int promptBudget = 2400;
+        public boolean requireApproval = true;
+        public int modelWritesPerHour = 6;
+        public int writesPerOutcome = 2;
+        public int ownerCount = 64;
+        public int serverCount = 32;
+        public int totalChars = 96_000;
+    }
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -43,7 +55,7 @@ public class ServerConfig {
 
     public static class CompanionSection {
         public String name = "Friendai";
-        public String persona = "A friendly and resourceful Minecraft companion. Keeps answers short and helpful.";
+        public String description = "A friendly and resourceful Minecraft companion. Keeps answers short and helpful.";
         public String language = "auto";
         public ChunkLoadingSection chunkLoading = new ChunkLoadingSection();
     }
@@ -215,6 +227,13 @@ public class ServerConfig {
      * Trading settings use defaults when absent, including for older configurations.
      */
     public static JsonObject migrate(JsonObject json, int from) {
+        if (from < 13 && json.has("companion") && json.get("companion").isJsonObject()) {
+            JsonObject companion = json.getAsJsonObject("companion");
+            if (!companion.has("description") && companion.has("persona")) {
+                companion.add("description", companion.get("persona"));
+            }
+            companion.remove("persona");
+        }
         if (from < 8) {
             JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
                     ? json.getAsJsonObject("tasks")
@@ -244,6 +263,13 @@ public class ServerConfig {
     /** Fills missing sections and clamps ranges. Returns English descriptions of what was fixed, for the log. */
     public List<String> validate() {
         List<String> problems = new ArrayList<>();
+        if (skills == null) skills = new SkillsSection();
+        skills.promptBudget = clamp(problems, "skills.promptBudget", skills.promptBudget, 200, 6000);
+        skills.modelWritesPerHour = clamp(problems, "skills.modelWritesPerHour", skills.modelWritesPerHour, 0, 60);
+        skills.writesPerOutcome = clamp(problems, "skills.writesPerOutcome", skills.writesPerOutcome, 0, 2);
+        skills.ownerCount = clamp(problems, "skills.ownerCount", skills.ownerCount, 1, 64);
+        skills.serverCount = clamp(problems, "skills.serverCount", skills.serverCount, 1, 32);
+        skills.totalChars = clamp(problems, "skills.totalChars", skills.totalChars, 4000, 96_000);
         if (profiles == null) {
             profiles = new LinkedHashMap<>();
             problems.add("profiles was missing");
