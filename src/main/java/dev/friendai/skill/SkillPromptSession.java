@@ -1,0 +1,54 @@
+package dev.friendai.skill;
+
+import dev.friendai.agent.prompt.PromptSection;
+import dev.friendai.brain.Persona;
+import dev.friendai.tool.*;
+import java.util.*;
+
+/** One immutable book snapshot with bounded explicit tool activations. */
+public final class SkillPromptSession {
+    public static final SkillPromptSession NONE=new SkillPromptSession(List.of(),null,0,0);
+    private final List<InstructionSkill> snapshot;
+    private final SkillContext context;
+    private final int agentBudget,cap;
+    private final Set<String> delivered=new HashSet<>();
+    private int deliveredChars;
+    public SkillPromptSession(List<InstructionSkill> snapshot,SkillContext context,int agentBudget,int cap) {
+        this.snapshot=List.copyOf(snapshot);this.context=context;this.agentBudget=agentBudget;this.cap=cap;
+    }
+    public List<PromptSection> sections() {
+        if(context==null)return List.of();
+        int remaining=SkillSelector.budget(agentBudget,cap)-deliveredChars;
+        SkillSelection selection=SkillSelector.select(snapshot.stream().filter(s->!delivered.contains(s.id())).toList(),
+                context,Set.of(),0,remaining);
+        List<PromptSection> out=new ArrayList<>();
+        int priority=30;
+        for(var s:selection.skills())out.add(new SkillPromptSection("skill:"+s.id(),SkillSelector.render(s),priority--));
+        String details=context.description().details();
+        boolean include=context.caller().access()==AccessLevel.OWNER
+                &&(SkillSelector.normalize(context.message()).contains("profile")||selection.skills().stream().anyMatch(InstructionSkill::includeProfile));
+        String profile="Description details:\n"+details;
+        if(include&&!details.isBlank()&&profile.length()+1<=remaining-selection.renderedChars())out.add(new SkillPromptSection("skill:profile",profile,10));
+        return List.copyOf(out);
+    }
+    public ToolResult request(String id) {
+        if(context==null||context.caller().access()!=AccessLevel.OWNER)return ToolResult.error("Skill access denied.");
+        var found=snapshot.stream().filter(s->s.id().equals(id)&&SkillSelector.eligible(s,context)).findFirst();
+        if(found.isEmpty())return ToolResult.error("Skill is unavailable.");
+        if(delivered.contains(id)||sections().stream().anyMatch(s->s.id().equals("skill:"+id)))return ToolResult.ok("Skill is already active this turn.");
+        String text=SkillSelector.render(found.get());
+        int occupied=sections().stream().mapToInt(s->((SkillPromptSection)s).text().length()+1).sum();
+        if(text.length()+1>SkillSelector.budget(agentBudget,cap)-deliveredChars-occupied)return ToolResult.error("Skill does not fit this turn's instruction budget.");
+        delivered.add(id);deliveredChars+=text.length()+1;
+        return ToolResult.ok(text);
+    }
+    public Persona persona(Persona base) {
+        if(context==null||context.caller().access()!=AccessLevel.OWNER)return base;
+        String language=base.language();
+        if("auto".equals(language)&&!"auto".equals(context.ownerProfile().language()))language=context.ownerProfile().language();
+        return new Persona(base.name(),base.description(),language);
+    }
+    public String ownerAddress() {
+        return context!=null&&context.caller().access()==AccessLevel.OWNER?context.ownerProfile().address():"";
+    }
+}
