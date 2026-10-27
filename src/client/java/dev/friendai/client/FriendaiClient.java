@@ -8,8 +8,10 @@ import dev.friendai.client.ui.CompanionClientState;
 import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.net.CompanionSnapshotS2CPayload;
 import dev.friendai.net.CompanionSpeechS2CPayload;
+import dev.friendai.net.PlacesViewS2CPayload;
 import dev.friendai.net.PromptS2CPayload;
 import dev.friendai.net.SkinS2CPayload;
+import dev.friendai.place.PlaceViewCodec;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.debug.MovementDebugRenderer;
@@ -92,6 +94,15 @@ public class FriendaiClient implements ClientModInitializer {
                     } catch (IllegalArgumentException e) {
                         // Keep the last good view: a bad packet must not empty the tab.
                         FriendaiMod.LOGGER.warn("Dropping a malformed memory view: {}", e.getMessage());
+                    }
+                }));
+        ClientPlayNetworking.registerGlobalReceiver(PlacesViewS2CPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> {
+                    try {
+                        CompanionClientState.onPlaceView(PlaceViewCodec.decode(payload.data()));
+                    } catch (IllegalArgumentException e) {
+                        // Keep the last good view: a bad packet must not empty the tab.
+                        FriendaiMod.LOGGER.warn("Dropping a malformed places view: {}", e.getMessage());
                     }
                 }));
         ClientPlayNetworking.registerGlobalReceiver(MovementDebugS2CPayload.TYPE, (payload, context) ->

@@ -27,6 +27,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry control = new Entry("friendai.menu.tab.control", new ControlTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
+    private final Entry places = new Entry("friendai.menu.tab.places", new PlacesTab());
     private final Entry appearance = new Entry("friendai.menu.tab.appearance", new AppearanceTab());
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
@@ -57,6 +58,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         CompanionRequests.send(RequestType.UNSUBSCRIBE);
         if (selected == memory) {
             CompanionRequests.send(RequestType.MEMORY_CLOSE);
+        }
+        if (selected == places) {
+            CompanionRequests.send(RequestType.PLACES_CLOSE);
         }
     }
 
@@ -94,7 +98,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, appearance));
+        List<Entry> tabs = new ArrayList<>(List.of(control, tasks, memory, places, appearance));
         if (operator()) {
             tabs.add(log);
             tabs.add(debug);
@@ -109,9 +113,15 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (selected == memory) {
             CompanionRequests.send(RequestType.MEMORY_CLOSE);
         }
+        if (selected == places) {
+            CompanionRequests.send(RequestType.PLACES_CLOSE);
+        }
         selected = entry;
         if (entry == memory) {
             CompanionRequests.send(RequestType.MEMORY_OPEN);
+        }
+        if (entry == places) {
+            CompanionRequests.send(RequestType.PLACES_OPEN);
         }
         rebuildWidgets();
     }
