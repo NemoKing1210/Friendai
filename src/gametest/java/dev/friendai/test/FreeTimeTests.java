@@ -353,6 +353,33 @@ public class FreeTimeTests {
     }
 
     @GameTest(maxTicks = 600)
+    public void awayLinesWaitForTheOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container full = chest(h, 6, 2, 6);
+        for (int i = 0; i < full.getContainerSize(); i++) {
+            full.setItem(i, new ItemStack(Items.TUFF, 64));
+        }
+        UUID owner = UUID.randomUUID();
+        CompanionEntity c = registered(h, owner);
+        storagePlace(h, c, "away chest", 6, 2, 6, 2);
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 5));
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        shiftPlan(h, c, "[{\"tool\":\"deposit_items\",\"args\":\"{\\\"place\\\":\\\"away chest\\\"}\"}]");
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null, "the failed shift ends");
+            h.assertTrue(state.history().get(0).summary().contains("storage is full"), "record: " + state.history());
+            h.assertTrue(state.cooldownUntil().containsKey(dev.friendai.agent.autonomy.NeedKind.EXPLORE),
+                    "the need cools down");
+            h.assertTrue(state.lessons().isEmpty(), "a template failing teaches the director nothing");
+            h.assertTrue(state.away().stream().anyMatch(line -> !line.isBlank()),
+                    "the line waits for the offline owner: " + state.away());
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(6, 2, 6, Blocks.CHEST);

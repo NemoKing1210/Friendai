@@ -136,6 +136,11 @@ public final class BrainService {
         return plannerFor(owner).propose(input);
     }
 
+    /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
+    void ensureBrain(UUID owner) {
+        entryFor(owner);
+    }
+
     /** Runs on the server thread, the way late brain work hops back. */
     void onServerThread(Runnable task) {
         scheduler.execute(task);
@@ -401,7 +406,8 @@ public final class BrainService {
                 continue;
             }
             var primary = goals.board(owner).primary();
-            Entry brain = entries.get(owner);
+            // Free time needs the task listener a brain installs, even before the owner has said anything.
+            Entry brain = freeTime.state(owner).on() ? entryFor(owner).orElse(null) : entries.get(owner);
             try {
                 freeTime.tick(owner, companion, brain != null && brain.brain().isThinking(),
                         primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,

@@ -19,6 +19,7 @@ import dev.friendai.agent.autonomy.ReflexStep;
 import dev.friendai.agent.autonomy.Shift;
 import dev.friendai.agent.autonomy.ShiftBudget;
 import dev.friendai.agent.autonomy.ShiftInputs;
+import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.brain.AgentSettings.Autonomy;
 import dev.friendai.config.ServerConfig;
@@ -66,6 +67,7 @@ public final class FreeTimeDriver {
     private final Map<String, TaskToolDef> planTools;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
     private final Set<UUID> planning = new java.util.HashSet<>();
+    private final Map<UUID, String> stageAtStart = new HashMap<>();
     private final AutonomyFactsBuilder facts = new AutonomyFactsBuilder();
     private final Map<UUID, ShiftBudget> budgets = new HashMap<>();
     private final Map<UUID, Long> lastOwnerActivity = new HashMap<>();
@@ -114,6 +116,7 @@ public final class FreeTimeDriver {
             lastOwnerActivity.put(owner, now - config.get().autonomy.resumeAfterSec * 1000L);
         }
         facts.invalidate(owner);
+        brains.ensureBrain(owner); // its task listener reports how free-time plans end
         return service().start(owner, origin, wish, now);
     }
 
@@ -169,16 +172,35 @@ public final class FreeTimeDriver {
         companion.taskRunner().unmarkAutonomousPlan(planId);
         long now = now();
         Shift shift = service().state(owner).shift();
-        service().finishShift(owner, success, summary, now);
         facts.invalidate(owner);
-        if (!success) {
-            AutonomySettings s = config.get().autonomy.toSettings();
-            service().cooldown(owner, shift.need(), now + s.failCooldownMin() * 60_000L);
-            if (summary != null && summary.contains("storage is full")) {
-                tell(owner, companion, UserMessage.of("friendai.freetime.storage_full"));
+        String stageAfter = ProgressionLadder.evaluate(facts.build(companion, owner, now)).stage();
+        String diagnosis = success ? "" : new dev.friendai.agent.recover.RecoveryAdvisor()
+                .diagnose("", summary == null ? "" : summary, Set.of()).line();
+        // A reflex has no recorded start stage, so it never reports a new stage on its own.
+        ShiftOutcome.Result outcome = ShiftOutcome.of(shift, success, summary,
+                stageAtStart.getOrDefault(owner, stageAfter), stageAfter, diagnosis, now,
+                config.get().autonomy.toSettings());
+        service().finishShift(owner, outcome.record().success(), outcome.record().summary(), now);
+        outcome.lesson().ifPresent(lesson -> service().addLesson(owner, lesson));
+        outcome.cooldownUntil().ifPresent(until -> service().cooldown(owner, shift.need(), until));
+        if (!shift.reflex()) {
+            if (success) {
+                budget(owner).succeeded();
+            } else if (outcome.cooldownUntil().isPresent()) {
+                budget(owner).failed();
             }
         }
+        outcome.notable().ifPresent(stage ->
+                tell(owner, companion, UserMessage.of("friendai.freetime.stage_reached", stage)));
+        if (!success && summary != null && summary.contains("storage is full")) {
+            tell(owner, companion, UserMessage.of("friendai.freetime.storage_full"));
+        }
         return true;
+    }
+
+    /** Remembers the ladder stage a shift starts from, so its end can tell whether it moved up. */
+    private void markStart(UUID owner, AutonomyFacts f) {
+        stageAtStart.put(owner, ProgressionLadder.evaluate(f).stage());
     }
 
     /** One owner's free time, once a second. */
@@ -278,11 +300,13 @@ public final class FreeTimeDriver {
         long now = now();
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
-        NeedKind need = NeedsAssessor.assess(facts.build(companion, owner, now), state, s).stream()
+        AutonomyFacts f = facts.build(companion, owner, now);
+        NeedKind need = NeedsAssessor.assess(f, state, s).stream()
                 .filter(n -> n.executor() == dev.friendai.agent.autonomy.Executor.DIRECTOR)
                 .map(Need::kind)
                 .findFirst()
                 .orElse(NeedKind.EXPLORE);
+        markStart(owner, f);
         Shift shift = service().beginShift(owner, goal, criteria, why, need, false, now, now + length * 60_000L)
                 .shift();
         awaitingSince.remove(owner);
@@ -371,6 +395,7 @@ public final class FreeTimeDriver {
             service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
             return;
         }
+        stageAtStart.remove(owner);
         service().beginShift(owner, need.text(), List.of(), "", need.kind(), true, nowMillis,
                 nowMillis + minutes * 60_000L);
         service().linkPlan(owner, plan.get());

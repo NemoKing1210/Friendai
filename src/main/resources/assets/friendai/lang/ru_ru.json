@@ -34,6 +34,7 @@
   "friendai.freetime.idle_start": "Раз дел нет, займусь пока своими.",
   "friendai.freetime.storage_full": "Склад забит, нужны ещё сундуки.",
   "friendai.freetime.away": "Пока тебя не было: %s",
+  "friendai.freetime.stage_reached": "Я дорос до этапа %s.",
   "friendai.command.status": "Провайдер: %s / %s. Задача: %s. Думает: %s.",
   "friendai.common.yes": "да",
   "friendai.common.no": "нет",
