@@ -34,6 +34,36 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
+    @GameTest(maxTicks = 1200)
+    public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 24);
+        for (int x = 0; x < 24; x++) {
+            for (int z = 0; z < 24; z++) {
+                for (int y = 194; y < 199; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        var owner = GameTestSupport.mockPlayerAt(h, 10, 201, 10);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        companion.inventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
+        companion.inventory().setItem(2, new ItemStack(Items.STICK, 2));
+        var caller = new dev.friendai.tool.Caller(owner.getUUID(), owner.getName().getString(),
+                dev.friendai.tool.AccessLevel.OWNER);
+        Result result = new Result();
+        TaskRunner runner = obtain(companion, result, new ObtainTask("minecraft:stone_pickaxe", 1, false, true,
+                40, 1100, 64, 128, 800, "local", caller));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "caller-aware obtain should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(dev.friendai.task.inventory.InventoryOps.count(companion.inventory(),
+                    dev.friendai.task.inventory.ItemMatcher.parse("minecraft:stone_pickaxe").orElseThrow()) > 0,
+                    "the companion must actually craft a stone pickaxe from the buried stone");
+        });
+    }
+
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;

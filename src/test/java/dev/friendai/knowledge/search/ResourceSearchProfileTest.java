@@ -9,6 +9,13 @@ import org.junit.jupiter.api.Test;
 
 class ResourceSearchProfileTest {
     @Test
+    void stoneCanBeSearchedByExcavatingWithoutInventingAnAbsoluteDepth() {
+        var profile = ResourceSearchProfile.builtin("minecraft:stone", "minecraft:overworld");
+        assertTrue(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.MINE));
+        assertTrue(profile.targetY().isEmpty());
+    }
+
+    @Test
     void strategyAndDimensionMustBePermitted() {
         var profile = new ResourceSearchProfile("minecraft:diamond", Set.of("minecraft:overworld"),
                 OptionalInt.of(-58), Set.of(ResourceSearchProfile.Strategy.CAVE));

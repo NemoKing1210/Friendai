@@ -23,6 +23,37 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceSearchTests {
+    @GameTest(maxTicks = 800)
+    public void woodenPickaxeFindsStoneUnderDirtWithoutTorches(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 24);
+        for (int x = 0; x < 24; x++) {
+            for (int z = 0; z < 24; z++) {
+                for (int y = 194; y < 199; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        var owner = GameTestSupport.mockPlayerAt(h, 10, 201, 10);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
+        Result result = new Result();
+        companion.taskRunner().setListener(result);
+        var started = tools().bind(companion).execute(searchCall("minecraft:stone", "auto", "local"),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(result.status != null, "shallow stone search should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("found"), result.summary);
+            h.assertTrue(companion.blockPosition().getY() < h.absolutePos(new BlockPos(10, 201, 10)).getY(),
+                    "search must excavate beneath the dirt rather than wait on the surface");
+            var sessions = FriendaiServerState.get(h.getLevel().getServer()).knowledge().book(owner.getUUID())
+                    .searchLedger().snapshot();
+            h.assertTrue(sessions.size() == 1 && sessions.getFirst().excavationBlocks() > 0,
+                    "successful search must account for excavation in its bounded session");
+        });
+    }
+
     @GameTest(maxTicks = 40)
     public void trustedCannotEscalateToExpedition(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

@@ -20,11 +20,18 @@ public record ResourceSearchProfile(String family, Set<String> dimensions, Optio
                 && (strategies.contains(Strategy.AUTO) || strategies.contains(strategy));
     }
 
+    /** Stone for the first tools needs a shallow quarry, not an ore expedition. */
+    public boolean shallowStone() {
+        return family.equals("minecraft:stone");
+    }
+
     /** Conservative built-in policy; a catalogued target Y is a hint, not an optimality claim. */
     public static ResourceSearchProfile builtin(String family, String dimension) {
         OptionalInt depth = OreDepths.depthFor(family);
         Set<Strategy> allowed;
-        if (depth.isPresent()) {
+        if (family.equals("minecraft:stone") && dimension.equals("minecraft:overworld")) {
+            allowed = Set.of(Strategy.MINE);
+        } else if (depth.isPresent()) {
             allowed = family.equals("minecraft:coal") || family.equals("minecraft:raw_iron")
                     ? Set.of(Strategy.SURFACE, Strategy.CAVE, Strategy.MINE)
                     : Set.of(Strategy.CAVE, Strategy.MINE);

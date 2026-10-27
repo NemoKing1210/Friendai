@@ -103,7 +103,8 @@ public final class ResourceSearchDriver implements Task {
                 session.interrupt();
             } else {
                 miningSearch = new ExploreTask(targetMatcher(), true,
-                        profile.targetY().orElse(context.level().getMinY() + 16),
+                        profile.shallowStone() ? origin.y() - 8
+                                : profile.targetY().orElse(context.level().getMinY() + 16),
                         session.snapshot().limits().radius(), remainingExcavation,
                         (int) Math.min(Integer.MAX_VALUE,
                                 session.snapshot().limits().ticks() - session.snapshot().spentTicks()));

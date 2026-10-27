@@ -86,20 +86,23 @@ public final class SearchResourceTask implements Task {
             summary = "not ready for resource search: need food and at least two free inventory slots";
             return;
         }
-        if (strategy == ResourceSearchProfile.Strategy.MINE && !miningReady(context, resolved.blockIds())) {
-            summary = "not ready for mining search: need a suitable durable pickaxe and 16 torches";
+        boolean shallow = profile.shallowStone();
+        if (strategy == ResourceSearchProfile.Strategy.MINE && !miningReady(context, resolved.blockIds(), shallow)) {
+            summary = shallow ? "not ready for shallow stone search: need a suitable pickaxe with 24 durability"
+                    : "not ready for mining search: need a suitable durable pickaxe and 16 torches";
             return;
         }
 
         int radius = expedition ? policy.expeditionRadius : policy.localRadius;
         int ticks = expedition ? policy.expeditionTicks : policy.localTicks;
-        SearchSession.Limits requested = new SearchSession.Limits(radius, radius * 4.0, ticks, 128);
+        int excavationLimit = shallow ? 24 : 128;
+        SearchSession.Limits requested = new SearchSession.Limits(radius, radius * 4.0, ticks, excavationLimit);
         Pos origin = position(context);
         long logicalTick = context.level().getServer().overworld().getGameTime();
         session = serverState.knowledge().book(owner).searchLedger().acquire(owner,
                 context.level().dimension().identifier().toString(), family,
                 logicalTick, requested, origin);
-        session.clampLimits(new SearchSession.Limits(radius, radius * 4.0, ticks, 128));
+        session.clampLimits(requested);
         driver = new ResourceSearchDriver(session, profile, resolved.blockIds(), radius, expedition, strategy, heading,
                 caveEntrance);
         ownerId = owner;
@@ -151,7 +154,7 @@ public final class SearchResourceTask implements Task {
         return empty >= 2;
     }
 
-    private static boolean miningReady(TaskContext context, Set<String> blockIds) {
+    private static boolean miningReady(TaskContext context, Set<String> blockIds, boolean shallow) {
         int torches = 0;
         boolean pickaxe = false;
         java.util.List<ItemStack> equipment = new java.util.ArrayList<>();
@@ -168,8 +171,8 @@ public final class SearchResourceTask implements Task {
                 return id != null && BuiltInRegistries.BLOCK.containsKey(id)
                         && stack.getDestroySpeed(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState()) > 1.0F;
             });
-            if (remaining >= 160 && speedsTargets) pickaxe = true;
+            if (remaining >= (shallow ? 24 : 160) && speedsTargets) pickaxe = true;
         }
-        return pickaxe && torches >= 16;
+        return pickaxe && (shallow || torches >= 16);
     }
 }
