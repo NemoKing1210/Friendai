@@ -69,6 +69,48 @@ public final class PcmConverter {
         return out;
     }
 
+    /**
+     * Interleaves a mono slice into stereo while ramping each channel's gain from its start value to its
+     * end value across the slice, so a pan that moves glides between blocks instead of stepping. Whole
+     * samples only: a trailing odd byte in the slice is ignored.
+     */
+    public static byte[] toStereoRamped(
+            byte[] pcm16le, int offset, int length,
+            double leftStart, double rightStart, double leftEnd, double rightEnd) {
+        int start = Math.max(0, offset);
+        int end = Math.min(pcm16le.length, start + Math.max(0, length));
+        int usable = (end - start) & ~1;
+        int samples = usable / 2;
+        byte[] out = new byte[usable * 2];
+        for (int i = 0; i < samples; i++) {
+            int sample = (short) ((pcm16le[start + 2 * i] & 0xFF) | (pcm16le[start + 2 * i + 1] << 8));
+            double progress = (double) i / samples;
+            int left = scaled(sample, leftStart + (leftEnd - leftStart) * progress);
+            int right = scaled(sample, rightStart + (rightEnd - rightStart) * progress);
+            int o = i * 4;
+            out[o] = (byte) left;
+            out[o + 1] = (byte) (left >> 8);
+            out[o + 2] = (byte) right;
+            out[o + 3] = (byte) (right >> 8);
+        }
+        return out;
+    }
+
+    /** Scales a slice while ramping the gain from {@code startGain} to {@code endGain} across it. */
+    public static byte[] withGainRamped(byte[] pcm16le, int offset, int length, double startGain, double endGain) {
+        int start = Math.max(0, offset);
+        int end = Math.min(pcm16le.length, start + Math.max(0, length));
+        byte[] out = Arrays.copyOfRange(pcm16le, start, end);
+        int samples = out.length / 2;
+        for (int i = 0; i < samples; i++) {
+            int sample = (short) ((out[2 * i] & 0xFF) | (out[2 * i + 1] << 8));
+            int value = scaled(sample, startGain + (endGain - startGain) * ((double) i / samples));
+            out[2 * i] = (byte) value;
+            out[2 * i + 1] = (byte) (value >> 8);
+        }
+        return out;
+    }
+
     private static int scaled(int sample, double gain) {
         long scaled = Math.round(sample * gain);
         return (int) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, scaled));

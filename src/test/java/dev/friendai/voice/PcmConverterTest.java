@@ -86,4 +86,34 @@ class PcmConverterTest {
                 new byte[] {(byte) 0xFF, 0x7F},
                 PcmConverter.withGain(new byte[] {0x00, 0x40}, 0, 2, 4.0));
     }
+
+    @Test
+    void rampedStereoReachesEachChannelFromStartToEnd() {
+        // Four samples of 0x4000: left runs 0 -> 1, right runs 1 -> 0 across the block.
+        byte[] pcm = new byte[] {0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40};
+        assertArrayEquals(
+                new byte[] {0x00, 0x00, 0x00, 0x40, 0x00, 0x10, 0x00, 0x30, 0x00, 0x20, 0x00, 0x20, 0x00, 0x30, 0x00, 0x10},
+                PcmConverter.toStereoRamped(pcm, 0, 8, 0.0, 1.0, 1.0, 0.0));
+    }
+
+    @Test
+    void rampedStereoWithEqualEndsMatchesTheStaticMix() {
+        byte[] pcm = new byte[] {0x00, 0x40, 0x00, (byte) 0xC0, 0x00, 0x20};
+        assertArrayEquals(
+                PcmConverter.toStereo(pcm, 0, 6, 0.5, 0.75),
+                PcmConverter.toStereoRamped(pcm, 0, 6, 0.5, 0.75, 0.5, 0.75));
+    }
+
+    @Test
+    void rampedStereoIgnoresATrailingOddByte() {
+        assertEquals(4, PcmConverter.toStereoRamped(new byte[] {0x00, 0x40, 0x7F}, 0, 3, 0, 0, 1, 1).length);
+    }
+
+    @Test
+    void rampedGainRunsFromStartToEnd() {
+        byte[] pcm = new byte[] {0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40};
+        assertArrayEquals(
+                new byte[] {0x00, 0x00, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30},
+                PcmConverter.withGainRamped(pcm, 0, 8, 0.0, 1.0));
+    }
 }

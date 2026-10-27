@@ -76,7 +76,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Every Recognition and Synthesis label is translated in both English and Russian, including the provider, engine and voice names.
 - [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.
 - [ ] Spatial speech on: a reply is louder and clearer on the side the companion stands; walking away fades it to silence at the hearing radius.
-- [ ] Turning the head during a reply moves the balance.
+- [ ] Turning the head during a reply moves the balance smoothly and at once: no steps, clicks or audible delay.
 - [ ] Chat and voice at 40 blocks from the companion get no reply and the "too far" notice.
 - [ ] Two replies from different companions in a row each sound from their own position.
 - [ ] A mono output device still fades with distance (no crash, no panning).

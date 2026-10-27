@@ -21,6 +21,11 @@ import javax.sound.sampled.SourceDataLine;
  * the left/right mix and distance are applied here, so no engine has to know about them.
  */
 public final class SpeechPlayback {
+    /** Audio per block: 20 ms, so a pan follows a head turn without audible steps. */
+    private static final int BLOCKS_PER_SECOND = 50;
+    /** Blocks the device buffers: a small buffer is what keeps the pan from being heard late. */
+    private static final int BUFFER_BLOCKS = 5;
+
     private final Object lock = new Object();
     private final PlaybackGate gate = new PlaybackGate();
     private SourceDataLine line;
@@ -44,9 +49,10 @@ public final class SpeechPlayback {
 
     /**
      * Blocks until the clip has played or {@link #stop()} closed the line under it. With a spatial
-     * source the clip is mixed to stereo one short block at a time, so the pan and the distance follow
-     * the player while the reply plays. A device that cannot open stereo still gets the distance
-     * attenuation through a mono fallback.
+     * source the clip is mixed to stereo one short block at a time, ramping each channel from the
+     * previous block's gains to the current ones so the pan follows the player smoothly, and the line
+     * is opened with a small buffer so the change is heard without the device's default delay. A device
+     * that cannot open stereo still gets the distance attenuation through a mono fallback.
      */
     public void play(TtsClip clip, double volume, String deviceName, Supplier<SpatialAudio.Mix> spatial) {
         if (clip == null || clip.pcm16le().length == 0) {
@@ -54,17 +60,21 @@ public final class SpeechPlayback {
         }
         boolean monoFallback = false;
         long token = gate.token();
+        int blockSamples = Math.max(1, clip.sampleRate() / BLOCKS_PER_SECOND);
+        int blockBytes = blockSamples * 2;
+        AudioFormat mono = new AudioFormat(clip.sampleRate(), 16, 1, true, false);
         SourceDataLine opened;
         try {
-            opened = open(new AudioFormat(clip.sampleRate(), 16, spatial == null ? 1 : 2, true, false), deviceName);
+            opened = open(spatial == null ? mono : new AudioFormat(clip.sampleRate(), 16, 2, true, false),
+                    deviceName, blockSamples * (spatial == null ? 2 : 4) * BUFFER_BLOCKS);
         } catch (LineUnavailableException | IllegalArgumentException e) {
             if (spatial == null) {
                 throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.playback"));
             }
             try {
-                opened = open(new AudioFormat(clip.sampleRate(), 16, 1, true, false), deviceName);
+                opened = open(mono, deviceName, blockSamples * 2 * BUFFER_BLOCKS);
                 monoFallback = true;
-            } catch (LineUnavailableException | IllegalArgumentException mono) {
+            } catch (LineUnavailableException | IllegalArgumentException monoError) {
                 throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.playback"));
             }
         }
@@ -78,8 +88,19 @@ public final class SpeechPlayback {
             line = opened;
         }
         byte[] pcm = spatial == null ? PcmConverter.withGain(clip.pcm16le(), volume) : clip.pcm16le();
-        // About 100 ms of audio per step: short enough for the pan to follow a moving companion.
-        int blockBytes = Math.max(2, (clip.sampleRate() / 10) * 2);
+        // The gains of the block written last; the next block ramps from them to the current mix.
+        double left = 0.0;
+        double right = 0.0;
+        double level = 1.0;
+        if (spatial != null) {
+            SpatialAudio.Mix first = spatial.get();
+            if (first == null) {
+                first = SpatialAudio.CENTER;
+            }
+            left = first.left() * volume;
+            right = first.right() * volume;
+            level = first.level() * volume;
+        }
         try {
             opened.start();
             int offset = 0;
@@ -102,10 +123,19 @@ public final class SpeechPlayback {
                     if (mix == null) {
                         mix = SpatialAudio.CENTER;
                     }
-                    byte[] block = monoFallback
-                            ? PcmConverter.withGain(pcm, offset, length, mix.level() * volume)
-                            : PcmConverter.toStereo(
-                                    pcm, offset, length, mix.left() * volume, mix.right() * volume);
+                    byte[] block;
+                    if (monoFallback) {
+                        double next = mix.level() * volume;
+                        block = PcmConverter.withGainRamped(pcm, offset, length, level, next);
+                        level = next;
+                    } else {
+                        double nextLeft = mix.left() * volume;
+                        double nextRight = mix.right() * volume;
+                        block = PcmConverter.toStereoRamped(
+                                pcm, offset, length, left, right, nextLeft, nextRight);
+                        left = nextLeft;
+                        right = nextRight;
+                    }
                     written = writeAll(opened, block, 0, block.length);
                 }
                 offset += length;
@@ -179,7 +209,8 @@ public final class SpeechPlayback {
         }
     }
 
-    private static SourceDataLine open(AudioFormat format, String deviceName) throws LineUnavailableException {
+    private static SourceDataLine open(AudioFormat format, String deviceName, int bufferSize)
+            throws LineUnavailableException {
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
         SourceDataLine opened = null;
         if (deviceName != null && !deviceName.isBlank()) {
@@ -194,7 +225,12 @@ public final class SpeechPlayback {
         if (opened == null) {
             opened = AudioSystem.getSourceDataLine(format);
         }
-        opened.open(format);
+        try {
+            opened.open(format, bufferSize);
+        } catch (IllegalArgumentException unsupportedBufferSize) {
+            // A device that refuses the size still plays, just with its own (longer) delay.
+            opened.open(format);
+        }
         return opened;
     }
 }
