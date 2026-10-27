@@ -72,24 +72,6 @@ public final class MoveHelper {
         this.ownerDistance = ownerDistance;
     }
 
-    /** Clears a retained creative hover when the live caller no longer has flight authority. */
-    public void revalidateCreativeFlight(TaskContext context) {
-        CompanionEntity companion = context.companion();
-        boolean passiveFollow = context.runner() != null && context.runner().currentIsDefaultActivity()
-                && CreativeModeService.ownerMayUsePassiveFlight(companion);
-        boolean mayFly = context.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFollow;
-        if (mayFly || !companion.creativeMode() || companion.creativeLanding()) return;
-
-        if (flightNavigator != null) {
-            flightNavigator.stop(context, false);
-            flightNavigator = null;
-            companion.getNavigation().stop();
-        }
-        if (companion.isNoGravity()) {
-            companion.endCreativeFlight(false);
-            companion.getNavigation().stop();
-        }
-    }
     public State tick(PathfinderMob mob, Vec3 target) {
         if (mob instanceof CompanionEntity companion) {
             return tickCompanion(companion, target);

@@ -9,6 +9,7 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FlyToTask;
 import dev.friendai.task.builtin.FollowTask;
+import dev.friendai.task.builtin.StayTask;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.Optional;
@@ -156,7 +157,7 @@ public final class CreativeFlightTests {
     }
 
     @GameTest(maxTicks = 400)
-    public void creativeFollowDropsHoverWhenOwnerLosesOperatorRights(GameTestHelper h) {
+    public void creativeHoverEndsAfterTaskReplacementAndOperatorRevocation(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 12, 10, 2);
         owner.setNoGravity(true);
@@ -167,20 +168,28 @@ public final class CreativeFlightTests {
         companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
 
         final int[] hoveringTicks = {0};
+        final int[] stayStartedAtTick = {-1};
         final int[] revokedAtTick = {-1};
         h.succeedWhen(() -> {
-            if (revokedAtTick[0] < 0) {
+            if (hoveringTicks[0] < 30) {
                 double distance = companion.position().distanceTo(owner.position());
                 if (distance <= companion.body().followDistance() + 2.0) {
                     hoveringTicks[0]++;
                     h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
                 }
                 if (hoveringTicks[0] >= 30) {
-                    owner.level().getServer().getPlayerList().deop(owner.nameAndId());
-                    revokedAtTick[0] = companion.tickCount;
+                    companion.taskRunner().start(new StayTask(), "stay", caller(owner), false);
+                    stayStartedAtTick[0] = companion.tickCount;
                 }
+            }
+            if (stayStartedAtTick[0] < 0) {
                 h.assertTrue(hoveringTicks[0] >= 30,
                         "companion did not hover at the follow position for 30 ticks; position=" + companion.position());
+            } else if (revokedAtTick[0] < 0) {
+                h.assertTrue(companion.tickCount > stayStartedAtTick[0], "stay did not replace the follow task");
+                h.assertTrue(companion.isNoGravity(), "authorized stay did not preserve creative hover");
+                owner.level().getServer().getPlayerList().deop(owner.nameAndId());
+                revokedAtTick[0] = companion.tickCount;
             }
             h.assertTrue(revokedAtTick[0] >= 0, "owner operator rights were not revoked");
             h.assertTrue(companion.tickCount > revokedAtTick[0], "permission revocation was not followed by a tick");
