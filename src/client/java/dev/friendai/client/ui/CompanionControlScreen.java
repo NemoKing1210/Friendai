@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
@@ -13,12 +14,15 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 /**
- * The companion menu: its status and actions for everyone, log and debug tools for operators.
- * It subscribes to the server's snapshot stream while it is open.
+ * The companion menu: a window with a navigation rail of tabs down its left side, painted with the game's own
+ * window, widget sprites and text colours ({@link MenuTheme}). Its status and actions are for everyone, the log
+ * and debug tools are operator-only and last on the rail. It subscribes to the server's snapshot stream while it
+ * is open.
  */
 public final class CompanionControlScreen extends Screen implements MenuTab.Host {
-    private static final int MAX_WIDTH = 560;
-    private static final int PANEL_PAD = 10;
+    private static final int RAIL_STEP = 18;
+    private static final int DONE_WIDTH = 120;
+    private static final int DONE_HEIGHT = 20;
 
     private record Entry(String titleKey, MenuTab tab) {}
 
@@ -34,14 +38,16 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
+    private final List<Entry> ownerTabs =
+            List.of(overview, toggles, tasks, memory, skills, places, appearance, traders);
+    private final List<Entry> operatorTabs = List.of(log, debug);
+    private final List<FlatButton> railButtons = new ArrayList<>();
+
     private Entry selected = overview;
     private String builtFor = "";
-    private int left;
-    private int top;
-    private int contentWidth;
-    private int contentHeight;
-    private int tabBarBottom;
+    private SideNavLayout.Layout layout;
     private List<Entry> shownTabs = List.of();
+    private int railScroll;
 
     public CompanionControlScreen(Screen parent) {
         super(Component.translatable("friendai.menu.title"));
@@ -106,12 +112,16 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private List<Entry> visibleTabs() {
-        List<Entry> tabs = new ArrayList<>(List.of(overview, toggles, tasks, memory, skills, places, appearance, traders));
+        List<Entry> tabs = new ArrayList<>(ownerTabs);
         if (operator()) {
-            tabs.add(log);
-            tabs.add(debug);
+            tabs.addAll(operatorTabs);
         }
         return tabs;
+    }
+
+    /** The first operator entry's index on the rail, or -1 when the operator group is hidden. */
+    private int operatorStart() {
+        return operator() ? ownerTabs.size() : -1;
     }
 
     private void select(Entry entry) {
@@ -148,25 +158,71 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (!shownTabs.contains(selected)) {
             selected = overview;
         }
-        contentWidth = Math.min(width - 2 * (PANEL_PAD + 4), MAX_WIDTH);
-        left = (width - contentWidth) / 2;
+        int operatorStart = operatorStart();
+        layout = SideNavLayout.arrange(width, height, shownTabs.size(), operatorStart);
+        SideNavLayout.Rail rail = layout.rail();
 
-        // Nine tabs do not fit in one row at small GUI scales, so the bar wraps into as many rows as it needs.
-        TabBarLayout.Bar bar = TabBarLayout.arrange(shownTabs.size(), contentWidth, left, 24);
-        tabBarBottom = 24 + bar.height();
+        railButtons.clear();
         for (int i = 0; i < shownTabs.size(); i++) {
             Entry entry = shownTabs.get(i);
-            TabBarLayout.Slot slot = bar.slots().get(i);
-            addRenderableWidget(new FlatButton(slot.x(), slot.y(), bar.tabWidth(), TabBarLayout.TAB_HEIGHT,
-                    Component.translatable(entry.titleKey()), Ui.ACCENT, () -> select(entry))
-                    .asTab(entry == selected));
+            boolean operatorEntry = operatorStart >= 0 && i >= operatorStart;
+            Component label = Component.translatable(entry.titleKey());
+            FlatButton button = new FlatButton(0, 0, rail.box().width(), rail.entryHeight(), label,
+                    operatorEntry ? Ui.PURPLE : 0, () -> select(entry)).asTab(entry == selected);
+            button.setTooltip(Tooltip.create(label));
+            railButtons.add(addRenderableWidget(button));
         }
-        top = tabBarBottom + 10;
-        contentHeight = height - top - 36 - PANEL_PAD;
+        railScroll = Math.max(0, Math.min(railScroll, rail.maxScroll()));
+        positionRail();
 
-        addRenderableWidget(new FlatButton(width / 2 - 60, height - 28, 120, 20,
-                CommonComponents.GUI_DONE, Ui.ACCENT, this::onClose));
-        selected.tab().init(this, left, top, contentWidth, contentHeight);
+        SideNavLayout.Rect content = layout.content();
+        selected.tab().init(this, content.x(), content.y(), content.width(), content.height());
+        SideNavLayout.Rect window = layout.window();
+        addRenderableWidget(new FlatButton(
+                window.x() + window.width() / 2 - DONE_WIDTH / 2, height - DONE_HEIGHT - 8, DONE_WIDTH,
+                DONE_HEIGHT, CommonComponents.GUI_DONE, 0, this::onClose));
+    }
+
+    /** Puts every rail entry at its scrolled position and hides the ones outside the viewport. */
+    private void positionRail() {
+        if (layout == null) {
+            return;
+        }
+        SideNavLayout.Rail rail = layout.rail();
+        railScroll = Math.max(0, Math.min(railScroll, rail.maxScroll()));
+        for (int i = 0; i < railButtons.size(); i++) {
+            FlatButton button = railButtons.get(i);
+            SideNavLayout.Slot slot = rail.slots().get(i);
+            button.setX(slot.x());
+            int y = slot.y() - railScroll;
+            button.setY(y);
+            boolean shown = y + button.getHeight() > rail.box().y() && y < rail.box().bottom();
+            button.visible = shown;
+            button.active = shown;
+        }
+    }
+
+    /** Keeps a rail entry reached with the keyboard in view when the rail is scrolled. */
+    private void followRailFocus() {
+        if (layout == null || layout.rail().maxScroll() == 0) {
+            return;
+        }
+        int index = railButtons.indexOf(getFocused());
+        if (index < 0) {
+            return;
+        }
+        SideNavLayout.Slot slot = layout.rail().slots().get(index);
+        int top = layout.rail().box().y();
+        int bottom = layout.rail().box().bottom();
+        int y = slot.y() - railScroll;
+        if (y < top) {
+            railScroll = slot.y() - top;
+        } else if (y + slot.height() > bottom) {
+            railScroll = slot.y() + slot.height() - bottom;
+        } else {
+            return;
+        }
+        positionRail();
     }
 
     @Override
@@ -175,37 +231,68 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             rebuildWidgets();
             return;
         }
+        followRailFocus();
         selected.tab().tick();
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (layout != null && layout.rail().maxScroll() > 0 && inside(layout.rail().box(), mouseX, mouseY)) {
+            railScroll -= (int) Math.round(scrollY * RAIL_STEP);
+            positionRail();
+            return true;
+        }
         return selected.tab().scroll(mouseX, mouseY, scrollY) || super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private static boolean inside(SideNavLayout.Rect box, double x, double y) {
+        return x >= box.x() && x < box.right() && y >= box.y() && y < box.bottom();
     }
 
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(g, mouseX, mouseY, partialTick);
-        int panelLeft = left - PANEL_PAD;
-        int panelTop = 6;
-        Ui.panel(g, panelLeft, panelTop, contentWidth + 2 * PANEL_PAD, height - 36 - panelTop);
-        Ui.text(g, font, title, left, 12, Ui.TEXT);
-        drawConnection(g);
-        g.fill(left, tabBarBottom - 1, left + contentWidth, tabBarBottom, Ui.BORDER);
+        SideNavLayout.Rect window = layout.window();
+        Ui.panel(g, window.x(), window.y(), window.width(), window.height());
+        Ui.text(g, font, title, window.x(), 8, MenuTheme.TITLE);
+        drawConnection(g, window);
+
+        SideNavLayout.Rect content = layout.content();
+        int dividerX = content.x() - SideNavLayout.GAP / 2;
+        g.fill(dividerX, content.y(), dividerX + 1, content.y() + content.height(), Ui.BORDER);
+
+        SideNavLayout.Rail rail = layout.rail();
+        int separatorY = rail.separatorY() - railScroll;
+        if (separatorY >= rail.box().y() && separatorY < rail.box().bottom()) {
+            g.fill(rail.box().x(), separatorY, rail.box().right(), separatorY + 1, Ui.BORDER);
+        }
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractRenderState(g, mouseX, mouseY, partialTick);
-        selected.tab().render(g, font, left, top, contentWidth, contentHeight, mouseX, mouseY);
+        // Only the rail is clipped to its column; the tab's widgets and Done draw outside it, unclipped.
+        SideNavLayout.Rail rail = layout.rail();
+        for (GuiEventListener child : children()) {
+            if (!(child instanceof Renderable renderable)) {
+                continue;
+            }
+            if (railButtons.contains(renderable)) {
+                g.enableScissor(rail.box().x(), rail.box().y(), rail.box().right(), rail.box().bottom());
+                renderable.extractRenderState(g, mouseX, mouseY, partialTick);
+                g.disableScissor();
+            } else {
+                renderable.extractRenderState(g, mouseX, mouseY, partialTick);
+            }
+        }
+        SideNavLayout.Rect content = layout.content();
+        selected.tab().render(g, font, content.x(), content.y(), content.width(), content.height(), mouseX, mouseY);
     }
 
-    private void drawConnection(GuiGraphicsExtractor g) {
+    private void drawConnection(GuiGraphicsExtractor g, SideNavLayout.Rect window) {
         boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
         Component label = Component.translatable(connected ? "friendai.menu.connected" : "friendai.menu.no_data");
         int color = connected ? Ui.GOOD : Ui.BAD;
-        int x = left + contentWidth - font.width(label);
-        Ui.text(g, font, label, x, 12, color);
-        Ui.dot(g, x - 8, 14, 4, color);
+        int x = window.right() - Ui.badgeWidth(font, label.getString());
+        Ui.badge(g, font, label.getString(), x, 6, color);
     }
 }

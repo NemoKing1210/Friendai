@@ -5,8 +5,10 @@ package dev.friendai.client.ui;
  * the vanilla button sprites, a light face with dark labels and a dark list surface for long text, like the
  * server list. Status hues are vanilla's own colours darkened just enough to stay readable on the light face.
  *
- * <p>Pure arithmetic and constants only: no drawing, no Minecraft types. {@link Ui} draws with these; the tests
- * pin the relationships (contrast, distinctness, which sprite a state uses), never a colour literal.
+ * <p>Pure arithmetic and constants only: no drawing, no Minecraft types. {@link Ui} draws with these and
+ * {@link FlatButton} keeps the game's own widget sprites (a {@code Button} subclass draws them itself), so the
+ * theme never duplicates a sprite name that could drift from vanilla. The tests pin the relationships (contrast,
+ * distinctness), never a colour literal.
  */
 final class MenuTheme {
     /* The vanilla container window, the same numbers CompanionInventoryScreen draws with. */
@@ -46,11 +48,6 @@ final class MenuTheme {
     static final int[] PALETTE = {ACCENT, GOOD, WARN, PURPLE, BAD, 0xFF155654, 0xFF6B4A1F};
 
     static final int BADGE_HEIGHT = 12;
-
-    /** The game's widget sprites; one button style, chosen by state. */
-    static final String SPRITE_BUTTON = "widget/button";
-    static final String SPRITE_BUTTON_HIGHLIGHTED = "widget/button_highlighted";
-    static final String SPRITE_BUTTON_DISABLED = "widget/button_disabled";
 
     private MenuTheme() {}
 
@@ -93,13 +90,5 @@ final class MenuTheme {
 
     static boolean readable(int foreground, int background, double minimum) {
         return contrast(foreground, background) >= minimum;
-    }
-
-    /** Which vanilla sprite a button uses: disabled, selected/focused (highlighted) or plain. */
-    static String buttonSprite(boolean enabled, boolean selected) {
-        if (!enabled) {
-            return SPRITE_BUTTON_DISABLED;
-        }
-        return selected ? SPRITE_BUTTON_HIGHLIGHTED : SPRITE_BUTTON;
     }
 }

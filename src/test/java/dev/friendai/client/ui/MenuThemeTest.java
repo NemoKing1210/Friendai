@@ -1,6 +1,5 @@
 package dev.friendai.client.ui;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -95,13 +94,6 @@ class MenuThemeTest {
     @Test
     void theSelectedRowHasItsOwnColour() {
         assertNotEquals(MenuTheme.CARD, MenuTheme.CARD_HOVER);
-    }
-
-    @Test
-    void theRailSpritesDistinguishSelectionAndDisabling() {
-        assertEquals(MenuTheme.SPRITE_BUTTON_HIGHLIGHTED, MenuTheme.buttonSprite(true, true));
-        assertNotEquals(MenuTheme.buttonSprite(true, false), MenuTheme.buttonSprite(true, true));
-        assertNotEquals(MenuTheme.SPRITE_BUTTON, MenuTheme.buttonSprite(false, false));
     }
 
     private static String hex(int color) {
