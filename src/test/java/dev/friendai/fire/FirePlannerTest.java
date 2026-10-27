@@ -91,6 +91,16 @@ class FirePlannerTest {
     }
 
     @Test
+    void aPortalFrameIsRefusedEvenWithWater() {
+        Rails frame = new Rails(false, true, true, true, true, false);
+
+        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS),
+                List.of(cell(Kind.FIRE, frame)));
+
+        assertEquals(List.of(new ExtinguishStep.GiveUp("it is inside a portal frame")), plan.steps());
+    }
+
+    @Test
     void refusesAProtectedCell() {
         Rails protectedCell = new Rails(false, false, false, false, true, true);
         FireFacts watered = new FireFacts(false, false, SELF, 1, 0, null, FIRE_POS, true);
