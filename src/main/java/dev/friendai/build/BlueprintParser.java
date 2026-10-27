@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -27,6 +29,8 @@ public final class BlueprintParser {
     private final Map<Character, String> palette = new LinkedHashMap<>();
     private final Set<Character> declaredPaletteKeys = new LinkedHashSet<>();
     private final Map<Pos, String> blocks = new LinkedHashMap<>();
+    /** The cells the {@code roof} op filled with stairs, whose shape is resolved after the layers are read. */
+    private final Set<Pos> roofStairs = new LinkedHashSet<>();
     private final Set<String> reportedUnknownBlocks = new LinkedHashSet<>();
 
     private BlueprintParser(Predicate<String> knownState) {
@@ -38,7 +42,11 @@ public final class BlueprintParser {
         return new BlueprintParser(knownState).run(json);
     }
 
-    private record Pos(int x, int y, int z) {}
+    private record Pos(int x, int y, int z) {
+        Pos relative(Side side) {
+            return new Pos(x + side.dx, y, z + side.dz);
+        }
+    }
 
     private ParseResult run(String json) {
         JsonObject root;
@@ -58,6 +66,7 @@ public final class BlueprintParser {
         readPalette(root);
         readOps(root);
         readLayers(root);
+        applyRoofShapes();
 
         if (errors.isEmpty()) {
             checkSizeAndCount();
@@ -292,10 +301,10 @@ public final class BlueprintParser {
             for (int other = 0; other < (alongX ? to[0] - from[0] : to[2] - from[2]) + 1; other++) {
                 int x = alongX ? from[0] + other : near;
                 int z = alongX ? near : from[2] + other;
-                put(x, y, z, nearState);
+                putRoofStair(x, y, z, nearState);
                 x = alongX ? from[0] + other : far;
                 z = alongX ? far : from[2] + other;
-                put(x, y, z, farState);
+                putRoofStair(x, y, z, farState);
             }
         }
     }
@@ -327,12 +336,12 @@ public final class BlueprintParser {
                 String west = stairState(stairs, "east");
                 String east = stairState(stairs, "west");
                 for (int x = x1; x <= x2; x++) {
-                    put(x, y, z1, north);
-                    put(x, y, z2, south);
+                    putRoofStair(x, y, z1, north);
+                    putRoofStair(x, y, z2, south);
                 }
                 for (int z = z1 + 1; z < z2; z++) {
-                    put(x1, y, z, west);
-                    put(x2, y, z, east);
+                    putRoofStair(x1, y, z, west);
+                    putRoofStair(x2, y, z, east);
                 }
             }
             x1++;
@@ -489,6 +498,147 @@ public final class BlueprintParser {
 
     private void put(int x, int y, int z, String state) {
         blocks.put(new Pos(x, y, z), state);
+    }
+
+    /** Records a stair the roof op produced, so its shape can be resolved once every neighbour is known. */
+    private void putRoofStair(int x, int y, int z, String state) {
+        put(x, y, z, state);
+        if (isStair(state)) {
+            roofStairs.add(new Pos(x, y, z));
+        }
+    }
+
+    /**
+     * Copies vanilla {@code StairBlock.getStairsShape}: a stair looks at the cell it faces and the cell opposite, and a
+     * perpendicular neighbour with the same half turns it into a corner. A straight stair keeps no {@code shape}
+     * property, so a blueprint written by hand and one from a generator stay readable.
+     */
+    private void applyRoofShapes() {
+        for (Pos pos : roofStairs) {
+            String state = blocks.get(pos);
+            if (state == null || !isStair(state) || property(state, "shape") != null) {
+                continue;
+            }
+            String shape = stairShape(pos, state);
+            if (shape != null) {
+                blocks.put(pos, withShape(state, shape));
+            }
+        }
+    }
+
+    private String stairShape(Pos pos, String state) {
+        String facingText = property(state, "facing");
+        Side facing = Side.parse(facingText);
+        if (facing == null) {
+            return null;
+        }
+        String half = property(state, "half");
+        Side side = neighbourFacing(pos, facing, half);
+        if (side != null && side.axis() != facing.axis()
+                && canTakeShape(pos, side.opposite(), facingText, half)) {
+            return side == facing.counterClockWise() ? "outer_left" : "outer_right";
+        }
+        Side behind = neighbourFacing(pos, facing.opposite(), half);
+        if (behind != null && behind.axis() != facing.axis()
+                && canTakeShape(pos, behind, facingText, half)) {
+            return behind == facing.counterClockWise() ? "inner_left" : "inner_right";
+        }
+        return null;
+    }
+
+    private Side neighbourFacing(Pos pos, Side side, String half) {
+        String state = blocks.get(pos.relative(side));
+        if (state == null || !isStair(state) || !Objects.equals(half, property(state, "half"))) {
+            return null;
+        }
+        return Side.parse(property(state, "facing"));
+    }
+
+    private boolean canTakeShape(Pos pos, Side direction, String facing, String half) {
+        String state = blocks.get(pos.relative(direction));
+        if (state == null || !isStair(state)) {
+            return true;
+        }
+        return !facing.equals(property(state, "facing")) || !Objects.equals(half, property(state, "half"));
+    }
+
+    private static String property(String state, String name) {
+        int open = state.indexOf('[');
+        int close = state.lastIndexOf(']');
+        if (open < 0 || close <= open) {
+            return null;
+        }
+        for (String pair : state.substring(open + 1, close).split(",")) {
+            int equals = pair.indexOf('=');
+            if (equals > 0 && pair.substring(0, equals).trim().equals(name)) {
+                return pair.substring(equals + 1).trim();
+            }
+        }
+        return null;
+    }
+
+    private static String withShape(String state, String shape) {
+        int close = state.lastIndexOf(']');
+        if (close < 0) {
+            return state + "[shape=" + shape + "]";
+        }
+        return state.substring(0, close) + ",shape=" + shape + "]";
+    }
+
+    private static boolean isStair(String state) {
+        return base(state).endsWith("_stairs");
+    }
+
+    /** The four horizontal directions, with the same counter-clockwise order vanilla uses for stair corners. */
+    private enum Side {
+        NORTH(0, -1),
+        SOUTH(0, 1),
+        EAST(1, 0),
+        WEST(-1, 0);
+
+        private final int dx;
+        private final int dz;
+
+        Side(int dx, int dz) {
+            this.dx = dx;
+            this.dz = dz;
+        }
+
+        Side opposite() {
+            return switch (this) {
+                case NORTH -> SOUTH;
+                case SOUTH -> NORTH;
+                case EAST -> WEST;
+                case WEST -> EAST;
+            };
+        }
+
+        Side counterClockWise() {
+            return switch (this) {
+                case NORTH -> WEST;
+                case SOUTH -> EAST;
+                case WEST -> SOUTH;
+                case EAST -> NORTH;
+            };
+        }
+
+        /** Whether the direction lies on the x axis, matching {@code Direction.Axis.X}. */
+        boolean axis() {
+            return this == EAST || this == WEST;
+        }
+
+        static Side parse(String text) {
+            if (text == null) {
+                return null;
+            }
+            return switch (text) {
+                case "north" -> NORTH;
+                case "south" -> SOUTH;
+                case "east" -> EAST;
+                case "west" -> WEST;
+                default -> null;
+            };
+        }
     }
 
     /** A palette key or a block id from the op's {@code block} field, or null after recording an error. */

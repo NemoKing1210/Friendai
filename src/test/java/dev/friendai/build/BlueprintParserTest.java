@@ -278,6 +278,47 @@ class BlueprintParserTest {
     }
 
     @Test
+    void pyramidCornersGetOuterShapes() {
+        Blueprint blueprint = parseOk("""
+                {
+                  "palette": { "S": "minecraft:oak_stairs" },
+                  "ops": [ { "op": "roof", "from": [0,0,0], "to": [4,0,4], "style": "pyramid", "block": "S" } ]
+                }
+                """);
+        assertEquals("minecraft:oak_stairs[facing=south,half=bottom,shape=outer_left]",
+                at(blueprint, 0, 0, 0).state());
+        assertEquals("minecraft:oak_stairs[facing=south,half=bottom,shape=outer_right]",
+                at(blueprint, 4, 0, 0).state());
+        assertEquals("minecraft:oak_stairs[facing=north,half=bottom,shape=outer_right]",
+                at(blueprint, 0, 0, 4).state());
+        assertEquals("minecraft:oak_stairs[facing=north,half=bottom,shape=outer_left]",
+                at(blueprint, 4, 0, 4).state());
+        assertEquals("minecraft:oak_stairs[facing=south,half=bottom]", at(blueprint, 1, 0, 0).state());
+    }
+
+    @Test
+    void aGableRoofHasNoOuterShapes() {
+        Blueprint blueprint = parseOk(EXAMPLE);
+        for (BlockSpec spec : blueprint.blocks()) {
+            if (spec.state().contains("_stairs")) {
+                assertFalse(spec.state().contains("shape=outer"), spec.state());
+            }
+        }
+    }
+
+    @Test
+    void aBoxStairKeepsItsOwnShape() {
+        Blueprint blueprint = parseOk("""
+                {
+                  "palette": { "S": "minecraft:oak_stairs[facing=east,half=bottom,shape=inner_left]" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "S" } ]
+                }
+                """);
+        assertEquals("minecraft:oak_stairs[facing=east,half=bottom,shape=inner_left]",
+                at(blueprint, 0, 0, 0).state());
+    }
+
+    @Test
     void doorMakesLowerAndUpper() {
         Blueprint blueprint = parseOk("""
                 {
