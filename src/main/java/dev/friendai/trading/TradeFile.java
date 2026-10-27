@@ -36,6 +36,7 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     public static final int MAX_HISTORY = 256;
     public static final int MAX_FILE_BYTES = 8 * 1024 * 1024;
     public static final int MAX_JSON_DEPTH = 64;
+    public static final int MAX_JSON_NODES = 1_000_000;
     private static final Gson GSON = new GsonBuilder().create();
 
     public TradeFile {
@@ -229,7 +230,15 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         HISTORY, PROGRESS_OBJECT, RECEIVED, PINNED, SPENT_OBJECT
     }
 
-    private static final class ParseState { private int totalOffers; }
+    private static final class ParseState {
+        private int totalOffers;
+        private int nodes;
+
+        private void consumeNode() {
+            if (nodes >= MAX_JSON_NODES) throw new IllegalArgumentException("trade file JSON node limit exceeded");
+            nodes++;
+        }
+    }
 
     private static JsonObject readRoot(String json) {
         try (var reader = new JsonReader(new StringReader(json))) {
@@ -245,6 +254,7 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     }
 
     private static JsonElement readJson(JsonReader reader, int depth, Shape shape, ParseState state) throws IOException {
+        state.consumeNode();
         return switch (reader.peek()) {
             case BEGIN_OBJECT -> {
                 if (depth >= MAX_JSON_DEPTH) throw new IllegalArgumentException("trade file nesting limit");
@@ -255,6 +265,7 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
                     if (object.size() >= maxObjectMembers(shape)) {
                         throw new IllegalArgumentException("trade file object member limit exceeded");
                     }
+                    state.consumeNode();
                     String key = requireWellFormed(reader.nextName());
                     if (!keys.add(key)) throw new IllegalArgumentException("duplicate trade file object key");
                     object.add(key, readJson(reader, depth + 1, childShape(shape, key), state));

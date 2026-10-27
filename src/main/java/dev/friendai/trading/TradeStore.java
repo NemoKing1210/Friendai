@@ -32,12 +32,18 @@ public final class TradeStore implements AutoCloseable {
         void move(Path source, Path target, CopyOption... options) throws IOException;
     }
 
+    @FunctionalInterface
+    interface FileCopier {
+        void copy(Path source, Path target, CopyOption... options) throws IOException;
+    }
+
     private final Path dir;
     private final Executor writer;
     private final ExecutorService ownedWriter;
     private final boolean waitForWrites;
     private final LongSupplier clock;
     private final FileMover mover;
+    private final FileCopier copier;
     private final Map<UUID, TradeBook> books = new HashMap<>();
     private final Map<UUID, Long> savedRevision = new HashMap<>();
     private final Map<UUID, Long> failedRevision = new HashMap<>();
@@ -48,30 +54,35 @@ public final class TradeStore implements AutoCloseable {
     private boolean closed;
 
     public TradeStore(Path dir) {
-        this(dir, newWriter(), true, System::currentTimeMillis, Files::move);
+        this(dir, newWriter(), true, System::currentTimeMillis, Files::move, Files::copy);
     }
 
     TradeStore(Path dir, FileMover mover) {
-        this(dir, newWriter(), true, System::currentTimeMillis, mover);
+        this(dir, newWriter(), true, System::currentTimeMillis, mover, Files::copy);
+    }
+
+    TradeStore(Path dir, FileMover mover, FileCopier copier) {
+        this(dir, newWriter(), true, System::currentTimeMillis, mover, copier);
     }
 
     TradeStore(Path dir, Executor writer, LongSupplier clock, FileMover mover, boolean waitForWrites) {
-        this(dir, writer, null, waitForWrites, clock, mover);
+        this(dir, writer, null, waitForWrites, clock, mover, Files::copy);
     }
 
     private TradeStore(Path dir, ExecutorService ownedWriter, boolean waitForWrites,
-                       LongSupplier clock, FileMover mover) {
-        this(dir, ownedWriter, ownedWriter, waitForWrites, clock, mover);
+                       LongSupplier clock, FileMover mover, FileCopier copier) {
+        this(dir, ownedWriter, ownedWriter, waitForWrites, clock, mover, copier);
     }
 
     private TradeStore(Path dir, Executor writer, ExecutorService ownedWriter, boolean waitForWrites,
-                       LongSupplier clock, FileMover mover) {
+                       LongSupplier clock, FileMover mover, FileCopier copier) {
         this.dir = Objects.requireNonNull(dir);
         this.writer = Objects.requireNonNull(writer);
         this.ownedWriter = ownedWriter;
         this.waitForWrites = waitForWrites;
         this.clock = Objects.requireNonNull(clock);
         this.mover = Objects.requireNonNull(mover);
+        this.copier = Objects.requireNonNull(copier);
     }
 
     private static ExecutorService newWriter() {
@@ -117,10 +128,10 @@ public final class TradeStore implements AutoCloseable {
             savedRevision.put(owner, empty.revision());
             return empty;
         } catch (IOException | RuntimeException | StackOverflowError e) {
-            backupCorrupt(file, e);
+            boolean backedUp = backupCorrupt(owner, file, e);
             TradeBook empty = new TradeBook();
             books.put(owner, empty);
-            savedRevision.put(owner, empty.revision());
+            savedRevision.put(owner, backedUp ? empty.revision() : empty.revision() - 1);
             return empty;
         }
     }
@@ -281,15 +292,19 @@ public final class TradeStore implements AutoCloseable {
         LOGGER.warn("Trade data for owner {} is not saved: {}", owner, message);
     }
 
-    private void backupCorrupt(Path file, Throwable cause) {
+    private boolean backupCorrupt(UUID owner, Path file, Throwable cause) {
         Path backup = file.resolveSibling(file.getFileName() + ".bak");
         try {
-            Files.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            LOGGER.warn("Could not back up broken trade file {}", file, e);
+            copier.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException | RuntimeException e) {
+            disableWrites(owner, "could not back up corrupt trade file; original preserved until explicit repair");
+            LOGGER.warn("Could not back up broken trade file {}; keeping owner read-only", file, e);
+            LOGGER.warn("Trade file {} is invalid ({}); original bytes remain at {}", file, safeMessage(cause), file);
+            return false;
         }
         LOGGER.warn("Trade file {} is invalid ({}); using an empty book and preserving the original at {}",
                 file, safeMessage(cause), backup);
+        return true;
     }
 
     private void disableWrites(UUID owner, String reason) {

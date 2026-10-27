@@ -153,6 +153,34 @@ class TradeStoreTest {
     }
 
     @Test
+    void failedCorruptBackupKeepsOriginalReadOnlyUntilExplicitRepair() throws IOException {
+        Path directory = temp.resolve("backup-failure");
+        Files.createDirectories(directory);
+        UUID owner = new UUID(0, 81);
+        byte[] corrupt = "{not valid json}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Path path = directory.resolve(owner + ".json");
+        Files.write(path, corrupt);
+        TradeStore.FileCopier failingCopier = (source, target, options) -> {
+            throw new IOException("injected backup copy failure");
+        };
+        try (TradeStore store = new TradeStore(directory, Files::move, failingCopier)) {
+            TradeBook book = store.book(owner);
+            assertTrue(book.snapshot().traders().isEmpty());
+            assertTrue(store.dirty(owner));
+            book.observe(trader(owner, 11, 30));
+            store.flushAll();
+            assertTrue(store.writesDisabled(owner));
+            assertTrue(store.dirty(owner));
+            assertNotNull(store.failure(owner));
+            assertArrayEquals(corrupt, Files.readAllBytes(path));
+            assertTrue(store.repairOwner(owner));
+            store.flushAll();
+            assertFalse(store.writesDisabled(owner));
+            assertEquals(11, TradeFile.read(Files.readAllBytes(path)).traders().getFirst().x());
+        }
+    }
+
+    @Test
     void deeplyNestedInputIsRejectedAndBackedUp() throws IOException {
         Path directory = temp.resolve("deep");
         Files.createDirectories(directory);
@@ -223,6 +251,31 @@ class TradeStoreTest {
                 + ",{\"offers\":[null]}],\"history\":[],\"pinned\":[]}";
         assertThrows(IllegalArgumentException.class, () -> TradeFile.read(
                 tooManyTotalOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void aggregateJsonNodeBudgetRejectsManySmallNestedArraysBeforeBuildingTheTree() {
+        String inner = "[" + "[],".repeat(124) + "[]]";
+        String json = "{\"version\":1,\"traders\":[],\"history\":[],\"pinned\":[],\"unknown\":["
+                + String.join(",", java.util.Collections.nCopies(8_192, inner)) + "]}";
+        byte[] encoded = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(encoded.length < TradeFile.MAX_FILE_BYTES);
+        assertThrows(IllegalArgumentException.class, () -> TradeFile.read(encoded));
+    }
+
+    @Test
+    void aggregateNodeBudgetAllowsLargeValidReceiptHistory() {
+        TradeItem receipt = new TradeItem("minecraft:book", "{}", 1);
+        List<TradeItem> receipts = java.util.Collections.nCopies(TradeProgress.MAX_RECEIPTS, receipt);
+        List<TradeProgress> history = java.util.stream.IntStream.range(0, 32)
+                .mapToObj(i -> new TradeProgress(new UUID(3, i), TradeProgress.State.COMPLETED,
+                        Map.of(), receipts, 1, ""))
+                .toList();
+        byte[] encoded = TradeFile.write(new TradeFile(TradeFile.VERSION, 1, List.of(), history, java.util.Set.of()));
+        assertTrue(encoded.length < TradeFile.MAX_FILE_BYTES);
+        TradeFile decoded = TradeFile.read(encoded);
+        assertEquals(32, decoded.history().size());
+        assertEquals(TradeProgress.MAX_RECEIPTS, decoded.history().getFirst().received().size());
     }
 
     @Test
