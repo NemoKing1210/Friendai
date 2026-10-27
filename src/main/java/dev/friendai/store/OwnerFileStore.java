@@ -39,6 +39,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
     private final Map<UUID, Long> failedRevision = new HashMap<>();
     private final Set<UUID> pending = new HashSet<>();
     private long lastFlush;
+    private java.util.function.Function<UUID,String> fileNames = id -> id + ".json";
+    private final Set<UUID> unsupported = new HashSet<>();
 
     public OwnerFileStore(Path dir, StoreCodec<T> codec, Executor writer, LongSupplier clock, boolean waitForWrites) {
         this(dir, codec, writer, null, clock, waitForWrites);
@@ -64,8 +66,16 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         return new OwnerFileStore<>(dir, codec, writer, writer, System::currentTimeMillis, true);
     }
 
+    public static <T> OwnerFileStore<T> withWriterThread(Path dir, StoreCodec<T> codec,
+            java.util.function.Function<UUID,String> fileNames) {
+        OwnerFileStore<T> store = withWriterThread(dir, codec);
+        store.fileNames = java.util.Objects.requireNonNull(fileNames);
+        return store;
+    }
+
     /** Loads lazily; a missing file creates an empty value without touching disk. */
     public synchronized T book(UUID owner) {
+        if (unsupported.contains(owner)) throw new UnsupportedStoreVersionException();
         T loaded = values.get(owner);
         if (loaded != null) return loaded;
         Path file = file(owner);
@@ -79,6 +89,9 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             T value = codec.load(json);
             if (value == null) throw new IllegalArgumentException("empty owner file");
             return adopt(owner, value, codec.revision(value));
+        } catch (UnsupportedStoreVersionException e) {
+            unsupported.add(owner);
+            throw e;
         } catch (IOException | RuntimeException | StackOverflowError e) {
             backupCorrupt(file, e);
             return adopt(owner, fresh(), 0L);
@@ -203,7 +216,11 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         }
     }
 
-    private Path file(UUID owner) { return dir.resolve(owner + ".json"); }
+    private Path file(UUID owner) {
+        String name = fileNames.apply(owner);
+        if (name == null || !name.matches("[a-zA-Z0-9-]+\\.json")) throw new IllegalArgumentException("Invalid store filename.");
+        return dir.resolve(name);
+    }
 
     private void backupCorrupt(Path file, Throwable cause) {
         Path backup = file.resolveSibling(file.getFileName() + ".bak");
