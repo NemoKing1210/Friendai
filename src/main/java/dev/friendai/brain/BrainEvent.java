@@ -109,6 +109,52 @@ public sealed interface BrainEvent {
         }
     }
 
+    /**
+     * Free time: the companion may choose its own next activity. The director answers with one
+     * {@code choose_activity} call; the planner then turns the choice into a low-priority plan.
+     *
+     * @param agenda the needs, most urgent first, already rendered as lines
+     * @param ladder the development line
+     * @param recent the last shifts, newest first
+     * @param wish the owner's hint, or empty
+     */
+    record FreeTimeShift(java.util.List<String> agenda, String ladder, java.util.List<String> recent,
+                         java.util.List<String> lessons, String wish) implements BrainEvent {
+        public FreeTimeShift {
+            agenda = java.util.List.copyOf(agenda);
+            recent = java.util.List.copyOf(recent);
+            lessons = java.util.List.copyOf(lessons);
+            ladder = ladder == null ? "" : ladder;
+            wish = wish == null ? "" : wish;
+        }
+
+        @Override
+        public String toPromptLine() {
+            StringBuilder sb = new StringBuilder("[event] free time: you decide what to do next. Act like a survival "
+                    + "player working for the base: keep the companion safe and fed, improve the gear, bring loot home.");
+            sb.append("\nAgenda:");
+            agenda.forEach(line -> sb.append('\n').append(line));
+            if (!ladder.isBlank()) {
+                sb.append('\n').append(ladder);
+            }
+            section(sb, "Recent shifts:", recent);
+            section(sb, "Lessons:", lessons);
+            if (!wish.isBlank()) {
+                sb.append("\nOwner wish: ").append(wish);
+            }
+            sb.append("\nCall choose_activity exactly once with one concrete activity, or reply exactly [silent] if "
+                    + "nothing is worth doing.");
+            return sb.toString();
+        }
+
+        private static void section(StringBuilder sb, String title, java.util.List<String> lines) {
+            if (!lines.isEmpty()) {
+                sb.append('\n').append(title);
+                lines.forEach(line -> sb.append("\n- ").append(line));
+            }
+        }
+    }
+
     /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
     record WorldNotice(String text) implements BrainEvent {
         @Override

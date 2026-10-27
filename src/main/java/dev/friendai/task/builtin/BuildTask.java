@@ -218,11 +218,23 @@ public final class BuildTask implements Task {
         dimension = c.level().dimension().identifier().toString();
     }
 
+    /** Free time never builds over a place the owner already has; the footprint is boxed for any rotation. */
+    private boolean overlapsPlaceInFreeTime(TaskContext c) {
+        if (!c.autonomous() || !dev.friendai.task.autonomy.PlaceGuard.enabled(c.companion())) {
+            return false;
+        }
+        int side = Math.max(blueprint.width(), blueprint.depth());
+        return dev.friendai.task.autonomy.PlaceGuard.overlapsAnyPlace(c.companion(),
+                origin.offset(-side, 0, -side), origin.offset(side, blueprint.height(), side));
+    }
+
     @Override
     public TaskStatus tick(TaskContext c) {
         TaskStatus status;
         if (phase != Phase.CLEANUP && ++ticks > tickLimit) {
             status = fail(c, "timed out");
+        } else if (phase == Phase.CHECK && overlapsPlaceInFreeTime(c)) {
+            status = fail(c, "the site overlaps a known place");
         } else {
             status = switch (phase) {
                 case CHECK -> check(c);

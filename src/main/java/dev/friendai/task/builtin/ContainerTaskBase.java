@@ -40,6 +40,11 @@ abstract class ContainerTaskBase implements Task {
     /** Finds the container when no coordinates were given. */
     protected abstract Optional<BlockPos> findTarget(ServerLevel level, dev.friendai.entity.CompanionEntity companion);
 
+    /** Free time may use this task only on containers inside the owner's known places. */
+    protected boolean onlyInsidePlacesInFreeTime() {
+        return false;
+    }
+
     protected abstract String noTargetSummary();
 
     protected abstract String missingTargetSummary();
@@ -71,6 +76,12 @@ abstract class ContainerTaskBase implements Task {
                     return TaskStatus.FAILED;
                 }
                 containerPos = found.get();
+            }
+            if (onlyInsidePlacesInFreeTime() && c.autonomous()
+                    && dev.friendai.task.autonomy.PlaceGuard.enabled(c.companion())
+                    && !dev.friendai.task.autonomy.PlaceGuard.insideAnyPlace(c.companion(), containerPos)) {
+                summary = "container is outside known places";
+                return TaskStatus.FAILED;
             }
             approach = new Approach(containerPos);
         }

@@ -34,7 +34,8 @@ class RequestTypeTest {
         assertEquals(22, RequestType.PLACES_CLOSE.ordinal());
         assertEquals(23, RequestType.PLACES_RENAME.ordinal());
         assertEquals(24, RequestType.PLACES_FORGET.ordinal());
-        assertEquals(25, RequestType.INVALID.ordinal());
+        assertEquals(25, RequestType.FREE_TIME_TOGGLE.ordinal());
+        assertEquals(26, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
     }
 

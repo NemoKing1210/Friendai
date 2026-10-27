@@ -62,7 +62,8 @@ public final class BreakAction {
         boolean blacklisted = creative && TaskSettings.breakList.matches(
                 BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state));
         if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
-                || blacklisted || (!creative && state.getDestroySpeed(level, pos) < 0)) {
+                || blacklisted || (!creative && state.getDestroySpeed(level, pos) < 0)
+                || dev.friendai.task.autonomy.PlaceGuard.protects(c, pos)) {
             stop(c);
             return State.BLOCKED;
         }

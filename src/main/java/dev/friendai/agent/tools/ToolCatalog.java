@@ -82,7 +82,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.GATHERING, Cost.HIGH, "fell_tree", "mine_blocks", "mine_block_at", "pickup_items");
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area");
-        group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container");
+        group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container",
+                "deposit_items");
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
         group(metas, ToolGroup.COOKING, Cost.MEDIUM, "smelt_items", "cook_food", "collect_smelted");
         group(metas, ToolGroup.ENCHANT, Cost.MEDIUM, "enchant_item", "anvil_item", "grindstone_item");
@@ -127,6 +128,13 @@ public final class ToolCatalog {
                 "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.");
         hint(metas, "remember_place",
                 "- When the owner teaches a place (\"remember this as home\"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.");
+        group(metas, ToolGroup.AUTONOMY, Cost.LOW, "start_free_time", "end_free_time", "choose_activity");
+        hint(metas, "start_free_time",
+                "- When the owner releases you (\"do your own thing\", \"do whatever you want\"), call start_free_time with their hint as wish; call end_free_time when they call you back.");
+        hint(metas, "choose_activity",
+                "- In a free-time event, pick the single most useful activity from the agenda and call choose_activity once; the planner writes the steps.");
+        hint(metas, "deposit_items",
+                "- To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item.");
         hint(metas, "find_place",
                 "- When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.");
         return new ToolCatalog(metas);

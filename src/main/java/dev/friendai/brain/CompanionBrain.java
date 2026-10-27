@@ -42,6 +42,8 @@ import org.slf4j.LoggerFactory;
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
     private static final String REQUEST_TOOLS = "request_tools";
+    /** Free time's director tool: once it succeeds, the turn is over. */
+    static final String CHOOSE_ACTIVITY = "choose_activity";
     /** The marker the failure handler puts in an event when no replans are left. */
     private static final String BUDGET_SPENT = FailureHandler.BUDGET_SPENT;
     /** How many queued events one guest may have waiting for a turn. */
@@ -423,6 +425,7 @@ public final class CompanionBrain {
         }
         boolean goalSet = false;
         boolean queuedByModel = false;
+        boolean activityChosen = false;
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
@@ -437,6 +440,12 @@ public final class CompanionBrain {
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
             goalSet |= !result.error() && "set_goal".equals(call.name());
             queuedByModel |= !result.error() && "queue_add".equals(call.name());
+            activityChosen |= !result.error() && CHOOSE_ACTIVITY.equals(call.name());
+        }
+        if (activityChosen) {
+            // Free time's choice is the whole answer; the planner does the rest, so the turn costs one request.
+            endTurn();
+            return;
         }
         if (goalSet && !queuedByModel && !plannedThisTurn
                 && decision.mode() == TurnMode.GOAL && decision.wantPlanner()) {

@@ -44,6 +44,26 @@ class SnapshotCodecTest {
     }
 
     @Test
+    void freeTimeFieldsRoundTrip() {
+        CompanionSnapshot base = full();
+        CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
+                base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
+                base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
+                base.autoRespawnAvailable(), true, "mine iron for a pickaxe");
+        assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
+    }
+
+    @Test
+    void longActivityIsTruncated() {
+        CompanionSnapshot base = full();
+        CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
+                base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
+                base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
+                base.autoRespawnAvailable(), true, "x".repeat(500));
+        assertEquals(CompanionSnapshot.MAX_ACTIVITY, s.freeTimeActivity().length());
+    }
+
+    @Test
     void roundTripsEmptyLists() {
         CompanionSnapshot s = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(), List.of(), "", List.of(), CompanionVitals.NONE, List.of());
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));

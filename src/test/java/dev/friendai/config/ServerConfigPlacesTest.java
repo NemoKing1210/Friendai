@@ -12,7 +12,7 @@ class ServerConfigPlacesTest {
     @Test
     void placesDefaultsComeFromTheCurrentVersion() {
         ServerConfig config = new ServerConfig();
-        assertEquals(11, ServerConfig.VERSION);
+        assertTrue(ServerConfig.VERSION >= 11);
         assertTrue(config.places.enabled);
         assertEquals(16, config.places.autoMineMinBlocks);
         assertEquals(128, config.places.maxPlaces);

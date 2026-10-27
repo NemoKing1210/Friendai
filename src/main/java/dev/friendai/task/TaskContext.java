@@ -26,4 +26,9 @@ public record TaskContext(CompanionEntity companion, ServerLevel level, TaskRunn
     public boolean canUseCreativeAction(CreativeAction action) {
         return CreativeModeService.isActionAuthorized(companion, creativeActionContext, action);
     }
+
+    /** The running task belongs to free time, which follows stricter rules than an owner order. */
+    public boolean autonomous() {
+        return runner != null && runner.autonomousActive();
+    }
 }

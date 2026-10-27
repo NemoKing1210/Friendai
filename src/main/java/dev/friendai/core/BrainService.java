@@ -84,6 +84,7 @@ public final class BrainService {
     private final Map<String, TaskToolDef> planTools;
     private final Map<String, TaskToolDef> taskTools;
     private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
+    private final FreeTimeDriver freeTime;
 
     private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
     private final Map<UUID, Long> lastGoalTick = new HashMap<>();
@@ -121,7 +122,28 @@ public final class BrainService {
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
+        this.freeTime = new FreeTimeDriver(server, this, () -> this.config, taskTools, planTools);
         reload(initial);
+    }
+
+    /** Free time: the companion working on its own. */
+    public FreeTimeDriver freeTime() {
+        return freeTime;
+    }
+
+    /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
+        return plannerFor(owner).propose(input);
+    }
+
+    /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
+    void ensureBrain(UUID owner) {
+        entryFor(owner);
+    }
+
+    /** Runs on the server thread, the way late brain work hops back. */
+    void onServerThread(Runnable task) {
+        scheduler.execute(task);
     }
 
     /** Rebuilds the LLM client from the config. A broken profile gives a gateway that reports the problem. */
@@ -238,8 +260,11 @@ public final class BrainService {
     }
 
     public void post(UUID owner, BrainEvent event) {
-        if (event instanceof BrainEvent.PlayerSaid) {
+        if (event instanceof BrainEvent.PlayerSaid said) {
             nudgeStreak.remove(owner);
+            if (owner.equals(said.playerUuid())) {
+                freeTime.ownerActivity(owner, FreeTimeDriver.now());
+            }
         }
         entryFor(owner).ifPresent(entry -> entry.brain().post(event));
     }
@@ -386,6 +411,23 @@ public final class BrainService {
             return;
         }
         var goals = FriendaiServerState.get(server).goals();
+        long wall = FreeTimeDriver.now();
+        for (CompanionEntity companion : CompanionManager.get(server).all()) {
+            UUID owner = companion.ownerUuid();
+            if (owner == null) {
+                continue;
+            }
+            var primary = goals.board(owner).primary();
+            // Free time needs the task listener a brain installs, even before the owner has said anything.
+            Entry brain = freeTime.state(owner).on() ? entryFor(owner).orElse(null) : entries.get(owner);
+            try {
+                freeTime.tick(owner, companion, brain != null && brain.brain().isThinking(),
+                        primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
+                        wall);
+            } catch (RuntimeException e) {
+                FriendaiMod.LOGGER.warn("Free time failed for {}", owner, e);
+            }
+        }
         for (Map.Entry<UUID, Entry> entry : new ArrayList<>(entries.entrySet())) {
             UUID owner = entry.getKey();
             CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
@@ -535,25 +577,26 @@ public final class BrainService {
             return result;
         }
 
-        /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
-        private static String describeTool(TaskToolDef def) {
-            JsonObject schema = def.schema();
-            java.util.Set<String> required = new java.util.HashSet<>();
-            if (schema.has("required")) {
-                schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
-            }
-            java.util.List<String> args = new ArrayList<>();
-            if (schema.has("properties")) {
-                for (String arg : schema.getAsJsonObject("properties").keySet()) {
-                    args.add(arg + (required.contains(arg) ? "*" : ""));
-                }
-            }
-            String description = def.description() == null ? "" : def.description();
-            int stop = description.indexOf(". ");
-            String first = stop > 0 ? description.substring(0, stop + 1) : description;
-            return def.name() + "(" + String.join(", ", args) + "): "
-                    + (first.length() > 200 ? first.substring(0, 200) : first);
+    }
+
+    /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
+    static String describeTool(TaskToolDef def) {
+        JsonObject schema = def.schema();
+        java.util.Set<String> required = new java.util.HashSet<>();
+        if (schema.has("required")) {
+            schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
         }
+        java.util.List<String> args = new ArrayList<>();
+        if (schema.has("properties")) {
+            for (String arg : schema.getAsJsonObject("properties").keySet()) {
+                args.add(arg + (required.contains(arg) ? "*" : ""));
+            }
+        }
+        String description = def.description() == null ? "" : def.description();
+        int stop = description.indexOf(". ");
+        String first = stop > 0 ? description.substring(0, stop + 1) : description;
+        return def.name() + "(" + String.join(", ", args) + "): "
+                + (first.length() > 200 ? first.substring(0, 200) : first);
     }
 
     /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
@@ -597,6 +640,30 @@ public final class BrainService {
         }
     }
 
+    /** An owner's stop or follow order also ends free time: both mean "leave your own work". */
+    private dev.friendai.tool.ToolExecutor endsFreeTime(UUID owner, dev.friendai.tool.ToolExecutor inner) {
+        return new dev.friendai.tool.ToolExecutor() {
+            @Override
+            public List<ToolSpec> specs(AccessLevel access) {
+                return inner.specs(access);
+            }
+
+            @Override
+            public ToolResult execute(ToolCall call, Caller caller) {
+                Optional<String> refused = freeTime.refusalDuringChoice(owner, call.name());
+                if (refused.isPresent()) {
+                    return ToolResult.error(refused.get());
+                }
+                if (caller != null && caller.access() == AccessLevel.OWNER
+                        && ("stop".equals(call.name()) || "follow_player".equals(call.name()))) {
+                    // End free time first, so its plan is released, not recorded as a failed shift.
+                    freeTime.stop(owner, "owner asked to " + call.name().replace('_', ' '));
+                }
+                return inner.execute(call, caller);
+            }
+        };
+    }
+
     private Entry create(UUID owner, CompanionEntity companion) {
         CompanionSpeaker speaker = new CompanionSpeaker(
                 server,
@@ -606,7 +673,9 @@ public final class BrainService {
                 companion::setThinking,
                 companion::getUUID,
                 () -> config.chat.hearingRadius);
-        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
+        // With the owner away (free time can keep working) the companion has nobody to talk to.
+        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(
+                new dev.friendai.brain.OwnerPresentSpeaker(speaker, () -> companion.owner().isPresent()));
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
@@ -618,7 +687,7 @@ public final class BrainService {
                         config.brain.cooldownMs,
                         config.chat.guestCooldownMs),
                 () -> gatewayOverrides.getOrDefault(owner, current),
-                tools.bind(companion),
+                endsFreeTime(owner, tools.bind(companion)),
                 new CompanionPerception(companion),
                 effective,
                 scheduler,
@@ -681,7 +750,7 @@ public final class BrainService {
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
-                if (replaced.remove(planId)) {
+                if (replaced.remove(planId) || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
                     return;
                 }
                 post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary,
@@ -690,7 +759,7 @@ public final class BrainService {
 
             @Override
             public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
-                if (replaced.contains(planId)) {
+                if (replaced.contains(planId) || freeTime.onPlanEnded(owner, companion, planId, false, reason)) {
                     return;
                 }
                 post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining,

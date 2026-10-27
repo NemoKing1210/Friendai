@@ -57,6 +57,8 @@ public final class TaskRunner {
     private JobQueue queue;
     private final Map<Long, StepFactory> factories = new HashMap<>();
     private final Map<Long, String> blockedPlans = new HashMap<>();
+    /** Queue plans that free time started; their jobs are autonomous work. */
+    private final java.util.Set<Long> autonomousPlans = new java.util.HashSet<>();
     private Active current;
     private Active frozen;
     private int frozenElapsed;
@@ -96,6 +98,15 @@ public final class TaskRunner {
     }
     public int currentId() { return current==null?0:current.id(); }
     public JobQueue queue() { return queue; }
+    /** Marks a queue plan as free time's own, so its jobs act under the autonomous rules. */
+    public void markAutonomousPlan(long planId) { autonomousPlans.add(planId); }
+    public void unmarkAutonomousPlan(long planId) { autonomousPlans.remove(planId); }
+    /** True while the running task is a job of a plan free time started. */
+    public boolean autonomousActive() { return current!=null && current.planId()>0 && autonomousPlans.contains(current.planId()); }
+    /** The tool that started the running task, empty when nothing runs. */
+    public String currentToolName() { return current==null?"":current.toolName(); }
+    /** True while a task that is neither the default activity nor free time's runs: owner work comes first. */
+    public boolean busyWithOther() { return current!=null && !current.defaultActivity() && !autonomousActive(); }
     public Optional<Job> activeJob() { return queue.active(); }
     public int pendingJobs() { return (int)queue.jobs().stream().filter(j->j.state()==JobState.PENDING).count(); }
     public boolean hasWork() { return queue.jobCount()>0 || (current!=null&&!current.defaultActivity()); }

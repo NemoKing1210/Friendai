@@ -30,7 +30,8 @@ public enum RequestType {
     PLACES_RENAME(DebugAccess.Action.EDIT_PLACES),
     PLACES_FORGET(DebugAccess.Action.EDIT_PLACES),
     INVALID(null),
-    SET_CREATIVE_MODE(DebugAccess.Action.SET_CREATIVE_MODE);
+    SET_CREATIVE_MODE(DebugAccess.Action.SET_CREATIVE_MODE),
+    FREE_TIME_TOGGLE(DebugAccess.Action.SET_FREE_TIME);
 
     private final DebugAccess.Action action;
 

@@ -82,6 +82,8 @@ public final class SnapshotCodec {
             out.writeBoolean(s.autoRespawnAvailable());
             out.writeBoolean(s.creativeMode());
             out.writeBoolean(s.creativeModeAvailable());
+            out.writeBoolean(s.freeTimeOn());
+            writeString(out, s.freeTimeActivity());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -148,21 +150,27 @@ public final class SnapshotCodec {
             boolean autoRespawnAvailable = present;
             boolean creativeMode = false;
             boolean creativeModeAvailable = false;
-            if (in.available() == 2) {
+            if (in.available() >= 2) {
                 autoRespawn = in.readBoolean();
                 autoRespawnAvailable = in.readBoolean();
-            } else if (in.available() == 4) {
-                autoRespawn = in.readBoolean();
-                autoRespawnAvailable = in.readBoolean();
+            }
+            if (in.available() >= 2) {
                 creativeMode = in.readBoolean();
                 creativeModeAvailable = in.readBoolean();
+            }
+            boolean freeTimeOn = false;
+            String freeTimeActivity = "";
+            if (in.available() > 0) {
+                freeTimeOn = in.readBoolean();
+                freeTimeActivity = readString(in);
             }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
                     present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals,
-                    queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable);
+                    queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable, freeTimeOn,
+                    freeTimeActivity);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

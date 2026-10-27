@@ -1,7 +1,9 @@
 package dev.friendai.tool.builtin;
 
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.builtin.CheckContainerTask;
+import dev.friendai.task.builtin.DepositTask;
 import dev.friendai.task.builtin.StoreItemsTask;
 import dev.friendai.task.builtin.TakeItemsTask;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -56,5 +58,15 @@ final class StorageTools {
                         .build(),
                 (c, a) -> new CheckContainerTask(ToolKit.optionalPos(a).orElse(null)),
                 true).asCreativeSafe());
+        ToolKit.add(registry, defs, new TaskToolDef("deposit_items",
+                "Unload loot into the chests of a remembered storage place (or home), sorting like with like. "
+                        + "Keeps the best tool of each kind, some food and building blocks, and the server's keep list.",
+                SchemaBuilder.object()
+                        .string("place", "Name of the storage place or home; the nearest storage place when omitted")
+                        .build(),
+                (c, a) -> new DepositTask(
+                        a.has("place") && !a.get("place").isJsonNull() ? a.get("place").getAsString() : null,
+                        FriendaiServerState.get(c.level().getServer()).config().autonomy.keepItems),
+                true));
     }
 }

@@ -52,6 +52,17 @@ final class QueueTools {
         JsonArray required=schema.has("required")?schema.getAsJsonArray("required"):new JsonArray();if(!schema.has("required"))schema.add("required",required);required.add("tool");return schema;
     }
     private static ToolResult add(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {
+        return addPlan(c,caller,args,all,true,java.util.Set.of());
+    }
+    /**
+     * Queues a plan like {@code queue_add}. {@code linkGoal} false keeps the plan off the owner's goal board, and a
+     * step whose tool is in {@code denied} refuses the whole plan.
+     */
+    static ToolResult addPlan(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all,boolean linkGoal,java.util.Set<String> denied) {
+        if(args.has("steps")&&args.get("steps").isJsonArray())for(var step:args.getAsJsonArray("steps")){
+            if(step.isJsonObject()&&step.getAsJsonObject().has("tool")&&denied.contains(step.getAsJsonObject().get("tool").getAsString()))
+                return ToolResult.error("Invalid plan: tool "+step.getAsJsonObject().get("tool").getAsString()+" is not allowed in free time");
+        }
         Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));
         var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,LIMITS.maxArgsChars(),LIMITS.maxAddChars());
         if(!parsed.ok())return ToolResult.error("Invalid plan: "+String.join("; ",parsed.errors()));
@@ -74,7 +85,7 @@ final class QueueTools {
             QueueOptimizer.apply(c.taskRunner().queue(),planId,name->{TaskToolDef d=all.get(name);return d==null?null:d.queueTraits().mergeableCountArg();});
             registerFactories(c,c.taskRunner().queue().jobsOfPlan(planId).stream().map(dev.friendai.queue.Job::id).toList(),allowed,principal);
         });}catch(IllegalArgumentException e){return ToolResult.error("Invalid plan: "+e.getMessage());}
-        GoalTools.linkPlan(c,id);
+        if(linkGoal)GoalTools.linkPlan(c,id);
         return ToolResult.ok("plan #"+id+(goal.isBlank()?"":" \""+goal+"\"")+" added: "+steps.size()+" jobs");
     }
     private static ToolResult edit(CompanionEntity c,Caller caller,JsonObject args,Map<String,TaskToolDef> all) {

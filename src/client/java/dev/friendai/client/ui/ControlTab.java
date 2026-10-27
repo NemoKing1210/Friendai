@@ -24,6 +24,7 @@ final class ControlTab implements MenuTab {
     private FlatButton movementDebug;
     private FlatButton autoRespawn;
     private FlatButton creativeMode;
+    private FlatButton freeTime;
     private int buttonsTop;
 
     @Override
@@ -47,6 +48,8 @@ final class ControlTab implements MenuTab {
                 Component.empty(), Ui.ACCENT, ControlTab::toggleAutoRespawn));
         creativeMode = host.add(new FlatButton(left, buttonsTop - 3 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
                 Component.empty(), Ui.PURPLE, ControlTab::toggleCreativeMode));
+        freeTime = host.add(new FlatButton(left, buttonsTop - 4 * (GAP + BUTTON_HEIGHT), width, BUTTON_HEIGHT,
+                Component.empty(), Ui.GOOD, () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
         tick();
     }
 
@@ -93,6 +96,14 @@ final class ControlTab implements MenuTab {
                         : s.autoRespawn() ? "friendai.menu.auto_respawn.on" : "friendai.menu.auto_respawn.off")
                 .orElse("friendai.menu.auto_respawn.off");
         autoRespawn.setMessage(Component.translatable(autoRespawnKey));
+        freeTime.visible = present;
+        freeTime.active = connected && present;
+        freeTime.setMessage(snapshot.map(s -> !s.freeTimeOn()
+                        ? Component.translatable("friendai.menu.free_time.off")
+                        : s.freeTimeActivity().isEmpty()
+                                ? Component.translatable("friendai.menu.free_time.on")
+                                : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity()))
+                .orElse(Component.translatable("friendai.menu.free_time.off")));
         boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
         boolean creativeAvailable = snapshot.map(CompanionSnapshot::creativeModeAvailable).orElse(false);
         creativeMode.visible = true;
@@ -111,7 +122,7 @@ final class ControlTab implements MenuTab {
 
     private void layoutControls() {
         int row = 0;
-        for (FlatButton control : new FlatButton[] {creativeMode, autoRespawn, movementDebug}) {
+        for (FlatButton control : new FlatButton[] {freeTime, creativeMode, autoRespawn, movementDebug}) {
             if (!control.visible) continue;
             control.setY(buttonsTop - GAP - BUTTON_HEIGHT - row * (GAP + BUTTON_HEIGHT));
             row++;
@@ -129,7 +140,7 @@ final class ControlTab implements MenuTab {
         drawHeader(g, font, s, left, top, width);
         int y = top + HEADER_HEIGHT + GAP;
         int controls = (creativeMode.visible ? 1 : 0) + (movementDebug.visible ? 1 : 0)
-                + (autoRespawn.visible ? 1 : 0);
+                + (autoRespawn.visible ? 1 : 0) + (freeTime.visible ? 1 : 0);
         int limit = buttonsTop - GAP - controls * (BUTTON_HEIGHT + GAP);
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);
