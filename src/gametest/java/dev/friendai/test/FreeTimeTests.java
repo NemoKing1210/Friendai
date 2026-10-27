@@ -295,6 +295,97 @@ public class FreeTimeTests {
         });
     }
 
+    /**
+     * The report that started item 16: a shift is running, the owner says "don't follow me", and the companion never
+     * works again. A stay must hold the job, not lose it, and must end by itself.
+     */
+    @GameTest(maxTicks = 600)
+    public void stayDuringAShiftHoldsThenResumes(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        UUID owner = UUID.randomUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long plan = shiftPlan(h, c, "[{\"tool\":\"jump\",\"args\":\"{}\"}]");
+        c.taskRunner().tick();
+        h.assertTrue(c.taskRunner().autonomousActive(), "the shift job runs: " + c.taskRunner().currentToolName());
+        int staySeconds = dev.friendai.task.TaskSettings.stayTimeoutSec;
+        dev.friendai.task.TaskSettings.stayTimeoutSec = 2;
+        c.taskRunner().interrupt(new dev.friendai.task.builtin.StayTask(), "stay");
+        h.assertTrue(c.taskRunner().movementOrderActive(), "the stay is a movement order, not owner work");
+        h.assertTrue(!c.taskRunner().busyWithOther(), "a movement order is not work in the way");
+        h.assertTrue(c.taskRunner().queue().plan(plan).isPresent(), "the held plan is still queued");
+        var shift = driver(h).state(owner).shift();
+        h.assertTrue(shift != null && shift.planId() == plan, "the shift is kept, not closed: " + shift);
+        h.succeedWhen(() -> {
+            c.taskRunner().tick();
+            h.assertTrue(!c.taskRunner().movementOrderActive(), "the stay ends at its timeout");
+            h.assertTrue(c.taskRunner().autonomousActive(),
+                    "the shift job resumes after the stay: " + c.taskRunner().currentToolName());
+            h.assertTrue(driver(h).state(owner).on(), "free time is still on");
+            dev.friendai.task.TaskSettings.stayTimeoutSec = staySeconds;
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    /** "Don't follow me" switches the idle walk off and the choice is stored with the owner, not the entity. */
+    @GameTest
+    public void followModeGatesTheDefaultWalk(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = companion(h);
+        c.setFollowMode(false);
+        h.assertTrue(!c.followMode(), "the owner's choice is stored");
+        h.assertTrue(!c.mayFollowOwner(), "a companion told not to follow stays put");
+        c.taskRunner().tick();
+        h.assertTrue(!c.taskRunner().currentIsDefaultActivity(),
+                "no default follow starts: " + c.taskRunner().currentToolName());
+        h.assertTrue(dev.friendai.entity.CompanionLifeData.get(h.getLevel().getServer())
+                .followModeChoice(c.ownerUuid()).orElseThrow() == Boolean.FALSE, "per-owner, so it survives a relog");
+        c.setFollowMode(true);
+        h.assertTrue(c.followMode(), "the switch turns back on");
+        h.assertTrue(c.mayFollowOwner(), "following is allowed again");
+        c.taskRunner().tick();
+        h.assertTrue(c.taskRunner().currentIsDefaultActivity(), "the default follow is back");
+        h.succeed();
+    }
+
+    /**
+     * Free time on, nothing running, no director turn: after the window the watchdog asks anyway instead of standing
+     * still forever. The failure backoff is exhausted here, which is exactly the state that used to go silent.
+     */
+    @GameTest(maxTicks = 400)
+    public void watchdogAsksForWorkAfterSilence(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        int window = dev.friendai.task.TaskSettings.freeTimeWatchdogSec;
+        dev.friendai.task.TaskSettings.freeTimeWatchdogSec = 1;
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        for (int i = 0; i < dev.friendai.agent.tick.NudgeBackoff.MAX_STREAK; i++) {
+            driver(h).budget(owner).failed();
+        }
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.awaitingChoice(), "the watchdog forces a decision: " + state);
+            dev.friendai.task.TaskSettings.freeTimeWatchdogSec = window;
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    /** "Come back" must turn following on even when free time was already off. */
+    @GameTest(maxTicks = 200)
+    public void endFreeTimeBringsTheCompanionBack(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        c.setFollowMode(false);
+        h.assertTrue(!c.followMode(), "following is off");
+        var result = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains()
+                .runTool(owner, "end_free_time", "{}");
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(c.followMode(), "the order to come back turns following on: " + result.content());
+        h.succeed();
+    }
+
     private static dev.friendai.agent.plan.PlanProposal jumpPlan() {
         return new dev.friendai.agent.plan.PlanProposal(java.util.List.of(),
                 com.google.gson.JsonParser.parseString("[{\"tool\":\"jump\",\"args\":\"{}\"},{\"tool\":\"jump\","

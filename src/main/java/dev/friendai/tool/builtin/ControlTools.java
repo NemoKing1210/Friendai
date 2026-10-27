@@ -103,8 +103,23 @@ final class ControlTools {
                 AccessLevel.OWNER,
                 (c, a) -> setName(c, a.get("name").getAsString())));
 
+        registry.register(ToolKit.instantTool("set_follow_mode",
+                "Turn walking to the owner on or off. Use mode=off when the owner says not to follow them: it only "
+                        + "stops your idle walk and never cancels work, so keep working. Use mode=on when they ask you "
+                        + "to follow them again.",
+                SchemaBuilder.object()
+                        .enumeration("mode", "Follow mode", "on", "off")
+                        .required("mode")
+                        .build(),
+                AccessLevel.OWNER,
+                (c, a) -> {
+                    boolean on = "on".equals(a.get("mode").getAsString());
+                    c.setFollowMode(on);
+                    return ToolResult.ok(on ? "following the owner again" : "not following the owner; work continues");
+                }));
+
         registry.register(ToolKit.instantTool("stop",
-                "Cancel current work and go back to the default activity. Pass a tool name to stop one action, or all to clear queued work, end a fight and cancel furnace jobs. To stop following the owner, use stay.",
+                "Cancel current work and go back to the default activity. Pass a tool name to stop one action, or all to clear queued work, end a fight and cancel furnace jobs. To stop walking to the owner on your own, use set_follow_mode with mode=off instead; that leaves the work running.",
                 SchemaBuilder.object()
                         .string("what", "current (default), a tool name like mine_blocks, or all")
                         .build(),

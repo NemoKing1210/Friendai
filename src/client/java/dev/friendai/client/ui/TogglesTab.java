@@ -23,6 +23,7 @@ final class TogglesTab implements MenuTab {
     private FlatButton creativeMode;
     private FlatButton autoRespawn;
     private FlatButton freeTime;
+    private FlatButton followMode;
     private FlatButton movementDebug;
 
     @Override
@@ -39,9 +40,17 @@ final class TogglesTab implements MenuTab {
         freeTime = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.GOOD,
                 () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
         y += BUTTON_HEIGHT + GAP;
+        followMode = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT,
+                TogglesTab::toggleFollowMode));
+        y += BUTTON_HEIGHT + GAP;
         movementDebug = host.add(new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE,
                 TogglesTab::toggleMovementDebug));
         tick();
+    }
+
+    private static void toggleFollowMode() {
+        CompanionClientState.snapshot().ifPresent(snapshot -> CompanionRequests.send(
+                RequestType.SET_FOLLOW_MODE, Boolean.toString(!snapshot.followMode()), ""));
     }
 
     private static void toggleMovementDebug() {
@@ -84,9 +93,18 @@ final class TogglesTab implements MenuTab {
         freeTime.setMessage(snapshot.map(s -> !s.freeTimeOn()
                         ? Component.translatable("friendai.menu.free_time.off")
                         : s.freeTimeActivity().isEmpty()
-                                ? Component.translatable("friendai.menu.free_time.on")
+                                ? Component.translatable(s.freeTimeWaiting()
+                                        ? "friendai.menu.free_time.waiting"
+                                        : "friendai.menu.free_time.on")
                                 : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity()))
                 .orElse(Component.translatable("friendai.menu.free_time.off")));
+
+        followMode.visible = present;
+        followMode.active = connected && present;
+        followMode.setMessage(Component.translatable(snapshot.map(s -> s.followMode()
+                        ? "friendai.menu.follow.on"
+                        : "friendai.menu.follow.off")
+                .orElse("friendai.menu.follow.off")));
 
         boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
         boolean creativeAvailable = snapshot.map(CompanionSnapshot::creativeModeAvailable).orElse(false);
@@ -108,7 +126,7 @@ final class TogglesTab implements MenuTab {
     /** Stacks the visible switches so a hidden one leaves no gap. */
     private void layout() {
         int y = top + HEADER_HEIGHT;
-        for (FlatButton control : new FlatButton[] {creativeMode, autoRespawn, freeTime, movementDebug}) {
+        for (FlatButton control : new FlatButton[] {creativeMode, autoRespawn, freeTime, followMode, movementDebug}) {
             if (!control.visible) {
                 continue;
             }

@@ -7,6 +7,17 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class SkillSelectorTest {
+    @Test void learnedLanguageSurvivesProfileAssemblyAndExplicitPreferenceWins() {
+        var context=context(AccessLevel.OWNER,"hello");
+        var session=new SkillPromptSession(List.of(),context,24000,2400);
+        var base=new dev.friendai.brain.Persona("F","Guide","auto","Russian");
+        assertEquals("Russian",session.persona(base).ownerLanguage());
+        var explicit=new SkillContext(context.caller(),"hello","",context.kinds(),false,CompanionDescription.EMPTY,new OwnerProfile("en",""));
+        var overridden=new SkillPromptSession(List.of(),explicit,24000,2400).persona(base);
+        assertEquals("en",overridden.language());assertEquals("Russian",overridden.ownerLanguage());
+        String guest=dev.friendai.brain.PromptBuilder.system(base,"",context(AccessLevel.GUEST,"").caller());
+        assertFalse(guest.contains("The owner usually writes in Russian"));
+    }
     final UUID owner=UUID.randomUUID();
     SkillContext context(AccessLevel access,String message) {
         return new SkillContext(new Caller(owner,"Owner",access),message,"",Set.of(InstructionSkill.Kind.CHAT),

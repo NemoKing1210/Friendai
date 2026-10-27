@@ -38,7 +38,8 @@ class RequestTypeTest {
         // Requests added after INVALID keep every older ordinal stable on the wire.
         assertEquals(26, RequestType.SET_CREATIVE_MODE.ordinal());
         assertEquals(27, RequestType.FREE_TIME_TOGGLE.ordinal());
-        assertEquals(RequestType.values().length - 1, RequestType.FREE_TIME_TOGGLE.ordinal());
+        assertEquals(28, RequestType.SET_FOLLOW_MODE.ordinal());
+        assertEquals(RequestType.values().length - 1, RequestType.SET_FOLLOW_MODE.ordinal());
     }
 
     @Test

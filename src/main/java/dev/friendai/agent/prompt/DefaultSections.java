@@ -62,9 +62,20 @@ public final class DefaultSections {
     static PromptSection identity() {
         return of("identity", PromptSection.NEVER_CUT, ctx -> {
             var p = ctx.persona();
-            String languageRule = p.language() == null || p.language().isBlank() || p.language().equalsIgnoreCase("auto")
-                    ? "Reply in the same language the player uses."
-                    : "Always reply in " + p.language() + ".";
+            String configured = p.language();
+            boolean auto = configured == null || configured.isBlank() || configured.equalsIgnoreCase("auto");
+            String ownerLanguage = p.ownerLanguage();
+            String languageRule;
+            if (!auto) {
+                languageRule = "Always reply in " + configured + ".";
+            } else if (ownerLanguage != null && ctx.caller().access() == AccessLevel.OWNER) {
+                // A learned default: the owner still switches languages by asking, and the detector follows a
+                // sustained change. A guest's turn keeps the per-turn guess instead.
+                languageRule = "The owner usually writes in " + ownerLanguage + ": reply in " + ownerLanguage
+                        + " unless they ask for another language.";
+            } else {
+                languageRule = "Reply in the same language the player uses.";
+            }
             String turnLine = ctx.turn() == dev.friendai.brain.TurnKind.EVENT
                     ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent]."
                     : "This turn: the player is talking to you now.";
@@ -85,6 +96,7 @@ public final class DefaultSections {
             return "Rules:\n"
                     + "- Keep replies short: 1–2 sentences, no markdown.\n"
                     + "- Answering is never a reason to move: you can talk to the player from wherever you are. Reply where you stand and follow or walk only when the player asks, or when a task needs it.\n"
+                    + "- \"Don't follow me\" is a movement order, not a stop: turn following off with set_follow_mode (mode=off) and carry on with the work. Use stay only when the player wants you to wait in one place, and end_free_time only when they call you back or tell you to stop working.\n"
                     + "- Do anything in the world only through tools. Never claim you did something until the task-finished event arrives.\n"
                     + "- Remembered resource locations and counts are historical evidence, not guaranteed supply. Unknown means unseen, not absent; never claim a hidden location exists until direct observation verifies it.\n"
                     + "- Long tasks finish later; you will get a message starting with \"[event]\" with the result.\n"

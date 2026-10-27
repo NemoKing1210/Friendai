@@ -139,6 +139,15 @@ public final class CompanionRequestHandler {
                     return;
                 }
             }
+            case SET_FOLLOW_MODE -> {
+                if (!a.equals("true") && !a.equals("false")) {
+                    return;
+                }
+                if (companions.find(owner).isEmpty()) {
+                    return;
+                }
+                state.companionLife().setFollowMode(owner, a.equals("true"));
+            }
             case FREE_TIME_TOGGLE -> {
                 var companion = companions.find(owner);
                 if (companion.isEmpty() || brains.freeTime().disabled()) {

@@ -90,8 +90,8 @@ public final class ToolCatalog {
         core(metas, ToolGroup.CORE, "stop", "queue_add", "queue_show", "queue_edit", "look_around", "get_inventory",
                 "set_goal", "update_goal", "finish_goal", "request_tools", "find_place");
         core(metas, ToolGroup.MEMORY, "remember", "recall", "forget", "use_skill", "manage_skill");
-        group(metas, ToolGroup.MOVEMENT, Cost.MEDIUM, "follow_player", "stay", "go_to", "jump", "set_pace", "step",
-                "back_away", "approach", "circle");
+        group(metas, ToolGroup.MOVEMENT, Cost.MEDIUM, "follow_player", "stay", "go_to", "jump", "set_pace",
+                "set_follow_mode", "step", "back_away", "approach", "circle");
         group(metas, ToolGroup.GATHERING, Cost.HIGH, "fell_tree", "mine_blocks", "mine_block_at", "pickup_items");
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area");
@@ -138,6 +138,8 @@ public final class ToolCatalog {
                 "- In creative mode, execute_command accepts only allowlisted teleport/time/weather/item/effect/enchant forms and uses the owner's live command permissions. Use @s for yourself, give/enchant only for the owner, and describe the returned feedback without claiming a denied or failed command succeeded.");
         hint(metas, "build_structure",
                 "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure.");
+        hint(metas, "set_follow_mode",
+                "- \"Don't follow me\" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.");
         hint(metas, "set_pace",
                 "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.");
         hint(metas, "get_food",

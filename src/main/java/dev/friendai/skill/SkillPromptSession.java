@@ -55,7 +55,7 @@ public final class SkillPromptSession {
         if(context==null||context.caller().access()!=AccessLevel.OWNER)return base;
         String language=base.language();
         if((language==null||language.isBlank()||"auto".equalsIgnoreCase(language))&&!"auto".equals(context.ownerProfile().language()))language=context.ownerProfile().language();
-        return new Persona(base.name(),base.description(),language);
+        return new Persona(base.name(),base.description(),language,base.ownerLanguage());
     }
     public String ownerAddress() {
         return context!=null&&context.caller().access()==AccessLevel.OWNER?context.ownerProfile().address():"";

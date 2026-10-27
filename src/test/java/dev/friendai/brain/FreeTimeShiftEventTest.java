@@ -36,8 +36,10 @@ class FreeTimeShiftEventTest {
         assertTrue(line.contains("Recent shifts:\n- chop wood: ok, 16 logs"), line);
         assertTrue(line.contains("Lessons:\n- mine_blocks failed: no pickaxe"), line);
         assertTrue(line.contains("Owner wish: focus on food"), line);
-        assertTrue(line.endsWith("Call choose_activity exactly once with one concrete activity and the agenda need it "
+        assertTrue(line.contains("Call choose_activity exactly once with one concrete activity and the agenda need it "
                 + "serves, or reply exactly [silent] if nothing is worth doing."), line);
+        assertTrue(line.endsWith("Free time happens on its own: the owner is not a destination. Never walk to them, "
+                + "and do not put approaching or following the owner into the plan."), line);
     }
 
     @Test

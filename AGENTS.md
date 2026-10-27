@@ -22,17 +22,13 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
 3. Close the loop: when the item is done, tick it `[x]` and move it to the **Done** section of `TODO.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs.
 
-**Claim the item before you start it.** Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]` and add a blockquote directly under it:
+**Pick a whole item, never a slice.** When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`. A sub-item is one slice of its parent, so picking it leaves the rest of the parent unattended and that number half-finished in the list, while the parent reads as still open. Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands. If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
 
-```
-  > **In progress:** session `<name>` since `YYYY-MM-DD HH:MM` UTC
-```
-
-`<name>` must let another session recognise you: the branch or worktree name, or the model plus a short id. Taking a single sub-item marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
+**Claim the item before you start it.** Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]`. That marker is the whole claim: **never add** a session name, a timestamp or an `**In progress**` line under the item, and do not ask another session to add one. Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
 
 **The claim is the one TODO edit that is its own commit** (`chore(todo): take task N`), because it is a lock and other checkouts only see it through git. Everything else about `TODO.md` follows "Recording an item is not a commit of its own" below.
 
-When the work ends: tick `[x]`, delete the **In progress** line and move the item to **Done**, in the commit that carries the change. When you stop or abandon it: restore `[ ]`, delete the line and say why in your final message. Never delete or silently rewrite another session's marker; if it is more than 24 hours old and no session claims it, you may take it over by updating the line and saying so.
+When the work ends: tick `[x]` and move the item to **Done**, in the commit that carries the change. When you stop or abandon it: restore `[ ]` and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
 
 **When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
 
@@ -299,7 +295,7 @@ The maintainer often runs several agent sessions on this repository at once, usu
 - **Commit only your own files**, naming them explicitly (`git add <path>...`). Never use `git add -A` or `git commit -a`. If a file holds both your edits and someone else's, say so and leave it uncommitted.
 - **Failures outside your change may not be yours.** A build or test error in code you did not touch is often another session's work in progress. Check `git status` and `git diff` for that file first; if it is not yours, report it rather than patching it, and re-run later.
 - **One Gradle run at a time per checkout** (see "Working with subagents"). If a build fails on a lock or the `run/` directory, wait and retry; do not delete lock files or kill other Java processes.
-- **Claim your `TODO.md` item first.** See "Working from TODO.md": `- [~]` plus an **In progress** line with your session name and a UTC timestamp, committed before the spec or the code. A claimed item belongs to its session; an unclaimed one is up for grabs.
+- **Claim your `TODO.md` item first.** See "Working from TODO.md": flip `- [ ]` to `- [~]` and commit that as `chore(todo): take task N` before the spec or the code. No session or timestamp line under the item. A claimed item belongs to its session; an unclaimed one is up for grabs.
 - **Prefer a worktree** for work that edits many files or runs long builds, so you do not collide with other sessions. Do not delete or rewrite other sessions' worktrees or branches.
 - In the final message, list the files you changed and mention any foreign changes you noticed, so the maintainer can reconcile them.
 

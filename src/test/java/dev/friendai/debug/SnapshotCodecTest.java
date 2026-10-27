@@ -49,7 +49,8 @@ class SnapshotCodecTest {
         CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
                 base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
                 base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
-                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "mine iron for a pickaxe");
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true,
+                "mine iron for a pickaxe", false, true);
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
     }
 
@@ -59,7 +60,8 @@ class SnapshotCodecTest {
         CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
                 base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
                 base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
-                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "x".repeat(500));
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "x".repeat(500),
+                false, true);
         assertEquals(CompanionSnapshot.MAX_ACTIVITY, s.freeTimeActivity().length());
     }
 
@@ -67,6 +69,28 @@ class SnapshotCodecTest {
     void roundTripsEmptyLists() {
         CompanionSnapshot s = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(), List.of(), "", List.of(), CompanionVitals.NONE, List.of());
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
+    }
+
+    @Test
+    void modeFieldsRoundTrip() {
+        CompanionSnapshot base = full();
+        CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
+                base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
+                base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "", true, false);
+        CompanionSnapshot decoded = SnapshotCodec.decode(SnapshotCodec.encode(s));
+        assertEquals(s, decoded);
+        assertEquals(true, decoded.freeTimeWaiting());
+        assertEquals(false, decoded.followMode());
+    }
+
+    @Test
+    void decodesABytesFromTheOlderFormat() {
+        byte[] fullBytes = SnapshotCodec.encode(full());
+        byte[] oldBytes = java.util.Arrays.copyOf(fullBytes, fullBytes.length - 2);
+        CompanionSnapshot decoded = SnapshotCodec.decode(oldBytes);
+        assertEquals(false, decoded.freeTimeWaiting());
+        assertEquals(true, decoded.followMode(), "an old payload keeps following on, like the config default");
     }
 
     @Test

@@ -11,6 +11,7 @@ import dev.friendai.brain.AgentSettings.Autonomy;
  * @param planningInFlight a planner request for the current shift has not answered yet
  * @param ownerWorkQueued the queue holds a job or plan that is not free time's
  * @param lastOwnerActivityMillis the owner's last message or owner-started task
+ * @param movementOrder a movement order (come here, wait here, walk there) is running: not work, but a deliberate hold
  */
 public record ShiftInputs(
         FreeTime state,
@@ -22,4 +23,5 @@ public record ShiftInputs(
         boolean planningInFlight,
         boolean ownerWorkQueued,
         boolean brainThinking,
-        long lastOwnerActivityMillis) {}
+        long lastOwnerActivityMillis,
+        boolean movementOrder) {}

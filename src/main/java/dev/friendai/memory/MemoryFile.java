@@ -28,6 +28,8 @@ public final class MemoryFile {
         public String lastName;
         public boolean trusted;
         public long lastSeen;
+        /** The language the owner writes in, learned from their messages; null on an old file or before it is known. */
+        public String language;
     }
 
     /** One food the owner allowed or forbade; {@code allowed} false means an explicit ban. */

@@ -31,7 +31,9 @@ public enum RequestType {
     PLACES_FORGET(DebugAccess.Action.EDIT_PLACES),
     INVALID(null),
     SET_CREATIVE_MODE(DebugAccess.Action.SET_CREATIVE_MODE),
-    FREE_TIME_TOGGLE(DebugAccess.Action.SET_FREE_TIME);
+    FREE_TIME_TOGGLE(DebugAccess.Action.SET_FREE_TIME),
+    /** Appended: the ordinal is on the wire, so new requests go last. */
+    SET_FOLLOW_MODE(DebugAccess.Action.SET_FOLLOW_MODE);
 
     private final DebugAccess.Action action;
 

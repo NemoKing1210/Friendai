@@ -51,3 +51,4 @@ Known places (ids in brackets; go_to_place takes a name; names are labels, not i
 - [3] дом (house), 12 blocks south
 Current state:
 Position: 1 2 3
+- "Don't follow me" is a movement order, not a stop: turn following off with set_follow_mode (mode=off) and carry on with the work. Use stay only when the player wants you to wait in one place, and end_free_time only when they call you back or tell you to stop working.
