@@ -13,6 +13,8 @@ public final class MemoryFile {
     public String persona;
     /** The encoded goal board ({@code goals:v1:...}); null means no goals. */
     public String goals;
+    /** The encoded free-time state ({@code freetime:v1:...}); null means free time was never used. */
+    public String freeTime;
     public List<PlayerEntry> players = new ArrayList<>();
     public List<FactEntry> facts = new ArrayList<>();
     public List<FoodRuleEntry> foodRules = new ArrayList<>();

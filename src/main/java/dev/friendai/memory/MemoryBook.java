@@ -25,6 +25,8 @@ public final class MemoryBook {
     private String persona;
     /** The encoded goal board; null when there are no goals. */
     private String goals;
+    /** The encoded free-time state; null when free time was never used. */
+    private String freeTime;
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -166,6 +168,23 @@ public final class MemoryBook {
             return false;
         }
         goals = value;
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** The encoded free-time state, or empty when free time was never used. */
+    public Optional<String> freeTime() {
+        return Optional.ofNullable(freeTime);
+    }
+
+    /** Stores the encoded free-time state (null or blank clears it). Returns whether it changed. */
+    public boolean setFreeTime(String encoded) {
+        String value = encoded == null || encoded.isBlank() ? null : encoded;
+        if (java.util.Objects.equals(value, freeTime)) {
+            return false;
+        }
+        freeTime = value;
         dirty = true;
         revision++;
         return true;
@@ -386,6 +405,7 @@ public final class MemoryBook {
         file.companionName = companionName;
         file.persona = persona;
         file.goals = goals;
+        file.freeTime = freeTime;
         for (Fact fact : facts.values()) {
             MemoryFile.FactEntry entry = new MemoryFile.FactEntry();
             entry.id = fact.id();
@@ -422,6 +442,9 @@ public final class MemoryBook {
             PersonaText.parse(file.persona).ifPresent(text -> book.persona = text);
             if (file.goals != null && !file.goals.isBlank()) {
                 book.goals = file.goals;
+            }
+            if (file.freeTime != null && !file.freeTime.isBlank()) {
+                book.freeTime = file.freeTime;
             }
         }
         if (file != null && file.players != null) {
