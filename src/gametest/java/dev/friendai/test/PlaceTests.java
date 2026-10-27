@@ -270,37 +270,35 @@ public class PlaceTests {
         long[] created = {0};
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS,
+                    (phase[0] == 0 ? "the first" : "the second") + " farm pass should finish: "
+                            + result.status + " " + result.summary);
+            List<Place> places = PlaceService.book(companion).all();
+            h.assertValueEqual(places.size(), 1, "places after pass " + (phase[0] + 1) + ": " + places);
+            Place farm = places.get(0);
+            h.assertValueEqual(farm.kind(), PlaceKind.FARM, "kind");
+            h.assertValueEqual(farm.label(), "wheat", "label");
+            h.assertValueEqual(farm.source(), PlaceSource.FARM, "source");
+            h.assertValueEqual(farm.radius(), 4, "radius");
+            h.assertValueEqual(farm.anchor(), new Pos(plot.getX(), plot.getY(), plot.getZ()), "anchor");
             if (phase[0] == 0) {
-                h.assertTrue(result.status == TaskStatus.SUCCESS,
-                        "the first pass should finish: " + result.status + " " + result.summary);
-                List<Place> places = PlaceService.book(companion).all();
-                h.assertValueEqual(places.size(), 1, "places after the first pass");
-                Place farm = places.get(0);
-                h.assertValueEqual(farm.kind(), PlaceKind.FARM, "kind");
-                h.assertValueEqual(farm.label(), "wheat", "label");
-                h.assertValueEqual(farm.source(), PlaceSource.FARM, "source");
-                h.assertValueEqual(farm.radius(), 4, "radius");
-                h.assertValueEqual(farm.anchor(), new Pos(plot.getX(), plot.getY(), plot.getZ()), "anchor");
+                // Ripen the replanted crop and work the very same plot again: the place must be refreshed, not
+                // recorded twice. Nothing below is asserted until that second pass has finished.
                 created[0] = farm.createdTick();
-                // Ripen the replanted crop, so the second pass works the same farm again.
+                phase[0] = 1;
                 wheatPlot(h);
                 result.status = null;
+                result.summary = "";
                 companion.taskRunner().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
-                phase[0] = 1;
-                return;
+                h.assertTrue(false, "waiting for the second farm pass to finish");
             }
-            h.assertTrue(result.status == TaskStatus.SUCCESS,
-                    "the second pass should finish: " + result.status + " " + result.summary);
-            List<Place> places = PlaceService.book(companion).all();
-            h.assertValueEqual(places.size(), 1, "a second pass refreshes instead of creating: " + places);
-            Place farm = places.get(0);
             h.assertValueEqual(farm.createdTick(), created[0], "a refresh keeps createdTick");
             h.assertTrue(farm.updatedTick() > created[0],
                     "a refresh stamps updatedTick " + farm.updatedTick() + " after " + created[0]);
         });
     }
 
-    @GameTest(maxTicks = 3600)
+    @GameTest(maxTicks = 6000)
     public void place_tests_mine_registers(GameTestHelper h) {
         GameTestSupport.platformAt(h, 120, 16);
         stoneHill(h);
@@ -317,29 +315,44 @@ public class PlaceTests {
         companion.taskRunner().start(new MineBlocksTask(stone, 8, 16), "mine_blocks");
 
         int[] phase = {0};
+        long[] created = {0};
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
-            if (result.status == null) {
-                return;
-            }
-            h.assertValueEqual(result.status, TaskStatus.SUCCESS, "mining should finish: " + result.summary);
             if (phase[0] == 0) {
+                h.assertTrue(result.status == TaskStatus.SUCCESS,
+                        "the eight-block dig should finish: " + result.status + " " + result.summary);
                 h.assertTrue(PlaceService.book(companion).all().isEmpty(),
                         "eight blocks are below the auto-registration threshold: "
                                 + PlaceService.book(companion).all());
+                phase[0] = 1;
                 stoneHill(h);
                 result.status = null;
+                result.summary = "";
                 companion.taskRunner().start(new MineBlocksTask(stone, 20, 16), "mine_blocks");
-                phase[0] = 1;
-                return;
+                h.assertTrue(false, "waiting for the twenty-block dig to finish");
             }
+            String attempt = phase[0] == 1 ? "first" : "second";
+            h.assertTrue(result.status == TaskStatus.SUCCESS,
+                    "the " + attempt + " twenty-block dig should finish: " + result.status + " " + result.summary);
             List<Place> places = PlaceService.book(companion).all();
-            h.assertValueEqual(places.size(), 1, "exactly one mine: " + places);
+            h.assertValueEqual(places.size(), 1, "one mine after the " + attempt + " big dig: " + places);
             Place mine = places.get(0);
             h.assertValueEqual(mine.kind(), PlaceKind.MINE, "kind");
-            h.assertValueEqual(mine.label(), "minecraft:stone", "label");
+            h.assertValueEqual(mine.label(), "stone", "label");
             h.assertValueEqual(mine.source(), PlaceSource.MINE, "source");
             h.assertValueEqual(mine.radius(), 16, "radius");
+            if (phase[0] == 1) {
+                created[0] = mine.createdTick();
+                phase[0] = 2;
+                stoneHill(h);
+                result.status = null;
+                result.summary = "";
+                companion.taskRunner().start(new MineBlocksTask(stone, 20, 16), "mine_blocks");
+                h.assertTrue(false, "waiting for the second twenty-block dig to finish");
+            }
+            h.assertValueEqual(mine.createdTick(), created[0], "a refresh keeps createdTick");
+            h.assertTrue(mine.updatedTick() > created[0],
+                    "a refresh stamps updatedTick " + mine.updatedTick() + " after " + created[0]);
         });
     }
 }

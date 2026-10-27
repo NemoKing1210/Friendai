@@ -383,8 +383,24 @@ public final class MineBlocksTask implements Task {
         if (anchor == null) {
             return null;
         }
-        return new PlaceCandidate(PlaceKind.MINE, PlaceNames.humanize(matcher.label()), "", dimension,
+        return new PlaceCandidate(PlaceKind.MINE, placeLabel(matcher.label()), "", dimension,
                 new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
                 Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.MINE);
+    }
+
+    /**
+     * The label a matcher becomes: the tag marker and the namespace are dropped, so {@code minecraft:oak_log} is
+     * "oak log" and {@code #minecraft:logs} is "logs" in the book, the prompt and the merge key.
+     */
+    private static String placeLabel(String matcherLabel) {
+        String text = matcherLabel == null ? "" : matcherLabel.strip();
+        if (text.startsWith("#")) {
+            text = text.substring(1);
+        }
+        int colon = text.indexOf(':');
+        if (colon >= 0) {
+            text = text.substring(colon + 1);
+        }
+        return PlaceNames.humanize(text);
     }
 }
