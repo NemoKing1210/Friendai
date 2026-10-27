@@ -90,4 +90,26 @@ class TradeItemTest {
         assertTrue(new TradeOffer("ref", TradeOffer.fingerprint(inputs, output, 0), inputs, inputs,
                 output, 0, 0, 0, UUID.randomUUID(), 100).exhausted());
     }
+    @Test void rejectsUnpairedSurrogatesInJsonKeysAndStringValues() {
+        var malformed = List.of("\\uD800", "\\uDC00", "\\uD800x", "\\uDC00\\uD800",
+                String.valueOf((char) 0xD800), String.valueOf((char) 0xDC00));
+        for (var value : malformed) {
+            String key = "{\"" + value + "\":true}";
+            String string = "{\"value\":\"" + value + "\"}";
+            assertThrows(IllegalArgumentException.class, () -> new TradeItem("minecraft:book", key, 1));
+            assertThrows(IllegalArgumentException.class, () -> new TradeItem("minecraft:book", string, 1));
+            assertThrows(IllegalArgumentException.class, () -> new TradeCost("minecraft:book", key, 1));
+            assertThrows(IllegalArgumentException.class, () -> new TradeCost("minecraft:book", string, 1));
+        }
+    }
+
+    @Test void validSupplementaryUnicodeCanonicalizesWithoutQuestionMarkReplacement() {
+        String pair = new String(Character.toChars(0x1F600));
+        var raw = new TradeItem("minecraft:book", "{\"" + pair + "\":\"" + pair + "\"}", 1);
+        var escaped = new TradeItem("minecraft:book", "{\"\\uD83D\\uDE00\":\"\\uD83D\\uDE00\"}", 1);
+        var question = new TradeItem("minecraft:book", "{\"?\":\"?\"}", 1);
+        var inputs = List.of(new TradeCost("minecraft:emerald", "{}", 1));
+        assertEquals(raw, escaped);
+        assertNotEquals(TradeOffer.fingerprint(inputs, question, 0), TradeOffer.fingerprint(inputs, raw, 0));
+    }
 }

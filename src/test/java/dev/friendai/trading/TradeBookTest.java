@@ -230,4 +230,24 @@ class TradeBookTest {
         assertThrows(ArithmeticException.class, () -> pinned.unpin(trader.id()));
         assertEquals(pinnedBefore, pinned.snapshot());
     }
+    @Test void malformedUnicodeCannotRedirectRemovedQuestionMarkOfferReference() {
+        var book = book();
+        var inputs = List.of(new TradeCost("minecraft:emerald", "{}", 1));
+        var question = new TradeItem("minecraft:book", "{\"value\":\"?\"}", 1);
+        var offer = new TradeOffer("question", TradeOffer.fingerprint(inputs, question, 0), inputs, inputs,
+                question, 0, 10, 0, ACTOR, 100);
+        book.observe(trader(1, 100, TraderRecord.Status.VERIFIED, List.of(offer)));
+        String oldRef = book.trader(new UUID(0, 1)).orElseThrow().offers().getFirst().ref();
+        book.observe(trader(1, 110, TraderRecord.Status.VERIFIED, List.of()));
+        long revision = book.revision();
+        assertThrows(IllegalArgumentException.class, () -> {
+            var malformed = new TradeItem("minecraft:book", "{\"value\":\"\\uD800\"}", 1);
+            var collision = new TradeOffer("malformed", TradeOffer.fingerprint(inputs, malformed, 0), inputs, inputs,
+                    malformed, 0, 10, 0, ACTOR, 100);
+            book.observe(trader(1, 120, TraderRecord.Status.VERIFIED, List.of(collision)));
+        });
+        assertEquals(revision, book.revision());
+        assertTrue(book.resolveOffer(new UUID(0, 1), oldRef).isEmpty());
+        assertTrue(book.trader(new UUID(0, 1)).orElseThrow().offers().isEmpty());
+    }
 }

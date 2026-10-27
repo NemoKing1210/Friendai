@@ -65,6 +65,22 @@ public record TradeItem(String itemId, String componentsJson, int count) {
         }
     }
 
+    /** UTF-8 must never replace a malformed UTF-16 value and erase a distinction used by offer identity. */
+    private static String requireWellFormedUnicode(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char current = text.charAt(i);
+            if (Character.isHighSurrogate(current)) {
+                if (i + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(i + 1))) {
+                    throw new IllegalArgumentException("unpaired surrogate in trade JSON");
+                }
+                i++;
+            } else if (Character.isLowSurrogate(current)) {
+                throw new IllegalArgumentException("unpaired surrogate in trade JSON");
+            }
+        }
+        return text;
+    }
+
     private static JsonElement readJson(JsonReader reader, int depth) throws IOException {
         return switch (reader.peek()) {
             case BEGIN_OBJECT -> {
@@ -72,7 +88,7 @@ public record TradeItem(String itemId, String componentsJson, int count) {
                 reader.beginObject();
                 var fields = new TreeMap<String, JsonElement>();
                 while (reader.hasNext()) {
-                    String key = reader.nextName();
+                    String key = requireWellFormedUnicode(reader.nextName());
                     if (fields.containsKey(key)) throw new IllegalArgumentException("duplicate trade JSON key");
                     fields.put(key, readJson(reader, depth + 1));
                 }
@@ -89,7 +105,7 @@ public record TradeItem(String itemId, String componentsJson, int count) {
                 reader.endArray();
                 yield array;
             }
-            case STRING -> new JsonPrimitive(reader.nextString());
+            case STRING -> new JsonPrimitive(requireWellFormedUnicode(reader.nextString()));
             case NUMBER -> {
                 BigDecimal number = new BigDecimal(reader.nextString()).stripTrailingZeros();
                 // Scientific notation keeps extreme exponents bounded; no toPlainString expansion.
