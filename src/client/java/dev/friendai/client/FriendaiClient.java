@@ -89,6 +89,8 @@ public class FriendaiClient implements ClientModInitializer {
                 CompanionSpeechS2CPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> SpeechRuntime.onCompanionSpeech(payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> SpeechRuntime.shutdown());
+        ClientPlayNetworking.registerGlobalReceiver(dev.friendai.net.SkillsViewS2CPayload.TYPE,(payload,context)->
+                context.client().execute(()->dev.friendai.skill.SkillViewCodec.decode(payload.data()).ifPresent(CompanionClientState::onSkillsView)));
         ClientPlayNetworking.registerGlobalReceiver(MemoryViewS2CPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     try {

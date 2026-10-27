@@ -19,6 +19,9 @@ public final class SkillsViewStream {
     public static void sendNow(ServerPlayer p,SkillActionResult result) {
         var server=p.level().getServer();var query=queries(server).get(p.getUUID());
         if(query==null||!ServerPlayNetworking.canSend(p,SkillsViewS2CPayload.TYPE))return;
+        if(result!=null&&result.skill().isPresent()) {
+            query=new Query(query.page(),result.skill().get().id());queries(server).put(p.getUUID(),query);
+        }
         var state=FriendaiServerState.get(server);var service=state.skills();
         try {
             var local=service.store().book(p.getUUID());var memory=state.memory().book(p.getUUID());

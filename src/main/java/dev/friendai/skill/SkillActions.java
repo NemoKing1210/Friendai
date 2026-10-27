@@ -45,6 +45,8 @@ public final class SkillActions {
                     return SkillActionResult.ok(copy);
                 }
                 case TOGGLE -> {
+                    boolean currentEnabled=old.enabled()&&(!external||!local.disabledIds().contains(old.id()));
+                    if((action.text().equals("enable")&&currentEnabled)||(action.text().equals("disable")&&!currentEnabled))return SkillActionResult.ok(old);
                     if(external) { local.override(old.id(),local.disabledIds().contains(old.id())); return SkillActionResult.ok(old); }
                     SkillDraft d=old.draft();
                     return SkillActionResult.ok(target.edit(old.id(),old.version(),new SkillDraft(d.name(),d.description(),d.body(),!d.enabled(),d.alwaysOn(),d.turnKinds(),d.triggers(),d.tags(),d.includeProfile()),now));

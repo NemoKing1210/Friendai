@@ -67,7 +67,13 @@ public final class CompanionClientState {
         return snapshot == null || System.currentTimeMillis() - receivedAt > STALE_AFTER_MS;
     }
 
+    private static dev.friendai.skill.SkillView skillsView;
+    public static Optional<dev.friendai.skill.SkillView> skillsView() { return Optional.ofNullable(skillsView); }
+    public static void onSkillsView(dev.friendai.skill.SkillView view) {
+        if(skillsView==null||view.revision()>=skillsView.revision())skillsView=view;
+    }
     public static void reset() {
+        skillsView=null;
         snapshot = null;
         prompt = "";
         memoryView = null;

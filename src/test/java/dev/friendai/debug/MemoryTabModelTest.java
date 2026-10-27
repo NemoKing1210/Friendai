@@ -83,7 +83,7 @@ class MemoryTabModelTest {
         MemoryTabModel model = new MemoryTabModel();
         model.onView(view(List.of(owner(), world()), List.of(), Optional.empty()));
         model.selectPersona();
-        model.onView(view(List.of(owner(), world()), List.of(), status("friendai.menu.persona.saved")));
+        model.onView(view(List.of(owner(), world()), List.of(), status("friendai.menu.description.saved")));
         assertTrue(model.personaSelected());
         assertTrue(model.status().isPresent());
     }

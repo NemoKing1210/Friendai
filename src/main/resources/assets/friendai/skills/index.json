@@ -1,0 +1,107 @@
+[
+  {
+    "id": "smart-planning",
+    "name": "Smart planning",
+    "description": "When planning work, inspect facts and order concrete steps.",
+    "turnKinds": [
+      "planning"
+    ],
+    "triggers": [],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "autonomy",
+    "name": "Autonomy",
+    "description": "Choose useful free-time work within the existing agenda.",
+    "turnKinds": [
+      "free_time",
+      "planning"
+    ],
+    "triggers": [],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "building",
+    "name": "Building",
+    "description": "Inspect the site, materials and supports before construction.",
+    "turnKinds": [
+      "building",
+      "planning"
+    ],
+    "triggers": [],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "tree-felling",
+    "name": "Tree felling",
+    "description": "Use detected trees and the existing felling action.",
+    "turnKinds": [],
+    "triggers": [
+      "tree",
+      "log",
+      "fell_tree"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "survival",
+    "name": "Survival",
+    "description": "React to observed hunger, night, fire and danger.",
+    "turnKinds": [
+      "combat"
+    ],
+    "triggers": [
+      "hungry",
+      "night",
+      "fire"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "trade-etiquette",
+    "name": "Trade etiquette",
+    "description": "Inspect current offers before committing an authorized trade.",
+    "turnKinds": [],
+    "triggers": [
+      "trade",
+      "merchant"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "memory-discipline",
+    "name": "Memory discipline",
+    "description": "Separate durable facts from reusable procedures.",
+    "turnKinds": [
+      "chat",
+      "event"
+    ],
+    "triggers": [],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "verification",
+    "name": "Verification",
+    "description": "Check observed outcomes before reporting completion.",
+    "turnKinds": [],
+    "triggers": [],
+    "alwaysOn": true,
+    "includeProfile": false
+  },
+  {
+    "id": "first-contact",
+    "name": "First contact",
+    "description": "Learn missing owner language and address preferences.",
+    "turnKinds": [],
+    "triggers": [],
+    "alwaysOn": false,
+    "includeProfile": true
+  }
+]

@@ -326,6 +326,14 @@ public final class FriendaiConfigScreen {
                         .binding("auto", () -> c.language, v -> c.language = v.isBlank() ? "auto" : v.strip())
                         .controller(StringControllerBuilder::create)
                         .build())
+                .option(booleanOption("friendai.config.skills.enabled", true, () -> server.skills.enabled, v -> server.skills.enabled = v))
+                .option(booleanOption("friendai.config.skills.approval", true, () -> server.skills.requireApproval, v -> server.skills.requireApproval = v))
+                .option(Option.<Integer>createBuilder().name(tr("friendai.config.skills.budget"))
+                        .binding(2400, () -> server.skills.promptBudget, v -> server.skills.promptBudget = v)
+                        .controller(opt -> IntegerFieldControllerBuilder.create(opt).range(200,6000)).build())
+                .option(Option.<Integer>createBuilder().name(tr("friendai.config.skills.hourly"))
+                        .binding(6, () -> server.skills.modelWritesPerHour, v -> server.skills.modelWritesPerHour = v)
+                        .controller(opt -> IntegerFieldControllerBuilder.create(opt).range(0,60)).build())
                 .build();
     }
 

@@ -23,7 +23,7 @@ public final class SkillService implements AutoCloseable {
         redact=SecretRedactor.of(()->config.get().profiles.values().stream()
                 .map(p->SecretResolver.resolve(p.apiKey,System::getenv)).toList());
         store=new SkillStore(dir,SkillLimits.defaults(),redact);
-        actions=new SkillActions(store,List.of(),Clock.systemUTC());
+        actions=new SkillActions(store,BuiltinSkills.load(SkillService.class.getClassLoader()),Clock.systemUTC());
     }
     public SkillStore store() { return store; }
     public SkillActions actions() { return actions; }

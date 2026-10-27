@@ -125,7 +125,7 @@ final class MemoryTab implements MenuTab {
         cancel = host.add(new FlatButton(cancelX, formY, cancelWidth, ROW,
                 Component.translatable("friendai.menu.memory.cancel"), Ui.DIM, () -> {
                     if (model.personaSelected()) {
-                        CompanionRequests.send(RequestType.PERSONA_SET, "", "");
+                        net.minecraft.client.Minecraft.getInstance().setScreenAndShow(SkillEditorScreen.description(net.minecraft.client.Minecraft.getInstance().gui.screen()));
                         return;
                     }
                     model.cancelEdit();
@@ -147,9 +147,9 @@ final class MemoryTab implements MenuTab {
         personaBox = host.add(MultiLineEditBox.builder()
                 .setX(headLeft)
                 .setY(boxTop)
-                .setPlaceholder(Component.translatable("friendai.menu.persona.hint"))
+                .setPlaceholder(Component.translatable("friendai.menu.description.hint"))
                 .build(host.font(), headWidth, Math.max(30, formY - GAP - boxTop),
-                        Component.translatable("friendai.menu.persona.title")));
+                        Component.translatable("friendai.menu.description.title")));
         personaBox.setCharacterLimit(PersonaText.MAX_LENGTH);
         wasPersona = false;
         sync();
@@ -226,9 +226,9 @@ final class MemoryTab implements MenuTab {
             text.visible = false;
             addOrSave.visible = true;
             addOrSave.active = true;
-            addOrSave.setMessage(Component.translatable("friendai.menu.persona.save"));
+            addOrSave.setMessage(Component.translatable("friendai.menu.description.save"));
             cancel.visible = true;
-            cancel.setMessage(Component.translatable("friendai.menu.persona.reset"));
+            cancel.setMessage(Component.translatable("friendai.menu.description.details_button"));
             return;
         }
         cancel.setMessage(Component.translatable("friendai.menu.memory.cancel"));
@@ -395,7 +395,7 @@ final class MemoryTab implements MenuTab {
                 g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
             }
             Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, Ui.PURPLE);
-            g.text(font, Ui.clip(font, Component.translatable("friendai.menu.persona.title").getString(),
+            g.text(font, Ui.clip(font, Component.translatable("friendai.menu.description.title").getString(),
                     sideWidth - 16 - 8), sideLeft + 16, y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     current ? Ui.TEXT : Ui.DIM);
         }
@@ -454,10 +454,10 @@ final class MemoryTab implements MenuTab {
 
     private void drawPersona(GuiGraphicsExtractor g, Font font, MemoryView view) {
         int y = sideTop + (ROW - font.lineHeight) / 2;
-        Component title = Component.translatable("friendai.menu.persona.title");
+        Component title = Component.translatable("friendai.menu.description.title");
         g.text(font, title, headLeft, y, Ui.TEXT);
         if (view.persona().custom()) {
-            Component custom = Component.translatable("friendai.menu.persona.custom");
+            Component custom = Component.translatable("friendai.menu.description.custom");
             Ui.badge(g, font, custom.getString(), headLeft + font.width(title) + 6, sideTop + 4, Ui.PURPLE);
         }
         String current = personaBox.getValue().strip();

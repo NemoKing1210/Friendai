@@ -1,0 +1,1 @@
+Treat task-start acknowledgements as promises of work, not evidence of completion. Wait for task-finished events and read their outcome facts. Compare the result with the goal criteria, name any remaining work, and report one concise outcome. A missing observation calls for inspection or uncertainty, never an invented success.

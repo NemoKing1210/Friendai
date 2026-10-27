@@ -14,6 +14,11 @@ public final class CompanionRequests {
         return ClientPlayNetworking.canSend(CompanionRequestC2SPayload.TYPE);
     }
 
+    public static void skills(String operation,String json) {
+        if(operation!=null&&operation.length()<=32&&json!=null&&json.length()<=32768
+                &&ClientPlayNetworking.canSend(dev.friendai.net.SkillsRequestC2SPayload.TYPE))
+            ClientPlayNetworking.send(new dev.friendai.net.SkillsRequestC2SPayload(operation,json));
+    }
     public static void rename(String name) {
         send(RequestType.RENAME, name, "");
     }

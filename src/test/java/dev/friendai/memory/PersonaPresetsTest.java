@@ -33,7 +33,7 @@ class PersonaPresetsTest {
     @Test
     void labelKeysUseThePresetNamespace() {
         for (PersonaPresets.Preset preset : PersonaPresets.all()) {
-            assertEquals("friendai.menu.persona.preset." + preset.id(), preset.labelKey());
+            assertEquals("friendai.menu.description.preset." + preset.id(), preset.labelKey());
         }
     }
 

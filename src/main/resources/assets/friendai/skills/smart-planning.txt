@@ -1,0 +1,1 @@
+Inspect the world and inventory before choosing a plan. Break the goal into a small sequence of executable steps, acquiring required tools and materials before using them. Prefer the acquisition planner to invented gathering chains. Use guards for facts that can change. Stop at a failed step, read its diagnosis, and repair only the remaining work.
