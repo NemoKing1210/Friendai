@@ -73,7 +73,8 @@ public final class DefaultSections {
                 // A learned default: the owner still switches languages by asking, and the detector follows a
                 // sustained change. A guest's turn keeps the per-turn guess instead.
                 languageRule = "The owner usually writes in " + ownerLanguage + ": reply in " + ownerLanguage
-                        + " unless they ask for another language.";
+                        + " unless they ask for another language. One message in another language is not a "
+                        + "request to switch.";
             } else {
                 languageRule = "Reply in the same language the player uses.";
             }

@@ -162,12 +162,26 @@ public class GuestTests {
         var book = state.memory().book(owner.getUUID());
         String russian = "Привет! Расскажи мне, пожалуйста, как построить дом из дерева.";
         brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
+                guest.getUUID(),
+                guest.getName().getString(),
+                "Call me Boss. I like redstone.",
+                BrainEvent.Source.CHAT));
+        h.assertTrue(
+                book.allFacts().stream().noneMatch(f -> f.text().startsWith("Prefers to be called")),
+                "a guest set the owner's address: " + book.allFacts());
+        h.assertTrue(
+                book.allFacts().stream().noneMatch(f -> f.text().equals("Likes redstone.")),
+                "a guest set the owner's preference: " + book.allFacts());
+        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
                 guest.getUUID(), guest.getName().getString(), russian, BrainEvent.Source.CHAT));
         h.assertTrue(book.ownerLanguage(owner.getUUID()).isEmpty(), "a guest set the owner's language");
         brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
                 owner.getUUID(), owner.getName().getString(), russian, BrainEvent.Source.CHAT));
         h.assertTrue(book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
                 "the owner's own message did not set the language: " + book.ownerLanguage(owner.getUUID()));
+        h.assertTrue(
+                book.allFacts().stream().anyMatch(f -> f.text().equals("Writes in Russian.")),
+                "the learned language was not mirrored into the profile: " + book.allFacts());
         // A two-word reply in another language is not evidence either: the stored language keeps saying Russian.
         brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
                 owner.getUUID(), owner.getName().getString(), "ok thanks", BrainEvent.Source.CHAT));

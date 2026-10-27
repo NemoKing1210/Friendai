@@ -45,6 +45,7 @@ class PromptBuilderTest {
         String s = system(new Persona("F", "d", "auto", "Russian"), "p");
         assertTrue(s.contains("The owner usually writes in Russian: reply in Russian unless they ask for another "
                 + "language."), s);
+        assertTrue(s.contains("One message in another language is not a request to switch."), s);
         assertFalse(s.contains("Reply in the same language the player uses"), s);
     }
 

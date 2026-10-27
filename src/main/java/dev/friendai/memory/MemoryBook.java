@@ -376,9 +376,11 @@ public final class MemoryBook {
     }
 
     public boolean removeFact(int id) {
-        if (facts.remove(id) == null) {
+        Fact removed = facts.remove(id);
+        if (removed == null) {
             return false;
         }
+        forgetLanguageIfMirrored(removed);
         dirty = true;
         revision++;
         return true;
@@ -389,6 +391,9 @@ public final class MemoryBook {
         List<Fact> matching = facts(subject);
         matching.forEach(f -> facts.remove(f.id()));
         if (!matching.isEmpty()) {
+            if (subject instanceof Subject.Player player) {
+                forgetLanguage(player.uuid());
+            }
             dirty = true;
             revision++;
         }
@@ -400,10 +405,29 @@ public final class MemoryBook {
         int removed = facts.size();
         facts.clear();
         if (removed > 0) {
+            players.replaceAll((uuid, record) -> record.language() == null
+                    ? record
+                    : new PlayerRecord(uuid, record.lastName(), record.trusted(), record.lastSeen(), null));
             dirty = true;
             revision++;
         }
         return removed;
+    }
+
+    /** Forgetting the fact that mirrors the learned language forgets the language itself. */
+    private void forgetLanguageIfMirrored(Fact fact) {
+        if (fact.subject() instanceof Subject.Player player && AutoProfile.isLanguageFact(fact.text())) {
+            forgetLanguage(player.uuid());
+        }
+    }
+
+    private void forgetLanguage(UUID uuid) {
+        PlayerRecord existing = players.get(uuid);
+        if (existing == null || existing.language() == null) {
+            return;
+        }
+        players.put(uuid, new PlayerRecord(
+                uuid, existing.lastName(), existing.trusted(), existing.lastSeen(), null));
     }
 
     private String label(Subject subject) {

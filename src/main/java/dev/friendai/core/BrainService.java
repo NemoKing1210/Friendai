@@ -26,6 +26,7 @@ import dev.friendai.debug.TaskRecord;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.memory.AutoProfile;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
@@ -270,24 +271,34 @@ public final class BrainService {
             nudgeStreak.remove(owner);
             if (owner.equals(said.playerUuid())) {
                 freeTime.ownerActivity(owner, FreeTimeDriver.now());
-                observeOwnerLanguage(owner, said.playerName(), said.text());
+                observeOwnerProfile(owner, said.playerName(), said.text());
             }
         }
         entryFor(owner).ifPresent(entry -> entry.brain().post(event));
     }
 
     /**
-     * Learns the language the owner writes in. Only the owner's own message reaches here, so a guest cannot set
-     * it, and the tracker switches only on a sustained change: one short reply or one quoted command is not
-     * evidence. An explicit request wins in the prompt, which treats the learned language as a default.
+     * Learns the profile from the owner's own message: the language, the address they ask for and the
+     * preferences they state. Only this branch reaches here, so a guest cannot set any of it, and the language
+     * tracker switches only on a sustained change: one short reply or one quoted command is not evidence. An
+     * explicit request wins in the prompt, which treats the learned language as a default. Auto-capture is
+     * skipped when memory is disabled and never fails a turn when the book is full.
      */
-    private void observeOwnerLanguage(UUID owner, String name, String text) {
+    private void observeOwnerProfile(UUID owner, String name, String text) {
         MemoryBook book = memory.book(owner);
         book.ensurePlayer(owner, name);
         dev.friendai.text.LanguageMemory tracker = ownerLanguages.computeIfAbsent(owner,
                 id -> dev.friendai.text.LanguageMemory.startingAt(book.ownerLanguage(id).orElse(null)));
         tracker.observe(dev.friendai.text.LanguageDetector.detect(text))
                 .ifPresent(language -> book.setOwnerLanguage(owner, language));
+        if (config == null || !config.memory.enabled) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        MemoryLimits limits = config.memory.limits();
+        book.ownerLanguage(owner).ifPresent(language ->
+                AutoProfile.syncLanguage(book, owner, name, language, now, limits));
+        AutoProfile.record(book, owner, name, text, now, limits);
     }
 
     private Optional<Entry> entryFor(UUID owner) {

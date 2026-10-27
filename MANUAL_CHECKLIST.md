@@ -114,6 +114,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Memory
 
 - [ ] With a real model: tell the companion your name and where your base is; it calls `remember`, and after a server restart it still knows both.
+- [ ] Say "call me Boss" and "I like redstone" in chat without asking it to remember: both appear as facts in the Memory tab (the language row too after a few messages), and forgetting the language fact makes the next reply follow the per-turn language rule again.
 - [ ] A guest tells the companion something about themselves; `/friendai memory list` shows it; the guest cannot make it remember things about the owner.
 - [ ] A guest asks "what do you know about my friend's base?": the companion does not reveal the owner's or world facts.
 - [ ] `/friendai memory forget <id>` and `/friendai memory clear world` work; messages read correctly in English and Russian.

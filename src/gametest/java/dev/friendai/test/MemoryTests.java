@@ -14,6 +14,7 @@ import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
+import dev.friendai.memory.Category;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.text.UserMessage;
 import java.util.ArrayDeque;
@@ -108,6 +109,35 @@ public class MemoryTests {
             h.assertTrue(script.requests.size() >= 3, "requests so far: " + script.requests.size());
             String last = script.requests.get(script.requests.size() - 1).system();
             h.assertTrue(last.contains("[1] PREFERENCE: Likes oak logs"), "prompt was " + last);
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void theOwnersWordsBecomeProfileFacts(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        FriendaiServerState state = FriendaiServerState.get(server);
+        state.brains()
+                .setGatewayOverride(
+                        owner.getUUID(),
+                        (system, messages, tools) -> CompletableFuture.completedFuture(
+                                new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        CompanionManager.get(server).summon(owner);
+        MemoryBook book = state.memory().book(owner.getUUID());
+        state.brains().sendMessage(owner.getUUID(), owner.getName().getString(), "Call me Boss. I like redstone.");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    book.allFacts().stream()
+                            .anyMatch(f -> f.text().equals("Prefers to be called Boss.")
+                                    && owner.getUUID().equals(f.authorUuid())
+                                    && f.category() == Category.PROFILE),
+                    "no address fact: " + book.allFacts());
+            h.assertTrue(
+                    book.allFacts().stream()
+                            .anyMatch(f -> f.text().equals("Likes redstone.")
+                                    && owner.getUUID().equals(f.authorUuid())
+                                    && f.category() == Category.PREFERENCE),
+                    "no preference fact: " + book.allFacts());
         });
     }
 
