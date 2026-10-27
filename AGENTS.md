@@ -20,7 +20,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 1. **Write a specification and then a plan before writing code**, unless the item is trivial (see below). The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to.
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
-3. Close the loop: when the item is done, delete it from `TODO.md` (or tick it off) in the same commit that carries the change.
+3. Close the loop: when the item is done, tick it `[x]` and move it to the **Done** section of `TODO.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs.
 
 **When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
 
