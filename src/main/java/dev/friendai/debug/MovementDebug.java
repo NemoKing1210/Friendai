@@ -19,12 +19,23 @@ public record MovementDebug(
         List<Cell> breaks,
         List<Cell> places,
         List<Cell> goalCells,
-        List<String> lines) {
+        List<String> lines,
+        List<DebugTarget> targets,
+        List<String> upcomingSteps) {
 
     public static final int MAX_SEGMENTS = 400;
     public static final int MAX_CELLS = 200;
     public static final int MAX_LINES = 24;
     public static final int MAX_LINE_CHARS = 160;
+    public static final int MAX_TARGETS = 128;
+    public static final int MAX_DETAIL_CHARS = 80;
+    public static final int MAX_UPCOMING_STEPS = 2;
+
+    /** Retained for callers that only provide the original movement view. */
+    public MovementDebug(int companionId, int stepIndex, List<Segment> route, List<Cell> breaks,
+            List<Cell> places, List<Cell> goalCells, List<String> lines) {
+        this(companionId, stepIndex, route, breaks, places, goalCells, lines, List.of(), List.of());
+    }
 
     /** One step of the route; {@code move} is the ordinal of {@code dev.friendai.pathing.Move}. */
     public record Segment(int fromX, int fromY, int fromZ, int toX, int toY, int toZ, int move) {}
@@ -37,6 +48,8 @@ public record MovementDebug(
         places = List.copyOf(places);
         goalCells = List.copyOf(goalCells);
         lines = List.copyOf(lines);
+        targets = List.copyOf(targets);
+        upcomingSteps = List.copyOf(upcomingSteps);
     }
 
     public byte[] encode() {
@@ -59,6 +72,8 @@ public record MovementDebug(
             writeCells(out, breaks);
             writeCells(out, places);
             writeCells(out, goalCells);
+            writeTargets(out, targets);
+            writeStrings(out, upcomingSteps, MAX_UPCOMING_STEPS, MAX_LINE_CHARS);
             List<String> text = lines.subList(0, Math.min(lines.size(), MAX_LINES));
             out.writeByte(text.size());
             for (String line : text) {
@@ -88,18 +103,25 @@ public record MovementDebug(
             List<Cell> breaks = readCells(in);
             List<Cell> places = readCells(in);
             List<Cell> goalCells = readCells(in);
+            List<DebugTarget> targets = readTargets(in);
+            List<String> upcomingSteps = readStrings(in, MAX_UPCOMING_STEPS, MAX_LINE_CHARS, "upcoming steps");
             int lineCount = in.readUnsignedByte();
             if (lineCount > MAX_LINES) {
                 throw new IllegalArgumentException("too many lines: " + lineCount);
             }
             List<String> lines = new ArrayList<>(lineCount);
             for (int i = 0; i < lineCount; i++) {
-                lines.add(in.readUTF());
+                String line = in.readUTF();
+                if (line.length() > MAX_LINE_CHARS) {
+                    throw new IllegalArgumentException("debug line is too long: " + line.length());
+                }
+                lines.add(line);
             }
             if (in.available() > 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
-            return new MovementDebug(companionId, stepIndex, route, breaks, places, goalCells, lines);
+            return new MovementDebug(companionId, stepIndex, route, breaks, places, goalCells, lines,
+                    targets, upcomingSteps);
         } catch (IOException e) {
             throw new IllegalArgumentException("truncated movement debug", e);
         }
@@ -125,5 +147,71 @@ public record MovementDebug(
             cells.add(new Cell(in.readInt(), in.readInt(), in.readInt()));
         }
         return cells;
+    }
+
+    private static void writeTargets(DataOutputStream out, List<DebugTarget> targets) throws IOException {
+        int count = Math.min(targets.size(), MAX_TARGETS);
+        out.writeByte(count);
+        for (int i = 0; i < count; i++) {
+            DebugTarget target = targets.get(i);
+            out.writeInt(target.x());
+            out.writeInt(target.y());
+            out.writeInt(target.z());
+            out.writeByte(target.action().ordinal());
+            String detail = target.detail();
+            out.writeUTF(detail.length() > MAX_DETAIL_CHARS ? detail.substring(0, MAX_DETAIL_CHARS) : detail);
+        }
+    }
+
+    private static List<DebugTarget> readTargets(DataInputStream in) throws IOException {
+        int count = in.readUnsignedByte();
+        if (count > MAX_TARGETS) {
+            throw new IllegalArgumentException("too many action targets: " + count);
+        }
+        List<DebugTarget> targets = new ArrayList<>(count);
+        DebugAction[] actions = DebugAction.values();
+        for (int i = 0; i < count; i++) {
+            int x = in.readInt();
+            int y = in.readInt();
+            int z = in.readInt();
+            int ordinal = in.readUnsignedByte();
+            if (ordinal >= actions.length) {
+                throw new IllegalArgumentException("unknown debug action: " + ordinal);
+            }
+            String detail = in.readUTF();
+            if (detail.length() > MAX_DETAIL_CHARS) {
+                throw new IllegalArgumentException("action detail is too long: " + detail.length());
+            }
+            targets.add(new DebugTarget(x, y, z, actions[ordinal], detail));
+        }
+        return targets;
+    }
+
+    private static void writeStrings(DataOutputStream out, List<String> values, int maxCount, int maxChars)
+            throws IOException {
+        int count = Math.min(values.size(), maxCount);
+        out.writeByte(count);
+        for (int i = 0; i < count; i++) {
+            String value = values.get(i);
+            value = value == null ? "" : value;
+            out.writeUTF(value.length() > maxChars ? value.substring(0, maxChars) : value);
+        }
+    }
+
+    private static List<String> readStrings(DataInputStream in, int maxCount, int maxChars, String label)
+            throws IOException {
+        int count = in.readUnsignedByte();
+        if (count > maxCount) {
+            throw new IllegalArgumentException("too many " + label + ": " + count);
+        }
+        List<String> values = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String value = in.readUTF();
+            if (value.length() > maxChars) {
+                throw new IllegalArgumentException(label + " text is too long: " + value.length());
+            }
+            values.add(value);
+        }
+        return values;
     }
 }

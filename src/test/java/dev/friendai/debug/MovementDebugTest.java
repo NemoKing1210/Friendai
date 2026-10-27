@@ -3,6 +3,9 @@ package dev.friendai.debug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -23,6 +26,59 @@ class MovementDebugTest {
     }
 
     @Test
+    void roundTripsActionTargetsAndUpcomingSteps() {
+        MovementDebug view = new MovementDebug(3, 1, List.of(), List.of(), List.of(), List.of(),
+                List.of("task: mining"),
+                List.of(new DebugTarget(4, 65, -2, DebugAction.BREAK, "deepslate")),
+                List.of("craft_item", "smelt_items"));
+
+        assertEquals(view, MovementDebug.decode(view.encode()));
+    }
+
+    @Test
+    void targetAndUpcomingListsAreImmutable() {
+        List<DebugTarget> targets = new ArrayList<>(List.of(
+                new DebugTarget(1, 2, 3, DebugAction.USE, "door")));
+        List<String> steps = new ArrayList<>(List.of("use_block"));
+        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
+                targets, steps);
+        targets.clear();
+        steps.clear();
+
+        assertEquals(1, view.targets().size());
+        assertEquals(List.of("use_block"), view.upcomingSteps());
+        assertThrows(UnsupportedOperationException.class, () -> view.targets().clear());
+        assertThrows(UnsupportedOperationException.class, () -> view.upcomingSteps().clear());
+    }
+
+    @Test
+    void boundsTargetDetailAndUpcomingStepText() {
+        DebugTarget noDetail = new DebugTarget(0, 0, 0, DebugAction.USE, null);
+        DebugTarget longDetail = new DebugTarget(0, 0, 0, DebugAction.USE, "x".repeat(120));
+        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(noDetail, longDetail), List.of("y".repeat(300)));
+        MovementDebug decoded = MovementDebug.decode(view.encode());
+
+        assertEquals("", decoded.targets().get(0).detail());
+        assertEquals(80, decoded.targets().get(1).detail().length());
+        assertEquals(160, decoded.upcomingSteps().get(0).length());
+    }
+
+    @Test
+    void trimsExcessTargetsAndUpcomingSteps() {
+        List<DebugTarget> targets = new ArrayList<>();
+        for (int i = 0; i < MovementDebug.MAX_TARGETS + 3; i++) {
+            targets.add(new DebugTarget(i, 0, 0, DebugAction.BREAK, "ore"));
+        }
+        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
+                targets, List.of("first", "second", "third"));
+
+        MovementDebug decoded = MovementDebug.decode(view.encode());
+        assertEquals(MovementDebug.MAX_TARGETS, decoded.targets().size());
+        assertEquals(List.of("first", "second"), decoded.upcomingSteps());
+    }
+
+    @Test
     void trimsWhatIsTooLarge() {
         List<MovementDebug.Segment> many = new ArrayList<>();
         for (int i = 0; i < MovementDebug.MAX_SEGMENTS + 50; i++) {
@@ -40,5 +96,104 @@ class MovementDebugTest {
         assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(new byte[] {1, 2, 3}));
         byte[] longer = java.util.Arrays.copyOf(bytes, bytes.length + 1);
         assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(longer));
+    }
+
+    @Test
+    void rejectsInvalidActionOrdinal() throws IOException {
+        byte[] bytes = emptySnapshotWithOneTarget(255);
+
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
+    }
+
+    @Test
+    void rejectsExcessiveTargetAndUpcomingCounts() throws IOException {
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(emptySnapshotWithTargetCount(129)));
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(emptySnapshotWithUpcomingCount(3)));
+    }
+
+    @Test
+    void rejectsTruncatedTargetAndUpcomingStepData() throws IOException {
+        byte[] target = emptySnapshotWithOneTarget(DebugAction.BREAK.ordinal());
+        byte[] step = emptySnapshotWithOneUpcomingStep();
+
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(java.util.Arrays.copyOf(target, 20)));
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(java.util.Arrays.copyOf(step, 17)));
+    }
+
+    @Test
+    void rejectsOverlongTargetDetail() throws IOException {
+        byte[] bytes = snapshotPrefix(1, 0, out -> {
+            out.writeInt(4);
+            out.writeInt(5);
+            out.writeInt(6);
+            out.writeByte(DebugAction.BREAK.ordinal());
+            out.writeUTF("x".repeat(81));
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
+    }
+
+    @Test
+    void rejectsOverlongHudLine() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bytes);
+        out.writeInt(1);
+        out.writeInt(-1);
+        out.writeShort(0);
+        out.writeShort(0);
+        out.writeShort(0);
+        out.writeShort(0);
+        out.writeByte(0); // targets
+        out.writeByte(0); // upcoming steps
+        out.writeByte(1); // lines
+        out.writeUTF("x".repeat(MovementDebug.MAX_LINE_CHARS + 1));
+
+        assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes.toByteArray()));
+    }
+
+    private static byte[] emptySnapshotWithOneTarget(int action) throws IOException {
+        return snapshotPrefix(1, 1, out -> {
+            out.writeInt(4);
+            out.writeInt(5);
+            out.writeInt(6);
+            out.writeByte(action);
+            out.writeUTF("block");
+        });
+    }
+
+    private static byte[] emptySnapshotWithTargetCount(int count) throws IOException {
+        return snapshotPrefix(count, 0, out -> {});
+    }
+
+    private static byte[] emptySnapshotWithUpcomingCount(int count) throws IOException {
+        byte[] prefix = snapshotPrefix(0, count, out -> {});
+        return prefix;
+    }
+
+    private static byte[] emptySnapshotWithOneUpcomingStep() throws IOException {
+        return snapshotPrefix(0, 1, out -> out.writeUTF("craft_item"));
+    }
+
+    private static byte[] snapshotPrefix(int targetCount, int stepCount, IoWriter contents) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bytes);
+        out.writeInt(1);
+        out.writeInt(-1);
+        out.writeShort(0); // route
+        out.writeShort(0); // breaks
+        out.writeShort(0); // places
+        out.writeShort(0); // goal cells
+        out.writeByte(targetCount);
+        contents.write(out);
+        out.writeByte(stepCount);
+        if (stepCount == 0) {
+            out.writeByte(0); // lines
+        }
+        return bytes.toByteArray();
+    }
+
+    @FunctionalInterface
+    private interface IoWriter {
+        void write(DataOutputStream out) throws IOException;
     }
 }
