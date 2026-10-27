@@ -48,10 +48,12 @@ public final class Approach {
 
     private final List<BlockPos> candidates;
     /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
-    private final boolean mayPlace;    /** Where blocks placed by the route are remembered, or null when they are not the caller's to remove. */
+    private final boolean mayPlace;
+    /** Where blocks placed by the route are remembered, or null when they are not the caller's to remove. */
     private final PlacementLedger ledger;
     /** Cells a caller needs to reserve for future work, such as the rest of a blueprint being built. */
-    private final Set<BlockPos> excludedFlightCells;    private Navigator navigator;
+    private final Set<BlockPos> excludedFlightCells;
+    private Navigator navigator;
     private FlightNavigator flightNavigator;
     private Vec3 flightGoal;
     private BlockPos reached;
