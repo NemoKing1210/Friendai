@@ -116,7 +116,7 @@ public class CombatTests {
     @GameTest
     public void equipmentTextFormat(GameTestHelper h) {
         CompanionEntity empty = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive"),
+        h.assertTrue(empty.equipmentText().equals("Wearing: nothing; holding: nothing; combat: bodyguard/balanced"),
                 "empty text was " + empty.equipmentText());
 
         CompanionEntity dressed = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
@@ -125,12 +125,12 @@ public class CombatTests {
         dressed.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         dressed.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TORCH));
         h.assertTrue(dressed.equipmentText()
-                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat mode: defensive"),
+                        .equals("Wearing: iron_helmet, iron_chestplate; holding: iron_sword (offhand: torch); combat: bodyguard/balanced"),
                 "dressed text was " + dressed.equipmentText());
 
         CompanionEntity runner = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
         runner.setPaceMode(PaceMode.RUN);
-        h.assertTrue(runner.equipmentText().equals("Wearing: nothing; holding: nothing; combat mode: defensive; pace: run"),
+        h.assertTrue(runner.equipmentText().equals("Wearing: nothing; holding: nothing; combat: bodyguard/balanced; pace: run"),
                 "run text was " + runner.equipmentText());
         h.succeed();
     }
@@ -753,6 +753,74 @@ public class CombatTests {
         });
     }
 
+
+    @GameTest(maxTicks = 400)
+    public void avoidCombatDoesNotCancelOwnerOrderedAttack(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        owner.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        ServerPlayer target = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
+        target.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.setCombatSettings(c.combatSettings()
+                .withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        c.taskRunner().start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
+                    "the owner's order was cancelled by avoid_combat: " + c.combatController().state());
+            h.assertTrue(c.combatController().target().filter(t -> t == target).isPresent(),
+                    "target was " + c.combatController().target());
+            c.taskRunner().stop("test");
+            target.kill(h.getLevel());
+        });
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 300)
+    public void stopCancelsOrderedAttackWithoutAutonomousReengagement(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        owner.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        ServerPlayer target = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
+        target.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.setCombatSettings(c.combatSettings()
+                .withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        c.taskRunner().start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
+        h.runAfterDelay(20, () -> h.assertTrue(
+                c.combatController().state() == CombatController.State.FIGHTING,
+                "fight did not start: " + c.combatController().state()));
+        h.runAfterDelay(30, () -> c.taskRunner().stop("test"));
+        h.runAfterDelay(140, () -> {
+            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+                    "the companion re-engaged after stop: " + c.combatController().state());
+            h.assertTrue(c.combatController().target().isEmpty(),
+                    "target after stop: " + c.combatController().target());
+            h.assertTrue(c.taskRunner().current().map(task -> task.type())
+                            .filter(type -> type.equals("attack_player")).isEmpty(),
+                    "the ordered attack survived stop: " + c.taskRunner().current().map(task -> task.type()));
+            h.assertValueEqual(c.combatSettings(), dev.friendai.combat.CombatSettings.defaults().withProtection(
+                            dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT), "stop changed the protection settings");
+            target.kill(h.getLevel());
+            h.succeed();
+        });
+    }
+
+    @GameTest
+    public void perceptionDescribesProtectionAndStyle(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setCombatSettings(c.combatSettings()
+                .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
+                .withStyle(dev.friendai.combat.FightingStyle.RANGED));
+        String text = dev.friendai.perception.PerceptionBuilder.brief(c).toPromptText();
+        h.assertTrue(text.contains("combat: self_only/ranged"),
+                "perception did not describe the policy:\n" + text);
+        h.succeed();
+    }
 
     @GameTest(maxTicks = 2400)
     public void miningResumesAfterFight(GameTestHelper h) {

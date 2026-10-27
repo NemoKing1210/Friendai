@@ -39,7 +39,8 @@ public final class ObservationScheduler {
     }
 
     public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink,
-            BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink, IntSupplier observationRadius) {
+            BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink,
+            IntSupplier observationRadius) {
         this.observationSink = observationSink;
         this.caveEntranceSink = caveEntranceSink;
         this.observationRadius = observationRadius;

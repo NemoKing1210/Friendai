@@ -1,0 +1,10 @@
+{
+  "name": "complex_goal_sets_a_goal",
+  "access": "owner",
+  "playerSays": "first get iron, then craft an iron pickaxe and bring me ten logs",
+  "replies": [
+    {"text": "", "tools": ["set_goal"]},
+    {"text": "I will start with the iron.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["set_goal"], "spokenContains": ["iron"]}
+}

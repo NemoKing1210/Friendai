@@ -31,6 +31,12 @@
 			"dev.friendai.test.CraftingTests",
 			"dev.friendai.test.CookingTests",
 			"dev.friendai.test.CombatTests",
+			"dev.friendai.test.CombatMechanicsTests",
+			"dev.friendai.test.CombatTacticsTests",
+			"dev.friendai.test.CombatDefenseTests",
+			"dev.friendai.test.CombatRangedTests",
+			"dev.friendai.test.CombatPotionTests",
+			"dev.friendai.test.CombatCoordinationTests",
 			"dev.friendai.test.HungerTests",
 			"dev.friendai.test.QueueTests",
 			"dev.friendai.test.AnimalTests",
@@ -57,7 +63,12 @@
 			"dev.friendai.test.AnvilSkillTests",
 			"dev.friendai.test.GrindstoneSkillTests",
 			"dev.friendai.test.StructureTests",
-			"dev.friendai.test.SkinRenameTests"
+			"dev.friendai.test.SkinRenameTests",
+			"dev.friendai.test.GoalTests",
+			"dev.friendai.test.RecoveryTests",
+			"dev.friendai.test.ToolCatalogTests",
+			"dev.friendai.test.PlannerTests",
+			"dev.friendai.test.GoalTickTests"
 		]
 	},
 	"depends": {

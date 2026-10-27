@@ -1,0 +1,9 @@
+{
+  "name": "question_hides_action_tools",
+  "access": "owner",
+  "playerSays": "where is the nearest village?",
+  "replies": [
+    {"text": "I have not seen one yet.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "toolsNotCalled": ["mine_blocks", "queue_add"], "spokenContains": ["not seen"]}
+}

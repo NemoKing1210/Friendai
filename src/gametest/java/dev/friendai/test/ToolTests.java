@@ -262,11 +262,11 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         h.assertTrue(run(tools, "get_inventory", "{}").content()
-                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
+                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
                 "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         ToolResult r = run(tools, "get_inventory", "{}");
-        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat mode: defensive; hunger 20/20"),
+        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
                 "result was " + r.content());
         h.succeed();
     }
@@ -293,7 +293,8 @@ public class ToolTests {
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "fell_tree", "mine_blocks", "mine_block_at", "pickup_items",
                 "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
                 "take_items", "check_container", "craft_item", "get_recipe", "smelt_items", "cook_food",
-                "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
+                "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player",
+                "set_combat_mode", "get_combat_settings", "set_combat_settings", "equip_item", "eat",
                 "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
                 "farm", "plan_farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
@@ -303,7 +304,7 @@ public class ToolTests {
                 "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",
                 "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait", "swap_hands",
                 "set_idle_behavior", "set_follow_distance", "step", "back_away", "approach", "circle",
-                "interact_entity", "mount", "dismount", "sleep", "throw_item")),
+                "interact_entity", "mount", "dismount", "sleep", "throw_item", "set_goal", "update_goal", "finish_goal", "request_tools")),
                 "names were " + names);
         h.succeed();
     }
@@ -476,6 +477,82 @@ public class ToolTests {
         ToolResult r = run(tools(c), "set_combat_mode", "{\"mode\":\"guard\"}");
         h.assertTrue(!r.error() && r.content().equals("combat mode is now guard"), "result was " + r.content());
         h.assertTrue(c.combatMode() == dev.friendai.task.combat.CombatMode.GUARD, "mode was " + c.combatMode());
+        h.succeed();
+    }
+
+    @GameTest
+    public void combatSettingsToolsRequireOwner(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        List<String> trustedSpecs = tools.specs(AccessLevel.TRUSTED).stream()
+                .map(spec -> spec.name()).toList();
+        h.assertFalse(trustedSpecs.contains("set_combat_settings"), "TRUSTED sees set_combat_settings");
+        h.assertFalse(trustedSpecs.contains("set_combat_mode"), "TRUSTED sees set_combat_mode");
+        h.assertTrue(tools.specs(AccessLevel.OWNER).stream()
+                .anyMatch(spec -> spec.name().equals("set_combat_settings")), "OWNER lacks set_combat_settings");
+
+        Caller trusted = new Caller(null, "", AccessLevel.TRUSTED);
+        Caller guest = new Caller(null, "", AccessLevel.GUEST);
+        for (Caller caller : List.of(trusted, guest)) {
+            ToolResult set = runAs(tools, "set_combat_settings", "{\"protection\":\"self_only\"}", caller);
+            h.assertTrue(set.error(), caller.access() + " changed settings: " + set.content());
+            ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"guard\"}", caller);
+            h.assertTrue(legacy.error(), caller.access() + " changed the legacy mode: " + legacy.content());
+        }
+        h.assertValueEqual(c.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+                "unauthorized calls changed settings");
+        h.succeed();
+    }
+
+    @GameTest
+    public void setCombatSettingsRejectsInvalidFieldsAtomically(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        Caller owner = new Caller(null, "", AccessLevel.OWNER);
+        ToolResult bad = runAs(tools, "set_combat_settings",
+                "{\"protection\":\"guard\",\"pursuit_limit\":99}", owner);
+        h.assertTrue(bad.error(), "out-of-range pursuit was accepted: " + bad.content());
+        h.assertValueEqual(c.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+                "the valid field was applied despite the invalid one");
+
+        ToolResult unknown = runAs(tools, "set_combat_settings",
+                "{\"protection\":\"friendship\"}", owner);
+        h.assertTrue(unknown.error(), "unknown label was accepted: " + unknown.content());
+        h.assertValueEqual(c.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+                "settings changed after a rejected request");
+        h.succeed();
+    }
+
+    @GameTest
+    public void setCombatModePreservesIndependentSettings(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        Caller owner = new Caller(null, "", AccessLevel.OWNER);
+        ToolResult set = runAs(tools, "set_combat_settings",
+                "{\"splash_potions\":true,\"pursuit_limit\":40,\"retreat\":\"conservative\"}", owner);
+        h.assertFalse(set.error(), "valid settings failed: " + set.content());
+        ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"passive\"}", owner);
+        h.assertFalse(legacy.error(), "legacy mode failed: " + legacy.content());
+        h.assertValueEqual(c.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT,
+                "legacy protection");
+        h.assertValueEqual(c.combatSettings().style(), dev.friendai.combat.FightingStyle.BALANCED, "legacy style");
+        h.assertTrue(c.combatSettings().allowSplashPotions(), "legacy mode reset potion allowance");
+        h.assertValueEqual(c.combatSettings().pursuitLimitBlocks(), 40, "legacy mode reset pursuit limit");
+        h.assertValueEqual(c.combatSettings().retreatPreference(),
+                dev.friendai.combat.RetreatPreference.CONSERVATIVE, "legacy mode reset retreat preference");
+        h.succeed();
+    }
+
+    @GameTest
+    public void getCombatSettingsReportsPersistentPolicy(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(c);
+        Caller owner = new Caller(null, "", AccessLevel.OWNER);
+        runAs(tools, "set_combat_settings", "{\"protection\":\"self_only\",\"style\":\"ranged\"}", owner);
+        ToolResult get = runAs(tools, "get_combat_settings", "{}", owner);
+        h.assertFalse(get.error(), "get failed: " + get.content());
+        h.assertTrue(get.content().contains("protection self_only"), "result was " + get.content());
+        h.assertTrue(get.content().contains("style ranged"), "result was " + get.content());
         h.succeed();
     }
 

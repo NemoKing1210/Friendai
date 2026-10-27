@@ -1,6 +1,10 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
+import dev.friendai.combat.CombatSettings;
+import dev.friendai.combat.FightingStyle;
+import dev.friendai.combat.ProtectionPolicy;
+import dev.friendai.combat.RetreatPreference;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.Task;
@@ -65,16 +69,38 @@ final class CombatTools {
                 AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
                 (c, caller, a) -> attackPlayerTask(c, caller, a.get("name").getAsString())), CombatTools::attackPlayerAction);
         registry.register(ToolKit.instantTool("set_combat_mode",
-                "Set how the companion fights: defensive (fight back and protect the owner), guard (also attack hostile mobs near the owner), passive (never attack, run away).",
+                "Set how the companion fights with the legacy presets: defensive (bodyguard, balanced), guard (guard, balanced), passive (avoid combat, balanced). Owner only. Keeps potion, pursuit and retreat settings.",
                 SchemaBuilder.object()
                         .enumeration("mode", "Combat mode", "defensive", "guard", "passive")
                         .required("mode")
                         .build(),
+                AccessLevel.OWNER,
                 (c, a) -> {
                     CombatMode mode = CombatMode.parse(a.get("mode").getAsString());
                     c.setCombatMode(mode);
                     return ToolResult.ok("combat mode is now " + mode.label());
                 }));
+        registry.register(ToolKit.instantTool("get_combat_settings",
+                "Owner only. Show whom the companion protects, how it fights, whether it may use splash potions,"
+                        + " how far it pursues and whether it retreats conservatively.",
+                AccessLevel.OWNER,
+                (c, a) -> ToolResult.ok(describeCombatSettings(c))));
+        registry.register(ToolKit.instantTool("set_combat_settings",
+                "Owner only. Change persistent combat preferences. protection: self_only (defend itself only),"
+                        + " bodyguard (self and owner), guard (also attack hostile mobs near the owner),"
+                        + " avoid_combat (never initiate damage). style: balanced, cautious, melee, ranged."
+                        + " splash_potions enables safe splash potion use (off by default). pursuit_limit is 8-64"
+                        + " blocks. retreat: standard or conservative. An explicit attack order is a task, not a"
+                        + " protection change; avoid_combat prevents re-engaging after it ends.",
+                SchemaBuilder.object()
+                        .enumeration("protection", "Whom to protect", "self_only", "bodyguard", "guard", "avoid_combat")
+                        .enumeration("style", "Fighting style", "balanced", "cautious", "melee", "ranged")
+                        .bool("splash_potions", "Allow safe splash potion use")
+                        .integer("pursuit_limit", "Pursuit distance from the protected anchor in blocks", 8, 64)
+                        .enumeration("retreat", "Retreat preference", "standard", "conservative")
+                        .build(),
+                AccessLevel.OWNER,
+                CombatTools::setCombatSettings));
         ToolKit.add(registry, defs, new TaskToolDef("equip_item",
                 "Wear or hold an item from the inventory: armor goes to its slot, other items to the main hand unless a slot is given.",
                 SchemaBuilder.object()
@@ -165,6 +191,48 @@ final class CombatTools {
 
     private static @Nullable Item optionalItem(JsonObject args) {
         return args.has("item") && !args.get("item").isJsonNull() ? item(args.get("item").getAsString()) : null;
+    }
+
+    /** Parses every supplied field before mutating, so a bad field never leaves a partial update. */
+    private static ToolResult setCombatSettings(CompanionEntity companion, JsonObject args) {
+        CombatSettings settings = companion.combatSettings();
+        try {
+            if (has(args, "protection")) {
+                settings = settings.withProtection(ProtectionPolicy.parseStrict(args.get("protection").getAsString()));
+            }
+            if (has(args, "style")) {
+                settings = settings.withStyle(FightingStyle.parseStrict(args.get("style").getAsString()));
+            }
+            if (has(args, "splash_potions")) {
+                settings = settings.withSplashPotions(args.get("splash_potions").getAsBoolean());
+            }
+            if (has(args, "pursuit_limit")) {
+                settings = settings.withPursuitLimit(args.get("pursuit_limit").getAsInt());
+            }
+            if (has(args, "retreat")) {
+                settings = settings.withRetreatPreference(RetreatPreference.parseStrict(args.get("retreat").getAsString()));
+            }
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error(e.getMessage());
+        }
+        companion.setCombatSettings(settings);
+        return ToolResult.ok("combat settings: " + describe(settings));
+    }
+
+    private static boolean has(JsonObject args, String name) {
+        return args.has(name) && !args.get(name).isJsonNull();
+    }
+
+    private static String describeCombatSettings(CompanionEntity companion) {
+        return "combat settings: " + describe(companion.combatSettings());
+    }
+
+    private static String describe(CombatSettings settings) {
+        return "protection " + settings.protection().label()
+                + ", style " + settings.style().label()
+                + ", splash potions " + (settings.allowSplashPotions() ? "on" : "off")
+                + ", pursuit " + settings.pursuitLimitBlocks() + " blocks"
+                + ", retreat " + settings.retreatPreference().label();
     }
 
     private static ToolResult setFoodRule(CompanionEntity companion, String itemText, boolean allowed) {

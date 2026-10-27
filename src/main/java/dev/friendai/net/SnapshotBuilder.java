@@ -71,6 +71,10 @@ public final class SnapshotBuilder {
                 used,
                 c.inventory().getContainerSize(),
                 c.combatMode().name().toLowerCase(java.util.Locale.ROOT),
+                c.combatSettings().protection().label(),
+                c.combatSettings().style().label(),
+                c.combatController().activeAction(),
+                c.combatController().activeReason(),
                 c.paceMode().label(),
                 c.experience().level(),
                 c.experience().progress());

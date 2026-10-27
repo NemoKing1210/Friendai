@@ -11,6 +11,8 @@ public final class MemoryFile {
     public String companionName;
     /** The personality the owner gave their companion; null means the configured default. */
     public String persona;
+    /** The encoded goal board ({@code goals:v1:...}); null means no goals. */
+    public String goals;
     public List<PlayerEntry> players = new ArrayList<>();
     public List<FactEntry> facts = new ArrayList<>();
     public List<FoodRuleEntry> foodRules = new ArrayList<>();

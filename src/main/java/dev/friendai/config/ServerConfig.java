@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 8;
+    public static final int VERSION = 10;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -26,6 +26,7 @@ public class ServerConfig {
     public MemorySection memory = new MemorySection();
     public PathingSection pathing = new PathingSection();
     public StructuresSection structures = new StructuresSection();
+    public AgentSection agent = new AgentSection();
 
     public static class ProfileConfig {
         public String provider = "anthropic";
@@ -54,6 +55,23 @@ public class ServerConfig {
     public static class StructuresSection {
         /** How many mobs of a structure's kind may already stand near the site before another is built. */
         public int maxNearbySpawned = 4;
+    }
+
+    /** The agent layer above the brain: goals, tool routing, the planner and initiative. */
+    public static class AgentSection {
+        /** Send only the tool groups a turn needs; the model can unlock more with request_tools. */
+        public boolean toolRouting = true;
+        /** passive (never starts on its own), assistive (nudges toward an active goal) or autonomous. */
+        public String autonomy = "assistive";
+        /** How often a goal may be replanned before the companion asks the player for help. */
+        public int maxReplans = 3;
+        /** Seconds between nudges toward an unfinished goal while the queue is idle. */
+        public int goalTickSec = 30;
+        /** Character budget of the system prompt; 0 means unlimited. */
+        public int promptBudget = 24_000;
+        /** Name of the profile used for the planner call; null uses the active profile. */
+        public String planner = null;
+        public int plannerTimeoutSec = 60;
     }
 
     public static class ChatSection {
@@ -95,7 +113,7 @@ public class ServerConfig {
         public int localTicks = 2_400;
         public int expeditionRadius = 512;
         public int expeditionTicks = 12_000;
-        public int observationRadius = 16;
+        public int observationRadius = 64;
     }
 
     public static class MemorySection {
@@ -137,7 +155,11 @@ public class ServerConfig {
         return c;
     }
 
-    /** Enables expeditions for existing servers once; later config edits retain their chosen value. */
+    /**
+     * Version 8 enabled expeditions for existing servers once; later config edits retain their chosen value.
+     * Version 9 added the {@code agent} section, whose field defaults fill in old files.
+     * Version 10 enables resource observations out to 64 blocks by default.
+     */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
             JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
@@ -147,6 +169,17 @@ public class ServerConfig {
                     ? tasks.getAsJsonObject("resources")
                     : new JsonObject();
             resources.addProperty("allowExpeditions", true);
+            tasks.add("resources", resources);
+            json.add("tasks", tasks);
+        }
+        if (from < 10) {
+            JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
+                    ? json.getAsJsonObject("tasks")
+                    : new JsonObject();
+            JsonObject resources = tasks.has("resources") && tasks.get("resources").isJsonObject()
+                    ? tasks.getAsJsonObject("resources")
+                    : new JsonObject();
+            resources.addProperty("observationRadius", 64);
             tasks.add("resources", resources);
             json.add("tasks", tasks);
         }
@@ -193,7 +226,7 @@ public class ServerConfig {
         tasks.resources.expeditionTicks = clamp(problems, "tasks.resources.expeditionTicks",
                 tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
         tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
-                tasks.resources.observationRadius, 4, 32);
+                tasks.resources.observationRadius, 4, 64);
         if (memory == null) {
             memory = new MemorySection();
             problems.add("memory was missing");
@@ -205,6 +238,23 @@ public class ServerConfig {
         if (structures == null) {
             structures = new StructuresSection();
             problems.add("structures was missing");
+        }
+        if (agent == null) {
+            agent = new AgentSection();
+            problems.add("agent was missing");
+        }
+        agent.maxReplans = clamp(problems, "agent.maxReplans", agent.maxReplans, 0, 10);
+        agent.goalTickSec = clamp(problems, "agent.goalTickSec", agent.goalTickSec, 10, 600);
+        agent.plannerTimeoutSec = clamp(problems, "agent.plannerTimeoutSec", agent.plannerTimeoutSec, 10, 300);
+        if (agent.promptBudget != 0) {
+            agent.promptBudget = clamp(problems, "agent.promptBudget", agent.promptBudget, 2_000, 60_000);
+        }
+        if (agent.autonomy == null
+                || !List.of("passive", "assistive", "autonomous").contains(agent.autonomy.toLowerCase(java.util.Locale.ROOT))) {
+            problems.add("agent.autonomy " + agent.autonomy + " is not passive, assistive or autonomous, using assistive");
+            agent.autonomy = "assistive";
+        } else {
+            agent.autonomy = agent.autonomy.toLowerCase(java.util.Locale.ROOT);
         }
         structures.maxNearbySpawned = clamp(problems, "structures.maxNearbySpawned", structures.maxNearbySpawned, 1, 16);
         if (pathing.breakBlacklist == null) {
@@ -249,9 +299,14 @@ public class ServerConfig {
     }
 
     public LlmProfile toLlmProfile(Function<String, String> env) {
-        ProfileConfig p = profiles == null ? null : profiles.get(activeProfile);
+        return toLlmProfile(activeProfile, env);
+    }
+
+    /** The named profile as an LLM profile; the planner may use a different one from the main brain. */
+    public LlmProfile toLlmProfile(String profileName, Function<String, String> env) {
+        ProfileConfig p = profiles == null ? null : profiles.get(profileName);
         if (p == null) {
-            throw new ConfigException(UserMessage.of("friendai.error.config.profile_missing", activeProfile));
+            throw new ConfigException(UserMessage.of("friendai.error.config.profile_missing", profileName));
         }
         return new LlmProfile(
                 p.provider,

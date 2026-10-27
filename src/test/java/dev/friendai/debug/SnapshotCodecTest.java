@@ -15,7 +15,8 @@ class SnapshotCodecTest {
                 List.of(new TaskRecord(1, "stay", "SUCCESS", "ok"), new TaskRecord(2, "go_to", "FAILED", "no path")),
                 List.of(new LogEntry(7, 123456789L, LogKind.TOOL_CALL, "stay {}")),
                 "perception text\nline 2", List.of("stay", "go_to"),
-                new CompanionVitals(17.5f, 20f, 14, 5, 27, "defensive", "auto", 12, 0.5f),
+                new CompanionVitals(17.5f, 20f, 14, 5, 27, "defensive", "bodyguard", "balanced", "attack",
+                        "defend_self", "auto", 12, 0.5f),
                 List.of(new QueueRow(3, 1, "build a hut", "active", "mine_blocks", "{\"block\":\"oak_log\"}", "running", "mining",
                         List.of(2L), 1, 2, 5)));
     }
@@ -24,6 +25,15 @@ class SnapshotCodecTest {
     void roundTripsFullSnapshot() {
         CompanionSnapshot s = full();
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
+    }
+
+    @Test
+    void combatSettingsArePresentInSnapshotRoundTrip() {
+        CompanionVitals decoded = SnapshotCodec.decode(SnapshotCodec.encode(full())).vitals();
+        assertEquals("bodyguard", decoded.protection());
+        assertEquals("balanced", decoded.style());
+        assertEquals("attack", decoded.action());
+        assertEquals("defend_self", decoded.reason());
     }
 
     @Test

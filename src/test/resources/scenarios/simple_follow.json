@@ -1,0 +1,10 @@
+{
+  "name": "simple_follow",
+  "access": "owner",
+  "playerSays": "follow me",
+  "replies": [
+    {"text": "", "tools": ["follow_player"]},
+    {"text": "Coming.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["follow_player"], "spokenContains": ["Coming"]}
+}

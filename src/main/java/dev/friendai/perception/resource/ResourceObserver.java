@@ -7,7 +7,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntSupplier;
@@ -38,7 +37,7 @@ public final class ResourceObserver {
     };
 
     private final CompanionEntity companion;
-    private final IntSupplier radius;
+    private final IntSupplier observationRadius;
     private final ArrayDeque<PendingRay> queue = new ArrayDeque<>();
     private final Set<BlockPos> queuedTargets = new HashSet<>();
     private String dimension;
@@ -51,15 +50,11 @@ public final class ResourceObserver {
         this(companion, () -> DEFAULT_RADIUS);
     }
 
-    public ResourceObserver(CompanionEntity companion, IntSupplier radius) {
+    public ResourceObserver(CompanionEntity companion, IntSupplier observationRadius) {
         this.companion = companion;
-        this.radius = Objects.requireNonNull(radius, "radius");
+        this.observationRadius = observationRadius;
         this.dimension = dimension();
         this.owner = companion.ownerUuid();
-    }
-
-    private double radius() {
-        return Math.max(1, radius.getAsInt());
     }
 
     /** Schedules a deterministic, viewpoint-based sweep at most once per second. */
@@ -78,9 +73,9 @@ public final class ResourceObserver {
         lastSweepEye = eye;
         BlockPos center = BlockPos.containing(eye);
         int scheduled = 0;
+        double reach = radius();
         // Cardinal rays are the shortest route to current surface evidence, so put them
         // ahead of the broad scan while keeping the scan itself in FIFO order.
-        double reach = radius();
         for (Vec3 direction : CARDINALS)
             if (enqueue(eye, eye.add(direction.scale(reach)), null, false, false)) scheduled++;
         // Aim a bounded set of near-field checks at geometric face centers. These targets are
@@ -117,7 +112,8 @@ public final class ResourceObserver {
         }
         double rotation = ((companion.getId() * 0.6180339887498949 + tick * 0.017) % 1.0) * Math.PI * 2.0;
         double golden = Math.PI * (3.0 - Math.sqrt(5.0));
-        int sphericalRays = SWEEP_RAYS - CARDINALS.length - 4 * NEAR_FACE_CHECKS_PER_AXIS;
+        int sphericalRays = SWEEP_RAYS - CARDINALS.length - 4 * NEAR_FACE_CHECKS_PER_AXIS
+                - NEAR_DIRECTIONS.length * 3 - 8;
         for (int i = 0; i < sphericalRays; i++) {
             double y = 1.0 - 2.0 * (i + 0.5) / sphericalRays;
             double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
@@ -161,8 +157,8 @@ public final class ResourceObserver {
 
     private boolean inspectTarget(BlockPos target, boolean changed) {
         BlockPos key = target.immutable();
-        double reach = radius();
-        if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > reach * reach) return false;
+        double radius = radius();
+        if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > radius * radius) return false;
         if (queue.size() >= MAX_QUEUED_RAYS || !queuedTargets.add(key)) return false;
         if (changed && changedQueued >= MAX_CHANGED_JOBS) {
             queuedTargets.remove(key);
@@ -187,6 +183,10 @@ public final class ResourceObserver {
     }
 
     public int queuedJobs() { return queue.size(); }
+
+    private double radius() {
+        return Math.max(4, Math.min(64, observationRadius.getAsInt()));
+    }
 
     public ObservationBatch tick(int rayBudget, int cellBudget, long deadlineNanos) {
         if (!refreshIdentity() || rayBudget <= 0 || cellBudget <= 0) {

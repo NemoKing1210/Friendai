@@ -1,5 +1,15 @@
 package dev.friendai.brain;
 
+import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlannerInput;
+import dev.friendai.agent.recover.FailureHandler;
+import dev.friendai.agent.route.IntentVocabulary;
+import dev.friendai.agent.route.RouteDecision;
+import dev.friendai.agent.route.RouteSignals;
+import dev.friendai.agent.route.TurnMode;
+import dev.friendai.agent.route.TurnRouter;
+import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.ToolCall;
@@ -11,6 +21,7 @@ import dev.friendai.tool.ToolResult;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +41,9 @@ import org.slf4j.LoggerFactory;
  */
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
+    private static final String REQUEST_TOOLS = "request_tools";
+    /** The marker the failure handler puts in an event when no replans are left. */
+    private static final String BUDGET_SPENT = FailureHandler.BUDGET_SPENT;
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
@@ -48,6 +62,14 @@ public final class CompanionBrain {
     private final MemorySource memorySource;
     private final ConversationMemory memory;
     private BrainObserver observer = BrainObserver.NONE;
+    private GoalSource goalSource = GoalSource.NONE;
+    private PlannerPort plannerPort = PlannerPort.NONE;
+    private boolean plannedThisTurn;
+    /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
+    private boolean ownsTroubledPlan;
+    /** What the planner just did; shown once in the next request's Mission block. */
+    private String plannerNote = "";
+    private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
 
     private final Deque<BrainEvent> queue = new ArrayDeque<>();
     private final Map<UUID, Long> lastAcceptedGuestMessage = new HashMap<>();
@@ -65,6 +87,11 @@ public final class CompanionBrain {
     /** What the player just heard, newest first: an event turn repeats none of it. */
     private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
     private Set<String> turnToolNames = Set.of();
+    private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
+    private final ToolCatalog catalog = ToolCatalog.defaults();
+    /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
+    private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
+    private RouteDecision decision = new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), false, "none");
 
     private static final class SpokenLine {
         private final String text;
@@ -166,14 +193,34 @@ public final class CompanionBrain {
         this.observer = java.util.Objects.requireNonNull(observer);
     }
 
+    public void setAgentSettings(Supplier<AgentSettings> agentSettings) {
+        this.agentSettings = java.util.Objects.requireNonNull(agentSettings);
+    }
+
+    public void setGoalSource(GoalSource goalSource) {
+        this.goalSource = java.util.Objects.requireNonNull(goalSource);
+    }
+
+    public void setPlannerPort(PlannerPort plannerPort) {
+        this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
+    }
+
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
+        return buildSystemPrompt(plannerNote);
+    }
+
+    private String buildSystemPrompt(String note) {
         return PromptBuilder.system(
                 persona.get(),
                 perception.describe(turnCaller),
                 turnCaller,
                 memorySource.describe(turnCaller),
-                turnKind);
+                turnKind,
+                goalSource.view(turnCaller),
+                agentSettings.get().promptBudget(),
+                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class)),
+                note);
     }
 
     private void observe(java.util.function.Consumer<BrainObserver> call) {
@@ -228,6 +275,20 @@ public final class CompanionBrain {
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         turnCaller = new Caller(principal, name == null ? "" : name, level);
+        List<Long> troubledPlans = batch.stream()
+                .map(CompanionBrain::troubledPlanId)
+                .filter(id -> id >= 0)
+                .toList();
+        boolean planTrouble = !troubledPlans.isEmpty();
+        ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
+        decision = router.route(new RouteSignals(
+                turnKind,
+                String.join("\n", turnPlayerTexts),
+                !goalSource.view(turnCaller).isEmpty(),
+                planTrouble,
+                0));
+        visibleGroups.clear();
+        visibleGroups.addAll(decision.groups());
         thinking = true;
         speaker.thinking(true);
         String lines = batch.stream()
@@ -238,7 +299,62 @@ public final class CompanionBrain {
         }
         memory.add(Message.user(lines));
         step = 0;
-        requestStep(generation);
+        plannedThisTurn = false;
+        plannerNote = "";
+        // A failed plan that still has replans left is worked out by the planner before the model answers.
+        if (decision.mode() == TurnMode.RECOVERY && decision.wantPlanner() && ownsTroubledPlan
+                && !lines.contains(BUDGET_SPENT)) {
+            plan(generation, lines);
+        } else {
+            requestStep(generation);
+        }
+    }
+
+    /**
+     * One planner consultation per turn. The reply is applied on the scheduler thread and shown to the model once,
+     * in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the generation, so a
+     * late proposal is dropped without touching the queue (rule 5).
+     */
+    private void plan(int gen, String failure) {
+        plannedThisTurn = true;
+        Optional<PlannerInput> input;
+        try {
+            input = plannerPort.input(turnCaller, failure);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Planner input failed", e);
+            input = Optional.empty();
+        }
+        if (input.isEmpty()) {
+            requestStep(gen);
+            return;
+        }
+        CompletableFuture<PlanProposal> future;
+        try {
+            future = plannerPort.propose(input.get());
+        } catch (RuntimeException e) {
+            future = CompletableFuture.failedFuture(e);
+        }
+        future.whenComplete((proposal, error) -> scheduler.execute(() -> {
+            if (gen != generation) {
+                return;
+            }
+            if (error != null || proposal == null) {
+                LOGGER.info("Planner gave no plan: {}", error == null ? "empty" : error.getClass().getSimpleName());
+                plannerNote = "no plan was drafted (the planner is unavailable); work out the next step yourself";
+            } else {
+                ToolResult applied;
+                try {
+                    applied = plannerPort.apply(turnCaller, proposal);
+                } catch (RuntimeException e) {
+                    applied = ToolResult.error("could not queue the plan");
+                }
+                plannerNote = applied.error()
+                        ? "the planner's plan could not be queued (" + applied.content() + "); plan it yourself"
+                        : "a plan was queued (" + applied.content() + "): " + proposal.rationale()
+                                + (proposal.expectedOutcome().isBlank() ? "" : "; expected: " + proposal.expectedOutcome());
+            }
+            requestStep(gen);
+        }));
     }
 
     private void requestStep(int gen) {
@@ -253,14 +369,12 @@ public final class CompanionBrain {
         CompletableFuture<LlmResponse> future;
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access());
+            // Speech is checked against every tool this caller has, not just the routed subset.
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-            String system = PromptBuilder.system(
-                    persona.get(),
-                    perception.describe(turnCaller),
-                    turnCaller,
-                    memorySource.describe(turnCaller),
-                    turnKind);
-            future = gateway.get().complete(system, memory.snapshot(), specs);
+            List<ToolSpec> sent = agentSettings.get().toolRouting() ? catalog.filter(specs, visibleGroups) : specs;
+            String system = buildSystemPrompt(plannerNote);
+            plannerNote = "";
+            future = gateway.get().complete(system, memory.snapshot(), sent);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
@@ -301,11 +415,13 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
+        boolean goalSet = false;
+        boolean queuedByModel = false;
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
             try {
-                result = tools.execute(call, turnCaller);
+                result = REQUEST_TOOLS.equals(call.name()) ? requestTools(call) : tools.execute(call, turnCaller);
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
@@ -313,8 +429,49 @@ public final class CompanionBrain {
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
+            goalSet |= !result.error() && "set_goal".equals(call.name());
+            queuedByModel |= !result.error() && "queue_add".equals(call.name());
+        }
+        if (goalSet && !queuedByModel && !plannedThisTurn
+                && decision.mode() == TurnMode.GOAL && decision.wantPlanner()) {
+            plan(gen, "");
+            return;
         }
         requestStep(gen);
+    }
+
+    /** The plan an event reports as failed or blocked, or -1 for anything else (a stop or cancel is not trouble). */
+    private static long troubledPlanId(BrainEvent event) {
+        if (event instanceof BrainEvent.PlanBlocked blocked) {
+            return blocked.planId();
+        }
+        if (event instanceof BrainEvent.PlanFinished finished && !finished.success()
+                && !FailureHandler.isCancellation(finished.summary())) {
+            return finished.planId();
+        }
+        return -1;
+    }
+
+    /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */
+    private ToolResult requestTools(ToolCall call) {
+        String wanted = call.arguments() != null && call.arguments().has("group")
+                && call.arguments().get("group").isJsonPrimitive()
+                ? call.arguments().get("group").getAsString() : "";
+        Optional<ToolGroup> group = ToolGroup.parse(wanted).filter(g -> g != ToolGroup.CORE);
+        if (group.isEmpty()) {
+            String valid = java.util.Arrays.stream(ToolGroup.values())
+                    .filter(g -> g != ToolGroup.CORE)
+                    .map(g -> g.name().toLowerCase(java.util.Locale.ROOT))
+                    .collect(Collectors.joining(", "));
+            return ToolResult.error("Unknown tool group \"" + wanted + "\". Valid groups: " + valid);
+        }
+        visibleGroups.add(group.get());
+        String unlocked = tools.specs(turnCaller.access()).stream()
+                .map(ToolSpec::name)
+                .filter(name -> catalog.meta(name).map(meta -> meta.group() == group.get()).orElse(false))
+                .collect(Collectors.joining(", "));
+        return ToolResult.ok("tools unlocked: " + group.get().name().toLowerCase(java.util.Locale.ROOT)
+                + (unlocked.isEmpty() ? "" : " (" + unlocked + ")"));
     }
 
     /**

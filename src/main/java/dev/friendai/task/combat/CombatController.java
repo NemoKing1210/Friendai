@@ -1,5 +1,14 @@
 package dev.friendai.task.combat;
 
+import dev.friendai.combat.CombatDecision;
+import dev.friendai.combat.CombatPolicy;
+import dev.friendai.combat.CombatSettings;
+import dev.friendai.combat.CombatSnapshot;
+import dev.friendai.combat.PotionFacts;
+import dev.friendai.combat.PotionPolicy;
+import dev.friendai.combat.ProjectileThreat;
+import dev.friendai.combat.ProtectionPolicy;
+import dev.friendai.combat.WeaponPolicy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.TaskContext;
@@ -20,6 +29,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -33,9 +44,11 @@ import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -56,7 +69,6 @@ public final class CombatController {
     private static final double OWNER_DEFENSE_RANGE = 16.0;
     private static final double TARGETING_RANGE = 8.0;
     private static final double GUARD_RADIUS = 12.0;
-    private static final double FIGHT_DROPOFF = 24.0;
     private static final int OUT_OF_SIGHT_TICKS = 100;
     /** How far from the kill the controller looks for the drops of the fight it just ended. */
     private static final double LOOT_RADIUS = 8.0;
@@ -70,6 +82,16 @@ public final class CombatController {
     private static final double RETREAT_SAFE_RADIUS = 12.0;
     private static final int RETREAT_MAX_TICKS = 200;
     private static final double FLEE_DISTANCE = 8.0;
+    /** How often the held weapon is rescored while fighting. */
+    private static final int WEAPON_CHECK_TICKS = 20;
+    /** Ticks between allowed splash potion throws. */
+    private static final int POTION_COOLDOWN_TICKS = 100;
+    /** Splash potions allowed per fight. */
+    private static final int POTION_BUDGET = 3;
+    /** How far sideways a dodge step goes. */
+    private static final double DODGE_STEP = 2.0;
+    /** Half-width of the ally corridor around a firing lane. */
+    private static final double FIRING_LANE_CLEARANCE = 1.5;
 
     private enum Kind {
         SELF,
@@ -110,8 +132,34 @@ public final class CombatController {
     private ItemStack eatingItem = ItemStack.EMPTY;
     private int eatTicks;
 
+    private Kind targetKind = Kind.SELF;
+    private Vec3 anchor = Vec3.ZERO;
+    private WeaponPolicy.Band band = WeaponPolicy.Band.UNKNOWN;
+    private boolean shieldSwapped;
+    private boolean shieldRaised;
+    private ItemStack previousOffhand = ItemStack.EMPTY;
+    private int weaponCheckTicks;
+    private int potionCooldown;
+    private int potionBudget;
+    private boolean ammoNoticed;
+
+    private CombatDecision decision = CombatDecision.none();
+
     public CombatController(CompanionEntity companion) {
         this.companion = companion;
+    }
+
+    /** The last arbitration result, including {@code NONE} between fights. */
+    public CombatDecision decision() {
+        return decision;
+    }
+
+    public String activeAction() {
+        return decision.action().name().toLowerCase(Locale.ROOT);
+    }
+
+    public String activeReason() {
+        return decision.reason().name().toLowerCase(Locale.ROOT);
     }
 
     public State state() {
@@ -177,11 +225,15 @@ public final class CombatController {
         companion.stopUsingItem();
         usingBow = false;
         drawTicks = 0;
+        lowerShield();
+        restoreShield();
         restoreWeapon();
         state = State.IDLE;
         target = null;
         taskDriven = false;
         ownerConsent = false;
+        band = WeaponPolicy.Band.UNKNOWN;
+        decision = CombatDecision.none();
     }
 
     /** Starts a fight on a task's behalf: the runner is not paused and the brain gets no notices. */
@@ -248,7 +300,8 @@ public final class CombatController {
         if (loot != null && loot.tick(new TaskContext(companion, level)) == DropCollector.State.DONE) {
             loot = null;
         }
-        if (companion.combatMode() == CombatMode.PASSIVE) {
+        if (companion.combatSettings().protection() == ProtectionPolicy.AVOID_COMBAT) {
+            decision = new CombatDecision(CombatDecision.Action.AVOID, CombatDecision.Reason.AVOID_COMBAT);
             List<LivingEntity> passiveThreats = ruleOneThreats(level).stream()
                     .filter(threat -> companion.distanceTo(threat) <= RETREAT_SAFE_RADIUS)
                     .toList();
@@ -296,6 +349,7 @@ public final class CombatController {
             return;
         }
         state = State.EATING;
+        decision = new CombatDecision(CombatDecision.Action.EAT, CombatDecision.Reason.RECOVER);
         eatingItem = food.copy();
         eatingPrevious = companion.getMainHandItem().copy();
         eatTicks = 0;
@@ -320,12 +374,14 @@ public final class CombatController {
             }
             returnFood(level);
             state = State.IDLE;
+            decision = CombatDecision.none();
             return;
         }
         if (eatTicks > 200) {
             companion.stopUsingItem();
             returnFood(level);
             state = State.IDLE;
+            decision = CombatDecision.none();
         }
     }
 
@@ -338,6 +394,7 @@ public final class CombatController {
         }
         returnFood(level);
         state = State.IDLE;
+        decision = CombatDecision.none();
     }
 
     private void returnFood(ServerLevel level) {
@@ -421,6 +478,8 @@ public final class CombatController {
             abandonFight();
         }
         state = State.RETREATING;
+        decision = new CombatDecision(
+                CombatDecision.Action.RETREAT, CombatDecision.Reason.IMMINENT_DANGER);
         retreatTicks = 0;
         retreatRepathTicks = 0;
         retreatNoticed = false;
@@ -493,6 +552,7 @@ public final class CombatController {
 
     private void finishRetreat() {
         state = State.IDLE;
+        decision = CombatDecision.none();
         retreatTarget = null;
         retreatFromCreeper = false;
         companion.getNavigation().stop();
@@ -500,13 +560,17 @@ public final class CombatController {
     }
 
     private Selection selectTarget(ServerLevel level) {
+        CombatSettings settings = companion.combatSettings();
+        if (settings.protection() == ProtectionPolicy.AVOID_COMBAT) {
+            return null;
+        }
         LivingEntity attacker = companion.getLastHurtByMob();
         if (validAttacker(attacker) && companion.tickCount - companion.getLastHurtByMobTimestamp() <= ATTACKER_MEMORY) {
             return new Selection(attacker, Kind.SELF);
         }
 
         ServerPlayer owner = companion.owner().filter(o -> o.level() == level).orElse(null);
-        if (owner != null && companion.distanceTo(owner) <= OWNER_DEFENSE_RANGE) {
+        if (owner != null && companion.distanceTo(owner) <= OWNER_DEFENSE_RANGE && settings.protection().defendsOwner()) {
             LivingEntity ownerAttacker = owner.getLastHurtByMob();
             if (validAttacker(ownerAttacker)
                     && owner.tickCount - owner.getLastHurtByMobTimestamp() <= ATTACKER_MEMORY) {
@@ -523,12 +587,12 @@ public final class CombatController {
             if (mob.getTarget() == companion) {
                 return new Selection(entity, Kind.SELF);
             }
-            if (owner != null && mob.getTarget() == owner) {
+            if (owner != null && mob.getTarget() == owner && settings.protection().defendsOwner()) {
                 return new Selection(entity, Kind.OWNER);
             }
         }
 
-        if (companion.combatMode() == CombatMode.GUARD) {
+        if (settings.protection().guardsArea()) {
             Vec3 center = owner != null ? owner.position() : companion.position();
             for (LivingEntity entity : Threats.hostilesNear(level, center, GUARD_RADIUS)) {
                 if (!Threats.isProtected(entity, companion) && companion.hasLineOfSight(entity)) {
@@ -537,6 +601,23 @@ public final class CombatController {
             }
         }
         return null;
+    }
+
+    /** True while the current reflex engagement is still allowed by the owner's protection policy. */
+    private boolean stillPermitted(Kind kind) {
+        return switch (kind) {
+            case SELF -> true;
+            case OWNER -> companion.combatSettings().protection().defendsOwner();
+            case GUARD -> companion.combatSettings().protection().guardsArea();
+        };
+    }
+
+    private static CombatDecision.Reason reasonFor(Kind kind) {
+        return switch (kind) {
+            case SELF -> CombatDecision.Reason.DEFEND_SELF;
+            case OWNER -> CombatDecision.Reason.DEFEND_OWNER;
+            case GUARD -> CombatDecision.Reason.GUARD;
+        };
     }
 
     private boolean validAttacker(LivingEntity entity) {
@@ -566,6 +647,7 @@ public final class CombatController {
         state = State.FIGHTING;
         stopLootRound();
         target = selection.entity();
+        targetKind = selection.kind();
         taskDriven = ordered;
         this.ownerConsent = ownerConsent;
         attackCooldown = 0;
@@ -576,6 +658,16 @@ public final class CombatController {
         usingBow = false;
         lastSeenTick = companion.tickCount;
         kills.clear();
+        anchor = companion.owner()
+                .filter(owner -> owner.level() == level)
+                .map(owner -> owner.position())
+                .orElse(companion.position());
+        band = WeaponPolicy.Band.UNKNOWN;
+        weaponCheckTicks = 0;
+        potionCooldown = 0;
+        potionBudget = POTION_BUDGET;
+        ammoNoticed = false;
+        decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, reasonFor(selection.kind()));
         companion.stopUsingItem();
         equipWeapon();
         if (!ordered) {
@@ -612,9 +704,82 @@ public final class CombatController {
         weaponSwapped = false;
     }
 
+    /** True when a shield is in the offhand or anywhere in the inventory. */
+    private boolean shieldAvailable() {
+        if (companion.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD)) {
+            return true;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            if (companion.inventory().getItem(i).is(Items.SHIELD)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Moves a shield to the offhand, preserving whatever was there. */
+    private void equipShield() {
+        if (shieldSwapped || companion.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD)) {
+            return;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            if (!companion.inventory().getItem(i).is(Items.SHIELD)) {
+                continue;
+            }
+            previousOffhand = companion.getItemBySlot(EquipmentSlot.OFFHAND).copy();
+            companion.setItemSlot(EquipmentSlot.OFFHAND, companion.inventory().removeItemNoUpdate(i));
+            shieldSwapped = true;
+            return;
+        }
+    }
+
+    private void raiseShield() {
+        equipShield();
+        if (!companion.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD) || shieldRaised) {
+            return;
+        }
+        companion.startUsingItem(InteractionHand.OFF_HAND);
+        shieldRaised = true;
+    }
+
+    private void lowerShield() {
+        if (!shieldRaised) {
+            return;
+        }
+        companion.stopUsingItem();
+        shieldRaised = false;
+    }
+
+    /** Returns the displaced offhand stack, spawning overflow rather than dropping it silently. */
+    private void restoreShield() {
+        lowerShield();
+        if (!shieldSwapped) {
+            return;
+        }
+        ItemStack current = companion.getItemBySlot(EquipmentSlot.OFFHAND);
+        companion.setItemSlot(EquipmentSlot.OFFHAND, previousOffhand);
+        if (!current.isEmpty()) {
+            ItemStack leftover = companion.inventory().addItem(current);
+            if (!leftover.isEmpty() && companion.level() instanceof ServerLevel level) {
+                companion.spawnAtLocation(level, leftover);
+            }
+        }
+        previousOffhand = ItemStack.EMPTY;
+        shieldSwapped = false;
+    }
+
     private void tickFight(ServerLevel level, int now) {
         LivingEntity enemy = target;
         if (enemy == null || enemy.isRemoved() || !enemy.isAlive()) {
+            endFight(level, enemy);
+            return;
+        }
+        // A settings change revalidates the reflex engagement immediately.
+        if (!taskDriven && companion.combatSettings().protection() == ProtectionPolicy.AVOID_COMBAT) {
+            endFight(level, enemy);
+            return;
+        }
+        if (!taskDriven && !stillPermitted(targetKind)) {
             endFight(level, enemy);
             return;
         }
@@ -624,7 +789,13 @@ public final class CombatController {
             endFight(level, enemy);
             return;
         }
-        if (companion.distanceTo(enemy) > FIGHT_DROPOFF) {
+        if (!validAttacker(enemy) && !(ownerConsent && isOwner(enemy))) {
+            endFight(level, enemy);
+            return;
+        }
+        if (enemy.position().distanceTo(anchor) > companion.combatSettings().pursuitLimitBlocks()) {
+            decision = new CombatDecision(
+                    CombatDecision.Action.DISENGAGE, CombatDecision.Reason.OUT_OF_PURSUIT);
             endFight(level, enemy);
             return;
         }
@@ -635,9 +806,37 @@ public final class CombatController {
             return;
         }
 
-        boolean ranged = Equipment.hasBowAndArrows(companion)
-                && (companion.distanceTo(enemy) > RANGED_DISTANCE || isFlying(enemy) || unreachableTicks > 20);
+        // Physical danger is independent of protective eligibility: every preset may block, dodge or deflect.
+        ProjectileThreat.Facts incoming = incomingProjectile(level);
+        if (incoming != null) {
+            if (incoming.frontal() && shieldAvailable()) {
+                face(level, incoming);
+                raiseShield();
+                decision = new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.BLOCK_PROJECTILE);
+                return;
+            }
+            if (tryDodge(level, incoming)) {
+                decision = new CombatDecision(CombatDecision.Action.DODGE, CombatDecision.Reason.EVADE_PROJECTILE);
+                return;
+            }
+        } else {
+            lowerShield();
+        }
+
+        if (--weaponCheckTicks <= 0) {
+            weaponCheckTicks = WEAPON_CHECK_TICKS;
+            if (!usingBow) {
+                refillWeapon();
+            }
+        }
+
+        if (tickPotion(level, enemy)) {
+            return;
+        }
+
+        boolean ranged = shouldUseBow(enemy);
         if (ranged && companion.hasLineOfSight(enemy)) {
+            decision = new CombatDecision(CombatDecision.Action.FIRE_BOW, reasonFor(targetKind));
             tickRanged(level, enemy);
             return;
         }
@@ -659,32 +858,69 @@ public final class CombatController {
             return;
         }
         double distanceSqr = distance * distance;
-        if (companion.isWithinMeleeAttackRange(enemy) || distanceSqr <= 3.0625) {
+        double reach = meleeReach(enemy);
+        band = WeaponPolicy.band(distance, reach, band);
+        boolean inReach = companion.isWithinMeleeAttackRange(enemy) || distanceSqr <= 3.0625;
+        if (inReach) {
+            lowerShield();
             companion.getNavigation().stop();
             unreachableTicks = 0;
             lastDistance = distance;
             if (--attackCooldown <= 0) {
+                // Permission is rechecked at the action, not only when the target was selected.
+                if (!validAttacker(enemy) && !(ownerConsent && isOwner(enemy))) {
+                    endFight(level, enemy);
+                    return;
+                }
+                decision = new CombatDecision(CombatDecision.Action.ATTACK, reasonFor(targetKind));
                 companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                 if (companion.doHurtTarget(level, enemy)) {
                     companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_ATTACK);
                 }
                 attackCooldown = attackInterval();
+            } else {
+                decision = new CombatDecision(CombatDecision.Action.ATTACK, reasonFor(targetKind));
+                // Cautious fighters raise the shield between swings.
+                if (companion.combatSettings().style() == dev.friendai.combat.FightingStyle.CAUTIOUS
+                        && shieldAvailable()) {
+                    raiseShield();
+                    decision = new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.POSITION);
+                }
             }
+        } else if (companion.combatSettings().style() == dev.friendai.combat.FightingStyle.RANGED
+                && Equipment.hasBowAndArrows(companion)
+                && distance < 5.0
+                && backOff(level, enemy)) {
+            decision = new CombatDecision(CombatDecision.Action.KEEP_RANGE, CombatDecision.Reason.STYLE_RANGE);
         } else if (distanceSqr <= 9.0) {
             // Pathfinding stops just outside the reach of a small mob; the move control closes the last step.
+            decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, reasonFor(targetKind));
             companion.getNavigation().stop();
             companion.getMoveControl().setWantedPosition(enemy.getX(), enemy.getY(), enemy.getZ(), 1.2);
         } else if (--repathTicks <= 0) {
+            decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, reasonFor(targetKind));
             companion.getNavigation().moveTo(enemy, 1.0);
             repathTicks = 10;
+        } else {
+            decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, reasonFor(targetKind));
         }
     }
 
     private void tickRanged(ServerLevel level, LivingEntity enemy) {
+        lowerShield();
         companion.getNavigation().stop();
         companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
+        if (usingBow && !companion.getMainHandItem().is(Items.BOW)) {
+            // The bow broke mid-draw: stop using the stale stack and fall back to melee.
+            cancelBow();
+            equipMeleeAfterBow();
+            decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, CombatDecision.Reason.NO_AMMUNITION);
+            return;
+        }
         if (!usingBow) {
             if (!holdBow()) {
+                noticeAmmunition();
+                decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, CombatDecision.Reason.NO_AMMUNITION);
                 return;
             }
             usingBow = true;
@@ -695,8 +931,274 @@ public final class CombatController {
         if (drawTicks < BOW_DRAW_TICKS) {
             return;
         }
+        if (!releaseAllowed(level, enemy)) {
+            cancelBow();
+            decision = new CombatDecision(CombatDecision.Action.KEEP_RANGE, CombatDecision.Reason.UNSAFE_LANE);
+            return;
+        }
         shoot(level, enemy);
         drawTicks = 0;
+    }
+
+    /** Rechecks target eligibility, obstacle occlusion and allies immediately before spawning an arrow. */
+    private boolean releaseAllowed(ServerLevel level, LivingEntity enemy) {
+        if (!enemy.isAlive() || !validAttacker(enemy)) {
+            return false;
+        }
+        if (!companion.getMainHandItem().is(Items.BOW) || companion.inventory().countItem(Items.ARROW) <= 0) {
+            return false;
+        }
+        return companion.hasLineOfSight(enemy) && !allyInLane(level, enemy);
+    }
+
+    private void noticeAmmunition() {
+        if (ammoNoticed) {
+            return;
+        }
+        ammoNoticed = true;
+        companion.taskRunner().notice("out of arrows; switching to melee");
+    }
+
+    private double meleeReach(LivingEntity enemy) {
+        double reach = 3.0;
+        if (enemy != null) {
+            reach = Math.max(reach, companion.getBbWidth() + enemy.getBbWidth() + 0.5);
+        }
+        return reach;
+    }
+
+    private void refillWeapon() {
+        int slot = Equipment.bestMeleeWeaponSlot(companion);
+        if (slot >= 0) {
+            Equipment.hold(companion, slot);
+        }
+    }
+
+    /** Moves away from a closing melee target only to a checked safe step. */
+    private boolean backOff(ServerLevel level, LivingEntity enemy) {
+        Vec3 away = companion.position().subtract(enemy.position());
+        if (away.horizontalDistanceSqr() < 1.0E-4) {
+            away = new Vec3(1, 0, 0);
+        }
+        return moveToSafe(level, companion.position().add(away.normalize().scale(DODGE_STEP)));
+    }
+
+    private boolean moveToSafe(ServerLevel level, Vec3 destination) {
+        var box = companion.getBoundingBox().move(destination.x - companion.getX(), 0, destination.z - companion.getZ());
+        if (!level.noCollision(companion, box)) {
+            return false;
+        }
+        var feet = net.minecraft.core.BlockPos.containing(destination);
+        var below = feet.below();
+        var floor = level.getBlockState(below);
+        if (floor.getCollisionShape(level, below).isEmpty() || !floor.getFluidState().isEmpty()) {
+            return false;
+        }
+        if (!level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                || !level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()) {
+            return false;
+        }
+        companion.getNavigation().moveTo(destination.x, destination.y, destination.z, 1.2);
+        return true;
+    }
+
+    private boolean tryDodge(ServerLevel level, ProjectileThreat.Facts projectile) {
+        double vx = projectile.velocityX();
+        double vz = projectile.velocityZ();
+        double length = Math.sqrt(vx * vx + vz * vz);
+        if (length < 1.0E-6) {
+            return false;
+        }
+        double nx = -vz / length;
+        double nz = vx / length;
+        Vec3 left = companion.position().add(nx * DODGE_STEP, 0, nz * DODGE_STEP);
+        Vec3 right = companion.position().add(-nx * DODGE_STEP, 0, -nz * DODGE_STEP);
+        return moveToSafe(level, left) || moveToSafe(level, right);
+    }
+
+    private void face(ServerLevel level, ProjectileThreat.Facts projectile) {
+        companion.getLookControl().setLookAt(projectile.x(), projectile.y(), projectile.z(), 30.0F, 30.0F);
+    }
+
+    /** The nearest projectile whose bounded path intersects the companion. */
+    private ProjectileThreat.Facts incomingProjectile(ServerLevel level) {
+        ProjectileThreat.Facts best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (var projectile : level.getEntitiesOfClass(
+                net.minecraft.world.entity.projectile.Projectile.class,
+                companion.getBoundingBox().inflate(16.0),
+                p -> p.isAlive() && !p.isRemoved() && p.getOwner() != companion)) {
+            double radius = projectile instanceof AbstractArrow ? 0.1 : 0.5;
+            var bounds = new ProjectileThreat.EntityBounds(
+                    companion.getBoundingBox().minX,
+                    companion.getBoundingBox().minY,
+                    companion.getBoundingBox().minZ,
+                    companion.getBoundingBox().maxX,
+                    companion.getBoundingBox().maxY,
+                    companion.getBoundingBox().maxZ);
+            Vec3 velocity = projectile.getDeltaMovement();
+            var facts = ProjectileThreat.Facts.of(
+                    projectile.getX(), projectile.getY(), projectile.getZ(),
+                    velocity.x, velocity.y, velocity.z, radius,
+                    ProjectileThreat.isFrontal(projectile.getX(), projectile.getZ(), companion.getX(), companion.getZ(),
+                            companion.getLookAngle().x, companion.getLookAngle().z),
+                    BuiltInRegistries.ENTITY_TYPE.getKey(projectile.getType()).toString());
+            if (!ProjectileThreat.intersects(facts, bounds, CombatPolicy.PROJECTILE_HORIZON_TICKS)) {
+                continue;
+            }
+            double distance = projectile.distanceToSqr(companion);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = facts;
+            }
+        }
+        return best;
+    }
+
+    private boolean shouldUseBow(LivingEntity enemy) {
+        if (!Equipment.hasBowAndArrows(companion) || !allyInLaneSafe(enemy)) {
+            return false;
+        }
+        double distance = companion.distanceTo(enemy);
+        return switch (companion.combatSettings().style()) {
+            case RANGED -> distance > 4.0 || isFlying(enemy);
+            case MELEE -> isFlying(enemy) || distance > 10.0;
+            case CAUTIOUS -> distance > 6.0 || isFlying(enemy);
+            case BALANCED -> distance > RANGED_DISTANCE || isFlying(enemy) || unreachableTicks > 20;
+        };
+    }
+
+    /** Cheap pre-check: the full lane test runs again at release. */
+    private boolean allyInLaneSafe(LivingEntity enemy) {
+        return companion.level() instanceof ServerLevel level && !allyInLane(level, enemy);
+    }
+
+    private boolean allyInLane(ServerLevel level, LivingEntity enemy) {
+        Vec3 from = companion.getEyePosition();
+        Vec3 to = enemy.getEyePosition();
+        for (LivingEntity entity : level.getEntitiesOfClass(
+                LivingEntity.class, companion.getBoundingBox().inflate(24.0))) {
+            if (entity == companion || entity == enemy || !entity.isAlive()) {
+                continue;
+            }
+            if (!Threats.isProtected(entity, companion)) {
+                continue;
+            }
+            if (distanceToSegment(entity.position().add(0, entity.getBbHeight() * 0.5, 0), from, to)
+                    <= FIRING_LANE_CLEARANCE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static double distanceToSegment(Vec3 point, Vec3 start, Vec3 end) {
+        Vec3 direction = end.subtract(start);
+        double lengthSqr = direction.lengthSqr();
+        if (lengthSqr < 1.0E-9) {
+            return point.distanceTo(start);
+        }
+        double t = Math.max(0.0, Math.min(1.0, point.subtract(start).dot(direction) / lengthSqr));
+        return point.distanceTo(start.add(direction.scale(t)));
+    }
+
+    private boolean tickPotion(ServerLevel level, LivingEntity enemy) {
+        if (potionCooldown > 0) {
+            potionCooldown--;
+        }
+        CombatSettings settings = companion.combatSettings();
+        if (!settings.allowSplashPotions() || potionCooldown > 0 || potionBudget <= 0) {
+            return false;
+        }
+        double distance = companion.distanceTo(enemy);
+        if (distance < 3.0 || distance > 10.0 || !companion.hasLineOfSight(enemy)) {
+            return false;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            ItemStack stack = companion.inventory().getItem(i);
+            if (!stack.is(Items.SPLASH_POTION)) {
+                continue;
+            }
+            PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+            if (contents == null) {
+                continue;
+            }
+            boolean harmful = false;
+            boolean beneficial = false;
+            int shortest = Integer.MAX_VALUE;
+            for (MobEffectInstance effect : contents.getAllEffects()) {
+                MobEffectCategory category = effect.getEffect().value().getCategory();
+                if (category == MobEffectCategory.HARMFUL) {
+                    harmful = true;
+                } else if (category == MobEffectCategory.BENEFICIAL) {
+                    beneficial = true;
+                }
+                if (!effect.getEffect().value().isInstantaneous()) {
+                    shortest = Math.min(shortest, effect.getDuration());
+                }
+            }
+            if (!harmful) {
+                return false;
+            }
+            if (shortest == Integer.MAX_VALUE) {
+                shortest = PotionFacts.MIN_USEFUL_DURATION;
+            }
+            PotionFacts facts = new PotionFacts(
+                    harmful, beneficial, harmful && beneficial, shortest,
+                    protectedNear(level, enemy.position(), enemy), 1, true, true, potionBudget);
+            if (!PotionPolicy.evaluate(facts, snapshotFor(enemy), settings).allowed()) {
+                return false;
+            }
+            throwPotion(level, enemy, i, stack);
+            return true;
+        }
+        return false;
+    }
+
+    private int protectedNear(ServerLevel level, Vec3 center, LivingEntity enemy) {
+        int count = 0;
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(4.0))) {
+            if (entity == companion || entity == enemy || !entity.isAlive()) {
+                continue;
+            }
+            if (Threats.isProtected(entity, companion)) {
+                count++;
+            }
+        }
+        // Players are not part of the entity-section query on every level implementation; check them directly.
+        for (ServerPlayer player : level.players()) {
+            if (player == enemy || !player.isAlive()) {
+                continue;
+            }
+            if (player.position().distanceTo(center) <= 4.0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CombatSnapshot snapshotFor(LivingEntity enemy) {
+        return new CombatSnapshot(
+                new CombatSnapshot.Self(
+                        companion.getHealth() / Math.max(1.0F, companion.getMaxHealth()), false, false, false,
+                        shieldAvailable(), shieldRaised, false, false, false, false,
+                        Equipment.hasBowAndArrows(companion), false, false, true, true, true, potionBudget),
+                new CombatSnapshot.Target(
+                        true, companion.hasLineOfSight(enemy), validAttacker(enemy),
+                        targetKind == Kind.SELF, targetKind == Kind.OWNER, enemy instanceof net.minecraft.world.entity.monster.Enemy,
+                        companion.distanceTo(enemy), enemy.position().distanceTo(anchor), isFlying(enemy), false),
+                new CombatSnapshot.Options(companion.isWithinMeleeAttackRange(enemy), 0.0, true));
+    }
+
+    private void throwPotion(ServerLevel level, LivingEntity enemy, int slot, ItemStack stack) {
+        companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
+        ThrownSplashPotion potion = new ThrownSplashPotion(level, companion, stack.copy());
+        potion.shootFromRotation(companion, companion.getXRot(), companion.getYRot(), -20.0F, 0.7F, 1.0F);
+        level.addFreshEntity(potion);
+        companion.inventory().removeItem(slot, 1);
+        potionCooldown = POTION_COOLDOWN_TICKS;
+        potionBudget--;
+        decision = new CombatDecision(CombatDecision.Action.THROW_POTION, reasonFor(targetKind));
     }
 
     private boolean holdBow() {
@@ -747,12 +1249,19 @@ public final class CombatController {
 
     private void shoot(ServerLevel level, LivingEntity enemy) {
         ItemStack bow = companion.getMainHandItem();
-        if (!bow.is(Items.BOW)) {
+        if (!bow.is(Items.BOW) || companion.inventory().countItem(Items.ARROW) <= 0) {
             cancelBow();
             return;
         }
         AbstractArrow arrow = ProjectileUtil.getMobArrow(companion, new ItemStack(Items.ARROW), ARROW_SPEED, bow);
-        Vec3 direction = enemy.getEyePosition().subtract(companion.getEyePosition());
+        Vec3 eye = companion.getEyePosition();
+        Vec3 velocity = enemy.getDeltaMovement();
+        CombatPolicy.Lead lead = CombatPolicy.leadPoint(
+                enemy.getX(), enemy.getEyeY(), enemy.getZ(),
+                velocity.x, velocity.y, velocity.z,
+                eye.x, eye.y, eye.z,
+                ARROW_SPEED, CombatPolicy.MAX_LEAD_TICKS);
+        Vec3 direction = new Vec3(lead.x(), lead.y(), lead.z()).subtract(eye);
         arrow.shoot(direction.x, direction.y, direction.z, ARROW_SPEED, ARROW_INACCURACY);
         level.addFreshEntity(arrow);
         if (!hasInfinity(level, bow)) {
@@ -793,7 +1302,10 @@ public final class CombatController {
         companion.stopUsingItem();
         usingBow = false;
         drawTicks = 0;
+        restoreShield();
         restoreWeapon();
+        decision = CombatDecision.none();
+        band = WeaponPolicy.Band.UNKNOWN;
         if (!taskDriven) {
             companion.taskRunner().notice(endNotice());
         }
@@ -819,7 +1331,10 @@ public final class CombatController {
         companion.stopUsingItem();
         usingBow = false;
         drawTicks = 0;
+        restoreShield();
         restoreWeapon();
+        decision = CombatDecision.none();
+        band = WeaponPolicy.Band.UNKNOWN;
         state = State.IDLE;
         target = null;
         unreachableTicks = 0;
