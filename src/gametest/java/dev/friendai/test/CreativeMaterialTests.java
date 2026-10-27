@@ -20,6 +20,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.phys.AABB;
 
 public final class CreativeMaterialTests {
     private static CompanionEntity creativeCompanion(GameTestHelper h, ServerPlayer owner) {
@@ -72,6 +73,158 @@ public final class CreativeMaterialTests {
             h.assertTrue(companion.inventory().countItem(Items.COBBLESTONE) == 0,
                     "creative build consumed or retained synthetic inventory material");
             h.assertTrue(task.resultSummary().contains("built"), "unexpected result: " + task.resultSummary());
+        });
+    }
+
+    @GameTest(maxTicks = 1800)
+    public void houseBuildUsesUnlimitedCreativeMaterialsBeyondStackSize(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 7, 2, 7);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        var blueprint = BuildTests.parse("""
+                {"name":"creative_house","palette":{"P":"minecraft:oak_planks"},"ops":[
+                  {"op":"box","from":[0,0,0],"to":[4,0,4],"block":"P"},
+                  {"op":"box","from":[0,1,0],"to":[4,5,0],"block":"P"},
+                  {"op":"box","from":[0,1,4],"to":[4,5,4],"block":"P"},
+                  {"op":"box","from":[0,1,1],"to":[0,5,3],"block":"P"},
+                  {"op":"box","from":[4,1,1],"to":[4,5,3],"block":"P"},
+                  {"op":"box","from":[0,5,0],"to":[4,5,4],"block":"P"}
+                ]}
+                """);
+        h.assertTrue(blueprint.blocks().size() > 64,
+                "the house should require more than one stack; blocks=" + blueprint.blocks().size());
+        BlockPos origin = h.absolutePos(new BlockPos(1, 2, 1));
+        BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
+        final TaskStatus[] status = {null};
+        final String[] summary = {""};
+        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+                status[0] = taskStatus;
+                summary[0] = result;
+            }
+            @Override public void onCancelled(int id, String toolName, String reason) {}
+        });
+        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+
+        h.succeedWhen(() -> {
+            for (int x = 0; x < 9; x++) {
+                for (int y = 2; y <= 11; y++) {
+                    for (int z = 0; z < 9; z++) {
+                        var state = h.getBlockState(new BlockPos(x, y, z));
+                        h.assertFalse(state.is(Blocks.DIRT) || state.is(Blocks.COBBLESTONE),
+                                "creative building placed a scaffold block at " + x + " " + y + " " + z);
+                    }
+                }
+            }
+            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+                    "creative house did not finish; status=" + status[0] + ", result=" + summary[0]);
+            h.assertTrue(summary[0].startsWith("built creative_house"), "unexpected result: " + summary[0]);
+            h.assertTrue(companion.inventory().countItem(Items.OAK_PLANKS) == 0,
+                    "creative materials must not be inserted into inventory");
+            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.OAK_PLANKS), "house floor was not built");
+            h.assertTrue(h.getBlockState(new BlockPos(3, 7, 1)).is(Blocks.OAK_PLANKS), "upper wall was not built");
+            h.assertTrue(h.getBlockState(new BlockPos(3, 7, 3)).is(Blocks.OAK_PLANKS), "roof was not built");
+        });
+    }
+
+    @GameTest(maxTicks = 500)
+    public void creativeBuildCanStepVerticallyOutOfOneBlockShaft(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 13, 2, 13);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        int x = 7;
+        int z = 7;
+        for (int y = 2; y <= 7; y++) {
+            for (int wallX = 4; wallX <= 10; wallX++) {
+                for (int wallZ = 4; wallZ <= 10; wallZ++) {
+                    if (wallX == x && wallZ == z) continue;
+                    h.setBlock(wallX, y, wallZ, Blocks.STONE);
+                }
+            }
+        }
+        BlockPos target = h.absolutePos(new BlockPos(x, 2, z));
+        companion.snapTo(target.getX() + 0.5, target.getY(), target.getZ() + 0.5, 0, 0);
+        var blueprint = BuildTests.parse("""
+                {"name":"shaft_exit","palette":{"C":"minecraft:cobblestone"},
+                 "ops":[{"op":"box","from":[0,0,0],"to":[0,0,0],"block":"C"}]}
+                """);
+        BuildTask task = new BuildTask(blueprint, target, Rotation.NONE, true, false);
+        final TaskStatus[] status = {null};
+        final String[] summary = {""};
+        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+                status[0] = taskStatus;
+                summary[0] = result;
+            }
+            @Override public void onCancelled(int id, String toolName, String reason) {}
+        });
+        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+        final double[] highestY = {companion.getY()};
+
+        h.succeedWhen(() -> {
+            companion.taskRunner().tick();
+            highestY[0] = Math.max(highestY[0], companion.getY());
+            h.assertTrue(status[0] != null, "creative shaft build did not finish");
+            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+                    "creative shaft build failed; result=" + summary[0]);
+            h.assertTrue(summary[0].startsWith("built shaft_exit"), "unexpected result: " + summary[0]);
+            h.assertTrue(highestY[0] >= target.getY() + 1.0,
+                    "companion did not use the vertical opening to leave the placement cell; highest Y="
+                            + highestY[0]);
+            h.assertFalse(companion.getBoundingBox().intersects(new AABB(target)),
+                    "companion still overlaps the block it built in the shaft");
+            h.assertTrue(h.getLevel().getBlockState(target).is(Blocks.COBBLESTONE),
+                    "shaft block was not placed; task=" + task.resultSummary() + ", status=" + status[0]);
+            h.assertFalse(summary[0].contains("scaffold blocks"),
+                    "creative shaft build should not use scaffolding: " + summary[0]);
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void tallCreativeBuildFliesWithoutPillaring(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 7, 2, 7);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        for (int x = 3; x <= 5; x++) {
+            for (int y = 7; y <= 14; y++) {
+                for (int z = 3; z <= 5; z++) h.setBlock(x, y, z, Blocks.AIR);
+            }
+        }
+        var blueprint = BuildTests.parse("""
+                {"name":"creative_tower","palette":{"C":"minecraft:cobblestone"},
+                 "ops":[{"op":"box","from":[0,0,0],"to":[0,8,0],"block":"C"}]}
+                """);
+        BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
+        BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
+        final TaskStatus[] status = {null};
+        final String[] summary = {""};
+        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+                status[0] = taskStatus;
+                summary[0] = result;
+            }
+            @Override public void onCancelled(int id, String toolName, String reason) {}
+        });
+        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+
+        h.succeedWhen(() -> {
+            for (int x = 0; x < 9; x++) {
+                for (int y = 2; y <= 10; y++) {
+                    for (int z = 0; z < 9; z++) {
+                        h.assertFalse(h.getBlockState(new BlockPos(x, y, z)).is(Blocks.DIRT),
+                                "creative tower used a dirt access pillar at " + x + " " + y + " " + z);
+                    }
+                }
+            }
+            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+                    "creative tower did not finish; status=" + status[0] + ", result=" + summary[0]);
+            h.assertTrue(summary[0].startsWith("built creative_tower"), "unexpected result: " + summary[0]);
+            h.assertFalse(summary[0].contains("scaffold blocks"),
+                    "creative tower should not need construction scaffolding: " + summary[0]);
+            for (int y = 2; y <= 10; y++) {
+                h.assertTrue(h.getBlockState(new BlockPos(4, y, 4)).is(Blocks.COBBLESTONE),
+                        "tower block missing at y=" + y);
+            }
         });
     }
 

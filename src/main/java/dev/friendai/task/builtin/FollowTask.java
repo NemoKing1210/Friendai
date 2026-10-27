@@ -68,7 +68,7 @@ public final class FollowTask implements Task {
         double distance = c.companion().position().distanceTo(target);
         if (moving && distance <= stopDistance) {
             moving = false;
-            mover.stop(c);
+            mover.stopAtDestination(c);
             return TaskStatus.RUNNING;
         }
         if (!moving && distance > stopDistance + START_MARGIN) {
@@ -80,7 +80,7 @@ public final class FollowTask implements Task {
         mover.following(distance);
         switch (mover.tick(c.companion(), target)) {
             case ARRIVED -> {
-                mover.stop(c);
+                mover.stopAtDestination(c);
                 moving = false;
             }
             case STUCK -> {

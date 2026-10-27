@@ -142,13 +142,18 @@ public final class FlightNavigator {
     }
 
     public void stop(TaskContext context) {
+        stop(context, state == State.ARRIVED);
+    }
+
+    /** Stops movement, optionally keeping no-gravity enabled because the caller accepted this as its destination. */
+    public void stop(TaskContext context, boolean keepHovering) {
         search = null;
         route = null;
         routeIndex = 0;
         target = null;
         blockedTicks = 0;
         context.companion().setPathing(false);
-        context.companion().endCreativeFlight();
+        context.companion().endCreativeFlight(keepHovering);
     }
 
     private boolean moveToward(TaskContext context, Vec3 aim) {

@@ -246,6 +246,7 @@ public final class TaskRunner {
     }
 
     public void tick() {
+        revalidateCreativeHover();
         if(paused||suspended||held())return;
         queue.advanceClock(); expireDeadlines();
         if(current==null) { if(!pollQueue())startDefault(); return; }
@@ -262,6 +263,13 @@ public final class TaskRunner {
         if(status==TaskStatus.RUNNING&&active.task().hasTimeout()&&activeTicks-active.startActiveTick()>timeoutSec.getAsInt()*20){safeStop(active.task(),context());status=TaskStatus.FAILED;summary="timed out";}
         if(status!=TaskStatus.RUNNING) completeActive(active,status,summary);
         else maybeNoticeBlocked();
+    }
+    private void revalidateCreativeHover() {
+        if (!companion.creativeMode() || companion.creativeLanding() || !companion.isNoGravity()) return;
+        if (currentCreativeActionAllowed(CreativeAction.FLIGHT)
+                || CreativeModeService.ownerMayUsePassiveFlight(companion)) return;
+        companion.endCreativeFlight(false);
+        companion.getNavigation().stop();
     }
     private void completeActive(Active active,TaskStatus status,String summary) {
         String result=summary==null?active.task().resultSummary():summary; current=null;

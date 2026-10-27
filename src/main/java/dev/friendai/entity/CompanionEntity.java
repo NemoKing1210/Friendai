@@ -668,8 +668,13 @@ public class CompanionEntity extends PathfinderMob {
 
     /** Stops task-owned flight; disabling creative starts a separate bounded landing transition. */
     public void endCreativeFlight() {
+        endCreativeFlight(false);
+    }
+
+    /** Ends a successful flight at its destination while retaining the creative hover state. */
+    public void endCreativeFlight(boolean keepHovering) {
         creativeFlightActive = false;
-        if (!creativeLanding) setNoGravity(false);
+        setNoGravity(creativeLanding || keepHovering && creativeMode());
         setDeltaMovement(Vec3.ZERO);
         fallDistance = 0;
     }

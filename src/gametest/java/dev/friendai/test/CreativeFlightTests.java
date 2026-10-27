@@ -9,6 +9,7 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FlyToTask;
 import dev.friendai.task.builtin.FollowTask;
+import dev.friendai.task.builtin.StayTask;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.Optional;
@@ -79,6 +80,35 @@ public final class CreativeFlightTests {
                 "follow did not cross the gap; companion=" + companion.position() + ", owner=" + owner.position()));
     }
 
+    @GameTest(maxTicks = 400)
+    public void followKeepsCreativeCompanionHoveringAfterArrival(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 12, 10, 2);
+        owner.setNoGravity(true);
+        owner.setDeltaMovement(Vec3.ZERO);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 10, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+
+        final int[] hoveringTicks = {0};
+        final double[] hoverY = {Double.NaN};
+        h.succeedWhen(() -> {
+            double distance = companion.position().distanceTo(owner.position());
+            if (distance <= companion.body().followDistance() + 2.0) {
+                if (Double.isNaN(hoverY[0])) hoverY[0] = companion.getY();
+                hoveringTicks[0]++;
+                h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity when it arrived");
+                h.assertTrue(Math.abs(companion.getY() - hoverY[0]) < 0.05,
+                        "companion drifted vertically while hovering: start=" + hoverY[0]
+                                + ", now=" + companion.getY());
+            }
+            h.assertTrue(hoveringTicks[0] >= 30,
+                    "companion did not remain at the follow position for 30 ticks; position="
+                            + companion.position() + ", distance=" + distance);
+        });
+    }
+
     @GameTest(maxTicks = 300)
     public void disablingCreativeStartsAndCompletesBoundedLanding(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
@@ -105,7 +135,8 @@ public final class CreativeFlightTests {
         CompanionEntity companion = creativeCompanion(h, owner);
         BlockPos start = h.absolutePos(new BlockPos(2, 2, 2));
         companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
-        BlockPos target = BlockPos.containing(companion.position().add(64, 0, 0));
+        // Keep it beyond the nearby structures used by other tests in this class, whose forced chunks can reach +64.
+        BlockPos target = BlockPos.containing(companion.position().add(256, 0, 0));
         h.assertFalse(h.getLevel().hasChunkAt(target), "test target chunk should be unloaded before flight starts");
         final TaskStatus[] status = {null};
         final String[] summary = {""};
@@ -125,6 +156,46 @@ public final class CreativeFlightTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void creativeHoverEndsAfterTaskReplacementAndOperatorRevocation(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 12, 10, 2);
+        owner.setNoGravity(true);
+        owner.setDeltaMovement(Vec3.ZERO);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 10, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+
+        final int[] hoveringTicks = {0};
+        final int[] stayStartedAtTick = {-1};
+        final int[] revokedAtTick = {-1};
+        h.succeedWhen(() -> {
+            if (hoveringTicks[0] < 30) {
+                double distance = companion.position().distanceTo(owner.position());
+                if (distance <= companion.body().followDistance() + 2.0) {
+                    hoveringTicks[0]++;
+                    h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
+                }
+                if (hoveringTicks[0] >= 30) {
+                    companion.taskRunner().start(new StayTask(), "stay", caller(owner), false);
+                    stayStartedAtTick[0] = companion.tickCount;
+                }
+            }
+            if (stayStartedAtTick[0] < 0) {
+                h.assertTrue(hoveringTicks[0] >= 30,
+                        "companion did not hover at the follow position for 30 ticks; position=" + companion.position());
+            } else if (revokedAtTick[0] < 0) {
+                h.assertTrue(companion.tickCount > stayStartedAtTick[0], "stay did not replace the follow task");
+                h.assertTrue(companion.isNoGravity(), "authorized stay did not preserve creative hover");
+                owner.level().getServer().getPlayerList().deop(owner.nameAndId());
+                revokedAtTick[0] = companion.tickCount;
+            }
+            h.assertTrue(revokedAtTick[0] >= 0, "owner operator rights were not revoked");
+            h.assertTrue(companion.tickCount > revokedAtTick[0], "permission revocation was not followed by a tick");
+            h.assertFalse(companion.isNoGravity(), "companion kept hovering after its owner's flight right was revoked");
+        });
+    }
     private static final class FlightTolerance {
         private static final double VALUE = 1.0;
     }
