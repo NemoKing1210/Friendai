@@ -11,6 +11,9 @@ public record PlaceLimits(
     /** Longest name or alias the model itself stores. */
     public static final int NAME_MAX = 32;
 
+    /** Longest label a place may carry: one short detail such as the crop or the building style. */
+    public static final int LABEL_MAX = 64;
+
     /** Most aliases one place may carry. */
     public static final int ALIASES_MAX = 4;
 

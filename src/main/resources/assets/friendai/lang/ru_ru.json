@@ -63,7 +63,7 @@
   "friendai.command.memory.no_fact": "Факта %s нет.",
   "friendai.command.memory.disabled": "Память на этом сервере выключена.",
   "friendai.command.place.list.header": "Известные места (%s):",
-  "friendai.command.place.list.entry": "[%s] %s (%s) в %s: %s %s %s",
+  "friendai.command.place.list.entry": "[%s] %s (%s) в %s: %s %s %s, посещений: %s",
   "friendai.command.place.add": "Запомнил место %s (%s) здесь.",
   "friendai.command.place.updated": "Обновил место %s (%s).",
   "friendai.command.place.info": "%s (%s) в %s: %s %s %s, радиус %s, посещений %s, источник: %s",

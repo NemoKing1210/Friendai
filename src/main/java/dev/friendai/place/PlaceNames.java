@@ -33,8 +33,9 @@ public final class PlaceNames {
     /**
      * Canonical form of a place name: trimmed, inner whitespace collapsed to one space and lowercased, so
      * {@code "  Пшеничная\tФЕРМА "} and {@code "пшеничная ферма"} are the same name. Throws
-     * {@link IllegalArgumentException} for blank names and for control characters: a tab only separates words,
-     * but a line break would let a name smuggle new prompt lines. Any script is kept as it is.
+     * {@link IllegalArgumentException} for blank names, for control characters and for the Unicode line and
+     * paragraph separators U+2028/U+2029: a tab only separates words, but any of those would let a name smuggle
+     * new prompt lines. Any script is kept as it is.
      */
     public static String normalize(String raw) {
         if (raw == null) {
@@ -42,7 +43,9 @@ public final class PlaceNames {
         }
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);
-            if (c != '\t' && Character.isISOControl(c)) {
+            int type = Character.getType(c);
+            if ((c != '\t' && Character.isISOControl(c))
+                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR) {
                 throw new IllegalArgumentException("A place name cannot contain control characters.");
             }
         }

@@ -68,15 +68,23 @@ class ToolCatalogTest {
     }
 
     @Test
-    void placeGroupKnowsEveryPlaceTool() {
+    void onlyTheMutatingPlaceToolsStayInThePlaceGroup() {
         Set<String> names = catalog.namesFor(EnumSet.of(ToolGroup.PLACE));
-        for (String tool : List.of(
-                "remember_place", "find_place", "go_to_place", "rename_place", "forget_place")) {
+        for (String tool : List.of("remember_place", "go_to_place", "rename_place", "forget_place")) {
             assertTrue(names.contains(tool), tool + " missing from " + names);
             assertEquals(ToolGroup.PLACE, catalog.meta(tool).orElseThrow().group(), tool);
         }
         assertEquals(2, catalog.hints(EnumSet.of(ToolGroup.PLACE)).size());
         assertFalse(catalog.namesFor(EnumSet.of(ToolGroup.PLACE)).contains("mine_blocks"));
+    }
+
+    @Test
+    void findPlaceIsCoreSoAQuestionTurnSeesIt() {
+        ToolMeta find = catalog.meta("find_place").orElseThrow();
+        assertTrue(find.core(), "find_place must be core: reading the book unlocks no group");
+        assertEquals(ToolGroup.CORE, find.group(), "find_place");
+        assertEquals(List.of("find_place"), names(catalog.filter(List.of(spec("find_place")), Set.of())));
+        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));
     }
 
     @Test

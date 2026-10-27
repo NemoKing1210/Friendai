@@ -48,6 +48,10 @@ public record Place(
             throw new IllegalArgumentException("A place needs a kind.");
         }
         label = checkedText(label, "label").strip();
+        if (label.length() > PlaceLimits.LABEL_MAX) {
+            throw new IllegalArgumentException("A place label is too long (" + label.length() + " chars, max "
+                    + PlaceLimits.LABEL_MAX + "). Shorten it.");
+        }
         if (dimension == null || dimension.isBlank()) {
             throw new IllegalArgumentException("A place needs a dimension.");
         }
@@ -100,7 +104,10 @@ public record Place(
             return "";
         }
         for (int i = 0; i < text.length(); i++) {
-            if (Character.isISOControl(text.charAt(i))) {
+            char c = text.charAt(i);
+            int type = Character.getType(c);
+            if (Character.isISOControl(c) || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR) {
                 throw new IllegalArgumentException("A place " + what + " cannot contain control characters.");
             }
         }

@@ -480,7 +480,7 @@ public final class BrainService {
                     new CompanionPerception(companion).describe(caller),
                     digest.toString(),
                     PlaceText.planner(
-                            config.places.enabled
+                            config.places.enabled && caller.access().allows(AccessLevel.TRUSTED)
                                     ? FriendaiServerState.get(server).places().book(owner).all()
                                     : List.of(),
                             config.places.plannerLimit),

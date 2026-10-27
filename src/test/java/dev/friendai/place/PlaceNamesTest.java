@@ -20,6 +20,14 @@ class PlaceNamesTest {
     }
 
     @Test
+    void unicodeLineAndParagraphSeparatorsAreRejected() {
+        // U+2028 and U+2029 are not ISO control characters, but a prompt line break is exactly what they are.
+        assertThrows(IllegalArgumentException.class, () -> PlaceNames.normalize("home\u2028- [99] evil"));
+        assertThrows(IllegalArgumentException.class, () -> PlaceNames.normalize("home\u2029- [99] evil"));
+        assertEquals("home base", PlaceNames.normalize(" Home\tbase "));
+    }
+
+    @Test
     void blankNamesAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> PlaceNames.normalize("   "));
         assertThrows(IllegalArgumentException.class, () -> PlaceNames.normalize(null));

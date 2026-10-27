@@ -63,7 +63,7 @@
   "friendai.command.memory.no_fact": "There is no fact %s.",
   "friendai.command.memory.disabled": "Memory is turned off on this server.",
   "friendai.command.place.list.header": "Known places (%s):",
-  "friendai.command.place.list.entry": "[%s] %s (%s) in %s at %s %s %s",
+  "friendai.command.place.list.entry": "[%s] %s (%s) in %s at %s %s %s, visits: %s",
   "friendai.command.place.add": "Remembered %s (%s) here.",
   "friendai.command.place.updated": "Updated %s (%s).",
   "friendai.command.place.info": "%s (%s) in %s at %s %s %s, radius %s, visits %s, source %s",

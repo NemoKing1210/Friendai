@@ -160,6 +160,15 @@ class PlaceFileTest {
         assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, one));
     }
 
+    @Test
+    void aLabelLongerThanTheBoundIsRejectedOnLoad() {
+        String json = "{\"version\":1,\"nextId\":2,\"places\":["
+                + placeJson(1, "home", OVERWORLD)
+                        .replace("\"label\":\"\"", "\"label\":\"" + "x".repeat(PlaceLimits.LABEL_MAX + 1) + "\"")
+                + "]}";
+        assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, PlaceLimits.DEFAULTS));
+    }
+
     private static PlaceValues values(String name, PlaceKind kind, Pos pos) {
         return values(name, kind, pos, Set.of());
     }

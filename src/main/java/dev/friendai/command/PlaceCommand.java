@@ -106,11 +106,12 @@ public final class PlaceCommand {
                     "friendai.command.place.list.entry",
                     place.id(),
                     place.name(),
-                    kindMessage(place.kind()),
+                    kindWithLabel(place),
                     place.dimension(),
                     place.anchor().x(),
                     place.anchor().y(),
-                    place.anchor().z());
+                    place.anchor().z(),
+                    place.visits());
         }
         return places.size();
     }
@@ -282,6 +283,12 @@ public final class PlaceCommand {
             return false;
         }
         return name.strip().length() <= PlaceLimits.NAME_MAX;
+    }
+
+    /** The kind segment of a list row: the localized kind, plus {@code /label} when the place carries one. */
+    private static Component kindWithLabel(Place place) {
+        Component kind = Components.of(kindMessage(place.kind()));
+        return place.label().isBlank() ? kind : kind.copy().append(Component.literal("/" + place.label()));
     }
 
     /** The localized kind name; every key is a literal so {@code LangFilesTest} can verify it. */

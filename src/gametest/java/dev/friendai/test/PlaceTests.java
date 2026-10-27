@@ -26,6 +26,7 @@ import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.llm.model.ToolCall;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.CommandSource;
@@ -42,6 +43,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
 public class PlaceTests {
+    /** How far the mine test searches from the vein's centre; small enough that the vein still covers it. */
+    private static final int VEIN_RADIUS = 4;
+
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;
@@ -128,6 +132,19 @@ public class PlaceTests {
         return false;
     }
 
+    /** The {@code list.entry} message a place list sent for this name, with its rendered arguments. */
+    private static Optional<TranslatableContents> entryFor(Chat chat, String name) {
+        for (Component message : chat.messages) {
+            if (message.getContents() instanceof TranslatableContents entry
+                    && entry.getKey().equals("friendai.command.place.list.entry")
+                    && entry.getArgs().length > 1
+                    && name.equals(entry.getArgs()[1])) {
+                return Optional.of(entry);
+            }
+        }
+        return Optional.empty();
+    }
+
     @GameTest
     public void place_tests_access(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
@@ -189,6 +206,25 @@ public class PlaceTests {
                 "list entry missing: " + chat.messages);
         h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.kind.house")),
                 "list entry should carry the localized kind key: " + chat.messages);
+        TranslatableContents shackRow = entryFor(chat, "shack").orElseThrow();
+        h.assertValueEqual(shackRow.getArgs().length, 8, "list entry fields");
+        h.assertValueEqual(((Number) shackRow.getArgs()[7]).intValue(), 0, "visits in the list entry");
+        h.assertTrue(((Component) shackRow.getArgs()[2]).getSiblings().isEmpty(),
+                "a place without a label adds no label segment: " + shackRow.getArgs()[2]);
+
+        // A labelled place renders the label inside the kind segment, so one row still fits in the chat line.
+        Place lookout = PlaceService.book(companion).remember(
+                new PlaceValues(
+                        "lookout", PlaceKind.LANDMARK, "tower", shack.dimension(),
+                        new Pos(anchor.getX() + 3, anchor.getY(), anchor.getZ()),
+                        8, Set.of(), PlaceSource.MANUAL, owner.getUUID(), ""),
+                companion.level().getGameTime());
+        Chat labelled = new Chat();
+        execute(commands, owner.createCommandSourceStack().withSource(labelled), "friendai place list");
+        Component kindSegment = (Component) entryFor(labelled, "lookout").orElseThrow().getArgs()[2];
+        h.assertTrue(kindSegment.getSiblings().stream().anyMatch(s -> s.getString().contains("tower")),
+                "the kind segment should carry the label: " + kindSegment);
+        PlaceService.book(companion).remove(lookout.id());
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place remove shack");
         h.assertTrue(PlaceService.book(companion).all().isEmpty(),
@@ -300,7 +336,7 @@ public class PlaceTests {
 
     @GameTest(maxTicks = 400)
     public void place_tests_remember_and_go(GameTestHelper h) {
-        GameTestSupport.platform(h, 20);
+        GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 12, 2, 2);
         companion.setOwner(owner.getUUID());
@@ -354,12 +390,16 @@ public class PlaceTests {
         }
     }
 
-    /** A stone field beside the companion, big enough for both mining passes. */
-    private static void stoneHill(GameTestHelper h) {
+    /**
+     * A vein beside the companion, big enough for all three mining passes without ever being refilled: refilling would
+     * bury the companion when it stands in the hole it just dug. White wool never generates naturally, so the stone
+     * floor and the stone of the arena can never be mistaken for the vein's block.
+     */
+    private static void woolVein(GameTestHelper h) {
         for (int x = 4; x <= 11; x++) {
             for (int z = 3; z <= 9; z++) {
                 for (int y = 121; y <= 124; y++) {
-                    h.setBlock(x, y, z, Blocks.STONE);
+                    h.setBlock(x, y, z, Blocks.WOOL.white());
                 }
             }
         }
@@ -414,18 +454,20 @@ public class PlaceTests {
     @GameTest(maxTicks = 6000)
     public void place_tests_mine_registers(GameTestHelper h) {
         GameTestSupport.platformAt(h, 120, 16);
-        stoneHill(h);
+        woolVein(h);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 121, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
         companion.setOwner(owner.getUUID());
         companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
         h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
-                "the exposed stone should be visible");
+                "the exposed wool should be visible");
         Result result = new Result();
         result.companion = companion;
         companion.taskRunner().setListener(result);
-        BlockMatcher stone = BlockMatcher.parse("minecraft:stone").orElseThrow();
-        companion.taskRunner().start(new MineBlocksTask(stone, 8, 16), "mine_blocks");
+        BlockMatcher wool = BlockMatcher.parse("minecraft:white_wool").orElseThrow();
+        // Search from the vein's own centre: a radius the vein still covers keeps the search off the arena floor.
+        BlockPos vein = h.absolutePos(new BlockPos(7, 122, 6));
+        companion.taskRunner().start(new MineBlocksTask(wool, 8, VEIN_RADIUS, vein, true), "mine_blocks");
 
         int[] phase = {0};
         long[] created = {0};
@@ -438,10 +480,9 @@ public class PlaceTests {
                         "eight blocks are below the auto-registration threshold: "
                                 + PlaceService.book(companion).all());
                 phase[0] = 1;
-                stoneHill(h);
                 result.status = null;
                 result.summary = "";
-                companion.taskRunner().start(new MineBlocksTask(stone, 20, 16), "mine_blocks");
+                companion.taskRunner().start(new MineBlocksTask(wool, 20, VEIN_RADIUS, vein, true), "mine_blocks");
                 h.assertTrue(false, "waiting for the twenty-block dig to finish");
             }
             String attempt = phase[0] == 1 ? "first" : "second";
@@ -451,16 +492,15 @@ public class PlaceTests {
             h.assertValueEqual(places.size(), 1, "one mine after the " + attempt + " big dig: " + places);
             Place mine = places.get(0);
             h.assertValueEqual(mine.kind(), PlaceKind.MINE, "kind");
-            h.assertValueEqual(mine.label(), "stone", "label");
+            h.assertValueEqual(mine.label(), "white wool", "label");
             h.assertValueEqual(mine.source(), PlaceSource.MINE, "source");
-            h.assertValueEqual(mine.radius(), 16, "radius");
+            h.assertValueEqual(mine.radius(), VEIN_RADIUS, "radius");
             if (phase[0] == 1) {
                 created[0] = mine.createdTick();
                 phase[0] = 2;
-                stoneHill(h);
                 result.status = null;
                 result.summary = "";
-                companion.taskRunner().start(new MineBlocksTask(stone, 20, 16), "mine_blocks");
+                companion.taskRunner().start(new MineBlocksTask(wool, 20, VEIN_RADIUS, vein, true), "mine_blocks");
                 h.assertTrue(false, "waiting for the second twenty-block dig to finish");
             }
             h.assertValueEqual(mine.createdTick(), created[0], "a refresh keeps createdTick");

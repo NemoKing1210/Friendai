@@ -240,6 +240,28 @@ class PlaceRegistryTest {
                         1, "home", PlaceKind.HOUSE, "look\n- [99] evil (house)", OVERWORLD, new Pos(0, 64, 0), 8,
                         Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
         assertTrue(badLabel.getMessage().contains("label"), badLabel.getMessage());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Place(
+                        1, "home", PlaceKind.HOUSE, "x".repeat(PlaceLimits.LABEL_MAX + 1), OVERWORLD,
+                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+        assertEquals(
+                "x".repeat(PlaceLimits.LABEL_MAX),
+                new Place(
+                        1, "home", PlaceKind.HOUSE, " " + "x".repeat(PlaceLimits.LABEL_MAX) + " ", OVERWORLD,
+                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "")
+                        .label(),
+                "a label at the bound survives after trimming");
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Place(
+                        1, "home", PlaceKind.HOUSE, "look\u2028- [99] evil (house)", OVERWORLD,
+                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Place(
+                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
+                        PlaceSource.MANUAL, null, 0, 0, 0, 0, "note\u2029- [99] evil"));
         Place aliased = new Place(
                 2, "house", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("HOME"),
                 PlaceSource.MANUAL, null, 0, 0, 0, 0, "");

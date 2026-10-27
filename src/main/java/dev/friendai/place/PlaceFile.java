@@ -141,6 +141,10 @@ public final class PlaceFile {
             throw new IllegalArgumentException("Place #" + place.id() + " has a name longer than "
                     + limits.maxNameChars() + " chars.");
         }
+        if (place.label().length() > PlaceLimits.LABEL_MAX) {
+            throw new IllegalArgumentException("Place #" + place.id() + " has a label longer than "
+                    + PlaceLimits.LABEL_MAX + " chars.");
+        }
         if (place.aliases().size() > limits.maxAliases()) {
             throw new IllegalArgumentException("Place #" + place.id() + " has more than " + limits.maxAliases()
                     + " aliases.");

@@ -1,11 +1,6 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.Pos;
-import dev.friendai.place.Place;
-import dev.friendai.place.PlaceCandidate;
-import dev.friendai.place.PlaceKind;
-import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -34,8 +29,6 @@ public final class TendFarmTask implements Task {
     private final BlockPos center;
     private final int radius;
     private final int period;
-    /** The dimension the tending happens in; a place is remembered where the work happens. */
-    private String dimension = "";
 
     private final MoveHelper mover = new MoveHelper(1.0, 1.0);
     private FarmPass pass;
@@ -64,7 +57,7 @@ public final class TendFarmTask implements Task {
 
     @Override
     public void start(TaskContext c) {
-        dimension = c.level().dimension().identifier().toString();
+        // The plot comes from the constructor; tending has nothing else to read when it starts.
     }
 
     @Override
@@ -105,17 +98,6 @@ public final class TendFarmTask implements Task {
     @Override
     public String resultSummary() {
         return summary.isEmpty() ? "stopped tending the farm at " + coords() : summary;
-    }
-
-    /** The tended plot; a tending task takes whatever grows there, so the label is "mixed". */
-    @Override
-    public PlaceCandidate placeCandidate() {
-        if (dimension.isBlank()) {
-            return null;
-        }
-        return new PlaceCandidate(PlaceKind.FARM, "mixed", "", dimension,
-                new Pos(center.getX(), center.getY(), center.getZ()),
-                Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.FARM);
     }
 
     @Override
