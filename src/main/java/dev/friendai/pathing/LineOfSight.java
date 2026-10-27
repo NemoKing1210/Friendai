@@ -13,13 +13,36 @@ public final class LineOfSight {
 
     private LineOfSight() {}
 
+    /** How far inside a face the aim points lie, so a ray to one of them enters the target cell through that face. */
+    private static final double FACE_INSET = 0.05;
+
+    /**
+     * Whether a player could aim at the target from the eye: at its centre or at any of its six faces. A block beside
+     * the feet with stone above it is hidden from the eye by that stone when aimed at the centre, yet its side face is
+     * in plain view.
+     */
     public static boolean clear(CellView view, double ex, double ey, double ez, Pos target) {
+        double cx = target.x() + 0.5;
+        double cy = target.y() + 0.5;
+        double cz = target.z() + 0.5;
+        double near = 0.5 - FACE_INSET;
+        return clearTo(view, ex, ey, ez, target, cx, cy, cz)
+                || clearTo(view, ex, ey, ez, target, cx + near, cy, cz)
+                || clearTo(view, ex, ey, ez, target, cx - near, cy, cz)
+                || clearTo(view, ex, ey, ez, target, cx, cy + near, cz)
+                || clearTo(view, ex, ey, ez, target, cx, cy - near, cz)
+                || clearTo(view, ex, ey, ez, target, cx, cy, cz + near)
+                || clearTo(view, ex, ey, ez, target, cx, cy, cz - near);
+    }
+
+    private static boolean clearTo(CellView view, double ex, double ey, double ez, Pos target,
+            double px, double py, double pz) {
         int tx = target.x();
         int ty = target.y();
         int tz = target.z();
-        double dx = tx + 0.5 - ex;
-        double dy = ty + 0.5 - ey;
-        double dz = tz + 0.5 - ez;
+        double dx = px - ex;
+        double dy = py - ey;
+        double dz = pz - ez;
 
         int cx = (int) Math.floor(ex);
         int cy = (int) Math.floor(ey);

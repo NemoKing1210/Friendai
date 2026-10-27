@@ -19,6 +19,8 @@ public final class Sight {
     /** How far around a block the companion looks for a free cell with a view of it. */
     private static final int VIEW_RANGE = 3;
     private static final double EPSILON = 1.0E-4;
+    /** How far from the centre toward a face the extra aim points lie; just inside the block. */
+    private static final double FACE_AIM = 0.45;
 
     private Sight() {}
 
@@ -38,7 +40,23 @@ public final class Sight {
 
     /** Whether a ray from {@code eye} meets pos before any other block. */
     public static boolean canSeeFrom(ServerLevel level, Entity viewer, Vec3 eye, BlockPos pos) {
-        BlockHitResult hit = raycast(level, viewer, eye, Vec3.atCenterOf(pos));
+        Vec3 center = Vec3.atCenterOf(pos);
+        if (meets(level, viewer, eye, center, pos)) {
+            return true;
+        }
+        // A player may aim at any part of the block: a block beside the feet with stone above it hides its centre
+        // behind that stone, but its side face is in plain view.
+        for (Direction side : Direction.values()) {
+            Vec3 face = center.add(side.getStepX() * FACE_AIM, side.getStepY() * FACE_AIM, side.getStepZ() * FACE_AIM);
+            if (meets(level, viewer, eye, face, pos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean meets(ServerLevel level, Entity viewer, Vec3 eye, Vec3 aim, BlockPos pos) {
+        BlockHitResult hit = raycast(level, viewer, eye, aim);
         return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos);
     }
 

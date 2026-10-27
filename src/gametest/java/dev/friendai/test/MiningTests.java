@@ -188,6 +188,68 @@ public class MiningTests {
         });
     }
 
+    @GameTest(maxTicks = 2400)
+    public void reachesIronHighOnAHillFaceThroughAStaircase(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        for (int x = 4; x <= 11; x++) {
+            for (int z = 3; z <= 9; z++) {
+                for (int y = 121; y <= 127; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        BlockPos ore = new BlockPos(4, 127, 6);
+        h.setBlock(ore, Blocks.IRON_ORE);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+                "the iron ore high on the hill face should be directly visible");
+        Outcome outcome = new Outcome();
+        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        runner.setListener(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+                    "iron was not mined: " + outcome.status + " " + outcome.summary + ", at "
+                            + companion.blockPosition().toShortString());
+        });
+    }
+
+    @GameTest(maxTicks = 3000)
+    public void reachesIronBuriedBelowTheStandingPointThroughAStaircase(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        for (int x = 0; x <= 11; x++) {
+            for (int z = 3; z <= 9; z++) {
+                for (int y = 121; y <= 130; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 131, 6);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.setOwner(java.util.UUID.randomUUID());
+        BlockPos ore = new BlockPos(7, 124, 6);
+        h.setBlock(ore, Blocks.IRON_ORE);
+        BlockPos absOre = h.absolutePos(ore);
+        BlockPos at = companion.blockPosition();
+        dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).resources().observe(companion,
+                new dev.friendai.knowledge.ResourceObservation("minecraft:iron_ore",
+                        new dev.friendai.knowledge.ResourceObservation.Location(
+                                h.getLevel().dimension().identifier().toString(),
+                                new Pos(absOre.getX(), absOre.getY(), absOre.getZ())),
+                        new Pos(at.getX(), at.getY(), at.getZ()),
+                        h.getLevel().getServer().overworld().getGameTime()));
+        Outcome outcome = new Outcome();
+        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        runner.setListener(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+                    "iron was not mined: " + outcome.status + " " + outcome.summary + ", at "
+                            + companion.blockPosition().toShortString());
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void stoneBrokenByHandDropsNothing(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

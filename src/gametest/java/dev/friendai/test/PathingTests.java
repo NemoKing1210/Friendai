@@ -65,8 +65,12 @@ public class PathingTests {
             this.summary = "cancelled: " + reason;
         }
 
+        /** Whether the task logged that it went to gather bridge material; progress is logged, never announced. */
+        boolean gathered;
+
         @Override
         public void onDebug(String text) {
+            gathered |= text.startsWith("gathering ");
             debug.add(text);
             if (debug.size() > 10) {
                 debug.remove(0);
@@ -307,8 +311,9 @@ public class PathingTests {
             h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row; dirt="
                     + c.inventory().countItem(Items.DIRT) + ", notices=" + out.notices + ", companion="
                     + c.blockPosition() + "; paths: " + out.debug);
-            h.assertTrue(out.notices.stream().anyMatch(text -> text.startsWith("gathering ")),
-                    "no gathering notice, notices: " + out.notices);
+            h.assertTrue(out.gathered, "no gathering log line, last: " + out.debug);
+            h.assertTrue(out.notices.stream().noneMatch(text -> text.startsWith("gathering ")),
+                    "gathering must not wake the brain: " + out.notices);
         });
     }
 

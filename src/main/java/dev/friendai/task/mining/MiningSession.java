@@ -37,6 +37,9 @@ public final class MiningSession {
     public enum State { WORKING, EXTRACTED, EXHAUSTED, FAILED }
     private enum Mode { TARGETS, EXPLORE }
 
+    /** How many planned steps one search may commit to; a search per block would leave the companion standing still. */
+    private static final int MAX_CHAIN = 8;
+
     private final CompanionEntity companion;
     private final MiningBounds bounds;
     private final int maxBlocks;
@@ -223,7 +226,7 @@ public final class MiningSession {
             extraction = new BreakAction(target);
             return State.WORKING;
         }
-        return executeEdge(context, path.steps().getFirst());
+        return executeSteps(context, path.steps().subList(0, Math.min(path.steps().size(), MAX_CHAIN)));
     }
 
     private State tickExplore(TaskContext context) {
@@ -253,26 +256,29 @@ public final class MiningSession {
             return State.WORKING;
         }
         if (state == PathExecutor.State.FAILED) {
+            brokenBlocks += executor.brokenBlocks();
+            rememberWalked(executor.stepIndex());
             executor.stop(context);
             executor = null;
+            activeSteps = List.of();
             search = null;
             exploration = null;
             return retryPlan("friendai.mining.unsafe_passage");
         }
-        PathStep completed = executorPathStep();
         brokenBlocks += executor.brokenBlocks();
         executor.stop(context);
         executor = null;
-        rememberSupport(completed.from());
-        rememberSupport(completed.to());
-        if (mode == Mode.EXPLORE && completed.to().y() <= targetY
-                && Math.abs(completed.from().x() - completed.to().x())
-                        + Math.abs(completed.from().z() - completed.to().z()) == 1) {
-            completedExplorationSteps++;
+        rememberWalked(activeSteps.size());
+        for (PathStep completed : activeSteps) {
+            if (mode == Mode.EXPLORE && completed.to().y() <= targetY
+                    && Math.abs(completed.from().x() - completed.to().x())
+                            + Math.abs(completed.from().z() - completed.to().z()) == 1) {
+                completedExplorationSteps++;
+            }
         }
         noProgressPlans = 0;
         excludedStances.clear();
-        activeStep = null;
+        activeSteps = List.of();
         if (mustRelocateFromSupport && !node().equals(initialNode)) {
             mustRelocateFromSupport = false;
         }
@@ -319,16 +325,43 @@ public final class MiningSession {
     }
 
     private State executeEdge(TaskContext context, PathStep step) {
+        return executeSteps(context, List.of(step));
+    }
+
+    /**
+     * Walks a run of consecutive steps without planning in between. The executor still checks every step against the
+     * live world, so a stale step fails and the next plan starts from where the companion stands.
+     */
+    private State executeSteps(TaskContext context, List<PathStep> steps) {
         long remaining = maxBlocks - brokenBlocks;
-        if (step.breaks().size() > remaining) {
+        List<PathStep> chain = new ArrayList<>();
+        long breaks = 0;
+        double cost = 0;
+        for (PathStep step : steps) {
+            if (breaks + step.breaks().size() > remaining) {
+                break;
+            }
+            breaks += step.breaks().size();
+            cost += step.cost();
+            chain.add(step);
+        }
+        if (chain.isEmpty()) {
             return exhaust(context);
         }
-        Path oneEdge = new Path(List.of(step), step.cost(), step.breaks().size(), step.places().size(), false);
+        Path route = new Path(chain, cost, (int) breaks, 0, false);
         PathingConfig config = TaskSettings.pathing.withActions(true, false);
-        executor = new PathExecutor(oneEdge, new MaterialPicker(config), config, guard(context));
-        activeStep = step;
+        executor = new PathExecutor(route, new MaterialPicker(config), config, guard(context));
+        activeSteps = List.copyOf(chain);
         search = null;
         return State.WORKING;
+    }
+
+    /** Keeps the floors of the first {@code count} steps of the running route, so they are never mined away. */
+    private void rememberWalked(int count) {
+        for (int i = 0; i < Math.min(count, activeSteps.size()); i++) {
+            rememberSupport(activeSteps.get(i).from());
+            rememberSupport(activeSteps.get(i).to());
+        }
     }
 
     private void createTargetSearch(TaskContext context) {
@@ -429,12 +462,8 @@ public final class MiningSession {
         return new Node(pos.getX(), pos.getY(), pos.getZ());
     }
 
-    private PathStep executorPathStep() {
-        // Every executor owned by a session contains exactly one edge.
-        return activeStep;
-    }
-
-    private PathStep activeStep;
+    /** The steps of the route the running executor walks; empty while none runs. */
+    private List<PathStep> activeSteps = List.of();
 
     private static String phaseFor(Move move) {
         return switch (move) {

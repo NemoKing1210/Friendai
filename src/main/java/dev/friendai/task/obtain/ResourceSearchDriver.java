@@ -157,6 +157,7 @@ public final class ResourceSearchDriver implements Task {
                 miningSearch.stop(context);
                 miningSearch = null;
             }
+            if (!expedition) return finishOnSight(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
             journey = new ResourceJourney(context, context.level().dimension().identifier().toString(), origin,
@@ -261,6 +262,7 @@ public final class ResourceSearchDriver implements Task {
                         session, state.knowledge().book(context.companion().ownerUuid()).trails(), expedition);
                 return TaskStatus.RUNNING;
             }
+            if (!expedition) return finishOnSight(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
             journey = new ResourceJourney(context, context.level().dimension().identifier().toString(), origin,
@@ -330,6 +332,18 @@ public final class ResourceSearchDriver implements Task {
                     frontier.position(), session, state.knowledge().book(context.companion().ownerUuid()).trails(), expedition);
         }
         return TaskStatus.RUNNING;
+    }
+
+    /**
+     * A local search ends where the target was seen: the caller walks to the resource from here, and a trip back to
+     * the start would only make it cross the same ground twice. Expeditions still return, to release their chunks.
+     */
+    private TaskStatus finishOnSight(TaskContext context) {
+        journey = null;
+        found = true;
+        session.interrupt();
+        summary = diagnostic("found " + profile.family() + " by direct sight after " + inspected + " viewpoints");
+        return TaskStatus.SUCCESS;
     }
 
     private TaskStatus finishReturn(TaskContext context) {

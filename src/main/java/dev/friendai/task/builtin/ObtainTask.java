@@ -190,7 +190,7 @@ public final class ObtainTask implements Task {
         current = subtask(c, currentStep);
         if (ticks - lastNoticeTick >= NOTICE_INTERVAL) {
             lastNoticeTick = ticks;
-            companion.taskRunner().notice("obtain " + item + ": " + ObtainText.stepText(currentStep)
+            companion.taskRunner().debug("obtain " + item + ": " + ObtainText.stepText(currentStep)
                     + " (step " + (stepsRun + 1) + ")");
         }
         current.start(c);
