@@ -1,6 +1,8 @@
 package dev.friendai.tool.builtin;
 
+import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.task.builtin.ClearAreaTask;
 import dev.friendai.task.builtin.LightAreaTask;
 import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.UseBlockTask;
@@ -59,5 +61,33 @@ final class BuildingTools {
                         .build(),
                 (c, a) -> new LightAreaTask(a.has("radius") ? a.get("radius").getAsInt() : 8),
                 true));
+        ToolKit.add(registry, defs, new TaskToolDef("clear_area",
+                "Clear vegetation, snow, water sources and optionally stray blocks around a point, leaving chests, lava and protected places alone.",
+                SchemaBuilder.object()
+                        .integer("radius", "How far around the centre to clear, in blocks (default 6)", 1, 16)
+                        .integer("x", "Centre X; give all of x, y, z or none for the companion")
+                        .integer("y", "Centre Y")
+                        .integer("z", "Centre Z")
+                        .integer("depth", "How far below the centre to clear (default 1)", 0, 8)
+                        .integer("height", "How far above the centre to clear (default 4)", 1, 16)
+                        .bool("water", "Take water sources with an empty bucket (default true)")
+                        .bool("blocks", "Also break solid blocks, not only vegetation and snow (default false)")
+                        .build(),
+                (c, a) -> new ClearAreaTask(
+                        ToolKit.optionalPos(a).orElse(c.blockPosition()),
+                        intArg(a, "radius", 6),
+                        intArg(a, "depth", 1),
+                        intArg(a, "height", 4),
+                        boolArg(a, "water", true),
+                        boolArg(a, "blocks", false)),
+                true));
+    }
+
+    private static int intArg(JsonObject args, String name, int fallback) {
+        return args.has(name) && !args.get(name).isJsonNull() ? args.get(name).getAsInt() : fallback;
+    }
+
+    private static boolean boolArg(JsonObject args, String name, boolean fallback) {
+        return args.has(name) && !args.get(name).isJsonNull() ? args.get(name).getAsBoolean() : fallback;
     }
 }

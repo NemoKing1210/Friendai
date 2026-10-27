@@ -26,6 +26,7 @@
 			"dev.friendai.test.PlaceBlockTests",
 			"dev.friendai.test.UseBlockTests",
 			"dev.friendai.test.LightAreaTests",
+			"dev.friendai.test.ClearTests",
 			"dev.friendai.test.StorageTests",
 			"dev.friendai.test.FreeTimeTests",
 			"dev.friendai.test.ToolTests",

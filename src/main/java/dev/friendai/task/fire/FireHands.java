@@ -45,6 +45,11 @@ public final class FireHands {
         return InventoryOps.count(companion.inventory(), WATER_BUCKET) > 0;
     }
 
+    /** Whether an empty bucket is carried, so a source can be taken back. */
+    public boolean hasEmptyBucket() {
+        return InventoryOps.count(companion.inventory(), EMPTY_BUCKET) > 0;
+    }
+
     /**
      * Pours one water bucket at {@code cell} and returns the cell the source actually landed in, or null when
      * nothing was poured. The bucket's own raycast decides that: pouring at a fire block puts the source on top of

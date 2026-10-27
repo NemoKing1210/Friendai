@@ -94,7 +94,7 @@ public final class ToolCatalog {
                 "set_follow_mode", "step", "back_away", "approach", "circle");
         group(metas, ToolGroup.GATHERING, Cost.HIGH, "fell_tree", "mine_blocks", "mine_block_at", "pickup_items");
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory");
-        group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area");
+        group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container",
                 "deposit_items");
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
@@ -138,6 +138,8 @@ public final class ToolCatalog {
                 "- In creative mode, execute_command accepts only allowlisted teleport/time/weather/item/effect/enchant forms and uses the owner's live command permissions. Use @s for yourself, give/enchant only for the owner, and describe the returned feedback without claiming a denied or failed command succeeded.");
         hint(metas, "build_structure",
                 "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, windows, interior); pass parts to build only some of them.");
+        hint(metas, "clear_area",
+                "- Use clear_area to empty a plot before building: it clears vegetation and snow by default, takes water sources when it carries an empty bucket, and breaks solid blocks only with blocks=true. Chests, lava and protected places are never touched.");
         hint(metas, "set_follow_mode",
                 "- \"Don't follow me\" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.");
         hint(metas, "set_pace",
