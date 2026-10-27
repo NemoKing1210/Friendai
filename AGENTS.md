@@ -22,13 +22,15 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
 3. Close the loop: when the item is done, tick it `[x]` and move it to the **Done** section of `TODO.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs.
 
+**Pick a whole item, never a slice.** When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`. A sub-item is one slice of its parent, so picking it leaves the rest of the parent unattended and that number half-finished in the list, while the parent reads as still open. Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands. If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
+
 **Claim the item before you start it.** Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]` and add a blockquote directly under it:
 
 ```
   > **In progress:** session `<name>` since `YYYY-MM-DD HH:MM` UTC
 ```
 
-`<name>` must let another session recognise you: the branch or worktree name, or the model plus a short id. Taking a single sub-item marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
+`<name>` must let another session recognise you: the branch or worktree name, or the model plus a short id. Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
 
 **The claim is the one TODO edit that is its own commit** (`chore(todo): take task N`), because it is a lock and other checkouts only see it through git. Everything else about `TODO.md` follows "Recording an item is not a commit of its own" below.
 
