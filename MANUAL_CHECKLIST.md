@@ -135,6 +135,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Overview tab: Summon, Teleport to me, Dismiss and Stop work and the status block follows them within about half a second.
 - [ ] Toggles tab: creative mode, auto respawn, free time and the operator's movement overlay each show their current state and change it without a reload.
 - [ ] The mod's own settings screen (Mod Menu → Friendai) and the Toggles tab are separate things; no tab is called Settings, and switching a companion switch never opens the settings screen.
+- [ ] Opening the menu while the companion is walking stops it where it stands; every other mob and the world keep running. Pressing Done closes the menu and the companion carries on with the same task.
+- [ ] Closing the game or losing the connection with the menu open does not leave the companion frozen: it works again after the next connection.
+- [ ] Summoning or auto-respawning a companion while its menu is open gives a companion that does not start working until the menu closes.
+- [ ] The companion inventory window and the menu can be open in turn without the companion staying stuck after both are closed.
 - [ ] Tasks tab: a finished task shows up in the history with its status; scrolling works.
 - [ ] Log tab (operator): messages, tool calls and errors appear live; kind filters work; Copy puts the visible lines on the clipboard.
 - [ ] Debug tab (operator): perception text is shown; "Show prompt" shows the system prompt; Send reaches the companion; Run executes a tool (empty arguments = `{}`) and shows up in the log as "Manual".

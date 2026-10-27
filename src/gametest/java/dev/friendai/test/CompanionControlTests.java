@@ -426,11 +426,98 @@ public class CompanionControlTests {
     public void subscriberIsDroppedAfterDisconnect(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         BrainService brains = FriendaiServerState.get(h.getLevel().getServer()).brains();
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
         h.assertTrue(brains.debug().subscribers().contains(player.getUUID()), "subscribed");
+        h.assertTrue(companion.menuOpen() && companion.taskRunner().held(), "held while the menu is open");
         DebugStream.onDisconnect(player);
         h.assertTrue(!brains.debug().subscribers().contains(player.getUUID()), "unsubscribed after disconnect");
+        h.assertTrue(!companion.taskRunner().held(), "a disconnect must not leave the companion held");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 120)
+    public void openMenuHoldsTheRunnerAndClosingResumesTheTask(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        CountingTask task = new CountingTask();
+        companion.taskRunner().start(task, "test_counting");
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        h.assertTrue(companion.taskRunner().held(), "held while the menu is open");
+        int before = task.ticks;
+        h.runAfterDelay(20, () -> {
+            h.assertValueEqual(task.ticks, before, "a held companion must not tick its task");
+            CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+            h.assertTrue(!companion.taskRunner().held(), "released when the menu closes");
+        });
+        h.runAfterDelay(40, () -> {
+            h.assertTrue(task.ticks > before, "the task resumes after the menu closes");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void aDuplicateSubscribeHoldsOnlyOnce(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+        h.assertTrue(!companion.taskRunner().held(), "one close releases a duplicated subscribe");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 60)
+    public void aCompanionSummonedWithTheMenuOpenStartsHeld(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        h.assertTrue(companion.menuOpen() && companion.taskRunner().held(), "starts paused behind the open menu");
+        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+        h.assertTrue(!companion.taskRunner().held(), "resumes when the menu closes");
+        h.succeed();
+    }
+
+    /** A task that only counts its ticks, so a test can tell whether the runner advanced it. */
+    private static final class CountingTask implements Task {
+        int ticks;
+
+        @Override
+        public String type() {
+            return "test_counting";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            ticks++;
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "counting";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "counted";
+        }
+
+        @Override
+        public boolean emitsEvents() {
+            return false;
+        }
+
+        @Override
+        public boolean hasTimeout() {
+            return false;
+        }
     }
 
     @GameTest(maxTicks = 100)

@@ -55,12 +55,11 @@ public final class CompanionRequestHandler {
         UUID owner = player.getUUID();
         RequestType type = req.request();
         if (type == RequestType.SUBSCRIBE) {
-            brains.debug().subscribe(owner);
-            DebugStream.sendNow(player);
+            DebugStream.openMenu(player);
             return;
         }
         if (type == RequestType.UNSUBSCRIBE) {
-            brains.debug().unsubscribe(owner);
+            DebugStream.closeMenu(server, owner);
             return;
         }
         if (type == RequestType.MOVE_DEBUG_ON || type == RequestType.MOVE_DEBUG_OFF) {

@@ -153,6 +153,8 @@ public class CompanionEntity extends PathfinderMob {
     private int automaticBedSearchTicks;
     /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
     private int inventoryViewers;
+    /** Whether the companion menu is open for this companion: the world keeps running, the companion's work pauses. */
+    private boolean menuViewerOpen;
     private CombatSettings combatSettings = CombatSettings.defaults();
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
@@ -811,6 +813,31 @@ public class CompanionEntity extends PathfinderMob {
         if (inventoryViewers > 0 && --inventoryViewers == 0) {
             taskRunner.release();
         }
+    }
+
+    /**
+     * The companion menu opened: hold the work where it is instead of pausing the game. Callers may repeat this;
+     * the hold is applied once, so a duplicate subscribe cannot leave the companion stuck after one close.
+     */
+    public void addMenuViewer() {
+        if (!menuViewerOpen) {
+            menuViewerOpen = true;
+            taskRunner.hold();
+            getNavigation().stop();
+        }
+    }
+
+    /** The companion menu closed for any reason, including a disconnect: the companion carries on where it stopped. */
+    public void removeMenuViewer() {
+        if (menuViewerOpen) {
+            menuViewerOpen = false;
+            taskRunner.release();
+        }
+    }
+
+    /** True while a client has this companion's menu open. */
+    public boolean menuOpen() {
+        return menuViewerOpen;
     }
 
     /** Shift+right-click by the owner opens the inventory window; anyone else is told it is not theirs. */

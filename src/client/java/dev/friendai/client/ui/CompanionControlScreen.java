@@ -69,7 +69,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
 
     /**
      * The menu is live: the server only sends snapshots and answers requests while it ticks, and a pausing screen
-     * freezes the integrated server, which left every tab empty and every button dead.
+     * freezes the integrated server, which left every tab empty and every button dead. The companion itself is
+     * paused instead, by the hold the subscription takes on the server while the menu is open.
      */
     @Override
     public boolean isPauseScreen() {
