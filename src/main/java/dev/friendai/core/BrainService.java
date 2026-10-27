@@ -122,13 +122,23 @@ public final class BrainService {
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
-        this.freeTime = new FreeTimeDriver(server, () -> this.config, taskTools);
+        this.freeTime = new FreeTimeDriver(server, this, () -> this.config, taskTools, planTools);
         reload(initial);
     }
 
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
         return freeTime;
+    }
+
+    /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
+        return plannerFor(owner).propose(input);
+    }
+
+    /** Runs on the server thread, the way late brain work hops back. */
+    void onServerThread(Runnable task) {
+        scheduler.execute(task);
     }
 
     /** Rebuilds the LLM client from the config. A broken profile gives a gateway that reports the problem. */
@@ -549,25 +559,26 @@ public final class BrainService {
             return result;
         }
 
-        /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
-        private static String describeTool(TaskToolDef def) {
-            JsonObject schema = def.schema();
-            java.util.Set<String> required = new java.util.HashSet<>();
-            if (schema.has("required")) {
-                schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
-            }
-            java.util.List<String> args = new ArrayList<>();
-            if (schema.has("properties")) {
-                for (String arg : schema.getAsJsonObject("properties").keySet()) {
-                    args.add(arg + (required.contains(arg) ? "*" : ""));
-                }
-            }
-            String description = def.description() == null ? "" : def.description();
-            int stop = description.indexOf(". ");
-            String first = stop > 0 ? description.substring(0, stop + 1) : description;
-            return def.name() + "(" + String.join(", ", args) + "): "
-                    + (first.length() > 200 ? first.substring(0, 200) : first);
+    }
+
+    /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
+    static String describeTool(TaskToolDef def) {
+        JsonObject schema = def.schema();
+        java.util.Set<String> required = new java.util.HashSet<>();
+        if (schema.has("required")) {
+            schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
         }
+        java.util.List<String> args = new ArrayList<>();
+        if (schema.has("properties")) {
+            for (String arg : schema.getAsJsonObject("properties").keySet()) {
+                args.add(arg + (required.contains(arg) ? "*" : ""));
+            }
+        }
+        String description = def.description() == null ? "" : def.description();
+        int stop = description.indexOf(". ");
+        String first = stop > 0 ? description.substring(0, stop + 1) : description;
+        return def.name() + "(" + String.join(", ", args) + "): "
+                + (first.length() > 200 ? first.substring(0, 200) : first);
     }
 
     /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */

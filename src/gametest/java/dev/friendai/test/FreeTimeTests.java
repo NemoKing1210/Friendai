@@ -280,6 +280,78 @@ public class FreeTimeTests {
         });
     }
 
+    private static dev.friendai.agent.plan.PlanProposal jumpPlan() {
+        return new dev.friendai.agent.plan.PlanProposal(java.util.List.of(),
+                com.google.gson.JsonParser.parseString("[{\"tool\":\"jump\",\"args\":\"{}\"},{\"tool\":\"jump\","
+                        + "\"args\":\"{}\"}]").getAsJsonArray(), "", "");
+    }
+
+    /** An owner who is online, whose brain never reaches a real model. */
+    private static CompanionEntity onlineCompanion(GameTestHelper h) {
+        var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) ->
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no model in tests")));
+        return registered(h, player.getUUID());
+    }
+
+    @GameTest(maxTicks = 300)
+    public void directorShift(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setPlannerOverride(owner, input -> {
+            h.assertTrue(!input.toolDigest().contains("attack_player"), "denied tools are not offered");
+            return java.util.concurrent.CompletableFuture.completedFuture(jumpPlan());
+        });
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] chosen = {false};
+        long[] plan = {0};
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            if (!chosen[0]) {
+                h.assertTrue(state.awaitingChoice(), "the director is asked to choose");
+                var result = driver(h).choose(c, "practise jumping", java.util.List.of(), "I'll stretch my legs", 5);
+                h.assertTrue(!result.error(), result.content());
+                chosen[0] = true;
+                h.assertTrue(false, "wait for the planner");
+            }
+            if (plan[0] == 0) {
+                h.assertTrue(state.shift() != null && state.shift().planId() != 0, "the plan is linked: " + state);
+                plan[0] = state.shift().planId();
+                h.assertValueEqual(c.taskRunner().queue().plan(plan[0]).orElseThrow().priority(), -10, "priority");
+            }
+            h.assertTrue(state.shift() == null || state.shift().planId() != plan[0], "the shift ends with its plan");
+            h.assertValueEqual(state.history().get(0).goal(), "practise jumping", "history");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void latePlanAfterStopIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        var pending = new java.util.concurrent.CompletableFuture<dev.friendai.agent.plan.PlanProposal>();
+        brains.setPlannerOverride(owner, input -> pending);
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] stopped = {false};
+        h.succeedWhen(() -> {
+            if (!stopped[0]) {
+                h.assertTrue(driver(h).state(owner).awaitingChoice(), "the director is asked to choose");
+                driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5);
+                driver(h).stop(owner, "owner ended free time");
+                pending.complete(jumpPlan());
+                stopped[0] = true;
+                h.assertTrue(false, "let the late answer arrive");
+            }
+            h.assertValueEqual(c.taskRunner().queue().planCount(), 0, "a late plan is not queued");
+            h.assertTrue(!driver(h).state(owner).on(), "free time stays off");
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

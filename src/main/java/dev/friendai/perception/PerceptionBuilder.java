@@ -61,6 +61,12 @@ public final class PerceptionBuilder {
         String weather = level.isThundering() ? "thunder" : level.isRaining() ? "rain" : "clear";
         Double ownerDistance = c.owner().filter(o -> o.level() == level).map(o -> (double) c.distanceTo(o)).orElse(null);
         String task = c.taskRunner().queueSummary();
+        if (c.ownerUuid() != null) {
+            String freeTime = dev.friendai.agent.autonomy.FreeTimeText.stateLine(
+                    FriendaiServerState.get(level.getServer()).freeTime().state(c.ownerUuid()),
+                    System.currentTimeMillis());
+            task = freeTime.isEmpty() ? task : task + "\n" + freeTime;
+        }
         ResourceCandidates resources = FriendaiServerState.get(level.getServer()).resources();
         return new PerceptionSnapshot(
                 pos.getX() + " " + pos.getY() + " " + pos.getZ(),

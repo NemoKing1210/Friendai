@@ -8,6 +8,9 @@ import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.autonomy.AwaySummary;
 import dev.friendai.agent.autonomy.FreeTime;
 import dev.friendai.agent.autonomy.FreeTimeService;
+import dev.friendai.agent.autonomy.FreeTimeText;
+import dev.friendai.agent.autonomy.NeedsAssessor;
+import dev.friendai.agent.autonomy.ProgressionLadder;
 import dev.friendai.agent.autonomy.IdleStartPolicy;
 import dev.friendai.agent.autonomy.Need;
 import dev.friendai.agent.autonomy.NeedKind;
@@ -53,9 +56,16 @@ public final class FreeTimeDriver {
     static final int SHELTER_MINUTES = 8;
     private static final Pattern PLAN_ID = Pattern.compile("plan #(\\d+)");
 
+    /** How long a director turn may take to start thinking before the request counts as unanswered. */
+    static final long CHOICE_GRACE_MILLIS = 3_000;
+
     private final MinecraftServer server;
+    private final BrainService brains;
     private final Supplier<ServerConfig> config;
     private final Map<String, TaskToolDef> taskTools;
+    private final Map<String, TaskToolDef> planTools;
+    private final Map<UUID, Long> awaitingSince = new HashMap<>();
+    private final Set<UUID> planning = new java.util.HashSet<>();
     private final AutonomyFactsBuilder facts = new AutonomyFactsBuilder();
     private final Map<UUID, ShiftBudget> budgets = new HashMap<>();
     private final Map<UUID, Long> lastOwnerActivity = new HashMap<>();
@@ -64,10 +74,19 @@ public final class FreeTimeDriver {
     /** Free-time plans cancelled on purpose; their end event is swallowed once. */
     private final Set<Long> released = new java.util.HashSet<>();
 
-    FreeTimeDriver(MinecraftServer server, Supplier<ServerConfig> config, Map<String, TaskToolDef> taskTools) {
+    FreeTimeDriver(MinecraftServer server, BrainService brains, Supplier<ServerConfig> config,
+                   Map<String, TaskToolDef> taskTools, Map<String, TaskToolDef> planTools) {
         this.server = server;
+        this.brains = brains;
         this.config = config;
         this.taskTools = taskTools;
+        this.planTools = planTools;
+    }
+
+    /** Free time is switched off on this server ({@code autonomy.enabled} or a passive {@code agent.autonomy}). */
+    public boolean disabled() {
+        ServerConfig cfg = config.get();
+        return !cfg.autonomy.enabled || Autonomy.parse(cfg.agent.autonomy) == Autonomy.PASSIVE;
     }
 
     private FreeTimeService service() {
@@ -196,6 +215,12 @@ public final class FreeTimeDriver {
         if (shiftPlan != 0) {
             runner.markAutonomousPlan(shiftPlan); // after a restart the runner forgot its marks
         }
+        if (state.awaitingChoice() && !brainThinking
+                && nowMillis - awaitingSince.getOrDefault(owner, 0L) > CHOICE_GRACE_MILLIS) {
+            // the director turn ended without choose_activity ([silent], an error, or a restart)
+            state = service.clearChoice(owner);
+            budget(owner).failed();
+        }
         AutonomyFacts f = facts.build(companion, owner, nowMillis);
         boolean planExists = shiftPlan != 0 && runner.queue().plan(shiftPlan).isPresent();
         ShiftInputs in = new ShiftInputs(state, f, s, ceiling, ownerGoalActive, planExists,
@@ -224,12 +249,108 @@ public final class FreeTimeDriver {
         return seenOnline.contains(owner);
     }
 
-    /** A director request for this owner has not answered yet. */
+    /** A planner request for this owner's shift has not answered yet. */
     boolean planningInFlight(UUID owner) {
-        return false;
+        return planning.contains(owner);
     }
 
-    void askDirector(UUID owner, CompanionEntity companion, AutonomyFacts f, long nowMillis) {}
+    /** Asks the director, through one brain event, to choose the next activity. */
+    void askDirector(UUID owner, CompanionEntity companion, AutonomyFacts f, long nowMillis) {
+        FreeTime state = service().state(owner);
+        AutonomySettings s = config.get().autonomy.toSettings();
+        List<String> agenda = NeedsAssessor.assess(f, state, s).stream()
+                .map(need -> "- " + need.text() + " (urgency " + need.urgency() + ")")
+                .toList();
+        service().awaitChoice(owner);
+        awaitingSince.put(owner, nowMillis);
+        budget(owner).record(nowMillis);
+        brains.post(owner, new dev.friendai.brain.BrainEvent.FreeTimeShift(agenda,
+                ProgressionLadder.evaluate(f).line(), FreeTimeText.recent(state), state.lessons(), state.wish()));
+    }
+
+    /** The director's {@code choose_activity}: begins the shift and asks the planner for its plan. */
+    public ToolResult choose(CompanionEntity companion, String goal, List<String> criteria, String why, int minutes) {
+        UUID owner = companion.ownerUuid();
+        FreeTime state = service().state(owner);
+        if (!state.on() || !state.awaitingChoice()) {
+            return ToolResult.error("no free-time shift is waiting for a choice");
+        }
+        long now = now();
+        AutonomySettings s = config.get().autonomy.toSettings();
+        int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
+        NeedKind need = NeedsAssessor.assess(facts.build(companion, owner, now), state, s).stream()
+                .filter(n -> n.executor() == dev.friendai.agent.autonomy.Executor.DIRECTOR)
+                .map(Need::kind)
+                .findFirst()
+                .orElse(NeedKind.EXPLORE);
+        Shift shift = service().beginShift(owner, goal, criteria, why, need, false, now, now + length * 60_000L)
+                .shift();
+        awaitingSince.remove(owner);
+        if (!why.isBlank()) {
+            say(owner, companion, why);
+        }
+        requestPlan(owner, companion, shift.id(), length);
+        return ToolResult.ok("activity chosen; planning a plan for \"" + goal + "\"");
+    }
+
+    private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes) {
+        Caller caller = ownerCaller(owner);
+        dev.friendai.agent.plan.PlannerInput input = plannerInput(owner, companion, caller);
+        planning.add(owner);
+        brains.propose(owner, input).whenComplete((proposal, error) -> brains.onServerThread(() -> {
+            planning.remove(owner);
+            FreeTime state = service().state(owner);
+            if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
+                return; // stopped or replaced while the planner was thinking
+            }
+            Optional<Long> plan = error != null || proposal == null
+                    ? Optional.empty()
+                    : queue(owner, companion, state.shift().goal(), proposal.stepsJson(), minutes, planTools);
+            if (plan.isEmpty()) {
+                long now = now();
+                service().finishShift(owner, false, "no plan: " + (error == null ? "the plan was refused"
+                        : error.getMessage()), now);
+                service().cooldown(owner, state.shift().need(),
+                        now + config.get().autonomy.failCooldownMin * 60_000L);
+                budget(owner).failed();
+                return;
+            }
+            service().linkPlan(owner, plan.get());
+            facts.invalidate(owner);
+        }));
+    }
+
+    private dev.friendai.agent.plan.PlannerInput plannerInput(UUID owner, CompanionEntity companion, Caller caller) {
+        FreeTime state = service().state(owner);
+        Shift shift = state.shift();
+        var goal = new dev.friendai.agent.goal.Goal(shift.id(), shift.goal(),
+                shift.criteria().stream().map(text -> new dev.friendai.agent.goal.Criterion(text, Optional.empty()))
+                        .toList(),
+                dev.friendai.agent.goal.GoalStatus.ACTIVE, 0, 0, state.lessons(), 0, false);
+        Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
+        StringBuilder digest = new StringBuilder();
+        planTools.forEach((name, def) -> {
+            if (!DENIED.contains(name)) {
+                schemas.put(name, def.schema());
+                digest.append("- ").append(BrainService.describeTool(def)).append('\n');
+            }
+        });
+        ServerConfig cfg = config.get();
+        var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+        guard.refresh();
+        return new dev.friendai.agent.plan.PlannerInput(
+                goal,
+                new CompanionPerception(companion).describe(caller),
+                digest.toString(),
+                dev.friendai.place.PlaceText.planner(cfg.places.enabled
+                        ? FriendaiServerState.get(server).places().book(owner).all()
+                        : List.of(), cfg.places.plannerLimit),
+                Optional.of(dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), guard, null, 20, false)),
+                state.lessons(),
+                "",
+                schemas,
+                planTools.keySet());
+    }
 
     private void interrupt(UUID owner, CompanionEntity companion, Shift shift, Need need, long nowMillis) {
         service().finishShift(owner, false, "interrupted by " + need.kind().name().toLowerCase(java.util.Locale.ROOT),
@@ -259,8 +380,6 @@ public final class FreeTimeDriver {
     /** Queues a free-time plan with the owner's authority; empty when the plan was refused. */
     Optional<Long> queue(UUID owner, CompanionEntity companion, String goal, List<ReflexStep> steps, int minutes,
                          Map<String, TaskToolDef> tools) {
-        JsonObject args = new JsonObject();
-        args.addProperty("goal", goal.length() > 200 ? goal.substring(0, 200) : goal);
         JsonArray array = new JsonArray();
         for (ReflexStep step : steps) {
             JsonObject o = new JsonObject();
@@ -268,7 +387,15 @@ public final class FreeTimeDriver {
             o.addProperty("args", step.args().toString());
             array.add(o);
         }
-        args.add("steps", array);
+        return queue(owner, companion, goal, array, minutes, tools);
+    }
+
+    /** As above, with steps already in the {@code queue_add} wire shape. */
+    Optional<Long> queue(UUID owner, CompanionEntity companion, String goal, JsonArray steps, int minutes,
+                         Map<String, TaskToolDef> tools) {
+        JsonObject args = new JsonObject();
+        args.addProperty("goal", goal.length() > 200 ? goal.substring(0, 200) : goal);
+        args.add("steps", steps);
         args.addProperty("priority", -10);
         args.addProperty("on_failure", "stop_plan");
         args.addProperty("time_limit_min", minutes);
@@ -295,6 +422,17 @@ public final class FreeTimeDriver {
         }
         service().update(owner, s -> taken.state());
         tell(owner, companion, UserMessage.of("friendai.freetime.away", taken.text()));
+    }
+
+    /** The director's own words to the owner, or saved for when they come back. */
+    void say(UUID owner, CompanionEntity companion, String text) {
+        var player = companion.owner();
+        if (player.isPresent()) {
+            player.get().sendSystemMessage(dev.friendai.chat.CompanionSpeaker.chatLine(
+                    companion.getName().getString(), text));
+        } else {
+            service().update(owner, s -> AwaySummary.add(s, text));
+        }
     }
 
     /** A fixed line to the owner when they can hear it, otherwise saved for when they come back. */

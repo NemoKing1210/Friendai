@@ -25,7 +25,8 @@
     "storage": ["PLACE"], "landmark": ["PLACE"], "waypoint": ["PLACE"],
     "crops": ["FARMING"], "wheat": ["FARMING"],
     "iron": ["OBTAIN"], "diamond": ["OBTAIN"], "gold": ["OBTAIN"],
-    "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"]
+    "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"],
+    "own": ["AUTONOMY"], "whatever": ["AUTONOMY"], "free": ["AUTONOMY"], "yourself": ["AUTONOMY"]
   },
   "complex_markers": ["and then", "after that", "afterwards", "first", "then", "once you", "when you are done", "before you"],
   "plan_request_markers": ["plan", "step by step", "make a plan", "organize", "organise", "figure out how"]

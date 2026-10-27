@@ -35,6 +35,16 @@ class TurnRouterTest {
     }
 
     @Test
+    void freeTimePhrasesExposeAutonomy() {
+        assertTrue(player("do your own thing", false).groups().contains(ToolGroup.AUTONOMY));
+        assertTrue(player("do whatever you want", false).groups().contains(ToolGroup.AUTONOMY));
+        // "Mind your own business" / "do what you want" / "free time" in Russian.
+        assertTrue(player("займись своими делами", false).groups().contains(ToolGroup.AUTONOMY));
+        assertTrue(player("делай что хочешь", false).groups().contains(ToolGroup.AUTONOMY));
+        assertTrue(player("у тебя свободное время", false).groups().contains(ToolGroup.AUTONOMY));
+    }
+
+    @Test
     void oneKindOfWorkIsAnActionNotAGoal() {
         RouteDecision d = player("mine some iron", false);
         assertEquals(TurnMode.ACTION, d.mode());
