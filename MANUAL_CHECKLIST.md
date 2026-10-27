@@ -19,6 +19,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `/friendai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
 - [ ] "Friendai, chop that tree" next to a tall tree: it is felled from the lowest log up, the logs are collected and the result is reported.
+- [ ] In a savanna with only acacia and no oak, ask for stone tools: the companion uses the acacia logs at hand instead of walking away to find oak.
+- [ ] Observe a tree, wait about five seconds, then ask it to chop the tree: the recent sighting is still used.
+- [ ] Fill the companion's inventory, then ask it to chop one log: the log stays in place and the reply says the inventory is full.
+- [ ] `search_resource` with `#minecraft:logs`: it inspects its surroundings first and only travels when nothing is in sight.
 - [ ] "Friendai, quickly, three logs from that tree": exactly three logs are cut and the task finishes.
 - [ ] A log cabin or wall next to the companion is not felled by "chop a tree".
 - [ ] "Friendai, chop the tree next to me" while the companion stands elsewhere: the tree at your position is felled, not the one at the companion.

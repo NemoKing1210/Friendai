@@ -37,8 +37,9 @@ final class InfoTools {
             IntSupplier mineRadius,
             IntSupplier treeRadius) {
         registry.register(ToolKit.callerTool("find_trees",
-                "List the nearest trees with their kind, height, log count, distance and direction. A log structure "
-                        + "has no leaves and is not felled automatically. Use it to choose a tree before fell_tree.",
+                "List trees recently seen or remembered with their kind, height, log count, distance and direction; "
+                        + "a remembered tree is not guaranteed to still be there. A log structure has no leaves and "
+                        + "is not felled automatically. Use it to choose a tree before fell_tree.",
                 SchemaBuilder.object()
                         .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
                         .enumeration("near", "Search around the speaker (me, default) or around yourself (self)",

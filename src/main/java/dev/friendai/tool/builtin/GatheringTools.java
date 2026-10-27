@@ -45,9 +45,9 @@ final class GatheringTools {
                 .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
                 .build();
         String fellDescription = "Fell one whole tree from the lowest log up and collect the logs. Picks the "
-                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; a log "
-                + "structure such as a cabin is never felled unless its block id is named. Use find_trees first "
-                + "when the choice matters.";
+                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; if no tree "
+                + "is in view it looks around for a bounded time and starts when one is seen. A log structure such "
+                + "as a cabin is never felled unless its block id is named. Use find_trees when the choice matters.";
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("fell_tree", fellDescription, fellSchema,
                         (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true,

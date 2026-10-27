@@ -38,7 +38,7 @@ final class ObtainTools {
                         .required("item", "count")
                         .build();
         TaskToolDef obtain = new TaskToolDef("obtain_item",
-                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. Re-plans after every step.",
+                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. Uses any nearby log for planks and sticks; a specific wood is explored only when the request names it. Re-plans after every step.",
                 schema,
                 (c, a) -> new ObtainTask(itemId(a.get("item").getAsString()), a.get("count").getAsInt(),
                         flag(a, "use_containers", true), flag(a, "explore", true)),
@@ -47,7 +47,8 @@ final class ObtainTools {
         ToolKit.addCaller(registry, defs, obtain, (c, caller, a) ->
                 ToolResult.error("obtain requires caller authorization"));
         registry.register(ToolKit.instantTool("plan_obtain",
-                "Show how the companion would get an item from here, step by step, without doing it.",
+                "Show how the companion would get an item from here, step by step, without doing it. Uses any "
+                        + "nearby log for planks and sticks; a specific wood is explored only when the request names it.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:iron_pickaxe; tags are not accepted")
                         .integer("count", "How many to get", 1, 64)

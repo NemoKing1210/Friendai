@@ -35,7 +35,9 @@ final class ResourceTools {
                 .required("resource")
                 .build();
         TaskToolDef search = new TaskToolDef("search_resource",
-                "Search for a resource using bounded, resource-specific strategies. Unknown locations are not assumed.",
+                "Search for a resource using bounded, resource-specific strategies. #minecraft:logs, "
+                        + "#minecraft:planks, oak_planks and stick resolve to wood and use a surface search; the "
+                        + "companion inspects its surroundings before travelling. Unknown locations are not assumed.",
                 searchSchema,
                 (companion, args) -> new SearchResourceTask(args.get("resource").getAsString(),
                         args.has("strategy") ? args.get("strategy").getAsString() : "auto",
