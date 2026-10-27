@@ -514,4 +514,26 @@ public class MineBlocksTests {
         h.getLevel().addFreshEntity(e);
         return e;
     }
+
+    @GameTest(maxTicks = 200)
+    public void mineLogsStopsBeforeDroppingWhenFull(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(6, 2, 2);
+        h.setBlock(log, Blocks.ACACIA_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be directly visible");
+        for (int i = 0; i < 27; i++) {
+            c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        }
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(log).is(Blocks.ACACIA_LOG), "the log must not be broken without room");
+            h.assertTrue(result.summary.contains("inventory full"), result.summary);
+        });
+    }
 }
