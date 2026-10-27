@@ -139,22 +139,31 @@ public final class Scaffold {
     }
 
     public boolean support(TaskContext context, BlockPos below) {
+        return support(context, below, below.above());
+    }
+
+    /**
+     * Places one scaffold block at {@code cell} to give {@code target} a face to click, wherever the target stands
+     * beside it. Returns false when the support cannot be placed there (no sturdy neighbour, the cell is not free,
+     * the target is no longer free, or no material).
+     */
+    public boolean support(TaskContext context, BlockPos cell, BlockPos target) {
         failure = "";
         ServerLevel level = level();
-        BlockState there = level.getBlockState(below);
+        BlockState there = level.getBlockState(cell);
         if (isScaffold(there)) {
             return true;
         }
-        if (below.getY() < level.getMinY() || !there.canBeReplaced() || !there.getFluidState().isEmpty()) {
+        if (cell.getY() < level.getMinY() || !there.canBeReplaced() || !there.getFluidState().isEmpty()) {
             return false;
         }
-        if (!level.getBlockState(below.above()).canBeReplaced()) {
+        if (!level.getBlockState(target).canBeReplaced()) {
             return false;
         }
-        if (companion.getBoundingBox().intersects(new AABB(below))) {
+        if (companion.getBoundingBox().intersects(new AABB(cell))) {
             return false;
         }
-        Optional<PlaceSpot.Spot> spot = PlaceSpot.spotAt(level, below);
+        Optional<PlaceSpot.Spot> spot = PlaceSpot.spotAt(level, cell);
         if (spot.isEmpty()) {
             return false;
         }
@@ -164,11 +173,11 @@ public final class Scaffold {
             return false;
         }
         lease.place(companion.hands(), spot.get().against(), spot.get().face());
-        if (!isScaffold(level.getBlockState(below))) {
-            failure = "can't place a scaffold block at " + coords(below);
+        if (!isScaffold(level.getBlockState(cell))) {
+            failure = "can't place a scaffold block at " + coords(cell);
             return false;
         }
-        remember(below);
+        remember(cell);
         return true;
     }
 

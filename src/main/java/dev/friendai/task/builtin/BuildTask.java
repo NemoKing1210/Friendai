@@ -72,6 +72,10 @@ public final class BuildTask implements Task {
     private static final Direction[] PILLAR_SIDES = {
         Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
     };
+    /** The sides a temporary support is tried on, below first so a block with no support need keeps today's shape. */
+    private static final Direction[] SUPPORT_SIDES = {
+        Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP
+    };
     /** The production way to obtain a missing material; tests replace it to tighten the obtain limits. */
     private static final ObtainFactory DEFAULT_OBTAIN =
             (item, count) -> new ObtainTask(item, count, true, true);
@@ -143,6 +147,8 @@ public final class BuildTask implements Task {
     private List<BlockSpec> queue = List.of();
     private int cursor;
     private List<BlockSpec> deferred = new ArrayList<>();
+    /** Temporary-support cells already tried for a deferred block, so one refusal is not retried every pass. */
+    private final Set<BlockPos> triedSupports = new HashSet<>();
     /** Whether the current pass placed at least one block; a pass that places nothing is the last. */
     private boolean passProgress;
 
@@ -696,31 +702,87 @@ public final class BuildTask implements Task {
     }
 
     /**
-     * Nothing in the deferred list has a neighbour even after every other block had its chance: the first stuck spec
-     * gets one temporary scaffold block underneath, as the last resort. A cell the blueprint fills itself, or one
-     * taken by a foreign block, is never used for support: the scaffold would block that spec or break someone's
-     * block. Returns to the main loop once a support is in place.
+     * What to do with the first block that still has no face after every other block had its chance. A block whose
+     * state needs a solid neighbour to survive ({@link SupportNeeds}) can only be built on that cell: a temporary
+     * support would be removed again and the block would drop, so the task names the missing cell instead. A block
+     * that stands on its own is missing a face to click, not a support: one temporary block goes on the free
+     * neighbour with the most open sides, the block is placed against it, and the scaffold is removed at the end.
+     * A cell the blueprint fills itself, or one taken by a foreign block, is never used for support.
      */
     private TaskStatus supportStuck(TaskContext c) {
         Placement.PlacedSpec spec = specOf(deferred.get(0));
         BlockPos pos = spec.pos();
-        BlockPos below = pos.below();
-        if (plannedCells.contains(below) || taken(c.level(), below, spec.wanted())) {
+        BlockPos needed = SupportNeeds.supportOf(spec.wanted(), pos);
+        if (needed != null) {
             return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                    + ": nothing to place it against");
+                    + ": it needs a block at " + coords(needed)
+                    + (plannedCells.contains(needed)
+                    ? " that the build has not placed"
+                    : " that the blueprint does not provide"));
         }
-        if (!scaffold.support(c, below) || spot(c.level(), pos).isEmpty()) {
-            if (scaffold.outOfMaterial()) {
-                return fail(c, scaffold.failure());
+        String refused = "";
+        for (BlockPos cell : supportCells(c.level(), pos)) {
+            if (!triedSupports.add(cell)) {
+                continue;
             }
-            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                    + ": nothing to place it against");
+            if (plannedCells.contains(cell) || taken(c.level(), cell, spec.wanted())) {
+                refused = coords(cell);
+                continue;
+            }
+            if (!scaffold.support(c, cell, pos)) {
+                if (scaffold.outOfMaterial()) {
+                    return fail(c, scaffold.failure());
+                }
+                refused = coords(cell);
+                continue;
+            }
+            if (spot(c.level(), pos).isEmpty()) {
+                continue;
+            }
+            queue = deferred;
+            deferred = new ArrayList<>();
+            cursor = 0;
+            passProgress = false;
+            return TaskStatus.RUNNING;
         }
-        queue = deferred;
-        deferred = new ArrayList<>();
-        cursor = 0;
-        passProgress = false;
-        return TaskStatus.RUNNING;
+        return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                + (refused.isEmpty()
+                ? ": nothing to place it against"
+                : ": nothing to place it against, a temporary support at " + refused + " was refused"));
+    }
+
+    /**
+     * Cells beside {@code pos} that may take a temporary support, the most open first so a block is built where it
+     * has the most room. A cell is only usable when a scaffold block can itself be placed there, which needs a face
+     * to click; below comes first on a tie, as it did when the support was always {@code pos.below()}.
+     */
+    private static List<BlockPos> supportCells(ServerLevel level, BlockPos pos) {
+        List<BlockPos> cells = new ArrayList<>(SUPPORT_SIDES.length);
+        for (Direction side : SUPPORT_SIDES) {
+            BlockPos cell = pos.relative(side);
+            BlockState there = level.getBlockState(cell);
+            if (!there.canBeReplaced() || !there.getFluidState().isEmpty()) {
+                continue;
+            }
+            if (PlaceSpot.spotAt(level, cell).isEmpty()) {
+                continue;
+            }
+            cells.add(cell);
+        }
+        cells.sort(Comparator.comparingInt((BlockPos cell) -> -openSides(level, cell)));
+        return cells;
+    }
+
+    /** How many of the six sides of {@code cell} are free: the most open neighbour is the easiest to build on. */
+    private static int openSides(ServerLevel level, BlockPos cell) {
+        int open = 0;
+        for (Direction side : Direction.values()) {
+            BlockState there = level.getBlockState(cell.relative(side));
+            if (there.canBeReplaced() && there.getFluidState().isEmpty()) {
+                open++;
+            }
+        }
+        return open;
     }
 
     /**

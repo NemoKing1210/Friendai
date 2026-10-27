@@ -1215,6 +1215,84 @@ public class BuildTests {
         });
     }
 
+    @GameTest(maxTicks = 3000)
+    public void stairInMidAirUsesTemporarySupport(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 1));
+        companion.inventory().addItem(new ItemStack(Items.OAK_STAIRS, 1));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 2));
+        // A stair needs no block to stand on, only a face to click: the companion places one temporary block under
+        // it, clicks that face, and takes the scaffold down again once the stair is in place. The plank keeps the
+        // blueprint's origin at the platform and puts the stair two blocks deeper, in the air.
+        Blueprint blueprint = parse("""
+                {
+                  "name": "floating stair",
+                  "palette": { "P": "minecraft:oak_planks", "S": "minecraft:oak_stairs[facing=north,half=bottom]" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "P" },
+                    { "op": "box", "from": [0,1,2], "to": [0,1,2], "block": "S" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6))
+                            .equals(state("minecraft:oak_stairs[facing=north,half=bottom]")),
+                    "stair at 4 3 6 = " + h.getBlockState(new BlockPos(4, 3, 6))
+                            + "; summary " + result.summary);
+            h.assertTrue(result.summary.contains("used 1 scaffold blocks (removed)"),
+                    "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
+                    "the temporary support must be removed: " + h.getBlockState(new BlockPos(4, 2, 6)));
+            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+                    "scaffold dirt left behind at " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void wallTorchWithoutItsWallNamesTheMissingCell(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 1));
+        companion.inventory().addItem(new ItemStack(Items.TORCH, 1));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 2));
+        // A wall torch survives only on the wall cell, so a temporary support there would be removed again and the
+        // torch would drop. The task must say which cell the blueprint is missing instead of scaffolding it.
+        Blueprint blueprint = parse("""
+                {
+                  "name": "torch",
+                  "palette": { "C": "minecraft:cobblestone", "T": "minecraft:wall_torch[facing=north]" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" },
+                    { "op": "box", "from": [0,1,2], "to": [0,1,2], "block": "T" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains(
+                            "it needs a block at " + coords(h.absolutePos(new BlockPos(4, 3, 7)))),
+                    "the missing wall cell must be named: " + result.summary);
+            h.assertTrue(result.summary.contains("the blueprint does not provide"), "summary was " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6)).isAir(),
+                    "the torch must not be left behind: " + h.getBlockState(new BlockPos(4, 3, 6)));
+            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+                    "no scaffold may be placed for a block that needs a permanent one: "
+                            + positionsOf(h, 16, 2, 15, Blocks.DIRT));
+        });
+    }
+
     @GameTest(maxTicks = 4000)
     public void deferredSupportKeepsBlueprintCellsClear(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
