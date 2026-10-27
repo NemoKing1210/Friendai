@@ -185,6 +185,77 @@ public class CompanionEntityTests {
     }
 
     @GameTest
+    public void combatSettingsRoundTrip(GameTestHelper h) {
+        CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        dev.friendai.combat.CombatSettings settings = new dev.friendai.combat.CombatSettings(
+                dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
+                dev.friendai.combat.FightingStyle.RANGED,
+                true, 40, dev.friendai.combat.RetreatPreference.CONSERVATIVE);
+        a.setCombatSettings(settings);
+        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        a.saveWithoutId(out);
+
+        CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+        h.assertValueEqual(b.combatSettings(), settings, "combat settings did not round-trip");
+        h.succeed();
+    }
+
+    @GameTest
+    public void missingCombatSettingsMigrateLegacyModes(GameTestHelper h) {
+        for (var pair : java.util.List.of(
+                java.util.Map.entry("defensive", dev.friendai.combat.ProtectionPolicy.BODYGUARD),
+                java.util.Map.entry("guard", dev.friendai.combat.ProtectionPolicy.GUARD),
+                java.util.Map.entry("passive", dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT))) {
+            TagValueOutput out = TagValueOutput.createWithContext(
+                    ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+            out.putString("CombatMode", pair.getKey());
+            CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+            loaded.load(TagValueInput.create(
+                    ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+            h.assertValueEqual(loaded.combatSettings().protection(), pair.getValue(),
+                    "legacy " + pair.getKey() + " mapped to " + loaded.combatSettings());
+            h.assertValueEqual(loaded.combatSettings().style(), dev.friendai.combat.FightingStyle.BALANCED,
+                    "legacy style for " + pair.getKey());
+            h.assertFalse(loaded.combatSettings().allowSplashPotions(), "legacy migration enabled potions");
+            h.assertValueEqual(loaded.combatSettings().pursuitLimitBlocks(), 24, "legacy pursuit limit");
+            loaded.discard();
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void malformedCombatSettingsUseSafeDefaults(GameTestHelper h) {
+        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        out.putString("CombatSettings", "protection=guard;style=balanced;splashPotions=false;pursuit=99;retreat=standard");
+        out.putString("CombatMode", "guard");
+        CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+        h.assertValueEqual(loaded.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+                "malformed settings must fall back to the whole safe default");
+        h.assertValueEqual(loaded.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+                "malformed data must not silently grant guard behaviour");
+        h.succeed();
+    }
+
+    @GameTest
+    public void settingsRemainIndependentPerOwner(GameTestHelper h) {
+        CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        a.setCombatSettings(a.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
+                .withPursuitLimit(12));
+        b.setCombatSettings(b.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.GUARD)
+                .withPursuitLimit(48));
+        h.assertValueEqual(a.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
+                "first owner settings changed");
+        h.assertValueEqual(b.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.GUARD,
+                "second owner settings changed");
+        h.assertValueEqual(a.combatSettings().pursuitLimitBlocks(), 12, "first pursuit changed");
+        h.assertValueEqual(b.combatSettings().pursuitLimitBlocks(), 48, "second pursuit changed");
+        h.succeed();
+    }
+
+    @GameTest
     public void equipmentDropsOnDeath(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));

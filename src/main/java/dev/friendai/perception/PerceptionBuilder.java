@@ -75,7 +75,7 @@ public final class PerceptionBuilder {
                 top(countBlocks(resources, c, blockRadius)),
                 top(countEntities(c, level)),
                 inventory(c),
-                c.equipmentText(),
+                equipmentText(c),
                 task,
                 focus,
                 selfStatus(c, level, pos),
@@ -83,6 +83,15 @@ public final class PerceptionBuilder {
                 LandmarkScanner.scan(c, resources),
                 trees(c, resources, pos),
                 c.experience().level());
+    }
+
+    private static String equipmentText(CompanionEntity c) {
+        String text = c.equipmentText();
+        String action = c.combatController().activeAction();
+        if (!"none".equals(action)) {
+            text += "; doing: " + action + " (" + c.combatController().activeReason() + ")";
+        }
+        return text;
     }
 
     /** The nearest tree-like clusters, so the model need not infer a tree from a count of log blocks. */

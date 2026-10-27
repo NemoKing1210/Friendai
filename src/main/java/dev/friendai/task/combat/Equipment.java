@@ -32,11 +32,13 @@ public final class Equipment {
      * than a sword but swings much slower, and a player would still fight with the sword.
      */
     public static int bestMeleeWeaponSlot(CompanionEntity companion) {
-        double bestDps = meleeDps(companion, companion.getMainHandItem());
+        ItemStack mainHand = companion.getMainHandItem();
+        double bare = meleeDps(companion, ItemStack.EMPTY);
+        double bestDps = mainHand.isEmpty() || !usable(mainHand) ? bare : meleeDps(companion, mainHand);
         int bestSlot = -1;
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             ItemStack stack = companion.inventory().getItem(i);
-            if (stack.isEmpty()) {
+            if (!usable(stack) || modifier(stack, Attributes.ATTACK_DAMAGE) <= 0.0) {
                 continue;
             }
             double dps = meleeDps(companion, stack);
@@ -46,6 +48,17 @@ public final class Equipment {
             }
         }
         return bestSlot;
+    }
+
+    /** A stack with one point of durability left is not a fighting option. */
+    public static boolean usable(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        if (!stack.isDamageableItem()) {
+            return true;
+        }
+        return stack.getMaxDamage() - stack.getDamageValue() > 1;
     }
 
     /**

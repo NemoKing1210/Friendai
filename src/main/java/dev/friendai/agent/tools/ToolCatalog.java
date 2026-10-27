@@ -86,7 +86,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
         group(metas, ToolGroup.COOKING, Cost.MEDIUM, "smelt_items", "cook_food", "collect_smelted");
         group(metas, ToolGroup.ENCHANT, Cost.MEDIUM, "enchant_item", "anvil_item", "grindstone_item");
-        group(metas, ToolGroup.COMBAT, Cost.MEDIUM, "attack", "attack_player", "set_combat_mode", "equip_item", "eat",
+        group(metas, ToolGroup.COMBAT, Cost.MEDIUM, "attack", "attack_player", "set_combat_mode", "get_combat_settings",
+                "set_combat_settings", "equip_item", "eat",
                 "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules");
         group(metas, ToolGroup.FARMING, Cost.HIGH, "farm", "plan_farm", "tend_farm", "use_bonemeal");
         group(metas, ToolGroup.ANIMALS, Cost.MEDIUM, "breed_animals", "shear", "milk", "tame_animal", "lead_animals",

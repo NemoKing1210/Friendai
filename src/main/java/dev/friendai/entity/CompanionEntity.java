@@ -3,6 +3,7 @@ package dev.friendai.entity;
 import com.mojang.serialization.Codec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.chat.CompanionNames;
+import dev.friendai.combat.CombatSettings;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.StationLease;
@@ -141,7 +142,7 @@ public class CompanionEntity extends PathfinderMob {
     private int automaticBedSearchTicks;
     /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
     private int inventoryViewers;
-    private CombatMode combatMode = CombatMode.DEFENSIVE;
+    private CombatSettings combatSettings = CombatSettings.defaults();
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
     private final CompanionBody body = new CompanionBody(this);
@@ -510,7 +511,10 @@ public class CompanionEntity extends PathfinderMob {
         if (!offHand.isEmpty()) {
             text.append(" (offhand: ").append(itemName(offHand)).append(')');
         }
-        text.append("; combat mode: ").append(combatMode.label());
+        text.append("; combat: ")
+                .append(combatSettings.protection().label())
+                .append('/')
+                .append(combatSettings.style().label());
         if (paceMode != PaceMode.AUTO) {
             text.append("; pace: ").append(paceMode.label());
         }
@@ -543,12 +547,26 @@ public class CompanionEntity extends PathfinderMob {
         return ownerUuid;
     }
 
-    public CombatMode combatMode() {
-        return combatMode;
+    /** Persistent owner combat preferences. Never null; malformed save data loads as documented defaults. */
+    public CombatSettings combatSettings() {
+        return combatSettings;
     }
 
+    public void setCombatSettings(CombatSettings settings) {
+        this.combatSettings = settings == null ? CombatSettings.defaults() : settings;
+    }
+
+    /** The closest legacy preset, kept for old clients, save data and status text. */
+    public CombatMode combatMode() {
+        return CombatMode.fromSettings(combatSettings);
+    }
+
+    /** Compatibility adapter: the old preset changes protection and style only, preserving other settings. */
     public void setCombatMode(CombatMode mode) {
-        this.combatMode = mode == null ? CombatMode.DEFENSIVE : mode;
+        CombatSettings mapped = (mode == null ? CombatMode.DEFENSIVE : mode).toSettings();
+        this.combatSettings = combatSettings
+                .withProtection(mapped.protection())
+                .withStyle(mapped.style());
     }
 
     public PaceMode paceMode() {
@@ -790,7 +808,9 @@ public class CompanionEntity extends PathfinderMob {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
-        output.putString("CombatMode", combatMode.label());
+        output.putString("CombatSettings", combatSettings.encode());
+        // Old builds still read the legacy label; new builds prefer CombatSettings when it is present.
+        output.putString("CombatMode", combatMode().label());
         output.putString("PaceMode", paceMode.label());
         output.putInt("Food", hunger.food());
         output.putFloat("Saturation", hunger.saturation());
@@ -814,7 +834,10 @@ public class CompanionEntity extends PathfinderMob {
         super.readAdditionalSaveData(input);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
-        this.combatMode = CombatMode.parse(input.getString("CombatMode").orElse(null));
+        String savedSettings = input.getString("CombatSettings").orElse(null);
+        this.combatSettings = savedSettings != null
+                ? CombatSettings.decodeOrDefault(savedSettings)
+                : CombatMode.parse(input.getString("CombatMode").orElse(null)).toSettings();
         this.paceMode = PaceMode.parse(input.getString("PaceMode").orElse(null));
         hunger.load(
                 input.getInt("Food").orElse(HungerModel.MAX_FOOD),

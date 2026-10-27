@@ -136,8 +136,8 @@ final class ControlTab implements MenuTab {
         if (s.present()) {
             int x = textX;
             CompanionVitals v = s.vitals();
-            x += Ui.badge(g, font, Component.translatable("friendai.menu.mode.combat", combatName(v.combatMode())).getString(),
-                    x, top + PAD + 25, Ui.PURPLE) + 4;
+            x += Ui.badge(g, font, Component.translatable("friendai.menu.mode.combat",
+                    combatName(v.protection(), v.style())).getString(), x, top + PAD + 25, Ui.PURPLE) + 4;
             Ui.badge(g, font, Component.translatable("friendai.menu.mode.pace", paceName(v.paceMode())).getString(),
                     x, top + PAD + 25, Ui.ACCENT);
         }
@@ -181,16 +181,72 @@ final class ControlTab implements MenuTab {
         Ui.heading(g, font, Component.translatable("friendai.menu.activity"), left + PAD, top + 6, width - 2 * PAD);
         g.enableScissor(left + 1, top + 18, left + width - 1, top + height - 1);
         String text = s.present() ? s.currentTask() : "";
+        CompanionVitals v = s.vitals();
+        if (s.present() && v.action() != null && !v.action().isEmpty() && !"none".equals(v.action())) {
+            String active = Component.translatable("friendai.menu.combat.active",
+                    actionName(v.action()), reasonName(v.reason())).getString();
+            text = active + (text.isEmpty() ? "" : "\n" + text);
+        }
         QueuePanel.draw(g, font, text, left + PAD, top + 20, width - 2 * PAD);
         g.disableScissor();
     }
 
-    static Component combatName(String mode) {
-        return Component.translatable(switch (mode) {
-            case "guard" -> "friendai.menu.combat.guard";
-            case "passive" -> "friendai.menu.combat.passive";
-            default -> "friendai.menu.combat.defensive";
-        });
+    static Component combatName(String protection, String style) {
+        String protectionName = Component.translatable(switch (protection) {
+            case "self_only" -> "friendai.menu.protection.self_only";
+            case "guard" -> "friendai.menu.protection.guard";
+            case "avoid_combat" -> "friendai.menu.protection.avoid_combat";
+            default -> "friendai.menu.protection.bodyguard";
+        }).getString();
+        String styleName = Component.translatable(switch (style) {
+            case "cautious" -> "friendai.menu.style.cautious";
+            case "melee" -> "friendai.menu.style.melee";
+            case "ranged" -> "friendai.menu.style.ranged";
+            default -> "friendai.menu.style.balanced";
+        }).getString();
+        return Component.literal(protectionName + " / " + styleName);
+    }
+
+    private static String actionName(String action) {
+        return Component.translatable(switch (action) {
+            case "attack" -> "friendai.menu.action.attack";
+            case "melee_approach" -> "friendai.menu.action.melee_approach";
+            case "keep_range" -> "friendai.menu.action.keep_range";
+            case "shield" -> "friendai.menu.action.shield";
+            case "dodge" -> "friendai.menu.action.dodge";
+            case "seek_cover" -> "friendai.menu.action.seek_cover";
+            case "retreat" -> "friendai.menu.action.retreat";
+            case "eat" -> "friendai.menu.action.eat";
+            case "fire_bow" -> "friendai.menu.action.fire_bow";
+            case "throw_potion" -> "friendai.menu.action.throw_potion";
+            case "disengage" -> "friendai.menu.action.disengage";
+            case "avoid" -> "friendai.menu.action.avoid";
+            default -> "friendai.menu.action.none";
+        }).getString();
+    }
+
+    private static String reasonName(String reason) {
+        return Component.translatable(switch (reason) {
+            case "imminent_danger" -> "friendai.menu.reason.imminent_danger";
+            case "block_projectile" -> "friendai.menu.reason.block_projectile";
+            case "block_melee" -> "friendai.menu.reason.block_melee";
+            case "evade_projectile" -> "friendai.menu.reason.evade_projectile";
+            case "evade_melee" -> "friendai.menu.reason.evade_melee";
+            case "survive" -> "friendai.menu.reason.survive";
+            case "recover" -> "friendai.menu.reason.recover";
+            case "defend_self" -> "friendai.menu.reason.defend_self";
+            case "defend_owner" -> "friendai.menu.reason.defend_owner";
+            case "guard" -> "friendai.menu.reason.guard";
+            case "attack" -> "friendai.menu.reason.attack";
+            case "position" -> "friendai.menu.reason.position";
+            case "out_of_pursuit" -> "friendai.menu.reason.out_of_pursuit";
+            case "style_range" -> "friendai.menu.reason.style_range";
+            case "avoid_combat" -> "friendai.menu.reason.avoid_combat";
+            case "no_weapon" -> "friendai.menu.reason.no_weapon";
+            case "no_ammunition" -> "friendai.menu.reason.no_ammunition";
+            case "unsafe_lane" -> "friendai.menu.reason.unsafe_lane";
+            default -> "friendai.menu.reason.none";
+        }).getString();
     }
 
     static Component paceName(String mode) {
