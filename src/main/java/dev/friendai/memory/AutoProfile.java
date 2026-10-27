@@ -130,6 +130,15 @@ public final class AutoProfile {
             if (thing == null) {
                 continue;
             }
+            if (rule.canonicalPrefix().equals(PREFERS_PREFIX)
+                    && thing.toLowerCase(Locale.ROOT).startsWith("to be called ")) {
+                String name = addressValue(thing.substring("to be called ".length()));
+                if (name != null) {
+                    captures.add(new Capture(
+                            Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
+                }
+                continue;
+            }
             captures.add(new Capture(
                     Kind.PREFERENCE,
                     Category.PREFERENCE,
@@ -254,15 +263,28 @@ public final class AutoProfile {
     private static String cutAddress(String raw) {
         String value = cutSentence(raw);
         Matcher clause = ADDRESS_CLAUSE_END.matcher(value);
-        return clause.find() ? value.substring(0, clause.start()) : value;
+        if (clause.find()) {
+            value = value.substring(0, clause.start());
+        }
+        return tidy(value);
     }
 
     private static String cutSentence(String raw) {
         Matcher end = SENTENCE_END.matcher(raw);
-        String value = end.find() ? raw.substring(0, end.start()) : raw;
-        value = EDGE_PUNCTUATION.matcher(value).replaceAll("");
-        value = POLITENESS.matcher(value).replaceAll("");
-        return value.strip();
+        return tidy(end.find() ? raw.substring(0, end.start()) : raw);
+    }
+
+    /** Removes edge punctuation and a trailing "please" until neither is left ("Босс, пожалуйста" → "Босс"). */
+    private static String tidy(String raw) {
+        String value = raw;
+        String previous;
+        do {
+            previous = value;
+            value = EDGE_PUNCTUATION.matcher(value).replaceAll("");
+            value = POLITENESS.matcher(value).replaceAll("");
+            value = value.strip();
+        } while (!value.equals(previous));
+        return value;
     }
 
     private static String clean(String message) {

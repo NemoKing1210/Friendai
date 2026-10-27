@@ -61,6 +61,36 @@ class AutoProfileTest {
     }
 
     @Test
+    void anAddressKeepsNoTrailingPunctuation() {
+        MemoryBook book = book();
+        say(book, "Call me Chief, but only when I ask.");
+        assertEquals("Prefers to be called Chief.", only(book).text());
+        MemoryBook russian = book();
+        say(russian, "Зови меня Босс, пожалуйста.");
+        assertEquals("Prefers to be called Босс.", only(russian).text());
+    }
+
+    @Test
+    void preferringToBeCalledSetsTheSameAddressSlot() {
+        MemoryBook book = book();
+        say(book, "Call me Boss.");
+        say(book, "I prefer to be called Chief.");
+        assertEquals("Prefers to be called Chief.", only(book).text());
+        assertEquals(Category.PROFILE, only(book).category());
+    }
+
+    @Test
+    void clearingFactsForgetsTheLanguageEvenWithoutAMirrorFact() {
+        MemoryBook book = book();
+        book.setOwnerLanguage(OWNER, "Russian");
+        book.clearFacts(Subject.player(OWNER));
+        assertEquals(Optional.empty(), book.ownerLanguage(OWNER));
+        book.setOwnerLanguage(OWNER, "Russian");
+        book.clearAllFacts();
+        assertEquals(Optional.empty(), book.ownerLanguage(OWNER));
+    }
+
+    @Test
     void aNegatedAddressCapturesNothing() {
         MemoryBook book = book();
         say(book, "Don't call me Bob.");

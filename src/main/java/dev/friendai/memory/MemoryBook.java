@@ -386,28 +386,36 @@ public final class MemoryBook {
         return true;
     }
 
-    /** Removes every fact about the subject. Returns how many were removed. */
+    /** Removes every fact about the subject and, for a player, the learned language. Returns the facts removed. */
     public int clearFacts(Subject subject) {
         List<Fact> matching = facts(subject);
         matching.forEach(f -> facts.remove(f.id()));
-        if (!matching.isEmpty()) {
-            if (subject instanceof Subject.Player player) {
-                forgetLanguage(player.uuid());
-            }
+        boolean languageCleared =
+                subject instanceof Subject.Player player && forgetLanguage(player.uuid());
+        if (!matching.isEmpty() || languageCleared) {
             dirty = true;
             revision++;
         }
         return matching.size();
     }
 
-    /** Removes every fact. The next id keeps growing, so old references never point at a new fact. */
+    /** Removes every fact and every learned language. The next id keeps growing, so old references never point at a new fact. */
     public int clearAllFacts() {
         int removed = facts.size();
         facts.clear();
-        if (removed > 0) {
+        boolean languageCleared = false;
+        for (PlayerRecord record : players.values()) {
+            if (record.language() != null) {
+                languageCleared = true;
+                break;
+            }
+        }
+        if (languageCleared) {
             players.replaceAll((uuid, record) -> record.language() == null
                     ? record
                     : new PlayerRecord(uuid, record.lastName(), record.trusted(), record.lastSeen(), null));
+        }
+        if (removed > 0 || languageCleared) {
             dirty = true;
             revision++;
         }
@@ -421,13 +429,15 @@ public final class MemoryBook {
         }
     }
 
-    private void forgetLanguage(UUID uuid) {
+    /** @return whether a language was stored and is now gone */
+    private boolean forgetLanguage(UUID uuid) {
         PlayerRecord existing = players.get(uuid);
         if (existing == null || existing.language() == null) {
-            return;
+            return false;
         }
         players.put(uuid, new PlayerRecord(
                 uuid, existing.lastName(), existing.trusted(), existing.lastSeen(), null));
+        return true;
     }
 
     private String label(Subject subject) {
