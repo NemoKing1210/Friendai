@@ -22,6 +22,7 @@ import dev.friendai.task.trading.MerchantAdapter;
 import dev.friendai.task.trading.MerchantLeases;
 import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
+import dev.friendai.task.builtin.RefreshTradesTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ public final class FriendaiServerState {
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
+    private final Map<UUID, Long> nextTradingRefresh = new java.util.HashMap<>();
 
     private FriendaiServerState(MinecraftServer server) {
         this.server = server;
@@ -77,7 +79,9 @@ public final class FriendaiServerState {
                 .resolve("friendai").resolve("trading"));
         this.merchantLeases = new MerchantLeases();
         this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
-        this.traderObserver = new TraderObserver(trading);
+        this.traderObserver = new TraderObserver(trading,
+                () -> this.config.tasks.trading.observationRadius,
+                () -> this.config.tasks.trading.enabled);
         this.merchantAdapter = new MerchantAdapter(trading, merchantLeases, tradeSessionGuard);
         this.resources = new ResourceCandidates(knowledge);
         this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
@@ -182,11 +186,47 @@ public final class FriendaiServerState {
         trust.tick(now);
     }
 
+    /** Schedules one local offer inspection only while the owner's task runner has no work to displace. */
+    public void tickTrading() {
+        if (!config.tasks.trading.enabled || !config.tasks.trading.idleRefresh) return;
+        long now = server.overworld().getGameTime();
+        for (CompanionEntity companion : CompanionManager.get(server).all()) {
+            UUID owner = companion.ownerUuid();
+            if (owner == null || companion.owner().isEmpty()) continue;
+            if (nextTradingRefresh.getOrDefault(owner, 0L) > now) continue;
+            var runner = companion.taskRunner();
+            if (runner.hasWork() || runner.paused()) continue;
+            List<dev.friendai.trading.TraderRecord> nearby = traderObserver.observe(companion);
+            var ownerBook = trading.book(owner);
+            dev.friendai.trading.TraderRecord candidate = nearby.stream()
+                    .map(record -> ownerBook.trader(record.id()).orElse(record))
+                    .sorted(java.util.Comparator
+                            .comparing((dev.friendai.trading.TraderRecord record) ->
+                                    record.status() == dev.friendai.trading.TraderRecord.Status.VERIFIED)
+                            .thenComparingLong(record -> record.offersSeen() < 0 ? -1 : record.offersSeen())
+                            .thenComparing(dev.friendai.trading.TraderRecord::id))
+                    .findFirst().orElse(null);
+            nextTradingRefresh.put(owner, now + config.tasks.trading.idleRefreshIntervalTicks);
+            if (candidate != null) {
+                runner.start(new RefreshTradesTask(List.of(candidate.id()), now + config.tasks.trading.maxWaitTicks),
+                        "refresh_trades");
+                break;
+            }
+        }
+        nextTradingRefresh.keySet().removeIf(owner -> CompanionManager.get(server).all().stream()
+                .noneMatch(companion -> owner.equals(companion.ownerUuid())));
+    }
+
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */
     public List<String> applyConfig(ServerConfig cfg) {
         List<String> problems = cfg.validate();
         logProblems(problems);
+        boolean tradingWasEnabled = config.tasks.trading.enabled;
         this.config = cfg;
+        if (tradingWasEnabled && !cfg.tasks.trading.enabled) {
+            tradeSessionGuard.closeAll("trading disabled by server config");
+            brains.invalidateTradingAuthorities("trading disabled by server config");
+        }
         syncCompanionNames(cfg);
         applyTaskSettings(cfg);
         brains.reload(cfg);

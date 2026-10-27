@@ -635,8 +635,10 @@ public final class BrainService {
             if (caller.access() != AccessLevel.OWNER || !owner.equals(caller.uuid())
                     || !(companion.level() instanceof ServerLevel level)) return "";
             var book = FriendaiServerState.get(server).trading().book(owner);
+            var tradingConfig = FriendaiServerState.get(server).config().tasks.trading;
             return TradePromptSummary.render(book, companion.hands().player().getUUID(), request,
-                    level.getServer().overworld().getGameTime());
+                    level.getServer().overworld().getGameTime(), tradingConfig.quoteFreshTicks,
+                    tradingConfig.locationFreshTicks);
         });
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
@@ -730,6 +732,11 @@ public final class BrainService {
     public TradeAuthority tradeAuthorityFor(UUID owner) {
         if (owner == null) throw new IllegalArgumentException("trade authority owner is required");
         return tradeAuthority(owner);
+    }
+
+    /** Revokes every runtime trading scope when server trading is disabled. */
+    public void invalidateTradingAuthorities(String reason) {
+        tradeAuthorities.values().forEach(authority -> authority.invalidateAll(reason));
     }
 
     private boolean spendingJob(Job job) {

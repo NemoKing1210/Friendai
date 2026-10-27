@@ -11,6 +11,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.InspectTraderTask;
+import dev.friendai.task.builtin.LevelTraderTask;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.builtin.TradeTask;
 import dev.friendai.task.trading.MerchantAdapter;
@@ -119,6 +120,27 @@ public final class TradingTaskTests {
             h.assertTrue(f.authority().progress(refreshedOrder.orderId()).orElseThrow().state()
                     == TradeProgress.State.COMPLETED, "authority did not record completion");
             assertClosed(h, f);
+            h.succeed();
+        } finally {
+            f.clean();
+        }
+    }
+
+    @GameTest
+    public void level_task_stops_when_real_trade_xp_reaches_target_without_filler(GameTestHelper h) {
+        Fixture f = setup(h, "task-level-trader", 1, 1, 1, false, true);
+        f.villager().setVillagerXp(8);
+        LevelTraderTask task = new LevelTraderTask(f.villager().getUUID(), 2, List.of(f.order()));
+        try {
+            task.start(f.context());
+            TaskStatus status = task.tick(f.context());
+            h.assertTrue(status == TaskStatus.RUNNING, "level task did not run the one authorized offer: " + task.resultSummary());
+            status = task.tick(f.context());
+            h.assertTrue(status == TaskStatus.SUCCESS, "real merchant XP did not reach level 2: " + task.resultSummary());
+            h.assertTrue(f.villager().getVillagerData().level() == 2, "villager did not advance to level 2");
+            h.assertTrue(f.villager().getVillagerXp() == 12, "vanilla merchant XP was not awarded: " + f.villager().getVillagerXp());
+            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1,
+                    "level task bought an extra or filler trade after reaching its target");
             h.succeed();
         } finally {
             f.clean();

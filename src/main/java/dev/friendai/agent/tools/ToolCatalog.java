@@ -106,8 +106,8 @@ public final class ToolCatalog {
         group(metas, ToolGroup.ANIMALS, Cost.MEDIUM, "breed_animals", "shear", "milk", "tame_animal", "lead_animals",
                 "harvest_honey", "fish");
         group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "plan_obtain");
-        group(metas, ToolGroup.TRADING, Cost.HIGH, "find_traders", "inspect_trader", "known_trades",
-                "plan_trade", "trade_item");
+        group(metas, ToolGroup.TRADING, Cost.HIGH, "find_traders", "inspect_trader", "refresh_trades",
+                "wait_for_restock", "known_trades", "plan_trade", "trade_item", "level_trader");
         group(metas, ToolGroup.RESOURCE, Cost.HIGH, "search_resource", "known_resources");
         group(metas, ToolGroup.BLUEPRINT, Cost.HIGH, "blueprint_help", "preview_structure", "build_structure",
                 "save_blueprint", "list_blueprints");
@@ -135,12 +135,18 @@ public final class ToolCatalog {
                 "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.");
         hint(metas, "find_traders",
                 "- Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.");
+        hint(metas, "refresh_trades",
+                "- Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.");
+        hint(metas, "wait_for_restock",
+                "- Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.");
         hint(metas, "known_trades",
                 "- Known prices are historical quotes. Check freshness and inspect a trader before any purchase; never promise a piglin barter reward.");
         hint(metas, "plan_trade",
                 "- plan_trade is read-only: check exact stock, output batches and every required currency before placing an order.");
         hint(metas, "trade_item",
                 "- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.");
+        hint(metas, "level_trader",
+                "- Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.");
         return new ToolCatalog(metas);
     }
 

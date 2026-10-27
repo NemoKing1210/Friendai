@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -105,6 +105,21 @@ public class ServerConfig {
         public int queueBlockedNoticeSec = 30;
         public int queueMaxStepsPerAdd = 32;
         public ResourceSection resources = new ResourceSection();
+        public TradingSection trading = new TradingSection();
+    }
+
+    /** Local merchant observation, restock waits and bounded piglin order defaults. */
+    public static class TradingSection {
+        public boolean enabled = true;
+        public boolean idleRefresh = true;
+        public int observationRadius = 64;
+        public int quoteFreshTicks = 1_200;
+        public int locationFreshTicks = 12_000;
+        public int idleRefreshIntervalTicks = 200;
+        public int waitTicks = 2_400;
+        public int maxWaitTicks = 12_000;
+        public int maxBarterIngots = 64;
+        public int barterDefaultIngots = 8;
     }
 
     public static class ResourceSection {
@@ -158,7 +173,7 @@ public class ServerConfig {
     /**
      * Version 8 enabled expeditions for existing servers once; later config edits retain their chosen value.
      * Version 9 added the {@code agent} section, whose field defaults fill in old files.
-     * Version 10 enables resource observations out to 64 blocks by default.
+     * Version 10 enables resource observations out to 64 blocks by default; version 11 adds trading defaults.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
@@ -183,6 +198,7 @@ public class ServerConfig {
             tasks.add("resources", resources);
             json.add("tasks", tasks);
         }
+        // Version 11's trading section is filled by field defaults when older JSON is deserialized.
         return json;
     }
 
@@ -227,6 +243,26 @@ public class ServerConfig {
                 tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
         tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
                 tasks.resources.observationRadius, 4, 64);
+        if (tasks.trading == null) {
+            tasks.trading = new TradingSection();
+            problems.add("tasks.trading was missing");
+        }
+        tasks.trading.observationRadius = clamp(problems, "tasks.trading.observationRadius",
+                tasks.trading.observationRadius, 8, 64);
+        tasks.trading.quoteFreshTicks = clamp(problems, "tasks.trading.quoteFreshTicks",
+                tasks.trading.quoteFreshTicks, 20, 72_000);
+        tasks.trading.locationFreshTicks = clamp(problems, "tasks.trading.locationFreshTicks",
+                tasks.trading.locationFreshTicks, 20, 72_000);
+        tasks.trading.idleRefreshIntervalTicks = clamp(problems, "tasks.trading.idleRefreshIntervalTicks",
+                tasks.trading.idleRefreshIntervalTicks, 200, 12_000);
+        tasks.trading.maxWaitTicks = clamp(problems, "tasks.trading.maxWaitTicks",
+                tasks.trading.maxWaitTicks, 20, 12_000);
+        tasks.trading.waitTicks = clamp(problems, "tasks.trading.waitTicks",
+                tasks.trading.waitTicks, 20, tasks.trading.maxWaitTicks);
+        tasks.trading.maxBarterIngots = clamp(problems, "tasks.trading.maxBarterIngots",
+                tasks.trading.maxBarterIngots, 1, 64);
+        tasks.trading.barterDefaultIngots = clamp(problems, "tasks.trading.barterDefaultIngots",
+                tasks.trading.barterDefaultIngots, 1, tasks.trading.maxBarterIngots);
         if (memory == null) {
             memory = new MemorySection();
             problems.add("memory was missing");

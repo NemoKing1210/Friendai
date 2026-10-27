@@ -7,7 +7,10 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.task.builtin.InspectTraderTask;
+import dev.friendai.task.builtin.LevelTraderTask;
+import dev.friendai.task.builtin.RefreshTradesTask;
 import dev.friendai.task.builtin.TradeTask;
+import dev.friendai.task.builtin.WaitForRestockTask;
 import dev.friendai.trading.TradeBudget;
 import dev.friendai.trading.TradeItem;
 import dev.friendai.trading.TradeOffer;
@@ -59,6 +62,45 @@ final class TradingTools {
                     requireOwner(c, caller);
                     return new InspectTraderTask(parseUuid(requiredString(args, "trader"), "trader"));
                 }), (c, caller, args) -> ToolResult.error("inspection requires an owner caller"));
+        JsonObject uuidSchema = new JsonObject();
+        uuidSchema.addProperty("type", "string");
+        uuidSchema.addProperty("format", "uuid");
+        ToolKit.addCaller(registry, defs, new TaskToolDef("refresh_trades",
+                "Inspect up to 20 exact selected merchants; only a complete vanilla inspection updates their remembered offers.",
+                strict(SchemaBuilder.object().array("traders", "Exact trader UUIDs to inspect",
+                        uuidSchema, 1, RefreshTradesTask.MAX_TRADERS).required("traders").build()),
+                (c, args) -> { throw new IllegalArgumentException("refresh requires an owner caller"); }, true,
+                AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, args) -> {
+                    rejectExtra(args, Set.of("traders"), false);
+                    requireOwner(c, caller);
+                    state(c);
+                    long deadline = Math.addExact(currentTick(c), state(c).config().tasks.trading.maxWaitTicks);
+                    return new RefreshTradesTask(parseUuidArray(args.getAsJsonArray("traders")), deadline);
+                }), (c, caller, args) -> ToolResult.error("refresh requires an owner caller"));
+        ToolKit.addCaller(registry, defs, new TaskToolDef("wait_for_restock",
+                "Wait for one selected villager offer to restock naturally. Wandering traders and villagers without a workstation cannot restock.",
+                strict(SchemaBuilder.object()
+                        .string("trader", "Exact trader UUID")
+                        .string("offer_ref", "Exact known offer reference")
+                        .integer("wait_ticks", "Optional bounded wait, defaulting to server trading settings", 20, 12_000)
+                        .required("trader", "offer_ref").build()),
+                (c, args) -> { throw new IllegalArgumentException("restock wait requires an owner caller"); }, true,
+                AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
+                (c, caller, args) -> createRestockTask(c, caller, args)),
+                (c, caller, args) -> ToolResult.error("restock wait requires an owner caller"));
+        ToolKit.addCaller(registry, defs, new TaskToolDef("level_trader",
+                "Raise one selected villager's level using only the explicitly allowed offers and one shared cumulative spending cap; repeat a ref in the list to explicitly permit another fill. Never buy filler trades.",
+                strict(SchemaBuilder.object().string("trader", "Exact villager UUID")
+                        .integer("target_level", "Target profession level", 2, 5)
+                        .array("allowed_offer_refs", "Exact offer references the owner permits for leveling", offerRefSchema(), 1, 64)
+                        .array("input_caps", "Shared cumulative spending ceiling and reserves", inputRowsSchema(), 1, MAX_TRADE_INPUTS)
+                        .array("allowed_payment_fingerprints", "Optional exact modified payment stacks", fingerprintSchema(), 0, 256)
+                        .integer("deadline_ticks", "Shared execution deadline from now", 1, MAX_DEADLINE_TICKS)
+                        .required("trader", "target_level", "allowed_offer_refs", "input_caps", "deadline_ticks").build()),
+                (c, args) -> { throw new IllegalArgumentException("leveling requires an owner caller"); }, true,
+                AccessLevel.OWNER, new TaskToolDef.QueueTraits(false, null, true), TradingTools::createLevelTraderTask),
+                (c, caller, args) -> ToolResult.error("leveling requires an owner caller"));
         registry.register(ToolKit.callerTool("known_trades",
                 "Query remembered buy or sell offers. Results show freshness and stock; a quote is historical and is never permission to pay.",
                 strict(SchemaBuilder.object()
@@ -120,7 +162,8 @@ final class TradingTools {
         var book = state.trading().book(owner);
         book.activatePricingActor(actor);
         long now = currentTick(companion);
-        List<TradeQuery.Match> matches = book.query(query, now);
+        List<TradeQuery.Match> matches = book.query(query, now, state.config().tasks.trading.quoteFreshTicks,
+                state.config().tasks.trading.locationFreshTicks);
         return ToolResult.ok(matches.isEmpty() ? "No remembered offers match this exact item and component query."
                 : "Remembered offers (historical quotes; inspect before spending):\n"
                         + String.join("\n", matches.stream().map(TradeText::describe).toList()));
@@ -141,7 +184,10 @@ final class TradingTools {
         List<TraderRecord> records = book.snapshot().traders();
         Map<String, Integer> inventory = inventoryByItem(companion);
         TradePlan plan = TradePlanner.plan(query, desired, records, inventory, budget,
-                currentTick(companion), args.has("allow_overshoot") && args.get("allow_overshoot").getAsBoolean(), actor);
+                currentTick(companion), args.has("allow_overshoot") && args.get("allow_overshoot").getAsBoolean(), actor,
+                new TradePlanner.Location(companion.level().dimension().identifier().toString(),
+                        companion.blockPosition().getX(), companion.blockPosition().getY(), companion.blockPosition().getZ()),
+                state.config().tasks.trading.quoteFreshTicks, state.config().tasks.trading.locationFreshTicks);
         return ToolResult.ok(describePlan(plan, records));
     }
 
@@ -183,7 +229,7 @@ final class TradingTools {
                 .orElseThrow(() -> new IllegalArgumentException("unknown or ambiguous offer reference"));
         long now = currentTick(companion);
         if (trader.status() != TraderRecord.Status.VERIFIED || !actor.equals(offer.pricingActor())
-                || offer.observedTick() > now || now - offer.observedTick() >= dev.friendai.trading.TradeBook.QUOTE_FRESH_TICKS) {
+                || offer.observedTick() > now || now - offer.observedTick() >= state.config().tasks.trading.quoteFreshTicks) {
             throw new IllegalArgumentException("offer quote is stale; inspect this trader again before spending");
         }
         if (offer.exhausted()) throw new IllegalArgumentException("offer is exhausted; inspect again for restock");
@@ -195,6 +241,74 @@ final class TradingTools {
                 revision, desired, budget, fingerprints, overshoot, partial, deadline);
         TradeOrder authorized = state.brains().tradeAuthorityFor(owner).authorize(caller, requested);
         return new TradeTask(authorized);
+    }
+
+    private static dev.friendai.task.Task createRestockTask(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of("trader", "offer_ref", "wait_ticks"), false);
+        requireOwner(companion, caller);
+        var state = state(companion);
+        UUID traderId = parseUuid(requiredString(args, "trader"), "trader");
+        String offerRef = requiredString(args, "offer_ref");
+        int maximum = state.config().tasks.trading.maxWaitTicks;
+        int waitTicks = args.has("wait_ticks") ? args.get("wait_ticks").getAsInt()
+                : state.config().tasks.trading.waitTicks;
+        if (waitTicks < 20 || waitTicks > maximum) {
+            throw new IllegalArgumentException("wait_ticks must be between 20 and the configured maximum " + maximum);
+        }
+        long deadline = Math.addExact(currentTick(companion), waitTicks);
+        return new WaitForRestockTask(traderId, offerRef, deadline);
+    }
+
+    private static dev.friendai.task.Task createLevelTraderTask(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of("trader", "target_level", "allowed_offer_refs", "input_caps",
+                "allowed_payment_fingerprints", "deadline_ticks", QueueTradeScope.ARG), true);
+        UUID owner = requireOwner(companion, caller);
+        if (caller.tradingScope() == null) throw new IllegalArgumentException("leveling requires an owner-initiated player turn");
+        UUID savedScope = QueueTradeScope.read(args);
+        if (savedScope != null && !savedScope.equals(caller.tradingScope())) {
+            throw new IllegalArgumentException("queued trading scope does not match this owner turn");
+        }
+        int targetLevel = args.get("target_level").getAsInt();
+        if (targetLevel < 2 || targetLevel > 5) throw new IllegalArgumentException("target_level must be between 2 and 5");
+        JsonArray refs = args.getAsJsonArray("allowed_offer_refs");
+        if (refs == null || refs.isEmpty() || refs.size() > 64) throw new IllegalArgumentException("allowed_offer_refs must contain 1 to 64 refs");
+        var state = state(companion);
+        UUID traderId = parseUuid(requiredString(args, "trader"), "trader");
+        TradeBudget budget = parseBudget(args.getAsJsonArray("input_caps"), MAX_TRADE_INPUTS);
+        Set<String> fingerprints = parseFingerprints(args.getAsJsonArray("allowed_payment_fingerprints"));
+        int deadlineTicks = args.get("deadline_ticks").getAsInt();
+        if (deadlineTicks < 1 || deadlineTicks > MAX_DEADLINE_TICKS) throw new IllegalArgumentException("deadline_ticks is out of range");
+        long now = currentTick(companion);
+        long deadline = Math.addExact(now, deadlineTicks);
+        var book = state.trading().book(owner);
+        TraderRecord trader = book.trader(traderId).orElseThrow(() -> new IllegalArgumentException("unknown trader UUID"));
+        if (!"minecraft:villager".equals(trader.entityType())) throw new IllegalArgumentException("only a selected villager can be leveled");
+        var orders = new java.util.ArrayList<TradeOrder>();
+        int fillIndex = 0;
+        for (JsonElement element : refs) {
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                throw new IllegalArgumentException("allowed_offer_refs must be strings");
+            }
+            String ref = element.getAsString();
+            if (ref.isBlank() || ref.length() > 160) {
+                throw new IllegalArgumentException("allowed offer refs must be non-empty and bounded");
+            }
+            TradeOffer offer = book.resolveOffer(traderId, ref)
+                    .orElseThrow(() -> new IllegalArgumentException("unknown or ambiguous allowed offer ref: " + ref));
+            if (offer.exhausted()) throw new IllegalArgumentException("allowed offer is exhausted; inspect or wait for restock first");
+            if (!offer.pricingActor().equals(companion.hands().player().getUUID()) || offer.observedTick() > now
+                    || now - offer.observedTick() >= state.config().tasks.trading.quoteFreshTicks) {
+                throw new IllegalArgumentException("allowed offer quote is stale; inspect the villager again");
+            }
+            validateBudgetCoversOffer(budget, offer);
+            UUID id = orderId(caller.tradingScope(), traderId, ref, trader.revision(), 1, budget, fingerprints,
+                    true, false, deadlineTicks);
+            id = UUID.nameUUIDFromBytes((id + "\nlevel-fill-" + fillIndex++).getBytes(StandardCharsets.UTF_8));
+            TradeOrder requested = new TradeOrder(id, owner, caller.tradingScope(), traderId, ref, trader.revision(),
+                    1, budget, fingerprints, true, false, deadline);
+            orders.add(state.brains().tradeAuthorityFor(owner).authorize(caller, requested));
+        }
+        return new LevelTraderTask(traderId, targetLevel, orders);
     }
 
     private static TradeQuery parseQuery(JsonObject args) {
@@ -275,6 +389,14 @@ final class TradingTools {
         }
     }
 
+    private static void validateBudgetCoversOffer(TradeBudget budget, TradeOffer offer) {
+        for (var input : offer.effectiveInputs()) {
+            if (!budget.inputCaps().containsKey(input.itemId())) {
+                throw new IllegalArgumentException("shared input_caps must cover every input of every allowed offer");
+            }
+        }
+    }
+
     private static Map<String, Integer> inventoryByItem(CompanionEntity companion) {
         Map<String, Integer> result = new HashMap<>();
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
@@ -318,7 +440,9 @@ final class TradingTools {
         if (companion.level().isClientSide() || companion.level().getServer() == null) {
             throw new IllegalArgumentException("trading tools require a server companion");
         }
-        return FriendaiServerState.get(companion.level().getServer());
+        FriendaiServerState state = FriendaiServerState.get(companion.level().getServer());
+        if (!state.config().tasks.trading.enabled) throw new IllegalArgumentException("trading is disabled by the server");
+        return state;
     }
 
     private static long currentTick(CompanionEntity companion) {
@@ -330,6 +454,20 @@ final class TradingTools {
             throw new IllegalArgumentException(label + " must be a canonical UUID");
         }
         return UUID.fromString(text);
+    }
+
+    private static List<UUID> parseUuidArray(JsonArray values) {
+        if (values == null || values.size() < 1 || values.size() > RefreshTradesTask.MAX_TRADERS) {
+            throw new IllegalArgumentException("traders must contain 1 to 20 UUIDs");
+        }
+        List<UUID> result = new java.util.ArrayList<>(values.size());
+        for (JsonElement element : values) {
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                throw new IllegalArgumentException("each trader id must be a UUID string");
+            }
+            result.add(parseUuid(element.getAsString(), "trader"));
+        }
+        return List.copyOf(result);
     }
 
     private static String requiredString(JsonObject args, String name) {
@@ -369,6 +507,14 @@ final class TradingTools {
         JsonObject item = new JsonObject();
         item.addProperty("type", "string");
         item.addProperty("pattern", "^[0-9a-f]{64}$");
+        return item;
+    }
+
+    private static JsonObject offerRefSchema() {
+        JsonObject item = new JsonObject();
+        item.addProperty("type", "string");
+        item.addProperty("minLength", 1);
+        item.addProperty("maxLength", 160);
         return item;
     }
 }

@@ -36,6 +36,11 @@ public final class TradePromptSummary {
 
     /** Returns at most eight offers matching the current request or trader topic. */
     public static String render(TradeBook book, UUID pricingActor, String request, long nowTick) {
+        return render(book, pricingActor, request, nowTick, TradeBook.QUOTE_FRESH_TICKS, TradeBook.POSITION_FRESH_TICKS);
+    }
+
+    public static String render(TradeBook book, UUID pricingActor, String request, long nowTick,
+                                long quoteFreshTicks, long locationFreshTicks) {
         if (book == null || pricingActor == null || request == null || request.isBlank() || nowTick < 0) return "";
         List<String> words = WORDS.splitAsStream(request.toLowerCase(Locale.ROOT))
                 .filter(word -> !word.isBlank() && !GENERAL.contains(word)).toList();
@@ -48,8 +53,9 @@ public final class TradePromptSummary {
         var candidates = new ArrayList<Candidate>();
         for (var trader : book.snapshot().traders()) {
             for (var offer : trader.offers()) {
-                Candidate candidate = new Candidate(trader, offer, staleQuote(trader, offer, pricingActor, nowTick),
-                        stalePosition(trader, nowTick));
+                Candidate candidate = new Candidate(trader, offer,
+                        staleQuote(trader, offer, pricingActor, nowTick, quoteFreshTicks),
+                        stalePosition(trader, nowTick, locationFreshTicks));
                 if (broadTradingQuestion || matches(candidate, words)) candidates.add(candidate);
             }
         }
@@ -76,14 +82,14 @@ public final class TradePromptSummary {
         return words.stream().anyMatch(searchable::contains);
     }
 
-    private static boolean staleQuote(TraderRecord trader, TradeOffer offer, UUID actor, long nowTick) {
+    private static boolean staleQuote(TraderRecord trader, TradeOffer offer, UUID actor, long nowTick, long freshTicks) {
         return trader.status() != TraderRecord.Status.VERIFIED || !actor.equals(offer.pricingActor())
                 || offer.observedTick() < 0 || nowTick < offer.observedTick()
-                || nowTick - offer.observedTick() >= TradeBook.QUOTE_FRESH_TICKS;
+                || nowTick - offer.observedTick() >= freshTicks;
     }
 
-    private static boolean stalePosition(TraderRecord trader, long nowTick) {
-        return nowTick < trader.lastSeen() || nowTick - trader.lastSeen() >= TradeBook.POSITION_FRESH_TICKS;
+    private static boolean stalePosition(TraderRecord trader, long nowTick, long freshTicks) {
+        return nowTick < trader.lastSeen() || nowTick - trader.lastSeen() >= freshTicks;
     }
 
     private static String line(Candidate candidate) {

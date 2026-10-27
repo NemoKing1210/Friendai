@@ -21,7 +21,12 @@ public final class TradePlanner {
     }
 
     private record Candidate(TraderRecord trader, TradeOffer offer, boolean quoteStale,
-                             boolean positionStale, boolean ambiguous) {}
+                             boolean positionStale, boolean ambiguous, double distance) {}
+
+    /** Optional current companion location used only to break equally priced/fresh route ties. */
+    public record Location(String dimension, int x, int y, int z) {
+        public Location { TradeItem.requireId(dimension); }
+    }
 
     private TradePlanner() {}
 
@@ -42,6 +47,13 @@ public final class TradePlanner {
         return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot, null);
     }
 
+    /** Plans with deterministic freshness first and travel distance as the next route tiebreaker. */
+    public static TradePlan plan(TradeQuery query, int count, List<TraderRecord> traders,
+                                 Map<String, Integer> inventory, TradeBudget budget, long nowTick,
+                                 boolean allowOvershoot, Location location) {
+        return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot, null, location);
+    }
+
     /** Defaults to exact output sizing while checking quote ownership against the current pricing actor. */
     public static TradePlan plan(TradeQuery query, int count, List<TraderRecord> traders,
                                  Map<String, Integer> inventory, TradeBudget budget, long nowTick,
@@ -55,12 +67,44 @@ public final class TradePlanner {
                                  Map<String, Integer> inventory, TradeBudget budget, long nowTick,
                                  boolean allowOvershoot, UUID pricingActor) {
         return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot,
-                Objects.requireNonNull(pricingActor, "pricing actor is required"));
+                Objects.requireNonNull(pricingActor, "pricing actor is required"), null);
+    }
+
+    /** Plans with actor-specific quote freshness and the current companion location for route tie-breaking. */
+    public static TradePlan plan(TradeQuery query, int count, List<TraderRecord> traders,
+                                 Map<String, Integer> inventory, TradeBudget budget, long nowTick,
+                                 boolean allowOvershoot, UUID pricingActor, Location location) {
+        return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot,
+                Objects.requireNonNull(pricingActor, "pricing actor is required"), location);
+    }
+
+    public static TradePlan plan(TradeQuery query, int count, List<TraderRecord> traders,
+                                 Map<String, Integer> inventory, TradeBudget budget, long nowTick,
+                                 boolean allowOvershoot, UUID pricingActor, Location location,
+                                 long quoteFreshTicks, long locationFreshTicks) {
+        if (quoteFreshTicks < 1 || locationFreshTicks < 1) throw new IllegalArgumentException("freshness windows must be positive");
+        return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot,
+                Objects.requireNonNull(pricingActor, "pricing actor is required"), location,
+                quoteFreshTicks, locationFreshTicks);
     }
 
     private static TradePlan planInternal(TradeQuery query, int count, List<TraderRecord> traders,
                                           Map<String, Integer> inventory, TradeBudget budget, long nowTick,
                                           boolean allowOvershoot, UUID pricingActor) {
+        return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot, pricingActor, null);
+    }
+
+    private static TradePlan planInternal(TradeQuery query, int count, List<TraderRecord> traders,
+                                          Map<String, Integer> inventory, TradeBudget budget, long nowTick,
+                                          boolean allowOvershoot, UUID pricingActor, Location location) {
+        return planInternal(query, count, traders, inventory, budget, nowTick, allowOvershoot, pricingActor,
+                location, TradeBook.QUOTE_FRESH_TICKS, TradeBook.POSITION_FRESH_TICKS);
+    }
+
+    private static TradePlan planInternal(TradeQuery query, int count, List<TraderRecord> traders,
+                                          Map<String, Integer> inventory, TradeBudget budget, long nowTick,
+                                          boolean allowOvershoot, UUID pricingActor, Location location,
+                                          long quoteFreshTicks, long locationFreshTicks) {
         Objects.requireNonNull(query, "trade query is required");
         Objects.requireNonNull(traders, "trader observations are required");
         Objects.requireNonNull(inventory, "inventory counts are required");
@@ -70,7 +114,8 @@ public final class TradePlanner {
             throw new IllegalArgumentException("trade plan input is outside supported bounds");
         }
         validateInventory(inventory);
-        List<Candidate> candidates = candidates(query, traders, nowTick, pricingActor);
+        List<Candidate> candidates = candidates(query, traders, nowTick, pricingActor, location,
+                quoteFreshTicks, locationFreshTicks);
         var needsInspection = new TreeSet<java.util.UUID>();
         for (Candidate candidate : candidates) {
             if (candidate.quoteStale() || candidate.positionStale() || candidate.ambiguous()
@@ -133,7 +178,8 @@ public final class TradePlanner {
     }
 
     private static List<Candidate> candidates(TradeQuery query, List<TraderRecord> traders, long nowTick,
-                                              UUID pricingActor) {
+                                              UUID pricingActor, Location location,
+                                              long quoteFreshTicks, long locationFreshTicks) {
         var result = new ArrayList<Candidate>();
         var seenTraders = new HashSet<java.util.UUID>();
         for (TraderRecord trader : traders) {
@@ -143,24 +189,37 @@ public final class TradePlanner {
                     || trader.status() == TraderRecord.Status.EXPIRED) continue;
             var duplicateCounts = new HashMap<OfferIdentity, Integer>();
             for (TradeOffer offer : trader.offers()) duplicateCounts.merge(OfferIdentity.of(offer), 1, Integer::sum);
-            boolean positionStale = stale(nowTick, trader.lastSeen(), TradeBook.POSITION_FRESH_TICKS);
+            boolean positionStale = stale(nowTick, trader.lastSeen(), locationFreshTicks);
             for (TradeOffer offer : trader.offers()) {
                 if (!query.matches(offer)) continue;
                 boolean quoteStale = trader.status() != TraderRecord.Status.VERIFIED
                         || (pricingActor != null && !offer.pricingActor().equals(pricingActor))
-                        || stale(nowTick, offer.observedTick(), TradeBook.QUOTE_FRESH_TICKS);
+                        || stale(nowTick, offer.observedTick(), quoteFreshTicks);
                 boolean ambiguous = duplicateCounts.getOrDefault(OfferIdentity.of(offer), 0) > 1;
-                result.add(new Candidate(trader, offer, quoteStale, positionStale, ambiguous));
+                result.add(new Candidate(trader, offer, quoteStale, positionStale, ambiguous,
+                        distance(location, trader)));
             }
         }
         result.sort(Comparator.comparing(Candidate::quoteStale)
                 .thenComparing(candidate -> candidate.offer().exhausted())
                 .thenComparing(Candidate::positionStale)
+                .thenComparing((Candidate candidate) -> candidate.offer().observedTick(), Comparator.reverseOrder())
+                .thenComparing((Candidate candidate) -> candidate.trader().lastSeen(), Comparator.reverseOrder())
+                .thenComparingDouble(Candidate::distance)
                 .thenComparing(candidate -> candidate.trader().id())
                 .thenComparing(candidate -> candidate.offer().fingerprint())
                 .thenComparing(candidate -> candidate.offer().ref()));
         if (result.size() > query.limit()) return List.copyOf(result.subList(0, query.limit()));
         return List.copyOf(result);
+    }
+
+    private static double distance(Location location, TraderRecord trader) {
+        if (location == null) return 0;
+        if (!location.dimension().equals(trader.dimension())) return Double.POSITIVE_INFINITY;
+        double dx = (double) location.x() - trader.x();
+        double dy = (double) location.y() - trader.y();
+        double dz = (double) location.z() - trader.z();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static Map<String, Long> costPerRepeat(List<TradeCost> inputs) {

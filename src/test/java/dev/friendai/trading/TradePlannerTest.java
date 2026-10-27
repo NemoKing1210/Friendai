@@ -136,6 +136,24 @@ final class TradePlannerTest {
     }
 
     @Test
+    void configuredFreshnessWindowControlsQuoteAndLocationStaleness() {
+        TradeOffer offer = offer("config-freshness", List.of(cost(EMERALD, 1)),
+                List.of(cost(EMERALD, 1)), item(BREAD, 1), 0, 20, 80);
+        TraderRecord trader = at(trader(18, TraderRecord.Status.VERIFIED, 80, offer), 10, 0, 0);
+
+        TradePlan plan = TradePlanner.plan(buyBread(), 1, List.of(trader), Map.of(EMERALD, 1),
+                budget(Map.of(EMERALD, 1), Map.of(), Map.of()), 100, false, ACTOR,
+                new TradePlanner.Location("minecraft:overworld", 0, 0, 0), 30, 120);
+
+        assertFalse(plan.conditional(), "the configured windows should mark this offer and location fresh");
+        TradePlan shortQuoteWindow = TradePlanner.plan(buyBread(), 1, List.of(trader), Map.of(EMERALD, 1),
+                budget(Map.of(EMERALD, 1), Map.of(), Map.of()), 100, false, ACTOR,
+                new TradePlanner.Location("minecraft:overworld", 0, 0, 0), 15, 120);
+        assertTrue(shortQuoteWindow.conditional());
+        assertEquals(List.of(trader.id()), shortQuoteWindow.needsInspection());
+    }
+
+    @Test
     void fresh_quote_for_another_pricing_actor_is_conditional_and_needs_inspection() {
         TradeOffer offer = offer("other-actor", List.of(cost(EMERALD, 1)),
                 List.of(cost(EMERALD, 1)), item(BREAD, 3), 0, 20, 10);
@@ -147,6 +165,39 @@ final class TradePlannerTest {
         assertEquals(1, plan.fills().size(), "planning remains informational even for a stale actor quote");
         assertTrue(plan.conditional());
         assertEquals(List.of(trader.id()), plan.needsInspection());
+    }
+
+    @Test
+    void selects_fresher_offer_before_travel_distance_when_costs_are_equal() {
+        TradeOffer recent = offer("recent", List.of(cost(EMERALD, 1)), List.of(cost(EMERALD, 1)),
+                item(BREAD, 1), 0, 20, 19);
+        TradeOffer old = offer("old", List.of(cost(EMERALD, 1)), List.of(cost(EMERALD, 1)),
+                item(BREAD, 1), 0, 20, 18);
+        TraderRecord fartherRecent = at(trader(12, TraderRecord.Status.VERIFIED, 19, recent), 40, 0, 0);
+        TraderRecord nearOld = at(trader(13, TraderRecord.Status.VERIFIED, 18, old), 1, 0, 0);
+
+        TradePlan plan = TradePlanner.plan(buyBread(), 1, List.of(nearOld, fartherRecent), Map.of(EMERALD, 1),
+                budget(Map.of(EMERALD, 1), Map.of(), Map.of()), 20, false,
+                new TradePlanner.Location("minecraft:overworld", 0, 0, 0));
+
+        assertEquals(fartherRecent.id(), plan.fills().getFirst().trader());
+    }
+
+    @Test
+    void uses_nearest_trader_after_freshness_ties_and_uuid_is_final_tiebreaker() {
+        TradeOffer sameRef = offer("bread", List.of(cost(EMERALD, 1)), List.of(cost(EMERALD, 1)),
+                item(BREAD, 1), 0, 20, 19);
+        TraderRecord farther = at(trader(15, TraderRecord.Status.VERIFIED, 19, sameRef), 30, 0, 0);
+        TraderRecord nearer = at(trader(14, TraderRecord.Status.VERIFIED, 19, sameRef), 2, 0, 0);
+
+        TradePlan nearPlan = TradePlanner.plan(buyBread(), 1, List.of(farther, nearer), Map.of(EMERALD, 1),
+                budget(Map.of(EMERALD, 1), Map.of(), Map.of()), 20, false,
+                new TradePlanner.Location("minecraft:overworld", 0, 0, 0));
+        TradePlan stableTie = TradePlanner.plan(buyBread(), 1, List.of(farther, nearer), Map.of(EMERALD, 1),
+                budget(Map.of(EMERALD, 1), Map.of(), Map.of()), 20);
+
+        assertEquals(nearer.id(), nearPlan.fills().getFirst().trader());
+        assertEquals(nearer.id(), stableTie.fills().getFirst().trader());
     }
 
     @Test
@@ -215,5 +266,11 @@ final class TradePlannerTest {
         UUID id = UUID.fromString(String.format("00000000-0000-0000-0000-%012d", suffix));
         return new TraderRecord(id, "minecraft:villager", "minecraft:overworld", suffix, 64, 0,
                 "villager", "", 2, 0, tick, tick, 1, status, List.of(offers));
+    }
+
+    private static TraderRecord at(TraderRecord original, int x, int y, int z) {
+        return new TraderRecord(original.id(), original.entityType(), original.dimension(), x, y, z,
+                original.label(), original.profession(), original.level(), original.firstSeen(), original.lastSeen(),
+                original.offersSeen(), original.revision(), original.status(), original.offers());
     }
 }

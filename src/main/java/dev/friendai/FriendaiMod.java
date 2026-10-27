@@ -56,6 +56,7 @@ public class FriendaiMod implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriendaiServerState state = FriendaiServerState.get(server);
             state.tradeSessionGuard().tick(server.overworld().getGameTime());
+            state.tickTrading();
             state.observations().tick(server, server.overworld().getGameTime());
             state.brains().tick();
             state.chunkLoader().tick();

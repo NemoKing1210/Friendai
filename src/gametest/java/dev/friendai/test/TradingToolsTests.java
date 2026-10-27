@@ -22,7 +22,8 @@ import net.minecraft.world.item.Items;
 
 public final class TradingToolsTests {
     private static final List<String> TRADING_TOOLS = List.of(
-            "find_traders", "inspect_trader", "known_trades", "plan_trade", "trade_item");
+            "find_traders", "inspect_trader", "refresh_trades", "wait_for_restock", "known_trades",
+            "plan_trade", "trade_item", "level_trader");
 
     private static ToolExecutor tools(CompanionEntity companion) {
         return FriendaiTools.create(() -> 32).bind(companion);

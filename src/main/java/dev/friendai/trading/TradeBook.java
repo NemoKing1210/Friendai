@@ -119,17 +119,22 @@ public final class TradeBook {
     }
 
     public List<TradeQuery.Match> query(TradeQuery query, long nowTick) {
+        return query(query, nowTick, QUOTE_FRESH_TICKS, POSITION_FRESH_TICKS);
+    }
+
+    public List<TradeQuery.Match> query(TradeQuery query, long nowTick, long quoteFreshTicks, long locationFreshTicks) {
         Objects.requireNonNull(query);
+        if (quoteFreshTicks < 1 || locationFreshTicks < 1) throw new IllegalArgumentException("freshness windows must be positive");
         var matches = new ArrayList<TradeQuery.Match>();
         for (var trader : traders.values()) {
-            boolean positionStale = stale(nowTick, trader.lastSeen(), POSITION_FRESH_TICKS);
+            boolean positionStale = stale(nowTick, trader.lastSeen(), locationFreshTicks);
             var duplicates = new HashMap<OfferIdentity, Integer>();
             for (var offer : trader.offers()) duplicates.merge(OfferIdentity.of(offer), 1, Integer::sum);
             for (var offer : trader.offers()) {
                 if (!query.matches(offer)) continue;
                 boolean quoteStale = trader.status() != TraderRecord.Status.VERIFIED
                         || !offer.pricingActor().equals(pricingActor)
-                        || stale(nowTick, offer.observedTick(), QUOTE_FRESH_TICKS);
+                        || stale(nowTick, offer.observedTick(), quoteFreshTicks);
                 matches.add(new TradeQuery.Match(trader, offer, quoteStale, positionStale, duplicates.get(OfferIdentity.of(offer)) > 1));
             }
         }
