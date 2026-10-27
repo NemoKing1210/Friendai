@@ -24,6 +24,8 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 **When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
 
+**Recording an item is not a commit of its own.** When the maintainer dictates work into `TODO.md`, write it and leave the file uncommitted — several items usually arrive in one sitting, and one commit per item is noise. Commit `TODO.md` once the batch is done or when the maintainer asks, along with the other files of that commit. This is the one deliberate exception to "commit your own work as you finish it"; everything else follows that rule.
+
 ## Commands
 
 Java **25** is required (Gradle and Loom refuse to run on older JVMs). If your default `java` is older, point Gradle at a JDK 25 for the command:
