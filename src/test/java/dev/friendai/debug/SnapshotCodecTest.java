@@ -49,7 +49,7 @@ class SnapshotCodecTest {
         CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
                 base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
                 base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
-                base.autoRespawnAvailable(), true, "mine iron for a pickaxe");
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "mine iron for a pickaxe");
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
     }
 
@@ -59,7 +59,7 @@ class SnapshotCodecTest {
         CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
                 base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
                 base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
-                base.autoRespawnAvailable(), true, "x".repeat(500));
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true, "x".repeat(500));
         assertEquals(CompanionSnapshot.MAX_ACTIVITY, s.freeTimeActivity().length());
     }
 

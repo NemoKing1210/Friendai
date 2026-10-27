@@ -7,6 +7,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CreativeSnapshotCodecTest {
+    /** The free-time fields written after the creative ones: a flag and an empty string (length prefix only). */
+    private static final int FREE_TIME_TAIL = 1 + 4;
+
     @Test
     void roundTripsModeAndAvailability() {
         CompanionSnapshot snapshot = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(),
@@ -20,7 +23,7 @@ class CreativeSnapshotCodecTest {
         CompanionSnapshot snapshot = new CompanionSnapshot(false, false, "", "", "", false, "", List.of(),
                 List.of(), "", List.of(), CompanionVitals.NONE, List.of(), true, false, true, false);
         byte[] encoded = SnapshotCodec.encode(snapshot);
-        byte[] truncated = java.util.Arrays.copyOf(encoded, encoded.length - 1);
+        byte[] truncated = java.util.Arrays.copyOf(encoded, encoded.length - FREE_TIME_TAIL - 1);
 
         assertThrows(IllegalArgumentException.class, () -> SnapshotCodec.decode(truncated));
     }
@@ -41,7 +44,7 @@ class CreativeSnapshotCodecTest {
         CompanionSnapshot snapshot = new CompanionSnapshot(true, false, "A", "", "", false, "", List.of(),
                 List.of(), "", List.of(), CompanionVitals.NONE, List.of(), false, true, true, true);
         byte[] current = SnapshotCodec.encode(snapshot);
-        byte[] oldWire = java.util.Arrays.copyOf(current, current.length - 2);
+        byte[] oldWire = java.util.Arrays.copyOf(current, current.length - FREE_TIME_TAIL - 2);
 
         CompanionSnapshot decoded = SnapshotCodec.decode(oldWire);
 
