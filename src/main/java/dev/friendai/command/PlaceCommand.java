@@ -106,7 +106,7 @@ public final class PlaceCommand {
                     "friendai.command.place.list.entry",
                     place.id(),
                     place.name(),
-                    kindText(place.kind()),
+                    kindMessage(place.kind()),
                     place.dimension(),
                     place.anchor().x(),
                     place.anchor().y(),
@@ -162,7 +162,7 @@ public final class PlaceCommand {
                 ctx,
                 existing ? "friendai.command.place.updated" : "friendai.command.place.add",
                 place.name(),
-                kindText(place.kind()));
+                kindMessage(place.kind()));
         return 1;
     }
 
@@ -181,14 +181,14 @@ public final class PlaceCommand {
                 ctx,
                 "friendai.command.place.info",
                 place.name(),
-                kindText(place.kind()),
+                kindMessage(place.kind()),
                 place.dimension(),
                 place.anchor().x(),
                 place.anchor().y(),
                 place.anchor().z(),
                 place.radius(),
                 place.visits(),
-                sourceText(place.source()));
+                sourceMessage(place.source()));
         return 1;
     }
 
@@ -211,9 +211,7 @@ public final class PlaceCommand {
         if (taken.isPresent() && taken.get().id() != place.id()) {
             return failure(ctx, "friendai.command.place.name.taken", newName);
         }
-        Caller caller = caller(session);
-        Place renamed = PlaceService.rename(
-                session.companion(), caller, place.name(), newName, session.player().level().getGameTime());
+        Place renamed = session.book().rename(place.id(), newName, session.player().level().getGameTime());
         reply(ctx, "friendai.command.place.rename", place.name(), renamed.name());
         return 1;
     }
@@ -229,7 +227,7 @@ public final class PlaceCommand {
             return 0;
         }
         Place place = found.get();
-        PlaceService.forget(session.companion(), caller(session), place.name());
+        session.book().remove(place.id());
         reply(ctx, "friendai.command.place.remove", place.name());
         return 1;
     }
@@ -286,17 +284,34 @@ public final class PlaceCommand {
         return name.strip().length() <= PlaceLimits.NAME_MAX;
     }
 
-    private static Caller caller(Session session) {
-        return new Caller(
-                session.player().getUUID(), session.player().getName().getString(), AccessLevel.OWNER);
+    /** The localized kind name; every key is a literal so {@code LangFilesTest} can verify it. */
+    private static UserMessage kindMessage(PlaceKind kind) {
+        return UserMessage.of(switch (kind) {
+            case HOUSE -> "friendai.command.place.kind.house";
+            case FARM -> "friendai.command.place.kind.farm";
+            case MINE -> "friendai.command.place.kind.mine";
+            case STORAGE -> "friendai.command.place.kind.storage";
+            case PORTAL -> "friendai.command.place.kind.portal";
+            case TRADE -> "friendai.command.place.kind.trade";
+            case LANDMARK -> "friendai.command.place.kind.landmark";
+        });
     }
 
+    /** The localized origin name; every key is a literal so {@code LangFilesTest} can verify it. */
+    private static UserMessage sourceMessage(PlaceSource source) {
+        return UserMessage.of(switch (source) {
+            case MANUAL -> "friendai.command.place.source.manual";
+            case COMMAND -> "friendai.command.place.source.command";
+            case BUILD -> "friendai.command.place.source.build";
+            case STRUCTURE -> "friendai.command.place.source.structure";
+            case FARM -> "friendai.command.place.source.farm";
+            case MINE -> "friendai.command.place.source.mine";
+        });
+    }
+
+    /** The raw lowercase kind used by the {@code .kind.unknown} syntax list, not as player-facing prose. */
     private static String kindText(PlaceKind kind) {
         return kind.name().toLowerCase(Locale.ROOT);
-    }
-
-    private static String sourceText(PlaceSource source) {
-        return source.name().toLowerCase(Locale.ROOT);
     }
 
     private static String kindsText() {

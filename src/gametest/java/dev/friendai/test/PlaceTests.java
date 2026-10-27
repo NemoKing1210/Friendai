@@ -110,9 +110,15 @@ public class PlaceTests {
     }
 
     private static boolean containsKey(Component component, String key) {
-        if (component.getContents() instanceof TranslatableContents translatable
-                && translatable.getKey().equals(key)) {
-            return true;
+        if (component.getContents() instanceof TranslatableContents translatable) {
+            if (translatable.getKey().equals(key)) {
+                return true;
+            }
+            for (Object arg : translatable.getArgs()) {
+                if (arg instanceof Component nested && containsKey(nested, key)) {
+                    return true;
+                }
+            }
         }
         for (Component sibling : component.getSiblings()) {
             if (containsKey(sibling, key)) {
@@ -181,10 +187,29 @@ public class PlaceTests {
                 "list header missing: " + chat.messages);
         h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.entry")),
                 "list entry missing: " + chat.messages);
+        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.kind.house")),
+                "list entry should carry the localized kind key: " + chat.messages);
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place remove shack");
         h.assertTrue(PlaceService.book(companion).all().isEmpty(),
                 "the place should be gone: " + PlaceService.book(companion).all());
+
+        // The sender is in the overworld while the same owner's book holds a nether place: remove must not
+        // reach outside the sender's dimension, and must not mutate anything on the way to saying so.
+        PlaceService.book(companion).remember(
+                new PlaceValues(
+                        "nether_home", PlaceKind.PORTAL, "", "minecraft:the_nether", new Pos(8, 64, 8), 8,
+                        Set.of(), PlaceSource.MANUAL, owner.getUUID(), ""),
+                companion.level().getGameTime());
+        Chat split = new Chat();
+        int removed = execute(
+                commands, owner.createCommandSourceStack().withSource(split), "friendai place remove nether_home");
+        h.assertValueEqual(removed, 0, "a place in another dimension must not be removed");
+        h.assertTrue(split.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.notfound")),
+                "notfound missing: " + split.messages);
+        List<Place> kept = PlaceService.book(companion).all();
+        h.assertValueEqual(kept.size(), 1, "the nether place must stay: " + kept);
+        h.assertValueEqual(kept.get(0).dimension(), "minecraft:the_nether", "dimension after refused remove");
         h.succeed();
     }
 
