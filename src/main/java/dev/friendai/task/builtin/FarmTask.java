@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.pathing.Pos;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
@@ -73,6 +74,11 @@ public final class FarmTask implements Task {
     @Override
     public String describe() {
         return "farming within " + radius + " blocks of " + center.getX() + " " + center.getY() + " " + center.getZ();
+    }
+
+    @Override
+    public java.util.List<DebugTarget> debugTargets() {
+        return pass == null ? java.util.List.of() : pass.debugTargets();
     }
 
     @Override

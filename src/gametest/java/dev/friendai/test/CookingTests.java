@@ -2,14 +2,17 @@ package dev.friendai.test;
 
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.task.cooking.FurnaceSlots;
 import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.CollectSmeltedTask;
+import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.CookFoodTask;
 import dev.friendai.task.builtin.CraftTask;
 import dev.friendai.task.builtin.SmeltTask;
@@ -49,6 +52,40 @@ public class CookingTests {
 
     private static String coords(BlockPos pos) {
         return pos.getX() + " " + pos.getY() + " " + pos.getZ();
+    }
+
+    @GameTest
+    public void smeltDebugTargetShowsActiveFurnace(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        c.inventory().addItem(new ItemStack(Items.FURNACE, 1));
+        SmeltTask task = new SmeltTask(ItemMatcher.parse("minecraft:raw_gold").orElseThrow(), 1,
+                Station.FURNACE, null, false, CraftTask.StationPolicy.AUTO, 20);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        task.start(context);
+        task.tick(context);
+        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.PLACE),
+                "the selected furnace placement spot should be shown while the companion approaches");
+        h.succeed();
+    }
+
+    @GameTest
+    public void stationDebugTargetChangesFromCollectToBreak(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos station = h.absolutePos(new BlockPos(4, 2, 4));
+        h.setBlock(new BlockPos(4, 2, 4), Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 4);
+        CollectStationTask task = new CollectStationTask(Station.FURNACE, station);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        task.start(context);
+        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.COLLECT),
+                "the station should begin as a collect target");
+        task.tick(context);
+        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.BREAK),
+                "taking the station back should change its target action to break");
+        h.succeed();
     }
 
     private static net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnaceAt(

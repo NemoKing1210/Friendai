@@ -1,6 +1,8 @@
 package dev.friendai.task.farming;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.farming.CropBook;
 import dev.friendai.farming.FarmGoal;
 import dev.friendai.farming.FarmPlan;
@@ -135,6 +137,46 @@ public final class FarmPass {
             finish();
         }
         return report;
+    }
+
+    /** The concrete block currently being worked, if the plan has selected one. */
+    public List<DebugTarget> debugTargets() {
+        if (current == null) {
+            return List.of();
+        }
+        DebugAction action;
+        String detail;
+        if (current instanceof FarmStep.Harvest) {
+            action = DebugAction.HARVEST;
+            detail = "Harvest crop";
+        } else if (current instanceof FarmStep.Replant) {
+            action = DebugAction.PLACE;
+            detail = "Replant crop";
+        } else if (current instanceof FarmStep.Sow) {
+            action = DebugAction.PLACE;
+            detail = "Sow crop";
+        } else if (current instanceof FarmStep.Till) {
+            action = DebugAction.USE;
+            detail = "Till soil";
+        } else if (current instanceof FarmStep.Bonemeal) {
+            action = DebugAction.USE;
+            detail = "Use bone meal";
+        } else {
+            return List.of();
+        }
+        BlockPos pos = at(currentCell(current));
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
+    }
+
+    private static FieldCell currentCell(FarmStep step) {
+        return switch (step) {
+            case FarmStep.Harvest value -> value.cell();
+            case FarmStep.Replant value -> value.cell();
+            case FarmStep.Sow value -> value.cell();
+            case FarmStep.Till value -> value.cell();
+            case FarmStep.Bonemeal value -> value.cell();
+            case FarmStep.NeedSeeds ignored -> throw new IllegalArgumentException("seed shortfall is not a block step");
+        };
     }
 
     /** Stops navigation and any block breaking; the pass is over. */

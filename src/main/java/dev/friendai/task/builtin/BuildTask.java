@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.build.BlockSpec;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
 import dev.friendai.creative.CreativeAction;
@@ -1069,6 +1071,30 @@ public final class BuildTask implements Task {
     @Override
     public String describe() {
         return "building " + blueprint.name() + " (" + blueprint.blocks().size() + " blocks) at " + coords(origin);
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        BlockPos pos = null;
+        String detail = "Place build block";
+        if (phase == Phase.CLEAR) {
+            pos = breaker == null ? clearQueue.peek() : breaker.target();
+            detail = "Clear build site";
+        } else if (phase == Phase.FOUNDATION && foundationIndex < foundation.size()) {
+            pos = foundation.get(foundationIndex).pos();
+            detail = "Build foundation";
+        } else if (phase == Phase.PLACE) {
+            pos = currentPos;
+        } else if (phase == Phase.TAKE && takeTarget != null) {
+            pos = takeTarget;
+            detail = "Take materials from storage";
+        }
+        if (pos == null) {
+            return List.of();
+        }
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
+                phase == Phase.CLEAR ? DebugAction.BREAK : phase == Phase.TAKE ? DebugAction.USE : DebugAction.PLACE,
+                detail));
     }
 
     @Override

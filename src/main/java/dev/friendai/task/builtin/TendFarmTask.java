@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -93,6 +94,11 @@ public final class TendFarmTask implements Task {
     @Override
     public String describe() {
         return "tending the farm at " + coords() + " (radius " + radius + ")";
+    }
+
+    @Override
+    public java.util.List<DebugTarget> debugTargets() {
+        return pass == null ? java.util.List.of() : pass.debugTargets();
     }
 
     @Override

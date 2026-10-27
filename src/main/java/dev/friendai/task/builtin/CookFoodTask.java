@@ -2,6 +2,7 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -42,6 +43,11 @@ public final class CookFoodTask implements Task {
     @Override
     public String type() {
         return "cook_food";
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        return current == null ? List.of() : current.debugTargets();
     }
 
     @Override
