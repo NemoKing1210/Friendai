@@ -829,10 +829,12 @@ public final class BuildTask implements Task {
             for (int dx = -3; dx <= 3; dx++) {
                 for (int dz = -3; dz <= 3; dz++) {
                     double horizontal = Math.sqrt(dx * dx + dz * dz);
-                    if (horizontal < 1.5 || horizontal > 3.0) {
+                    int candidateY = feetY + dy;
+                    boolean clearVerticalSeparation = Math.abs(candidateY - target.getY()) >= 2;
+                    if (horizontal > 3.0 || horizontal < 1.5 && !clearVerticalSeparation) {
                         continue;
                     }
-                    BlockPos candidate = new BlockPos(target.getX() + dx, feetY + dy, target.getZ() + dz);
+                    BlockPos candidate = new BlockPos(target.getX() + dx, candidateY, target.getZ() + dz);
                     if (plannedCells.contains(candidate)
                             || plannedCells.contains(candidate.above())
                             || plannedCells.contains(candidate.above(2))) {

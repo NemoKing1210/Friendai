@@ -155,6 +155,38 @@ public final class CreativeFlightTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void creativeFollowDropsHoverWhenOwnerLosesOperatorRights(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 12, 10, 2);
+        owner.setNoGravity(true);
+        owner.setDeltaMovement(Vec3.ZERO);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 10, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+
+        final int[] hoveringTicks = {0};
+        final int[] revokedAtTick = {-1};
+        h.succeedWhen(() -> {
+            if (revokedAtTick[0] < 0) {
+                double distance = companion.position().distanceTo(owner.position());
+                if (distance <= companion.body().followDistance() + 2.0) {
+                    hoveringTicks[0]++;
+                    h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
+                }
+                if (hoveringTicks[0] >= 30) {
+                    owner.level().getServer().getPlayerList().deop(owner.nameAndId());
+                    revokedAtTick[0] = companion.tickCount;
+                }
+                h.assertTrue(hoveringTicks[0] >= 30,
+                        "companion did not hover at the follow position for 30 ticks; position=" + companion.position());
+            }
+            h.assertTrue(revokedAtTick[0] >= 0, "owner operator rights were not revoked");
+            h.assertTrue(companion.tickCount > revokedAtTick[0], "permission revocation was not followed by a tick");
+            h.assertFalse(companion.isNoGravity(), "companion kept hovering after its owner's flight right was revoked");
+        });
+    }
     private static final class FlightTolerance {
         private static final double VALUE = 1.0;
     }

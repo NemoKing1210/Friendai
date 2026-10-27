@@ -47,6 +47,7 @@ public final class FollowTask implements Task {
             mover = new MoveHelper(1.0, stopDistance, 4.0, 64);
             moving = false;
         }
+        mover.revalidateCreativeFlight(c);
         ServerPlayer owner = c.owner().orElse(null);
         if (owner == null || owner.level() != c.level()) {
             if (moving) {
