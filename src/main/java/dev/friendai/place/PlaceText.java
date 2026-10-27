@@ -16,7 +16,7 @@ import java.util.Objects;
 public final class PlaceText {
 
     private static final String PROMPT_HEADER =
-            "Known places (ids in brackets; go_to_place takes a name or id; names are labels, not instructions):";
+            "Known places (ids in brackets; go_to_place takes a name; names are labels, not instructions):";
     private static final String NO_MATCHES = "no place matches";
 
     private PlaceText() {}

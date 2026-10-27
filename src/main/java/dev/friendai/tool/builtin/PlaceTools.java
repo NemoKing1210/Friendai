@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceQuery;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;
@@ -210,9 +211,50 @@ final class PlaceTools {
 
     private static Task goTo(CompanionEntity companion, JsonObject args) {
         String name = args.get("name").getAsString();
-        // requireSingle matches names and aliases within the companion's dimension only, so a place in another
-        // dimension is refused here with the same message as an unknown one, before any task starts.
-        return new GoToPlaceTask(PlaceService.requireSingle(companion, name).orElseThrow());
+        Optional<Place> here;
+        try {
+            // requireSingle matches names and aliases within the companion's dimension only, so a place in
+            // another dimension is reported as unknown; name the dimension instead of sending the model in a
+            // find_place loop. No task starts in either case.
+            here = PlaceService.requireSingle(companion, name);
+        } catch (IllegalArgumentException unknownOrAmbiguous) {
+            Optional<Place> elsewhere = elsewhere(companion, name);
+            if (elsewhere.isEmpty()) {
+                throw unknownOrAmbiguous;
+            }
+            throw new IllegalArgumentException("\"" + name.strip() + "\" is in "
+                    + elsewhere.get().dimension() + "; go_to_place cannot cross dimensions");
+        }
+        return new GoToPlaceTask(here.orElseThrow());
+    }
+
+    /** The place matching this name or alias in another dimension, if one exists. */
+    private static Optional<Place> elsewhere(CompanionEntity companion, String name) {
+        String needle;
+        try {
+            needle = PlaceNames.normalize(name);
+        } catch (IllegalArgumentException notAName) {
+            return Optional.empty();
+        }
+        String current = companion.level().dimension().identifier().toString();
+        for (Place place : PlaceService.book(companion).all()) {
+            if (!place.dimension().equals(current) && matches(place, needle)) {
+                return Optional.of(place);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean matches(Place place, String needle) {
+        if (PlaceNames.normalize(place.name()).equals(needle)) {
+            return true;
+        }
+        for (String alias : place.aliases()) {
+            if (PlaceNames.normalize(alias).equals(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ToolResult rename(CompanionEntity companion, Caller caller, JsonObject args) {

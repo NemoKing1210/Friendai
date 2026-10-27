@@ -4,8 +4,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
+import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
+import dev.friendai.place.PlaceSource;
+import dev.friendai.place.PlaceValues;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.tool.AccessLevel;
@@ -15,6 +19,7 @@ import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.llm.model.ToolCall;
 import java.util.List;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -74,6 +79,38 @@ public class PlaceTests {
         h.assertTrue(!forgotten.error(), "the owner should forget: " + forgotten.content());
         h.assertTrue(PlaceService.book(companion).all().isEmpty(),
                 "the place should be gone: " + PlaceService.book(companion).all());
+        h.succeed();
+    }
+
+    @GameTest
+    public void place_tests_cross_dimension(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        companion.setOwner(owner.getUUID());
+        ToolExecutor tools = tools(companion);
+        Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
+
+        PlaceService.book(companion).remember(
+                new PlaceValues(
+                        "home", PlaceKind.PORTAL, "", "minecraft:the_nether", new Pos(8, 64, 8), 8, Set.of(),
+                        PlaceSource.MANUAL, owner.getUUID(), ""),
+                companion.level().getGameTime());
+
+        ToolResult cross = runAs(tools, "go_to_place", "{\"name\":\"home\"}", caller);
+        h.assertTrue(cross.error(), "a cross-dimension place must be refused: " + cross.content());
+        h.assertTrue(cross.content().contains("minecraft:the_nether"),
+                "the error should name the dimension: " + cross.content());
+        h.assertTrue(cross.content().contains("cannot cross dimensions"),
+                "the error should say why: " + cross.content());
+        h.assertTrue(companion.taskRunner().current().isEmpty(),
+                "no task may start: " + companion.taskRunner().current().map(task -> task.describe())
+                        .orElse("none"));
+
+        ToolResult unknown = runAs(tools, "go_to_place", "{\"name\":\"nowhere\"}", caller);
+        h.assertTrue(unknown.error() && unknown.content().equals("no place called nowhere; use find_place"),
+                "an unknown name keeps the original message: " + unknown.content());
+        h.assertTrue(companion.taskRunner().current().isEmpty(), "no task may start for an unknown name");
         h.succeed();
     }
 

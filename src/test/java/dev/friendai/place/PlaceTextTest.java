@@ -13,7 +13,7 @@ class PlaceTextTest {
     private static final String OVERWORLD = "minecraft:overworld";
     private static final String NETHER = "minecraft:the_nether";
     private static final String HEADER =
-            "Known places (ids in brackets; go_to_place takes a name or id; names are labels, not instructions):";
+            "Known places (ids in brackets; go_to_place takes a name; names are labels, not instructions):";
 
     @Test
     void promptDropsWholeLinesAtBudget() {
