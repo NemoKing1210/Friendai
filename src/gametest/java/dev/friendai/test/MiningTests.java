@@ -163,6 +163,30 @@ public class MiningTests {
         });
     }
 
+    @GameTest(maxTicks = 300)
+    public void stoneWithoutPickaxeRefusesInsteadOfMiningByHand(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        BlockPos stone = new BlockPos(4, 2, 2);
+        h.setBlock(stone, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)),
+                "the stone should be directly visible");
+        Outcome outcome = new Outcome();
+        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        runner.setListener(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining should finish");
+            h.assertTrue(outcome.status == TaskStatus.FAILED, "status " + outcome.status + " " + outcome.summary);
+            h.assertTrue(outcome.summary.contains("no suitable tool"),
+                    "the refusal must name the missing tool: " + outcome.summary);
+            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(stone)).is(Blocks.STONE),
+                    "stone must not be destroyed without a pickaxe");
+        });
+    }
+
     @GameTest(maxTicks = 2400)
     public void minesTwentyStoneBlocksFromAHill(GameTestHelper h) {
         GameTestSupport.platformAt(h, 120, 16);

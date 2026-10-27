@@ -65,7 +65,9 @@ final class GatheringTools {
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("mine_blocks",
                         "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
-                                + "near: me searches around the speaker; place:<name> around a remembered place.",
+                                + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "
+                                + "instead of destroying the block. near: me searches around the speaker; place:<name> "
+                                + "around a remembered place.",
                         SchemaBuilder.object()
                                 .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
                                 .integer("count", "How many blocks to mine", 1, 64)

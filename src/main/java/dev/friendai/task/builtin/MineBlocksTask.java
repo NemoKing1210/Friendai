@@ -11,6 +11,8 @@ import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.MiningSession;
+import dev.friendai.task.mining.TemporaryBlockCleanup;
+import dev.friendai.task.nav.PlacementLedger;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.pathing.Node;
 import dev.friendai.core.Components;
@@ -46,6 +48,10 @@ public final class MineBlocksTask implements Task {
     private MiningSession miningSession;
     private boolean miningSessionActive;
     private DropCollector sweep;
+    /** Blocks placed to pillar or bridge to a block; removed before the task reports a result. */
+    private final PlacementLedger placements = new PlacementLedger();
+    private TemporaryBlockCleanup cleanup;
+    private TaskStatus pendingStatus;
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
     private BlockPos lastBroken;
@@ -90,6 +96,31 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (cleanup != null) {
+            TemporaryBlockCleanup.State state = cleanup.tick(c);
+            if (state == TemporaryBlockCleanup.State.WORKING) {
+                return TaskStatus.RUNNING;
+            }
+            TemporaryBlockCleanup finished = cleanup;
+            cleanup = null;
+            if (state == TemporaryBlockCleanup.State.FAILED) {
+                summary += "; left " + finished.left() + " temporary blocks (" + finished.failure() + ")";
+            }
+            placements.clear();
+            TaskStatus status = pendingStatus;
+            pendingStatus = null;
+            return status;
+        }
+        TaskStatus status = tickTask(c);
+        if (status != TaskStatus.RUNNING && !placements.isEmpty()) {
+            cleanup = new TemporaryBlockCleanup(placements);
+            pendingStatus = status;
+            return TaskStatus.RUNNING;
+        }
+        return status;
+    }
+
+    private TaskStatus tickTask(TaskContext c) {
         DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
         if (sweep != null) {
             if (sweep.tick(c) == DropCollector.State.DONE) {
@@ -166,8 +197,9 @@ public final class MineBlocksTask implements Task {
             }
             case FAILED -> {
                 miningSessionActive = false;
-                String reason = miningSession.failure() == null ? "resource became unreachable"
-                        : miningSession.failure().key();
+                String reason = miningSession.failure() == null
+                        ? "the resource became unreachable"
+                        : failureText(miningSession.failure());
                 summary = "mined " + mined + " of " + count + ", " + reason;
                 yield TaskStatus.FAILED;
             }
@@ -244,7 +276,7 @@ public final class MineBlocksTask implements Task {
         if (creative) {
             // In creative, mine candidates directly: the survival excavation planner rejects unbreakable states
             // and may plan corridor breaks that have no corresponding creative-player semantics.
-            breaker = new BlockBreaker(candidates, matcher::test, true, false, true);
+            breaker = new BlockBreaker(candidates, matcher::test, true, false, true, false, placements);
             return TaskStatus.RUNNING;
         }
         boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
@@ -265,8 +297,22 @@ public final class MineBlocksTask implements Task {
                     Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
             return TaskStatus.FAILED;
         }
-        breaker = new BlockBreaker(candidates, matcher::test, true, true, true);
+        breaker = new BlockBreaker(candidates, matcher::test, true, true, true, false, placements);
         return TaskStatus.RUNNING;
+    }
+
+    /** The player sees a translated message; the model needs an English sentence it can act on. */
+    private static String failureText(dev.friendai.text.UserMessage failure) {
+        return switch (failure.key()) {
+            case "friendai.mining.no_tool" ->
+                    "no suitable tool to collect the block; get the right tool first (obtain_item plans the chain)";
+            case "friendai.mining.unsafe_support" -> "the block supports the companion or its route";
+            case "friendai.mining.unsafe_passage" -> "the passage is unsafe to excavate";
+            case "friendai.mining.unreachable" -> "the resource cannot be reached safely";
+            case "friendai.mining.search_limit" -> "the mining search limit was reached";
+            case "friendai.mining.inventory_full" -> "the inventory is full";
+            default -> failure.key();
+        };
     }
 
     private static boolean hasRoomForDrops(TaskContext c, BlockPos pos) {
@@ -340,6 +386,10 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (cleanup != null) {
+            cleanup.stop(c);
+            cleanup = null;
+        }
         if (sweep != null) {
             sweep.stop(c);
             sweep = null;

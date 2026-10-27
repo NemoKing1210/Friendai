@@ -46,6 +46,8 @@ public final class Navigator {
     private final boolean mayPlace;
     /** Settings for this route, or null to read the live server settings on every use. */
     private final @Nullable PathingConfig override;
+    /** Where blocks this route places are remembered for cleanup, or null when they are meant to stay. */
+    private final @Nullable PlacementLedger ledger;
     private PathGoal goal;
     private PathSearch search;
     private Path plan;
@@ -64,7 +66,7 @@ public final class Navigator {
     private String lastSearch = "";
 
     public Navigator(CompanionEntity companion) {
-        this(companion, true, null);
+        this(companion, true, (PathingConfig) null);
     }
 
     /**
@@ -73,7 +75,7 @@ public final class Navigator {
      *     brought for its own work, and a pillar of scaffold blocks would spend both.
      */
     public Navigator(CompanionEntity companion, boolean mayPlace) {
-        this(companion, mayPlace, null);
+        this(companion, mayPlace, (PathingConfig) null);
     }
 
     /**
@@ -81,9 +83,24 @@ public final class Navigator {
      *     not change the terrain walks with digging and placing switched off.
      */
     public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override) {
+        this(companion, mayPlace, override, null);
+    }
+
+    /**
+     * @param ledger records every block this route places so the caller can remove a temporary pillar or bridge;
+     *     null for routes whose placements are meant to stay.
+     */
+    public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override,
+            @Nullable PlacementLedger ledger) {
         this.companion = companion;
         this.mayPlace = mayPlace;
         this.override = override;
+        this.ledger = ledger;
+    }
+
+    /** A route that may place blocks and reports them to {@code ledger}. */
+    public Navigator(CompanionEntity companion, boolean mayPlace, PlacementLedger ledger) {
+        this(companion, mayPlace, null, ledger);
     }
 
     /** The settings this route uses: its own, or the live server settings. */
@@ -325,7 +342,7 @@ public final class Navigator {
             executor.stop(c);
         }
         plan = path.afterNode(node(), TRIM_LOOKAHEAD);
-        executor = new PathExecutor(plan, new MaterialPicker(config()), config());
+        executor = new PathExecutor(plan, new MaterialPicker(config()), config(), PathExecutionGuard.DEFAULT, ledger);
         state = State.MOVING;
     }
 

@@ -59,6 +59,8 @@ public final class PathExecutor {
     private final MaterialPicker materials;
     private final PathingConfig config;
     private final PathExecutionGuard guard;
+    /** Where blocks this route places are remembered for cleanup, or null when the caller does not want them. */
+    private final PlacementLedger ledger;
 
     private int index = -1;
     private Phase phase = Phase.CHECK;
@@ -86,10 +88,20 @@ public final class PathExecutor {
     }
 
     public PathExecutor(Path path, MaterialPicker materials, PathingConfig config, PathExecutionGuard guard) {
+        this(path, materials, config, guard, null);
+    }
+
+    /**
+     * @param ledger records every block this route places, so the caller can take a pillar or bridge down after the
+     *     job; null for routes whose placements are meant to stay, like a build.
+     */
+    public PathExecutor(Path path, MaterialPicker materials, PathingConfig config, PathExecutionGuard guard,
+            PlacementLedger ledger) {
         this.path = path;
         this.materials = materials;
         this.config = config;
         this.guard = guard;
+        this.ledger = ledger;
     }
 
     /** How many steps are finished; the step being worked on starts at this index. */
@@ -269,6 +281,9 @@ public final class PathExecutor {
         companion.hands().place(taken.get(), new BlockPos(against.x(), against.y(), against.z()), face);
         if (stateAt(c, place).canBeReplaced()) {
             return fail(c);
+        }
+        if (ledger != null) {
+            ledger.record(new BlockPos(place.x(), place.y(), place.z()), taken.get());
         }
         places.remove(0);
         if (places.isEmpty()) {

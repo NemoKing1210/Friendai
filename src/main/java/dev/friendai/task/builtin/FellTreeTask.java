@@ -6,7 +6,9 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.mining.TemporaryBlockCleanup;
 import dev.friendai.task.mining.TreeFinder;
+import dev.friendai.task.nav.PlacementLedger;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -37,8 +39,11 @@ public final class FellTreeTask implements Task {
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int total;
     private int felled;
+    /** Blocks placed to pillar up to a high log; removed before the task reports success. */
+    private final PlacementLedger placements = new PlacementLedger();
     private BlockBreaker breaker;
     private DropCollector sweep;
+    private TemporaryBlockCleanup cleanup;
     private TaskStatus pendingStatus;
     private BlockPos lastBroken;
     private String summary = "";
@@ -69,6 +74,19 @@ public final class FellTreeTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
+        if (cleanup != null) {
+            TemporaryBlockCleanup.State state = cleanup.tick(c);
+            if (state == TemporaryBlockCleanup.State.WORKING) {
+                return TaskStatus.RUNNING;
+            }
+            TemporaryBlockCleanup finished = cleanup;
+            cleanup = null;
+            if (state == TemporaryBlockCleanup.State.FAILED) {
+                summary += "; left " + finished.left() + " temporary blocks (" + finished.failure() + ")";
+            }
+            placements.clear();
+            return startSweep(c);
+        }
         if (sweep != null) {
             if (sweep.tick(c) == DropCollector.State.DONE) {
                 sweep = null;
@@ -123,7 +141,7 @@ public final class FellTreeTask implements Task {
         if (pick != null) {
             // One candidate at a time is what keeps the order bottom-up: with several, the approach would break
             // whichever is nearest.
-            breaker = new BlockBreaker(List.of(pick), matcher::test, true, true, true);
+            breaker = new BlockBreaker(List.of(pick), matcher::test, true, true, true, false, placements);
             return TaskStatus.RUNNING;
         }
         long unreached = remaining.stream().filter(blacklist::contains).count();
@@ -143,13 +161,21 @@ public final class FellTreeTask implements Task {
 
     private TaskStatus finish(TaskContext c, TaskStatus status, String text) {
         summary = text;
+        pendingStatus = status;
+        if (!placements.isEmpty()) {
+            cleanup = new TemporaryBlockCleanup(placements);
+            return TaskStatus.RUNNING;
+        }
+        return startSweep(c);
+    }
+
+    private TaskStatus startSweep(TaskContext c) {
         if (!collect) {
-            return status;
+            return pendingStatus;
         }
         // The drops of a high log land at the foot of the tree, so the sweep is centred on the ground there.
         BlockPos from = lastBroken != null ? lastBroken : tree.base();
         sweep = new DropCollector(Vec3.atCenterOf(new BlockPos(from.getX(), tree.base().getY(), from.getZ())), SWEEP_RADIUS);
-        pendingStatus = status;
         return TaskStatus.RUNNING;
     }
 
@@ -170,6 +196,10 @@ public final class FellTreeTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (cleanup != null) {
+            cleanup.stop(c);
+            cleanup = null;
+        }
         if (sweep != null) {
             sweep.stop(c);
             sweep = null;

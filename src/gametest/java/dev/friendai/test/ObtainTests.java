@@ -64,6 +64,37 @@ public class ObtainTests {
         });
     }
 
+    @GameTest(maxTicks = 4800)
+    public void callerObtainsStonePickaxeFromLogsOnly(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 300, 20);
+        for (int x = 6; x <= 12; x++) {
+            for (int z = 4; z <= 10; z++) {
+                for (int y = 301; y <= 304; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 301, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 301, 2);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, new ItemStack(Items.OAK_LOG, 6));
+        for (int y = 301; y <= 304; y++) {
+            h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(6, y, 6))),
+                    "the exposed stone face should be directly visible at y " + y);
+        }
+        var caller = new dev.friendai.tool.Caller(owner.getUUID(), owner.getName().getString(),
+                dev.friendai.tool.AccessLevel.OWNER);
+        Result result = new Result();
+        TaskRunner runner = obtain(companion, result, new ObtainTask("minecraft:stone_pickaxe", 1, false, true,
+                40, 4400, 64, 128, 800, "local", caller));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "caller-aware obtain should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(dev.friendai.task.inventory.InventoryOps.count(companion.inventory(),
+                    dev.friendai.task.inventory.ItemMatcher.parse("minecraft:stone_pickaxe").orElseThrow()) > 0,
+                    "the companion must craft a wooden pickaxe, mine stone and craft a stone pickaxe");
+        });
+    }
+
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;

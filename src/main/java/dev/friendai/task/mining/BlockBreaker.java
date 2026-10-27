@@ -2,6 +2,7 @@ package dev.friendai.task.mining;
 
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.nav.MoveHelper;
+import dev.friendai.task.nav.PlacementLedger;
 import net.minecraft.world.phys.Vec3;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.Sight;
@@ -102,6 +103,15 @@ public final class BlockBreaker {
     /** Full constructor; support breaking is reserved for cleanup of a block the companion itself placed. */
     public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
             boolean mayPlace, boolean digToTarget, boolean allowBreakingSupport) {
+        this(candidates, stillValid, requireSight, mayPlace, digToTarget, allowBreakingSupport, null);
+    }
+
+    /**
+     * @param ledger records the blocks a pillaring or bridging route places, so the caller can remove them when the
+     *     job ends; null when the route must not build or its placements are meant to stay.
+     */
+    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
+            boolean mayPlace, boolean digToTarget, boolean allowBreakingSupport, PlacementLedger ledger) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
@@ -110,7 +120,7 @@ public final class BlockBreaker {
         this.requireSight = requireSight;
         this.digToTarget = digToTarget;
         this.allowBreakingSupport = allowBreakingSupport;
-        this.approach = new Approach(this.candidates, mayPlace);
+        this.approach = new Approach(this.candidates, mayPlace, ledger);
     }
 
     /** The candidate the breaker settled on, or null while it is still walking. */

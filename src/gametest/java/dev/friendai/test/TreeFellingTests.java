@@ -103,6 +103,38 @@ public class TreeFellingTests {
     }
 
     @GameTest(maxTicks = 4000)
+    public void tallTreeLeavesNoScaffoldBlocks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 10; y++) {
+            h.setBlock(new BlockPos(12, y, 12), Blocks.OAK_LOG);
+        }
+        leaf(h, 11, 10, 12);
+        leaf(h, 13, 10, 12);
+        leaf(h, 12, 10, 11);
+        leaf(h, 12, 10, 13);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        c.inventory().addItem(new ItemStack(Items.OAK_LOG, 8));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 12, 12), oak(), 0, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            StringBuilder left = new StringBuilder();
+            for (int x = 8; x <= 15; x++) {
+                for (int y = 2; y <= 12; y++) {
+                    for (int z = 8; z <= 15; z++) {
+                        if (h.getBlockState(new BlockPos(x, y, z)).is(Blocks.OAK_LOG)) {
+                            left.append(' ').append(x).append(',').append(y).append(',').append(z);
+                        }
+                    }
+                }
+            }
+            h.assertTrue(left.isEmpty(),
+                    "oak logs left at:" + left + "; summary " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 4000)
     public void startsAtTheLowestLog(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int y = 2; y <= 10; y++) {

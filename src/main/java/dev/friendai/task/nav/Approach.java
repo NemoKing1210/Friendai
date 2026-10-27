@@ -46,6 +46,8 @@ public final class Approach {
     private final List<BlockPos> candidates;
     /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
     private final boolean mayPlace;
+    /** Where blocks placed by the route are remembered, or null when they are not the caller's to remove. */
+    private final PlacementLedger ledger;
     private Navigator navigator;
     private BlockPos reached;
     private Phase phase;
@@ -67,11 +69,20 @@ public final class Approach {
      *     at the cost of the material in the companion's inventory.
      */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace) {
+        this(candidates, mayPlace, null);
+    }
+
+    /**
+     * @param ledger records blocks the route places, so a task that pillared to reach a block can take the pillar
+     *     down afterwards; null when the route builds nothing worth removing.
+     */
+    public Approach(Collection<BlockPos> candidates, boolean mayPlace, PlacementLedger ledger) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
         this.mayPlace = mayPlace;
+        this.ledger = ledger;
     }
 
     /** The block the companion reached, or the first candidate before it got there. */
@@ -95,7 +106,7 @@ public final class Approach {
         }
         if (phase == Phase.PLAN) {
             if (navigator == null) {
-                navigator = new Navigator(companion, mayPlace);
+                navigator = new Navigator(companion, mayPlace, ledger);
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }

@@ -15,6 +15,7 @@ public final class PlannerPrompt {
                 + "Rules:\n"
                 + "- Use only the tools listed under Tools, and give every required argument. args is a JSON object written as a string.\n"
                 + "- Keep the plan short: at most 12 steps, each one concrete and checkable. Prefer obtain_item over hand-written gathering chains.\n"
+                + "- Stone and ores need the right pickaxe; obtain_item plans that tool chain. Never plan mine_blocks for a hard block before the companion has a suitable pickaxe.\n"
                 + "- Put a guard in when for a condition the world can check (has_item, inventory_space, health_at_least, owner_within, block_within, dimension).\n"
                 + "- Lessons list what already failed or was tried: do not repeat an approach that failed; choose a different one.\n"
                 + "- If a failure is described, plan only the work that remains and fix its cause first.\n"

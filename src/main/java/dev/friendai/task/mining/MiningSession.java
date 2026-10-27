@@ -67,6 +67,10 @@ public final class MiningSession {
     private BlockPos target;
     private State lastState = State.WORKING;
     private UserMessage failure;
+    /** The first concrete refusal this session hit, kept when later attempts have nothing left to try. */
+    private UserMessage primaryFailure;
+    /** A refusal caused by the wrong tool; it must not be replaced by the generic "unreachable" that follows. */
+    private UserMessage toolFailure;
     private String phase = "";
 
     public MiningSession(CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks) {
@@ -91,6 +95,8 @@ public final class MiningSession {
         this.matches = matches;
         this.target = null;
         this.failure = null;
+        this.primaryFailure = null;
+        this.toolFailure = null;
         this.lastState = State.WORKING;
         this.search = null;
         this.goal = null;
@@ -113,6 +119,8 @@ public final class MiningSession {
         this.targets = List.of();
         this.target = null;
         this.failure = null;
+        this.primaryFailure = null;
+        this.toolFailure = null;
         this.lastState = State.WORKING;
         this.search = null;
         this.goal = null;
@@ -406,6 +414,12 @@ public final class MiningSession {
 
     private State retryPlan(UserMessage reason) {
         noProgressPlans++;
+        if (primaryFailure == null) {
+            primaryFailure = reason;
+        }
+        if ("friendai.mining.no_tool".equals(reason.key())) {
+            toolFailure = reason;
+        }
         search = null;
         exploration = null;
         if (noProgressPlans >= 3) {
@@ -419,8 +433,10 @@ public final class MiningSession {
     }
 
     private State fail(UserMessage reason) {
-        failure = reason;
-        companion.owner().ifPresent(player -> player.sendSystemMessage(Components.of(reason), true));
+        // A missing tool is the actionable cause; retries after excluding that target only see "no candidates"
+        // and would otherwise report the vague "unreachable" instead.
+        failure = toolFailure != null ? toolFailure : primaryFailure != null ? primaryFailure : reason;
+        companion.owner().ifPresent(player -> player.sendSystemMessage(Components.of(failure), true));
         lastState = State.FAILED;
         return lastState;
     }
