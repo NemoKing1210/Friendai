@@ -1,0 +1,9 @@
+{
+  "name": "trading_event_retry_cannot_create_budget",
+  "access": "owner",
+  "event": "The previous barter stopped after an uncertain pending payment. Do not retry automatically.",
+  "replies": [
+    {"text": "The previous gold payment is uncertain, so I will not spend again without a new owner order.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "toolsNotCalled": ["trade_item", "barter"], "spokenContains": ["uncertain"]}
+}

@@ -5,6 +5,8 @@ import dev.friendai.crafting.obtain.ObtainPlan;
 import dev.friendai.crafting.obtain.ObtainPlanner;
 import dev.friendai.crafting.obtain.ObtainText;
 import dev.friendai.crafting.obtain.WorldFacts;
+import dev.friendai.crafting.obtain.TradingContext;
+import dev.friendai.trading.TraderRecord;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.builtin.ObtainTask;
@@ -81,10 +83,30 @@ final class ObtainTools {
             throw new IllegalArgumentException("expeditions are disabled or owner-only");
         int radius = scope.equals("expedition") ? config.tasks.resources.expeditionRadius : config.tasks.resources.localRadius;
         int ticks = scope.equals("expedition") ? config.tasks.resources.expeditionTicks : config.tasks.resources.localTicks;
+        TradingContext trading = null;
+        if (caller.access() == AccessLevel.OWNER && caller.uuid() != null && caller.tradingScope() != null) {
+            var authority = FriendaiServerState.get(((ServerLevel) companion.level()).getServer())
+                    .brains().tradeAuthorityFor(caller.uuid());
+            var budget = authority.budgetFor(caller.tradingScope()).orElse(null);
+            if (budget != null) {
+                var book = FriendaiServerState.get(((ServerLevel) companion.level()).getServer())
+                        .trading().book(caller.uuid());
+                List<TraderRecord> eligible = book.snapshot().traders().stream().map(trader -> {
+                    var offers = trader.offers().stream()
+                            .filter(offer -> authority.permitsPayment(caller.tradingScope(), offer.fingerprint()))
+                            .toList();
+                    return new TraderRecord(trader.id(), trader.entityType(), trader.dimension(), trader.x(), trader.y(),
+                            trader.z(), trader.label(), trader.profession(), trader.level(), trader.firstSeen(),
+                            trader.lastSeen(), trader.offersSeen(), trader.revision(), trader.status(), offers);
+                }).filter(trader -> !trader.offers().isEmpty()).toList();
+                if (!eligible.isEmpty()) trading = new TradingContext(caller.tradingScope(), eligible, budget,
+                        companion.hands().player().getUUID(), ((ServerLevel) companion.level()).getServer().overworld().getGameTime());
+            }
+        }
         return new ObtainTask(itemId(args.get("item").getAsString()), args.get("count").getAsInt(),
                 flag(args, "use_containers", true), flag(args, "explore", true), ObtainTask.DEFAULT_MAX_STEPS,
                 Math.max(ObtainTask.DEFAULT_MAX_TICKS, ticks), radius, ObtainTask.DEFAULT_EXPLORE_BLOCKS,
-                ticks, scope, caller);
+                ticks, scope, caller, trading);
     }
 
     private static String planText(CompanionEntity companion, String item, int count, boolean useContainers,

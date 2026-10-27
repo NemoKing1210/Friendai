@@ -65,6 +65,8 @@
 			"dev.friendai.test.TradingTaskTests",
 			"dev.friendai.test.TradingToolsTests",
 			"dev.friendai.test.TradingRefreshTests",
+			"dev.friendai.test.TradingBarterAttributionTests",
+			"dev.friendai.test.TradingBarterTaskTests",
 			"dev.friendai.test.EnchantSkillTests",
 			"dev.friendai.test.AnvilSkillTests",
 			"dev.friendai.test.GrindstoneSkillTests",

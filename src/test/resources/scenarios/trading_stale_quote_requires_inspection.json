@@ -1,0 +1,10 @@
+{
+  "name": "trading_stale_quote_requires_inspection",
+  "access": "owner",
+  "playerSays": "Buy from the old librarian quote.",
+  "replies": [
+    {"text": "That quote may be stale. I will inspect the same villager before spending.", "tools": ["inspect_trader"]},
+    {"text": "I have the current offers now. I will show the price before any purchase.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["inspect_trader"], "toolsNotCalled": ["trade_item", "barter"]}
+}

@@ -107,7 +107,7 @@ public final class ToolCatalog {
                 "harvest_honey", "fish");
         group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "plan_obtain");
         group(metas, ToolGroup.TRADING, Cost.HIGH, "find_traders", "inspect_trader", "refresh_trades",
-                "wait_for_restock", "known_trades", "plan_trade", "trade_item", "level_trader");
+                "wait_for_restock", "known_trades", "plan_trade", "trade_item", "level_trader", "barter");
         group(metas, ToolGroup.RESOURCE, Cost.HIGH, "search_resource", "known_resources");
         group(metas, ToolGroup.BLUEPRINT, Cost.HIGH, "blueprint_help", "preview_structure", "build_structure",
                 "save_blueprint", "list_blueprints");
@@ -147,6 +147,8 @@ public final class ToolCatalog {
                 "- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.");
         hint(metas, "level_trader",
                 "- Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.");
+        hint(metas, "barter",
+                "- Piglin barter is random. Pay only one plain gold ingot at a time under the owner's explicit cap, attribute only drops owned by the selected piglin, and never retry accepted gold with no output.");
         return new ToolCatalog(metas);
     }
 

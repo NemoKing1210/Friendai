@@ -22,6 +22,8 @@ public final class TradeAuthority implements TradingTurnPort {
     private final Map<UUID, Scope> scopes = new LinkedHashMap<>();
     private final Map<UUID, TradeOrder> orders = new HashMap<>();
     private final Map<UUID, UUID> orderScopes = new HashMap<>();
+    private final Map<UUID, BarterOrder> barterOrders = new HashMap<>();
+    private final Map<UUID, UUID> barterScopes = new HashMap<>();
 
     private static final class Scope {
         long deadlineTick = Long.MAX_VALUE;
@@ -30,6 +32,7 @@ public final class TradeAuthority implements TradingTurnPort {
         boolean active = true;
         String reason = "";
         final Map<UUID, TradeProgress> progress = new HashMap<>();
+        final Map<UUID, BarterProgress> barterProgress = new HashMap<>();
         final Map<UUID, Map<String, Integer>> reservations = new HashMap<>();
 
     }
@@ -37,6 +40,22 @@ public final class TradeAuthority implements TradingTurnPort {
     public TradeAuthority(UUID owner) {
         if (owner == null) throw new IllegalArgumentException("owner is required");
         this.owner = owner;
+    }
+
+    /** Narrow read-only view used by owner-only obtain planning; never creates or widens a scope. */
+    public synchronized Optional<TradeBudget> budgetFor(UUID scopeId) {
+        Scope scope = scopes.get(scopeId);
+        return scope == null || !scope.active ? Optional.empty() : Optional.ofNullable(scope.ceiling);
+    }
+
+    public synchronized boolean permitsPayment(UUID scopeId, String fingerprint) {
+        Scope scope = scopes.get(scopeId);
+        return scope != null && scope.active && fingerprint != null && scope.allowedPayments.contains(fingerprint);
+    }
+
+    public synchronized long deadlineFor(UUID scopeId) {
+        Scope scope = scopes.get(scopeId);
+        return scope == null || !scope.active ? -1 : scope.deadlineTick;
     }
 
     @Override
@@ -54,6 +73,8 @@ public final class TradeAuthority implements TradingTurnPort {
             if (old != null) old.reservations.clear();
             orderScopes.entrySet().removeIf(entry -> entry.getValue().equals(expired));
             orders.keySet().removeIf(orderId -> !orderScopes.containsKey(orderId));
+            barterScopes.entrySet().removeIf(entry -> entry.getValue().equals(expired));
+            barterOrders.keySet().removeIf(orderId -> !barterScopes.containsKey(orderId));
         }
         return caller.withTradingScope(id);
     }
@@ -103,6 +124,110 @@ public final class TradeAuthority implements TradingTurnPort {
         orders.put(bound.orderId(), bound);
         orderScopes.put(bound.orderId(), caller.tradingScope());
         return bound;
+    }
+
+    public synchronized BarterOrder authorizeBarter(Caller caller, BarterOrder requested) {
+        if (caller == null || requested == null || caller.access() != AccessLevel.OWNER
+                || !owner.equals(caller.uuid()) || caller.tradingScope() == null
+                || !owner.equals(requested.owner()) || !caller.tradingScope().equals(requested.scopeId())) {
+            throw denied("barter requires this owner's active turn scope");
+        }
+        Scope scope = scopes.get(caller.tradingScope());
+        if (scope == null || !scope.active) throw denied("trading authority expired");
+        BarterOrder existing = barterOrders.get(requested.orderId());
+        if (existing != null) {
+            if (!caller.tradingScope().equals(barterScopes.get(requested.orderId())) || !sameIntent(requested, existing)) {
+                throw denied("an existing barter order cannot be retargeted");
+            }
+            if (requested.maxIngots() > existing.maxIngots()) {
+                throw denied("barter retry cannot increase its original limits");
+            }
+            return bind(requested, caller.tradingScope(), Math.min(requested.maxIngots(), existing.maxIngots()),
+                    existing.deadlineTick());
+        }
+        if (scope.ceiling == null) {
+            scope.ceiling = new TradeBudget(Map.of("minecraft:gold_ingot", requested.maxIngots()), Map.of(), Map.of());
+        } else {
+            int ceiling = scope.ceiling.inputCaps().getOrDefault("minecraft:gold_ingot", 0);
+            if (requested.maxIngots() > ceiling) throw denied("barter exceeds this turn's shared gold budget");
+        }
+        if (requested.deadlineTick() > scope.deadlineTick) throw denied("barter exceeds this turn's shared deadline");
+        if (requested.deadlineTick() < scope.deadlineTick) scope.deadlineTick = requested.deadlineTick();
+        BarterOrder bound = bind(requested, caller.tradingScope(), requested.maxIngots(), requested.deadlineTick());
+        barterOrders.put(bound.orderId(), bound);
+        barterScopes.put(bound.orderId(), caller.tradingScope());
+        scope.barterProgress.putIfAbsent(bound.orderId(), new BarterProgress(bound.orderId(), 0, Set.of(),
+                java.util.List.of(), BarterProgress.State.AUTHORIZED, ""));
+        return bound;
+    }
+
+    public synchronized boolean reserveBarter(BarterOrder order, int ingots) {
+        if (order == null || ingots != 1) return false;
+        Scope scope = validBarterScope(order);
+        if (scope == null) return false;
+        BarterProgress progress = scope.barterProgress.get(order.orderId());
+        if (progress != null && progress.terminal()) return false;
+        try {
+            long orderReserved = reservedTotalFor(scope, order.orderId(), "minecraft:gold_ingot");
+            long orderSpent = progress == null ? 0 : progress.goldAccepted();
+            long total = Math.addExact(Math.addExact(scopeSpent(scope).getOrDefault("minecraft:gold_ingot", 0L),
+                    reservedTotal(scope, "minecraft:gold_ingot")), ingots);
+            int sharedCap = scope.ceiling.inputCaps().getOrDefault("minecraft:gold_ingot", 0);
+            if (orderSpent + orderReserved + ingots > order.maxIngots() || total > sharedCap) return false;
+            scope.reservations.computeIfAbsent(order.orderId(), ignored -> new HashMap<>())
+                    .merge("minecraft:gold_ingot", ingots, Math::addExact);
+            return true;
+        } catch (ArithmeticException overflow) {
+            return false;
+        }
+    }
+
+    public synchronized boolean releaseBarterReservation(BarterOrder order, int ingots) {
+        if (order == null || ingots != 1) return false;
+        Scope scope = validBarterScope(order);
+        if (scope == null) return false;
+        Map<String, Integer> reservation = scope.reservations.get(order.orderId());
+        if (reservation == null || reservation.getOrDefault("minecraft:gold_ingot", 0) < ingots) return false;
+        reservation.compute("minecraft:gold_ingot", (item, held) -> held <= ingots ? null : held - ingots);
+        if (reservation.isEmpty()) scope.reservations.remove(order.orderId());
+        return true;
+    }
+
+    public synchronized void recordBarter(BarterProgress update) {
+        if (update == null) return;
+        UUID scopeId = barterScopes.get(update.orderId());
+        Scope scope = scopeId == null ? null : scopes.get(scopeId);
+        BarterOrder order = barterOrders.get(update.orderId());
+        if (scope == null || order == null || !scope.active) return;
+        BarterProgress previous = scope.barterProgress.get(update.orderId());
+        if (previous != null && (update.goldAccepted() < previous.goldAccepted()
+                || !update.emittedItems().containsAll(previous.emittedItems())
+                || update.collected().size() < previous.collected().size()
+                || (previous.terminal() && !update.terminal()))) return;
+        if (update.goldAccepted() > order.maxIngots()) { failClosed(scope, "barter exceeded its order gold limit"); return; }
+        scope.barterProgress.put(update.orderId(), update);
+        Map<String, Long> spent;
+        try { spent = scopeSpent(scope); }
+        catch (ArithmeticException overflow) { failClosed(scope, "shared spending totals overflowed"); return; }
+        if (spent.getOrDefault("minecraft:gold_ingot", 0L)
+                > scope.ceiling.inputCaps().getOrDefault("minecraft:gold_ingot", 0)) {
+            failClosed(scope, "barter exceeded the shared gold budget");
+            return;
+        }
+        Map<String, Integer> reservation = scope.reservations.get(update.orderId());
+        if (reservation != null) {
+            int delta = update.goldAccepted() - (previous == null ? 0 : previous.goldAccepted());
+            if (delta > 0) reservation.computeIfPresent("minecraft:gold_ingot",
+                    (item, held) -> held <= delta ? null : held - delta);
+            if (reservation.isEmpty() || update.terminal()) scope.reservations.remove(update.orderId());
+        }
+    }
+
+    public synchronized Optional<BarterProgress> barterProgress(UUID orderId) {
+        if (orderId == null) return Optional.empty();
+        UUID scopeId = barterScopes.get(orderId);
+        Scope scope = scopeId == null ? null : scopes.get(scopeId);
+        return scope == null ? Optional.empty() : Optional.ofNullable(scope.barterProgress.get(orderId));
     }
 
     /** Reserve the next transaction's exact item totals before opening a merchant session. */
@@ -244,6 +369,26 @@ public final class TradeAuthority implements TradingTurnPort {
         return scope != null && scope.active ? scope : null;
     }
 
+    private Scope validBarterScope(BarterOrder order) {
+        if (!owner.equals(order.owner()) || !order.equals(barterOrders.get(order.orderId()))) return null;
+        UUID scopeId = barterScopes.get(order.orderId());
+        if (scopeId == null || !scopeId.equals(order.scopeId())) return null;
+        Scope scope = scopes.get(scopeId);
+        return scope != null && scope.active ? scope : null;
+    }
+
+    private static boolean sameIntent(BarterOrder requested, BarterOrder original) {
+        return requested.owner().equals(original.owner()) && requested.scopeId().equals(original.scopeId())
+                && requested.piglin().equals(original.piglin())
+                && requested.earlyStopTarget().equals(original.earlyStopTarget())
+                && requested.targetCount() == original.targetCount();
+    }
+
+    private BarterOrder bind(BarterOrder requested, UUID scopeId, int maxIngots, long deadline) {
+        return new BarterOrder(requested.orderId(), owner, scopeId, requested.piglin(), maxIngots,
+                requested.earlyStopTarget(), requested.targetCount(), deadline);
+    }
+
     private static boolean isNarrower(TradeOrder requested, TradeBudget ceiling, long deadline,
                                       Set<String> allowedPayments) {
         for (var entry : requested.budget().inputCaps().entrySet()) {
@@ -290,7 +435,15 @@ public final class TradeAuthority implements TradingTurnPort {
         for (var progress : scope.progress.values()) {
             progress.spent().forEach((item, count) -> total.merge(item, (long) count, Math::addExact));
         }
+        for (var progress : scope.barterProgress.values()) {
+            total.merge("minecraft:gold_ingot", (long) progress.goldAccepted(), Math::addExact);
+        }
         return total;
+    }
+
+    private static long reservedTotalFor(Scope scope, UUID orderId, String item) {
+        Map<String, Integer> reservation = scope.reservations.get(orderId);
+        return reservation == null ? 0 : reservation.getOrDefault(item, 0);
     }
 
     private static long reservedTotal(Scope scope, String item) {

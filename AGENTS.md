@@ -80,6 +80,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | Client init | `client/FriendaiClient` — renderer, HUD, keybind, payload receivers, config. |
 | Optional Mod Menu / YACL | `client/config/ModMenuIntegration`, `client/config/FriendaiConfigScreen`. |
 | Brain loop | `brain/CompanionBrain`, `brain/PromptBuilder`, `brain/ConversationMemory`. |
+| Trading | `trading/TradeBook`, `TradeStore`, `TradeAuthority`, `TradePlanner`; server tasks/adapters in `task/trading/` and `task/builtin/`; private menu data in `net/TradeView*`. |
 | Brain wiring per server | `core/BrainService`, `core/FriendaiServerState`, `core/ServerBrainScheduler`. |
 | Tool registry and skills | `tool/builtin/FriendaiTools` (groups and `ToolKit` live in the same package). |
 | Tasks | `task/Task`, `task/TaskRunner`, `task/TaskFactory`, `task/builtin/`. |
@@ -102,7 +103,7 @@ client  (render, UI screens/tabs, HUD, voice capture, speech output)
 server  (entity, task, core, command, net, menu, perception builders)
    |  calls into pure code with plain data
 pure Java  (llm, brain, tool, memory, crafting, pathing, build, survival,
-            movement, voice, debug, text, config, pure perception data)
+            movement, voice, trading, debug, text, config, pure perception data)
 ```
 
 ### Pure Java modules

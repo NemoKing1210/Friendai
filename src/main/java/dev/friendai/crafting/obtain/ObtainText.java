@@ -69,6 +69,8 @@ public final class ObtainText {
             case ObtainStep.Explore explore -> explore.down()
                     ? "explore down to Y " + explore.depthY() + " for " + explore.block()
                     : "explore up to 64 blocks around for " + explore.block();
+            case ObtainStep.Trade trade -> "trade " + trade.count() + " fill(s) with merchant " + trade.trader();
+            case ObtainStep.InspectTrader inspect -> "inspect merchant " + inspect.trader() + " before trading";
         };
     }
 

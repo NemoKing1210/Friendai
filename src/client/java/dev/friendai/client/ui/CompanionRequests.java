@@ -3,6 +3,7 @@ package dev.friendai.client.ui;
 import dev.friendai.debug.RequestType;
 import dev.friendai.net.CompanionRequestC2SPayload;
 import dev.friendai.net.SkinUploadC2SPayload;
+import dev.friendai.net.TradeRequestC2SPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 public final class CompanionRequests {
@@ -36,5 +37,12 @@ public final class CompanionRequests {
         if (serverSupported()) {
             ClientPlayNetworking.send(new CompanionRequestC2SPayload(type, a, b));
         }
+    }
+
+    public static boolean tradingSupported() { return ClientPlayNetworking.canSend(TradeRequestC2SPayload.TYPE); }
+    public static void trade(TradeRequestC2SPayload.Action action, String queryId, String item, String components,
+            int direction, int page, String trader) {
+        if (tradingSupported()) ClientPlayNetworking.send(new TradeRequestC2SPayload(action, queryId, item,
+                components, direction, page, trader));
     }
 }

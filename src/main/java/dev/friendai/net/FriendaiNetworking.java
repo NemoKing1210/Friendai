@@ -2,6 +2,7 @@ package dev.friendai.net;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
 public final class FriendaiNetworking {
     private FriendaiNetworking() {}
@@ -18,6 +19,8 @@ public final class FriendaiNetworking {
         PayloadTypeRegistry.serverboundPlay().register(SkinRequestC2SPayload.TYPE, SkinRequestC2SPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(SkinS2CPayload.TYPE, SkinS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MovementDebugS2CPayload.TYPE, MovementDebugS2CPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(TradeRequestC2SPayload.TYPE, TradeRequestC2SPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(TradeViewS2CPayload.TYPE, TradeViewS2CPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(
                 VoiceTranscriptC2SPayload.TYPE,
                 (payload, context) -> context.server().execute(
@@ -25,6 +28,10 @@ public final class FriendaiNetworking {
         ServerPlayNetworking.registerGlobalReceiver(
                 CompanionRequestC2SPayload.TYPE,
                 (payload, context) -> context.server().execute(() -> CompanionRequestHandler.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(TradeRequestC2SPayload.TYPE,
+                (payload, context) -> context.server().execute(() -> TradeRequestHandler.handle(context.player(), payload)));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                TradeRequestHandler.disconnect(handler.getPlayer().getUUID()));
         ServerPlayNetworking.registerGlobalReceiver(
                 SkinUploadC2SPayload.TYPE,
                 (payload, context) -> context.server().execute(() -> SkinHandler.upload(context.player(), payload)));

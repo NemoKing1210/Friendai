@@ -22,6 +22,8 @@ import dev.friendai.task.trading.MerchantAdapter;
 import dev.friendai.task.trading.MerchantLeases;
 import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
+import dev.friendai.task.trading.BarterDropTracker;
+import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.builtin.RefreshTradesTask;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +50,8 @@ public final class FriendaiServerState {
     private final MerchantLeases merchantLeases;
     private final TradeSessionGuard tradeSessionGuard;
     private final TraderObserver traderObserver;
+    private final BarterDropTracker barterDropTracker = new BarterDropTracker();
+    private final PiglinBarterAdapter piglinBarterAdapter = new PiglinBarterAdapter(barterDropTracker);
     private final MerchantAdapter merchantAdapter;
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
@@ -150,6 +154,10 @@ public final class FriendaiServerState {
 
     public TraderObserver traderObserver() { return traderObserver; }
 
+    public BarterDropTracker barterDropTracker() { return barterDropTracker; }
+
+    public PiglinBarterAdapter piglinBarterAdapter() { return piglinBarterAdapter; }
+
     public MerchantAdapter merchantAdapter() { return merchantAdapter; }
 
     public ObservationScheduler observations() { return observations; }
@@ -199,6 +207,7 @@ public final class FriendaiServerState {
             List<dev.friendai.trading.TraderRecord> nearby = traderObserver.observe(companion);
             var ownerBook = trading.book(owner);
             dev.friendai.trading.TraderRecord candidate = nearby.stream()
+                    .filter(record -> !"minecraft:piglin".equals(record.entityType()))
                     .map(record -> ownerBook.trader(record.id()).orElse(record))
                     .sorted(java.util.Comparator
                             .comparing((dev.friendai.trading.TraderRecord record) ->

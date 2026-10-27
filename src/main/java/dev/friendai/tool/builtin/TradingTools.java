@@ -8,10 +8,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.task.builtin.InspectTraderTask;
 import dev.friendai.task.builtin.LevelTraderTask;
+import dev.friendai.task.builtin.BarterTask;
 import dev.friendai.task.builtin.RefreshTradesTask;
 import dev.friendai.task.builtin.TradeTask;
 import dev.friendai.task.builtin.WaitForRestockTask;
 import dev.friendai.trading.TradeBudget;
+import dev.friendai.trading.BarterOrder;
 import dev.friendai.trading.TradeItem;
 import dev.friendai.trading.TradeOffer;
 import dev.friendai.trading.TradeOrder;
@@ -38,7 +40,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 
 /** Owner-only discovery, inspection, quote queries and explicit budgeted merchant orders. */
-final class TradingTools {
+public final class TradingTools {
     private static final int MAX_TRADE_INPUTS = 2;
     private static final int MAX_PLAN_INPUTS = TradeBudget.MAX_INPUT_KINDS;
     private static final int MAX_COUNT = TradeItem.MAX_COUNT;
@@ -46,9 +48,26 @@ final class TradingTools {
 
     private TradingTools() {}
 
+    /** Dedicated UI actions reuse the same validation and authority path as the owner tools. */
+    public static ToolResult previewFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
+        return planTrade(companion, caller, args);
+    }
+
+    public static dev.friendai.task.Task submitFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
+        return createTradeTask(companion, caller, args);
+    }
+
+    public static dev.friendai.task.Task waitFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
+        return createRestockTask(companion, caller, args);
+    }
+
+    public static dev.friendai.task.Task barterFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
+        return createBarterTask(companion, caller, args);
+    }
+
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
         registry.register(ToolKit.callerTool("find_traders",
-                "Find loaded merchants within the observation radius. This only records who is visible; it does not inspect offers.",
+                "Find loaded merchants and adult piglins within the observation radius. This records visible identities only; it does not inspect offers or promise barter rewards.",
                 strict(SchemaBuilder.object().build()), AccessLevel.OWNER, () -> true,
                 TradingTools::findTraders));
         ToolKit.addCaller(registry, defs, new TaskToolDef("inspect_trader",
@@ -66,7 +85,7 @@ final class TradingTools {
         uuidSchema.addProperty("type", "string");
         uuidSchema.addProperty("format", "uuid");
         ToolKit.addCaller(registry, defs, new TaskToolDef("refresh_trades",
-                "Inspect up to 20 exact selected merchants; only a complete vanilla inspection updates their remembered offers.",
+                "Inspect up to 20 exact selected merchants; piglin barter has its own tool, and only a complete vanilla merchant inspection updates offers.",
                 strict(SchemaBuilder.object().array("traders", "Exact trader UUIDs to inspect",
                         uuidSchema, 1, RefreshTradesTask.MAX_TRADERS).required("traders").build()),
                 (c, args) -> { throw new IllegalArgumentException("refresh requires an owner caller"); }, true,
@@ -74,9 +93,16 @@ final class TradingTools {
                 (c, caller, args) -> {
                     rejectExtra(args, Set.of("traders"), false);
                     requireOwner(c, caller);
-                    state(c);
-                    long deadline = Math.addExact(currentTick(c), state(c).config().tasks.trading.maxWaitTicks);
-                    return new RefreshTradesTask(parseUuidArray(args.getAsJsonArray("traders")), deadline);
+                    var state = state(c);
+                    List<UUID> selected = parseUuidArray(args.getAsJsonArray("traders"));
+                    for (UUID id : selected) {
+                        if (state.trading().book(c.ownerUuid()).trader(id)
+                                .map(record -> "minecraft:piglin".equals(record.entityType())).orElse(false)) {
+                            throw new IllegalArgumentException("piglin barter has no merchant offers to refresh");
+                        }
+                    }
+                    long deadline = Math.addExact(currentTick(c), state.config().tasks.trading.maxWaitTicks);
+                    return new RefreshTradesTask(selected, deadline);
                 }), (c, caller, args) -> ToolResult.error("refresh requires an owner caller"));
         ToolKit.addCaller(registry, defs, new TaskToolDef("wait_for_restock",
                 "Wait for one selected villager offer to restock naturally. Wandering traders and villagers without a workstation cannot restock.",
@@ -101,6 +127,18 @@ final class TradingTools {
                 (c, args) -> { throw new IllegalArgumentException("leveling requires an owner caller"); }, true,
                 AccessLevel.OWNER, new TaskToolDef.QueueTraits(false, null, true), TradingTools::createLevelTraderTask),
                 (c, caller, args) -> ToolResult.error("leveling requires an owner caller"));
+        ToolKit.addCaller(registry, defs, new TaskToolDef("barter",
+                "Exchange up to the explicit gold budget with one selected adult piglin. Results are random; only piglin-owned output entities are collected, and accepted gold is never retried.",
+                strict(SchemaBuilder.object().string("piglin", "Exact adult piglin UUID from find_traders")
+                        .integer("max_ingots", "Maximum plain gold ingots to spend", 1, 64)
+                        .string("stop_item_id", "Optional exact collected item id for early stop")
+                        .string("stop_components_json", "Optional exact component requirements for the early-stop item")
+                        .integer("stop_count", "Optional collected target quantity", 1, MAX_COUNT)
+                        .integer("deadline_ticks", "Bounded wait deadline from now", 20, 12_000)
+                        .required("piglin").build()),
+                (c, args) -> { throw new IllegalArgumentException("barter requires an owner caller"); }, true,
+                AccessLevel.OWNER, new TaskToolDef.QueueTraits(false, null, true), TradingTools::createBarterTask),
+                (c, caller, args) -> ToolResult.error("barter requires an owner caller"));
         registry.register(ToolKit.callerTool("known_trades",
                 "Query remembered buy or sell offers. Results show freshness and stock; a quote is historical and is never permission to pay.",
                 strict(SchemaBuilder.object()
@@ -148,8 +186,8 @@ final class TradingTools {
         UUID owner = requireOwner(companion, caller);
         var state = state(companion);
         List<TraderRecord> records = state.traderObserver().observe(companion);
-        return ToolResult.ok(records.isEmpty() ? "No loaded merchants were observed nearby."
-                : "Observed " + records.size() + " loaded merchant(s):\n"
+        return ToolResult.ok(records.isEmpty() ? "No loaded merchants or adult piglins were observed nearby."
+                : "Observed " + records.size() + " loaded trader(s):\n"
                         + String.join("\n", records.stream().limit(40).map(TradeText::describe).toList()));
     }
 
@@ -309,6 +347,66 @@ final class TradingTools {
             orders.add(state.brains().tradeAuthorityFor(owner).authorize(caller, requested));
         }
         return new LevelTraderTask(traderId, targetLevel, orders);
+    }
+
+    private static dev.friendai.task.Task createBarterTask(CompanionEntity companion, Caller caller, JsonObject args) {
+        rejectExtra(args, Set.of("piglin", "max_ingots", "stop_item_id", "stop_components_json", "stop_count",
+                "deadline_ticks", QueueTradeScope.ARG), true);
+        UUID owner = requireOwner(companion, caller);
+        if (caller.tradingScope() == null) throw new IllegalArgumentException("barter requires an owner-initiated player turn");
+        UUID savedScope = QueueTradeScope.read(args);
+        if (savedScope != null && !savedScope.equals(caller.tradingScope())) {
+            throw new IllegalArgumentException("queued trading scope does not match this owner turn");
+        }
+        var state = state(companion);
+        var config = state.config().tasks.trading;
+        UUID piglinId = parseUuid(requiredString(args, "piglin"), "piglin");
+        int maxIngots = args.has("max_ingots") ? args.get("max_ingots").getAsInt() : config.barterDefaultIngots;
+        if (maxIngots < 1 || maxIngots > config.maxBarterIngots) {
+            throw new IllegalArgumentException("max_ingots must be between 1 and the configured maximum " + config.maxBarterIngots);
+        }
+        int deadlineTicks = args.has("deadline_ticks") ? args.get("deadline_ticks").getAsInt() : config.waitTicks;
+        if (deadlineTicks < 20 || deadlineTicks > config.maxWaitTicks) {
+            throw new IllegalArgumentException("deadline_ticks is outside the configured wait range");
+        }
+        boolean hasItem = args.has("stop_item_id");
+        boolean hasCount = args.has("stop_count");
+        if (hasItem != hasCount || (!hasItem && args.has("stop_components_json"))) {
+            throw new IllegalArgumentException("early stop requires both stop_item_id and stop_count");
+        }
+        java.util.Optional<TradeQuery> target = java.util.Optional.empty();
+        int targetCount = 0;
+        if (hasItem) {
+            String components = args.has("stop_components_json")
+                    ? requiredString(args, "stop_components_json") : "{}";
+            target = java.util.Optional.of(new TradeQuery(TradeQuery.Direction.BUY,
+                    requiredString(args, "stop_item_id"), components, TradeQuery.MAX_RESULTS));
+            targetCount = args.get("stop_count").getAsInt();
+            if (targetCount < 1 || targetCount > MAX_COUNT) throw new IllegalArgumentException("stop_count is out of range");
+        }
+        state.traderObserver().observe(companion);
+        TraderRecord known = state.trading().book(owner).trader(piglinId)
+                .orElseThrow(() -> new IllegalArgumentException("piglin must be discovered nearby first"));
+        if (!"minecraft:piglin".equals(known.entityType())) throw new IllegalArgumentException("selected UUID is not an adult piglin");
+        if (!companion.level().dimension().identifier().toString().equals(known.dimension())) {
+            throw new IllegalArgumentException("selected piglin is in another dimension");
+        }
+        if (companion.distanceToSqr(known.x() + 0.5, known.y() + 0.5, known.z() + 0.5)
+                > config.observationRadius * (double) config.observationRadius) {
+            throw new IllegalArgumentException("selected piglin is outside the observation radius");
+        }
+        long deadline = Math.addExact(currentTick(companion), deadlineTicks);
+        UUID id = barterOrderId(caller.tradingScope(), piglinId, maxIngots, target.orElse(null), targetCount, deadlineTicks);
+        BarterOrder requested = new BarterOrder(id, owner, caller.tradingScope(), piglinId, maxIngots,
+                target, targetCount, deadline);
+        return new BarterTask(state.brains().tradeAuthorityFor(owner).authorizeBarter(caller, requested));
+    }
+
+    private static UUID barterOrderId(UUID scope, UUID piglin, int maxIngots, TradeQuery target,
+                                      int targetCount, int deadlineTicks) {
+        String intent = piglin + "\n" + maxIngots + "\n" + (target == null ? "" : target.toString())
+                + "\n" + targetCount + "\n" + deadlineTicks;
+        return UUID.nameUUIDFromBytes((scope + "\nbarter\n" + intent).getBytes(StandardCharsets.UTF_8));
     }
 
     private static TradeQuery parseQuery(JsonObject args) {

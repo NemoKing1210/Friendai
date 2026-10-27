@@ -55,6 +55,7 @@ public class FriendaiMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(FriendaiServerState::close);
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             FriendaiServerState state = FriendaiServerState.get(server);
+            state.barterDropTracker().expire(server.overworld().getGameTime());
             state.tradeSessionGuard().tick(server.overworld().getGameTime());
             state.tickTrading();
             state.observations().tick(server, server.overworld().getGameTime());

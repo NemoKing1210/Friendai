@@ -1,0 +1,10 @@
+{
+  "name": "trading_explicit_order_uses_bounded_tool",
+  "access": "owner",
+  "playerSays": "Buy one book from the librarian, spending at most 12 emeralds.",
+  "replies": [
+    {"text": "I will use the exact inspected offer and the 12 emerald cap.", "tools": ["trade_item"]},
+    {"text": "The trade task has started under that cap.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["trade_item"], "toolsNotCalled": ["barter"]}
+}

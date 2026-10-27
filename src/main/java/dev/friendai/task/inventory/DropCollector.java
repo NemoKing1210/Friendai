@@ -16,8 +16,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -55,6 +57,8 @@ public final class DropCollector {
     private final Vec3 origin;
     private final int radius;
     private final @Nullable ItemMatcher filter;
+    private final Set<UUID> entityFilter;
+    private final List<ItemStack> receipts = new ArrayList<>();
     private final Set<UUID> blacklist = new HashSet<>();
     /** Every drop in range that may be taken, nearest first. */
     private List<ItemEntity> drops = List.of();
@@ -74,14 +78,20 @@ public final class DropCollector {
 
     /** @param filter when given, only drops matching it are taken; the rest stay on the ground */
     public DropCollector(Vec3 origin, int radius, @Nullable ItemMatcher filter) {
+        this(origin, radius, filter, Set.of());
+    }
+
+    /** Restricts pickup to exact attributed entity UUIDs while retaining the ordinary pickup safety rules. */
+    public DropCollector(Vec3 origin, int radius, @Nullable ItemMatcher filter, Set<UUID> entityFilter) {
         this.origin = origin;
         this.radius = radius;
         this.filter = filter;
+        this.entityFilter = Set.copyOf(entityFilter);
     }
 
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
-        collected += pickupAtFeet(c, TOUCH_RADIUS, filter);
+        collected += collectAtFeet(c, TOUCH_RADIUS);
         if (++ticks > MAX_TICKS) {
             stop(c);
             return State.DONE;
@@ -119,6 +129,9 @@ public final class DropCollector {
         return collected;
     }
 
+    /** Exact stacks successfully moved from this collector's eligible entities into inventory. */
+    public List<ItemStack> collectedStacks() { return receipts.stream().map(ItemStack::copy).toList(); }
+
     /** Stops the route and the walking. Drops already taken stay taken. */
     public void stop(TaskContext c) {
         if (navigator != null) {
@@ -133,8 +146,33 @@ public final class DropCollector {
      * the route. Returns the number of items moved into the inventory.
      */
     public static int pickupAtFeet(TaskContext c, double radius, @Nullable ItemMatcher filter) {
+        return pickupAtFeet(c, radius, filter, Set.of());
+    }
+
+    public static int pickupAtFeet(TaskContext c, double radius, @Nullable ItemMatcher filter, Set<UUID> entityFilter) {
         return c.companion().collectNearbyItems(radius,
-                e -> !e.hasPickUpDelay() && (filter == null || filter.test(e.getItem())) && safe(e));
+                e -> !e.hasPickUpDelay() && (entityFilter.isEmpty() || entityFilter.contains(e.getUUID()))
+                        && (filter == null || filter.test(e.getItem())) && safe(e));
+    }
+
+    private int collectAtFeet(TaskContext c, double radius) {
+        CompanionEntity companion = c.companion();
+        AABB bounds = companion.getBoundingBox().inflate(radius);
+        Map<UUID, ItemStack> before = new java.util.LinkedHashMap<>();
+        for (ItemEntity entity : c.level().getEntitiesOfClass(ItemEntity.class, bounds,
+                item -> companion.canCollect(item) && !item.hasPickUpDelay()
+                        && (entityFilter.isEmpty() || entityFilter.contains(item.getUUID()))
+                        && (filter == null || filter.test(item.getItem())) && safe(item))) {
+            before.put(entity.getUUID(), entity.getItem().copy());
+        }
+        int moved = pickupAtFeet(c, radius, filter, entityFilter);
+        for (var entry : before.entrySet()) {
+            ItemEntity entity = c.level().getEntity(entry.getKey()) instanceof ItemEntity found ? found : null;
+            int taken = entity == null ? entry.getValue().getCount()
+                    : Math.max(0, entry.getValue().getCount() - entity.getItem().getCount());
+            if (taken > 0) receipts.add(entry.getValue().copyWithCount(taken));
+        }
+        return moved;
     }
 
     private void scan(TaskContext c) {
@@ -155,6 +193,7 @@ public final class DropCollector {
     /** A drop this round means to take, whether or not it is ready to be taken yet. */
     private boolean wanted(ItemEntity e, CompanionEntity companion) {
         return companion.canCollect(e)
+                && (entityFilter.isEmpty() || entityFilter.contains(e.getUUID()))
                 && (filter == null || filter.test(e.getItem()))
                 && companion.inventory().canAddItem(e.getItem())
                 && safe(e)

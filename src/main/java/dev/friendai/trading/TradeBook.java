@@ -18,6 +18,7 @@ public final class TradeBook {
     public static final long POSITION_FRESH_TICKS = 12000;
     private final Map<UUID, TraderRecord> traders = new HashMap<>();
     private final LinkedHashMap<UUID, TradeProgress> history = new LinkedHashMap<>();
+    private final LinkedHashMap<UUID, BarterProgress> barterHistory = new LinkedHashMap<>();
     private final Set<UUID> pinned = new HashSet<>();
     private final Map<UUID, Integer> retained = new HashMap<>();
     private UUID pricingActor;
@@ -34,6 +35,7 @@ public final class TradeBook {
         Objects.requireNonNull(saved);
         saved.traders().forEach(trader -> traders.put(trader.id(), stableOffers(trader)));
         saved.history().forEach(progress -> history.put(progress.orderId(), progress));
+        saved.barterHistory().forEach(progress -> barterHistory.put(progress.orderId(), progress));
         pinned.addAll(saved.pinned());
         revision = saved.revision();
     }
@@ -108,6 +110,13 @@ public final class TradeBook {
 
     public Optional<TraderRecord> trader(UUID id) {
         return Optional.ofNullable(traders.get(id));
+    }
+
+    /** Removes one remembered partner unless a caller has pinned/retained it for an active action. */
+    public boolean forget(UUID id) {
+        if (id == null || pinned.contains(id) || retained.containsKey(id) || traders.remove(id) == null) return false;
+        changed();
+        return true;
     }
 
     /** Ambiguous duplicates must be inspected, never selected by a remembered list index. */
@@ -233,6 +242,34 @@ public final class TradeBook {
         history.put(progress.orderId(), progress);
     }
 
+    public void recordBarter(BarterProgress progress) {
+        Objects.requireNonNull(progress);
+        BarterProgress previous = barterHistory.get(progress.orderId());
+        if (progress.equals(previous)) return;
+        if (previous != null && (progress.goldAccepted() < previous.goldAccepted()
+                || !progress.emittedItems().containsAll(previous.emittedItems())
+                || progress.collected().size() < previous.collected().size()
+                || (previous.terminal() && !progress.terminal()))) {
+            throw new IllegalArgumentException("barter history cannot move backward");
+        }
+        var terminalToEvict = barterHistory.entrySet().stream()
+                .filter(entry -> !entry.getKey().equals(progress.orderId()))
+                .filter(entry -> entry.getValue().terminal()).findFirst();
+        if (previous == null && barterHistory.size() >= TradeFile.MAX_HISTORY && terminalToEvict.isEmpty()) {
+            throw new IllegalStateException("barter history capacity is occupied by active orders");
+        }
+        changed();
+        if (previous == null && barterHistory.size() >= TradeFile.MAX_HISTORY) {
+            barterHistory.remove(terminalToEvict.orElseThrow().getKey());
+        }
+        barterHistory.remove(progress.orderId());
+        barterHistory.put(progress.orderId(), progress);
+    }
+
+    public Optional<BarterProgress> barterProgress(UUID orderId) {
+        return Optional.ofNullable(barterHistory.get(orderId));
+    }
+
     public long revision() {
         return revision;
     }
@@ -240,7 +277,7 @@ public final class TradeBook {
     public TradeFile snapshot() {
         return new TradeFile(TradeFile.VERSION, revision,
                 traders.values().stream().sorted(Comparator.comparing(TraderRecord::id)).toList(),
-                List.copyOf(history.values()), pinned);
+                List.copyOf(history.values()), pinned, List.copyOf(barterHistory.values()));
     }
 
     private void changed() {
