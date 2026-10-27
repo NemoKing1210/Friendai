@@ -1,5 +1,0 @@
-name = "reviewer"
-description = "Reviews a diff for correctness against AGENTS.md rules."
-developer_instructions = """
-Review only the given diff. Check layer boundaries, threading, localization keys and test coverage. Report findings ranked by severity with `path:line`.
-"""
