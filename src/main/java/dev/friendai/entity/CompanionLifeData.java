@@ -22,11 +22,14 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 public final class CompanionLifeData extends SavedData {
     public record RespawnPoint(ResourceKey<Level> dimension, BlockPos bed) {}
 
-    private record OwnerState(boolean autoRespawn, String respawnPoint, boolean creativeMode) {
+    /** @param followMode the owner's follow switch; empty until they make the choice, so the config default applies */
+    private record OwnerState(boolean autoRespawn, String respawnPoint, boolean creativeMode,
+                              Optional<Boolean> followMode) {
         static final Codec<OwnerState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.BOOL.optionalFieldOf("autoRespawn", true).forGetter(OwnerState::autoRespawn),
                 Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint),
-                Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode))
+                Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode),
+                Codec.BOOL.optionalFieldOf("followMode").forGetter(OwnerState::followMode))
                 .apply(instance, OwnerState::new));
     }
 
@@ -56,7 +59,7 @@ public final class CompanionLifeData extends SavedData {
     }
 
     private OwnerState state(UUID owner) {
-        return owners.getOrDefault(owner, new OwnerState(true, "", false));
+        return owners.getOrDefault(owner, new OwnerState(true, "", false, Optional.empty()));
     }
 
     public Optional<RespawnPoint> respawnPoint(UUID owner) {
@@ -84,7 +87,8 @@ public final class CompanionLifeData extends SavedData {
     public void setAutoRespawn(UUID owner, boolean enabled) {
         OwnerState current = state(owner);
         if (current.autoRespawn() != enabled) {
-            owners.put(owner, new OwnerState(enabled, current.respawnPoint(), current.creativeMode()));
+            owners.put(owner, new OwnerState(enabled, current.respawnPoint(), current.creativeMode(),
+                    current.followMode()));
             setDirty();
         }
     }
@@ -93,7 +97,22 @@ public final class CompanionLifeData extends SavedData {
         OwnerState current = state(owner);
         String next = point == null ? "" : point.dimension().identifier() + "|" + point.bed().asLong();
         if (!current.respawnPoint().equals(next)) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), next, current.creativeMode()));
+            owners.put(owner, new OwnerState(current.autoRespawn(), next, current.creativeMode(), current.followMode()));
+            setDirty();
+        }
+    }
+
+    /** The owner's follow switch, empty until they choose; the config default applies otherwise. */
+    public Optional<Boolean> followModeChoice(UUID owner) {
+        return state(owner).followMode();
+    }
+
+    /** @param enabled whether the companion walks to its owner on its own initiative */
+    public void setFollowMode(UUID owner, boolean enabled) {
+        OwnerState current = state(owner);
+        if (!current.followMode().equals(Optional.of(enabled))) {
+            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), current.creativeMode(),
+                    Optional.of(enabled)));
             setDirty();
         }
     }
@@ -101,7 +120,8 @@ public final class CompanionLifeData extends SavedData {
     public void setCreativeMode(UUID owner, boolean enabled) {
         OwnerState current = state(owner);
         if (current.creativeMode() != enabled) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled));
+            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled,
+                    current.followMode()));
             setDirty();
         }
     }

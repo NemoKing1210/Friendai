@@ -12,6 +12,7 @@ import dev.friendai.agent.autonomy.FreeTimeText;
 import dev.friendai.agent.autonomy.NeedsAssessor;
 import dev.friendai.agent.autonomy.ProgressionLadder;
 import dev.friendai.agent.autonomy.IdleStartPolicy;
+import dev.friendai.agent.autonomy.IdleWatchdog;
 import dev.friendai.agent.autonomy.Need;
 import dev.friendai.agent.autonomy.NeedKind;
 import dev.friendai.agent.autonomy.ReflexPlans;
@@ -26,6 +27,7 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.queue.JobQueue;
+import dev.friendai.task.TaskSettings;
 import dev.friendai.text.UserMessage;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
@@ -73,6 +75,12 @@ public final class FreeTimeDriver {
     private final AutonomyFactsBuilder facts = new AutonomyFactsBuilder();
     private final Map<UUID, ShiftBudget> budgets = new HashMap<>();
     private final Map<UUID, Long> lastOwnerActivity = new HashMap<>();
+    /** Free time with nothing running since this tick is a stall the watchdog answers. */
+    private final Map<UUID, Long> quietSince = new HashMap<>();
+    /** The last stall line told to each owner, so a quiet agenda does not repeat itself. */
+    private final Map<UUID, Long> stallSaidAt = new HashMap<>();
+    /** Whether a movement order ran on the previous tick, to notice when one ends. */
+    private final Map<UUID, Boolean> wasMovementOrder = new HashMap<>();
     private final Map<UUID, Boolean> wasOnline = new HashMap<>();
     private final Set<UUID> seenOnline = new java.util.HashSet<>();
     /** Free-time plans cancelled on purpose; their end event is swallowed once. */
@@ -238,6 +246,11 @@ public final class FreeTimeDriver {
         FreeTime state = service.state(owner);
         var runner = companion.taskRunner();
         boolean online = companion.owner().isPresent();
+        boolean movementOrder = runner.movementOrderActive();
+        if (Boolean.TRUE.equals(wasMovementOrder.put(owner, movementOrder)) && !movementOrder) {
+            // The order the owner gave already served the quiet spell: work resumes at once, not a minute later.
+            lastOwnerActivity.put(owner, nowMillis - s.resumeAfterSec() * 1000L);
+        }
         long lastOwner = lastOwnerActivity.computeIfAbsent(owner, id -> nowMillis);
         boolean combat = runner.paused() || runner.suspended() && online || companion.isSleeping()
                 || companion.getTarget() != null;
@@ -276,7 +289,7 @@ public final class FreeTimeDriver {
         AutonomyFacts f = facts.build(companion, owner, nowMillis);
         boolean planExists = shiftPlan != 0;
         ShiftInputs in = new ShiftInputs(state, f, s, ceiling, ownerGoalActive, planExists,
-                planningInFlight(owner), ownerWork, brainThinking, lastOwner);
+                planningInFlight(owner), ownerWork, brainThinking, lastOwner, movementOrder);
         switch (ShiftPolicy.decide(in, budget(owner))) {
             case ShiftPolicy.CloseStale ignored -> service.finishShift(owner, false, "plan is gone", nowMillis);
             case ShiftPolicy.Reflex reflex -> {
@@ -292,7 +305,49 @@ public final class FreeTimeDriver {
             case ShiftPolicy.None ignored -> {}
             case ShiftPolicy.WaitBudget ignored -> {}
         }
+        watchdog(owner, companion, f, s, brainThinking, nowMillis);
     }
+
+    /**
+     * Free time on with nothing running is a bug state, not a rest: after the window the director is asked anyway
+     * (the failure backoff is skipped, the hourly cap is not), a fallback template is queued, or the owner is told
+     * once that nothing could start.
+     */
+    private void watchdog(UUID owner, CompanionEntity companion, AutonomyFacts f, AutonomySettings s,
+                          boolean brainThinking, long nowMillis) {
+        var runner = companion.taskRunner();
+        FreeTime state = service().state(owner);
+        boolean movementOrder = runner.movementOrderActive();
+        IdleWatchdog.Busy busy = new IdleWatchdog.Busy(state.shift() != null,
+                runner.hasWork() && !movementOrder, state.awaitingChoice(), brainThinking, planningInFlight(owner),
+                f.inCombat(), movementOrder);
+        boolean mayDecide = !runner.paused() && !runner.suspended() && (f.ownerOnline() || s.whileOffline());
+        if (busy.anything() || !mayDecide) {
+            quietSince.remove(owner);
+            return;
+        }
+        long since = quietSince.computeIfAbsent(owner, id -> nowMillis);
+        if (!IdleWatchdog.due(true, busy, since, nowMillis, TaskSettings.freeTimeWatchdogSec)) {
+            return;
+        }
+        quietSince.put(owner, nowMillis);
+        int perHour = f.ownerOnline() ? s.maxShiftsPerHour() : s.offlineShiftsPerHour();
+        if (budget(owner).allows(nowMillis, perHour)) {
+            askDirector(owner, companion, f, nowMillis);
+            return;
+        }
+        for (Need need : NeedsAssessor.assess(f, state, s)) {
+            if (ShiftPolicy.FALLBACKS.contains(need.kind())) {
+                queueTemplate(owner, companion, need, ReflexPlans.fallback(need, f), s, nowMillis);
+                return;
+            }
+        }
+        if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= TaskSettings.freeTimeWatchdogSec * 1000L) {
+            stallSaidAt.put(owner, nowMillis);
+            tell(owner, companion, UserMessage.of("friendai.freetime.stalled"));
+        }
+    }
+
 
     private boolean wasOnlineThisRun(UUID owner, boolean online) {
         if (online) {

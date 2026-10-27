@@ -14,11 +14,15 @@ public final class DefaultActivityPolicy {
     private DefaultActivityPolicy() {}
 
     /**
+     * @param followModeOn the owner's follow switch: off means never walk to them on the companion's own initiative
      * @param ownerWorkQueued the owner's own jobs wait to run, so free time is not what the companion is doing
      * @param inCombat the companion is fighting, sleeping or in a retreat
      */
-    public static boolean shouldFollow(FreeTime state, AutonomySettings s, Autonomy ceiling,
+    public static boolean shouldFollow(FreeTime state, AutonomySettings s, Autonomy ceiling, boolean followModeOn,
                                        boolean ownerWorkQueued, boolean inCombat) {
+        if (!followModeOn) {
+            return false;
+        }
         if (!state.on() || !s.enabled() || ceiling == Autonomy.PASSIVE) {
             return true;
         }

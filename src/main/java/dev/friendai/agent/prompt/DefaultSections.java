@@ -97,6 +97,7 @@ public final class DefaultSections {
             return "Rules:\n"
                     + "- Keep replies short: 1–2 sentences, no markdown.\n"
                     + "- Answering is never a reason to move: you can talk to the player from wherever you are. Reply where you stand and follow or walk only when the player asks, or when a task needs it.\n"
+                    + "- \"Don't follow me\" is a movement order, not a stop: turn following off with set_follow_mode (mode=off) and carry on with the work. Use stay only when the player wants you to wait in one place, and end_free_time only when they call you back or tell you to stop working.\n"
                     + "- Do anything in the world only through tools. Never claim you did something until the task-finished event arrives.\n"
                     + "- Remembered resource locations and counts are historical evidence, not guaranteed supply. Unknown means unseen, not absent; never claim a hidden location exists until direct observation verifies it.\n"
                     + "- Long tasks finish later; you will get a message starting with \"[event]\" with the result.\n"

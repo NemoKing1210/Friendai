@@ -20,10 +20,14 @@ final class MovementTools {
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
         ToolKit.add(registry, defs, new TaskToolDef("follow_player",
-                "Follow the owner and stay close to them. Use it when the owner asks you to follow or come along, not to answer a message.",
-                SchemaBuilder.object().build(), (c, a) -> new FollowTask(false), false,
-                new TaskToolDef.QueueTraits(true, null)));
-        ToolKit.add(registry, defs, new TaskToolDef("stay", "Stay in the current spot until told otherwise.",
+                "Follow the owner and stay close to them, and turn following back on for later. Use it when the owner asks you to follow or come along, not to answer a message.",
+                SchemaBuilder.object().build(), (c, a) -> {
+                    c.setFollowMode(true);
+                    return new FollowTask(false);
+                }, false, new TaskToolDef.QueueTraits(true, null)));
+        ToolKit.add(registry, defs, new TaskToolDef("stay",
+                "Wait in this spot for a few minutes; queued work resumes when the wait ends. Not for 'don't follow me': "
+                        + "that is set_follow_mode with mode=off, which leaves your work running.",
                 SchemaBuilder.object().build(), (c, a) -> new StayTask(), false,
                 new TaskToolDef.QueueTraits(true, null)));
         ToolKit.add(registry, defs, new TaskToolDef("go_to", "Walk to the given coordinates, or to the owner with target=owner.",

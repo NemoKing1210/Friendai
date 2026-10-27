@@ -268,8 +268,8 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /**
-     * The idle fallback may walk to the owner unless free time is the companion's own business right now. The
-     * free-time state is per owner and persisted, so a reload does not turn the companion back into a follower.
+     * The idle fallback may walk to the owner unless free time is the companion's own business right now or the owner
+     * switched following off. Both are persisted, so a reload does not turn the companion back into a follower.
      */
     public boolean mayFollowOwner() {
         var server = level().getServer();
@@ -283,7 +283,29 @@ public class CompanionEntity extends PathfinderMob {
         return dev.friendai.agent.autonomy.DefaultActivityPolicy.shouldFollow(
                 state.freeTime().state(ownerUuid), cfg.autonomy.toSettings(),
                 dev.friendai.brain.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
+                followMode(),
                 taskRunner.busyWithOther() || taskRunner.ownerWorkQueued(), inCombat);
+    }
+
+    /**
+     * Whether the companion walks to its owner on its own initiative. The owner's choice is stored with their other
+     * life preferences, so it survives a relog, a dismiss and a death; the config's default applies until they choose.
+     */
+    public boolean followMode() {
+        var server = level().getServer();
+        if (server == null || ownerUuid == null) {
+            return TaskSettings.defaultFollow;
+        }
+        return CompanionLifeData.get(server).followModeChoice(ownerUuid).orElse(TaskSettings.defaultFollow);
+    }
+
+    /** Switches following; a running default follow stops on the next tick through {@link #mayFollowOwner()}. */
+    public void setFollowMode(boolean on) {
+        var server = level().getServer();
+        if (server == null || ownerUuid == null) {
+            return;
+        }
+        CompanionLifeData.get(server).setFollowMode(ownerUuid, on);
     }
 
     public CombatController combatController() {

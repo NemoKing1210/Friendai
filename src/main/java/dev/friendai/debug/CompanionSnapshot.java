@@ -7,6 +7,8 @@ import java.util.List;
  *
  * @param freeTimeOn the companion is working on its own
  * @param freeTimeActivity what it is doing in free time, empty between activities
+ * @param freeTimeWaiting free time is on and a director turn is choosing the next activity
+ * @param followMode whether the companion walks to its owner on its own initiative
  */
 public record CompanionSnapshot(
         boolean present,
@@ -27,7 +29,9 @@ public record CompanionSnapshot(
         boolean creativeMode,
         boolean creativeModeAvailable,
         boolean freeTimeOn,
-        String freeTimeActivity) {
+        String freeTimeActivity,
+        boolean freeTimeWaiting,
+        boolean followMode) {
     public static final int MAX_ACTIVITY = 200;
 
     public CompanionSnapshot {
@@ -56,7 +60,7 @@ public record CompanionSnapshot(
             boolean creativeModeAvailable) {
         this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
                 toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable,
-                false, "");
+                false, "", false, true);
     }
 
     public CompanionSnapshot(
@@ -76,7 +80,8 @@ public record CompanionSnapshot(
             boolean autoRespawn,
             boolean autoRespawnAvailable) {
         this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, false, false);
+                toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, false, false,
+                false, "", false, true);
     }
 
     public CompanionSnapshot(
@@ -94,6 +99,7 @@ public record CompanionSnapshot(
             CompanionVitals vitals,
             List<QueueRow> queue) {
         this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, true, present, false, false);
+                toolNames, vitals, queue, true, present, false, false,
+                false, "", false, true);
     }
 }

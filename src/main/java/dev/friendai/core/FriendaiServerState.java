@@ -282,6 +282,7 @@ public final class FriendaiServerState {
         TaskSettings.queueBlockedNoticeSec = cfg.tasks.queueBlockedNoticeSec;
         TaskSettings.queueMaxStepsPerAdd = cfg.tasks.queueMaxStepsPerAdd;
         TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
+        TaskSettings.stayTimeoutSec = cfg.tasks.taskTimeoutSec;
         TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
         TaskSettings.treeSearchRadius = cfg.tasks.treeSearchRadius;
         TaskSettings.fellCollectDrops = cfg.tasks.fellCollectDrops;

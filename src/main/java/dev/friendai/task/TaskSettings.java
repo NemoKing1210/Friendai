@@ -12,6 +12,10 @@ public final class TaskSettings {
     public static volatile int queueBlockedNoticeSec = 30;
     public static volatile int queueMaxStepsPerAdd = 32;
     public static volatile boolean defaultFollow = true;
+    /** How long a stay order lasts before it ends by itself; follows {@code tasks.taskTimeoutSec}. */
+    public static volatile int stayTimeoutSec = 300;
+    /** How long free time may stand with nothing running before the driver forces a decision. */
+    public static volatile int freeTimeWatchdogSec = 120;
     public static volatile int mineSearchRadius = 32;
     public static volatile int treeSearchRadius = 32;
     public static volatile boolean fellCollectDrops = true;

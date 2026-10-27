@@ -42,7 +42,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] An owner order during free time runs first; free time resumes about a minute after the owner goes quiet.
 - [ ] Leave the companion idle for five minutes: it says it will get on with its own things and starts free time.
 - [ ] Log out during free time and log back in: the "While you were away" summary arrives once.
-- [ ] The Toggles tab's free-time button toggles it and shows the current activity, in both UI languages.
+- [ ] The Toggles tab's free-time button toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
+- [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
 ## Voice
 

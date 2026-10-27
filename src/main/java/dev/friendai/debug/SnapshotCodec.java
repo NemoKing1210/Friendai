@@ -84,6 +84,9 @@ public final class SnapshotCodec {
             out.writeBoolean(s.creativeModeAvailable());
             out.writeBoolean(s.freeTimeOn());
             writeString(out, s.freeTimeActivity());
+            // Optional trailing section: a peer running an older build reads none of it.
+            out.writeBoolean(s.freeTimeWaiting());
+            out.writeBoolean(s.followMode());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -164,13 +167,19 @@ public final class SnapshotCodec {
                 freeTimeOn = in.readBoolean();
                 freeTimeActivity = readString(in);
             }
+            boolean freeTimeWaiting = false;
+            boolean followMode = true;
+            if (in.available() >= 2) {
+                freeTimeWaiting = in.readBoolean();
+                followMode = in.readBoolean();
+            }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
                     present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals,
                     queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable, freeTimeOn,
-                    freeTimeActivity);
+                    freeTimeActivity, freeTimeWaiting, followMode);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

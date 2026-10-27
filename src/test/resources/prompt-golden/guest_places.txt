@@ -39,3 +39,4 @@ Rules:
 - Current speaker: Gus (guest).
 Current state:
 Position: 1 2 3
+- "Don't follow me" is a movement order, not a stop: turn following off with set_follow_mode (mode=off) and carry on with the work. Use stay only when the player wants you to wait in one place, and end_free_time only when they call you back or tell you to stop working.

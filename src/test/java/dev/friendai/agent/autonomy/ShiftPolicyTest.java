@@ -24,7 +24,7 @@ class ShiftPolicyTest {
     }
 
     private static ShiftInputs in(FreeTime state, Facts facts) {
-        return new ShiftInputs(state, facts.build(), S, Autonomy.ASSISTIVE, false, true, false, false, false, QUIET);
+        return new ShiftInputs(state, facts.build(), S, Autonomy.ASSISTIVE, false, true, false, false, false, QUIET, false);
     }
 
     private static ShiftPolicy.Decision decide(ShiftInputs in) {
@@ -39,7 +39,7 @@ class ShiftPolicyTest {
     @Test
     void passiveCeilingIsNone() {
         var in = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.PASSIVE, false, true, false, false, false,
-                QUIET);
+                QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
@@ -47,21 +47,21 @@ class ShiftPolicyTest {
     void disabledIsNone() {
         var off = new AutonomySettings(false, true, 5, 60, true, 20, 6, 2, 10, true, true, List.of());
         var in = new ShiftInputs(on(), Facts.base().build(), off, Autonomy.ASSISTIVE, false, true, false, false,
-                false, QUIET);
+                false, QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
     @Test
     void staleShiftIsClosed() {
         var in = new ShiftInputs(withShift(false, NeedKind.GEAR), Facts.base().build(), S, Autonomy.ASSISTIVE,
-                false, false, false, false, false, QUIET);
+                false, false, false, false, false, QUIET, false);
         assertInstanceOf(ShiftPolicy.CloseStale.class, decide(in));
     }
 
     @Test
     void planningShiftIsNotStale() {
         var in = new ShiftInputs(withShift(false, NeedKind.GEAR), Facts.base().build(), S, Autonomy.ASSISTIVE,
-                false, false, true, false, false, QUIET);
+                false, false, true, false, false, QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
@@ -93,21 +93,21 @@ class ShiftPolicyTest {
     @Test
     void ownerWorkWaits() {
         var in = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.ASSISTIVE, false, true, false, true, false,
-                QUIET);
+                QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
     @Test
     void activeOwnerGoalBlocksShifts() {
         var in = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.ASSISTIVE, true, true, false, false, false,
-                QUIET);
+                QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
     @Test
     void thinkingOrAwaitingOrCombatWaits() {
         var thinking = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.ASSISTIVE, false, true, false, false,
-                true, QUIET);
+                true, QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(thinking));
         var awaiting = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, true, 1, List.of(), List.of(),
                 Map.of(), List.of());
@@ -118,11 +118,27 @@ class ShiftPolicyTest {
     @Test
     void quietPeriodWaits() {
         var spoke30 = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.ASSISTIVE, false, true, false, false,
-                false, Facts.NOW - 30_000);
+                false, Facts.NOW - 30_000, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(spoke30));
         var spoke61 = new ShiftInputs(on(), Facts.base().build(), S, Autonomy.ASSISTIVE, false, true, false, false,
-                false, Facts.NOW - 61_000);
+                false, Facts.NOW - 61_000, false);
         assertInstanceOf(ShiftPolicy.Director.class, decide(spoke61));
+    }
+
+    @Test
+    void aMovementOrderKeepsTheShift() {
+        var in = new ShiftInputs(withShift(false, NeedKind.GEAR), Facts.base().build(), S, Autonomy.ASSISTIVE,
+                false, true, false, false, false, QUIET, true);
+        assertInstanceOf(ShiftPolicy.None.class, decide(in));
+    }
+
+    @Test
+    void aMovementOrderHoldsNewWork() {
+        Facts facts = Facts.base().freeSlots(1).storage("s", 9).storageFreeSlots(9);
+        assertInstanceOf(ShiftPolicy.Reflex.class, decide(in(on(), facts)));
+        var in = new ShiftInputs(on(), facts.build(), S, Autonomy.ASSISTIVE, false, true, false, false, false, QUIET,
+                true);
+        assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 
     @Test
@@ -137,7 +153,7 @@ class ShiftPolicyTest {
     void offlineWithoutPermissionIsNone() {
         var noOffline = new AutonomySettings(true, true, 5, 60, false, 20, 6, 2, 10, true, true, List.of());
         var in = new ShiftInputs(on(), Facts.base().ownerOffline().freeSlots(1).storage("s", 2).storageFreeSlots(9)
-                .build(), noOffline, Autonomy.ASSISTIVE, false, true, false, false, false, QUIET);
+                .build(), noOffline, Autonomy.ASSISTIVE, false, true, false, false, false, QUIET, false);
         assertInstanceOf(ShiftPolicy.None.class, decide(in));
     }
 

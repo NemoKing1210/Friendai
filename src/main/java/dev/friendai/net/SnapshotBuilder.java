@@ -35,10 +35,13 @@ public final class SnapshotBuilder {
         boolean autoRespawn = state.companionLife().autoRespawn(owner) && !server.isHardcore();
         boolean creativeMode = state.companionLife().creativeMode(owner);
         boolean creativeModeAvailable = creativeMode || operator;
+        boolean followMode = state.companionLife().followModeChoice(owner)
+                .orElse(state.config().tasks.defaultFollow);
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
                     false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "",
-                    toolNames, CompanionVitals.NONE, List.of(), autoRespawn, false, creativeMode, false);
+                    toolNames, CompanionVitals.NONE, List.of(), autoRespawn, false, creativeMode, false, false, "",
+                    false, followMode);
         }
         CompanionEntity c = companion.get();
         var freeTime = state.freeTime().state(owner);
@@ -61,7 +64,9 @@ public final class SnapshotBuilder {
                 c.creativeMode(),
                 creativeModeAvailable,
                 freeTime.on(),
-                freeTime.shift() == null ? "" : freeTime.shift().goal());
+                freeTime.shift() == null ? "" : freeTime.shift().goal(),
+                freeTime.awaitingChoice(),
+                c.followMode());
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

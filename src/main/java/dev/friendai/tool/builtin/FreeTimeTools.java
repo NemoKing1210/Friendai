@@ -33,7 +33,8 @@ final class FreeTimeTools {
                     return ToolResult.ok("free time on; you will pick your own work in a moment");
                 }));
         registry.register(ToolKit.callerTool("end_free_time",
-                "End free time and go back to following the owner. Use it when the owner calls you back.",
+                "End free time and come back to the owner. Use it when the owner calls you back or tells you to stop "
+                        + "working; it is not the answer to 'don't follow me', which only switches following off.",
                 SchemaBuilder.object().build(),
                 AccessLevel.OWNER, () -> true, (c, caller, args) -> {
                     FreeTimeDriver driver = driver(c);
@@ -41,7 +42,8 @@ final class FreeTimeTools {
                         return ToolResult.ok("free time was already off");
                     }
                     driver.stop(c.ownerUuid(), "owner ended free time");
-                    return ToolResult.ok("free time off");
+                    c.setFollowMode(true);
+                    return ToolResult.ok("free time off; following the owner again");
                 }));
         registry.register(ToolKit.callerTool("choose_activity",
                 "Free time only: choose the one activity you do next and the agenda need it serves. A planner "

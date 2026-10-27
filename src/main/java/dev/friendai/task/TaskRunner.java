@@ -20,6 +20,7 @@ import dev.friendai.queue.QueuePolicy;
 import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.movement.MovementOrders;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.plan.PlanEntry;
@@ -65,6 +66,11 @@ public final class TaskRunner {
      * and reports them instead of walking to the owner: a follow would preempt the work the failure is about.
      */
     private final java.util.Set<Long> awaitingDecision = new java.util.HashSet<>();
+    /** A movement order is a task without a job behind it, so waiting in place never pins the queue. */
+    private static boolean movementOrder(Active active) {
+        return active != null && active.jobId() == 0 && MovementOrders.isOrder(active.toolName());
+    }
+
     /** Queue plans that free time started; their jobs are autonomous work. */
     private final java.util.Set<Long> autonomousPlans = new java.util.HashSet<>();
     private Active current;
@@ -125,8 +131,16 @@ public final class TaskRunner {
     }
     /** The tool that started the running task, empty when nothing runs. */
     public String currentToolName() { return current==null?"":current.toolName(); }
-    /** True while a task that is neither the default activity nor free time's runs: owner work comes first. */
-    public boolean busyWithOther() { return current!=null && !current.defaultActivity() && !autonomousActive(); }
+    /**
+     * True while a task that is neither the default activity, free time's nor a movement order runs: owner work comes
+     * first. A movement order ("wait here", "come here") says where to be, not what to do, so free time keeps its
+     * shift instead of reading it as work in the way.
+     */
+    public boolean busyWithOther() {
+        return current!=null && !current.defaultActivity() && !autonomousActive() && !movementOrder(current);
+    }
+    /** True while the runner is only holding a movement order, which queued work may end. */
+    public boolean movementOrderActive() { return movementOrder(current); }
     public Optional<Job> activeJob() { return queue.active(); }
     public int pendingJobs() { return (int)queue.jobs().stream().filter(j->j.state()==JobState.PENDING).count(); }
     public boolean hasWork() { return queue.jobCount()>0 || (current!=null&&!current.defaultActivity()); }
@@ -136,7 +150,7 @@ public final class TaskRunner {
     public long enqueue(QueuedStep step, StepFactory factory) {
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job=queue.addDirect(step); factories.put(job.id(),factory); wakeQueue();
-        if(current==null || current.defaultActivity()) startNextQueued(); return job.id();
+        if(current==null || current.defaultActivity() || movementOrder(current)) startNextQueued(); return job.id();
     }
     public long enqueuePlan(String goal,List<QueuedStep> steps,List<StepFactory> stepFactories,PlanOptions options) { return enqueuePlan(goal,steps,stepFactories,options,id->{}); }
     /** {@code prepare} runs with the new plan id after it is queued but before any of its jobs can start. */
@@ -145,7 +159,7 @@ public final class TaskRunner {
         for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         JobQueue.Added added=queue.addPlan(goal,steps,options); for(int i=0;i<stepFactories.size();i++)factories.put(added.jobIds().get(i),stepFactories.get(i));
         prepare.accept(added.planId());
-        wakeQueue(); if(current==null || current.defaultActivity())startNextQueued(); return added.planId();
+        wakeQueue(); if(current==null || current.defaultActivity() || movementOrder(current))startNextQueued(); return added.planId();
     }
     public void wakeQueue() { blockedSince=-1; nextPoll=0; factories.keySet().removeIf(id->queue.job(id).isEmpty()); }
     public void registerFactory(long jobId,StepFactory factory){factories.put(jobId,factory);}
@@ -272,7 +286,7 @@ public final class TaskRunner {
         if(current!=null&&current.defaultActivity()&&!mayFollowOwner.getAsBoolean())clearCurrentSilently();
         queue.advanceClock(); expireDeadlines();
         if(current==null) { if(!pollQueue())startDefault(); return; }
-        if(current.defaultActivity() && pollQueue())return;
+        if((current.defaultActivity() || movementOrder(current)) && pollQueue())return;
         activeTicks++; Active active=current; TaskStatus status; String summary=null;
         if (active.creativeSensitive() && companion.creativeMode()
                 && !CreativeModeService.isActionAuthorized(companion, active.creativeActionContext(),
@@ -349,7 +363,9 @@ public final class TaskRunner {
         GuardFacts facts=facts(); skipUnmet(facts); expireDeadlines();
         Optional<Job> candidate=QueuePolicy.next(queue,facts);
         if(candidate.isEmpty()){maybeNoticeBlocked();return false;}
-        if(current!=null&&current.defaultActivity())clearCurrentSilently(); else if(current!=null)return false;
+        if(current!=null&&current.defaultActivity())clearCurrentSilently();
+        else if(current!=null&&movementOrder(current))clearCurrentSilently();
+        else if(current!=null)return false;
         Job job=candidate.get(); StepFactory factory=factories.get(job.id());
         if(factory==null){queue.fail(job.id(),"task factory is unavailable");if(job.planId()>0)notifyBlocked(job.planId(),job.id(),"task factory is unavailable");return startNextQueued();}
         CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());

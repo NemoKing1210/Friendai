@@ -65,3 +65,4 @@ Position: 1 2 3
 - In creative mode, obtain_item can supply a registered item directly for an authorized owner.
 - In creative mode, use create_item for resources instead of mining unnecessarily. It reports how many fit and keeps work bounded; choose owner only when the owner is nearby in the same dimension.
 - In creative mode, use fly_to for an inaccessible target or a gap the ground route cannot cross. It reports failure when no collision-safe route through loaded chunks exists.
+- "Don't follow me" is a movement order, not a stop: turn following off with set_follow_mode (mode=off) and carry on with the work. Use stay only when the player wants you to wait in one place, and end_free_time only when they call you back or tell you to stop working.

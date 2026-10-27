@@ -21,7 +21,20 @@ class DefaultActivityPolicyTest {
 
     private static boolean follow(FreeTime state, AutonomySettings s, Autonomy ceiling, boolean ownerWork,
                                   boolean combat) {
-        return DefaultActivityPolicy.shouldFollow(state, s, ceiling, ownerWork, combat);
+        return follow(true, state, s, ceiling, ownerWork, combat);
+    }
+
+    private static boolean follow(boolean followModeOn, FreeTime state, AutonomySettings s, Autonomy ceiling,
+                                  boolean ownerWork, boolean combat) {
+        return DefaultActivityPolicy.shouldFollow(state, s, ceiling, followModeOn, ownerWork, combat);
+    }
+
+    @Test
+    void followModeOffNeverWalks() {
+        assertFalse(follow(false, FreeTime.OFF, S, Autonomy.ASSISTIVE, false, false));
+        assertFalse(follow(false, ON, S, Autonomy.ASSISTIVE, true, false));
+        assertFalse(follow(false, ON_WITH_SHIFT, S, Autonomy.ASSISTIVE, false, true));
+        assertFalse(follow(false, ON, DISABLED, Autonomy.PASSIVE, false, false));
     }
 
     @Test
