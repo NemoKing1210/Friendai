@@ -1,6 +1,7 @@
 package dev.friendai.client.debug;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.pathing.Move;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -13,10 +14,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gizmos.GizmoStyle;
 import net.minecraft.gizmos.Gizmos;
 import net.minecraft.gizmos.TextGizmo;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
-/** Draws the movement debug view: the route in the world and a block of numbers on the HUD. */
+/** Draws the companion's route and planned block interactions in the world and on the HUD. */
 public final class MovementDebugRenderer {
     private static final int GOAL = 0xFFFFD83A;
     private static final int BREAK = 0xFFFF4040;
@@ -58,9 +60,7 @@ public final class MovementDebugRenderer {
         try {
             draw(view.get());
         } catch (RuntimeException e) {
-            // A drawing problem must not break the frame; the overlay stays off until the client restarts.
-            failed = true;
-            FriendaiMod.LOGGER.warn("Movement debug drawing failed and is disabled", e);
+            disableAfterDrawingFailure(e);
         }
     }
 
@@ -85,8 +85,19 @@ public final class MovementDebugRenderer {
         }
         for (MovementDebug.Cell c : view.goalCells()) {
             Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(GOAL, 3f)).setAlwaysOnTop();
-            Gizmos.billboardText("goal", new Vec3(c.x() + 0.5, c.y() + 1.4, c.z() + 0.5),
+            Gizmos.billboardText(Component.translatable("friendai.debug.goal").getString(),
+                    new Vec3(c.x() + 0.5, c.y() + 1.4, c.z() + 0.5),
                     TextGizmo.Style.forColorAndCentered(GOAL)).setAlwaysOnTop();
+        }
+        for (var target : view.targets()) {
+            int color = actionColor(target.action());
+            Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
+                    .setAlwaysOnTop();
+            String action = actionLabel(target.action());
+            String detail = target.detail();
+            String label = detail.isBlank() ? action : action + " · " + detail;
+            Gizmos.billboardText(clipLabel(label), new Vec3(target.x() + 0.5, target.y() + 1.35,
+                    target.z() + 0.5), TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && current < view.route().size()) {
@@ -101,21 +112,133 @@ public final class MovementDebugRenderer {
 
     private static void drawHud(GuiGraphicsExtractor graphics, DeltaTracker delta) {
         var view = MovementDebugState.view();
-        if (view.isEmpty()) {
+        if (view.isEmpty() || failed) {
             return;
         }
-        Font font = Minecraft.getInstance().font;
-        var lines = view.get().lines();
-        int width = 0;
-        for (String line : lines) {
-            width = Math.max(width, font.width(line));
+        try {
+            drawHudPanel(graphics, view.get());
+        } catch (RuntimeException e) {
+            disableAfterDrawingFailure(e);
         }
+    }
+
+    private static void drawHudPanel(GuiGraphicsExtractor graphics, MovementDebug view) {
+        Font font = Minecraft.getInstance().font;
+        var lines = hudLines(view);
+        int width = 0;
+        for (String line : lines) width = Math.max(width, font.width(line));
         int x = 4;
         int y = 4;
-        graphics.fill(x - 2, y - 2, x + width + 2, y + lines.size() * (font.lineHeight + 1) + 1, PANEL);
+        graphics.fill(x - 4, y - 4, x + width + 6, y + lines.size() * (font.lineHeight + 2) + 4, PANEL);
+        graphics.fill(x - 4, y - 4, x + 2, y + lines.size() * (font.lineHeight + 2) + 4, 0xFF9B7BFF);
+        int index = 0;
         for (String line : lines) {
-            graphics.text(font, line, x, y, TEXT);
-            y += font.lineHeight + 1;
+            graphics.text(font, line, x + 2, y, index++ == 0 ? 0xFFD7C8FF : TEXT);
+            y += font.lineHeight + 2;
         }
+    }
+
+    private static java.util.List<String> hudLines(MovementDebug view) {
+        java.util.List<String> lines = new java.util.ArrayList<>(5);
+        lines.add(Component.translatable("friendai.debug.hud.title").getString());
+        String task = lineValue(view.lines(), "task: ");
+        if (!task.isBlank() && !"none".equals(task)) {
+            lines.add(Component.translatable("friendai.debug.hud.task", task).getString());
+        }
+        String navigation = lineValue(view.lines(), "navigator: ");
+        if (!navigation.isBlank()) {
+            lines.add(Component.translatable("friendai.debug.hud.navigation", navigationLabel(navigation)).getString());
+        }
+        String current = lineValue(view.lines(), "current step: ");
+        if (!current.isBlank()) {
+            lines.add(Component.translatable("friendai.debug.hud.path", current).getString());
+        }
+        if (!view.targets().isEmpty()) {
+            var target = view.targets().getFirst();
+            String action = actionLabel(target.action());
+            String detail = target.detail().isBlank() ? "" : " · " + target.detail();
+            lines.add(Component.translatable("friendai.debug.hud.action", action + detail).getString());
+        }
+        if (!view.upcomingSteps().isEmpty()) {
+            String steps = view.upcomingSteps().stream().map(MovementDebugRenderer::stepLabel)
+                    .collect(java.util.stream.Collectors.joining("  ›  "));
+            lines.add(Component.translatable("friendai.debug.hud.next", steps).getString());
+        }
+        return lines.stream().map(MovementDebugRenderer::clipHudLine).toList();
+    }
+
+    private static String lineValue(java.util.List<String> lines, String prefix) {
+        return lines.stream().filter(line -> line.startsWith(prefix)).findFirst()
+                .map(line -> line.substring(prefix.length())).orElse("");
+    }
+
+    private static String navigationLabel(String navigation) {
+        String state = navigation.split("[ (,]", 2)[0];
+        return Component.translatable(switch (state) {
+            case "searching" -> "friendai.debug.navigation.searching";
+            case "moving" -> "friendai.debug.navigation.moving";
+            case "gathering" -> "friendai.debug.navigation.gathering";
+            case "arrived" -> "friendai.debug.navigation.arrived";
+            case "unreachable" -> "friendai.debug.navigation.unreachable";
+            default -> "friendai.debug.navigation.idle";
+        }).getString();
+    }
+
+    private static int actionColor(DebugAction action) {
+        return switch (action) {
+            case BREAK -> 0xFFFF5555;
+            case PLACE -> 0xFF4DDE86;
+            case HARVEST -> 0xFFFFC857;
+            case USE -> 0xFF42D6D0;
+            case CRAFT -> 0xFFB48AFF;
+            case SMELT -> 0xFFFF914D;
+            case COLLECT -> 0xFF69AFFF;
+        };
+    }
+
+    private static String actionLabel(DebugAction action) {
+        return Component.translatable(switch (action) {
+            case BREAK -> "friendai.debug.action.break";
+            case PLACE -> "friendai.debug.action.place";
+            case HARVEST -> "friendai.debug.action.harvest";
+            case USE -> "friendai.debug.action.use";
+            case CRAFT -> "friendai.debug.action.craft";
+            case SMELT -> "friendai.debug.action.smelt";
+            case COLLECT -> "friendai.debug.action.collect";
+        }).getString();
+    }
+
+    private static String stepLabel(String tool) {
+        return switch (tool) {
+            case "mine_blocks" -> Component.translatable("friendai.debug.step.mine_blocks").getString();
+            case "mine_block_at" -> Component.translatable("friendai.debug.step.mine_block_at").getString();
+            case "place_block" -> Component.translatable("friendai.debug.step.place_block").getString();
+            case "use_block" -> Component.translatable("friendai.debug.step.use_block").getString();
+            case "build_structure" -> Component.translatable("friendai.debug.step.build_structure").getString();
+            case "build_special" -> Component.translatable("friendai.debug.step.build_special").getString();
+            case "craft_item" -> Component.translatable("friendai.debug.step.craft_item").getString();
+            case "smelt_items" -> Component.translatable("friendai.debug.step.smelt_items").getString();
+            case "cook_food" -> Component.translatable("friendai.debug.step.cook_food").getString();
+            case "collect_smelted" -> Component.translatable("friendai.debug.step.collect_smelted").getString();
+            case "collect_station" -> Component.translatable("friendai.debug.step.collect_station").getString();
+            case "farm" -> Component.translatable("friendai.debug.step.farm").getString();
+            case "tend_farm" -> Component.translatable("friendai.debug.step.tend_farm").getString();
+            case "use_bonemeal" -> Component.translatable("friendai.debug.step.use_bonemeal").getString();
+            case "obtain_item" -> Component.translatable("friendai.debug.step.obtain_item").getString();
+            default -> tool.replace('_', ' ');
+        };
+    }
+
+    private static String clipLabel(String label) {
+        return label.length() <= 38 ? label : label.substring(0, 37) + "…";
+    }
+
+    private static String clipHudLine(String line) {
+        return line.length() <= 68 ? line : line.substring(0, 67) + "…";
+    }
+
+    private static void disableAfterDrawingFailure(RuntimeException e) {
+        failed = true;
+        FriendaiMod.LOGGER.warn("Movement debug drawing failed and is disabled", e);
     }
 }
