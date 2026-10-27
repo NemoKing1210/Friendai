@@ -1,6 +1,7 @@
 package dev.friendai.place;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /** Normalization and display helpers shared by the model, the file and the prompts. */
@@ -8,8 +9,26 @@ public final class PlaceNames {
 
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final String SEEDS = "_seeds";
+    /** The prefix a tool's {@code near} argument uses to mean "around this remembered place". */
+    private static final String NEAR_PREFIX = "place:";
 
     private PlaceNames() {}
+
+    /**
+     * The place name in a {@code near} value such as {@code place:home}, or empty when the value does not use
+     * that form. The prefix is case-insensitive and may be followed by any known name or alias; a bare
+     * {@code place:} yields an empty name, so the lookup rejects it with the usual name message.
+     */
+    public static Optional<String> fromNear(String raw) {
+        if (raw == null) {
+            return Optional.empty();
+        }
+        String text = raw.strip();
+        if (!text.toLowerCase(Locale.ROOT).startsWith(NEAR_PREFIX)) {
+            return Optional.empty();
+        }
+        return Optional.of(text.substring(NEAR_PREFIX.length()).strip());
+    }
 
     /**
      * Canonical form of a place name: trimmed, inner whitespace collapsed to one space and lowercased, so

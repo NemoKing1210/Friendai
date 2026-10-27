@@ -156,39 +156,80 @@ public final class PlaceService {
         return Optional.of(unique(companion, name));
     }
 
-    private static Place unique(CompanionEntity companion, String name) {
-        String dimension = dimension(companion);
-        String needle = PlaceNames.normalize(name);
-        List<Place> matches = new ArrayList<>();
-        for (Place place : book(companion).all()) {
-            if (!place.dimension().equals(dimension)) {
-                continue;
+    /**
+     * The one place this name or alias points at in the companion's dimension. A place remembered in another
+     * dimension is reported as such, naming {@code what} as the action that cannot cross, so callers never
+     * have to repeat that message; any other failure keeps the lookup's own message.
+     */
+    public static Place requireReachable(CompanionEntity companion, String name, String what) {
+        Objects.requireNonNull(what, "what");
+        Optional<Place> here;
+        try {
+            here = requireSingle(companion, name);
+        } catch (IllegalArgumentException unknownOrAmbiguous) {
+            Optional<Place> elsewhere = elsewhere(companion, name);
+            if (elsewhere.isEmpty()) {
+                throw unknownOrAmbiguous;
             }
-            if (PlaceNames.normalize(place.name()).equals(needle) || hasAlias(place, needle)) {
-                matches.add(place);
-            }
+            throw new IllegalArgumentException("\"" + name.strip() + "\" is in "
+                    + elsewhere.get().dimension() + "; " + what + " cannot cross dimensions");
         }
-        if (matches.isEmpty()) {
-            throw new IllegalArgumentException("no place called " + name + "; use find_place");
-        }
-        if (matches.size() > 1) {
-            List<String> names = new ArrayList<>(matches.size());
-            for (Place place : matches) {
-                names.add(place.name());
-            }
-            throw new IllegalArgumentException("several places match " + name + ": "
-                    + String.join(", ", names) + "; give the exact name");
-        }
-        return matches.get(0);
+        return here.orElseThrow();
     }
 
-    private static boolean hasAlias(Place place, String needle) {
+    /** The place matching this name or alias in another dimension, if one exists. */
+    private static Optional<Place> elsewhere(CompanionEntity companion, String name) {
+        String needle;
+        try {
+            needle = PlaceNames.normalize(name);
+        } catch (IllegalArgumentException notAName) {
+            return Optional.empty();
+        }
+        String current = dimension(companion);
+        for (Place place : book(companion).all()) {
+            if (!place.dimension().equals(current) && matches(place, needle)) {
+                return Optional.of(place);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean matches(Place place, String needle) {
+        if (PlaceNames.normalize(place.name()).equals(needle)) {
+            return true;
+        }
         for (String alias : place.aliases()) {
             if (PlaceNames.normalize(alias).equals(needle)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static Place unique(CompanionEntity companion, String name) {
+        String dimension = dimension(companion);
+        String needle = PlaceNames.normalize(name);
+        List<Place> hits = new ArrayList<>();
+        for (Place place : book(companion).all()) {
+            if (!place.dimension().equals(dimension)) {
+                continue;
+            }
+            if (matches(place, needle)) {
+                hits.add(place);
+            }
+        }
+        if (hits.isEmpty()) {
+            throw new IllegalArgumentException("no place called " + name + "; use find_place");
+        }
+        if (hits.size() > 1) {
+            List<String> names = new ArrayList<>(hits.size());
+            for (Place place : hits) {
+                names.add(place.name());
+            }
+            throw new IllegalArgumentException("several places match " + name + ": "
+                    + String.join(", ", names) + "; give the exact name");
+        }
+        return hits.get(0);
     }
 
     private static Pos self(CompanionEntity companion) {

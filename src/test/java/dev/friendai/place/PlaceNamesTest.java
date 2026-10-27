@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PlaceNamesTest {
@@ -48,5 +49,16 @@ class PlaceNamesTest {
         assertEquals("beetroot", PlaceNames.shortItem("beetroot_seeds"));
         assertEquals("carrot", PlaceNames.shortItem("carrot"));
         assertEquals("", PlaceNames.shortItem(null));
+    }
+
+    @Test
+    void fromNearReadsAPlacePrefixCaseInsensitively() {
+        assertEquals(Optional.of("home"), PlaceNames.fromNear("place:home"));
+        assertEquals(Optional.of("Wheat Farm"), PlaceNames.fromNear("  PLACE: Wheat Farm "));
+        assertEquals(Optional.of(""), PlaceNames.fromNear("place:"));
+        assertEquals(Optional.empty(), PlaceNames.fromNear("me"));
+        assertEquals(Optional.empty(), PlaceNames.fromNear("self"));
+        assertEquals(Optional.empty(), PlaceNames.fromNear("mine"));
+        assertEquals(Optional.empty(), PlaceNames.fromNear(null));
     }
 }

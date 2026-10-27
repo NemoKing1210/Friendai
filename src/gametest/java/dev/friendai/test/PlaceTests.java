@@ -21,6 +21,7 @@ import dev.friendai.llm.model.ToolCall;
 import java.util.List;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -112,6 +113,59 @@ public class PlaceTests {
                 "an unknown name keeps the original message: " + unknown.content());
         h.assertTrue(companion.taskRunner().current().isEmpty(), "no task may start for an unknown name");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void place_tests_near_place_scopes_a_search(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 3);
+        companion.setOwner(owner.getUUID());
+        ToolExecutor tools = tools(companion);
+        Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
+        BlockPos anchor = h.absolutePos(new BlockPos(8, 2, 3));
+
+        ToolResult remembered = runAs(tools, "remember_place",
+                "{\"name\":\"mine\",\"kind\":\"mine\",\"x\":" + anchor.getX() + ",\"y\":" + anchor.getY()
+                        + ",\"z\":" + anchor.getZ() + ",\"radius\":4}",
+                caller);
+        h.assertTrue(!remembered.error(), "remember failed: " + remembered.content());
+        PlaceService.book(companion).remember(
+                new PlaceValues(
+                        "nethermine", PlaceKind.MINE, "", "minecraft:the_nether", new Pos(8, 64, 8), 4, Set.of(),
+                        PlaceSource.MANUAL, owner.getUUID(), ""),
+                companion.level().getGameTime());
+
+        ToolResult unknown = runAs(tools, "mine_blocks",
+                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nowhere\"}", caller);
+        h.assertTrue(unknown.error() && unknown.content().contains("no place called nowhere"),
+                "an unknown place keeps the original message: " + unknown.content());
+        h.assertTrue(companion.taskRunner().current().isEmpty(),
+                "no task may start for an unknown place: " + current(companion));
+
+        ToolResult cross = runAs(tools, "mine_blocks",
+                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nethermine\"}", caller);
+        h.assertTrue(cross.error() && cross.content().contains("minecraft:the_nether"),
+                "a cross-dimension place should name its dimension: " + cross.content());
+        h.assertTrue(cross.content().contains("cannot cross dimensions"),
+                "a cross-dimension place should say why: " + cross.content());
+        h.assertTrue(companion.taskRunner().current().isEmpty(),
+                "no task may start across dimensions: " + current(companion));
+
+        ToolResult scoped = runAs(tools, "mine_blocks",
+                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"Place:mine\"}", caller);
+        h.assertTrue(!scoped.error(), "mining near a place failed: " + scoped.content());
+        String described = current(companion);
+        h.assertTrue(companion.taskRunner().current().map(task -> task.type().equals("mine_blocks")).orElse(false),
+                "the mine_blocks task should be current: " + described);
+        String where = anchor.getX() + " " + anchor.getY() + " " + anchor.getZ();
+        h.assertTrue(described.contains(where),
+                "the task should search around the place anchor " + where + ": " + described);
+        h.succeed();
+    }
+
+    private static String current(CompanionEntity companion) {
+        return companion.taskRunner().current().map(task -> task.describe()).orElse("none");
     }
 
     @GameTest(maxTicks = 400)
