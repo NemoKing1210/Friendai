@@ -115,7 +115,10 @@ public final class TradingTransactionTests {
         Caller caller = authority.begin(new Caller(owner, "owner", AccessLevel.OWNER), true);
         var requested = new TradeOrder(UUID.randomUUID(), owner, caller.tradingScope(), fixture.villager().getUUID(),
                 trader.offers().getFirst().ref(), trader.revision(), desired,
-                new TradeBudget(caps, Map.of(), Map.of()), Set.of(), false, allowPartial, 200);
+                new TradeBudget(caps, Map.of(), Map.of()), Set.of(), false, allowPartial,
+                // An absolute deadline, as production builds it: the order is evaluated against the world clock,
+                // which the shared GameTest world has already advanced past any small literal.
+                fixture.companion().level().getGameTime() + 200);
         return new Authorized(authority.authorize(caller, requested), authority);
     }
 
