@@ -43,8 +43,11 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
 public class PlaceTests {
-    /** How far the mine test searches from the vein's centre; small enough that the vein still covers it. */
-    private static final int VEIN_RADIUS = 4;
+    /**
+     * How far the mine test searches from the vein's centre. The radius-5 sphere around the patch centre
+     * (8, 5) contains 55 of the patch's 56 blocks, while the three digs ask for 8 + 20 + 20 = 48 of them.
+     */
+    private static final int VEIN_RADIUS = 5;
 
     private static final class Result implements TaskListener {
         TaskStatus status;
@@ -391,16 +394,20 @@ public class PlaceTests {
     }
 
     /**
-     * A vein beside the companion, big enough for all three mining passes without ever being refilled: refilling would
-     * bury the companion when it stands in the hole it just dug. White wool never generates naturally, so the stone
-     * floor and the stone of the arena can never be mistaken for the vein's block.
+     * A single flat layer of wool at the companion's feet level, big enough for all three mining passes without ever
+     * being refilled. One layer only: every block keeps an exposed top and an exposed side, so no block can end up
+     * walled in and unreachable the way the interior of a solid cube does. White wool never generates naturally, so
+     * the stone floor and the stone of the arena can never be mistaken for the vein's block.
+     *
+     * The patch is 8x7 = 56 blocks. {@link #VEIN_RADIUS} around its centre (8, 5) contains 55 of them (only the
+     * (4, 9) corner lies outside dx^2 + dz^2 <= 25), and the phases dig 8 + 20 + 20 = 48, so the last dig still
+     * has 27 candidates. The companion's standing column (x=2) is outside the patch, so it keeps its feet on stone
+     * while it mines the wall beside it.
      */
     private static void woolVein(GameTestHelper h) {
         for (int x = 4; x <= 11; x++) {
             for (int z = 3; z <= 9; z++) {
-                for (int y = 121; y <= 124; y++) {
-                    h.setBlock(x, y, z, Blocks.WOOL.white());
-                }
+                h.setBlock(x, 121, z, Blocks.WOOL.white());
             }
         }
     }
@@ -459,14 +466,15 @@ public class PlaceTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
         companion.setOwner(owner.getUUID());
         companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 121, 6))),
                 "the exposed wool should be visible");
         Result result = new Result();
         result.companion = companion;
         companion.taskRunner().setListener(result);
         BlockMatcher wool = BlockMatcher.parse("minecraft:white_wool").orElseThrow();
-        // Search from the vein's own centre: a radius the vein still covers keeps the search off the arena floor.
-        BlockPos vein = h.absolutePos(new BlockPos(7, 122, 6));
+        // Search from the patch centre; the radius-5 sphere covers all but one of the patch's 56 blocks, so the
+        // three digs (8 + 20 + 20 = 48) always have unbroken wool left to find.
+        BlockPos vein = h.absolutePos(new BlockPos(8, 121, 5));
         companion.taskRunner().start(new MineBlocksTask(wool, 8, VEIN_RADIUS, vein, true), "mine_blocks");
 
         int[] phase = {0};
