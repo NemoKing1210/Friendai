@@ -11,20 +11,27 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.SimpleWaterloggedBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * The bucket part of putting a fire out. Every placement goes through {@link CompanionHands}, so protection and
- * {@code level.mayInteract} still apply; a failed attempt leaves the item with the companion because the fake
- * player's leftovers are returned.
+ * The bucket part of putting a fire out. Every placement goes through {@link dev.friendai.task.interact.CompanionHands},
+ * so protection and {@code level.mayInteract} still apply; a failed attempt leaves the item with the companion,
+ * because the fake player's leftovers are returned.
+ *
+ * <p>A bucket is used the way a player uses one: right-clicking in the air ({@code useItem}), because the bucket item
+ * places its fluid from its own raycast. Water is aimed at the face of a solid neighbour so it lands in the fire's
+ * cell; a source is taken back by aiming straight at it.
  *
  * <p>This is the seam TODO item 26.4 names: when the general "use one item the way a player does" path lands in
- * {@link CompanionHands}, this class calls it instead of aiming a bucket itself.
+ * {@code CompanionHands}, this class calls it instead of aiming a bucket itself.
  */
 public final class FireHands {
     private static final ItemMatcher WATER_BUCKET = ItemMatcher.parse("minecraft:water_bucket").orElseThrow();
     private static final ItemMatcher EMPTY_BUCKET = ItemMatcher.parse("minecraft:bucket").orElseThrow();
+    private static final ItemMatcher POWDER_SNOW = ItemMatcher.parse("minecraft:powder_snow_bucket").orElseThrow();
 
     private final CompanionEntity companion;
     private final ServerLevel level;
@@ -38,42 +45,53 @@ public final class FireHands {
         return InventoryOps.count(companion.inventory(), WATER_BUCKET) > 0;
     }
 
-    /** Pours one water bucket into {@code cell}; true when water is there afterwards. */
+    /**
+     * Pours one water bucket at {@code cell}; true when water reached it. The bucket's own raycast decides where the
+     * source lands — pouring on a fire block puts the source on top of it and the water runs down — so a source
+     * beside the cell counts as success too, and {@link #recoverBucket} takes it back afterwards.
+     */
     public boolean placeWater(BlockPos cell) {
-        return pour(cell) && wet(cell);
+        pour(cell);
+        return wet(cell) || sourceNear(cell) != null;
     }
 
     /** Pours water into a lit campfire, which flips its lit state; true when it is out. */
     public boolean douseCampfire(BlockPos cell) {
-        return pour(cell) && !lit(cell);
+        pour(cell);
+        return !lit(cell);
     }
 
-    /** Takes the source back with an empty bucket; true when the cell is no longer water. */
+    /**
+     * Takes the source back with an empty bucket; true when no source is left around {@code cell}. The bucket is
+     * aimed at, and the item's own raycast picks, a source; the cell where the water ended up is not always the
+     * cell that was clicked (water poured on top of a fire block runs down into it), so the source is looked for
+     * next to the cell as well.
+     */
     public boolean recoverBucket(BlockPos cell) {
-        BlockState state = level.getBlockState(cell);
-        if (!wet(cell) && !state.is(BlockTags.CAMPFIRES)) {
+        BlockPos source = sourceNear(cell);
+        if (source == null) {
             return true;
         }
         List<ItemStack> taken = InventoryOps.remove(companion.inventory(), EMPTY_BUCKET, 1);
         if (taken.isEmpty()) {
             return false;
         }
-        companion.hands().place(taken.getFirst(), cell, Direction.UP);
-        return !wet(cell);
+        companion.hands().useItem(taken.getFirst(), Vec3.atCenterOf(source));
+        BlockPos after = sourceNear(cell);
+        return after == null;
     }
 
     /**
-     * Places a powder snow block at {@code cell} and reports whether it is there. The companion stands in it to
-     * put its own fire out.
+     * Places a powder snow block at {@code cell}; the companion then stands in it to put its own fire out. Powder
+     * snow is a block item, so the ordinary placement path works.
      */
     public boolean placePowderSnow(BlockPos cell) {
-        ItemMatcher snow = ItemMatcher.parse("minecraft:powder_snow_bucket").orElseThrow();
-        for (Direction direction : clickOrder(cell)) {
+        for (Direction direction : clickOrder()) {
             BlockPos against = cell.relative(direction);
             if (!clickable(against)) {
                 continue;
             }
-            List<ItemStack> taken = InventoryOps.remove(companion.inventory(), snow, 1);
+            List<ItemStack> taken = InventoryOps.remove(companion.inventory(), POWDER_SNOW, 1);
             if (taken.isEmpty()) {
                 return false;
             }
@@ -83,24 +101,24 @@ public final class FireHands {
         return false;
     }
 
-    private boolean pour(BlockPos cell) {
-        for (Direction direction : clickOrder(cell)) {
+    private void pour(BlockPos cell) {
+        for (Direction direction : clickOrder()) {
             BlockPos against = cell.relative(direction);
             if (!clickable(against)) {
                 continue;
             }
             List<ItemStack> taken = InventoryOps.remove(companion.inventory(), WATER_BUCKET, 1);
             if (taken.isEmpty()) {
-                return false;
+                return;
             }
-            companion.hands().place(taken.getFirst(), against, direction.getOpposite());
-            return true;
+            Vec3 aim = Vec3.atCenterOf(against).relative(direction.getOpposite(), 0.5);
+            companion.hands().useItem(taken.getFirst(), aim);
+            return;
         }
-        return false;
     }
 
     /** Faces to click, in the order that most often leaves the placed water where it is wanted. */
-    private static Direction[] clickOrder(BlockPos cell) {
+    private static Direction[] clickOrder() {
         return new Direction[] {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST,
                 Direction.EAST, Direction.UP};
     }
@@ -110,8 +128,34 @@ public final class FireHands {
         return !state.isAir() && state.getFluidState().isEmpty();
     }
 
+    /** A pool of water at the cell; water held inside a waterlogged block is not a source to take back. */
     private boolean wet(BlockPos cell) {
+        BlockState state = level.getBlockState(cell);
+        if (state.getBlock() instanceof SimpleWaterloggedBlock) {
+            return false;
+        }
         return level.getFluidState(cell).getType().isSame(Fluids.WATER);
+    }
+
+    /** The source the bucket has to aim at: the cell itself, or the neighbour the water was poured from. */
+    private BlockPos sourceNear(BlockPos cell) {
+        if (source(cell)) {
+            return cell;
+        }
+        for (Direction direction : Direction.values()) {
+            BlockPos neighbour = cell.relative(direction);
+            if (source(neighbour)) {
+                return neighbour;
+            }
+        }
+        return null;
+    }
+
+    private boolean source(BlockPos pos) {
+        if (level.getBlockState(pos).getBlock() instanceof SimpleWaterloggedBlock) {
+            return false;
+        }
+        return level.getFluidState(pos).getType().isSame(Fluids.WATER) && level.getFluidState(pos).isSource();
     }
 
     private boolean lit(BlockPos cell) {

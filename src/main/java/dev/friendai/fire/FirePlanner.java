@@ -126,6 +126,10 @@ public final class FirePlanner {
             return;
         }
         boolean campfire = cell.kind() == BurningCell.Kind.LIT_CAMPFIRE;
+        if (rails.inPortalFrame()) {
+            steps.add(new ExtinguishStep.GiveUp(PORTAL_FRAME));
+            return;
+        }
         boolean water = facts.waterBuckets() > 0 && !facts.nether() && rails.waterSafe();
         if (water) {
             steps.add(campfire
@@ -136,10 +140,6 @@ public final class FirePlanner {
         }
         if (campfire) {
             steps.add(new ExtinguishStep.GiveUp(facts.nether() ? NETHER : CAMPFIRE_STAYS_LIT));
-            return;
-        }
-        if (rails.inPortalFrame()) {
-            steps.add(new ExtinguishStep.GiveUp(PORTAL_FRAME));
             return;
         }
         if (!rails.breakable()) {

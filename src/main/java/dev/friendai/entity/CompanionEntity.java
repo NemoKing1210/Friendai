@@ -22,6 +22,7 @@ import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.combat.CombatController;
+import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.crafting.Stations;
@@ -130,6 +131,7 @@ public class CompanionEntity extends PathfinderMob {
             new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow,
                     this::mayFollowOwner);
     private final CombatController combatController = new CombatController(this);
+    private final FireReflex fireReflex = new FireReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher = new HungerWatcher(
             this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
@@ -405,6 +407,7 @@ public class CompanionEntity extends PathfinderMob {
             }
             collectExperienceOrbs();
             combatController.tick();
+            fireReflex.tick();
             taskRunner.tick();
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();

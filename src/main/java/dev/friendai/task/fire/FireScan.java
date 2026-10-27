@@ -88,6 +88,52 @@ public final class FireScan {
         return new Scan(cells, facts);
     }
 
+    /** Every burning cell within {@code radius} of the companion, judged like a named target. */
+    public static List<BurningCell> burningCellsNear(TaskContext c, int radius) {
+        ServerLevel level = c.level();
+        BlockPos center = entityPos(c.companion());
+        List<BurningCell> cells = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos pos = center.offset(dx, dy, dz);
+                    if (!level.isLoaded(pos) || kind(level.getBlockState(pos)) == null) {
+                        continue;
+                    }
+                    judge(c, toPos(pos), radius, cells);
+                }
+            }
+        }
+        return cells;
+    }
+
+    /** The nearest burning mob or animal that is neither the companion nor its owner. */
+    public static java.util.Optional<Pos> burningEntityNear(TaskContext c, int radius) {
+        return burningEntityNear(c.companion(), radius);
+    }
+
+    /** The same scan without a task context, for a tool that only runs on the server thread. */
+    public static java.util.Optional<Pos> burningEntityNear(CompanionEntity companion, int radius) {
+        if (!(companion.level() instanceof ServerLevel level)) {
+            return java.util.Optional.empty();
+        }
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
+                new AABB(companion.blockPosition()).inflate(radius))) {
+            if (entity == companion || !entity.isOnFire()
+                    || (companion.ownerUuid() != null && entity.getUUID().equals(companion.ownerUuid()))) {
+                continue;
+            }
+            double distance = entity.distanceToSqr(companion);
+            if (distance < bestDistance) {
+                best = entity;
+                bestDistance = distance;
+            }
+        }
+        return best == null ? java.util.Optional.empty() : java.util.Optional.of(toPos(best.blockPosition()));
+    }
+
     /** Whether a cell may safely hold water: no nether, no portal, no crops or redstone in the flood path. */
     public static boolean waterSafe(TaskContext c, BlockPos cell) {
         ServerLevel level = c.level();

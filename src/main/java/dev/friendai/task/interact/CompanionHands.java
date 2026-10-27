@@ -115,6 +115,24 @@ public final class CompanionHands {
         }
     }
 
+    /**
+     * Right-clicks in the air with the stack in the fake player's hand and aims at {@code aim} — how a player places
+     * water, drinks milk or throws a potion. Whatever is left in the fake player's hands comes back to the
+     * companion, so a refused use never loses the item.
+     */
+    public InteractionResult useItem(ItemStack stack, Vec3 aim) {
+        ServerLevel level = level();
+        FakePlayer hands = handsPlayer();
+        sync(hands, aim);
+        ItemStack held = stack.copy();
+        hands.setItemInHand(InteractionHand.MAIN_HAND, held);
+        try {
+            return hands.gameMode.useItem(hands, level, held, InteractionHand.MAIN_HAND);
+        } finally {
+            returnItems(hands);
+        }
+    }
+
     /** Right-clicks pos with an empty hand. */
     public InteractionResult use(BlockPos pos) {
         ServerLevel level = level();

@@ -147,6 +147,9 @@ public final class ToolCatalog {
         hint(metas, "remember_place",
                 "- When the owner teaches a place (\"remember this as home\"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.");
         group(metas, ToolGroup.AUTONOMY, Cost.LOW, "start_free_time", "end_free_time", "choose_activity");
+        group(metas, ToolGroup.FIRE, Cost.MEDIUM, "extinguish_fire");
+        hint(metas, "extinguish_fire",
+                "- A fire is an emergency: call extinguish_fire at once for your own fire (target self), the owner's (owner), a burning mob (entity) or the fires around you (near). A water bucket is poured and taken back; without water a fire block is broken by hand. Never break a lit campfire — it is a cooking station — and never pour water in the nether.");
         hint(metas, "start_free_time",
                 "- When the owner releases you (\"do your own thing\", \"do whatever you want\"), call start_free_time with their hint as wish; call end_free_time when they call you back.");
         hint(metas, "choose_activity",
