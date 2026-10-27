@@ -37,4 +37,10 @@ class DebugAccessTest {
     void renameIsAllowedForEveryone() {
         assertTrue(DebugAccess.allowed(DebugAccess.Action.RENAME, false));
     }
+
+    @Test
+    void placeActionsAreAllowedForEveryone() {
+        assertTrue(DebugAccess.allowed(DebugAccess.Action.VIEW_PLACES, false));
+        assertTrue(DebugAccess.allowed(DebugAccess.Action.EDIT_PLACES, false));
+    }
 }

@@ -3,6 +3,7 @@ package dev.friendai.tool.builtin;
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.place.PlaceNames;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FellTreeSearchTask;
@@ -14,6 +15,7 @@ import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
+import dev.friendai.tool.NearTarget;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
@@ -35,8 +37,8 @@ final class GatheringTools {
         var fellSchema = SchemaBuilder.object()
                 .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs. "
                         + "Naming one block id also allows felling a log structure of that wood")
-                .enumeration("near", "Fell a tree near the speaker (me, default) or near yourself (self)",
-                        "me", "self")
+                .string("near", "Fell a tree near the speaker (me, default), yourself (self), or a remembered "
+                        + "place (place:<name>)")
                 .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
                 .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
@@ -63,12 +65,12 @@ final class GatheringTools {
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("mine_blocks",
                         "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
-                                + "near: me searches around the speaker.",
+                                + "near: me searches around the speaker; place:<name> around a remembered place.",
                         SchemaBuilder.object()
                                 .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
                                 .integer("count", "How many blocks to mine", 1, 64)
-                                .enumeration("near", "Search around yourself (self, default) or around the speaker (me)",
-                                        "self", "me")
+                                .string("near", "Search around yourself (self, default), the speaker (me), or a "
+                                        + "remembered place (place:<name>)")
                                 .integer("x", "Block x coordinate to search around instead of near",
                                         -30000000, 30000000)
                                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
@@ -125,8 +127,10 @@ final class GatheringTools {
             CompanionEntity c, Caller caller, JsonObject a, IntSupplier mineRadius) {
         BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
         // Unlike the tree tools, mining searches around the companion unless the speaker or a place is named.
+        String near = a.has("near") && !a.get("near").isJsonNull() ? a.get("near").getAsString() : null;
         boolean named = ToolKit.optionalPos(a).isPresent()
-                || (a.has("near") && !a.get("near").isJsonNull() && a.get("near").getAsString().equals("me"));
+                || PlaceNames.fromNear(near).isPresent()
+                || (near != null && !near.isBlank() && NearTarget.parse(near) == NearTarget.ME);
         BlockPos origin = named ? NearResolver.resolve(c, caller, a) : null;
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()

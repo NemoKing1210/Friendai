@@ -67,6 +67,7 @@ public final class FriendaiCommands {
                 .then(Commands.literal("reload")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(FriendaiCommands::reload)));
+        PlaceCommand.register(dispatcher);
     }
 
     private static int summon(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

@@ -1,5 +1,7 @@
 package dev.friendai.task;
 
+import dev.friendai.place.PlaceCandidate;
+
 /** A long-running activity of the companion. {@code describe()} and {@code resultSummary()} are English, LLM-facing. */
 public interface Task {
     String type();
@@ -39,6 +41,14 @@ public interface Task {
      * in place of the default activity. Null when the task leaves nothing behind.
      */
     default Task cleanupAfterCancel(TaskContext c) {
+        return null;
+    }
+
+    /**
+     * The place this task noticed while it worked, remembered once the task succeeds; null when there is nothing
+     * worth remembering. A task reports the site it acted on, not the companion's position.
+     */
+    default PlaceCandidate placeCandidate() {
         return null;
     }
 }

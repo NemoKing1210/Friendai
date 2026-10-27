@@ -30,6 +30,9 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceService;
+import dev.friendai.place.PlaceText;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.ToolResult;
@@ -476,7 +479,11 @@ public final class BrainService {
                     primary.get(),
                     new CompanionPerception(companion).describe(caller),
                     digest.toString(),
-                    "",
+                    PlaceText.planner(
+                            config.places.enabled && caller.access().allows(AccessLevel.TRUSTED)
+                                    ? FriendaiServerState.get(server).places().book(owner).all()
+                                    : List.of(),
+                            config.places.plannerLimit),
                     Optional.of(queue),
                     primary.get().lessons(),
                     failure,
@@ -617,6 +624,9 @@ public final class BrainService {
                 config.agent.goalTickSec,
                 config.agent.promptBudget,
                 config.agent.plannerTimeoutSec));
+        brain.setPlaceSource(caller -> config.places.enabled
+                ? PlaceService.promptBlock(companion, caller)
+                : "");
         brain.setGoalSource(caller -> {
             var board = FriendaiServerState.get(server).goals().board(owner);
             var primary = board.primary();
@@ -678,6 +688,12 @@ public final class BrainService {
             @Override
             public void onNotice(String text) {
                 post(owner, new BrainEvent.WorldNotice(text));
+            }
+
+            @Override
+            public void onPlace(PlaceCandidate candidate, String toolName) {
+                // Not news for the model: a successful task quietly refreshes the owner's place book.
+                PlaceService.autoRegister(companion, candidate);
             }
 
             @Override

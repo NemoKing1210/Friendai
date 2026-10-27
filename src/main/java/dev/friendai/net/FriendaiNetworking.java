@@ -13,6 +13,7 @@ public final class FriendaiNetworking {
         PayloadTypeRegistry.clientboundPlay().register(CompanionSnapshotS2CPayload.TYPE, CompanionSnapshotS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(PromptS2CPayload.TYPE, PromptS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MemoryViewS2CPayload.TYPE, MemoryViewS2CPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(PlacesViewS2CPayload.TYPE, PlacesViewS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(CompanionSpeechS2CPayload.TYPE, CompanionSpeechS2CPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SkinUploadC2SPayload.TYPE, SkinUploadC2SPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(SkinRequestC2SPayload.TYPE, SkinRequestC2SPayload.CODEC);

@@ -39,7 +39,8 @@ class ToolHintsSectionTest {
     void treeRulesAbsentWhenOnlyCoreIsVisible() {
         String s = prompt(EnumSet.noneOf(ToolGroup.class), 0);
         assertFalse(s.contains("To chop a tree"), s);
-        assertFalse(s.contains("Tool notes:"), "no hints means no header");
+        assertFalse(s.contains("Use mine_blocks for a kind of block"), s);
+        assertTrue(s.contains("call find_place first"), "the core find_place hint is always shown: " + s);
         assertTrue(s.contains("Rules:"), s);
     }
 

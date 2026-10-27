@@ -4,6 +4,12 @@ import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.Pos;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceNames;
+import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -84,6 +90,8 @@ public final class BuildTask implements Task {
     private final String id;
     /** Scaffold blocks a restored build found in the world; recorded, never placed or paid for again. */
     private final List<BlockPos> adoptedScaffold;
+    /** The dimension the site is in; a finished build is remembered there. */
+    private String dimension = "";
 
     /** Whether the in-progress file has been written, so later ticks may update it. */
     private boolean inProgressStarted;
@@ -204,7 +212,9 @@ public final class BuildTask implements Task {
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {
@@ -970,6 +980,19 @@ public final class BuildTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /** The finished building, named after its blueprint; a "wheat_farm" blueprint becomes a farm, not a house. */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (dimension.isBlank()) {
+            return null;
+        }
+        String label = PlaceNames.humanize(blueprint.name());
+        int span = Math.max(blueprint.width(), blueprint.depth()) / 2 + 2;
+        return new PlaceCandidate(PlaceKind.inferFromName(blueprint.name()), label, label, dimension,
+                new Pos(origin.getX(), origin.getY(), origin.getZ()),
+                Math.clamp(span, 1, Place.RADIUS_MAX), PlaceSource.BUILD);
     }
 
     private static String itemId(Item item) {

@@ -20,7 +20,9 @@
   },
   "topic_words": {
     "wood": ["GATHERING"], "logs": ["GATHERING"], "tree": ["GATHERING"], "ore": ["GATHERING"], "stone": ["GATHERING"],
-    "house": ["BLUEPRINT"], "tower": ["BLUEPRINT"], "wall": ["BLUEPRINT"], "bridge": ["BLUEPRINT"],
+    "house": ["PLACE", "BLUEPRINT"], "tower": ["BLUEPRINT"], "wall": ["BLUEPRINT"], "bridge": ["BLUEPRINT"],
+    "place": ["PLACE"], "places": ["PLACE"], "home": ["PLACE"], "base": ["PLACE"], "portal": ["PLACE"],
+    "storage": ["PLACE"], "landmark": ["PLACE"], "waypoint": ["PLACE"],
     "crops": ["FARMING"], "wheat": ["FARMING"],
     "iron": ["OBTAIN"], "diamond": ["OBTAIN"], "gold": ["OBTAIN"],
     "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"]

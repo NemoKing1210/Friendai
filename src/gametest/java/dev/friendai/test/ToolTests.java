@@ -299,6 +299,7 @@ public class ToolTests {
                 "farm", "plan_farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
                 "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
                 "search_resource", "known_resources",
+                "remember_place", "find_place", "go_to_place", "rename_place", "forget_place",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
                 "build_special", "plan_special", "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
                 "untrust_player", "show_inventory", "set_name", "stop", "queue_add", "queue_show", "queue_edit",

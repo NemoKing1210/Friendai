@@ -5,6 +5,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.farming.FarmGoal;
 import dev.friendai.farming.FarmPlan;
 import dev.friendai.farming.FarmPlanner;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceService;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.builtin.BonemealTask;
 import dev.friendai.task.builtin.FarmTask;
@@ -32,17 +34,23 @@ final class FarmingTools {
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
         ToolKit.add(registry, defs, new TaskToolDef("farm",
-                "Harvest ripe crops around the companion (or a point), replant them and sow empty farmland. With till=true also tills soil next to water.",
+                "Harvest ripe crops around the companion, a point or a remembered place, replant them and sow "
+                        + "empty farmland. With till=true also tills soil next to water.",
                 SchemaBuilder.object()
                         .integer("radius", "Farm radius in blocks", 1, 16)
                         .integer("x", "Farm X coordinate")
                         .integer("y", "Farm Y coordinate")
                         .integer("z", "Farm Z coordinate")
+                        .string("place", "Remembered place to farm around; used only when x, y and z are absent")
                         .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
                         .bool("till", "Also till soil next to water")
                         .bool("bonemeal", "Use bone meal from the inventory on growing crops after the pass's other work")
                         .build(),
-                (c, a) -> new FarmTask(center(c, a), radius(a, 8), crop(a), till(a), flag(a, "bonemeal")),
+                (c, a) -> {
+                    Optional<Place> place = place(c, a);
+                    return new FarmTask(center(c, a, place), radius(a, place, 8), crop(a), till(a),
+                            flag(a, "bonemeal"));
+                },
                 true));
         registry.register(ToolKit.instantTool("plan_farm",
                 "Show what a farm pass would do here (harvest, replant, sow, till, bone meal, missing seeds) without doing it.",
@@ -57,14 +65,19 @@ final class FarmingTools {
                         .build(),
                 FarmingTools::planFarm));
         ToolKit.add(registry, defs, new TaskToolDef("tend_farm",
-                "Stay at a farm and keep it: harvest and replant every minute and put the harvest into a nearby chest, until told otherwise.",
+                "Stay at a farm, or at a remembered place, and keep it: harvest and replant every minute and put "
+                        + "the harvest into a nearby chest, until told otherwise.",
                 SchemaBuilder.object()
                         .integer("radius", "Farm radius in blocks", 1, 16)
                         .integer("x", "Farm X coordinate")
                         .integer("y", "Farm Y coordinate")
                         .integer("z", "Farm Z coordinate")
+                        .string("place", "Remembered place to tend; used only when x, y and z are absent")
                         .build(),
-                (c, a) -> new TendFarmTask(center(c, a), radius(a, 8)),
+                (c, a) -> {
+                    Optional<Place> place = place(c, a);
+                    return new TendFarmTask(center(c, a, place), radius(a, place, 8));
+                },
                 false));
         ToolKit.add(registry, defs, new TaskToolDef("use_bonemeal",
                 "Use bone meal from the inventory on growing crops at a point or around the companion.",
@@ -81,6 +94,36 @@ final class FarmingTools {
 
     private static BlockPos center(CompanionEntity c, JsonObject args) {
         return ToolKit.optionalPos(args).orElse(c.blockPosition());
+    }
+
+    /** The place a farm call names, or empty; a place is ignored when x, y and z are given. */
+    private static Optional<Place> place(CompanionEntity c, JsonObject args) {
+        if (ToolKit.optionalPos(args).isPresent()
+                || !args.has("place") || args.get("place").isJsonNull()) {
+            return Optional.empty();
+        }
+        String name = args.get("place").getAsString();
+        if (name.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(PlaceService.requireReachable(c, name, "farming"));
+    }
+
+    /** The centre of a pass: explicit coordinates, then a named place's anchor, then the companion. */
+    private static BlockPos center(CompanionEntity c, JsonObject args, Optional<Place> place) {
+        if (place.isPresent()) {
+            var anchor = place.get().anchor();
+            return new BlockPos(anchor.x(), anchor.y(), anchor.z());
+        }
+        return center(c, args);
+    }
+
+    /** A pass covers the named place's own radius, capped at the schema's largest farm. */
+    private static int radius(JsonObject args, Optional<Place> place, int fallback) {
+        if (args.has("radius") && !args.get("radius").isJsonNull()) {
+            return args.get("radius").getAsInt();
+        }
+        return place.map(p -> Math.min(p.radius(), 16)).orElse(fallback);
     }
 
     private static int radius(JsonObject args, int fallback) {

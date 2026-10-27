@@ -30,8 +30,20 @@ class RequestTypeTest {
         assertEquals(18, RequestType.RENAME.ordinal());
         assertEquals(19, RequestType.PERSONA_SET.ordinal());
         assertEquals(20, RequestType.SET_AUTO_RESPAWN.ordinal());
-        assertEquals(21, RequestType.INVALID.ordinal());
+        assertEquals(21, RequestType.PLACES_OPEN.ordinal());
+        assertEquals(22, RequestType.PLACES_CLOSE.ordinal());
+        assertEquals(23, RequestType.PLACES_RENAME.ordinal());
+        assertEquals(24, RequestType.PLACES_FORGET.ordinal());
+        assertEquals(25, RequestType.INVALID.ordinal());
         assertEquals(RequestType.values().length - 1, RequestType.INVALID.ordinal());
+    }
+
+    @Test
+    void placeRequestsMapToTheirActions() {
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_PLACES), RequestType.PLACES_OPEN.action());
+        assertEquals(Optional.of(DebugAccess.Action.VIEW_PLACES), RequestType.PLACES_CLOSE.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_PLACES), RequestType.PLACES_RENAME.action());
+        assertEquals(Optional.of(DebugAccess.Action.EDIT_PLACES), RequestType.PLACES_FORGET.action());
     }
 
     @Test

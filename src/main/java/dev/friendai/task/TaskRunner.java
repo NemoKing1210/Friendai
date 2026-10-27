@@ -2,6 +2,7 @@ package dev.friendai.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.place.PlaceCandidate;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.GuardFacts;
@@ -197,6 +198,11 @@ public final class TaskRunner {
     }
     private void completeActive(Active active,TaskStatus status,String summary) {
         String result=summary==null?active.task().resultSummary():summary; current=null;
+        // One place per finished task: a thing the companion built, farmed or mined is worth remembering itself.
+        if(status==TaskStatus.SUCCESS&&listener!=null) {
+            PlaceCandidate candidate=active.task().placeCandidate();
+            if(candidate!=null)listener.onPlace(candidate,active.toolName());
+        }
         if(active.interrupt()) {
             if(active.emit()&&listener!=null)listener.onFinished(active.id(),active.toolName(),status,result);
             resumeFrozen(); return;

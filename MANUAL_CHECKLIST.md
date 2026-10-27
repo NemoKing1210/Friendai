@@ -93,6 +93,15 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `/friendai memory forget <id>` and `/friendai memory clear world` work; messages read correctly in English and Russian.
 - [ ] Settings → Memory → off, then `/friendai reload`: the companion no longer remembers; `/friendai memory` says memory is off.
 
+## Places
+
+- [ ] "Remember this as home": `remember_place` stores it; `/friendai place list` and the Places tab show it, and after a server restart it is still there (`<world>/friendai/places/<uuid>.json`).
+- [ ] "Where is the wheat farm?": `find_place` lists it with its coordinates and, in the same dimension, the distance; `go_to_place` then walks there and the visit count grows.
+- [ ] Mine or build at a new spot with auto-registration on: one place appears per site rather than one per block, and working the same site again refreshes that place's geometry instead of adding a second one.
+- [ ] Remember a place in the Nether, return to the Overworld and ask the companion to go there: `go_to_place` refuses, saying the place is in `minecraft:the_nether` and that it cannot cross dimensions.
+- [ ] Fill the book to `places.maxPlaces`, then ask to remember one more: the tool refuses and says to forget one first; renaming an existing place still works.
+- [ ] `/friendai place add`, `info`, `rename` and `remove` work for the owner, and their replies read correctly in English and Russian.
+
 ## Companion control menu
 
 - [ ] Esc in a world: the companion icon sits in the icon row next to the other icons, has a tooltip, and looks right at GUI scales 1-4 and in both languages.
@@ -101,7 +110,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Tasks tab: a finished task shows up in the history with its status; scrolling works.
 - [ ] Log tab (operator): messages, tool calls and errors appear live; kind filters work; Copy puts the visible lines on the clipboard.
 - [ ] Debug tab (operator): perception text is shown; "Show prompt" shows the system prompt; Send reaches the companion; Run executes a tool (empty arguments = `{}`) and shows up in the log as "Manual".
-- [ ] Dedicated server as a normal player: only Control and Tasks tabs; as an operator: all four.
+- [ ] Dedicated server as a normal player: Control, Tasks, Memory, Places and Appearance tabs; as an operator: all seven (Log and Debug appear too).
 - [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
 - [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
 - [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
@@ -116,6 +125,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Type your own text (up to 300 characters) and Save; reopen the world: it is still there. Reset brings back the server default and removes the badge.
 - [ ] Personality pane at GUI scales 1–4 in English and Russian: presets, box and buttons do not overlap.
 - [ ] Two players with their own companions set different personalities: each companion keeps its own.
+- [ ] Places tab: remembered places appear as cards with the kind badge, name, label, dimension and position, visit count and, in the same dimension, the distance; the newest change is first and the list scrolls.
+- [ ] Places tab: select a row, type a new name and press Rename; the row and the status line update and the new name works in chat. A name another place already uses shows the error in the status line and changes nothing; the field refuses an empty or over-long name before the request is sent.
+- [ ] Places tab: Delete asks "Sure?" and removes the place only on the second click; the row disappears and the status line names what was forgotten.
+- [ ] Places tab at GUI scales 1-4 in English and Russian: badges, rows, the rename field and both buttons do not overlap, and every label is translated.
+- [ ] Places turned off on the server (`places.enabled: false`, `/friendai reload`): the tab shows the notice instead of rows.
 
 ## Companion inventory window
 

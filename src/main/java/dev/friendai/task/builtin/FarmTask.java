@@ -1,11 +1,18 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.pathing.Pos;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceNames;
+import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.farming.FarmReport;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,6 +25,8 @@ public final class FarmTask implements Task {
     private final boolean boneMeal;
     private FarmPass pass;
     private String summary = "";
+    /** The dimension the pass ran in; a place is remembered where the work happened. */
+    private String dimension = "";
 
     public FarmTask(BlockPos center, int radius, @Nullable Item crop, boolean till) {
         this(center, radius, crop, till, false);
@@ -38,6 +47,7 @@ public final class FarmTask implements Task {
 
     @Override
     public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
         pass = new FarmPass(center, radius, crop, till, boneMeal);
     }
 
@@ -68,5 +78,17 @@ public final class FarmTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /** The worked plot: a farm named after its crop, or "mixed" when the pass took whatever grew there. */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (dimension.isBlank()) {
+            return null;
+        }
+        String label = crop == null ? "mixed" : PlaceNames.shortItem(BuiltInRegistries.ITEM.getKey(crop).getPath());
+        return new PlaceCandidate(PlaceKind.FARM, label, "", dimension,
+                new Pos(center.getX(), center.getY(), center.getZ()),
+                Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.FARM);
     }
 }

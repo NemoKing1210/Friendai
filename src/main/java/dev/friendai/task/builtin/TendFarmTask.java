@@ -56,7 +56,9 @@ public final class TendFarmTask implements Task {
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        // The plot comes from the constructor; tending has nothing else to read when it starts.
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {

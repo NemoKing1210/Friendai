@@ -1,6 +1,12 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.Pos;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceSource;
+import dev.friendai.structure.Footprint;
 import dev.friendai.structure.Outcome;
 import dev.friendai.structure.SpecialStructure;
 import dev.friendai.structure.StructurePlan;
@@ -57,6 +63,8 @@ public final class SpecialStructureTask implements Task {
     private Approach approach;
     private BlockPos asideTarget;
     private String summary = "";
+    /** The dimension the site is in; a finished structure is remembered there. */
+    private String dimension = "";
 
     public SpecialStructureTask(SpecialStructure structure, BlockPos origin, Rotation rotation, int maxNearbySpawned) {
         this.structure = structure;
@@ -70,7 +78,9 @@ public final class SpecialStructureTask implements Task {
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {
@@ -345,6 +355,33 @@ public final class SpecialStructureTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /**
+     * The structure that now stands on the site: an iron golem is the farm it guards, a nether portal is a portal,
+     * and anything else is a landmark named after its id.
+     */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (dimension.isBlank()) {
+            return null;
+        }
+        PlaceKind kind = switch (structure.id()) {
+            case "iron_golem" -> PlaceKind.FARM;
+            case "nether_portal" -> PlaceKind.PORTAL;
+            default -> PlaceKind.LANDMARK;
+        };
+        String label = switch (kind) {
+            case FARM -> "iron";
+            case PORTAL -> "";
+            default -> structure.id();
+        };
+        Footprint footprint = structure.footprint();
+        int span = Math.max(footprint.width(), footprint.depth()) / 2 + 2;
+        BlockPos anchor = site.origin();
+        return new PlaceCandidate(kind, label, "", dimension,
+                new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                Math.clamp(span, 1, Place.RADIUS_MAX), PlaceSource.STRUCTURE);
     }
 
     private static String coords(BlockPos pos) {

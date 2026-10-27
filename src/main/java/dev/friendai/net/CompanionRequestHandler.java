@@ -9,8 +9,15 @@ import dev.friendai.entity.CompanionRenamer;
 import dev.friendai.memory.MemoryMenuActions;
 import dev.friendai.memory.MenuStatus;
 import dev.friendai.memory.PlayerRef;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceLimits;
+import dev.friendai.place.PlaceNames;
+import dev.friendai.place.PlaceRegistry;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -67,10 +74,19 @@ public final class CompanionRequestHandler {
             MemoryViewStream.close(player);
             return;
         }
+        if (type == RequestType.PLACES_OPEN) {
+            PlaceViewStream.open(player);
+            return;
+        }
+        if (type == RequestType.PLACES_CLOSE) {
+            PlaceViewStream.close(player);
+            return;
+        }
         if (!limiter.tryAcquire(owner)) {
             return;
         }
         MenuStatus memoryStatus = null;
+        MenuStatus placeStatus = null;
         CompanionManager companions = CompanionManager.get(server);
         switch (type) {
             case SUMMON -> companions.summon(player);
@@ -142,12 +158,95 @@ public final class CompanionRequestHandler {
                     default -> null;
                 };
             }
+            case PLACES_RENAME -> placeStatus =
+                    renamePlace(state.places().book(owner), a, b, player.level().getGameTime());
+            case PLACES_FORGET -> placeStatus =
+                    forgetPlace(state.places().book(owner), a);
             default -> {}
         }
         if (memoryStatus != null) {
             MemoryViewStream.sendNow(player, Optional.of(memoryStatus));
         }
+        if (placeStatus != null) {
+            PlaceViewStream.sendNow(player, Optional.of(placeStatus));
+        }
         DebugStream.sendNow(player);
+    }
+
+    /** Renames the sender's place matched by name or alias; an ambiguous name is reported, never guessed. */
+    private static MenuStatus renamePlace(PlaceRegistry book, String oldName, String newName, long tick) {
+        List<Place> matches = matches(book, oldName);
+        if (matches.isEmpty()) {
+            return MenuStatus.error("friendai.menu.places.error.not_found", oldName);
+        }
+        if (matches.size() > 1) {
+            return MenuStatus.error(
+                    "friendai.menu.places.error.ambiguous", oldName, describe(matches));
+        }
+        Place place = matches.get(0);
+        String name = newName == null ? "" : newName.strip();
+        if (!validName(name)) {
+            return MenuStatus.error("friendai.menu.places.error.name_invalid", PlaceLimits.NAME_MAX);
+        }
+        Optional<Place> taken = book.find(name, place.dimension());
+        if (taken.isPresent() && taken.get().id() != place.id()) {
+            return MenuStatus.error("friendai.menu.places.error.name_taken", name);
+        }
+        try {
+            Place renamed = book.rename(place.id(), name, tick);
+            return MenuStatus.ok("friendai.menu.places.status.renamed", place.name(), renamed.name());
+        } catch (IllegalArgumentException rejected) {
+            return MenuStatus.error("friendai.menu.places.error.name_invalid", PlaceLimits.NAME_MAX);
+        }
+    }
+
+    /** Forgets the sender's place matched by name or alias; an ambiguous name is reported, never guessed. */
+    private static MenuStatus forgetPlace(PlaceRegistry book, String name) {
+        List<Place> matches = matches(book, name);
+        if (matches.isEmpty()) {
+            return MenuStatus.error("friendai.menu.places.error.not_found", name);
+        }
+        if (matches.size() > 1) {
+            return MenuStatus.error("friendai.menu.places.error.ambiguous", name, describe(matches));
+        }
+        Place place = matches.get(0);
+        book.remove(place.id());
+        return MenuStatus.ok("friendai.menu.places.status.forgotten", place.name());
+    }
+
+    /** Every place the book knows under this name or alias, across dimensions. */
+    private static List<Place> matches(PlaceRegistry book, String name) {
+        String needle;
+        try {
+            needle = PlaceNames.normalize(name);
+        } catch (IllegalArgumentException notAName) {
+            return List.of();
+        }
+        List<Place> hits = new ArrayList<>();
+        for (Place place : book.all()) {
+            if (PlaceNames.normalize(place.name()).equals(needle)
+                    || place.aliases().stream()
+                            .anyMatch(alias -> PlaceNames.normalize(alias).equals(needle))) {
+                hits.add(place);
+            }
+        }
+        return hits;
+    }
+
+    /** Names with their dimension, so an ambiguity between two worlds reads as two distinct places. */
+    private static String describe(List<Place> places) {
+        return places.stream()
+                .map(place -> place.name() + " (" + place.dimension() + ")")
+                .collect(Collectors.joining(", "));
+    }
+
+    private static boolean validName(String name) {
+        try {
+            PlaceNames.normalize(name);
+        } catch (IllegalArgumentException notAName) {
+            return false;
+        }
+        return name.strip().length() <= PlaceLimits.NAME_MAX;
     }
 
     private static Optional<PlayerRef> onlineRef(MinecraftServer server, UUID uuid) {

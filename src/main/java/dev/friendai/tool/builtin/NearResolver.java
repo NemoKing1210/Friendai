@@ -2,6 +2,9 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceNames;
+import dev.friendai.place.PlaceService;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.NearTarget;
 import java.util.Optional;
@@ -16,13 +19,22 @@ final class NearResolver {
 
     private NearResolver() {}
 
-    /** Explicit coordinates win; otherwise {@code near} picks the speaker or the companion. */
+    /**
+     * Explicit coordinates win; otherwise {@code near} names a remembered place ({@code place:<name>}), the
+     * speaker, or the companion. A place in another dimension is refused by
+     * {@link PlaceService#requireReachable}.
+     */
     static BlockPos resolve(CompanionEntity c, Caller caller, JsonObject args) {
         Optional<BlockPos> coordinates = ToolKit.optionalPos(args);
         if (coordinates.isPresent()) {
             return coordinates.get();
         }
         String raw = args.has("near") && !args.get("near").isJsonNull() ? args.get("near").getAsString() : null;
+        Optional<String> placeName = PlaceNames.fromNear(raw);
+        if (placeName.isPresent()) {
+            Place place = PlaceService.requireReachable(c, placeName.get(), "a search");
+            return new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
+        }
         if (NearTarget.parse(raw) == NearTarget.SELF) {
             return c.blockPosition();
         }

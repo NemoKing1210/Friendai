@@ -1,5 +1,11 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.pathing.Pos;
+import dev.friendai.place.Place;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceNames;
+import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -49,6 +55,12 @@ public final class MineBlocksTask implements Task {
     private BlockPos pendingObservation;
     private int observationWaitTicks;
     private String summary = "";
+    /** The first block this job actually broke; the anchor of the place it may be remembered as. */
+    private BlockPos firstMined;
+    /** The dimension the job ran in, captured at start because a place candidate is built without a context. */
+    private String dimension = "";
+    /** {@code places.autoMineMinBlocks}, captured at start: a small dig is not a mine. */
+    private int autoMinBlocks = Integer.MAX_VALUE;
 
     /** Where to search from; null means around the companion. */
     private final BlockPos origin;
@@ -73,7 +85,11 @@ public final class MineBlocksTask implements Task {
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
+        autoMinBlocks = dev.friendai.core.FriendaiServerState.get(c.level().getServer())
+                .config().places.autoMineMinBlocks;
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {
@@ -107,6 +123,7 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 breaker = null;
                 mined++;
+                rememberFirst(lastBroken);
                 yield TaskStatus.RUNNING;
             }
             case GONE -> {
@@ -141,6 +158,7 @@ public final class MineBlocksTask implements Task {
                 pendingObservation = lastBroken;
                 observationWaitTicks = 0;
                 mined++;
+                rememberFirst(lastBroken);
                 miningSessionActive = false;
                 yield TaskStatus.RUNNING;
             }
@@ -336,11 +354,53 @@ public final class MineBlocksTask implements Task {
     @Override
     public String describe() {
         return "mining " + count + " " + matcher.label()
+                + (origin != null ? " around " + origin.getX() + " " + origin.getY() + " " + origin.getZ() : "")
                 + (pendingObservation != null && observationWaitTicks > 0 ? " (checking exposed blocks)" : "");
     }
 
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /** The first block broken keeps the place anchored where the ore or stone was, not where the search started. */
+    private void rememberFirst(BlockPos minedBlock) {
+        if (firstMined == null) {
+            firstMined = minedBlock;
+        }
+    }
+
+    /**
+     * The dug-out site, only once the job was big enough to be a mine. Anchored on the requested origin when the call
+     * named one, else on the first block broken; the radius is the job's own search radius.
+     */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (dimension.isBlank() || mined < autoMinBlocks) {
+            return null;
+        }
+        BlockPos anchor = origin != null ? origin : firstMined;
+        if (anchor == null) {
+            return null;
+        }
+        return new PlaceCandidate(PlaceKind.MINE, placeLabel(matcher.label()), "", dimension,
+                new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.MINE);
+    }
+
+    /**
+     * The label a matcher becomes: the tag marker and the namespace are dropped, so {@code minecraft:oak_log} is
+     * "oak log" and {@code #minecraft:logs} is "logs" in the book, the prompt and the merge key.
+     */
+    private static String placeLabel(String matcherLabel) {
+        String text = matcherLabel == null ? "" : matcherLabel.strip();
+        if (text.startsWith("#")) {
+            text = text.substring(1);
+        }
+        int colon = text.indexOf(':');
+        if (colon >= 0) {
+            text = text.substring(colon + 1);
+        }
+        return PlaceNames.humanize(text);
     }
 }

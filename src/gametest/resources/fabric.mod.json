@@ -21,6 +21,7 @@
 			"dev.friendai.test.LightAreaTests",
 			"dev.friendai.test.StorageTests",
 			"dev.friendai.test.ToolTests",
+			"dev.friendai.test.PlaceTests",
 			"dev.friendai.test.GuestTests",
 			"dev.friendai.test.MemoryTests",
 			"dev.friendai.test.MemoryMenuTests",

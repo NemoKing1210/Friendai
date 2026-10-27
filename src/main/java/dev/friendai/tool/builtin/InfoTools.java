@@ -42,8 +42,8 @@ final class InfoTools {
                         + "is not felled automatically. Use it to choose a tree before fell_tree.",
                 SchemaBuilder.object()
                         .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
-                        .enumeration("near", "Search around the speaker (me, default) or around yourself (self)",
-                                "me", "self")
+                        .string("near", "Search around the speaker (me, default), yourself (self), or a "
+                                + "remembered place (place:<name>)")
                         .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                         .integer("y", "Block y coordinate to search around instead of near", -64, 320)
                         .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)

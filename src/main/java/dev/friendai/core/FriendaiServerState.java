@@ -16,6 +16,8 @@ import dev.friendai.knowledge.KnowledgeStore;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.pathing.BlockList;
+import dev.friendai.place.PlaceLimits;
+import dev.friendai.place.PlaceStore;
 import dev.friendai.task.TaskSettings;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,9 +40,11 @@ public final class FriendaiServerState {
     private final GoalService goals;
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
+    private final PlaceStore places;
     private final ObservationScheduler observations;
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
+    private final MemoryViewers placeViewers = new MemoryViewers();
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
@@ -63,6 +67,8 @@ public final class FriendaiServerState {
         this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
+        this.places = new PlaceStore(server.getWorldPath(LevelResource.ROOT)
+                .resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS);
         this.resources = new ResourceCandidates(knowledge);
         this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
@@ -121,12 +127,18 @@ public final class FriendaiServerState {
 
     public KnowledgeStore knowledge() { return knowledge; }
 
+    /** Per-owner places the companion knows. */
+    public PlaceStore places() {
+        return places;
+    }
+
     public ObservationScheduler observations() { return observations; }
 
     public ResourceCandidates resources() { return resources; }
 
     private void shutdown() {
         knowledge.close();
+        places.close();
     }
 
     /** The name the owner gave their companion, or the configured default. */
@@ -137,6 +149,11 @@ public final class FriendaiServerState {
     /** Who has the memory tab open, and the last book revision each received. */
     public MemoryViewers memoryViewers() {
         return memoryViewers;
+    }
+
+    /** Who has the places tab open, and the last registry revision each received. */
+    public MemoryViewers placeViewers() {
+        return placeViewers;
     }
 
     /** Trust changes waiting for the owner's confirmation. */
