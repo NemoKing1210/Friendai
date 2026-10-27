@@ -1,11 +1,14 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.nav.Approach;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -30,6 +33,14 @@ abstract class ContainerTaskBase implements Task {
 
     protected ContainerTaskBase(BlockPos target) {
         this.target = target;
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        BlockPos destination = containerPos != null ? containerPos : target;
+        return destination == null ? List.of()
+                : List.of(new DebugTarget(destination.getX(), destination.getY(), destination.getZ(),
+                        DebugAction.USE, "container"));
     }
 
     /** Called on the first tick before anything else; a summary means the task fails with it. */

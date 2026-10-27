@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.debug.DebugAction;
 import dev.friendai.farming.CellKind;
 import dev.friendai.farming.FarmSnapshot;
 import dev.friendai.farming.FieldCell;
@@ -123,6 +124,25 @@ public class FarmingTests {
                 h.assertTrue(age >= 3, "immature plot untouched, age " + age);
             }
         });
+    }
+
+    @GameTest
+    public void farmDebugTargetTracksSelectedCropStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos crop = h.absolutePos(new BlockPos(5, 2, 5));
+        h.setBlock(new BlockPos(5, 1, 5), Blocks.FARMLAND);
+        h.setBlock(new BlockPos(5, 2, 5), Blocks.WHEAT.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 1));
+        FarmTask task = new FarmTask(crop, 1, null, false);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        task.start(context);
+        task.tick(context);
+        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.HARVEST
+                && target.x() == crop.getX() && target.y() == crop.getY() && target.z() == crop.getZ()),
+                "the selected mature crop should be shown as the active harvest target");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 1200)

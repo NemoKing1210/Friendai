@@ -87,8 +87,8 @@ final class ControlTab implements MenuTab {
         movementDebug.visible = operator;
         movementDebug.active = connected;
         movementDebug.setMessage(Component.translatable(MovementDebugState.enabled()
-                ? "friendai.menu.movement_debug.on"
-                : "friendai.menu.movement_debug.off"));
+                ? "friendai.menu.debug.on"
+                : "friendai.menu.debug.off"));
         autoRespawn.visible = present;
         autoRespawn.active = connected && present && snapshot.map(CompanionSnapshot::autoRespawnAvailable).orElse(false);
         String autoRespawnKey = snapshot.map(s -> !s.autoRespawnAvailable()

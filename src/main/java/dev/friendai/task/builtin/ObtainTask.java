@@ -6,6 +6,7 @@ import dev.friendai.crafting.obtain.ObtainStep;
 import dev.friendai.crafting.obtain.ObtainText;
 import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.creative.CreativeAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -449,6 +450,11 @@ public final class ObtainTask implements Task {
                 ? "planning"
                 : ObtainText.stepText(currentStep);
         return "getting " + count + " " + item + ": step " + (stepsRun + 1) + " — " + step;
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        return current == null ? List.of() : current.debugTargets();
     }
 
     @Override

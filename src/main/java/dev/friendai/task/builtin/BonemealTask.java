@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -116,6 +118,12 @@ public final class BonemealTask implements Task {
     @Override
     public String describe() {
         return "using bone meal on crops";
+    }
+
+    @Override
+    public java.util.List<DebugTarget> debugTargets() {
+        return current == null ? java.util.List.of() : java.util.List.of(new DebugTarget(
+                current.getX(), current.getY(), current.getZ(), DebugAction.USE, "Use bone meal"));
     }
 
     @Override

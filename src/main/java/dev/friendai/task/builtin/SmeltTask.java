@@ -2,6 +2,8 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -186,6 +188,38 @@ public final class SmeltTask implements Task {
                     + " done";
         }
         return "smelting " + count + " " + input.label();
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        if (craftTask != null) {
+            return craftTask.debugTargets();
+        }
+        if (phase == Phase.APPROACH_SPOT || phase == Phase.PLACE_STATION) {
+            return target(spot, DebugAction.PLACE, "Place " + (kind == null ? "furnace" : kind.noun()));
+        }
+        if (phase == Phase.LEAVING) {
+            BlockPos pos = breaker == null
+                    ? (takeBackIndex < takeBacks.size() ? takeBacks.get(takeBackIndex) : null)
+                    : breaker.target();
+            return target(pos, DebugAction.BREAK, "Take back furnace");
+        }
+        if (phase == Phase.APPROACH_STATION && targetIndex < pendingStations.size()) {
+            return target(pendingStations.get(targetIndex), DebugAction.SMELT, "Load furnace");
+        }
+        if (phase == Phase.LOAD && targets.isEmpty() && !pendingStations.isEmpty()) {
+            return pendingStations.stream().map(pos -> new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
+                    DebugAction.SMELT, "Load furnace")).toList();
+        }
+        if ((phase == Phase.LOAD || phase == Phase.WAIT) && !targets.isEmpty()) {
+            return targets.stream().map(station -> new DebugTarget(station.pos().getX(), station.pos().getY(),
+                    station.pos().getZ(), DebugAction.SMELT, "Smelt " + input.label())).toList();
+        }
+        return List.of();
+    }
+
+    private static List<DebugTarget> target(@Nullable BlockPos pos, DebugAction action, String detail) {
+        return pos == null ? List.of() : List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
     }
 
     @Override

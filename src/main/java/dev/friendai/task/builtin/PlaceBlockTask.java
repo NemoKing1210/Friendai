@@ -1,5 +1,7 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -51,6 +53,14 @@ public final class PlaceBlockTask implements Task {
     @Override
     public String type() {
         return "place_block";
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        BlockPos destination = spot != null ? spot : target;
+        return destination == null ? List.of()
+                : List.of(new DebugTarget(destination.getX(), destination.getY(), destination.getZ(),
+                        DebugAction.PLACE, itemId()));
     }
 
     @Override

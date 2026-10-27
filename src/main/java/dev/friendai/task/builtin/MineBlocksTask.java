@@ -16,6 +16,8 @@ import dev.friendai.task.nav.PlacementLedger;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.pathing.Node;
 import dev.friendai.core.Components;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
@@ -85,6 +87,26 @@ public final class MineBlocksTask implements Task {
     @Override
     public String type() {
         return "mine_blocks";
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        if (miningSessionActive) {
+            BlockPos target = miningSession == null ? null : miningSession.target();
+            return target == null ? List.of() : List.of(target(target));
+        }
+        if (breaker == null) {
+            return List.of();
+        }
+        BlockPos selected = breaker.target();
+        if (selected != null) {
+            return List.of(target(selected));
+        }
+        return breaker.candidates().stream().map(this::target).toList();
+    }
+
+    private DebugTarget target(BlockPos pos) {
+        return new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, matcher.label());
     }
 
     @Override

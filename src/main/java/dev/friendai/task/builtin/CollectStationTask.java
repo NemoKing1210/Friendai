@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -102,6 +104,16 @@ public final class CollectStationTask implements Task {
     @Override
     public String describe() {
         return "fetching back the " + station.noun() + " at " + coords();
+    }
+
+    @Override
+    public java.util.List<DebugTarget> debugTargets() {
+        if (settle != null) {
+            return java.util.List.of();
+        }
+        DebugAction action = breaker == null ? DebugAction.COLLECT : DebugAction.BREAK;
+        String detail = breaker == null ? "Collect " + station.noun() : "Take back " + station.noun();
+        return java.util.List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
     }
 
     @Override

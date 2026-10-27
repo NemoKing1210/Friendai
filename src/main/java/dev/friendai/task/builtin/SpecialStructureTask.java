@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
@@ -78,6 +80,24 @@ public final class SpecialStructureTask implements Task {
     @Override
     public String type() {
         return "special:" + structure.id();
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        if (child != null) {
+            return child.debugTargets();
+        }
+        StructureStep step = steps.peek();
+        if (!(step instanceof StructureStep.Finish finish)) {
+            return List.of();
+        }
+        BlockPos pos = switch (finish.trigger()) {
+            case Trigger.LastBlock last -> site.pos(structure, last.at());
+            case Trigger.Ignite ignite -> site.pos(structure, ignite.at());
+        };
+        DebugAction action = finish.trigger() instanceof Trigger.LastBlock ? DebugAction.PLACE : DebugAction.USE;
+        String detail = finish.trigger() instanceof Trigger.LastBlock ? "Place finishing block" : "Activate structure";
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
     }
 
     @Override

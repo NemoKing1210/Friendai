@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.CraftPlan;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.crafting.CraftPlanner;
 import dev.friendai.crafting.CraftStep;
 import dev.friendai.crafting.CraftText;
@@ -206,6 +208,35 @@ public final class CraftTask implements Task {
                     + step.recipe().output() + ")";
         }
         return base;
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        if (plan == null || stepIndex >= plan.steps().size()) {
+            if (settle != null || takeIndex >= takeBacks.size()) {
+                return List.of();
+            }
+            BlockPos pos = breaker == null || breaker.target() == null
+                    ? placedStations.get(takeBacks.get(takeIndex)) : breaker.target();
+            if (pos == null) {
+                return List.of();
+            }
+            return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
+                    "Take back " + takeBacks.get(takeIndex).noun()));
+        }
+        if (plan == null || stepIndex >= plan.steps().size()) {
+            return List.of();
+        }
+        BlockPos pos = phase == StationPhase.APPROACH_SPOT ? spot : stationPos;
+        if (pos == null) {
+            return List.of();
+        }
+        CraftStep step = plan.steps().get(stepIndex);
+        DebugAction action = phase == StationPhase.APPROACH_SPOT ? DebugAction.PLACE : DebugAction.CRAFT;
+        String detail = action == DebugAction.PLACE
+                ? "Place " + step.recipe().station().noun()
+                : "Craft " + step.recipe().output();
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
     }
 
     @Override

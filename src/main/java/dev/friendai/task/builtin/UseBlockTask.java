@@ -1,9 +1,12 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Approach;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
@@ -28,6 +31,12 @@ public final class UseBlockTask implements Task {
     @Override
     public String type() {
         return "use_block";
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.USE,
+                want == null ? "" : want));
     }
 
     @Override

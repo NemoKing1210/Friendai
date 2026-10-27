@@ -2,13 +2,21 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.debug.MovementDebug;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.GoToTask;
+import dev.friendai.task.builtin.MineBlockAtTask;
+import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.queue.QueuedStep;
+import dev.friendai.task.builtin.UseBlockTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import java.util.ArrayList;
@@ -17,6 +25,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -46,6 +55,18 @@ public class TaskTests {
         TaskRunner r = new TaskRunner(c, () -> timeoutSec, () -> defaultFollow);
         r.setListener(events);
         return r;
+    }
+
+    @GameTest
+    public void debugPreviewShowsPendingPlanStepsInQueueOrder(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        TaskRunner runner = runner(c, new Events(), 300, false);
+        runner.queue().addDirect(new QueuedStep("first_tool", null, null, List.of(), null, null, 1, List.of()));
+        runner.queue().addDirect(new QueuedStep("second_tool", null, null, List.of(), null, null, 1, List.of()));
+        runner.queue().addDirect(new QueuedStep("third_tool", null, null, List.of(), null, null, 1, List.of()));
+        h.assertTrue(MovementDebug.upcomingSteps(runner.queue().jobs())
+                .equals(List.of("first_tool", "second_tool")), "debug preview should show the next two queued steps");
+        h.succeed();
     }
 
     /** A plan step that hands the runner a cleanup task when cancelled, like a build with its scaffold. */
@@ -99,6 +120,23 @@ public class TaskTests {
                 }
             }
         }
+    }
+
+    @GameTest
+    public void fixedBlockTasksExposeDebugTargets(GameTestHelper h) {
+        BlockPos target = new BlockPos(4, 5, 6);
+        h.assertTrue(new StayTask().debugTargets().isEmpty(), "tasks without a block action have no debug targets");
+        h.assertTrue(new MineBlockAtTask(target).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))), "mine target should be exposed");
+        h.assertTrue(new PlaceBlockTask((net.minecraft.world.item.BlockItem) Blocks.DIRT.asItem(), target)
+                .debugTargets().equals(List.of(new DebugTarget(4, 5, 6, DebugAction.PLACE, "minecraft:dirt"))),
+                "explicit placement position should be exposed before walking");
+        h.assertTrue(new UseBlockTask(target, null).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, ""))), "use target should be exposed");
+        h.assertTrue(new CheckContainerTask(target).debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, "container"))),
+                "container target should be exposed by the base task");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 400)
@@ -172,6 +210,30 @@ public class TaskTests {
             h.assertTrue(runner.stopNamed(name, "x").isPresent(), name + " should stop the plan");
             h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity after " + name);
         }
+        h.succeed();
+    }
+
+    @GameTest
+    public void sequenceForwardsActiveStepDebugTargets(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        TaskRunner runner = runner(c, new Events(), 300, false);
+        Task step = new Task() {
+            @Override public String type() { return "debug_step"; }
+            @Override public void start(TaskContext context) {}
+            @Override public TaskStatus tick(TaskContext context) { return TaskStatus.RUNNING; }
+            @Override public void stop(TaskContext context) {}
+            @Override public String describe() { return "debug step"; }
+            @Override public String resultSummary() { return ""; }
+            @Override public List<DebugTarget> debugTargets() {
+                return List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""));
+            }
+        };
+        runner.start(new SequenceTask(null, List.of(
+                new PlanEntry("debug_step", ctx -> step)), () -> 300), "run_plan");
+        runner.tick();
+        h.assertTrue(runner.current().orElseThrow().debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))),
+                "the sequence should expose its active step's current block target");
         h.succeed();
     }
 

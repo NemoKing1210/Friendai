@@ -1,5 +1,6 @@
 package dev.friendai.test;
 
+import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.TaskListener;
@@ -163,6 +164,27 @@ public class MineBlocksTests {
         h.assertTrue(BlockMatcher.parse("oak_log").isPresent(), "default namespace should be minecraft");
         h.assertTrue(BlockMatcher.parse("#minecraft:logs").isPresent(), "tags should parse");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void miningSearchExposesSelectedBlockCandidates(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos relative = new BlockPos(6, 2, 2);
+        BlockPos target = h.absolutePos(relative);
+        h.setBlock(relative, Blocks.ACACIA_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, target), "target log should be visible");
+        MineBlocksTask task = mine("minecraft:acacia_log", 1);
+        TaskRunner runner = runner(c, new Result());
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            var targets = task.debugTargets();
+            h.assertTrue(targets.stream().anyMatch(debug -> debug.action() == DebugAction.BREAK
+                            && debug.x() == target.getX() && debug.y() == target.getY() && debug.z() == target.getZ()),
+                    "selected mine candidate missing: " + targets);
+        });
     }
 
     private static String coords(BlockPos p) {

@@ -1,6 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -318,6 +320,21 @@ public final class CollectSmeltedTask implements Task {
     @Override
     public String describe() {
         return "collecting from " + targets.size() + " furnace" + (targets.size() == 1 ? "" : "s");
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        if (index >= targets.size()) {
+            return List.of();
+        }
+        Target current = targets.get(index);
+        if (phase == Phase.BREAK) {
+            BlockPos pos = breaker == null ? breakPos : breaker.target();
+            return pos == null ? List.of() : List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
+                    DebugAction.BREAK, "Take back " + current.station().noun()));
+        }
+        return List.of(new DebugTarget(current.pos().getX(), current.pos().getY(), current.pos().getZ(),
+                DebugAction.COLLECT, "Collect finished items"));
     }
 
     @Override
