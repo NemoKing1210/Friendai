@@ -638,12 +638,16 @@ public final class BrainService {
 
             @Override
             public ToolResult execute(ToolCall call, Caller caller) {
-                ToolResult result = inner.execute(call, caller);
-                if (!result.error() && caller != null && caller.access() == AccessLevel.OWNER
+                Optional<String> refused = freeTime.refusalDuringChoice(owner, call.name());
+                if (refused.isPresent()) {
+                    return ToolResult.error(refused.get());
+                }
+                if (caller != null && caller.access() == AccessLevel.OWNER
                         && ("stop".equals(call.name()) || "follow_player".equals(call.name()))) {
+                    // End free time first, so its plan is released, not recorded as a failed shift.
                     freeTime.stop(owner, "owner asked to " + call.name().replace('_', ' '));
                 }
-                return result;
+                return inner.execute(call, caller);
             }
         };
     }
@@ -657,7 +661,9 @@ public final class BrainService {
                 companion::setThinking,
                 companion::getUUID,
                 () -> config.chat.hearingRadius);
-        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(speaker);
+        // With the owner away (free time can keep working) the companion has nobody to talk to.
+        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(
+                new dev.friendai.brain.OwnerPresentSpeaker(speaker, () -> companion.owner().isPresent()));
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),

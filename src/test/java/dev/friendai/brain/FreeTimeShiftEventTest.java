@@ -67,5 +67,19 @@ class FreeTimeShiftEventTest {
         brain.post(event());
         assertEquals(List.of("choose_activity"), tools.executed);
         assertEquals(AccessLevel.OWNER, tools.executeAccess.get(0));
+        assertEquals(1, gateway.requests.size(), "a chosen activity ends the director turn: one request");
+    }
+
+    @Test
+    void speechIsDroppedWhileTheOwnerIsAway() {
+        RecordingSpeaker inner = new RecordingSpeaker();
+        boolean[] online = {false};
+        Speaker quiet = new OwnerPresentSpeaker(inner, () -> online[0]);
+        quiet.say("hello", OWNER);
+        quiet.say("plain");
+        assertTrue(inner.said.isEmpty(), "nobody to talk to: " + inner.said);
+        online[0] = true;
+        quiet.say("hello", OWNER);
+        assertEquals(List.of("hello"), inner.said);
     }
 }

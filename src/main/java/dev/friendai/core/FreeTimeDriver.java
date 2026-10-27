@@ -56,6 +56,8 @@ public final class FreeTimeDriver {
     /** About one night: how long a shelter reflex stays home. */
     static final int SHELTER_MINUTES = 8;
     private static final Pattern PLAN_ID = Pattern.compile("plan #(\\d+)");
+    /** Every free-time plan's goal starts with this, so a reused plan id is never mistaken for one. */
+    public static final String PLAN_PREFIX = "free time: ";
 
     /** How long a director turn may take to start thinking before the request counts as unanswered. */
     static final long CHOICE_GRACE_MILLIS = 3_000;
@@ -103,6 +105,9 @@ public final class FreeTimeDriver {
     public void ownerActivity(UUID owner, long nowMillis) {
         lastOwnerActivity.put(owner, nowMillis);
         budget(owner).ownerSpoke();
+        if (service().state(owner).awaitingChoice()) {
+            service().clearChoice(owner); // the owner takes over the conversation; their orders are not limited
+        }
     }
 
     public FreeTime state(UUID owner) {
@@ -228,7 +233,11 @@ public final class FreeTimeDriver {
             }
             return;
         }
-        long shiftPlan = state.shift() == null ? 0 : state.shift().planId();
+        long savedPlan = state.shift() == null ? 0 : state.shift().planId();
+        // A queue that restarted (death, re-summon, rollback) may reuse the saved id for an owner plan: only a plan
+        // free time queued itself, recognisable by its goal, still belongs to the shift.
+        long shiftPlan = savedPlan != 0 && runner.queue().plan(savedPlan)
+                .map(plan -> plan.goal().startsWith(PLAN_PREFIX)).orElse(false) ? savedPlan : 0;
         boolean ownerWork = runner.busyWithOther() || runner.queue().jobs().stream()
                 .anyMatch(job -> !JobQueue.terminal(job) && (shiftPlan == 0 || job.planId() != shiftPlan));
         if (!online && s.whileOffline() && runner.suspended() && !ownerWork) {
@@ -244,7 +253,7 @@ public final class FreeTimeDriver {
             budget(owner).failed();
         }
         AutonomyFacts f = facts.build(companion, owner, nowMillis);
-        boolean planExists = shiftPlan != 0 && runner.queue().plan(shiftPlan).isPresent();
+        boolean planExists = shiftPlan != 0;
         ShiftInputs in = new ShiftInputs(state, f, s, ceiling, ownerGoalActive, planExists,
                 planningInFlight(owner), ownerWork, brainThinking, lastOwner);
         switch (ShiftPolicy.decide(in, budget(owner))) {
@@ -269,6 +278,24 @@ public final class FreeTimeDriver {
             seenOnline.add(owner);
         }
         return seenOnline.contains(owner);
+    }
+
+    /** What a director turn may call: the choice itself and read-only looks around. */
+    static final Set<String> CHOICE_TOOLS = Set.of(
+            "choose_activity", "end_free_time", "look_around", "get_inventory", "show_inventory", "find_place",
+            "recall", "find_trees", "find_blocks", "describe_block", "survey_area", "queue_show", "known_resources",
+            "plan_obtain", "get_recipe", "request_tools");
+
+    /**
+     * Why a tool call in a director turn is refused, or empty when it may run. Free time works only through plans,
+     * where the deny list and the place guard apply; a director turn may not act directly.
+     */
+    public Optional<String> refusalDuringChoice(UUID owner, String tool) {
+        if (!service().state(owner).awaitingChoice() || CHOICE_TOOLS.contains(tool)) {
+            return Optional.empty();
+        }
+        return Optional.of("in free time, choose the activity with choose_activity; " + tool
+                + " runs only as part of its plan");
     }
 
     /** A planner request for this owner's shift has not answered yet. */
@@ -419,7 +446,8 @@ public final class FreeTimeDriver {
     Optional<Long> queue(UUID owner, CompanionEntity companion, String goal, JsonArray steps, int minutes,
                          Map<String, TaskToolDef> tools) {
         JsonObject args = new JsonObject();
-        args.addProperty("goal", goal.length() > 200 ? goal.substring(0, 200) : goal);
+        String marked = goal.startsWith(PLAN_PREFIX) ? goal : PLAN_PREFIX + goal;
+        args.addProperty("goal", marked.length() > 200 ? marked.substring(0, 200) : marked);
         args.add("steps", steps);
         args.addProperty("priority", -10);
         args.addProperty("on_failure", "stop_plan");

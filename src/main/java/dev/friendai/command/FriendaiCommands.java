@@ -146,8 +146,9 @@ public final class FriendaiCommands {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
             return 0;
         }
-        companion.get().taskRunner().stop("stopped by command");
+        // Free time first: its plan is then released instead of ending as a failed shift.
         FriendaiServerState.get(server).brains().freeTime().stop(player.getUUID(), "stopped by command");
+        companion.get().taskRunner().stop("stopped by command");
         FriendaiServerState.get(server).brains().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
         return 1;
