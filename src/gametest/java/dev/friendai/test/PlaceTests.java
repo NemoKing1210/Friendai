@@ -6,12 +6,16 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
+import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.place.PlaceValues;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.FarmTask;
+import dev.friendai.task.builtin.MineBlocksTask;
+import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
@@ -24,11 +28,17 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 
 public class PlaceTests {
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;
+        /** Set to mirror the brain's hook: what a successful task noticed lands in the owner's book. */
+        CompanionEntity companion;
 
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
@@ -39,6 +49,13 @@ public class PlaceTests {
         @Override
         public void onCancelled(int id, String toolName, String reason) {
             this.summary = "cancelled: " + reason;
+        }
+
+        @Override
+        public void onPlace(PlaceCandidate candidate, String toolName) {
+            if (companion != null) {
+                PlaceService.autoRegister(companion, candidate);
+            }
         }
     }
 
@@ -207,6 +224,122 @@ public class PlaceTests {
                     companion.getZ() - (visited.anchor().z() + 0.5));
             h.assertTrue(horizontal <= successRadius,
                     "arrived " + horizontal + " blocks away, allowed " + successRadius);
+        });
+    }
+
+    /** A 3x3 wheat plot around (5, 2, 5) whose crops are ready for the first pass. */
+    private static void wheatPlot(GameTestHelper h) {
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                if (x == 5 && z == 5) {
+                    h.setBlock(x, 1, z, Blocks.WATER);
+                    continue;
+                }
+                h.setBlock(x, 1, z, Blocks.FARMLAND);
+                h.setBlock(x, 2, z, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+            }
+        }
+    }
+
+    /** A stone field beside the companion, big enough for both mining passes. */
+    private static void stoneHill(GameTestHelper h) {
+        for (int x = 4; x <= 11; x++) {
+            for (int z = 3; z <= 9; z++) {
+                for (int y = 121; y <= 124; y++) {
+                    h.setBlock(x, y, z, Blocks.STONE);
+                }
+            }
+        }
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void place_tests_farm_registers(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        wheatPlot(h);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 3);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        Result result = new Result();
+        result.companion = companion;
+        companion.taskRunner().setListener(result);
+        BlockPos plot = h.absolutePos(new BlockPos(5, 2, 5));
+        companion.taskRunner().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
+
+        int[] phase = {0};
+        long[] created = {0};
+        h.succeedWhen(() -> {
+            companion.taskRunner().tick();
+            if (phase[0] == 0) {
+                h.assertTrue(result.status == TaskStatus.SUCCESS,
+                        "the first pass should finish: " + result.status + " " + result.summary);
+                List<Place> places = PlaceService.book(companion).all();
+                h.assertValueEqual(places.size(), 1, "places after the first pass");
+                Place farm = places.get(0);
+                h.assertValueEqual(farm.kind(), PlaceKind.FARM, "kind");
+                h.assertValueEqual(farm.label(), "wheat", "label");
+                h.assertValueEqual(farm.source(), PlaceSource.FARM, "source");
+                h.assertValueEqual(farm.radius(), 4, "radius");
+                h.assertValueEqual(farm.anchor(), new Pos(plot.getX(), plot.getY(), plot.getZ()), "anchor");
+                created[0] = farm.createdTick();
+                // Ripen the replanted crop, so the second pass works the same farm again.
+                wheatPlot(h);
+                result.status = null;
+                companion.taskRunner().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
+                phase[0] = 1;
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS,
+                    "the second pass should finish: " + result.status + " " + result.summary);
+            List<Place> places = PlaceService.book(companion).all();
+            h.assertValueEqual(places.size(), 1, "a second pass refreshes instead of creating: " + places);
+            Place farm = places.get(0);
+            h.assertValueEqual(farm.createdTick(), created[0], "a refresh keeps createdTick");
+            h.assertTrue(farm.updatedTick() > created[0],
+                    "a refresh stamps updatedTick " + farm.updatedTick() + " after " + created[0]);
+        });
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void place_tests_mine_registers(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        stoneHill(h);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 121, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
+                "the exposed stone should be visible");
+        Result result = new Result();
+        result.companion = companion;
+        companion.taskRunner().setListener(result);
+        BlockMatcher stone = BlockMatcher.parse("minecraft:stone").orElseThrow();
+        companion.taskRunner().start(new MineBlocksTask(stone, 8, 16), "mine_blocks");
+
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            companion.taskRunner().tick();
+            if (result.status == null) {
+                return;
+            }
+            h.assertValueEqual(result.status, TaskStatus.SUCCESS, "mining should finish: " + result.summary);
+            if (phase[0] == 0) {
+                h.assertTrue(PlaceService.book(companion).all().isEmpty(),
+                        "eight blocks are below the auto-registration threshold: "
+                                + PlaceService.book(companion).all());
+                stoneHill(h);
+                result.status = null;
+                companion.taskRunner().start(new MineBlocksTask(stone, 20, 16), "mine_blocks");
+                phase[0] = 1;
+                return;
+            }
+            List<Place> places = PlaceService.book(companion).all();
+            h.assertValueEqual(places.size(), 1, "exactly one mine: " + places);
+            Place mine = places.get(0);
+            h.assertValueEqual(mine.kind(), PlaceKind.MINE, "kind");
+            h.assertValueEqual(mine.label(), "minecraft:stone", "label");
+            h.assertValueEqual(mine.source(), PlaceSource.MINE, "source");
+            h.assertValueEqual(mine.radius(), 16, "radius");
         });
     }
 }

@@ -30,6 +30,7 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceText;
 import dev.friendai.tool.Caller;
@@ -478,7 +479,10 @@ public final class BrainService {
                     primary.get(),
                     new CompanionPerception(companion).describe(caller),
                     digest.toString(),
-                    PlaceText.planner(FriendaiServerState.get(server).places().book(owner).all(),
+                    PlaceText.planner(
+                            config.places.enabled
+                                    ? FriendaiServerState.get(server).places().book(owner).all()
+                                    : List.of(),
                             config.places.plannerLimit),
                     Optional.of(queue),
                     primary.get().lessons(),
@@ -684,6 +688,12 @@ public final class BrainService {
             @Override
             public void onNotice(String text) {
                 post(owner, new BrainEvent.WorldNotice(text));
+            }
+
+            @Override
+            public void onPlace(PlaceCandidate candidate, String toolName) {
+                // Not news for the model: a successful task quietly refreshes the owner's place book.
+                PlaceService.autoRegister(companion, candidate);
             }
 
             @Override

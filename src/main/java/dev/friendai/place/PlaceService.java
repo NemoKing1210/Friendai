@@ -134,9 +134,11 @@ public final class PlaceService {
             PlaceValues values = new PlaceValues(
                     outcome.name(), candidate.kind(), candidate.label(), candidate.dimension(),
                     candidate.anchor(), candidate.radius(), Set.of(), candidate.source(), owner(companion), "");
-            remember(companion, new Caller(null, "", AccessLevel.OWNER), values, tick);
+            // The owner is the author of a place no player typed in.
+            remember(companion, new Caller(owner(companion), "", AccessLevel.OWNER), values, tick);
         } catch (IllegalArgumentException rejected) {
-            LOGGER.debug("Place not remembered: {}", rejected.getMessage());
+            // The owner's book is full or the decision was rejected: the task that found it still succeeded.
+            LOGGER.warn("Place not remembered: {}", rejected.getMessage());
         }
     }
 
