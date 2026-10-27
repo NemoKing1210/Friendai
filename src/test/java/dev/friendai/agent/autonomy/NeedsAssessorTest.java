@@ -109,6 +109,15 @@ class NeedsAssessorTest {
     }
 
     @Test
+    void theDirectorNamePicksTheAgendaNeed() {
+        List<Need> needs = needs(Facts.base());
+        assertEquals(NeedKind.STOCK, NeedsAssessor.kindNamed("stock", needs));
+        assertEquals(NeedKind.STOCK, NeedsAssessor.kindNamed(" STOCK ", needs));
+        assertEquals(NeedKind.GEAR, NeedsAssessor.kindNamed("nonsense", needs));
+        assertEquals(NeedKind.GEAR, NeedsAssessor.kindNamed("", needs));
+    }
+
+    @Test
     void atMostSixSorted() {
         List<Need> needs = needs(Facts.base().health(5).dark().home("home", 40).freeSlots(1).storageFreeSlots(9)
                 .furnacesReady(2).foodPoints(0).stock(StockKind.RAW_ORE, 9).hasFuel().stock(StockKind.COAL, 3)

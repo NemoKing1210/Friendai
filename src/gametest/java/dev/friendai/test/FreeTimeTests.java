@@ -313,7 +313,8 @@ public class FreeTimeTests {
             var state = driver(h).state(owner);
             if (!chosen[0]) {
                 h.assertTrue(state.awaitingChoice(), "the director is asked to choose");
-                var result = driver(h).choose(c, "practise jumping", java.util.List.of(), "I'll stretch my legs", 5);
+                var result = driver(h).choose(c, "practise jumping", java.util.List.of(), "I'll stretch my legs", 5,
+                        "EXPLORE");
                 h.assertTrue(!result.error(), result.content());
                 chosen[0] = true;
                 h.assertTrue(false, "wait for the planner");
@@ -325,6 +326,53 @@ public class FreeTimeTests {
             }
             h.assertTrue(state.shift() == null || state.shift().planId() != plan[0], "the shift ends with its plan");
             h.assertValueEqual(state.history().get(0).goal(), "practise jumping", "history");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void plannerFailureDoesNotCoolTheNeed(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).brains();
+        brains.setPlannerOverride(owner, input ->
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no plan")));
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] chosen = {false};
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            if (!chosen[0]) {
+                h.assertTrue(state.awaitingChoice(), "the director is asked to choose");
+                var result = driver(h).choose(c, "mine stone", java.util.List.of(), "", 5, "GEAR");
+                h.assertTrue(!result.error(), result.content());
+                chosen[0] = true;
+                h.assertTrue(false, "wait for the planner failure");
+            }
+            h.assertTrue(state.history().stream().anyMatch(record -> record.summary().contains("no plan")),
+                    "the planner failure is recorded: " + state.history());
+            h.assertTrue(!state.cooldownUntil().containsKey(dev.friendai.agent.autonomy.NeedKind.GEAR),
+                    "the need did not fail, so it is not cooling: " + state.cooldownUntil());
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aFinishedTemplateClearsTheBackoff(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        for (int i = 0; i < dev.friendai.agent.tick.NudgeBackoff.MAX_STREAK; i++) {
+            driver(h).budget(owner).failed();
+        }
+        h.assertTrue(!driver(h).budget(owner).backoffAllows(System.currentTimeMillis(), 60),
+                "the director is backed off");
+        shiftPlan(h, c, "[{\"tool\":\"jump\",\"args\":\"{}\"}]");
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null, "the plan ends: " + state);
+            h.assertValueEqual(driver(h).budget(owner).failStreak(), 0, "a good shift clears the backoff");
             driver(h).stop(owner, "test over");
         });
     }
@@ -342,7 +390,7 @@ public class FreeTimeTests {
         h.succeedWhen(() -> {
             if (!stopped[0]) {
                 h.assertTrue(driver(h).state(owner).awaitingChoice(), "the director is asked to choose");
-                driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5);
+                driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5, "EXPLORE");
                 driver(h).stop(owner, "owner ended free time");
                 pending.complete(jumpPlan());
                 stopped[0] = true;

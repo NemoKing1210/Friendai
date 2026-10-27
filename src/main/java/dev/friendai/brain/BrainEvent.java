@@ -142,8 +142,8 @@ public sealed interface BrainEvent {
             if (!wish.isBlank()) {
                 sb.append("\nOwner wish: ").append(wish);
             }
-            sb.append("\nCall choose_activity exactly once with one concrete activity, or reply exactly [silent] if "
-                    + "nothing is worth doing.");
+            sb.append("\nCall choose_activity exactly once with one concrete activity and the agenda need it serves, "
+                    + "or reply exactly [silent] if nothing is worth doing.");
             return sb.toString();
         }
 

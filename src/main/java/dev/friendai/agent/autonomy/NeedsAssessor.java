@@ -90,6 +90,26 @@ public final class NeedsAssessor {
                 .toList();
     }
 
+    /**
+     * The need the director named, or the most urgent director need when the name is missing or unknown. A known
+     * name wins even when its need is cooling down: the director may choose work the filtered agenda no longer shows.
+     */
+    public static NeedKind kindNamed(String name, List<Need> needs) {
+        if (name != null && !name.isBlank()) {
+            String wanted = name.strip();
+            for (NeedKind kind : NeedKind.values()) {
+                if (kind.name().equalsIgnoreCase(wanted)) {
+                    return kind;
+                }
+            }
+        }
+        return needs.stream()
+                .filter(need -> need.executor() == Executor.DIRECTOR)
+                .map(Need::kind)
+                .findFirst()
+                .orElse(NeedKind.EXPLORE);
+    }
+
     private static boolean coolingDown(FreeTime state, NeedKind kind, long now) {
         Long until = state.cooldownUntil().get(kind);
         return until != null && until > now;

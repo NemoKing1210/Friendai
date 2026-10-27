@@ -70,6 +70,10 @@ public final class ShiftPolicy {
                 return new Reflex(need);
             }
         }
+        if (needs.isEmpty()) {
+            // every need is cooling down: a director turn with an empty agenda only spends a request
+            return new None();
+        }
         if (f.nowMillis() - in.lastOwnerActivityMillis() < s.resumeAfterSec() * 1000L) {
             return new None();
         }

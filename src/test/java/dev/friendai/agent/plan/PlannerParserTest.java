@@ -48,6 +48,28 @@ class PlannerParserTest {
     }
 
     @Test
+    void aBareArrayOfStepsIsAccepted() {
+        PlannerParser.Parsed p = parse("[{\"tool\":\"jump\"},{\"tool\":\"go_to\"}]");
+        assertTrue(p.ok(), p.errors().toString());
+        assertEquals(2, p.proposal().orElseThrow().steps().size());
+    }
+
+    @Test
+    void anExampleBeforeThePlanDoesNotHideIt() {
+        PlannerParser.Parsed p = parse(
+                "Args look like {\"count\": 2}; the plan is {\"steps\":[{\"tool\":\"jump\"}]}");
+        assertTrue(p.ok(), p.errors().toString());
+        assertEquals(1, p.proposal().orElseThrow().steps().size());
+    }
+
+    @Test
+    void bracesInProseAfterTheObjectDoNotBreakIt() {
+        PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"jump\"}]}\nArgs look like {\"count\": 2}");
+        assertTrue(p.ok(), p.errors().toString());
+        assertEquals(1, p.proposal().orElseThrow().steps().size());
+    }
+
+    @Test
     void invalidJsonReturnsErrors() {
         assertFalse(parse("I think you should jump").ok());
         assertFalse(parse("{\"steps\": 5}").ok());

@@ -20,7 +20,7 @@ class FreeTimeShiftEventTest {
 
     private static BrainEvent.FreeTimeShift event() {
         return new BrainEvent.FreeTimeShift(
-                List.of("- gear for stage STONE: missing stone pickaxe (urgency 55)"),
+                List.of("- GEAR: gear for stage STONE: missing stone pickaxe (urgency 55)"),
                 "Development: stage STONE; missing stone pickaxe",
                 List.of("chop wood: ok, 16 logs"),
                 List.of("mine_blocks failed: no pickaxe"),
@@ -31,13 +31,13 @@ class FreeTimeShiftEventTest {
     void promptLineListsAgendaAndAsksForOneCall() {
         String line = event().toPromptLine();
         assertTrue(line.startsWith("[event] free time: you decide what to do next."), line);
-        assertTrue(line.contains("Agenda:\n- gear for stage STONE"), line);
+        assertTrue(line.contains("Agenda:\n- GEAR: gear for stage STONE"), line);
         assertTrue(line.contains("Development: stage STONE"), line);
         assertTrue(line.contains("Recent shifts:\n- chop wood: ok, 16 logs"), line);
         assertTrue(line.contains("Lessons:\n- mine_blocks failed: no pickaxe"), line);
         assertTrue(line.contains("Owner wish: focus on food"), line);
-        assertTrue(line.endsWith("Call choose_activity exactly once with one concrete activity, or reply exactly "
-                + "[silent] if nothing is worth doing."), line);
+        assertTrue(line.endsWith("Call choose_activity exactly once with one concrete activity and the agenda need it "
+                + "serves, or reply exactly [silent] if nothing is worth doing."), line);
     }
 
     @Test

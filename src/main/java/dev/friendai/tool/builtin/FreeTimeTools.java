@@ -2,6 +2,7 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonElement;
 import dev.friendai.agent.autonomy.FreeTime;
+import dev.friendai.agent.autonomy.NeedKind;
 import dev.friendai.core.FreeTimeDriver;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
@@ -43,12 +44,14 @@ final class FreeTimeTools {
                     return ToolResult.ok("free time off");
                 }));
         registry.register(ToolKit.callerTool("choose_activity",
-                "Free time only: choose the one activity you do next. A planner turns it into steps.",
+                "Free time only: choose the one activity you do next and the agenda need it serves. A planner "
+                        + "turns it into steps.",
                 SchemaBuilder.object()
                         .string("goal", "The activity in one short sentence, like 'mine iron for a pickaxe'")
                         .array("criteria", "How you will know it is done", SchemaBuilder.object()
                                 .string("text", "One check").required("text").build(), 0, 6)
                         .string("why", "One short sentence to tell the owner why")
+                        .enumeration("need", "The agenda need this activity serves", agendaNames())
                         .integer("minutes", "How long it may take", 3, 120)
                         .required("goal", "why")
                         .build(),
@@ -67,9 +70,21 @@ final class FreeTimeTools {
                         }
                     }
                     int minutes = args.has("minutes") ? args.get("minutes").getAsInt() : 20;
+                    String need = args.has("need") && !args.get("need").isJsonNull()
+                            ? args.get("need").getAsString() : "";
                     return driver(c).choose(c, goal, criteria,
-                            why.length() > FreeTime.MAX_WISH ? why.substring(0, FreeTime.MAX_WISH) : why, minutes);
+                            why.length() > FreeTime.MAX_WISH ? why.substring(0, FreeTime.MAX_WISH) : why, minutes,
+                            need);
                 }));
+    }
+
+    private static String[] agendaNames() {
+        NeedKind[] kinds = NeedKind.values();
+        String[] names = new String[kinds.length];
+        for (int i = 0; i < kinds.length; i++) {
+            names[i] = kinds[i].name();
+        }
+        return names;
     }
 
     private static FreeTimeDriver driver(CompanionEntity c) {

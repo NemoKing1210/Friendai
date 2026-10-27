@@ -188,12 +188,11 @@ public final class FreeTimeDriver {
         service().finishShift(owner, outcome.record().success(), outcome.record().summary(), now);
         outcome.lesson().ifPresent(lesson -> service().addLesson(owner, lesson));
         outcome.cooldownUntil().ifPresent(until -> service().cooldown(owner, shift.need(), until));
-        if (!shift.reflex()) {
-            if (success) {
-                budget(owner).succeeded();
-            } else if (outcome.cooldownUntil().isPresent()) {
-                budget(owner).failed();
-            }
+        if (success) {
+            // Any finished shift, template included, shows the companion is working: retry the director later.
+            budget(owner).succeeded();
+        } else if (!shift.reflex() && outcome.cooldownUntil().isPresent()) {
+            budget(owner).failed();
         }
         outcome.notable().ifPresent(stage ->
                 tell(owner, companion, UserMessage.of("friendai.freetime.stage_reached", stage)));
@@ -308,7 +307,7 @@ public final class FreeTimeDriver {
         FreeTime state = service().state(owner);
         AutonomySettings s = config.get().autonomy.toSettings();
         List<String> agenda = NeedsAssessor.assess(f, state, s).stream()
-                .map(need -> "- " + need.text() + " (urgency " + need.urgency() + ")")
+                .map(need -> "- " + need.kind().name() + ": " + need.text() + " (urgency " + need.urgency() + ")")
                 .toList();
         service().awaitChoice(owner);
         awaitingSince.put(owner, nowMillis);
@@ -317,8 +316,13 @@ public final class FreeTimeDriver {
                 ProgressionLadder.evaluate(f).line(), FreeTimeText.recent(state), state.lessons(), state.wish()));
     }
 
-    /** The director's {@code choose_activity}: begins the shift and asks the planner for its plan. */
-    public ToolResult choose(CompanionEntity companion, String goal, List<String> criteria, String why, int minutes) {
+    /**
+     * The director's {@code choose_activity}: begins the shift and asks the planner for its plan.
+     *
+     * @param needName the agenda need the activity serves; empty or unknown falls back to the most urgent one
+     */
+    public ToolResult choose(CompanionEntity companion, String goal, List<String> criteria, String why, int minutes,
+                             String needName) {
         UUID owner = companion.ownerUuid();
         FreeTime state = service().state(owner);
         if (!state.on() || !state.awaitingChoice()) {
@@ -328,11 +332,7 @@ public final class FreeTimeDriver {
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
         AutonomyFacts f = facts.build(companion, owner, now);
-        NeedKind need = NeedsAssessor.assess(f, state, s).stream()
-                .filter(n -> n.executor() == dev.friendai.agent.autonomy.Executor.DIRECTOR)
-                .map(Need::kind)
-                .findFirst()
-                .orElse(NeedKind.EXPLORE);
+        NeedKind need = NeedsAssessor.kindNamed(needName, NeedsAssessor.assess(f, state, s));
         markStart(owner, f);
         Shift shift = service().beginShift(owner, goal, criteria, why, need, false, now, now + length * 60_000L)
                 .shift();
@@ -359,10 +359,9 @@ public final class FreeTimeDriver {
                     : queue(owner, companion, state.shift().goal(), proposal.stepsJson(), minutes, planTools);
             if (plan.isEmpty()) {
                 long now = now();
+                // The need did not fail, the planner could not draft work for it: only the director backs off.
                 service().finishShift(owner, false, "no plan: " + (error == null ? "the plan was refused"
                         : error.getMessage()), now);
-                service().cooldown(owner, state.shift().need(),
-                        now + config.get().autonomy.failCooldownMin * 60_000L);
                 budget(owner).failed();
                 return;
             }

@@ -65,6 +65,24 @@ class ReflexPlansTest {
     }
 
     @Test
+    void stoneStockFallbackGoesForTheMissingStone() {
+        AutonomyFacts facts = Facts.base().pickaxe(dev.friendai.crafting.obtain.Tier.WOOD).craftingTable()
+                .stock(StockKind.LOGS, 16).stock(StockKind.COBBLE, 4).build();
+        var steps = ReflexPlans.fallback(need(NeedKind.STOCK), facts).orElseThrow();
+        assertEquals(List.of("obtain_item", "obtain_item", "obtain_item"), tools(steps));
+        assertEquals("minecraft:cobblestone", steps.get(0).args().get("item").getAsString());
+        assertEquals(28, steps.get(0).args().get("count").getAsInt());
+        assertEquals("minecraft:coal", steps.get(1).args().get("item").getAsString());
+        assertEquals("minecraft:torch", steps.get(2).args().get("item").getAsString());
+    }
+
+    @Test
+    void woodStockFallbackStillFellsATree() {
+        var steps = ReflexPlans.fallback(need(NeedKind.STOCK), Facts.base().build()).orElseThrow();
+        assertEquals(List.of("fell_tree"), tools(steps));
+    }
+
+    @Test
     void fallbackTemplates() {
         assertEquals(List.of("fell_tree"),
                 tools(ReflexPlans.fallback(need(NeedKind.STOCK), Facts.base().build()).orElseThrow()));

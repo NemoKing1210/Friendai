@@ -30,6 +30,16 @@ class ProgressionLadderTest {
     }
 
     @Test
+    void missingStockIsCountedPerKind() {
+        var missing = ProgressionLadder.missingStock(Facts.base()
+                .pickaxe(Tier.WOOD).craftingTable().stock(StockKind.LOGS, 16).stock(StockKind.COBBLE, 4).build());
+        assertEquals(28, missing.get(StockKind.COBBLE));
+        assertEquals(16, missing.get(StockKind.COAL));
+        assertEquals(32, missing.get(StockKind.TORCHES));
+        assertEquals(3, missing.size());
+    }
+
+    @Test
     void betterToolsCountForLowerStages() {
         LadderView view = ProgressionLadder.evaluate(Facts.base()
                 .pickaxe(Tier.IRON).craftingTable().stock(StockKind.LOGS, 16).build());

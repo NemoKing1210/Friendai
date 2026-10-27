@@ -126,6 +126,14 @@ class ShiftPolicyTest {
     }
 
     @Test
+    void anEmptyAgendaIsNone() {
+        FreeTime coolingExplore = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(),
+                List.of(), Map.of(NeedKind.EXPLORE, Facts.NOW + 60_000), List.of());
+        Facts settled = Facts.base().everything().home("h", 2).storage("s", 3).storageFreeSlots(9);
+        assertInstanceOf(ShiftPolicy.None.class, decide(in(coolingExplore, settled)));
+    }
+
+    @Test
     void offlineWithoutPermissionIsNone() {
         var noOffline = new AutonomySettings(true, true, 5, 60, false, 20, 6, 2, 10, true, true, List.of());
         var in = new ShiftInputs(on(), Facts.base().ownerOffline().freeSlots(1).storage("s", 2).storageFreeSlots(9)

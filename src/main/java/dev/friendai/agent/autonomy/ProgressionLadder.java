@@ -40,6 +40,27 @@ public final class ProgressionLadder {
         return new LadderView(STAGES.getLast().name(), List.of(), List.of());
     }
 
+    /** What the current stage still lacks in the bag, as kind to missing count; empty when the stage is stocked. */
+    public static Map<StockKind, Integer> missingStock(AutonomyFacts f) {
+        for (Stage stage : STAGES) {
+            if (!check(stage, f).complete()) {
+                return missingStock(stage, f);
+            }
+        }
+        return Map.of();
+    }
+
+    private static Map<StockKind, Integer> missingStock(Stage stage, AutonomyFacts f) {
+        Map<StockKind, Integer> missing = new LinkedHashMap<>();
+        stage.stock().forEach((kind, target) -> {
+            int have = f.count(kind);
+            if (have < target) {
+                missing.put(kind, target - have);
+            }
+        });
+        return java.util.Collections.unmodifiableMap(missing);
+    }
+
     private static LadderView check(Stage stage, AutonomyFacts f) {
         List<String> gear = new ArrayList<>();
         stage.tools().forEach((kind, tier) -> {
@@ -65,11 +86,8 @@ public final class ProgressionLadder {
             gear.add("furnace");
         }
         List<String> stock = new ArrayList<>();
-        stage.stock().forEach((kind, target) -> {
-            if (f.count(kind) < target) {
-                stock.add(kind.words() + " " + f.count(kind) + "/" + target);
-            }
-        });
+        missingStock(stage, f).forEach(
+                (kind, unused) -> stock.add(kind.words() + " " + f.count(kind) + "/" + stage.stock().get(kind)));
         return new LadderView(stage.name(), gear, stock);
     }
 

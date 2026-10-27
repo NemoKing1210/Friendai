@@ -1,6 +1,7 @@
 package dev.friendai.agent.autonomy;
 
 import com.google.gson.JsonObject;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +30,7 @@ public final class ReflexPlans {
     /** What to do without the model when the budget is spent, or empty when the need has no template. */
     public static Optional<List<ReflexStep>> fallback(Need need, AutonomyFacts f) {
         return switch (need.kind()) {
-            case STOCK -> Optional.of(List.of(step("fell_tree")));
+            case STOCK -> stockSteps(f);
             case PROCESS -> Optional.of(List.of(step("smelt_items")));
             case FARM -> f.farms().stream()
                     .filter(FarmRef::sameDimension)
@@ -37,6 +38,24 @@ public final class ReflexPlans {
                     .map(farm -> List.of(step("tend_farm", "place", farm.name())));
             default -> Optional.empty();
         };
+    }
+
+    /** Gets the item the stage is short of, one step per kind, so a spent budget still moves the ladder. */
+    private static Optional<List<ReflexStep>> stockSteps(AutonomyFacts f) {
+        List<ReflexStep> steps = new ArrayList<>();
+        ProgressionLadder.missingStock(f).forEach((kind, missing) -> {
+            if (kind == StockKind.LOGS) {
+                steps.add(step("fell_tree"));
+                return;
+            }
+            kind.itemId().ifPresent(id -> {
+                JsonObject args = new JsonObject();
+                args.addProperty("item", id);
+                args.addProperty("count", Math.max(1, Math.min(64, missing)));
+                steps.add(new ReflexStep("obtain_item", args));
+            });
+        });
+        return steps.isEmpty() ? Optional.empty() : Optional.of(List.copyOf(steps));
     }
 
     private static ReflexStep step(String tool) {
