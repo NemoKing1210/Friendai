@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 9;
+    public static final int VERSION = 10;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -113,7 +113,7 @@ public class ServerConfig {
         public int localTicks = 2_400;
         public int expeditionRadius = 512;
         public int expeditionTicks = 12_000;
-        public int observationRadius = 16;
+        public int observationRadius = 64;
     }
 
     public static class MemorySection {
@@ -158,6 +158,7 @@ public class ServerConfig {
     /**
      * Version 8 enabled expeditions for existing servers once; later config edits retain their chosen value.
      * Version 9 added the {@code agent} section, whose field defaults fill in old files.
+     * Version 10 enables resource observations out to 64 blocks by default.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 8) {
@@ -168,6 +169,17 @@ public class ServerConfig {
                     ? tasks.getAsJsonObject("resources")
                     : new JsonObject();
             resources.addProperty("allowExpeditions", true);
+            tasks.add("resources", resources);
+            json.add("tasks", tasks);
+        }
+        if (from < 10) {
+            JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
+                    ? json.getAsJsonObject("tasks")
+                    : new JsonObject();
+            JsonObject resources = tasks.has("resources") && tasks.get("resources").isJsonObject()
+                    ? tasks.getAsJsonObject("resources")
+                    : new JsonObject();
+            resources.addProperty("observationRadius", 64);
             tasks.add("resources", resources);
             json.add("tasks", tasks);
         }
@@ -214,7 +226,7 @@ public class ServerConfig {
         tasks.resources.expeditionTicks = clamp(problems, "tasks.resources.expeditionTicks",
                 tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
         tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
-                tasks.resources.observationRadius, 4, 32);
+                tasks.resources.observationRadius, 4, 64);
         if (memory == null) {
             memory = new MemorySection();
             problems.add("memory was missing");

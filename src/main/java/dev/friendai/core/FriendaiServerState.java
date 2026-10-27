@@ -64,7 +64,8 @@ public final class FriendaiServerState {
         this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
         this.resources = new ResourceCandidates(knowledge);
-        this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance);
+        this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
+                () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
         this.brains = new BrainService(server, config, memory);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);

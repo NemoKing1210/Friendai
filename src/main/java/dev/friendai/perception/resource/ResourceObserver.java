@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -18,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 public final class ResourceObserver {
     private static final int MAX_QUEUED_RAYS = 512;
     private static final int MAX_CHANGED_JOBS = 256;
-    private static final double RADIUS = 16.0;
+    private static final int DEFAULT_RADIUS = 16;
     private static final long SWEEP_INTERVAL = 20;
     private static final int SWEEP_RAYS = 128;
     private static final int NEAR_FACE_CHECKS_PER_AXIS = 8;
@@ -32,6 +33,7 @@ public final class ResourceObserver {
     };
 
     private final CompanionEntity companion;
+    private final IntSupplier observationRadius;
     private final ArrayDeque<PendingRay> queue = new ArrayDeque<>();
     private final Set<BlockPos> queuedTargets = new HashSet<>();
     private String dimension;
@@ -41,7 +43,12 @@ public final class ResourceObserver {
     private int changedQueued;
 
     public ResourceObserver(CompanionEntity companion) {
+        this(companion, () -> DEFAULT_RADIUS);
+    }
+
+    public ResourceObserver(CompanionEntity companion, IntSupplier observationRadius) {
         this.companion = companion;
+        this.observationRadius = observationRadius;
         this.dimension = dimension();
         this.owner = companion.ownerUuid();
     }
@@ -65,7 +72,7 @@ public final class ResourceObserver {
         // Cardinal rays are the shortest route to current surface evidence, so put them
         // ahead of the broad scan while keeping the scan itself in FIFO order.
         for (Vec3 direction : CARDINALS)
-            if (enqueue(eye, eye.add(direction.scale(RADIUS)), null, false, false)) scheduled++;
+            if (enqueue(eye, eye.add(direction.scale(radius())), null, false, false)) scheduled++;
         // Aim a bounded set of near-field checks at geometric face centers. These targets are
         // selected without reading block identity; ResourceSight emits a block only when it is
         // the first visible obstruction on the ray.
@@ -83,7 +90,7 @@ public final class ResourceObserver {
             double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
             double angle = i * golden + rotation;
             Vec3 direction = new Vec3(Math.cos(angle) * ring, y, Math.sin(angle) * ring);
-            if (enqueue(eye, eye.add(direction.scale(RADIUS)), null, false, false)) scheduled++;
+            if (enqueue(eye, eye.add(direction.scale(radius())), null, false, false)) scheduled++;
         }
         return scheduled;
     }
@@ -121,7 +128,8 @@ public final class ResourceObserver {
 
     private boolean inspectTarget(BlockPos target, boolean changed) {
         BlockPos key = target.immutable();
-        if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > RADIUS * RADIUS) return false;
+        double radius = radius();
+        if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > radius * radius) return false;
         if (queue.size() >= MAX_QUEUED_RAYS || !queuedTargets.add(key)) return false;
         if (changed && changedQueued >= MAX_CHANGED_JOBS) {
             queuedTargets.remove(key);
@@ -146,6 +154,10 @@ public final class ResourceObserver {
     }
 
     public int queuedJobs() { return queue.size(); }
+
+    private double radius() {
+        return Math.max(4, Math.min(64, observationRadius.getAsInt()));
+    }
 
     public ObservationBatch tick(int rayBudget, int cellBudget, long deadlineNanos) {
         if (!refreshIdentity() || rayBudget <= 0 || cellBudget <= 0) {

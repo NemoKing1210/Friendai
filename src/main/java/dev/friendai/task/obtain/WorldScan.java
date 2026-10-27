@@ -25,7 +25,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** A bounded snapshot of directly observed surroundings for the obtain planner. */
 public final class WorldScan {
-    public static final int BLOCK_RADIUS = 32;
+    public static final int BLOCK_RADIUS = 64;
     public static final int BLOCK_VERTICAL = 16;
     public static final int MOB_RADIUS = 24;
     public static final int CONTAINER_RADIUS = 16;
