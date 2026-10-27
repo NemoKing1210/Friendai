@@ -1,5 +1,6 @@
 package dev.friendai.task.plan;
 
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -146,6 +147,11 @@ public final class SequenceTask implements Task {
         return active == null
                 ? prefix() + progress + " (" + entries.get(index).tool() + ")"
                 : prefix() + progress + ": " + active.describe();
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        return active == null ? List.of() : active.debugTargets();
     }
 
     @Override

@@ -613,9 +613,17 @@ public class CraftingTests {
         addLogs(c, Items.DARK_OAK_LOG, 3);
         Result result = new Result();
         TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
+        boolean[] sawStationBreakTarget = {false};
         h.succeedWhen(() -> {
             runner.tick();
+            runner.current().filter(task -> !task.debugTargets().isEmpty()).ifPresent(task -> {
+                var target = task.debugTargets().getFirst();
+                if (target.action() == dev.friendai.debug.DebugAction.BREAK) {
+                    sawStationBreakTarget[0] = true;
+                }
+            });
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(sawStationBreakTarget[0], "craft cleanup should expose the station while taking it back");
             h.assertValueEqual(1, c.inventory().countItem(Items.CRAFTING_TABLE), "crafting tables");
             h.assertFalse(hasBlock(h, Blocks.CRAFTING_TABLE, 16, TAKE_BASE_DECK), "the table should be taken back");
             h.assertTrue(result.summary.contains("and took it back"), "summary was " + result.summary);

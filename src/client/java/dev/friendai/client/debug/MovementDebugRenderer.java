@@ -1,6 +1,7 @@
 package dev.friendai.client.debug;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.debug.DebugDetail;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.pathing.Move;
@@ -94,7 +95,7 @@ public final class MovementDebugRenderer {
             Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
                     .setAlwaysOnTop();
             String action = actionLabel(target.action());
-            String detail = target.detail();
+            String detail = detailLabel(target.detail());
             String label = detail.isBlank() ? action : action + " · " + detail;
             Gizmos.billboardText(clipLabel(label), new Vec3(target.x() + 0.5, target.y() + 1.35,
                     target.z() + 0.5), TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
@@ -156,7 +157,7 @@ public final class MovementDebugRenderer {
         if (!view.targets().isEmpty()) {
             var target = view.targets().getFirst();
             String action = actionLabel(target.action());
-            String detail = target.detail().isBlank() ? "" : " · " + target.detail();
+            String detail = target.detail().isBlank() ? "" : " · " + detailLabel(target.detail());
             lines.add(Component.translatable("friendai.debug.hud.action", action + detail).getString());
         }
         if (!view.upcomingSteps().isEmpty()) {
@@ -225,8 +226,34 @@ public final class MovementDebugRenderer {
             case "tend_farm" -> Component.translatable("friendai.debug.step.tend_farm").getString();
             case "use_bonemeal" -> Component.translatable("friendai.debug.step.use_bonemeal").getString();
             case "obtain_item" -> Component.translatable("friendai.debug.step.obtain_item").getString();
-            default -> tool.replace('_', ' ');
+            default -> Component.translatable("friendai.debug.step.generic").getString();
         };
+    }
+
+    private static String detailLabel(String detail) {
+        DebugDetail resolved = DebugDetail.from(detail);
+        if (resolved.translationKey().isBlank()) {
+            return detail;
+        }
+        String argument = resolved.argument();
+        if (argument.contains(":")) {
+            int separator = argument.indexOf(':');
+            String namespace = argument.substring(0, separator);
+            String path = argument.substring(separator + 1).replace('/', '.');
+            argument = Component.translatable("item." + namespace + "." + path).getString();
+        } else if (!argument.isBlank()) {
+            String block = switch (argument) {
+                case "furnace", "crafting table", "stonecutter", "smithing table", "blast furnace", "smoker",
+                        "campfire" -> "block.minecraft." + argument.replace(' ', '_');
+                default -> null;
+            };
+            if (block != null) {
+                argument = Component.translatable(block).getString();
+            }
+        }
+        return resolved.argument().isBlank()
+                ? Component.translatable(resolved.translationKey()).getString()
+                : Component.translatable(resolved.translationKey(), argument).getString();
     }
 
     private static String clipLabel(String label) {

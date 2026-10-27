@@ -213,6 +213,18 @@ public final class CraftTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         if (plan == null || stepIndex >= plan.steps().size()) {
+            if (settle != null || takeIndex >= takeBacks.size()) {
+                return List.of();
+            }
+            BlockPos pos = breaker == null || breaker.target() == null
+                    ? placedStations.get(takeBacks.get(takeIndex)) : breaker.target();
+            if (pos == null) {
+                return List.of();
+            }
+            return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
+                    "Take back " + takeBacks.get(takeIndex).noun()));
+        }
+        if (plan == null || stepIndex >= plan.steps().size()) {
             return List.of();
         }
         BlockPos pos = phase == StationPhase.APPROACH_SPOT ? spot : stationPos;

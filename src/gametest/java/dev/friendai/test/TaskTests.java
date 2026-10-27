@@ -214,6 +214,30 @@ public class TaskTests {
     }
 
     @GameTest
+    public void sequenceForwardsActiveStepDebugTargets(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        TaskRunner runner = runner(c, new Events(), 300, false);
+        Task step = new Task() {
+            @Override public String type() { return "debug_step"; }
+            @Override public void start(TaskContext context) {}
+            @Override public TaskStatus tick(TaskContext context) { return TaskStatus.RUNNING; }
+            @Override public void stop(TaskContext context) {}
+            @Override public String describe() { return "debug step"; }
+            @Override public String resultSummary() { return ""; }
+            @Override public List<DebugTarget> debugTargets() {
+                return List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""));
+            }
+        };
+        runner.start(new SequenceTask(null, List.of(
+                new PlanEntry("debug_step", ctx -> step)), () -> 300), "run_plan");
+        runner.tick();
+        h.assertTrue(runner.current().orElseThrow().debugTargets().equals(
+                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))),
+                "the sequence should expose its active step's current block target");
+        h.succeed();
+    }
+
+    @GameTest
     public void planCancelRunsTheStepsCleanup(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
