@@ -564,5 +564,8 @@
   "friendai.menu.traders.preview": "Проверить",
   "friendai.menu.traders.submit": "Отправить",
   "friendai.menu.traders.wait": "Ждать",
-  "friendai.menu.traders.barter": "Бартер"
+  "friendai.menu.traders.barter": "Бартер",
+  "friendai.menu.skills.saved": "Навык сохранён.",
+  "friendai.menu.skills.invalid": "Не удалось применить изменение. Проверьте права, лимиты и текущую версию.",
+  "friendai.menu.skills.exported": "Навык экспортирован."
 }
