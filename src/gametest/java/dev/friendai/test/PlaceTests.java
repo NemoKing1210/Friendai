@@ -2,7 +2,9 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
@@ -22,11 +24,17 @@ import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.llm.model.ToolCall;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -68,6 +76,52 @@ public class PlaceTests {
         return FriendaiTools.create(() -> 32).bind(companion);
     }
 
+    /** Collects what a command sends to its source, so a command test can read the player-facing text. */
+    private static final class Chat implements CommandSource {
+        private final List<Component> messages = new ArrayList<>();
+
+        @Override
+        public void sendSystemMessage(Component message) {
+            messages.add(message);
+        }
+
+        @Override
+        public boolean acceptsSuccess() {
+            return true;
+        }
+
+        @Override
+        public boolean acceptsFailure() {
+            return true;
+        }
+
+        @Override
+        public boolean shouldInformAdmins() {
+            return true;
+        }
+    }
+
+    private static int execute(Commands commands, CommandSourceStack source, String command) {
+        try {
+            return commands.getDispatcher().execute(commands.getDispatcher().parse(command, source));
+        } catch (CommandSyntaxException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static boolean containsKey(Component component, String key) {
+        if (component.getContents() instanceof TranslatableContents translatable
+                && translatable.getKey().equals(key)) {
+            return true;
+        }
+        for (Component sibling : component.getSiblings()) {
+            if (containsKey(sibling, key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @GameTest
     public void place_tests_access(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
@@ -95,6 +149,40 @@ public class PlaceTests {
 
         ToolResult forgotten = runAs(tools, "forget_place", "{\"name\":\"home\"}", ownerCaller);
         h.assertTrue(!forgotten.error(), "the owner should forget: " + forgotten.content());
+        h.assertTrue(PlaceService.book(companion).all().isEmpty(),
+                "the place should be gone: " + PlaceService.book(companion).all());
+        h.succeed();
+    }
+
+    @GameTest
+    public void place_tests_command_add_list(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        Commands commands = h.getLevel().getServer().getCommands();
+
+        commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place add shack");
+        List<Place> places = PlaceService.book(companion).all();
+        h.assertValueEqual(places.size(), 1, "places after add: " + places);
+        Place shack = places.get(0);
+        BlockPos anchor = owner.blockPosition();
+        h.assertValueEqual(shack.name(), "shack", "name");
+        h.assertValueEqual(shack.kind(), PlaceKind.HOUSE, "kind");
+        h.assertValueEqual(shack.radius(), 8, "radius");
+        h.assertValueEqual(shack.source(), PlaceSource.COMMAND, "source");
+        h.assertValueEqual(shack.anchor(), new Pos(anchor.getX(), anchor.getY(), anchor.getZ()), "anchor");
+        h.assertValueEqual(shack.dimension(), owner.level().dimension().identifier().toString(), "dimension");
+
+        Chat chat = new Chat();
+        CommandSourceStack source = owner.createCommandSourceStack().withSource(chat);
+        int listed = execute(commands, source, "friendai place list");
+        h.assertValueEqual(listed, 1, "list result");
+        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.header")),
+                "list header missing: " + chat.messages);
+        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.entry")),
+                "list entry missing: " + chat.messages);
+
+        commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place remove shack");
         h.assertTrue(PlaceService.book(companion).all().isEmpty(),
                 "the place should be gone: " + PlaceService.book(companion).all());
         h.succeed();
