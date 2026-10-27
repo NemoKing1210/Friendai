@@ -21,6 +21,7 @@ import dev.friendai.testutil.RecordingSpeaker;
 import dev.friendai.text.UserMessage;
 import dev.friendai.tool.AccessLevel;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -325,6 +326,60 @@ class CompanionBrainTest {
         gateway.enqueue(text("noted"));
         brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
         assertEquals(AccessLevel.OWNER, tools.specAccess.get(0));
+    }
+
+    @Test
+    void onlyOwnerPlayerSaidBatchOpensTradingTurn() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("done"));
+        gateway.enqueue(text("done"));
+        gateway.enqueue(text("recovery noted"));
+        gateway.enqueue(text("goal noted"));
+
+        brain.post(said("trade"));
+        brain.post(new BrainEvent.TaskFinished(1, "trade_item", true, "finished"));
+        brain.post(new BrainEvent.PlanBlocked(2, "gather", 3, "obtain_item", "missing input", 1));
+        brain.post(new BrainEvent.GoalTick("gather logs", List.of("logs")));
+
+        assertEquals(List.of(true, false, false, false), initiated);
+    }
+
+    @Test
+    void guestAndTrustedPlayerTurnsCannotOpenTradingScope() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("guest"));
+        gateway.enqueue(text("trusted"));
+
+        brain.post(guest("hello"));
+        trusted.add(GUEST);
+        brain.post(guest("hello again"));
+
+        assertEquals(List.of(false, false), initiated);
+    }
+
+    @Test
+    void toolsKeepTheScopeCreatedForTheirOwnOwnerTurn() {
+        brain.setTradingTurnPort((caller, playerInitiated) ->
+                caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null));
+        gateway.enqueue(calls("", call("a", "first")));
+        gateway.enqueue(text("first done"));
+        gateway.enqueue(calls("", call("b", "second")));
+        gateway.enqueue(text("second done"));
+
+        brain.post(said("first request"));
+        UUID firstScope = tools.executeCallers.getFirst().tradingScope();
+        brain.post(said("second request"));
+        UUID secondScope = tools.executeCallers.get(1).tradingScope();
+
+        assertTrue(firstScope != null && secondScope != null && !firstScope.equals(secondScope));
     }
 
     @Test

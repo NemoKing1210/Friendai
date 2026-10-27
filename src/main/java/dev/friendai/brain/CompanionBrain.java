@@ -64,6 +64,7 @@ public final class CompanionBrain {
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
+    private TradingTurnPort tradingTurnPort = TradingTurnPort.NOOP;
     private boolean plannedThisTurn;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
     private boolean ownsTroubledPlan;
@@ -205,6 +206,10 @@ public final class CompanionBrain {
         this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
     }
 
+    public void setTradingTurnPort(TradingTurnPort tradingTurnPort) {
+        this.tradingTurnPort = tradingTurnPort == null ? TradingTurnPort.NOOP : tradingTurnPort;
+    }
+
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
         return buildSystemPrompt(plannerNote);
@@ -275,6 +280,9 @@ public final class CompanionBrain {
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         turnCaller = new Caller(principal, name == null ? "" : name, level);
+        boolean ownerInitiated = batch.stream().anyMatch(event -> event instanceof BrainEvent.PlayerSaid said
+                && said.playerUuid().equals(access.owner()));
+        turnCaller = tradingTurnPort.begin(turnCaller, ownerInitiated);
         List<Long> troubledPlans = batch.stream()
                 .map(CompanionBrain::troubledPlanId)
                 .filter(id -> id >= 0)

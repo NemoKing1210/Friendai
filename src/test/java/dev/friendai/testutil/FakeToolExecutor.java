@@ -15,6 +15,7 @@ public final class FakeToolExecutor implements ToolExecutor {
     public final List<String> executed = new ArrayList<>();
     public final List<AccessLevel> specAccess = new ArrayList<>();
     public final List<AccessLevel> executeAccess = new ArrayList<>();
+    public final List<Caller> executeCallers = new ArrayList<>();
     public final List<ToolSpec> available = new ArrayList<>(List.of(staySpec()));
     public boolean failSpecs;
 
@@ -37,6 +38,7 @@ public final class FakeToolExecutor implements ToolExecutor {
     @Override
     public ToolResult execute(ToolCall call, Caller caller) {
         executeAccess.add(caller.access());
+        executeCallers.add(caller);
         executed.add(call.name());
         return ToolResult.ok("ok " + call.name());
     }

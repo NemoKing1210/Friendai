@@ -410,5 +410,6 @@
   "friendai.mining.phase.descend": "Безопасно спускаюсь",
   "friendai.mining.phase.tunnel": "Прокладываю туннель",
   "friendai.mining.phase.ascend": "Поднимаюсь по проходу",
-  "friendai.mining.phase.extract": "Добываю ресурс"
+  "friendai.mining.phase.extract": "Добываю ресурс",
+  "friendai.trade.authority_denied": "Торговая заявка отклонена: %s"
 }

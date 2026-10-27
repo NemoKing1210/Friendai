@@ -2,10 +2,11 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.Task;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.QueuedStep;
 import dev.friendai.queue.FailurePolicy;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.QueueTradeScope;
+import dev.friendai.queue.QueuedStep;
+import dev.friendai.task.Task;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
@@ -25,6 +26,7 @@ final class ToolKit {
 
     /** Registers a task tool and contributes its definition to the task registry. */
     static void add(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def) {
+        validateRegistration(def, false);
         defs.add(def);
         registry.register(taskTool(def));
     }
@@ -34,6 +36,7 @@ final class ToolKit {
      */
     static void addCaller(
             ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs, TaskToolDef def, CallerAction action) {
+        validateRegistration(def, true);
         defs.add(def);
         CallerAction routed = def.callerFactory() == null ? action : (c, caller, args) -> {
             Task task;
@@ -44,9 +47,13 @@ final class ToolKit {
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
             try {
-                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), args, null, List.of(), GuardAction.WAIT,
-                                FailurePolicy.STOP_PLAN, 1, List.of()),
-                        ctx -> def.callerFactory().create(ctx.companion(), caller, args.deepCopy()));
+                var captured = QueueTradeScope.captureEnqueue(args, caller.tradingScope(),
+                        def.queueTraits().requiresTradingScope(), 1);
+                JsonObject queuedArgs = captured.args();
+                Caller queuedCaller = caller.withTradingScope(captured.tradingScope());
+                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), queuedArgs, null, List.of(), GuardAction.WAIT,
+                                FailurePolicy.STOP_PLAN, captured.maxAttempts(), List.of()),
+                        ctx -> def.callerFactory().create(ctx.companion(), queuedCaller, queuedArgs.deepCopy()));
                 boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
                 return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
                         : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
@@ -56,6 +63,7 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
+        validateRegistration(def, false);
         return tool(def.name(), def.description(), def.schema(), def.minAccess(), (c, args) -> {
             Task task;
             try {
@@ -75,6 +83,22 @@ final class ToolKit {
             boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
             return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
         });
+    }
+
+    static boolean requiresFreshAuthority(JsonObject args, TaskToolDef def) {
+        return QueueTradeScope.requiresFreshAuthority(args, def.queueTraits().requiresTradingScope());
+    }
+
+    static void validateRegistration(TaskToolDef def, boolean callerAware) {
+        if (def == null) throw new IllegalArgumentException("task tool definition is required");
+        if (def.queueTraits().requiresTradingScope()) {
+            if (!callerAware) {
+                throw new IllegalArgumentException("spending tools must be registered through a caller-aware path");
+            }
+            if (def.callerFactory() == null) {
+                throw new IllegalArgumentException("spending tools require a caller-aware task factory");
+            }
+        }
     }
 
     /** Starts a task the tool has already built and reports its id. */

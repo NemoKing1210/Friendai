@@ -22,8 +22,11 @@ public record TaskToolDef(
         AccessLevel minAccess,
         QueueTraits queueTraits,
         CallerFactory callerFactory) {
-    public record QueueTraits(boolean interrupts, String mergeableCountArg) {
-        public static final QueueTraits DEFAULT = new QueueTraits(false, null);
+    public record QueueTraits(boolean interrupts, String mergeableCountArg, boolean requiresTradingScope) {
+        public QueueTraits(boolean interrupts, String mergeableCountArg) {
+            this(interrupts, mergeableCountArg, false);
+        }
+        public static final QueueTraits DEFAULT = new QueueTraits(false, null, false);
     }
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
                        AccessLevel minAccess, QueueTraits queueTraits) {

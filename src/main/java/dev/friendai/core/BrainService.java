@@ -44,6 +44,8 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.StepFactory;
+import dev.friendai.queue.QueueTradeScope;
+import dev.friendai.trading.TradeAuthority;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobState;
 import dev.friendai.queue.QueueSave;
@@ -74,6 +76,7 @@ public final class BrainService {
     private final MemoryStore memory;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<UUID, Entry> entries = new HashMap<>();
+    private final Map<UUID, TradeAuthority> tradeAuthorities = new HashMap<>();
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
     private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
     private final ToolRegistry<CompanionEntity> tools;
@@ -295,14 +298,26 @@ public final class BrainService {
     /** Restore a durable task queue after the companion's saved owner and tools are available. */
     public void restoreQueue(CompanionEntity companion, String saved) {
         if (saved == null || companion.ownerUuid() == null) return;
+        tradeAuthority(companion.ownerUuid()).invalidateAll("trading authority expired after restart");
         Optional<QueueSave.Decoded> decoded = QueueSave.decode(saved, TaskSettings.queueLimits());
         if (decoded.isEmpty()) {
             FriendaiMod.LOGGER.warn("Discarding malformed task queue for {}", companion.ownerUuid());
             return;
         }
+        var restoredQueue = decoded.get().queue();
+        java.util.Set<Long> expiredPlans = new java.util.HashSet<>();
+        for (Job job : List.copyOf(restoredQueue.jobs())) {
+            if (!spendingJob(job)) continue;
+            if (job.planId() > 0) expiredPlans.add(job.planId());
+            else restoredQueue.cancel(job.id(), "trading authority expired after restart");
+        }
+        for (long planId : expiredPlans) {
+            restoredQueue.cancelPlan(planId);
+            restoredQueue.archivePlan(planId, false, "trading authority expired after restart");
+        }
         entryFor(companion.ownerUuid()); // Attach the listener before emitting restore notices.
         Map<Long, StepFactory> factories = new HashMap<>();
-        for (Job job : decoded.get().queue().jobs()) {
+        for (Job job : restoredQueue.jobs()) {
             TaskToolDef def = taskTools.get(job.tool());
             if (def == null) {
                 if (job.state() == JobState.PENDING || job.state() == JobState.RUNNING || job.state() == JobState.FAILED) {
@@ -335,7 +350,14 @@ public final class BrainService {
         if (decoded.isEmpty()) {
             return Optional.empty();
         }
+        if (companion.ownerUuid() != null) {
+            tradeAuthority(companion.ownerUuid()).invalidateAll("trading authority expired after restart");
+        }
         PlanSave.Saved data = decoded.get();
+        if (data.steps().stream().anyMatch(this::spendingPlanStep)) {
+            FriendaiMod.LOGGER.info("Discarding a saved plan that contains expired trading authority");
+            return Optional.empty();
+        }
         List<PlanEntry> entries = new ArrayList<>(data.steps().size());
         for (PlanSave.Step step : data.steps()) {
             TaskToolDef def = planTools.get(step.tool());
@@ -607,6 +629,7 @@ public final class BrainService {
                 caller -> config.memory.enabled
                         ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
                         : "");
+        brain.setTradingTurnPort(tradeAuthority(owner));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
@@ -689,5 +712,21 @@ public final class BrainService {
         entries.put(owner, entry);
         FriendaiMod.LOGGER.debug("Created brain for {}", owner);
         return entry;
+    }
+
+    private TradeAuthority tradeAuthority(UUID owner) {
+        return tradeAuthorities.computeIfAbsent(owner, TradeAuthority::new);
+    }
+
+    private boolean spendingJob(Job job) {
+        TaskToolDef def = taskTools.get(job.tool());
+        return QueueTradeScope.requiresFreshAuthority(job.args(),
+                def != null && def.queueTraits().requiresTradingScope());
+    }
+
+    private boolean spendingPlanStep(PlanSave.Step step) {
+        TaskToolDef def = planTools.get(step.tool());
+        return QueueTradeScope.requiresFreshAuthority(step.args(),
+                def != null && def.queueTraits().requiresTradingScope());
     }
 }

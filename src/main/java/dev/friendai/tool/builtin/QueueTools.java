@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueueOptimizer;
+import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.TaskSettings;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 /** LLM-facing queue operations. */
 final class QueueTools {
+    static final String TRADING_SCOPE_ARG = dev.friendai.queue.QueueTradeScope.ARG;
     private static final dev.friendai.queue.QueueLimits LIMITS=dev.friendai.queue.QueueLimits.DEFAULTS;
     private QueueTools() {}
     static void register(ToolRegistry<CompanionEntity> registry,List<TaskToolDef> defs) {
@@ -56,7 +58,10 @@ final class QueueTools {
         FailurePolicy policy=args.has("on_failure")?QueueParser.policy(args.get("on_failure").getAsString()).orElse(null):FailurePolicy.ASK;
         if(policy==null)return ToolResult.error("Invalid plan: on_failure must be ask, skip or stop_plan");
         long time=args.has("time_limit_min")?args.get("time_limit_min").getAsLong()*1200L:0;
-        List<QueuedStep> steps=parsed.steps();List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),caller,s.args())).toList();
+        List<QueuedStep> steps;
+        try { steps=withTradingScope(parsed.steps(),allowed,caller); }
+        catch(IllegalArgumentException e) { return ToolResult.error("Invalid plan: "+e.getMessage()); }
+        List<StepFactory> factories=steps.stream().map(s->(StepFactory)ctx->createTask(allowed.get(s.tool()),ctx.companion(),callerForArgs(caller,s.args()),s.args())).toList();
         boolean optimize=args.has("optimize")&&args.get("optimize").getAsBoolean();
         long id;try{id=c.taskRunner().enqueuePlan(goal,steps,factories,new PlanOptions(priority,policy,time),planId->{
             if(!optimize)return;
@@ -73,12 +78,12 @@ final class QueueTools {
             switch(action) {
                 case "clear" -> { return ToolResult.ok(runner.clearQueue("cleared by the LLM")); }
                 case "cancel" -> { if(args.has("plan"))runner.cancelPlan(args.get("plan").getAsLong(),"cancelled by the LLM");else runner.cancelJob(required(args,"job"),"cancelled by the LLM"); }
-                case "retry" -> { var r=q.retry(required(args,"job"));if(!r.ok())return error(r.text()); }
+                case "retry" -> { long id=required(args,"job");var job=q.job(id).orElse(null);if(job==null)return error("unknown job #"+id);TaskToolDef def=all.get(job.tool());boolean spending=job.args().has(TRADING_SCOPE_ARG)||(def!=null&&def.queueTraits().requiresTradingScope());QueueTradeScope.retry(job.args(),spending,caller.access()==AccessLevel.OWNER);var r=q.retry(id);if(!r.ok())return error(r.text()); }
                 case "skip" -> { var r=runner.skipJob(required(args,"job"));if(!r.ok())return error(r.text()); }
                 case "priority" -> { if(!args.has("priority"))return error("queue_edit requires priority");int p=args.get("priority").getAsInt();var r=args.has("plan")?q.setPlanPriority(args.get("plan").getAsLong(),p):q.setPriority(required(args,"job"),p);if(!r.ok())return error(r.text()); }
                 case "move" -> { var r=q.move(required(args,"job"),required(args,"before"));if(!r.ok())return error(r.text()); }
-                case "update" -> { if(!args.has("args"))return error("queue_edit requires args");long id=required(args,"job");JobData.validateTool(q.job(id).orElse(null),all,caller);JsonObject obj=JsonParser.parseString(args.get("args").getAsString()).getAsJsonObject();TaskToolDef d=all.get(q.job(id).orElseThrow().tool());var issues=ArgValidator.validate(d.schema(),obj);if(!issues.isEmpty())return error(String.join("; ",issues));var r=q.updateArgs(id,obj);if(!r.ok())return error(r.text());c.taskRunner().registerFactory(id,ctx->createTask(d,ctx.companion(),caller,obj.deepCopy())); }
-                case "replace" -> { if(!args.has("steps"))return error("queue_edit requires steps");long id=required(args,"job");var old=q.job(id).orElse(null);JobData.validateTool(old,all,caller);Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,LIMITS.maxArgsChars(),LIMITS.maxAddChars());if(!parsed.ok())return error("Invalid replacement: "+String.join("; ",parsed.errors()));String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return error("Invalid replacement: "+invalidGuard);long firstNewId=q.nextJobId();var r=q.replace(id,parsed.steps());if(!r.ok())return error(r.text());List<QueuedStep> steps=parsed.steps();for(int i=0;i<steps.size();i++){QueuedStep step=steps.get(i);TaskToolDef def=allowed.get(step.tool());c.taskRunner().registerFactory(firstNewId+i,ctx->createTask(def,ctx.companion(),caller,step.args()));} }
+                case "update" -> { if(!args.has("args"))return error("queue_edit requires args");long id=required(args,"job");var job=q.job(id).orElse(null);JobData.validateTool(job,all,caller);JsonObject obj=JsonParser.parseString(args.get("args").getAsString()).getAsJsonObject();TaskToolDef d=all.get(job.tool());var issues=ArgValidator.validate(d.schema(),obj);if(!issues.isEmpty())return error(String.join("; ",issues));JsonObject saved=QueueTradeScope.preserve(obj,job.args(),d.queueTraits().requiresTradingScope()||job.args().has(TRADING_SCOPE_ARG));Caller captured=caller.withTradingScope(QueueTradeScope.read(saved));var r=q.updateArgs(id,saved);if(!r.ok())return error(r.text());c.taskRunner().registerFactory(id,ctx->createTask(d,ctx.companion(),captured,saved.deepCopy())); }
+                case "replace" -> { if(!args.has("steps"))return error("queue_edit requires steps");long id=required(args,"job");var old=q.job(id).orElse(null);JobData.validateTool(old,all,caller);Map<String,TaskToolDef> allowed=allowed(caller,all);Map<String,JsonObject> schemas=new LinkedHashMap<>();allowed.forEach((n,d)->schemas.put(n,d.schema()));var parsed=QueueParser.parse(args.getAsJsonArray("steps"),schemas,all.keySet(),TaskSettings.queueMaxStepsPerAdd,LIMITS.maxArgsChars(),LIMITS.maxAddChars());if(!parsed.ok())return error("Invalid replacement: "+String.join("; ",parsed.errors()));String invalidGuard=validateGuards(parsed.steps());if(invalidGuard!=null)return error("Invalid replacement: "+invalidGuard);List<QueuedStep> steps;try{steps=preserveTradingScope(parsed.steps(),allowed,old.args());}catch(IllegalArgumentException e){return error("Invalid replacement: "+e.getMessage());}long firstNewId=q.nextJobId();var r=q.replace(id,steps);if(!r.ok())return error(r.text());for(int i=0;i<steps.size();i++){QueuedStep step=steps.get(i);TaskToolDef def=allowed.get(step.tool());Caller stepCaller=callerForArgs(caller,step.args());c.taskRunner().registerFactory(firstNewId+i,ctx->createTask(def,ctx.companion(),stepCaller,step.args()));} }
                 case "optimize" -> {Long plan=args.has("plan")?args.get("plan").getAsLong():null;var r=QueueOptimizer.apply(q,plan,n->{TaskToolDef d=all.get(n);return d==null?null:d.queueTraits().mergeableCountArg();});runner.wakeQueue();return ToolResult.ok(r.text());}
                 default -> {return error("unknown queue_edit action: "+action);}
             }
@@ -87,8 +92,11 @@ final class QueueTools {
         runner.wakeQueue();return ToolResult.ok("queue updated");
     }
     private static Map<String,TaskToolDef> allowed(Caller caller,Map<String,TaskToolDef> all){Map<String,TaskToolDef> map=new LinkedHashMap<>();all.forEach((n,d)->{if(caller.access().allows(d.minAccess()))map.put(n,d);});return map;}
-    private static void registerFactories(CompanionEntity c,List<Long> ids,Map<String,TaskToolDef> allowed,Caller caller){for(long id:ids){var job=c.taskRunner().queue().job(id).orElse(null);if(job==null)continue;TaskToolDef def=allowed.get(job.tool());if(def!=null){JsonObject savedArgs=job.args();c.taskRunner().registerFactory(id,ctx->createTask(def,ctx.companion(),caller,savedArgs.deepCopy()));}}}
+    private static void registerFactories(CompanionEntity c,List<Long> ids,Map<String,TaskToolDef> allowed,Caller caller){for(long id:ids){var job=c.taskRunner().queue().job(id).orElse(null);if(job==null)continue;TaskToolDef def=allowed.get(job.tool());if(def!=null){JsonObject savedArgs=job.args();Caller captured=callerForArgs(caller,savedArgs);c.taskRunner().registerFactory(id,ctx->createTask(def,ctx.companion(),captured,savedArgs.deepCopy()));}}}
     private static dev.friendai.task.Task createTask(TaskToolDef def,CompanionEntity c,Caller caller,JsonObject args){return def.callerFactory()==null?def.factory().create(c,args.deepCopy()):def.callerFactory().create(c,caller,args.deepCopy());}
+    private static List<QueuedStep> withTradingScope(List<QueuedStep> steps,Map<String,TaskToolDef> tools,Caller caller){List<QueuedStep> captured=new java.util.ArrayList<>(steps.size());for(QueuedStep step:steps){TaskToolDef def=tools.get(step.tool());boolean spending=def!=null&&def.queueTraits().requiresTradingScope();JsonObject args=QueueTradeScope.capture(step.args(),caller.tradingScope(),spending);captured.add(new QueuedStep(step.tool(),args,step.priority(),step.guards(),step.onUnmet(),step.onFailure(),spending?1:step.maxAttempts(),step.afterSteps()));}return List.copyOf(captured);}
+    private static List<QueuedStep> preserveTradingScope(List<QueuedStep> steps,Map<String,TaskToolDef> tools,JsonObject originalArgs){List<QueuedStep> captured=new java.util.ArrayList<>(steps.size());for(QueuedStep step:steps){TaskToolDef def=tools.get(step.tool());boolean spending=def!=null&&def.queueTraits().requiresTradingScope();JsonObject args=QueueTradeScope.preserve(step.args(),originalArgs,spending);captured.add(new QueuedStep(step.tool(),args,step.priority(),step.guards(),step.onUnmet(),step.onFailure(),spending?1:step.maxAttempts(),step.afterSteps()));}return List.copyOf(captured);}
+    private static Caller callerForArgs(Caller caller,JsonObject args){return caller.withTradingScope(QueueTradeScope.read(args));}
     private static String validateGuards(List<QueuedStep> steps){for(int i=0;i<steps.size();i++)for(var guard:steps.get(i).guards()){if(guard instanceof Guard.HasItem g&&ItemMatcher.parse(g.item()).isEmpty())return "step "+(i+1)+": unknown item '"+g.item()+"'";if(guard instanceof Guard.BlockWithin g&&BlockMatcher.parse(g.block()).isEmpty())return "step "+(i+1)+": unknown block '"+g.block()+"'";}return null;}
     private static long required(JsonObject a,String key){if(!a.has(key))throw new IllegalArgumentException("queue_edit requires "+key);return a.get(key).getAsLong();}
     private static ToolResult error(String text){return ToolResult.error(text==null?"invalid queue edit":text);}

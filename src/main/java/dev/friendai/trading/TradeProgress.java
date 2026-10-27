@@ -32,4 +32,25 @@ public record TradeProgress(UUID orderId, State state, Map<String, Integer> spen
             if (total > Integer.MAX_VALUE) throw new IllegalArgumentException("cumulative receipt overflow");
         }
     }
+
+    public int spent(String itemId) {
+        return spent.getOrDefault(itemId, 0);
+    }
+
+    public int receivedCount(String itemId, String componentsJson) {
+        int total = 0;
+        for (TradeItem item : received) {
+            if (item.itemId().equals(itemId) && item.componentsJson().equals(componentsJson)) {
+                total = Math.addExact(total, item.count());
+            }
+        }
+        return total;
+    }
+
+    public boolean terminal() {
+        return switch (state) {
+            case COMPLETED, PARTIAL, INTERRUPTED, UNCERTAIN, FAILED -> true;
+            case AUTHORIZED, RUNNING -> false;
+        };
+    }
 }

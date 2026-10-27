@@ -410,5 +410,6 @@
   "friendai.mining.phase.descend": "Descending safely",
   "friendai.mining.phase.tunnel": "Tunneling through stone",
   "friendai.mining.phase.ascend": "Climbing the passage",
-  "friendai.mining.phase.extract": "Extracting the resource"
+  "friendai.mining.phase.extract": "Extracting the resource",
+  "friendai.trade.authority_denied": "The trading request was denied: %s"
 }

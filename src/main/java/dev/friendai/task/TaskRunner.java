@@ -21,6 +21,7 @@ import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.queue.CompanionGuardFacts;
+import dev.friendai.queue.QueueTradeScope;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -269,9 +270,26 @@ public final class TaskRunner {
     private Task combineCleanup(Task first,Task second){if(first==null)return second;if(second==null)return first;return new SequenceTask("scaffold cleanup",List.of(new PlanEntry("scaffold_cleanup",ctx->first),new PlanEntry("scaffold_cleanup",ctx->second)),()->timeoutSec.getAsInt()*20);}
     private void startDefault(){if(!paused&&!held()&&!suspended&&current==null&&defaultFollow.getAsBoolean()){Active a=new Active(0,0,0,"follow",new FollowTask(true),false,true,false,activeTicks);current=a;try{a.task().start(context());}catch(RuntimeException e){current=null;LOGGER.warn("Default follow failed to start",e);}}}
     public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
-    public void restoreQueue(QueueSave.Decoded decoded,Map<Long,StepFactory> restoredFactories){queue=decoded.queue();factories.clear();factories.putAll(restoredFactories);current=null;frozen=null;if(decoded.activeJobId()>0){Job job=queue.job(decoded.activeJobId()).orElse(null);if(job!=null&&job.state()==JobState.RUNNING){if(interruptedSearch(job,decoded.activeTaskSave())){interruptSearchLedger(decoded.activeTaskSave());queue.cancel(job.id(),"interrupted by restart");}else{Task task=null;if(!decoded.activeTaskSave().isBlank())task=TaskFactory.restore(decoded.activeTaskSave(),(ServerLevel)companion.level()).orElse(null);if(task==null){StepFactory factory=factories.get(job.id());if(factory!=null)task=factory.create(context());}if(task!=null){current=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks);try{task.start(context());}catch(RuntimeException e){current=null;queue.fail(job.id(),"task crashed: "+e.getClass().getSimpleName());}}}}}
+    public void restoreQueue(QueueSave.Decoded decoded,Map<Long,StepFactory> restoredFactories){
+        queue=decoded.queue();factories.clear();factories.putAll(restoredFactories);current=null;frozen=null;
+        Set<Long> expiredTradingPlans = new HashSet<>();
+        for (Job job : List.copyOf(queue.jobs())) {
+            if (!requiresFreshTradingAuthority(job)) continue;
+            factories.remove(job.id());
+            if (job.planId() > 0) expiredTradingPlans.add(job.planId());
+            else queue.cancel(job.id(), "trading authority expired after restart");
+        }
+        for (long planId : expiredTradingPlans) {
+            queue.cancelPlan(planId);
+            finishPlan(planId, "trading authority expired after restart", false);
+        }
+        if(decoded.activeJobId()>0){Job job=queue.job(decoded.activeJobId()).orElse(null);if(job!=null&&job.state()==JobState.RUNNING){if(interruptedSearch(job,decoded.activeTaskSave())){interruptSearchLedger(decoded.activeTaskSave());queue.cancel(job.id(),"interrupted by restart");}else{Task task=null;if(!decoded.activeTaskSave().isBlank())task=TaskFactory.restore(decoded.activeTaskSave(),(ServerLevel)companion.level()).orElse(null);if(task==null){StepFactory factory=factories.get(job.id());if(factory!=null)task=factory.create(context());}if(task!=null){current=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks);try{task.start(context());}catch(RuntimeException e){current=null;queue.fail(job.id(),"task crashed: "+e.getClass().getSimpleName());}}}}}
         for(Job job:List.copyOf(queue.jobs()))if(job.state()==JobState.RUNNING&&(current==null||current.jobId()!=job.id()))queue.requeue(job.id());
-        nextPoll=0;}
+        nextPoll=0;
+    }
+    private static boolean requiresFreshTradingAuthority(Job job) {
+        return QueueTradeScope.requiresFreshAuthority(job.args(), false);
+    }
     private static boolean interruptedSearch(Job job,String save){if(save!=null&&save.startsWith("resource_session:v1:"))return true;if(job.tool().equals("search_resource"))return true;return job.tool().equals("obtain_item")&&job.args().has("explore")&&job.args().get("explore").getAsBoolean();}
     private void interruptSearchLedger(String save){var owner=companion.ownerUuid();if(owner==null)return;var ledger=FriendaiServerState.get(((ServerLevel)companion.level()).getServer()).knowledge().book(owner).searchLedger();if(save!=null&&save.startsWith("resource_session:v1:")){try{ledger.interrupt(java.util.UUID.fromString(save.substring("resource_session:v1:".length())));return;}catch(IllegalArgumentException malformed){LOGGER.warn("Malformed saved resource session marker; interrupting active ledger sessions");}}ledger.interruptActive();}
     private void safeStop(Task task,TaskContext ctx){try{task.stop(ctx);}catch(RuntimeException e){LOGGER.warn("Task {} failed to stop",task.type(),e);}}
