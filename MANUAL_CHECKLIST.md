@@ -145,7 +145,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Log tab (operator): messages, tool calls and errors appear live; kind filters work; Copy puts the visible lines on the clipboard.
 - [ ] Debug tab (operator): perception text is shown; "Show prompt" shows the system prompt; Send reaches the companion; Run executes a tool (empty arguments = `{}`) and shows up in the log as "Manual".
 - [ ] Dedicated server as a normal player: Overview, Toggles, Tasks, Memory, Places, Appearance and Traders tabs; as an operator: all nine (Log and Debug appear too).
-- [ ] At GUI scales 1-4 in English and Russian, the tab bar wraps into as many rows as it needs, no label is clipped, and the tab underlines and the panel rule line up under the last row.
+- [ ] The companion menu keeps its window, rail and content inside the screen at every GUI scale (1-4) and after resizing; the title does not overlap the window and Done stays below it.
 - [ ] Single player with cheats off: the host still sees the Log and Debug tabs (the world owner counts as an operator). Same on a LAN world for the host, not for guests.
 - [ ] A server without Friendai: the icon is greyed out with an explanatory tooltip.
 - [ ] Another mod that changes the pause menu layout: the button still appears and nothing crashes.
@@ -282,6 +282,9 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Build this village house here": list_blueprints with a query finds the template id, then build_structure with "structure" builds the vanilla house.
 - [ ] A tall tower (8+ blocks): it is built using scaffolding, and the dirt/cobblestone pillars are removed afterwards.
 - [ ] A blueprint with a wall torch on a wall built in the same pass: the torch ends up on the wall, never in mid-air, and the wall goes down first whichever layer it is in.
+- [ ] A gable or pyramid roof: the corner stairs turn the right way, the ridge goes down on a temporary block, and no scaffold is left when the build reports success.
+- [ ] "Clear this plot": vegetation and snow are gone, a water source is taken with a bucket, and a chest, lava and a protected block stay and are named in the result.
+- [ ] build_structure with parts ["floor"] on a house blueprint: only the floor is placed and the result names the part.
 - [ ] A lantern hanging under a beam is placed after the beam; a door's upper half appears from the lower half and is never counted or placed twice.
 - [ ] Save and reload the world mid-build: the build resumes where it stopped and finishes.
 - [ ] Missing materials with "gather": the companion obtains them with obtain_item instead of failing, then builds.

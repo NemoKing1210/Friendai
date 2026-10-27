@@ -395,7 +395,7 @@ final class MemoryTab implements MenuTab {
                 g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
                 g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
             } else if (hot) {
-                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
+                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
             }
             Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, Ui.PURPLE);
             Ui.text(g, font, Ui.clip(font, Component.translatable("friendai.menu.description.title").getString(),
@@ -412,7 +412,7 @@ final class MemoryTab implements MenuTab {
                     g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
                     g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
                 } else if (hot) {
-                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.alpha(0xFFFFFF, 0x10));
+                    g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
                 }
                 Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, roleColor(group.role()));
                 String count = String.valueOf(group.count());

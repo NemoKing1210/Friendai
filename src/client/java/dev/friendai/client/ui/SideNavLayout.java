@@ -33,8 +33,12 @@ final class SideNavLayout {
     static final int ENTRY_GAP = 2;
     static final int COMPACT_ENTRY_HEIGHT = 16;
     static final int COMPACT_ENTRY_GAP = 1;
+    /** The last compression step before the rail scrolls: ten entries and their separator fit the smallest window. */
+    static final int MIN_ENTRY_HEIGHT = 14;
+    static final int MIN_ENTRY_GAP = 1;
     static final int SEPARATOR = 6;
     static final int COMPACT_SEPARATOR = 4;
+    static final int MIN_SEPARATOR = 3;
 
     private SideNavLayout() {}
 
@@ -48,15 +52,14 @@ final class SideNavLayout {
         }
     }
 
-    /** One rail entry: the tab index it stands for, and its rectangle. */
-    record Slot(int index, int x, int y, int width, int height) {}
+    /** One rail entry's rectangle. */
+    record Slot(int x, int y, int width, int height) {}
 
     /**
      * The rail column. {@code slots} are the entries at the top scroll position; a screen showing another
      * position moves them up by that many pixels. {@code separatorY} is -1 when every entry is the owner's.
      */
-    record Rail(Rect box, int viewportHeight, int contentHeight, int maxScroll, int entryHeight, int gap,
-            List<Slot> slots, int separatorY) {}
+    record Rail(Rect box, int contentHeight, int maxScroll, int entryHeight, List<Slot> slots, int separatorY) {}
 
     /** The whole layout: the window, its rail and the content rectangle the selected tab draws in. */
     record Layout(Rect window, Rail rail, Rect content, boolean compact) {}
@@ -93,6 +96,12 @@ final class SideNavLayout {
             separator = grouped ? COMPACT_SEPARATOR : 0;
             contentHeight = columnHeight(entryCount, entryHeight, gap, separator);
         }
+        if (contentHeight > railBox.height()) {
+            entryHeight = MIN_ENTRY_HEIGHT;
+            gap = MIN_ENTRY_GAP;
+            separator = grouped ? MIN_SEPARATOR : 0;
+            contentHeight = columnHeight(entryCount, entryHeight, gap, separator);
+        }
         int maxScroll = Math.max(0, contentHeight - railBox.height());
 
         List<Slot> slots = new ArrayList<>(entryCount);
@@ -104,7 +113,7 @@ final class SideNavLayout {
                     y += separator;
                 }
             }
-            slots.add(new Slot(i, railBox.x(), y, railWidth, entryHeight));
+            slots.add(new Slot(railBox.x(), y, railWidth, entryHeight));
             y += entryHeight;
         }
 
@@ -115,8 +124,7 @@ final class SideNavLayout {
             separatorY = previousBottom + (nextTop - previousBottom) / 2;
         }
 
-        Rail rail = new Rail(railBox, railBox.height(), contentHeight, maxScroll, entryHeight, gap,
-                List.copyOf(slots), separatorY);
+        Rail rail = new Rail(railBox, contentHeight, maxScroll, entryHeight, List.copyOf(slots), separatorY);
         return new Layout(window, rail, content, railWidth == COMPACT_RAIL_WIDTH);
     }
 

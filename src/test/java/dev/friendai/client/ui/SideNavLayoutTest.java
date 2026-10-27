@@ -12,15 +12,16 @@ import org.junit.jupiter.api.Test;
 /**
  * The rail against the windows the menu has to survive: the smallest supported GUI, the common laptop scales and
  * the largest screen. The arithmetic is checked, not a screenshot: every entry inside the rail, the content to its
- * right, and a documented fallback (compact entries, then scrolling) when the height cannot hold them all.
+ * right, and the documented fallback (compact entries, then a last compression, then scrolling) when the height
+ * cannot hold them all.
  */
 class SideNavLayoutTest {
-    private static final int OWNER_TABS = 9;
-    private static final int ALL_TABS = 11;
+    private static final int OWNER_TABS = 8;
+    private static final int ALL_TABS = 10;
     private static final int OPERATOR_START = 8;
 
     @Test
-    void nineTabsFitTheCommonLaptopWindowAtFullSize() {
+    void eightTabsFitTheCommonLaptopWindowAtFullSize() {
         Layout layout = SideNavLayout.arrange(960, 540, OWNER_TABS, -1);
         Rail rail = layout.rail();
 
@@ -30,8 +31,8 @@ class SideNavLayoutTest {
         assertEquals(new SideNavLayout.Rect(266, 32, 560, 464), layout.content());
         assertEquals(0, rail.maxScroll());
         assertEquals(SideNavLayout.ENTRY_HEIGHT, rail.entryHeight());
-        assertEquals(new Slot(0, 134, 32, 124, 20), rail.slots().getFirst());
-        assertEquals(new Slot(8, 134, 208, 124, 20), rail.slots().getLast());
+        assertEquals(new Slot(134, 32, 124, 20), rail.slots().getFirst());
+        assertEquals(new Slot(134, 186, 124, 20), rail.slots().getLast());
     }
 
     @Test
@@ -43,7 +44,7 @@ class SideNavLayoutTest {
     }
 
     @Test
-    void elevenTabsFitAFullWidthWindowWithoutScrolling() {
+    void tenTabsFitAFullWidthWindowWithoutScrolling() {
         Layout layout = SideNavLayout.arrange(640, 360, ALL_TABS, OPERATOR_START);
         Rail rail = layout.rail();
 
@@ -51,15 +52,15 @@ class SideNavLayoutTest {
         assertEquals(new SideNavLayout.Rect(154, 32, 464, 284), layout.content());
         assertEquals(0, rail.maxScroll());
         assertEquals(SideNavLayout.ENTRY_HEIGHT, rail.entryHeight());
-        assertEquals(246, rail.contentHeight());
+        assertEquals(224, rail.contentHeight());
         assertEquals(210, rail.separatorY());
-        assertEquals(new Slot(7, 22, 186, 124, 20), rail.slots().get(7));
-        assertEquals(new Slot(8, 22, 214, 124, 20), rail.slots().get(8));
-        assertEquals(new Slot(10, 22, 258, 124, 20), rail.slots().get(10));
+        assertEquals(new Slot(22, 186, 124, 20), rail.slots().get(7));
+        assertEquals(new Slot(22, 214, 124, 20), rail.slots().get(8));
+        assertEquals(new Slot(22, 236, 124, 20), rail.slots().get(9));
     }
 
     @Test
-    void theSmallestWindowUsesACompactRailAndScrollsTheOperatorGroup() {
+    void theSmallestWindowCompressesTheRailUntilTheOperatorGroupFits() {
         Layout layout = SideNavLayout.arrange(426, 240, ALL_TABS, OPERATOR_START);
         Rail rail = layout.rail();
 
@@ -67,27 +68,27 @@ class SideNavLayoutTest {
         assertTrue(layout.compact());
         assertEquals(new SideNavLayout.Rect(22, 32, 68, 164), rail.box());
         assertEquals(new SideNavLayout.Rect(98, 32, 306, 164), layout.content());
-        assertEquals(SideNavLayout.COMPACT_ENTRY_HEIGHT, rail.entryHeight());
-        assertEquals(190, rail.contentHeight());
-        assertEquals(26, rail.maxScroll());
-        assertEquals(169, rail.separatorY());
-        assertEquals(new Slot(0, 22, 32, 68, 16), rail.slots().getFirst());
-        assertEquals(new Slot(7, 22, 151, 68, 16), rail.slots().get(7));
-        assertEquals(new Slot(8, 22, 172, 68, 16), rail.slots().get(8));
-        assertEquals(new Slot(10, 22, 206, 68, 16), rail.slots().get(10));
+        assertEquals(SideNavLayout.MIN_ENTRY_HEIGHT, rail.entryHeight());
+        assertEquals(152, rail.contentHeight());
+        assertEquals(0, rail.maxScroll(), "the real ten-entry menu still fits");
+        assertEquals(153, rail.separatorY());
+        assertEquals(new Slot(22, 32, 68, 14), rail.slots().getFirst());
+        assertEquals(new Slot(22, 137, 68, 14), rail.slots().get(7));
+        assertEquals(new Slot(22, 155, 68, 14), rail.slots().get(8));
+        assertEquals(new Slot(22, 170, 68, 14), rail.slots().get(9));
     }
 
     @Test
-    void nineTabsStillNeedNoScrollAtTheSmallestWindow() {
+    void eightTabsStayAtTheCompactHeightAtTheSmallestWindow() {
         Layout layout = SideNavLayout.arrange(426, 240, OWNER_TABS, -1);
         Rail rail = layout.rail();
 
         assertTrue(layout.compact());
         assertEquals(SideNavLayout.COMPACT_ENTRY_HEIGHT, rail.entryHeight());
-        assertEquals(152, rail.contentHeight());
+        assertEquals(135, rail.contentHeight());
         assertEquals(0, rail.maxScroll());
         assertEquals(-1, rail.separatorY());
-        assertEquals(168, rail.slots().getLast().y());
+        assertEquals(151, rail.slots().getLast().y());
         assertTrue(rail.slots().getLast().y() + rail.entryHeight() <= rail.box().bottom());
     }
 
@@ -119,8 +120,8 @@ class SideNavLayoutTest {
         int[] heights = {240, 360, 540, 1080};
         for (int width : widths) {
             for (int height : heights) {
-                for (int count : new int[] {7, 9, 11}) {
-                    int operatorStart = count == 11 ? 8 : -1;
+                for (int count : new int[] {7, 8, 10}) {
+                    int operatorStart = count == 10 ? OPERATOR_START : -1;
                     Layout layout = SideNavLayout.arrange(width, height, count, operatorStart);
                     SideNavLayout.Rect window = layout.window();
                     Rail rail = layout.rail();
@@ -153,7 +154,7 @@ class SideNavLayoutTest {
 
     @Test
     void aWindowTooShortForTheContentScrollsInsteadOfHidingEntries() {
-        Layout layout = SideNavLayout.arrange(426, 150, ALL_TABS, OPERATOR_START);
+        Layout layout = SideNavLayout.arrange(426, 200, ALL_TABS, OPERATOR_START);
         Rail rail = layout.rail();
 
         assertTrue(rail.maxScroll() > 0);

@@ -183,7 +183,10 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
                 DONE_HEIGHT, CommonComponents.GUI_DONE, 0, this::onClose));
     }
 
-    /** Puts every rail entry at its scrolled position and hides the ones outside the viewport. */
+    /**
+     * Puts every rail entry at its scrolled position. Entries outside the viewport stay visible and focusable, so
+     * Tab can reach them and {@link #followRailFocus()} scrolls them in; they are simply not hit by the pointer.
+     */
     private void positionRail() {
         if (layout == null) {
             return;
@@ -196,9 +199,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             button.setX(slot.x());
             int y = slot.y() - railScroll;
             button.setY(y);
-            boolean shown = y + button.getHeight() > rail.box().y() && y < rail.box().bottom();
-            button.visible = shown;
-            button.active = shown;
+            button.setHitTest(y >= rail.box().y() && y + button.getHeight() <= rail.box().bottom());
         }
     }
 
@@ -238,6 +239,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (layout != null && layout.rail().maxScroll() > 0 && inside(layout.rail().box(), mouseX, mouseY)) {
+            setFocused(null);
             railScroll -= (int) Math.round(scrollY * RAIL_STEP);
             positionRail();
             return true;

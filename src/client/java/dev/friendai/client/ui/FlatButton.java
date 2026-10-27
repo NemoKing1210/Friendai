@@ -13,6 +13,7 @@ import net.minecraft.network.chat.MutableComponent;
 final class FlatButton extends Button.Plain {
     private int status;
     private boolean selected;
+    private boolean hitTest = true;
 
     FlatButton(int x, int y, int width, int height, Component label, int status, Runnable action) {
         super(x, y, width, height, label, button -> action.run(), DEFAULT_NARRATION);
@@ -29,6 +30,19 @@ final class FlatButton extends Button.Plain {
     /** The dot on the right edge; it is an indicator, not a second button style. */
     void setStatus(int color) {
         this.status = color;
+    }
+
+    /**
+     * Whether the pointer can hit this widget. A rail entry that is scrolled out of view stays visible and
+     * focusable — so Tab can still reach it and the screen can scroll it in — but must not take a click.
+     */
+    void setHitTest(boolean hitTest) {
+        this.hitTest = hitTest;
+    }
+
+    @Override
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        return hitTest && super.isMouseOver(mouseX, mouseY);
     }
 
     @Override
