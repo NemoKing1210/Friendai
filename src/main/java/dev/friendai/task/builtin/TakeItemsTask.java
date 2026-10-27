@@ -41,6 +41,11 @@ public final class TakeItemsTask extends ContainerTaskBase {
     }
 
     @Override
+    protected boolean onlyInsidePlacesInFreeTime() {
+        return true;
+    }
+
+    @Override
     protected String noTargetSummary() {
         return "no storage container with " + matcher.label() + " within " + RADIUS + " blocks";
     }

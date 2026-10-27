@@ -56,7 +56,8 @@ public final class BreakAction {
             return State.GONE;
         }
         if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
-                || state.getDestroySpeed(level, pos) < 0) {
+                || state.getDestroySpeed(level, pos) < 0
+                || dev.friendai.task.autonomy.PlaceGuard.protects(c, pos)) {
             stop(c);
             return State.BLOCKED;
         }

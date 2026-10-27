@@ -86,6 +86,8 @@ public final class TaskRunner {
     public void unmarkAutonomousPlan(long planId) { autonomousPlans.remove(planId); }
     /** True while the running task is a job of a plan free time started. */
     public boolean autonomousActive() { return current!=null && current.planId()>0 && autonomousPlans.contains(current.planId()); }
+    /** The tool that started the running task, empty when nothing runs. */
+    public String currentToolName() { return current==null?"":current.toolName(); }
     /** True while a task that is neither the default activity nor free time's runs: owner work comes first. */
     public boolean busyWithOther() { return current!=null && !current.defaultActivity() && !autonomousActive(); }
     public Optional<Job> activeJob() { return queue.active(); }

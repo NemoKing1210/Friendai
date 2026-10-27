@@ -379,6 +379,110 @@ public class FreeTimeTests {
         });
     }
 
+    /** Breaks one block with the shared breaker and remembers how it went. */
+    private static final class BreakTask implements dev.friendai.task.Task {
+        private final BlockPos pos;
+        private dev.friendai.task.mining.BlockBreaker breaker;
+        dev.friendai.task.mining.BlockBreaker.State last;
+
+        BreakTask(BlockPos pos) { this.pos = pos; }
+        @Override public String type() { return "break_test"; }
+        @Override public void start(dev.friendai.task.TaskContext c) {
+            breaker = new dev.friendai.task.mining.BlockBreaker(pos, state -> !state.isAir());
+        }
+        @Override public TaskStatus tick(dev.friendai.task.TaskContext c) {
+            last = breaker.tick(c);
+            return last == dev.friendai.task.mining.BlockBreaker.State.WORKING ? TaskStatus.RUNNING
+                    : last == dev.friendai.task.mining.BlockBreaker.State.BROKEN ? TaskStatus.SUCCESS
+                    : TaskStatus.FAILED;
+        }
+        @Override public void stop(dev.friendai.task.TaskContext c) { breaker.stop(c); }
+        @Override public String describe() { return "break"; }
+        @Override public String resultSummary() { return String.valueOf(last); }
+    }
+
+    private static BreakTask breakIn(CompanionEntity c, BlockPos pos, boolean autonomous) {
+        BreakTask task = new BreakTask(pos);
+        var step = new dev.friendai.queue.QueuedStep("break_test", new com.google.gson.JsonObject(), null,
+                java.util.List.of(), dev.friendai.queue.GuardAction.WAIT, dev.friendai.queue.FailurePolicy.STOP_PLAN,
+                1, java.util.List.of());
+        long plan = c.taskRunner().enqueuePlan("break", java.util.List.of(step), java.util.List.of(ctx -> task),
+                new dev.friendai.queue.PlanOptions(autonomous ? -10 : 0, dev.friendai.queue.FailurePolicy.STOP_PLAN, 0));
+        if (autonomous) {
+            c.taskRunner().markAutonomousPlan(plan);
+        }
+        return task;
+    }
+
+    private static void housePlace(GameTestHelper h, CompanionEntity c, String name, int x, int y, int z, int r) {
+        BlockPos anchor = h.absolutePos(new BlockPos(x, y, z));
+        PlaceService.book(c).remember(new PlaceValues(name, PlaceKind.HOUSE, "",
+                        c.level().dimension().identifier().toString(),
+                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()), r, Set.of(), PlaceSource.MANUAL,
+                        c.ownerUuid(), ""),
+                c.level().getGameTime());
+    }
+
+    @GameTest(maxTicks = 400)
+    public void placeProtected(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.HONEYCOMB_BLOCK);
+        CompanionEntity c = companion(h);
+        housePlace(h, c, "guarded house", 5, 2, 5, 2);
+        BreakTask inside = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), true);
+        h.succeedWhen(() -> {
+            h.assertTrue(inside.last == dev.friendai.task.mining.BlockBreaker.State.PROTECTED,
+                    "free time may not break inside a place: " + inside.last);
+            h.assertBlockPresent(Blocks.HONEYCOMB_BLOCK, 5, 2, 5);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void ownerMayBreakInsideAPlace(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.MUD_BRICKS);
+        CompanionEntity c = companion(h);
+        housePlace(h, c, "owner house", 5, 2, 5, 2);
+        BreakTask owner = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), false);
+        h.succeedWhen(() -> {
+            h.assertTrue(owner.last == dev.friendai.task.mining.BlockBreaker.State.BROKEN,
+                    "an owner order still breaks it: " + owner.last);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void freeTimeBreaksOutsidePlaces(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(11, 2, 11, Blocks.PACKED_MUD);
+        CompanionEntity c = companion(h);
+        housePlace(h, c, "far house", 3, 2, 3, 2);
+        BreakTask outside = breakIn(c, h.absolutePos(new BlockPos(11, 2, 11)), true);
+        h.succeedWhen(() -> h.assertTrue(outside.last == dev.friendai.task.mining.BlockBreaker.State.BROKEN,
+                "free time breaks outside places: " + outside.last));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takeOutsidePlaceRefused(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(10, 2, 10, Blocks.CHEST);
+        chest(h, 10, 2, 10).setItem(0, new ItemStack(Items.AMETHYST_SHARD, 4));
+        UUID owner = UUID.randomUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        BlockPos at = h.absolutePos(new BlockPos(10, 2, 10));
+        shiftPlan(h, c, "[{\"tool\":\"take_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:amethyst_shard\\\","
+                + "\\\"count\\\":4,\\\"x\\\":" + at.getX() + ",\\\"y\\\":" + at.getY() + ",\\\"z\\\":" + at.getZ()
+                + "}\"}]");
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null && !state.history().isEmpty(), "the shift ends: " + state);
+            h.assertTrue(state.history().get(0).summary().contains("outside known places"),
+                    "summary: " + state.history().get(0).summary());
+            h.assertValueEqual(count(chest(h, 10, 2, 10), Items.AMETHYST_SHARD), 4, "nothing taken");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void depositStorageFull(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
