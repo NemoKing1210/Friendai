@@ -41,6 +41,9 @@ public final class FireScan {
     public static final int DEFAULT_RADIUS = 8;
 
     /** Blocks water must not flow into: it would wash crops away or break a circuit. */
+    /** How far a placed source can reach along the ground. */
+    private static final int FLOW_RADIUS = 7;
+
     private static final Set<Block> FLOW_SENSITIVE = Set.of(
             Blocks.REDSTONE_WIRE,
             Blocks.REDSTONE_TORCH,
@@ -146,18 +149,36 @@ public final class FireScan {
         if (portalNear(level, cell)) {
             return false;
         }
-        for (BlockPos p : new BlockPos[] {
-                cell, cell.below(), cell.north(), cell.south(), cell.east(), cell.west()}) {
-            BlockState state = level.getBlockState(p);
-            if (state.is(BlockTags.CROPS) || FLOW_SENSITIVE.contains(state.getBlock())) {
-                return false;
-            }
+        if (flowSensitiveNear(level, cell)) {
+            return false;
         }
         for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class,
                 new AABB(cell), e -> e != c.companion())) {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Whether water poured here would reach crops or a circuit: a source spreads up to seven blocks along the level
+     * it lands on, so the footprint, not the six neighbours, is what matters.
+     */
+    private static boolean flowSensitiveNear(ServerLevel level, BlockPos cell) {
+        for (int dy = 0; dy >= -1; dy--) {
+            for (int dx = -FLOW_RADIUS; dx <= FLOW_RADIUS; dx++) {
+                for (int dz = -FLOW_RADIUS; dz <= FLOW_RADIUS; dz++) {
+                    BlockPos p = cell.offset(dx, dy, dz);
+                    if (!level.isLoaded(p)) {
+                        continue;
+                    }
+                    BlockState state = level.getBlockState(p);
+                    if (state.is(BlockTags.CROPS) || FLOW_SENSITIVE.contains(state.getBlock())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** Whether breaking this cell would disturb a nether portal: a live portal or an obsidian frame around it. */
@@ -189,7 +210,7 @@ public final class FireScan {
             return;
         }
         boolean protectedCell = !c.companion().hands().canInteract(cell) || PlaceGuard.protects(c, cell);
-        boolean reachable = companionDistanceSqr(c.companion(), cell) <= (long) radius * radius;
+        boolean reachable = withinScan(c.companion(), cell, radius);
         BurningCell.Rails rails = new BurningCell.Rails(
                 reserved(c, cell, kind),
                 inPortalFrame(level, cell),
@@ -330,6 +351,14 @@ public final class FireScan {
 
     private static long companionDistanceSqr(CompanionEntity companion, BlockPos pos) {
         return (long) companion.blockPosition().distSqr(pos);
+    }
+
+    /** The scan covers a cube, so what counts as reachable has to be measured the same way. */
+    private static boolean withinScan(CompanionEntity companion, BlockPos pos, int radius) {
+        BlockPos center = companion.blockPosition();
+        return Math.abs(center.getX() - pos.getX()) <= radius
+                && Math.abs(center.getY() - pos.getY()) <= radius
+                && Math.abs(center.getZ() - pos.getZ()) <= radius;
     }
 
     private static BlockPos entityPos(CompanionEntity companion) {

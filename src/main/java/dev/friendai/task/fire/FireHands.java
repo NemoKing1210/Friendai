@@ -46,16 +46,19 @@ public final class FireHands {
     }
 
     /**
-     * Pours one water bucket at {@code cell}; true when water reached it. The bucket's own raycast decides where the
-     * source lands — pouring on a fire block puts the source on top of it and the water runs down — so a source
-     * beside the cell counts as success too, and {@link #recoverBucket} takes it back afterwards.
+     * Pours one water bucket at {@code cell} and returns the cell the source actually landed in, or null when
+     * nothing was poured. The bucket's own raycast decides that: pouring at a fire block puts the source on top of
+     * it and the water runs down into the fire, so the source can be the cell above. Only a source this method
+     * made is ever reported — a pond next to the fire is not ours to take.
      */
-    public boolean placeWater(BlockPos cell) {
-        pour(cell);
-        return wet(cell) || sourceNear(cell) != null;
+    public BlockPos placeWater(BlockPos cell) {
+        return pour(cell);
     }
 
-    /** Pours water into a lit campfire, which flips its lit state; true when it is out. */
+    /**
+     * Pours water into a lit campfire, which flips its lit state; true when it is out. A waterlogged campfire holds
+     * its water inside the block, so there is no source to take back afterwards.
+     */
     public boolean douseCampfire(BlockPos cell) {
         pour(cell);
         return !lit(cell);
@@ -72,13 +75,17 @@ public final class FireHands {
         if (source == null) {
             return true;
         }
+        return recoverSource(source) == null;
+    }
+
+    /** Takes the source at exactly {@code source} back; returns the cell that still holds water, or null. */
+    public BlockPos recoverSource(BlockPos source) {
         List<ItemStack> taken = InventoryOps.remove(companion.inventory(), EMPTY_BUCKET, 1);
         if (taken.isEmpty()) {
-            return false;
+            return source;
         }
         companion.hands().useItem(taken.getFirst(), Vec3.atCenterOf(source));
-        BlockPos after = sourceNear(cell);
-        return after == null;
+        return source(source) ? source : null;
     }
 
     /**
@@ -101,7 +108,8 @@ public final class FireHands {
         return false;
     }
 
-    private void pour(BlockPos cell) {
+    /** Pours one bucket and reports where its source landed, or null when nothing was poured. */
+    private BlockPos pour(BlockPos cell) {
         for (Direction direction : clickOrder()) {
             BlockPos against = cell.relative(direction);
             if (!clickable(against)) {
@@ -109,12 +117,13 @@ public final class FireHands {
             }
             List<ItemStack> taken = InventoryOps.remove(companion.inventory(), WATER_BUCKET, 1);
             if (taken.isEmpty()) {
-                return;
+                return null;
             }
             Vec3 aim = Vec3.atCenterOf(against).relative(direction.getOpposite(), 0.5);
             companion.hands().useItem(taken.getFirst(), aim);
-            return;
+            return sourceNear(cell);
         }
+        return null;
     }
 
     /** Faces to click, in the order that most often leaves the placed water where it is wanted. */
@@ -137,18 +146,21 @@ public final class FireHands {
         return level.getFluidState(cell).getType().isSame(Fluids.WATER);
     }
 
-    /** The source the bucket has to aim at: the cell itself, or the neighbour the water was poured from. */
+    /**
+     * The source this pour can have made: the cell itself, or the cell above it (water poured on the top face of a
+     * fire block lands there and runs down). Nothing further away is ours to take back.
+     */
     private BlockPos sourceNear(BlockPos cell) {
         if (source(cell)) {
             return cell;
         }
-        for (Direction direction : Direction.values()) {
-            BlockPos neighbour = cell.relative(direction);
-            if (source(neighbour)) {
-                return neighbour;
-            }
-        }
-        return null;
+        BlockPos above = cell.above();
+        return source(above) ? above : null;
+    }
+
+    /** Whether exactly this cell holds water that can be taken back. */
+    public boolean holdsSource(BlockPos pos) {
+        return source(pos);
     }
 
     private boolean source(BlockPos pos) {

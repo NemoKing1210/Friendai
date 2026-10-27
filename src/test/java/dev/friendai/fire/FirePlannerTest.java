@@ -169,16 +169,26 @@ class FirePlannerTest {
     }
 
     @Test
-    void anAreaStopsAtTheFirstRefusal() {
+    void anAreaSkipsARefusedCellAndCarriesOn() {
         Pos second = Pos.of(11, 64, 3);
         List<BurningCell> cells = List.of(
-                new BurningCell(FIRE_POS, Kind.FIRE, free()),
-                new BurningCell(second, Kind.LIT_CAMPFIRE, new Rails(true, false, true, true, true, false)));
+                new BurningCell(FIRE_POS, Kind.LIT_CAMPFIRE, new Rails(true, false, true, true, true, false)),
+                new BurningCell(second, Kind.FIRE, free()));
 
         ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Area(List.of(FIRE_POS, second)), facts(), cells);
 
-        assertEquals(List.of(new ExtinguishStep.BreakFire(FIRE_POS),
-                new ExtinguishStep.GiveUp("it is my cooking station")), plan.steps());
+        assertEquals(List.of(new ExtinguishStep.BreakFire(second)), plan.steps());
+        assertTrue(plan.notes().stream().anyMatch(note -> note.contains("cooking station")), plan.notes().toString());
+    }
+
+    @Test
+    void anAreaGivesUpOnlyWhenNothingIsPossible() {
+        List<BurningCell> cells = List.of(
+                cell(Kind.LIT_CAMPFIRE, new Rails(true, false, true, true, true, false)));
+
+        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Area(List.of(FIRE_POS)), facts(), cells);
+
+        assertEquals(List.of(new ExtinguishStep.GiveUp("it is my cooking station")), plan.steps());
     }
 
     @Test

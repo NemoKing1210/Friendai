@@ -69,6 +69,10 @@ public final class FireReflex {
         ServerPlayer player = owner.orElseThrow();
         double distance = player.distanceToSqr(companion);
         if (distance > (double) FireScan.OWNER_REACH * FireScan.OWNER_REACH) {
+            if (!saidOwner) {
+                saidOwner = true;
+                say("friendai.fire.owner_out_of_reach");
+            }
             return;
         }
         if (!saidOwner) {

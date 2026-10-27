@@ -13,6 +13,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.fire.FireHands;
 import dev.friendai.task.fire.FireScan;
+import dev.friendai.task.fire.RecoverWaterTask;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.MoveHelper;
@@ -54,6 +55,8 @@ public final class ExtinguishFireTask implements Task {
     private BlockBreaker breaker;
     private int extinguished;
     private boolean recovered = true;
+    /** A source this task poured and has not taken back yet; the cleanup task owns it if the task is cancelled. */
+    private BlockPos pendingSource;
     private String summary = "";
 
     /** Every fire within {@code radius} of where the task started. */
@@ -133,6 +136,20 @@ public final class ExtinguishFireTask implements Task {
         return settle();
     }
 
+    /**
+     * A cancelled douse must not leave its source behind: the runner starts {@link RecoverWaterTask} for a source
+     * that was poured but not yet taken back.
+     */
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        if (pendingSource == null) {
+            return null;
+        }
+        BlockPos source = pendingSource;
+        pendingSource = null;
+        return new RecoverWaterTask(Pos.of(source.getX(), source.getY(), source.getZ()));
+    }
+
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
@@ -178,9 +195,13 @@ public final class ExtinguishFireTask implements Task {
         List<BurningCell> cells = scan.cells();
         if (nearby) {
             cells = FireScan.burningCellsNear(c, radius);
-            live = new FireTarget.Area(cells.stream().map(BurningCell::pos).toList());
-        } else if (live instanceof FireTarget.Area) {
-            live = new FireTarget.Area(cells.stream().map(BurningCell::pos).toList());
+        }
+        if (nearby || live instanceof FireTarget.Area) {
+            // A reserved fire (the cooking campfire, a hive smoker) is not ours to put out, so it must not keep the
+            // area unresolved either.
+            List<BurningCell> ours = cells.stream().filter(cell -> !cell.rails().reserved()).toList();
+            live = new FireTarget.Area(ours.stream().map(BurningCell::pos).toList());
+            cells = ours;
         }
         plan = FirePlanner.plan(live, scan.facts(), cells);
         cursor = 0;
@@ -208,10 +229,18 @@ public final class ExtinguishFireTask implements Task {
             return StepResult.REFUSED;
         }
         FireHands hands = new FireHands(c);
-        boolean done = campfire ? hands.douseCampfire(cell) : hands.placeWater(cell);
-        if (!done) {
+        if (campfire) {
+            if (!hands.douseCampfire(cell)) {
+                return StepResult.REFUSED;
+            }
+            extinguished++;
+            return StepResult.DONE;
+        }
+        BlockPos source = hands.placeWater(cell);
+        if (source == null) {
             return StepResult.REFUSED;
         }
+        pendingSource = source;
         extinguished++;
         return StepResult.DONE;
     }
@@ -225,7 +254,9 @@ public final class ExtinguishFireTask implements Task {
         if (approach(c, cell) == Approach.State.MOVING) {
             return StepResult.RUNNING;
         }
-        if (!new FireHands(c).recoverBucket(cell)) {
+        if (new FireHands(c).recoverBucket(cell)) {
+            pendingSource = null;
+        } else {
             recovered = false;
         }
         return StepResult.DONE;

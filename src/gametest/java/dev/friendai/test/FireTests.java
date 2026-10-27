@@ -120,6 +120,79 @@ public class FireTests {
         });
     }
 
+    @GameTest(maxTicks = 600)
+    public void nearDousesEveryFireItCanReachEvenPastARefusedOne(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        h.setBlock(3, 1, 2, Blocks.NETHERRACK);
+        h.setBlock(3, 2, 2, Blocks.FIRE);
+        h.setBlock(5, 1, 2, Blocks.NETHERRACK);
+        h.setBlock(5, 2, 2, Blocks.FIRE);
+        h.setBlock(4, 1, 2, Blocks.CAMPFIRE.defaultBlockState().setValue(CampfireBlock.LIT, true));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WATER_BUCKET));
+        BlockPos campfire = h.absolutePos(new BlockPos(4, 1, 2));
+        c.stationLease().keep(Station.CAMPFIRE, campfire.asLong(), h.getLevel().getGameTime());
+        BlockPos first = h.absolutePos(new BlockPos(3, 2, 2));
+        BlockPos second = h.absolutePos(new BlockPos(5, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = run(c, result, ExtinguishFireTask.near(8));
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "the task did not finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getLevel().getBlockState(first).isAir(),
+                    "the first fire is still there: " + h.getLevel().getBlockState(first));
+            h.assertTrue(h.getLevel().getBlockState(second).isAir(),
+                    "the second fire is still there: " + h.getLevel().getBlockState(second));
+            h.assertTrue(h.getLevel().getBlockState(campfire).getValue(CampfireBlock.LIT),
+                    "the cooking campfire was put out");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void nearReachesTheCornerOfTheScanCube(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        h.setBlock(7, 1, 7, Blocks.NETHERRACK);
+        h.setBlock(7, 2, 7, Blocks.FIRE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        BlockPos fire = h.absolutePos(new BlockPos(7, 2, 7));
+        Result result = new Result();
+        TaskRunner runner = run(c, result, ExtinguishFireTask.near(8));
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "the task did not finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(h.getLevel().getBlockState(fire).isAir(),
+                    "the corner fire is still there: " + h.getLevel().getBlockState(fire));
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void takesTheWaterBackWhenStoppedMidDouse(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        h.setBlock(3, 1, 2, Blocks.NETHERRACK);
+        h.setBlock(3, 2, 2, Blocks.FIRE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WATER_BUCKET));
+        c.inventory().addItem(new ItemStack(Items.BUCKET));
+        BlockPos fire = h.absolutePos(new BlockPos(3, 2, 2));
+        Result result = new Result();
+        TaskRunner runner = run(c, result,
+                new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
+        runner.tick();
+        runner.stop("test stop");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(h.getLevel().getFluidState(fire).isEmpty() || !h.getLevel().getFluidState(fire).isSource(),
+                    "a source was left behind: " + h.getLevel().getBlockState(fire));
+            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1,
+                    "the bucket did not come back: " + c.inventory().countItem(Items.WATER_BUCKET));
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void leavesTheCookingCampfireLit(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

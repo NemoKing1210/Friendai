@@ -47,16 +47,41 @@ public final class FirePlanner {
             case FireTarget.Owner owner -> planOther(facts, steps, notes);
             case FireTarget.BurningEntity entity -> planOther(facts, steps, notes);
             case FireTarget.Block block -> planBlock(block.pos(), facts, cells, steps, notes);
-            case FireTarget.Area area -> {
-                for (Pos pos : area.cells()) {
-                    planBlock(pos, facts, cells, steps, notes);
-                    if (!steps.isEmpty() && steps.getLast() instanceof ExtinguishStep.GiveUp) {
-                        break;
-                    }
-                }
-            }
+            case FireTarget.Area area -> planArea(area, facts, cells, steps, notes);
         }
         return new ExtinguishPlan(target, steps, notes);
+    }
+
+    /**
+     * An area is a list of independent cells: a cell that cannot be helped (a cooking campfire, a protected or
+     * unreachable one) is left alone and the rest are still put out. Only when nothing at all can be done does the
+     * plan give up, with the first reason it met.
+     */
+    private static void planArea(FireTarget.Area area, FireFacts facts, List<BurningCell> cells,
+            List<ExtinguishStep> steps, List<String> notes) {
+        List<ExtinguishStep> work = new ArrayList<>();
+        String refusal = null;
+        for (Pos pos : area.cells()) {
+            List<ExtinguishStep> cellSteps = new ArrayList<>();
+            planBlock(pos, facts, cells, cellSteps, notes);
+            if (!cellSteps.isEmpty() && cellSteps.getLast() instanceof ExtinguishStep.GiveUp giveUp) {
+                if (refusal == null) {
+                    refusal = giveUp.reason();
+                }
+                continue;
+            }
+            work.addAll(cellSteps);
+        }
+        steps.addAll(work);
+        if (work.isEmpty()) {
+            if (refusal != null) {
+                steps.add(new ExtinguishStep.GiveUp(refusal));
+            }
+            return;
+        }
+        if (refusal != null) {
+            notes.add("left alone: " + refusal);
+        }
     }
 
     private static void planSelf(FireFacts facts, List<ExtinguishStep> steps, List<String> notes) {
