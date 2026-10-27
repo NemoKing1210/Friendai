@@ -2,15 +2,15 @@ package dev.friendai.place;
 
 import dev.friendai.pathing.Pos;
 import java.util.Objects;
-import java.util.Set;
 
 /**
- * Turns a task's {@link PlaceCandidate} into a change to one owner's book: refresh a place the task passed again,
+ * Decides what a task's {@link PlaceCandidate} means for one owner's book: refresh a place the task passed again,
  * remember a new one, or skip when its name space is used up.
  *
- * <p>The decision is applied to the registry in the same call, so a farm found on two consecutive passes ends up
- * as one place rather than two. {@code tick} stamps the created or refreshed place. The call is pure Java: the
- * caller supplies the tick, and nothing reads a world or a clock.
+ * <p>A decision is pure: {@code decide} reads the registry and writes nothing. The caller applies the outcome
+ * through {@link PlaceRegistry#remember}, which lets it stamp the owner as the author and keeps
+ * {@link PlaceRegistry} the only mutator. That is also why two consecutive calls see the same registry until the
+ * first outcome has been applied.
  */
 public final class PlaceAutoRegistration {
 
@@ -24,8 +24,9 @@ public final class PlaceAutoRegistration {
     }
 
     /**
-     * The applied outcome. {@code targetId} is the new or refreshed place id, or {@code 0} for {@link
-     * Decision#SKIP}; {@code name} is the stored name, or empty for a skip.
+     * The decision. {@code targetId} is the id of the place to refresh for {@link Decision#UPDATE}, and {@code 0}
+     * for {@link Decision#CREATE} (the place is not stored yet) and {@link Decision#SKIP}; {@code name} is the
+     * name to store, or empty for a skip.
      */
     public record Outcome(Decision decision, long targetId, String name) {
         public Outcome {
@@ -35,10 +36,11 @@ public final class PlaceAutoRegistration {
     }
 
     /**
-     * Merges the candidate into a place of the same kind and normalized label in the same dimension whose anchor
-     * is within {@code mergeRadius} blocks (Chebyshev, including height); otherwise remembers a new place named by
-     * {@code preferredName} when that is free, else by {@link PlaceNamer}. Returns {@link Decision#SKIP} only when
-     * no automatic name is left.
+     * Finds the place the candidate should refresh (same kind, normalized label and dimension, anchor within
+     * {@code mergeRadius} blocks by Chebyshev distance including height), or chooses the name a new place should
+     * get: {@code preferredName} when it is free, else {@link PlaceNamer}. Returns {@link Decision#SKIP} only when
+     * no automatic name is left. Writes nothing; the caller applies the outcome with {@link PlaceRegistry#remember}
+     * and the tick it chooses. {@code tick} stays in the signature for the planned call site.
      */
     public static Outcome decide(
             PlaceRegistry registry, PlaceCandidate candidate, int mergeRadius, long tick) {
@@ -66,8 +68,7 @@ public final class PlaceAutoRegistration {
             }
         }
         if (mergeTarget != null) {
-            Place updated = registry.remember(values(mergeTarget.name(), candidate), tick);
-            return new Outcome(Decision.UPDATE, updated.id(), updated.name());
+            return new Outcome(Decision.UPDATE, mergeTarget.id(), mergeTarget.name());
         }
 
         String name = freePreferredName(registry, candidate);
@@ -77,8 +78,7 @@ public final class PlaceAutoRegistration {
         if (name == null) {
             return new Outcome(Decision.SKIP, 0, "");
         }
-        Place created = registry.remember(values(name, candidate), tick);
-        return new Outcome(Decision.CREATE, created.id(), created.name());
+        return new Outcome(Decision.CREATE, 0, name);
     }
 
     private static String freePreferredName(PlaceRegistry registry, PlaceCandidate candidate) {
@@ -101,12 +101,6 @@ public final class PlaceAutoRegistration {
         } catch (IllegalArgumentException exhausted) {
             return null;
         }
-    }
-
-    private static PlaceValues values(String name, PlaceCandidate candidate) {
-        return new PlaceValues(
-                name, candidate.kind(), candidate.label(), candidate.dimension(), candidate.anchor(),
-                candidate.radius(), Set.of(), candidate.source(), null, "");
     }
 
     private static long chebyshev(Pos first, Pos second) {

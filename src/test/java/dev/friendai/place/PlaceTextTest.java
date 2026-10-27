@@ -69,17 +69,18 @@ class PlaceTextTest {
         assertEquals(
                 "- home (house, minecraft:overworld) at 120 64 -30, r=8\n"
                         + "- пшеничная (farm/wheat, minecraft:overworld) at 0 70 9, r=4",
-                PlaceText.planner(List.of(home, wheat), 10_000));
+                PlaceText.planner(List.of(home, wheat), 40));
     }
 
     @Test
-    void plannerDropsLinesThatDoNotFit() {
+    void plannerRendersAtMostThePlaceLimit() {
         Place home = place(3, "home", PlaceKind.HOUSE, new Pos(0, 64, 0));
         Place mine = place(7, "mine", PlaceKind.MINE, new Pos(40, 40, 0));
-        int oneLine = PlaceText.planner(List.of(home), 10_000).length();
-        String planned = PlaceText.planner(List.of(home, mine), oneLine);
-        assertEquals(PlaceText.planner(List.of(home), 10_000), planned);
-        assertFalse(planned.endsWith("\n"));
+        String one = PlaceText.planner(List.of(home, mine), 1);
+        assertEquals(PlaceText.planner(List.of(home), 1), one);
+        assertFalse(one.endsWith("\n"));
+        assertEquals("", PlaceText.planner(List.of(home, mine), 0));
+        assertEquals(PlaceText.planner(List.of(home, mine), 40), PlaceText.planner(List.of(home, mine), 2));
     }
 
     @Test

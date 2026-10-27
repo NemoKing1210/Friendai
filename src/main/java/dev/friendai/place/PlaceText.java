@@ -9,8 +9,9 @@ import java.util.Objects;
  * knowledge section and the {@code find_place} tool result. Everything is preformatted by the caller, so this
  * class stays free of worlds, directions and clocks.
  *
- * <p>Each renderer adds whole lines only; a line that would push the text past {@code maxChars} is dropped
- * together with every line after it. No renderer ends with a newline.
+ * <p>{@link #prompt} and {@link #summary} add whole lines only; a line that would push the text past
+ * {@code maxChars} is dropped together with every line after it. {@link #planner} is bounded by a place count
+ * instead, because its caller passes {@code places.plannerLimit}. No renderer ends with a newline.
  */
 public final class PlaceText {
 
@@ -44,15 +45,25 @@ public final class PlaceText {
         return out.toString();
     }
 
-    /** Exact coordinates for the planner's knowledge section; no header, one {@code - name (...)} line per place. */
-    public static String planner(List<Place> places, int maxChars) {
+    /**
+     * Exact coordinates for the planner's knowledge section; no header, at most {@code limit} places, one
+     * {@code - name (...)} line each. A non-positive limit renders nothing.
+     */
+    public static String planner(List<Place> places, int limit) {
+        if (places == null || limit <= 0) {
+            return "";
+        }
         StringBuilder out = new StringBuilder();
-        if (places != null) {
-            for (Place place : places) {
-                if (place == null || !appendLine(out, plannerLine(place), maxChars)) {
-                    break;
-                }
+        int rendered = 0;
+        for (Place place : places) {
+            if (place == null || rendered >= limit) {
+                break;
             }
+            if (!out.isEmpty()) {
+                out.append('\n');
+            }
+            out.append(plannerLine(place));
+            rendered++;
         }
         return out.toString();
     }
