@@ -2,6 +2,11 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.obtain.Spiral;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.mining.MiningBounds;
@@ -10,11 +15,6 @@ import dev.friendai.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.debug.DebugAction;
-import dev.friendai.debug.WorkCell;
-import dev.friendai.debug.WorkKind;
-import dev.friendai.debug.WorkSet;
-import dev.friendai.debug.WorkStatus;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -139,21 +139,42 @@ public final class ExploreTask implements Task {
         if (origin == null) return List.of();
         List<WorkCell> cells = new java.util.ArrayList<>();
         BlockPos start = BlockPos.containing(origin);
-        cells.add(new WorkCell(start.getX(), start.getY(), start.getZ(), DebugAction.USE, WorkStatus.DONE, "Search origin"));
+        cells.add(new WorkCell(
+                start.getX(), start.getY(), start.getZ(), DebugAction.USE, WorkStatus.DONE, "Search origin"));
         if (waypoint != null) {
             BlockPos next = BlockPos.containing(waypoint);
-            if (!next.equals(start)) cells.add(new WorkCell(next.getX(), next.getY(), next.getZ(), DebugAction.USE,
-                    WorkStatus.NEXT, down ? "Search excavation waypoint" : "Explore waypoint"));
+            if (!next.equals(start))
+                cells.add(new WorkCell(
+                        next.getX(),
+                        next.getY(),
+                        next.getZ(),
+                        DebugAction.USE,
+                        WorkStatus.NEXT,
+                        down ? "Search excavation waypoint" : "Explore waypoint"));
         }
         if (miningSession != null && miningSession.target() != null) {
             BlockPos target = miningSession.target();
-            cells.add(new WorkCell(target.getX(), target.getY(), target.getZ(), DebugAction.BREAK, WorkStatus.NEXT,
+            cells.add(new WorkCell(
+                    target.getX(),
+                    target.getY(),
+                    target.getZ(),
+                    DebugAction.BREAK,
+                    WorkStatus.NEXT,
                     "Excavate while searching"));
         }
-        int doneCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
+        int doneCount = (int)
+                cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
         int nextCount = cells.size() - doneCount;
-        return List.of(new WorkSet("Search for " + target.label(), WorkKind.SECTORS, cells.size(), doneCount,
-                nextCount, 0, 0, false, cells));
+        return List.of(new WorkSet(
+                "Search for " + target.label(),
+                WorkKind.SECTORS,
+                cells.size(),
+                doneCount,
+                nextCount,
+                0,
+                0,
+                false,
+                cells));
     }
 
     private TaskStatus surfaceTick(TaskContext c) {

@@ -103,16 +103,24 @@ public final class MovementDebugRenderer {
                 String action = actionLabel(target.action());
                 String detail = detailLabel(target.detail());
                 String label = detail.isBlank() ? action : action + " · " + detail;
-                Gizmos.billboardText(clipLabel(label), new Vec3(target.x() + 0.5, target.y() + 1.35,
-                        target.z() + 0.5), TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
+                Gizmos.billboardText(
+                                clipLabel(label),
+                                new Vec3(target.x() + 0.5, target.y() + 1.35, target.z() + 0.5),
+                                TextGizmo.Style.forColorAndCentered(color))
+                        .setAlwaysOnTop();
             }
         }
         for (var set : view.workSets()) {
-            var anchor = set.cells().stream().filter(cell -> cell.status() == dev.friendai.debug.WorkStatus.NEXT)
-                    .findFirst().orElse(set.cells().isEmpty() ? null : set.cells().getFirst());
+            var anchor = set.cells().stream()
+                    .filter(cell -> cell.status() == dev.friendai.debug.WorkStatus.NEXT)
+                    .findFirst()
+                    .orElse(set.cells().isEmpty() ? null : set.cells().getFirst());
             if (anchor != null && visibleCell(anchor.x(), anchor.y(), anchor.z())) {
-                Gizmos.billboardText(clipLabel(set.label()), new Vec3(anchor.x() + 0.5, anchor.y() + 1.65,
-                        anchor.z() + 0.5), TextGizmo.Style.forColorAndCentered(0xFFE8D7FF)).setAlwaysOnTop();
+                Gizmos.billboardText(
+                                clipLabel(set.label()),
+                                new Vec3(anchor.x() + 0.5, anchor.y() + 1.65, anchor.z() + 0.5),
+                                TextGizmo.Style.forColorAndCentered(0xFFE8D7FF))
+                        .setAlwaysOnTop();
             }
             for (var cell : set.cells()) {
                 if (!visibleCell(cell.x(), cell.y(), cell.z())) continue;
@@ -120,12 +128,13 @@ public final class MovementDebugRenderer {
                 Gizmos.cuboid(new BlockPos(cell.x(), cell.y(), cell.z()), GizmoStyle.stroke(color, 2.5f))
                         .setAlwaysOnTop();
                 if (cell.status() == dev.friendai.debug.WorkStatus.NEXT) {
-                    Gizmos.billboardText(clipLabel(detailLabel(cell.detail())),
-                            new Vec3(cell.x() + 0.5, cell.y() + 1.35, cell.z() + 0.5),
-                            TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
+                    Gizmos.billboardText(
+                                    clipLabel(detailLabel(cell.detail())),
+                                    new Vec3(cell.x() + 0.5, cell.y() + 1.35, cell.z() + 0.5),
+                                    TextGizmo.Style.forColorAndCentered(color))
+                            .setAlwaysOnTop();
                 }
             }
-
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && current < view.route().size()) {
@@ -180,7 +189,9 @@ public final class MovementDebugRenderer {
         String intent = lineValue(view.lines(), "intent: ");
         if (intent.isBlank()) intent = lineValue(view.lines(), "free-time shift: ");
         if (intent.isBlank()) intent = lineValue(view.lines(), "free-time wish: ");
-        if (!intent.isBlank()) lines.add(Component.translatable("friendai.debug.hud.intent", intent).getString());
+        if (!intent.isBlank())
+            lines.add(
+                    Component.translatable("friendai.debug.hud.intent", intent).getString());
         String navigation = lineValue(view.lines(), "navigator: ");
         if (!navigation.isBlank()) {
             lines.add(Component.translatable("friendai.debug.hud.navigation", navigationLabel(navigation))
@@ -205,9 +216,19 @@ public final class MovementDebugRenderer {
         }
         for (var set : view.workSets()) {
             String suffix = set.truncated()
-                    ? " · " + Component.translatable("friendai.debug.work.truncated").getString() : "";
-            lines.add(Component.translatable("friendai.debug.hud.work_set", set.label(), set.done(), set.next(),
-                    set.pending(), set.skipped(), suffix).getString());
+                    ? " · "
+                            + Component.translatable("friendai.debug.work.truncated")
+                                    .getString()
+                    : "";
+            lines.add(Component.translatable(
+                            "friendai.debug.hud.work_set",
+                            set.label(),
+                            set.done(),
+                            set.next(),
+                            set.pending(),
+                            set.skipped(),
+                            suffix)
+                    .getString());
         }
         return lines.stream().map(MovementDebugRenderer::clipHudLine).toList();
     }

@@ -119,7 +119,8 @@ public class ClientConfig {
         migrateTts(tts);
         json.add("voice", voice);
         JsonObject debug = json.has("debug") && json.get("debug").isJsonObject()
-                ? json.getAsJsonObject("debug") : new JsonObject();
+                ? json.getAsJsonObject("debug")
+                : new JsonObject();
         addIfMissing(debug, "movementOverlay", false);
         json.add("debug", debug);
         json.addProperty("version", CURRENT_VERSION);

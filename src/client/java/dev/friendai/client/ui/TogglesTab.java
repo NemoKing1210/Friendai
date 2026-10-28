@@ -1,7 +1,7 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.RequestType;
 import net.minecraft.client.gui.Font;

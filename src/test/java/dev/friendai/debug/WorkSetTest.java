@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 class WorkSetTest {
     @Test
     void rejectsCountsThatDoNotMatchTheWork() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(
+                IllegalArgumentException.class,
                 () -> new WorkSet("ore", WorkKind.BLOCKS, 3, 0, 1, 1, 0, false, List.of()));
     }
 
@@ -30,7 +31,8 @@ class WorkSetTest {
     void rejectsRepresentedCellsThatExceedTheirStatusCount() {
         WorkCell cell = new WorkCell(0, 0, 0, DebugAction.BREAK, WorkStatus.DONE, "ore");
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(
+                IllegalArgumentException.class,
                 () -> new WorkSet("ore", WorkKind.BLOCKS, 1, 0, 0, 1, 0, false, List.of(cell)));
     }
 

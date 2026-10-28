@@ -8,6 +8,10 @@ import dev.friendai.build.StructureParts;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
@@ -19,10 +23,6 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
-import dev.friendai.debug.WorkCell;
-import dev.friendai.debug.WorkKind;
-import dev.friendai.debug.WorkSet;
-import dev.friendai.debug.WorkStatus;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
@@ -1351,15 +1351,24 @@ public final class BuildTask implements Task {
             else if (current != null && current.equals(spec)) status = WorkStatus.NEXT;
             else if (index < cursor && !deferredPending) status = WorkStatus.DONE;
             else status = WorkStatus.PENDING;
-            cells.add(new WorkCell(placedSpec.pos().getX(), placedSpec.pos().getY(), placedSpec.pos().getZ(),
-                    DebugAction.PLACE, status, "Place build block"));
+            cells.add(new WorkCell(
+                    placedSpec.pos().getX(),
+                    placedSpec.pos().getY(),
+                    placedSpec.pos().getZ(),
+                    DebugAction.PLACE,
+                    status,
+                    "Place build block"));
         }
-        int doneCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
-        int nextCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
-        int pendingCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.PENDING).count();
+        int doneCount = (int)
+                cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
+        int nextCount = (int)
+                cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
+        int pendingCount = (int) cells.stream()
+                .filter(cell -> cell.status() == WorkStatus.PENDING)
+                .count();
         int totalCount = cells.size();
-        return List.of(new WorkSet(blueprint.name(), WorkKind.BUILD, totalCount, doneCount, nextCount, pendingCount,
-                0, false, cells));
+        return List.of(new WorkSet(
+                blueprint.name(), WorkKind.BUILD, totalCount, doneCount, nextCount, pendingCount, 0, false, cells));
     }
 
     @Override

@@ -42,16 +42,15 @@ class WorkSetBudgetTest {
         for (int x = 1; x <= 255; x++) {
             firstCells.add(cell(x, 64, 0, WorkStatus.PENDING));
         }
-        List<WorkCell> secondCells = List.of(cell(-1000, 64, 0, WorkStatus.NEXT),
-                cell(-1, 64, 0, WorkStatus.PENDING));
+        List<WorkCell> secondCells = List.of(cell(-1000, 64, 0, WorkStatus.NEXT), cell(-1, 64, 0, WorkStatus.PENDING));
         WorkSet first = new WorkSet("first", WorkKind.BLOCKS, 256, 0, 1, 255, 0, false, firstCells);
         WorkSet second = new WorkSet("second", WorkKind.BLOCKS, 2, 0, 1, 1, 0, false, secondCells);
 
         List<WorkSet> result = WorkSetBudget.select(List.of(first, second), 0, 64, 0);
 
         assertEquals(2, result.size());
-        assertTrue(result.stream().allMatch(set -> set.cells().stream()
-                .anyMatch(cell -> cell.status() == WorkStatus.NEXT)));
+        assertTrue(result.stream()
+                .allMatch(set -> set.cells().stream().anyMatch(cell -> cell.status() == WorkStatus.NEXT)));
         assertEquals(256, result.stream().mapToInt(set -> set.cells().size()).sum());
     }
 

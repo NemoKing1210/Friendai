@@ -12,8 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MovementDebugWorkSetCodecTest {
-    private static final byte[] OLD_EMPTY_VIEW = HexFormat.of().parseHex(
-            "00000007FFFFFFFF0000000000000000000000");
+    private static final byte[] OLD_EMPTY_VIEW = HexFormat.of().parseHex("00000007FFFFFFFF0000000000000000000000");
 
     @Test
     void oldPayloadDecodesWithoutWorkSets() {
@@ -26,8 +25,17 @@ class MovementDebugWorkSetCodecTest {
     void roundTripsWorkSetStatusCountsAndCells() {
         WorkCell cell = new WorkCell(4, 65, -2, DebugAction.BREAK, WorkStatus.NEXT, "deepslate");
         WorkSet set = new WorkSet("ore vein", WorkKind.BLOCKS, 3, 1, 1, 0, 1, true, List.of(cell));
-        MovementDebug view = new MovementDebug(3, 1, List.of(), List.of(), List.of(), List.of(),
-                List.of("task: mine_blocks"), List.of(), List.of(), List.of(set));
+        MovementDebug view = new MovementDebug(
+                3,
+                1,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of("task: mine_blocks"),
+                List.of(),
+                List.of(),
+                List.of(set));
 
         MovementDebug decoded = MovementDebug.decode(view.encode());
 
@@ -43,8 +51,8 @@ class MovementDebugWorkSetCodecTest {
             out.writeByte(255);
         });
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> MovementDebug.decode(bytes));
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
 
         assertTrue(error.getMessage().startsWith("unknown work-set kind"), error.getMessage());
     }
@@ -53,8 +61,8 @@ class MovementDebugWorkSetCodecTest {
     void rejectsWorkSetCountAboveProtocolLimit() throws IOException {
         byte[] bytes = extension(out -> out.writeByte(9));
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> MovementDebug.decode(bytes));
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
 
         assertTrue(error.getMessage().startsWith("too many work sets"), error.getMessage());
     }
@@ -74,15 +82,16 @@ class MovementDebugWorkSetCodecTest {
             out.writeShort(257);
         });
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> MovementDebug.decode(bytes));
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
 
         assertTrue(error.getMessage().startsWith("too many work-set cells"), error.getMessage());
     }
 
     @Test
     void rejectsUnknownWorkCellActionOrdinal() throws IOException {
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
                 () -> MovementDebug.decode(oneCellExtension(255, WorkStatus.NEXT.ordinal())));
 
         assertTrue(error.getMessage().startsWith("unknown work-set action"), error.getMessage());
@@ -90,7 +99,8 @@ class MovementDebugWorkSetCodecTest {
 
     @Test
     void rejectsUnknownWorkCellStatusOrdinal() throws IOException {
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
                 () -> MovementDebug.decode(oneCellExtension(DebugAction.BREAK.ordinal(), 255)));
 
         assertTrue(error.getMessage().startsWith("unknown work-set status"), error.getMessage());
@@ -117,11 +127,12 @@ class MovementDebugWorkSetCodecTest {
             out.writeUTF("ore");
         });
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> MovementDebug.decode(bytes));
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> MovementDebug.decode(bytes));
 
         assertTrue(error.getMessage().startsWith("work-set counts"), error.getMessage());
     }
+
     private static byte[] oneCellExtension(int action, int status) throws IOException {
         return extension(out -> {
             out.writeByte(1);

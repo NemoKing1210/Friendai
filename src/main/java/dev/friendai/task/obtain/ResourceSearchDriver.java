@@ -1,6 +1,11 @@
 package dev.friendai.task.obtain;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.knowledge.search.ResourceSearchProfile;
 import dev.friendai.knowledge.search.SearchCoverage;
 import dev.friendai.knowledge.search.SearchHint;
@@ -12,12 +17,6 @@ import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.debug.DebugAction;
-import dev.friendai.debug.WorkCell;
-import dev.friendai.debug.WorkKind;
-import dev.friendai.debug.WorkSet;
-import dev.friendai.debug.WorkStatus;
-import dev.friendai.task.nav.ResourceJourney;
 import dev.friendai.task.builtin.ExploreTask;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.nav.ResourceJourney;
@@ -256,16 +255,25 @@ public final class ResourceSearchDriver implements Task {
     public List<WorkSet> debugWorkSets() {
         SearchSession.Snapshot snapshot = session.snapshot();
         List<WorkCell> cells = new ArrayList<>();
-        Pos base = activeFrontier == null ? pendingFrontier == null ? snapshot.origin() : pendingFrontier.position()
+        Pos base = activeFrontier == null
+                ? pendingFrontier == null ? snapshot.origin() : pendingFrontier.position()
                 : activeFrontier.position();
-        cells.add(new WorkCell(base.x(), base.y(), base.z(), DebugAction.USE, WorkStatus.NEXT,
-                "Inspect " + target.label()));
+        cells.add(new WorkCell(
+                base.x(), base.y(), base.z(), DebugAction.USE, WorkStatus.NEXT, "Inspect " + target.label()));
         if (origin != null && (origin.x() != base.x() || origin.y() != base.y() || origin.z() != base.z())) {
-            cells.add(new WorkCell(origin.x(), origin.y(), origin.z(), DebugAction.USE, WorkStatus.DONE,
-                    "Search origin"));
+            cells.add(new WorkCell(
+                    origin.x(), origin.y(), origin.z(), DebugAction.USE, WorkStatus.DONE, "Search origin"));
         }
-        return List.of(new WorkSet("Search for " + target.label(), WorkKind.SECTORS, cells.size(),
-                cells.size() - 1, 1, 0, 0, false, cells));
+        return List.of(new WorkSet(
+                "Search for " + target.label(),
+                WorkKind.SECTORS,
+                cells.size(),
+                cells.size() - 1,
+                1,
+                0,
+                0,
+                false,
+                cells));
     }
 
     /** Whether this search has already seen the target; persisted when an expedition walks home. */

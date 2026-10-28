@@ -90,8 +90,11 @@ public class MineBlocksTests {
         runner.tick();
         var work = task.debugWorkSets().getFirst();
         h.assertValueEqual(work.total(), 6, "vein work-set total");
-        h.assertTrue(vein.stream().allMatch(pos -> work.cells().stream().anyMatch(cell -> cell.x() == pos.getX()
-                        && cell.y() == pos.getY() && cell.z() == pos.getZ())),
+        h.assertTrue(
+                vein.stream()
+                        .allMatch(pos -> work.cells().stream()
+                                .anyMatch(cell ->
+                                        cell.x() == pos.getX() && cell.y() == pos.getY() && cell.z() == pos.getZ())),
                 "work set should include all planned vein blocks: " + work.cells());
         h.succeed();
     }
@@ -220,8 +223,11 @@ public class MineBlocksTests {
         runner.start(task, "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(task.debugWorkSets().stream().flatMap(set -> set.cells().stream())
-                            .anyMatch(cell -> cell.x() == target.getX() && cell.y() == target.getY()
+            h.assertTrue(
+                    task.debugWorkSets().stream()
+                            .flatMap(set -> set.cells().stream())
+                            .anyMatch(cell -> cell.x() == target.getX()
+                                    && cell.y() == target.getY()
                                     && cell.z() == target.getZ()),
                     "task work set should contain the live mining candidate");
             var targets = task.debugTargets();

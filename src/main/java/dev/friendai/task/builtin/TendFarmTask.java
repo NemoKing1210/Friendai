@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.debug.WorkSet;
 import dev.friendai.task.farming.Crops;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.farming.FarmReport;

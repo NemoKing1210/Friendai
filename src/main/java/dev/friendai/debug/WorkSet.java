@@ -23,7 +23,11 @@ public record WorkSet(
         }
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(cells, "cells");
-        if (total < 0 || done < 0 || next < 0 || pending < 0 || skipped < 0
+        if (total < 0
+                || done < 0
+                || next < 0
+                || pending < 0
+                || skipped < 0
                 || (long) done + next + pending + skipped != total) {
             throw new IllegalArgumentException("work-set counts must be nonnegative and sum to total");
         }
@@ -47,8 +51,16 @@ public record WorkSet(
 
     /** Copies this set with the selected wire cells while preserving full-set counts. */
     WorkSet withCells(List<WorkCell> selected) {
-        return new WorkSet(label, kind, total, done, next, pending, skipped,
-                truncated || selected.size() < cells.size(), selected);
+        return new WorkSet(
+                label,
+                kind,
+                total,
+                done,
+                next,
+                pending,
+                skipped,
+                truncated || selected.size() < cells.size(),
+                selected);
     }
 
     WorkSet markTruncated() {

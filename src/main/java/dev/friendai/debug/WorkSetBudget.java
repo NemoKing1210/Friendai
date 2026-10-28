@@ -27,7 +27,8 @@ public final class WorkSetBudget {
             WorkCell next = sets.get(i).cells().stream()
                     .filter(cell -> cell.status() == WorkStatus.NEXT)
                     .min(Comparator.comparingLong((WorkCell cell) -> distanceSquared(cell, originX, originY, originZ))
-                            .thenComparingInt(WorkCell::x).thenComparingInt(WorkCell::y)
+                            .thenComparingInt(WorkCell::x)
+                            .thenComparingInt(WorkCell::y)
                             .thenComparingInt(WorkCell::z))
                     .orElse(null);
             if (next != null && totalSelected < MAX_WORK_CELLS) {
@@ -48,9 +49,9 @@ public final class WorkSetBudget {
                 candidates.add(new IndexedCell(i, cell, distanceSquared(cell, originX, originY, originZ)));
             }
         }
-        candidates.sort(Comparator.comparingInt((IndexedCell item) -> priority(item.cell().status()))
-                .thenComparingLong(item -> item.cell().status() == WorkStatus.PENDING
-                        ? item.distance() : 0L)
+        candidates.sort(Comparator.comparingInt(
+                        (IndexedCell item) -> priority(item.cell().status()))
+                .thenComparingLong(item -> item.cell().status() == WorkStatus.PENDING ? item.distance() : 0L)
                 .thenComparingInt(IndexedCell::setIndex)
                 .thenComparingInt(item -> item.cell().x())
                 .thenComparingInt(item -> item.cell().y())

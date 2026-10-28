@@ -13,7 +13,15 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TaskDebugTest {
-    private static final WorkSet WORK = new WorkSet("sample", WorkKind.BLOCKS, 1, 0, 1, 0, 0, false,
+    private static final WorkSet WORK = new WorkSet(
+            "sample",
+            WorkKind.BLOCKS,
+            1,
+            0,
+            1,
+            0,
+            0,
+            false,
             List.of(new WorkCell(1, 2, 3, DebugAction.BREAK, WorkStatus.NEXT, "sample")));
 
     @Test
@@ -24,8 +32,7 @@ class TaskDebugTest {
     @Test
     void sequence_exposes_only_its_active_step_work_set() {
         Task child = new WorkTask();
-        SequenceTask sequence = new SequenceTask("goal", List.of(
-                new PlanEntry("sample", ignored -> child)), () -> 100);
+        SequenceTask sequence = new SequenceTask("goal", List.of(new PlanEntry("sample", ignored -> child)), () -> 100);
         assertEquals(List.of(), sequence.debugWorkSets());
         sequence.start(null);
         sequence.tick(null);
@@ -33,15 +40,31 @@ class TaskDebugTest {
     }
 
     private static class EmptyTask implements Task {
-        public String type() { return "empty"; }
+        public String type() {
+            return "empty";
+        }
+
         public void start(TaskContext c) {}
-        public TaskStatus tick(TaskContext c) { return TaskStatus.RUNNING; }
+
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.RUNNING;
+        }
+
         public void stop(TaskContext c) {}
-        public String describe() { return "empty"; }
-        public String resultSummary() { return ""; }
+
+        public String describe() {
+            return "empty";
+        }
+
+        public String resultSummary() {
+            return "";
+        }
     }
 
     private static final class WorkTask extends EmptyTask {
-        @Override public List<WorkSet> debugWorkSets() { return List.of(WORK); }
+        @Override
+        public List<WorkSet> debugWorkSets() {
+            return List.of(WORK);
+        }
     }
 }

@@ -31,13 +31,14 @@ public record DebugDetail(String translationKey, String argument) {
             return new DebugDetail(exact, "");
         }
         for (String[] prefix : new String[][] {
-                {"Craft ", "friendai.debug.detail.craft"},
-                {"Smelt ", "friendai.debug.detail.smelt"},
-                {"Mine ", "friendai.debug.detail.mine"},
-                {"Inspect ", "friendai.debug.detail.inspect"},
-                {"Place ", "friendai.debug.detail.place"},
-                {"Take back ", "friendai.debug.detail.take_back"},
-                {"Collect ", "friendai.debug.detail.collect"}}) {
+            {"Craft ", "friendai.debug.detail.craft"},
+            {"Smelt ", "friendai.debug.detail.smelt"},
+            {"Mine ", "friendai.debug.detail.mine"},
+            {"Inspect ", "friendai.debug.detail.inspect"},
+            {"Place ", "friendai.debug.detail.place"},
+            {"Take back ", "friendai.debug.detail.take_back"},
+            {"Collect ", "friendai.debug.detail.collect"}
+        }) {
 
             if (value.startsWith(prefix[0])) {
                 return new DebugDetail(prefix[1], value.substring(prefix[0].length()));

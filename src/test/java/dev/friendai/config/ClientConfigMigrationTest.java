@@ -36,10 +36,13 @@ class ClientConfigMigrationTest {
         assertEquals("Mic", c.voice.stt.inputDevice);
         assertEquals(10, c.voice.stt.maxRecordSec);
         assertFalse(c.voice.tts.enabled);
-        assertEquals(4, JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
-                .getAsJsonObject().get("version").getAsInt());
+        assertEquals(
+                4,
+                JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
+                        .getAsJsonObject()
+                        .get("version")
+                        .getAsInt());
         assertFalse(c.debug.movementOverlay);
-
     }
 
     @Test
@@ -115,10 +118,14 @@ class ClientConfigMigrationTest {
     @Test
     void version3AddsDisabledMovementOverlayAndPreservesVoice() {
         JsonObject json = JsonParser.parseString("""
-            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""")
-                .getAsJsonObject();
+            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""").getAsJsonObject();
         JsonObject migrated = ClientConfig.migrate(json, 3);
-        assertEquals("openai", migrated.getAsJsonObject("voice").getAsJsonObject("stt").get("provider").getAsString());
+        assertEquals(
+                "openai",
+                migrated.getAsJsonObject("voice")
+                        .getAsJsonObject("stt")
+                        .get("provider")
+                        .getAsString());
         assertFalse(migrated.getAsJsonObject("debug").get("movementOverlay").getAsBoolean());
         assertEquals(4, migrated.get("version").getAsInt());
     }
@@ -128,10 +135,9 @@ class ClientConfigMigrationTest {
         ClientConfig config = ClientConfig.defaults();
         config.debug.movementOverlay = true;
         Path file = dir.resolve("friendai-client.json");
-        ConfigStore<ClientConfig> store = new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+        ConfigStore<ClientConfig> store = new ConfigStore<>(
+                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
         store.save(config);
         assertTrue(store.load().debug.movementOverlay);
-
     }
 }

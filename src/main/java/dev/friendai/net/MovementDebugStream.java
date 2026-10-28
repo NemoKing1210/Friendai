@@ -84,7 +84,8 @@ public final class MovementDebugStream {
         c.taskRunner().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
         var ownerId = c.ownerUuid();
         if (ownerId != null) {
-            var freeTime = FriendaiServerState.get(c.level().getServer()).freeTime().state(ownerId);
+            var freeTime =
+                    FriendaiServerState.get(c.level().getServer()).freeTime().state(ownerId);
             if (freeTime.shift() != null && !freeTime.shift().goal().isBlank()) {
                 lines.add("free-time shift: " + freeTime.shift().goal());
             } else if (freeTime.awaitingChoice()) {
@@ -153,10 +154,12 @@ public final class MovementDebugStream {
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
         List<WorkSet> workSets = WorkSetBudget.select(
                 c.taskRunner().current().map(Task::debugWorkSets).orElse(List.of()),
-                c.blockPosition().getX(), c.blockPosition().getY(), c.blockPosition().getZ());
-        List<String> upcoming = MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
-        return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming,
-                workSets);
-
+                c.blockPosition().getX(),
+                c.blockPosition().getY(),
+                c.blockPosition().getZ());
+        List<String> upcoming =
+                MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
+        return new MovementDebug(
+                c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming, workSets);
     }
 }
