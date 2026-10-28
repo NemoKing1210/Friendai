@@ -1,9 +1,10 @@
-package dev.friendai.core;
+package dev.friendai.server.agent;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.GoalService;
 import dev.friendai.brain.AccessResolver;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.brain.BrainSettings;
@@ -12,29 +13,27 @@ import dev.friendai.brain.LlmGateway;
 import dev.friendai.brain.Persona;
 import dev.friendai.brain.Speaker;
 import dev.friendai.chat.CompanionSpeaker;
-import dev.friendai.config.ConfigException;
-import dev.friendai.config.SecretResolver;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.core.OutcomeFacts;
+import dev.friendai.core.SkillService;
 import dev.friendai.debug.DebugLog;
 import dev.friendai.debug.DebugLogObserver;
 import dev.friendai.debug.DebugService;
 import dev.friendai.debug.LogKind;
-import dev.friendai.debug.SecretRedactor;
 import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.LlmClient;
-import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.provider.ProviderRegistry;
-import dev.friendai.memory.AutoProfile;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
 import dev.friendai.memory.MemoryStore;
+import dev.friendai.perception.PerceptionContext;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceService;
+import dev.friendai.place.PlaceStore;
 import dev.friendai.place.PlaceText;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobState;
@@ -43,6 +42,7 @@ import dev.friendai.queue.PlanRecord;
 import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
@@ -61,8 +61,7 @@ import dev.friendai.tool.builtin.MemoryAccess;
 import dev.friendai.tool.builtin.TaskToolDef;
 import dev.friendai.trading.TradeAuthority;
 import dev.friendai.trading.TradePromptSummary;
-import java.net.http.HttpClient;
-import java.time.Duration;
+import dev.friendai.trading.TradeStore;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -70,58 +69,62 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
-public final class BrainService implements AutoCloseable {
-    private record Entry(CompanionBrain brain) {}
-
+public final class CompanionSessions implements AutoCloseable {
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final Map<UUID, Entry> entries = new HashMap<>();
-    private final Map<UUID, TradeAuthority> tradeAuthorities = new HashMap<>();
+    private final Supplier<ServerSettings> settings;
+    private final SkillService skills;
+    private final GoalService goals;
+    private final TradeStore trading;
+    private final PlaceStore places;
+    private final Supplier<PerceptionContext> perceptionContext;
+    private final Map<UUID, CompanionSession> sessions = new HashMap<>();
     private boolean acceptingWork = true;
-    private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
-    private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
     private final ToolRegistry<CompanionEntity> tools;
     /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
     private final Map<String, TaskToolDef> planTools;
 
     private final Map<String, TaskToolDef> taskTools;
-    private final DebugService debug =
-            new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
+    private final AgentGatewayFactory gateways = new AgentGatewayFactory();
+    private final DebugService debug;
+    private final PlannerAdapter planners;
     private final FreeTimeDriver freeTime;
 
-    private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
-    private final Map<UUID, Long> lastGoalTick = new HashMap<>();
-    /** Unanswered goal nudges per owner; reset when the owner speaks or the companion starts working. */
-    private final Map<UUID, Integer> nudgeStreak = new HashMap<>();
-    /** How the companion learns the owner's language: seeded from the book, fed only by the owner's own messages. */
-    private final Map<UUID, dev.friendai.text.LanguageMemory> ownerLanguages = new HashMap<>();
-
     private long lastAgentCheck;
-    private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
-    private LlmGateway current;
-    /** The model that drafts plans when {@code agent.planner} names a profile; null means the main one. */
-    private LlmGateway plannerGateway;
 
-    private String activeModel = "";
-    private String activeProvider = "";
-    private String plannerProfileName = "";
-    private String plannerModel = "";
-
-    public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
+    public CompanionSessions(
+            MinecraftServer server,
+            ServerConfig initial,
+            MemoryStore memory,
+            Supplier<ServerSettings> settings,
+            SkillService skills,
+            GoalService goals,
+            TradeStore trading,
+            PlaceStore places,
+            ResourceCandidates resources,
+            dev.friendai.agent.autonomy.FreeTimeService freeTimeService) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
+        this.settings = settings;
+        this.skills = skills;
+        this.goals = goals;
+        this.trading = trading;
+        this.places = places;
+        this.perceptionContext = () -> new PerceptionContext(resources, settings.get(), freeTimeService);
+        this.debug = new DebugService(gateways.redactor(), System::currentTimeMillis);
+        this.planners = new PlannerAdapter(scheduler, debug, gateways, () -> this.config, settings);
         FriendaiTools.Builtins builtins = FriendaiTools.build(
-                () -> FriendaiServerState.get(server).settings().tasks().mineSearchRadius(),
-                () -> FriendaiServerState.get(server).settings().tasks().treeSearchRadius(),
+                () -> settings.get().tasks().mineSearchRadius(),
+                () -> settings.get().tasks().treeSearchRadius(),
                 new MemoryAccess() {
                     @Override
                     public boolean enabled() {
@@ -137,17 +140,23 @@ public final class BrainService implements AutoCloseable {
                     public MemoryBook book(UUID owner) {
                         return memory.book(owner);
                     }
-                });
+                },
+                perceptionContext);
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
-        this.freeTime = new FreeTimeDriver(server, this, () -> this.config, taskTools, planTools);
+        this.freeTime = new FreeTimeDriver(
+                server, this, () -> this.config, settings, freeTimeService, places, taskTools, planTools);
         reload(initial);
     }
 
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
         return freeTime;
+    }
+
+    Supplier<PerceptionContext> perceptionContext() {
+        return perceptionContext;
     }
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
@@ -163,18 +172,17 @@ public final class BrainService implements AutoCloseable {
         boolean combat = companion
                 .map(c -> c.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE)
                 .orElse(false);
-        var session = FriendaiServerState.get(server)
-                .skills()
-                .begin(
-                        owner,
-                        new Caller(owner, "", AccessLevel.OWNER),
-                        input.goal().text(),
-                        dev.friendai.brain.TurnKind.EVENT,
-                        task,
-                        autonomous,
-                        true,
-                        combat);
-        return plannerFor(owner).propose(input.withInstructions(session.sections(), config.agent.promptBudget));
+        var skillSession = skills.begin(
+                owner,
+                new Caller(owner, "", AccessLevel.OWNER),
+                input.goal().text(),
+                dev.friendai.brain.TurnKind.EVENT,
+                task,
+                autonomous,
+                true,
+                combat);
+        return planners.propose(
+                session(owner), input.withInstructions(skillSession.sections(), config.agent.promptBudget));
     }
 
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
@@ -190,86 +198,17 @@ public final class BrainService implements AutoCloseable {
     /** Rebuilds the LLM client from the config. A broken profile gives a gateway that reports the problem. */
     public void reload(ServerConfig cfg) {
         this.config = cfg;
-        ServerConfig.ProfileConfig profile = cfg.profiles.get(cfg.activeProfile);
-        activeProvider = profile == null ? "?" : profile.provider;
-        activeModel = profile == null ? "?" : profile.model;
-        HttpTransport transport = new HttpTransport(
-                httpClient, Duration.ofSeconds(cfg.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
-        try {
-            current = new LlmClient(ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv));
-        } catch (ConfigException e) {
-            current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
-        }
-        plannerGateway = null;
-        plannerProfileName = cfg.activeProfile;
-        plannerModel = profile == null ? "?" : profile.model;
-        String plannerProfile = cfg.agent.planner;
-        if (plannerProfile != null && !plannerProfile.isBlank()) {
-            if (cfg.profiles.containsKey(plannerProfile)) {
-                try {
-                    plannerGateway = new LlmClient(
-                            ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(plannerProfile, System::getenv));
-                    plannerProfileName = plannerProfile;
-                    plannerModel = cfg.profiles.get(plannerProfile).model;
-                } catch (ConfigException e) {
-                    FriendaiMod.LOGGER.warn("The planner profile is unusable; the main profile plans instead");
-                }
-            } else {
-                FriendaiMod.LOGGER.warn("agent.planner names an unknown profile; the main profile plans instead");
-            }
-        }
-        FriendaiMod.LOGGER.info(
-                "Planner profile: {} (model {})",
-                plannerRedactor.apply(String.valueOf(plannerProfileName)),
-                plannerRedactor.apply(String.valueOf(plannerModel)));
+        gateways.reload(cfg);
     }
 
     /** Test hook: use this planner instead of the model-backed one for one owner. */
     public void setPlannerOverride(UUID owner, dev.friendai.agent.plan.Planner planner) {
-        plannerOverrides.put(owner, planner);
-    }
-
-    private dev.friendai.agent.plan.Planner plannerFor(UUID owner) {
-        dev.friendai.agent.plan.Planner override = plannerOverrides.get(owner);
-        if (override != null) {
-            return override;
-        }
-        String selectedProfile = String.valueOf(plannerProfileName);
-        String selectedModel = String.valueOf(plannerModel);
-        LlmGateway selectedGateway =
-                plannerGateway != null ? plannerGateway : gatewayOverrides.getOrDefault(owner, current);
-        int plannerTimeout = config.agent.plannerTimeoutSec;
-        int plannerAttempts = Math.max(1, Math.min(4, config.agent.plannerRetries));
-        return new dev.friendai.agent.plan.LlmPlanner(
-                () -> selectedGateway,
-                plannerRedactor,
-                plannerTimeout,
-                Math.min(12, FriendaiServerState.get(server).settings().tasks().queueMaxStepsPerAdd()),
-                8192,
-                49152,
-                plannerAttempts,
-                event -> onServerThread(() -> {
-                    String failure = event.failure() == null
-                            ? ""
-                            : " failure=" + event.failure().code() + ": "
-                                    + plannerRedactor.apply(event.failure().detail());
-                    String reply = plannerRedactor.apply(event.reply() == null ? "" : event.reply());
-                    if (reply.length() > 1200) {
-                        reply = reply.substring(0, 1200) + "…";
-                    }
-                    debug.logOf(owner)
-                            .add(
-                                    LogKind.PLANNER,
-                                    "planner profile=" + plannerRedactor.apply(selectedProfile) + " model="
-                                            + plannerRedactor.apply(selectedModel)
-                                            + " attempt=" + event.attempt() + " disposition=" + event.disposition()
-                                            + failure + " reply=" + reply);
-                }));
+        session(owner).plannerOverride(planner);
     }
 
     /** The effective model used for plan drafting, after unknown or unusable profiles fall back. */
     public String plannerModel() {
-        return plannerModel;
+        return planners.model();
     }
 
     /** Adds an operator-only planner lifecycle entry. Call on the server thread. */
@@ -278,25 +217,29 @@ public final class BrainService implements AutoCloseable {
     }
 
     public String activeProvider() {
-        return activeProvider;
+        return gateways.activeProvider();
     }
 
     public String activeModel() {
-        return activeModel;
+        return gateways.activeModel();
     }
 
     /** Test hook: use this gateway instead of the configured one for one owner. */
     public void setGatewayOverride(UUID owner, LlmGateway gateway) {
-        gatewayOverrides.put(owner, gateway);
+        session(owner).gatewayOverride(gateway);
     }
 
     /** Test hook: wrap the speaker of one owner's brain. Must be set before the brain is created. */
     public void setSpeakerWrapper(UUID owner, UnaryOperator<Speaker> wrapper) {
-        speakerWrappers.put(owner, wrapper);
+        session(owner).speakerWrapper(wrapper);
     }
 
     public Optional<CompanionBrain> brainOf(UUID owner) {
-        return Optional.ofNullable(entries.get(owner)).map(Entry::brain);
+        return Optional.ofNullable(sessions.get(owner)).map(CompanionSession::brain);
+    }
+
+    public Optional<CompanionSession> find(UUID owner) {
+        return Optional.ofNullable(sessions.get(owner));
     }
 
     public DebugService debug() {
@@ -309,7 +252,7 @@ public final class BrainService implements AutoCloseable {
 
     /** The system prompt the owner's next LLM request would carry; empty if they have no companion. */
     public Optional<String> currentPrompt(UUID owner) {
-        return entryFor(owner).map(e -> e.brain().currentSystemPrompt());
+        return entryFor(owner).map(session -> session.brain().currentSystemPrompt());
     }
 
     /** Runs a tool by hand, as if the model had called it. Never throws. */
@@ -344,72 +287,48 @@ public final class BrainService implements AutoCloseable {
 
     public void post(UUID owner, BrainEvent event) {
         if (event instanceof BrainEvent.PlayerSaid said) {
-            nudgeStreak.remove(owner);
+            session(owner).resetNudgeStreak();
             if (owner.equals(said.playerUuid())) {
                 freeTime.ownerActivity(owner, FreeTimeDriver.now());
-                observeOwnerProfile(owner, said.playerName(), said.text());
+                session(owner)
+                        .profileObserver()
+                        .observe(
+                                said.playerName(),
+                                said.text(),
+                                config != null && config.memory.enabled,
+                                config == null ? MemoryLimits.DEFAULTS : config.memory.limits(),
+                                System.currentTimeMillis());
             }
         }
-        entryFor(owner).ifPresent(entry -> entry.brain().post(event));
+        entryFor(owner).ifPresent(session -> session.brain().post(event));
     }
 
-    /**
-     * Learns the profile from the owner's own message: the language, the address they ask for and the
-     * preferences they state. Only this branch reaches here, so a guest cannot set any of it, and the language
-     * tracker switches only on a sustained change: one short reply or one quoted command is not evidence. An
-     * explicit request wins in the prompt, which treats the learned language as a default. Auto-capture is
-     * skipped when memory is disabled and never fails a turn when the book is full.
-     */
-    private void observeOwnerProfile(UUID owner, String name, String text) {
-        MemoryBook book = memory.book(owner);
-        book.ensurePlayer(owner, name);
-        dev.friendai.text.LanguageMemory tracker = ownerLanguages.computeIfAbsent(
-                owner,
-                id -> dev.friendai.text.LanguageMemory.startingAt(
-                        book.ownerLanguage(id).orElse(null)));
-        tracker.observe(dev.friendai.text.LanguageDetector.detect(text))
-                .ifPresent(language -> book.setOwnerLanguage(owner, language));
-        if (config == null || !config.memory.enabled) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        MemoryLimits limits = config.memory.limits();
-        book.ownerLanguage(owner)
-                .ifPresent(language -> AutoProfile.syncLanguage(book, owner, name, language, now, limits));
-        AutoProfile.record(book, owner, name, text, now, limits);
+    private CompanionSession session(UUID owner) {
+        return sessions.computeIfAbsent(owner, id -> new CompanionSession(id, memory.book(id)));
     }
 
-    private Optional<Entry> entryFor(UUID owner) {
+    private Optional<CompanionSession> entryFor(UUID owner) {
         if (!acceptingWork) return Optional.empty();
-        Entry entry = entries.get(owner);
-        if (entry == null) {
-            Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
-            if (companion.isEmpty()) {
-                return Optional.empty();
-            }
-            entry = create(owner, companion.get());
+        CompanionSession session = session(owner);
+        Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+        if (companion.isEmpty()) {
+            return Optional.empty();
         }
-        return Optional.of(entry);
-    }
-
-    private List<String> configuredSecrets() {
-        List<String> secrets = new ArrayList<>();
-        for (ServerConfig.ProfileConfig profile : config.profiles.values()) {
-            secrets.add(SecretResolver.resolve(profile.apiKey, System::getenv));
+        if (session.brain() == null || session.companion() != companion.get()) {
+            if (session.brain() != null) session.invalidateBrain();
+            create(session, companion.get());
         }
-        return secrets;
+        return Optional.of(session);
     }
 
     public dev.friendai.skill.SkillPromptSession skillSession(UUID owner) {
-        Entry entry = entries.get(owner);
-        return entry == null
-                ? dev.friendai.skill.SkillPromptSession.NONE
-                : entry.brain().skillSession();
+        CompanionSession session = sessions.get(owner);
+        return session == null ? dev.friendai.skill.SkillPromptSession.NONE : session.skillSession();
     }
 
     public dev.friendai.skill.TeachingContext teachingContext(UUID owner) {
-        Entry entry = entries.get(owner);
-        return entry == null ? null : entry.brain().teachingContext();
+        CompanionSession session = sessions.get(owner);
+        return session == null ? null : session.teachingContext();
     }
 
     public void skillOutcome(
@@ -418,22 +337,18 @@ public final class BrainService implements AutoCloseable {
     }
 
     public void cancel(UUID owner) {
-        Entry entry = entries.get(owner);
-        if (entry != null) {
-            entry.brain().cancel();
-        }
+        CompanionSession session = sessions.get(owner);
+        if (session != null && session.brain() != null) session.brain().cancel();
     }
 
     /** The owner's companion is gone (death, dismissal, unload): drop its brain. */
     public void onCompanionRemoved(UUID owner) {
-        Entry entry = entries.remove(owner);
-        if (entry != null) {
-            entry.brain().cancel();
-        }
+        CompanionSession session = sessions.get(owner);
+        if (session != null) session.invalidateBrain();
     }
 
-    /** The entity instance changed during an explicit cross-dimension teleport; rebuild its bound brain on demand. */
-    public void onCompanionReplaced(UUID owner) {
+    /** Invalidates entity-bound work before a replacement companion receives a new session brain. */
+    public void onEntityReplaced(UUID owner) {
         onCompanionRemoved(owner);
     }
 
@@ -454,9 +369,9 @@ public final class BrainService implements AutoCloseable {
     /** Restore a durable task queue after the companion's saved owner and tools are available. */
     public void restoreQueue(CompanionEntity companion, String saved) {
         if (saved == null || companion.ownerUuid() == null) return;
-        tradeAuthority(companion.ownerUuid()).invalidateAll("trading authority expired after restart");
-        Optional<QueueSave.Decoded> decoded = QueueSave.decode(
-                saved, FriendaiServerState.get(server).settings().queueLimits());
+        session(companion.ownerUuid()).tradingAuthority().invalidateAll("trading authority expired after restart");
+        Optional<QueueSave.Decoded> decoded =
+                QueueSave.decode(saved, settings.get().queueLimits());
         if (decoded.isEmpty()) {
             FriendaiMod.LOGGER.warn("Discarding malformed task queue for {}", companion.ownerUuid());
             return;
@@ -590,7 +505,7 @@ public final class BrainService implements AutoCloseable {
             return Optional.empty();
         }
         if (companion.ownerUuid() != null) {
-            tradeAuthority(companion.ownerUuid()).invalidateAll("trading authority expired after restart");
+            session(companion.ownerUuid()).tradingAuthority().invalidateAll("trading authority expired after restart");
         }
         PlanSave.Saved data = decoded.get();
         if (data.steps().stream().anyMatch(this::spendingPlanStep)) {
@@ -610,7 +525,7 @@ public final class BrainService implements AutoCloseable {
         Task active = data.active() == null || !(companion.level() instanceof ServerLevel level)
                 ? null
                 : TaskFactory.restore(data.active(), level).orElse(null);
-        int timeoutTicks = FriendaiServerState.get(server).settings().tasks().taskTimeoutSec() * 20;
+        int timeoutTicks = settings.get().tasks().taskTimeoutSec() * 20;
         return Optional.of(
                 SequenceTask.resumed(data.goal(), entries, data.index(), data.done(), active, () -> timeoutTicks));
     }
@@ -624,15 +539,14 @@ public final class BrainService implements AutoCloseable {
     public void stopAcceptingWork() {
         if (!acceptingWork) return;
         acceptingWork = false;
-        for (Entry entry : List.copyOf(entries.values())) entry.brain().cancel();
+        for (CompanionSession session : List.copyOf(sessions.values())) session.invalidateBrain();
         invalidateTradingAuthorities("server stopping");
     }
 
     @Override
     public void close() {
         stopAcceptingWork();
-        entries.clear();
-        tradeAuthorities.clear();
+        sessions.clear();
     }
 
     /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
@@ -647,7 +561,6 @@ public final class BrainService implements AutoCloseable {
         if (autonomy == dev.friendai.brain.AgentSettings.Autonomy.PASSIVE) {
             return;
         }
-        var goals = FriendaiServerState.get(server).goals();
         long wall = FreeTimeDriver.now();
         for (CompanionEntity companion : CompanionManager.get(server).all()) {
             UUID owner = companion.ownerUuid();
@@ -656,20 +569,22 @@ public final class BrainService implements AutoCloseable {
             }
             var primary = goals.board(owner).primary();
             // Free time needs the task listener a brain installs, even before the owner has said anything.
-            Entry brain = freeTime.state(owner).on() ? entryFor(owner).orElse(null) : entries.get(owner);
+            CompanionSession brain =
+                    freeTime.state(owner).on() ? entryFor(owner).orElse(null) : sessions.get(owner);
             try {
                 freeTime.tick(
                         owner,
                         companion,
-                        brain != null && brain.brain().isThinking(),
+                        brain != null && brain.isThinking(),
                         primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
                         wall);
             } catch (RuntimeException e) {
                 FriendaiMod.LOGGER.warn("Free time failed for {}", owner, e);
             }
         }
-        for (Map.Entry<UUID, Entry> entry : new ArrayList<>(entries.entrySet())) {
+        for (Map.Entry<UUID, CompanionSession> entry : new ArrayList<>(sessions.entrySet())) {
             UUID owner = entry.getKey();
+            if (entry.getValue().brain() == null) continue;
             CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
             if (companion == null) {
                 continue;
@@ -677,12 +592,16 @@ public final class BrainService implements AutoCloseable {
             var board = goals.board(owner);
             var primary = board.primary();
             boolean active = primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
-            long last = lastGoalTick.computeIfAbsent(owner, id -> now);
+            long last = entry.getValue().lastGoalTick();
+            if (last == 0L) {
+                last = now;
+                entry.getValue().lastGoalTick(now);
+            }
             boolean idle = queueIdleOrBlocked(companion);
             if (!idle) {
-                nudgeStreak.remove(owner); // working again: the next idle spell starts with a fresh interval
+                entry.getValue().resetNudgeStreak(); // a new idle spell starts with a fresh interval
             }
-            int streak = nudgeStreak.getOrDefault(owner, 0);
+            int streak = entry.getValue().nudgeStreak();
             if (dev.friendai.agent.tick.NudgeBackoff.exhausted(streak)) {
                 continue;
             }
@@ -694,18 +613,18 @@ public final class BrainService implements AutoCloseable {
                             || companion.taskRunner().suspended()
                             || companion.isSleeping()
                             || companion.getTarget() != null,
-                    entry.getValue().brain().isThinking(),
+                    entry.getValue().isThinking(),
                     now,
                     last,
                     autonomy,
                     dev.friendai.agent.tick.NudgeBackoff.intervalSec(config.agent.goalTickSec, streak));
             if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
-                lastGoalTick.put(owner, now);
-                nudgeStreak.merge(owner, 1, Integer::sum);
+                entry.getValue().lastGoalTick(now);
+                entry.getValue().incrementNudgeStreak();
                 post(owner, new BrainEvent.IdleNudge());
             } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
-                lastGoalTick.put(owner, now);
-                nudgeStreak.merge(owner, 1, Integer::sum);
+                entry.getValue().lastGoalTick(now);
+                entry.getValue().incrementNudgeStreak();
                 var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
                 guard.refresh();
                 post(
@@ -751,9 +670,7 @@ public final class BrainService implements AutoCloseable {
 
         @Override
         public boolean ownsPlan(long planId) {
-            return FriendaiServerState.get(server)
-                    .goals()
-                    .board(owner)
+            return goals.board(owner)
                     .primary()
                     .map(goal -> goal.planId() == planId)
                     .orElse(false);
@@ -761,7 +678,7 @@ public final class BrainService implements AutoCloseable {
 
         @Override
         public Optional<dev.friendai.agent.plan.PlannerInput> input(Caller caller, String failure) {
-            var board = FriendaiServerState.get(server).goals().board(owner);
+            var board = goals.board(owner);
             var primary = board.primary();
             if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
                 return Optional.empty();
@@ -780,14 +697,11 @@ public final class BrainService implements AutoCloseable {
                     dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), facts, null, 20, false);
             return Optional.of(new dev.friendai.agent.plan.PlannerInput(
                     primary.get(),
-                    new CompanionPerception(companion).describe(caller),
+                    new CompanionPerception(companion, perceptionContext).describe(caller),
                     digest.toString(),
                     PlaceText.planner(
                             config.places.enabled && caller.access().allows(AccessLevel.TRUSTED)
-                                    ? FriendaiServerState.get(server)
-                                            .places()
-                                            .book(owner)
-                                            .all()
+                                    ? places.book(owner).all()
                                     : List.of(),
                             config.places.plannerLimit),
                     Optional.of(queue),
@@ -800,12 +714,11 @@ public final class BrainService implements AutoCloseable {
         @Override
         public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
                 dev.friendai.agent.plan.PlannerInput input) {
-            return BrainService.this.propose(owner, input);
+            return CompanionSessions.this.propose(owner, input);
         }
 
         @Override
         public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanProposal proposal) {
-            var goals = FriendaiServerState.get(server).goals();
             var board = goals.board(owner);
             var primary = board.primary();
             var executor = tools.bind(companion);
@@ -886,7 +799,6 @@ public final class BrainService implements AutoCloseable {
                                 new dev.friendai.task.queue.CompanionGuardFacts(companion))
                         .factsLine();
                 last = after;
-                var goals = FriendaiServerState.get(server).goals();
                 var board = goals.board(owner);
                 var priorGoals = board.all();
                 String extra;
@@ -944,7 +856,8 @@ public final class BrainService implements AutoCloseable {
         };
     }
 
-    private Entry create(UUID owner, CompanionEntity companion) {
+    private CompanionSession create(CompanionSession session, CompanionEntity companion) {
+        UUID owner = session.owner();
         CompanionSpeaker speaker = new CompanionSpeaker(
                 server,
                 owner,
@@ -954,8 +867,7 @@ public final class BrainService implements AutoCloseable {
                 companion::getUUID,
                 () -> config.chat.hearingRadius);
         // With the owner away (free time can keep working) the companion has nobody to talk to.
-        Speaker effective = speakerWrappers
-                .getOrDefault(owner, s -> s)
+        Speaker effective = session.speakerWrapper()
                 .apply(new dev.friendai.brain.OwnerPresentSpeaker(
                         speaker, () -> companion.owner().isPresent()));
         CompanionBrain brain = new CompanionBrain(
@@ -969,20 +881,20 @@ public final class BrainService implements AutoCloseable {
                         config.brain.historyMessages,
                         config.brain.cooldownMs,
                         config.chat.guestCooldownMs),
-                () -> gatewayOverrides.getOrDefault(owner, current),
+                () -> gateways.main(session),
                 endsFreeTime(owner, tools.bind(companion)),
-                new CompanionPerception(companion),
+                new CompanionPerception(companion, perceptionContext),
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
                 caller -> config.memory.enabled ? MemoryPromptRenderer.render(memory.book(owner), owner, caller) : "");
-        brain.setTradingTurnPort(tradeAuthority(owner));
+        brain.setTradingTurnPort(session.tradingAuthority());
         brain.setTradingPromptSource((caller, request) -> {
             if (caller.access() != AccessLevel.OWNER
                     || !owner.equals(caller.uuid())
                     || !(companion.level() instanceof ServerLevel level)) return "";
-            var book = FriendaiServerState.get(server).trading().book(owner);
-            var tradingConfig = FriendaiServerState.get(server).settings().trading();
+            var book = trading.book(owner);
+            var tradingConfig = settings.get().trading();
             return TradePromptSummary.render(
                     book,
                     companion.hands().player().getUUID(),
@@ -991,20 +903,17 @@ public final class BrainService implements AutoCloseable {
                     tradingConfig.quoteFreshTicks(),
                     tradingConfig.locationFreshTicks());
         });
-        brain.setSkillSource((caller, message, turn) -> FriendaiServerState.get(server)
-                .skills()
-                .begin(
-                        owner,
-                        caller,
-                        message,
-                        turn,
-                        companion.taskRunner().currentToolName(),
-                        brain.isSkillFreeTimeTurn(),
-                        false,
-                        companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
+        brain.setSkillSource((caller, message, turn) -> skills.begin(
+                owner,
+                caller,
+                message,
+                turn,
+                companion.taskRunner().currentToolName(),
+                brain.isSkillFreeTimeTurn(),
+                false,
+                companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
-        java.util.Set<Long> replaced = new java.util.HashSet<>();
-        brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
+        brain.setPlannerPort(new GamePlannerPort(owner, companion, session.replacedPlans()));
         brain.setAgentSettings(() -> new dev.friendai.brain.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy),
@@ -1016,7 +925,7 @@ public final class BrainService implements AutoCloseable {
         brain.setPlacedSource(caller ->
                 config.places.enabled ? dev.friendai.placed.PlacedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {
-            var board = FriendaiServerState.get(server).goals().board(owner);
+            var board = goals.board(owner);
             var primary = board.primary();
             String plan = "";
             if (primary.isPresent() && primary.get().planId() != 0) {
@@ -1040,23 +949,28 @@ public final class BrainService implements AutoCloseable {
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                if (!isCurrent(session, companion)) return;
                 debug.historyOf(owner)
                         .add(new TaskRecord(
                                 id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
                 boolean ok = status == TaskStatus.SUCCESS;
-                post(
+                postFromSession(
+                        session,
+                        companion,
                         owner,
                         new BrainEvent.TaskFinished(id, toolName, ok, summary, agent.extra(ok, 0, toolName, summary)));
             }
 
             @Override
             public void onCancelled(int id, String toolName, String reason) {
+                if (!isCurrent(session, companion)) return;
                 debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
-                post(owner, new BrainEvent.TaskCancelled(id, toolName, reason));
+                postFromSession(session, companion, owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
 
             @Override
             public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
+                if (!isCurrent(session, companion)) return;
                 if (planId != 0) { // direct jobs are recorded through onFinished/onCancelled
                     debug.historyOf(owner)
                             .add(new TaskRecord(
@@ -1069,10 +983,14 @@ public final class BrainService implements AutoCloseable {
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
-                if (replaced.remove(planId) || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
+                if (!isCurrent(session, companion)) return;
+                if (session.replacedPlans().remove(planId)
+                        || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
                     return;
                 }
-                post(
+                postFromSession(
+                        session,
+                        companion,
                         owner,
                         new BrainEvent.PlanFinished(
                                 planId, goal, success, summary, agent.extra(success, planId, goal, summary)));
@@ -1081,10 +999,14 @@ public final class BrainService implements AutoCloseable {
             @Override
             public void onPlanBlocked(
                     long planId, String goal, long jobId, String toolName, String reason, int remaining) {
-                if (replaced.contains(planId) || freeTime.onPlanEnded(owner, companion, planId, false, reason)) {
+                if (!isCurrent(session, companion)) return;
+                if (session.replacedPlans().contains(planId)
+                        || freeTime.onPlanEnded(owner, companion, planId, false, reason)) {
                     return;
                 }
-                post(
+                postFromSession(
+                        session,
+                        companion,
                         owner,
                         new BrainEvent.PlanBlocked(
                                 planId,
@@ -1098,39 +1020,45 @@ public final class BrainService implements AutoCloseable {
 
             @Override
             public void onNotice(String text) {
-                post(owner, new BrainEvent.WorldNotice(text));
+                if (!isCurrent(session, companion)) return;
+                postFromSession(session, companion, owner, new BrainEvent.WorldNotice(text));
             }
 
             @Override
             public void onPlace(PlaceCandidate candidate, String toolName) {
+                if (!isCurrent(session, companion)) return;
                 // Not news for the model: a successful task quietly refreshes the owner's place book.
                 PlaceService.autoRegister(companion, candidate);
             }
 
             @Override
             public void onDebug(String text) {
+                if (!isCurrent(session, companion)) return;
                 debug.logOf(owner).add(LogKind.TASK, text);
             }
         });
-        Entry entry = new Entry(brain);
-        entries.put(owner, entry);
+        session.attach(companion, brain);
         FriendaiMod.LOGGER.debug("Created brain for {}", owner);
-        return entry;
+        return session;
     }
 
-    private TradeAuthority tradeAuthority(UUID owner) {
-        return tradeAuthorities.computeIfAbsent(owner, TradeAuthority::new);
+    private void postFromSession(CompanionSession session, CompanionEntity companion, UUID owner, BrainEvent event) {
+        if (isCurrent(session, companion)) post(owner, event);
+    }
+
+    private boolean isCurrent(CompanionSession session, CompanionEntity companion) {
+        return sessions.get(session.owner()) == session && session.companion() == companion;
     }
 
     /** The single runtime authority ledger for this owner; tasks must reuse it and never rebuild scopes. */
     public TradeAuthority tradeAuthorityFor(UUID owner) {
         if (owner == null) throw new IllegalArgumentException("trade authority owner is required");
-        return tradeAuthority(owner);
+        return session(owner).tradingAuthority().authority();
     }
 
     /** Revokes every runtime trading scope when server trading is disabled. */
     public void invalidateTradingAuthorities(String reason) {
-        tradeAuthorities.values().forEach(authority -> authority.invalidateAll(reason));
+        sessions.values().forEach(session -> session.tradingAuthority().invalidateAll(reason));
     }
 
     private boolean spendingJob(Job job) {

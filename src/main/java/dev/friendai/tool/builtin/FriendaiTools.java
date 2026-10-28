@@ -1,12 +1,14 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.tool.ToolRegistry;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /** The companion's skills as tools the LLM can call, grouped by domain. */
 public final class FriendaiTools {
@@ -60,6 +62,15 @@ public final class FriendaiTools {
      * @param treeRadius default search radius for {@code find_trees} and {@code fell_tree}, read on every call
      */
     public static Builtins build(IntSupplier mineRadius, IntSupplier treeRadius, MemoryAccess memory) {
+        return build(mineRadius, treeRadius, memory, null);
+    }
+
+    /** Builds the runtime registry with its server-owned perception dependencies. */
+    public static Builtins build(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            MemoryAccess memory,
+            Supplier<PerceptionContext> perceptionContext) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
         MovementTools.register(registry, defs);
@@ -78,7 +89,7 @@ public final class FriendaiTools {
         PlaceTools.register(registry, defs);
         BuildTools.register(registry, defs);
         StructureTools.register(registry, defs);
-        InfoTools.register(registry, defs, mineRadius, treeRadius);
+        InfoTools.register(registry, defs, mineRadius, treeRadius, perceptionContext);
         MemoryTools.register(registry, memory);
         TrustTools.register(registry);
         ControlTools.register(registry, defs);

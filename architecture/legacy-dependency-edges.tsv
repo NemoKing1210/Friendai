@@ -5,11 +5,7 @@ legacy-server-state-lookup	dev.friendai.client.config.FriendaiConfigScreen	dev.f
 legacy-server-state-lookup	dev.friendai.command.FriendaiCommands	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.command.PlaceCommand	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.command.SkillCommands	dev.friendai.core.FriendaiServerState	17
-legacy-server-state-lookup	dev.friendai.core.BrainService	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.core.BrainService$AgentEvents	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.core.BrainService$GamePlannerPort	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.core.CreativeModeService	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.core.FreeTimeDriver	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.entity.CompanionEntity	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionManager	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionRenamer	dev.friendai.core.FriendaiServerState	9
@@ -26,7 +22,6 @@ legacy-server-state-lookup	dev.friendai.net.SnapshotBuilder	dev.friendai.core.Fr
 legacy-server-state-lookup	dev.friendai.net.TradeRequestHandler	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.net.TradeViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.net.VoiceTranscriptHandler	dev.friendai.core.FriendaiServerState	16
-legacy-server-state-lookup	dev.friendai.perception.PerceptionBuilder	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.place.PlaceService	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.placed.PlacedService	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.autonomy.PlaceGuard	dev.friendai.core.FriendaiServerState	11

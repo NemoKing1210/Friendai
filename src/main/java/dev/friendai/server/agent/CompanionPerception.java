@@ -1,27 +1,32 @@
-package dev.friendai.core;
+package dev.friendai.server.agent;
 
 import dev.friendai.brain.PerceptionSource;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.tool.Caller;
+import java.util.function.Supplier;
 
 /** The brain's view of one companion's world, including where the speaker stands and looks. */
 public final class CompanionPerception implements PerceptionSource {
     private final CompanionEntity companion;
+    private final Supplier<PerceptionContext> context;
 
-    public CompanionPerception(CompanionEntity companion) {
+    public CompanionPerception(CompanionEntity companion, Supplier<PerceptionContext> context) {
         this.companion = companion;
+        this.context = context;
     }
 
     @Override
     public String describe() {
-        return withLastDeath(PerceptionBuilder.brief(companion, null).toPromptText());
+        return withLastDeath(
+                PerceptionBuilder.brief(companion, null, context.get()).toPromptText());
     }
 
     @Override
     public String describe(Caller caller) {
-        return withLastDeath(PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid())
+        return withLastDeath(PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid(), context.get())
                 .toPromptText());
     }
 

@@ -442,13 +442,13 @@ public class BuildTests {
         h.runAfterDelay(5, () -> {
             h.assertTrue(companion.taskRunner().current().isPresent(), "the build must still be running");
             String saved = companion.taskRunner().current().orElseThrow().saveData();
-            FriendaiServerState.get(server).brains().onOwnerLeft(owner.getUUID());
+            FriendaiServerState.get(server).sessions().onOwnerLeft(owner.getUUID());
             h.assertTrue(
                     saved.equals(
                             companion.taskRunner().current().map(Task::saveData).orElse("")),
                     "owner leave cancelled the build");
             h.assertTrue(companion.taskRunner().suspended(), "the runner must pause while the owner is away");
-            FriendaiServerState.get(server).brains().onOwnerJoined(owner.getUUID());
+            FriendaiServerState.get(server).sessions().onOwnerJoined(owner.getUUID());
             h.assertTrue(!companion.taskRunner().suspended(), "the runner must resume when the owner returns");
             companion.taskRunner().stop("test");
             h.succeed();

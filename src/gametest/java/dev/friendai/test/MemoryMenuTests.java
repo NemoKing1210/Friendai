@@ -70,7 +70,7 @@ public class MemoryMenuTests {
         h.assertTrue(
                 state.memory().book(a.getUUID()).persona().equals(Optional.of(text)),
                 "the persona should be in the sender's book");
-        var prompt = state.brains().currentPrompt(a.getUUID());
+        var prompt = state.sessions().currentPrompt(a.getUUID());
         h.assertTrue(prompt.isPresent() && prompt.get().contains(text), "prompt: " + prompt);
         h.succeed();
     }
@@ -85,7 +85,7 @@ public class MemoryMenuTests {
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, text, ""));
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, "  ", ""));
         h.assertTrue(state.memory().book(a.getUUID()).persona().isEmpty(), "the persona should be cleared");
-        String prompt = state.brains().currentPrompt(a.getUUID()).orElse("");
+        String prompt = state.sessions().currentPrompt(a.getUUID()).orElse("");
         h.assertTrue(prompt.contains(state.config().companion.description), "prompt: " + prompt);
         h.assertTrue(!prompt.contains(text), "the custom text should be gone: " + prompt);
         h.succeed();

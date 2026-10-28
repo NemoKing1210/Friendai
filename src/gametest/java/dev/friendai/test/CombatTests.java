@@ -933,7 +933,12 @@ public class CombatTests {
         c.setCombatSettings(c.combatSettings()
                 .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
                 .withStyle(dev.friendai.combat.FightingStyle.RANGED));
-        String text = dev.friendai.perception.PerceptionBuilder.brief(c).toPromptText();
+        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        String text = dev.friendai.perception.PerceptionBuilder.brief(
+                        c,
+                        new dev.friendai.perception.PerceptionContext(
+                                state.resources(), state.settings(), state.freeTime()))
+                .toPromptText();
         h.assertTrue(text.contains("combat: self_only/ranged"), "perception did not describe the policy:\n" + text);
         h.succeed();
     }

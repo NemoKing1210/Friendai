@@ -93,7 +93,7 @@ final class GoalTools {
                             args.has("reason") ? args.get("reason").getAsString() : "");
                     if (result.ok() && c.level() instanceof net.minecraft.server.level.ServerLevel level) {
                         FriendaiServerState.get(level.getServer())
-                                .brains()
+                                .sessions()
                                 .skillOutcome(
                                         owner,
                                         "goal:" + result.value().id(),

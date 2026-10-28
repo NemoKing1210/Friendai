@@ -32,7 +32,7 @@ public class VoiceTests {
     private static Recorder setUp(GameTestHelper h, ServerPlayer player) {
         var server = h.getLevel().getServer();
         Recorder recorder = new Recorder();
-        FriendaiServerState.get(server).brains().setGatewayOverride(player.getUUID(), recorder);
+        FriendaiServerState.get(server).sessions().setGatewayOverride(player.getUUID(), recorder);
         CompanionManager.get(server).summon(player);
         return recorder;
     }

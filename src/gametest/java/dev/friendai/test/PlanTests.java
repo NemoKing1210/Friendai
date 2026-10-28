@@ -332,7 +332,7 @@ public class PlanTests {
                 saved[0] = c.taskRunner().current().orElseThrow().saveData();
                 h.assertTrue(saved[0] != null && saved[0].startsWith("plan:"), "saved was " + saved[0]);
                 Task restored = FriendaiServerState.get(h.getLevel().getServer())
-                        .brains()
+                        .sessions()
                         .restorePlan(c, saved[0])
                         .orElseThrow();
                 h.assertTrue(saved[0].equals(restored.saveData()), "the plan must survive the round trip");

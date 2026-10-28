@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.agent;
 
 import dev.friendai.agent.autonomy.AutonomyFacts;
 import dev.friendai.agent.autonomy.FarmRef;

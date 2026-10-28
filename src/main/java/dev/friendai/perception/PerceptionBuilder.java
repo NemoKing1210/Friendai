@@ -1,6 +1,6 @@
 package dev.friendai.perception;
 
-import dev.friendai.core.FriendaiServerState;
+import dev.friendai.agent.autonomy.FreeTimeText;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.configuration.ServerSettings;
@@ -40,23 +40,22 @@ public final class PerceptionBuilder {
 
     private PerceptionBuilder() {}
 
-    public static PerceptionSnapshot brief(CompanionEntity c) {
-        return build(c, BRIEF_RADIUS, null);
+    public static PerceptionSnapshot brief(CompanionEntity c, PerceptionContext context) {
+        return build(c, BRIEF_RADIUS, null, context);
     }
 
     /** The brief snapshot with the view of {@code principal} (or the owner when null or offline). */
-    public static PerceptionSnapshot brief(CompanionEntity c, UUID principal) {
-        return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal));
+    public static PerceptionSnapshot brief(CompanionEntity c, UUID principal, PerceptionContext context) {
+        return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal), context);
     }
 
-    public static PerceptionSnapshot detailed(CompanionEntity c) {
-        return build(c, DETAILED_RADIUS, null);
+    public static PerceptionSnapshot detailed(CompanionEntity c, PerceptionContext context) {
+        return build(c, DETAILED_RADIUS, null, context);
     }
 
-    private static PerceptionSnapshot build(CompanionEntity c, int blockRadius, OwnerFocus focus) {
+    private static PerceptionSnapshot build(
+            CompanionEntity c, int blockRadius, OwnerFocus focus, PerceptionContext context) {
         ServerLevel level = (ServerLevel) c.level();
-        FriendaiServerState serverState = FriendaiServerState.get(level.getServer());
-        ServerSettings settings = serverState.settings();
         BlockPos pos = c.blockPosition();
         String biome = level.getBiome(pos)
                 .unwrapKey()
@@ -69,11 +68,11 @@ public final class PerceptionBuilder {
                 .orElse(null);
         String task = c.taskRunner().queueSummary();
         if (c.ownerUuid() != null) {
-            String freeTime = dev.friendai.agent.autonomy.FreeTimeText.stateLine(
-                    serverState.freeTime().state(c.ownerUuid()), System.currentTimeMillis());
+            String freeTime =
+                    FreeTimeText.stateLine(context.freeTime().state(c.ownerUuid()), System.currentTimeMillis());
             task = freeTime.isEmpty() ? task : task + "\n" + freeTime;
         }
-        ResourceCandidates resources = serverState.resources();
+        var resources = context.resources();
         return new PerceptionSnapshot(
                 pos.getX() + " " + pos.getY() + " " + pos.getZ(),
                 level.dimension().identifier().getPath(),
@@ -93,7 +92,7 @@ public final class PerceptionBuilder {
                 selfStatus(c, level, pos),
                 threats(c, level),
                 LandmarkScanner.scan(c, resources),
-                trees(c, resources, pos, settings),
+                trees(c, resources, pos, context.settings()),
                 c.experience().level(),
                 c.creativeMode());
     }

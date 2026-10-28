@@ -1,0 +1,304 @@
+package dev.friendai.test;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.Planner;
+import dev.friendai.brain.BrainEvent;
+import dev.friendai.brain.LlmGateway;
+import dev.friendai.brain.Speaker;
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
+import dev.friendai.llm.model.LlmResponse;
+import dev.friendai.llm.model.StopReason;
+import dev.friendai.llm.model.ToolCall;
+import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.llm.model.Usage;
+import dev.friendai.queue.GuardAction;
+import dev.friendai.queue.PlanDefinition;
+import dev.friendai.queue.PlanNode;
+import dev.friendai.queue.QueuedStep;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
+import dev.friendai.trading.TradeBudget;
+import dev.friendai.trading.TradeOrder;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
+
+/** Lifecycle and owner-isolation guarantees for per-owner companion sessions. */
+public class SessionLifecycleTests {
+    private static final class DeferredGateway implements LlmGateway {
+        private final CompletableFuture<LlmResponse> response = new CompletableFuture<>();
+
+        @Override
+        public CompletableFuture<LlmResponse> complete(
+                String system, List<dev.friendai.llm.model.Message> messages, List<ToolSpec> tools) {
+            return response;
+        }
+
+        void complete(String text, String toolName) {
+            List<ToolCall> calls = toolName == null
+                    ? List.of()
+                    : List.of(new ToolCall("late-call", toolName, new JsonObject(), "{}", null));
+            response.complete(new LlmResponse(
+                    text, calls, calls.isEmpty() ? StopReason.END : StopReason.TOOL_USE, new Usage(0, 0)));
+        }
+    }
+
+    private static final class CaptureSpeaker implements Speaker {
+        private Speaker delegate;
+        private final List<String> said = new CopyOnWriteArrayList<>();
+
+        void wrap(Speaker delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void say(String text) {
+            said.add(text);
+        }
+
+        @Override
+        public void thinking(boolean on) {
+            delegate.thinking(on);
+        }
+
+        @Override
+        public void error(dev.friendai.text.UserMessage message) {
+            delegate.error(message);
+        }
+    }
+
+    private static final class DeferredPlanner implements Planner {
+        private final CompletableFuture<PlanProposal> proposal = new CompletableFuture<>();
+        private boolean requested;
+
+        @Override
+        public CompletableFuture<PlanProposal> propose(dev.friendai.agent.plan.PlannerInput input) {
+            requested = true;
+            return proposal;
+        }
+    }
+
+    @GameTest(maxTicks = 120)
+    public void lateModelCompletionAfterOwnerLogoutHasNoEffects(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var sessions = FriendaiServerState.get(h.getLevel().getServer()).sessions();
+        DeferredGateway gateway = new DeferredGateway();
+        CaptureSpeaker speaker = new CaptureSpeaker();
+        sessions.setGatewayOverride(owner.getUUID(), gateway);
+        sessions.setSpeakerWrapper(owner.getUUID(), real -> {
+            speaker.wrap(real);
+            return speaker;
+        });
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        sessions.post(owner.getUUID(), said(owner, "please stay"));
+
+        h.runAfterDelay(2, () -> {
+            h.assertTrue(sessions.find(owner.getUUID()).orElseThrow().isThinking(), "the first turn should be pending");
+            sessions.onOwnerLeft(owner.getUUID());
+            gateway.complete("late reply", "stay");
+            h.runAfterDelay(3, () -> {
+                h.assertTrue(speaker.said.isEmpty(), "late text must not be spoken: " + speaker.said);
+                h.assertTrue(!hasStay(companion), "late tool call must not start stay");
+                h.succeed();
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 160)
+    public void replacedEntityRejectsOldTurnAndReceivesNewTurn(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        var sessions = FriendaiServerState.get(server).sessions();
+        CompanionManager manager = CompanionManager.get(server);
+        DeferredGateway oldGateway = new DeferredGateway();
+        CaptureSpeaker oldSpeaker = new CaptureSpeaker();
+        sessions.setGatewayOverride(owner.getUUID(), oldGateway);
+        sessions.setSpeakerWrapper(owner.getUUID(), real -> {
+            oldSpeaker.wrap(real);
+            return oldSpeaker;
+        });
+        CompanionEntity oldCompanion = manager.summon(owner);
+        sessions.post(owner.getUUID(), said(owner, "first turn"));
+
+        h.runAfterDelay(2, () -> {
+            manager.dismiss(owner);
+            CompanionEntity replacement = manager.summon(owner);
+            sessions.onEntityReplaced(owner.getUUID());
+            DeferredGateway newGateway = new DeferredGateway();
+            CaptureSpeaker newSpeaker = new CaptureSpeaker();
+            sessions.setGatewayOverride(owner.getUUID(), newGateway);
+            sessions.setSpeakerWrapper(owner.getUUID(), real -> {
+                newSpeaker.wrap(real);
+                return newSpeaker;
+            });
+            sessions.post(owner.getUUID(), said(owner, "second turn"));
+            h.runAfterDelay(2, () -> {
+                h.assertTrue(
+                        sessions.find(owner.getUUID()).orElseThrow().isThinking(),
+                        "the replacement should own the active session");
+                h.assertTrue(replacement.isThinking(), "thinking must be synced to the replacement entity");
+                h.assertTrue(!oldCompanion.isThinking(), "the replaced entity must stay idle");
+                oldGateway.complete("late old reply", "stay");
+                h.runAfterDelay(3, () -> {
+                    h.assertTrue(oldSpeaker.said.isEmpty(), "the old turn must stay silent: " + oldSpeaker.said);
+                    h.assertTrue(newSpeaker.said.isEmpty(), "the pending replacement turn is not answered yet");
+                    h.assertTrue(!hasStay(oldCompanion), "the old turn must not start a task");
+                    newGateway.complete("replacement reply", null);
+                    h.runAfterDelay(3, () -> {
+                        h.assertTrue(
+                                newSpeaker.said.contains("replacement reply"),
+                                "new session output: " + newSpeaker.said);
+                        h.assertTrue(!replacement.isThinking(), "the replacement turn should finish");
+                        h.succeed();
+                    });
+                });
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 160)
+    public void latePlannerCompletionAfterOwnerLogoutDoesNotQueueOrSpeak(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        var sessions = FriendaiServerState.get(server).sessions();
+        var goals = FriendaiServerState.get(server).goals();
+        var board = goals.board(owner.getUUID());
+        var goal = board.set("build a house", List.of(), false, server.getTickCount())
+                .value();
+        board.linkPlan(goal.id(), 99);
+        goals.save(owner.getUUID());
+        DeferredPlanner planner = new DeferredPlanner();
+        CaptureSpeaker speaker = new CaptureSpeaker();
+        sessions.setPlannerOverride(owner.getUUID(), planner);
+        sessions.setSpeakerWrapper(owner.getUUID(), real -> {
+            speaker.wrap(real);
+            return speaker;
+        });
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        sessions.post(owner.getUUID(), new BrainEvent.PlanBlocked(99, goal.text(), 1, "jump", "failed", 1));
+
+        awaitPlanner(h, planner, 20, () -> {
+            sessions.onOwnerLeft(owner.getUUID());
+            planner.proposal.complete(jumpProposal());
+            h.runAfterDelay(3, () -> {
+                h.assertTrue(speaker.said.isEmpty(), "late planner turn must not speak: " + speaker.said);
+                h.assertTrue(
+                        companion.taskRunner().queue().jobs().stream()
+                                .noneMatch(job -> job.tool().equals("jump")),
+                        "late planner proposal must not queue work");
+                h.succeed();
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 160)
+    public void ownersKeepIndependentGatewayOverridesAndTradeAuthorities(GameTestHelper h) {
+        ServerPlayer first = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer second = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
+        var server = h.getLevel().getServer();
+        var sessions = FriendaiServerState.get(server).sessions();
+        CaptureSpeaker firstSpeaker = new CaptureSpeaker();
+        CaptureSpeaker secondSpeaker = new CaptureSpeaker();
+        sessions.setGatewayOverride(first.getUUID(), textGateway("first owner reply"));
+        sessions.setGatewayOverride(second.getUUID(), textGateway("second owner reply"));
+        sessions.setSpeakerWrapper(first.getUUID(), real -> {
+            firstSpeaker.wrap(real);
+            return firstSpeaker;
+        });
+        sessions.setSpeakerWrapper(second.getUUID(), real -> {
+            secondSpeaker.wrap(real);
+            return secondSpeaker;
+        });
+        CompanionManager manager = CompanionManager.get(server);
+        manager.summon(first);
+        manager.summon(second);
+        sessions.post(first.getUUID(), said(first, "hello"));
+        sessions.post(second.getUUID(), said(second, "hello"));
+
+        h.runAfterDelay(5, () -> {
+            h.assertTrue(firstSpeaker.said.contains("first owner reply"), "first output: " + firstSpeaker.said);
+            h.assertTrue(secondSpeaker.said.contains("second owner reply"), "second output: " + secondSpeaker.said);
+            var firstAuthority = sessions.find(first.getUUID()).orElseThrow().tradingAuthority();
+            var secondAuthority = sessions.find(second.getUUID()).orElseThrow().tradingAuthority();
+            Caller firstCaller = firstAuthority.begin(new Caller(first.getUUID(), "first", AccessLevel.OWNER), true);
+            Caller secondCaller =
+                    secondAuthority.begin(new Caller(second.getUUID(), "second", AccessLevel.OWNER), true);
+            h.assertTrue(!firstCaller.tradingScope().equals(secondCaller.tradingScope()), "scopes must be owner-local");
+            TradeOrder order = order(first.getUUID(), firstCaller.tradingScope());
+            boolean rejected = false;
+            try {
+                secondAuthority.authority().authorize(firstCaller, order);
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            h.assertTrue(rejected, "one owner's authority must reject the other owner's order");
+            h.succeed();
+        });
+    }
+
+    private static void awaitPlanner(GameTestHelper h, DeferredPlanner planner, int remaining, Runnable action) {
+        if (planner.requested) {
+            action.run();
+        } else if (remaining <= 0) {
+            h.assertTrue(false, "planner request did not start");
+        } else {
+            h.runAfterDelay(1, () -> awaitPlanner(h, planner, remaining - 1, action));
+        }
+    }
+
+    private static boolean hasStay(CompanionEntity companion) {
+        return companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("stay"))
+                        .orElse(false)
+                || companion.taskRunner().queue().jobs().stream()
+                        .anyMatch(job -> job.tool().equals("stay"));
+    }
+
+    private static BrainEvent.PlayerSaid said(ServerPlayer owner, String text) {
+        return new BrainEvent.PlayerSaid(owner.getUUID(), owner.getName().getString(), text, BrainEvent.Source.CHAT);
+    }
+
+    private static LlmGateway textGateway(String text) {
+        return (system, messages, tools) ->
+                CompletableFuture.completedFuture(new LlmResponse(text, List.of(), StopReason.END, new Usage(0, 0)));
+    }
+
+    private static PlanProposal jumpProposal() {
+        JsonArray steps = new JsonArray();
+        JsonObject step = new JsonObject();
+        step.addProperty("tool", "jump");
+        steps.add(step);
+        var action = new QueuedStep("jump", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of());
+        return new PlanProposal(
+                new PlanDefinition(List.of(new PlanNode.Action(action))), steps, "hop first", "it hopped");
+    }
+
+    private static TradeOrder order(UUID owner, UUID scope) {
+        return new TradeOrder(
+                UUID.randomUUID(),
+                owner,
+                scope,
+                UUID.randomUUID(),
+                "offer",
+                1,
+                1,
+                new TradeBudget(Map.of("minecraft:emerald", 1), Map.of(), Map.of()),
+                Set.of(),
+                false,
+                true,
+                100);
+    }
+}

@@ -5,7 +5,6 @@ import com.google.gson.JsonParser;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.brain.LlmGateway;
 import dev.friendai.config.ServerConfig;
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.LogEntry;
@@ -28,6 +27,7 @@ import dev.friendai.net.DebugStream;
 import dev.friendai.net.Operators;
 import dev.friendai.net.RateLimiter;
 import dev.friendai.net.SnapshotBuilder;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -133,7 +133,7 @@ public class CompanionControlTests {
                         && original.position().distanceTo(before) < 0.01,
                 "summon must leave a companion in another dimension in place");
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        state.brains().currentPrompt(player.getUUID()); // Create entity-bound tools before the replacement.
+        state.sessions().currentPrompt(player.getUUID()); // Create entity-bound tools before the replacement.
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
         CompanionEntity moved = manager.find(player.getUUID()).orElse(null);
         h.assertTrue(
@@ -147,7 +147,7 @@ public class CompanionControlTests {
                                 .count()
                         == 1,
                 "exactly one companion must remain registered");
-        state.brains().runTool(player.getUUID(), "stay", "{}");
+        state.sessions().runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
                 moved.taskRunner()
                         .current()
@@ -166,7 +166,7 @@ public class CompanionControlTests {
         CompanionEntity companion = CompanionManager.get(server).summon(player);
         BlockPos far = h.absolutePos(new BlockPos(12, floor + 1, 12));
         companion.teleportTo(far.getX() + 0.5, far.getY(), far.getZ() + 0.5);
-        FriendaiServerState.get(server).brains().runTool(player.getUUID(), "stay", "{}");
+        FriendaiServerState.get(server).sessions().runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
                 companion
                         .taskRunner()
@@ -241,7 +241,7 @@ public class CompanionControlTests {
     public void manualToolRunWithMalformedJsonReturnsError(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         CompanionManager.get(server).summon(player);
         ToolResult result = brains.runTool(player.getUUID(), "stay", "{not json");
         h.assertTrue(result.error(), "malformed JSON must be an error result");
@@ -254,7 +254,7 @@ public class CompanionControlTests {
     public void manualToolRunExecutesTool(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         var companion = CompanionManager.get(server).summon(player);
         ToolResult result = brains.runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(!result.error(), "stay should succeed: " + result.content());
@@ -271,7 +271,8 @@ public class CompanionControlTests {
     @GameTest(maxTicks = 100)
     public void runToolWithoutCompanionIsError(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        BrainService brains = FriendaiServerState.get(h.getLevel().getServer()).brains();
+        CompanionSessions brains =
+                FriendaiServerState.get(h.getLevel().getServer()).sessions();
         ToolResult result = brains.runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(result.error(), "no companion must be an error result");
         h.succeed();
@@ -288,7 +289,7 @@ public class CompanionControlTests {
                 GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 2, 2))),
                 "cherry log should be directly visible");
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script()
                 .call("mine_blocks", "{\"block\":\"minecraft:cherry_log\",\"count\":1}")
                 .text("On it")
@@ -311,7 +312,7 @@ public class CompanionControlTests {
     public void logCapturesBrainTurn(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         brains.setGatewayOverride(player.getUUID(), new Script().text("Hi"));
         CompanionManager.get(server).summon(player);
         brains.post(
@@ -334,7 +335,7 @@ public class CompanionControlTests {
         ServerConfig withKey = ServerConfig.defaults();
         withKey.profiles.get(withKey.activeProfile).apiKey = key;
         state.applyConfig(withKey);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         brains.setGatewayOverride(player.getUUID(), new Script().text("my key is " + key));
         CompanionManager.get(server).summon(player);
         brains.post(
@@ -383,7 +384,7 @@ public class CompanionControlTests {
     public void stopRequestCancelsCurrentTask(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         var companion = CompanionManager.get(server).summon(player);
         brains.runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
@@ -408,7 +409,7 @@ public class CompanionControlTests {
     public void nonOperatorCannotRunToolOrReadLog(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         h.assertTrue(!Operators.isOperator(player), "precondition: mock player is not an operator");
         CompanionManager.get(server).summon(player);
         brains.debug().logOf(player.getUUID()).add(LogKind.ERROR, "secret detail");
@@ -431,7 +432,7 @@ public class CompanionControlTests {
     public void operatorSnapshotHasLogPerceptionAndTools(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         op(player);
         try {
             CompanionManager.get(server).summon(player);
@@ -454,7 +455,7 @@ public class CompanionControlTests {
     public void operatorSendMessageReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         brains.setGatewayOverride(player.getUUID(), new Script().text("Hi"));
         op(player);
         try {
@@ -482,7 +483,7 @@ public class CompanionControlTests {
     public void logFloodIsBoundedPerSnapshot(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         op(player);
         try {
             CompanionManager.get(server).summon(player);
@@ -503,7 +504,8 @@ public class CompanionControlTests {
     @GameTest(maxTicks = 100)
     public void subscriberIsDroppedAfterDisconnect(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        BrainService brains = FriendaiServerState.get(h.getLevel().getServer()).brains();
+        CompanionSessions brains =
+                FriendaiServerState.get(h.getLevel().getServer()).sessions();
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
@@ -628,10 +630,10 @@ public class CompanionControlTests {
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
         CompanionManager.get(server).summon(player);
-        var prompt = state.brains().currentPrompt(player.getUUID());
+        var prompt = state.sessions().currentPrompt(player.getUUID());
         h.assertTrue(prompt.isPresent(), "prompt should exist for a companion");
         h.assertTrue(prompt.get().contains(state.config().companion.name), "prompt: " + prompt.get());
-        h.assertTrue(state.brains().currentPrompt(java.util.UUID.randomUUID()).isEmpty(), "no companion, no prompt");
+        h.assertTrue(state.sessions().currentPrompt(java.util.UUID.randomUUID()).isEmpty(), "no companion, no prompt");
         h.succeed();
     }
 }

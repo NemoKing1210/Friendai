@@ -102,7 +102,7 @@ public class TrustTests {
     }
 
     private static ToolResult runTool(ServerPlayer owner, String name, String json) {
-        return FriendaiServerState.get(owner.level().getServer()).brains().runTool(owner.getUUID(), name, json);
+        return FriendaiServerState.get(owner.level().getServer()).sessions().runTool(owner.getUUID(), name, json);
     }
 
     @GameTest(maxTicks = 100)
@@ -182,14 +182,14 @@ public class TrustTests {
 
     private static Recorder gateway(GameTestHelper h, ServerPlayer owner) {
         Recorder recorder = new Recorder();
-        FriendaiServerState.get(h.getLevel().getServer()).brains().setGatewayOverride(owner.getUUID(), recorder);
+        FriendaiServerState.get(h.getLevel().getServer()).sessions().setGatewayOverride(owner.getUUID(), recorder);
         return recorder;
     }
 
     /** A test-private confirmation queue, so a synthetic future tick cannot expire another test's request. */
     private static TrustConfirmations isolated(GameTestHelper h) {
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        return new TrustConfirmations(h.getLevel().getServer(), state.memory(), state.brains(), state::config);
+        return new TrustConfirmations(h.getLevel().getServer(), state.memory(), state.sessions(), state::config);
     }
 
     @GameTest(maxTicks = 3600)

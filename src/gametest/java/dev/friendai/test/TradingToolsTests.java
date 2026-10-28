@@ -116,7 +116,7 @@ public final class TradingToolsTests {
         companion.setOwner(owner);
         Caller ownerTurn = dev.friendai.core.FriendaiServerState.get(
                         h.getLevel().getServer())
-                .brains()
+                .sessions()
                 .tradeAuthorityFor(owner)
                 .begin(new Caller(owner, "owner", AccessLevel.OWNER), true);
         ToolResult result = run(

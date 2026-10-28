@@ -97,7 +97,7 @@ public final class CompanionManager {
             // Saves made before the name tag was shown carry a name but not the visible flag.
             entity.setCustomNameVisible(true);
         }
-        if (FriendaiServerState.get(server).brains().debug().subscribers().contains(owner)) {
+        if (FriendaiServerState.get(server).sessions().debug().subscribers().contains(owner)) {
             // The menu is already open for this owner — summoned from the menu, respawned or just loaded — and the
             // companion must not start working behind it.
             entity.addMenuViewer();
@@ -203,7 +203,7 @@ public final class CompanionManager {
             return false;
         }
         register(companion);
-        FriendaiServerState.get(server).brains().onCompanionReplaced(owner);
+        FriendaiServerState.get(server).sessions().onEntityReplaced(owner);
         restoreCarry(companion, owner);
         return true;
     }
@@ -295,7 +295,7 @@ public final class CompanionManager {
         register(companion);
         // Auto-respawn may be off, or the server restarted between the death and this summon.
         if (CompanionCarryData.get(level.getServer()).carry(owner.getUUID()).isPresent()) {
-            FriendaiServerState.get(level.getServer()).brains().onCompanionReplaced(owner.getUUID());
+            FriendaiServerState.get(level.getServer()).sessions().onEntityReplaced(owner.getUUID());
             restoreCarry(companion, owner.getUUID());
         }
         return companion;

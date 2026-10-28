@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.brain.BrainEvent;
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -13,6 +12,7 @@ import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.Usage;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolResult;
@@ -78,7 +78,7 @@ public class PlannerTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
         brains.setGatewayOverride(
@@ -111,7 +111,7 @@ public class PlannerTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
         AtomicInteger requests = new AtomicInteger();
@@ -152,7 +152,7 @@ public class PlannerTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
         brains.setGatewayOverride(
@@ -180,7 +180,8 @@ public class PlannerTests {
 
     /**
      * A plan fails while its remaining work still waits for a decision and the planner cannot replace it: the
-     * companion reports it from where it stands, keeps the queue and does not start the idle follow.
+     * companion reports it from where it stands, retains the structured-plan continuation and does not start the idle
+     * follow.
      */
     @GameTest(maxTicks = 1200)
     public void a_failed_plan_is_reported_in_place_and_keeps_the_queue(GameTestHelper h) {
@@ -188,7 +189,7 @@ public class PlannerTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 12, 2, 2);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         brains.setPlannerOverride(
                 player.getUUID(),
                 input -> CompletableFuture.failedFuture(new IllegalStateException("planner is down")));
@@ -243,10 +244,23 @@ public class PlannerTests {
                     .map(dev.friendai.agent.goal.Goal::planId)
                     .orElse(0L);
             h.assertTrue(planId != 0, "the goal lost its plan");
+            var queue = c.taskRunner().queue();
+            var remainingPlan = queue.plan(planId).orElse(null);
             h.assertTrue(
-                    c.taskRunner().queue().jobsOfPlan(planId).stream()
-                            .anyMatch(job -> job.state() == dev.friendai.queue.JobState.PENDING),
-                    "the remaining step was dropped from the queue");
+                    remainingPlan != null && queue.planStatus(planId) == dev.friendai.queue.PlanStatus.NEEDS_DECISION,
+                    "the failed plan is waiting for a decision: plan=" + remainingPlan);
+            h.assertTrue(
+                    remainingPlan != null
+                            && remainingPlan.cursor() != null
+                            && !remainingPlan.cursor().stack().isEmpty()
+                            && remainingPlan.cursor().pendingAction() != null
+                            && remainingPlan.cursor().pendingAction().tool().equals("craft_item")
+                            && remainingPlan.cursor().stack().getLast().nextIndex() == 1
+                            && remainingPlan.definition().nodes().size() == 2
+                            && remainingPlan.definition().nodes().get(1)
+                                    instanceof dev.friendai.queue.PlanNode.Action action
+                            && action.step().tool().equals("jump"),
+                    "the structured plan continuation for jump was lost: " + remainingPlan);
         });
     }
 }

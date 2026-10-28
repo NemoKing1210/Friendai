@@ -1,8 +1,10 @@
 package dev.friendai.test;
 
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.PerceptionSnapshot;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -11,12 +13,18 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Blocks;
 
 public class PerceptionTests {
+    private static PerceptionSnapshot brief(CompanionEntity companion) {
+        var state = FriendaiServerState.get(companion.level().getServer());
+        return PerceptionBuilder.brief(
+                companion, new PerceptionContext(state.resources(), state.settings(), state.freeTime()));
+    }
+
     @GameTest
     public void selfReportsWhatItStandsOn(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOnGround(true);
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(p.self() != null, "no self status");
         h.assertTrue(p.self().underfoot().startsWith("stone at "), p.toPromptText());
         h.assertTrue(p.self().onGround(), p.toPromptText());
@@ -31,7 +39,7 @@ public class PerceptionTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         // isInWater() reads the fluid state cached by the entity's tick, not the block grid.
         h.succeedWhen(() -> {
-            PerceptionSnapshot p = PerceptionBuilder.brief(c);
+            PerceptionSnapshot p = brief(c);
             h.assertTrue(p.self().inWater(), p.toPromptText());
         });
     }
@@ -42,7 +50,7 @@ public class PerceptionTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         var zombie = h.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, 6, 2, 2);
         zombie.setTarget(c);
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(p.threats().size() == 1, p.toPromptText());
         h.assertTrue(p.threats().get(0).type().equals("zombie"), p.toPromptText());
         h.assertTrue(p.threats().get(0).target().equals("me"), p.toPromptText());
@@ -56,7 +64,7 @@ public class PerceptionTests {
         for (int i = 0; i < 4; i++) {
             h.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, 5 + i, 2, 5);
         }
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(p.threats().size() == 3, "threats: " + p.toPromptText());
         h.succeed();
     }
@@ -83,7 +91,7 @@ public class PerceptionTests {
         h.assertTrue(
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 7, 2))),
                 "tree leaves should be directly visible");
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(
                 p.toPromptText().contains("Trees: minecraft:cherry_log 3 blocks east (5 logs, height 5, standing)"),
                 p.toPromptText());
@@ -102,7 +110,7 @@ public class PerceptionTests {
         h.assertTrue(
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
                 "furnace should be directly visible");
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("crafting_table")), p.toPromptText());
         h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("furnace")), p.toPromptText());
         h.succeed();
@@ -139,7 +147,7 @@ public class PerceptionTests {
                     GameTestSupport.observeVisible(h, c, h.absolutePos(landmark)),
                     "landmark should be directly visible at " + landmark);
         }
-        PerceptionSnapshot p = PerceptionBuilder.brief(c);
+        PerceptionSnapshot p = brief(c);
         h.assertTrue(p.landmarks().size() == 5, "landmarks: " + p.toPromptText());
         h.succeed();
     }
@@ -179,7 +187,7 @@ public class PerceptionTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         // canSeeSky() reads propagated sky light, which the light engine settles after a tick.
         h.succeedWhen(() -> {
-            PerceptionSnapshot p = PerceptionBuilder.brief(c);
+            PerceptionSnapshot p = brief(c);
             h.assertTrue(!p.self().seesSky(), p.toPromptText());
         });
     }

@@ -54,7 +54,7 @@ public final class TradeTask implements Task {
         dimensionAtStart = context.level().dimension().identifier().toString();
         FriendaiServerState state = FriendaiServerState.get(context.level().getServer());
         if (ownerAtStart != null && ownerAtStart.equals(order.owner())) {
-            authority = state.brains().tradeAuthorityFor(ownerAtStart);
+            authority = state.sessions().tradeAuthorityFor(ownerAtStart);
             progress = currentProgress();
             traderRecord =
                     state.trading().book(order.owner()).trader(order.trader()).orElse(null);

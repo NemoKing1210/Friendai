@@ -174,7 +174,12 @@ public class HungerTests {
     public void hungerInPerception(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.hunger().load(14, 0.0f, 0.0f);
-        String text = PerceptionBuilder.brief(c).toPromptText();
+        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        String text = PerceptionBuilder.brief(
+                        c,
+                        new dev.friendai.perception.PerceptionContext(
+                                state.resources(), state.settings(), state.freeTime()))
+                .toPromptText();
         h.assertTrue(text.contains("Health: 20/20\nHunger: 14/20\n"), text);
         // Only the dedicated line: hunger must not leak into the equipment field as well. The Mode line names
         // hunger on purpose (what survival applies), so check that field, not the whole snapshot.

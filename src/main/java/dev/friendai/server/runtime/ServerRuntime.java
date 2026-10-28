@@ -75,7 +75,7 @@ public final class ServerRuntime implements AutoCloseable {
     public void onOwnerJoined(ServerPlayer player) {
         if (!acceptingWork) return;
         UUID owner = player.getUUID();
-        state.brains().onOwnerJoined(owner);
+        state.sessions().onOwnerJoined(owner);
         state.memory().book(owner);
         if (state.memory().takeCorruptionNotice(owner)) {
             player.sendSystemMessage(Component.translatable("friendai.memory.corrupt"));
@@ -89,7 +89,7 @@ public final class ServerRuntime implements AutoCloseable {
         MemoryViewStream.onDisconnect(player);
         SkillsViewStream.onDisconnect(player);
         PlaceViewStream.onDisconnect(player);
-        if (acceptingWork) state.brains().onOwnerLeft(player.getUUID());
+        if (acceptingWork) state.sessions().onOwnerLeft(player.getUUID());
     }
 
     /** Runs the unchanged server tick pipeline until shutdown starts. */

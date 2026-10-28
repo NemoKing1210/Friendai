@@ -1,6 +1,5 @@
 package dev.friendai.net;
 
-import dev.friendai.core.BrainService;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugAccess;
@@ -14,6 +13,7 @@ import dev.friendai.place.Place;
 import dev.friendai.place.PlaceLimits;
 import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceRegistry;
+import dev.friendai.server.agent.CompanionSessions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +51,7 @@ public final class CompanionRequestHandler {
         }
         var server = player.level().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         UUID owner = player.getUUID();
         RequestType type = req.request();
         if (type == RequestType.SUBSCRIBE) {
@@ -95,7 +95,7 @@ public final class CompanionRequestHandler {
                 brains.cancel(owner);
                 if (companions.teleportToOwner(player)) {
                     // Cross-dimension teleports replace the entity, while a brain captures its entity-bound tools.
-                    brains.onCompanionReplaced(owner);
+                    brains.onEntityReplaced(owner);
                 }
             }
             case DISMISS -> {

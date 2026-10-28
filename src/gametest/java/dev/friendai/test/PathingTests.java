@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.LogEntry;
 import dev.friendai.debug.LogKind;
@@ -16,6 +15,7 @@ import dev.friendai.pathing.Node;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -216,7 +216,7 @@ public class PathingTests {
     public void taskDebugReachesLog(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The task listener is installed with the owner's brain entry, as it already is for notices.
         brains.currentPrompt(player.getUUID());

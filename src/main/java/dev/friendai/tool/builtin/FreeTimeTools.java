@@ -3,9 +3,9 @@ package dev.friendai.tool.builtin;
 import com.google.gson.JsonElement;
 import dev.friendai.agent.autonomy.FreeTime;
 import dev.friendai.agent.autonomy.NeedKind;
-import dev.friendai.core.FreeTimeDriver;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.server.agent.FreeTimeDriver;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
 import dev.friendai.tool.ToolRegistry;
@@ -117,6 +117,6 @@ final class FreeTimeTools {
     }
 
     private static FreeTimeDriver driver(CompanionEntity c) {
-        return FriendaiServerState.get(c.level().getServer()).brains().freeTime();
+        return FriendaiServerState.get(c.level().getServer()).sessions().freeTime();
     }
 }

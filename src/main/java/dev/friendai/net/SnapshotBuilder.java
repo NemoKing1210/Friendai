@@ -1,6 +1,5 @@
 package dev.friendai.net;
 
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.CompanionVitals;
@@ -9,6 +8,8 @@ import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.perception.PerceptionContext;
+import dev.friendai.server.agent.CompanionSessions;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,7 +25,7 @@ public final class SnapshotBuilder {
     public static CompanionSnapshot build(ServerPlayer player, long afterLogId) {
         var server = player.level().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         UUID owner = player.getUUID();
         boolean operator = Operators.isOperator(player);
         Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
@@ -76,7 +77,11 @@ public final class SnapshotBuilder {
                 c.taskRunner().queueSummary(),
                 history,
                 log,
-                operator ? PerceptionBuilder.detailed(c).toPromptText() : "",
+                operator
+                        ? PerceptionBuilder.detailed(
+                                        c, new PerceptionContext(state.resources(), state.settings(), state.freeTime()))
+                                .toPromptText()
+                        : "",
                 toolNames,
                 vitalsOf(c),
                 c.taskRunner().queueRows(),

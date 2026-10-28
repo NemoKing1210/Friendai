@@ -343,7 +343,7 @@ public final class SearchResourceTask implements Task {
         var ledger = state.knowledge().book(ownerId).searchLedger();
         if (ledger.asked(ownerId, dimension, target.coverageKey())) return;
         ledger.markAsked(ownerId, dimension, target.coverageKey());
-        state.brains().post(ownerId, new BrainEvent.WorldNotice(message));
+        state.sessions().post(ownerId, new BrainEvent.WorldNotice(message));
     }
 
     private static FriendaiServerState serverState(TaskContext context) {

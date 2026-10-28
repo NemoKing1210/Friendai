@@ -473,7 +473,7 @@ public final class TradingTools {
                 overshoot,
                 partial,
                 deadline);
-        TradeOrder authorized = state.brains().tradeAuthorityFor(owner).authorize(caller, requested);
+        TradeOrder authorized = state.sessions().tradeAuthorityFor(owner).authorize(caller, requested);
         return new TradeTask(authorized);
     }
 
@@ -578,7 +578,7 @@ public final class TradingTools {
                     true,
                     false,
                     deadline);
-            orders.add(state.brains().tradeAuthorityFor(owner).authorize(caller, requested));
+            orders.add(state.sessions().tradeAuthorityFor(owner).authorize(caller, requested));
         }
         return new LevelTraderTask(traderId, targetLevel, orders);
     }
@@ -652,7 +652,7 @@ public final class TradingTools {
                 caller.tradingScope(), piglinId, maxIngots, target.orElse(null), targetCount, deadlineTicks);
         BarterOrder requested =
                 new BarterOrder(id, owner, caller.tradingScope(), piglinId, maxIngots, target, targetCount, deadline);
-        return new BarterTask(state.brains().tradeAuthorityFor(owner).authorizeBarter(caller, requested));
+        return new BarterTask(state.sessions().tradeAuthorityFor(owner).authorizeBarter(caller, requested));
     }
 
     private static UUID barterOrderId(

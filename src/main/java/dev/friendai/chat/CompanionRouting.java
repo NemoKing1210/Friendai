@@ -50,6 +50,6 @@ public final class CompanionRouting {
         FriendaiServerState state = FriendaiServerState.get(server);
         String name = sender.getName().getString();
         state.memory().book(owner).touch(sender.getUUID(), name, System.currentTimeMillis());
-        state.brains().post(owner, new BrainEvent.PlayerSaid(sender.getUUID(), name, text, source));
+        state.sessions().post(owner, new BrainEvent.PlayerSaid(sender.getUUID(), name, text, source));
     }
 }

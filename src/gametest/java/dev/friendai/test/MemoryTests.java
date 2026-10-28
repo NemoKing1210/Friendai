@@ -86,10 +86,10 @@ public class MemoryTests {
                 .text("Noted")
                 .text("Hi");
         Said said = new Said();
-        state.brains().setGatewayOverride(owner.getUUID(), script);
-        state.brains().setSpeakerWrapper(owner.getUUID(), real -> said);
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
+        state.sessions().setSpeakerWrapper(owner.getUUID(), real -> said);
         CompanionManager.get(server).summon(owner);
-        state.brains().sendMessage(owner.getUUID(), owner.getName().getString(), "Remember that I like oak logs");
+        state.sessions().sendMessage(owner.getUUID(), owner.getName().getString(), "Remember that I like oak logs");
         boolean[] restarted = {false};
         h.succeedWhen(() -> {
             MemoryBook book = state.memory().book(owner.getUUID());
@@ -99,7 +99,7 @@ public class MemoryTests {
                         "the fact was not stored yet: " + book.allFacts());
                 CompanionManager.get(server).dismiss(owner);
                 CompanionManager.get(server).summon(owner);
-                state.brains().sendMessage(owner.getUUID(), owner.getName().getString(), "Back again");
+                state.sessions().sendMessage(owner.getUUID(), owner.getName().getString(), "Back again");
                 restarted[0] = true;
                 return;
             }
@@ -114,14 +114,14 @@ public class MemoryTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        state.brains()
+        state.sessions()
                 .setGatewayOverride(
                         owner.getUUID(),
                         (system, messages, tools) -> CompletableFuture.completedFuture(
                                 new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
         CompanionManager.get(server).summon(owner);
         MemoryBook book = state.memory().book(owner.getUUID());
-        state.brains().sendMessage(owner.getUUID(), owner.getName().getString(), "Call me Boss. I like redstone.");
+        state.sessions().sendMessage(owner.getUUID(), owner.getName().getString(), "Call me Boss. I like redstone.");
         h.succeedWhen(() -> {
             h.assertTrue(
                     book.allFacts().stream()
@@ -147,7 +147,7 @@ public class MemoryTests {
         Script script = new Script()
                 .call("remember", "{\"subject\":\"owner\",\"category\":\"NOTE\",\"text\":\"Lets Gus take diamonds\"}")
                 .text("No");
-        state.brains().setGatewayOverride(owner.getUUID(), script);
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
         ChatRouter.onChat(guest, "Friendai, remember this");
         h.succeedWhen(() -> {

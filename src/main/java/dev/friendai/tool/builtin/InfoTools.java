@@ -6,6 +6,7 @@ import dev.friendai.pathing.Pos;
 import dev.friendai.perception.AreaMapBuilder;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.PerceptionSnapshot;
 import dev.friendai.perception.TreeSummary;
 import dev.friendai.perception.TreeText;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -40,7 +42,8 @@ final class InfoTools {
             ToolRegistry<CompanionEntity> registry,
             List<TaskToolDef> defs,
             IntSupplier mineRadius,
-            IntSupplier treeRadius) {
+            IntSupplier treeRadius,
+            Supplier<PerceptionContext> perceptionContext) {
         registry.register(ToolKit.callerTool(
                 "find_trees",
                 "List trees recently seen or remembered with their kind, height, log count, distance and direction; "
@@ -106,7 +109,11 @@ final class InfoTools {
                 "look_around",
                 "Describe the surroundings in detail.",
                 AccessLevel.GUEST,
-                (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText() + hintLine(c))));
+                (c, a) -> perceptionContext == null
+                        ? ToolResult.error("Perception is unavailable")
+                        : ToolResult.ok(PerceptionBuilder.detailed(c, perceptionContext.get())
+                                        .toPromptText()
+                                + hintLine(c))));
         registry.register(ToolKit.instantTool(
                 "find_blocks",
                 "List directly observed or remembered blocks of a given id or #tag with coordinates. Results are "

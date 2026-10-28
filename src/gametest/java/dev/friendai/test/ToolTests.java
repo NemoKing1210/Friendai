@@ -12,6 +12,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.memory.CompanionName;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.combat.Food;
 import dev.friendai.task.cooking.FurnaceJob;
@@ -43,7 +44,12 @@ public class ToolTests {
     }
 
     private static ToolExecutor tools(CompanionEntity c) {
-        return FriendaiTools.create(() -> 32).bind(c);
+        return FriendaiTools.build(() -> 32, () -> 32, dev.friendai.tool.builtin.MemoryAccess.DISABLED, () -> {
+                    var state = FriendaiServerState.get(c.level().getServer());
+                    return new PerceptionContext(state.resources(), state.settings(), state.freeTime());
+                })
+                .registry()
+                .bind(c);
     }
 
     private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {
@@ -249,7 +255,7 @@ public class ToolTests {
                         .equals("Bob"),
                 "the name should be kept in the owner's book");
 
-        var prompt = state.brains().currentPrompt(owner.getUUID());
+        var prompt = state.sessions().currentPrompt(owner.getUUID());
         h.assertTrue(prompt.isPresent() && prompt.get().contains("You are Bob"), "prompt: " + prompt);
 
         h.assertTrue(CompanionManager.get(server).dismiss(owner), "the companion should be dismissed");

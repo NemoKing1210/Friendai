@@ -23,7 +23,7 @@ final class SkillTools {
                     if (!(c.level() instanceof ServerLevel level)
                             || !caller.uuid().equals(c.ownerUuid())) return ToolResult.error("Skill access denied.");
                     return FriendaiServerState.get(level.getServer())
-                            .brains()
+                            .sessions()
                             .skillSession(c.ownerUuid())
                             .request(args.get("id").getAsString());
                 }));

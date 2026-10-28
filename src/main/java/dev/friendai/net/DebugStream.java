@@ -22,7 +22,7 @@ public final class DebugStream {
         if (++counter % INTERVAL_TICKS != 0) {
             return;
         }
-        DebugService debug = FriendaiServerState.get(server).brains().debug();
+        DebugService debug = FriendaiServerState.get(server).sessions().debug();
         for (UUID owner : debug.subscribers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(owner);
             if (player == null) {
@@ -35,7 +35,7 @@ public final class DebugStream {
 
     /** A client opened the companion menu: subscribe it, pause that player's companion and send the first snapshot. */
     public static void openMenu(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer()).brains().debug().subscribe(player.getUUID());
+        FriendaiServerState.get(player.level().getServer()).sessions().debug().subscribe(player.getUUID());
         CompanionManager.get(player.level().getServer())
                 .find(player.getUUID())
                 .ifPresent(companion -> companion.addMenuViewer());
@@ -47,14 +47,14 @@ public final class DebugStream {
      * Safe to call for a viewer that was never subscribed.
      */
     public static void closeMenu(MinecraftServer server, UUID viewer) {
-        FriendaiServerState.get(server).brains().debug().unsubscribe(viewer);
+        FriendaiServerState.get(server).sessions().debug().unsubscribe(viewer);
         CompanionManager.get(server).find(viewer).ifPresent(companion -> companion.removeMenuViewer());
     }
 
     /** Sends a snapshot now, if the player has the menu open. */
     public static void sendNow(ServerPlayer player) {
         DebugService debug =
-                FriendaiServerState.get(player.level().getServer()).brains().debug();
+                FriendaiServerState.get(player.level().getServer()).sessions().debug();
         if (debug.subscribers().contains(player.getUUID())) {
             send(player);
         }
@@ -66,7 +66,7 @@ public final class DebugStream {
 
     private static void send(ServerPlayer player) {
         DebugService debug =
-                FriendaiServerState.get(player.level().getServer()).brains().debug();
+                FriendaiServerState.get(player.level().getServer()).sessions().debug();
         UUID owner = player.getUUID();
         CompanionSnapshot snapshot = SnapshotBuilder.build(player, debug.lastSent(owner));
         List<LogEntry> log = snapshot.newLog();

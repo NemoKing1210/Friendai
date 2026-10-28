@@ -29,7 +29,7 @@ public final class ServerTickPipeline {
         state.tradeSessionGuard().tick(gameTime);
         traderRefresh.tick();
         state.observations().tick(server, gameTime);
-        state.brains().tick();
+        state.sessions().tick();
         state.chunkLoader().tick();
         CompanionManager.get(server).tick();
         state.tick(System.currentTimeMillis());

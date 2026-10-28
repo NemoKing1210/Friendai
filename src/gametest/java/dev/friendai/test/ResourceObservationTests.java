@@ -199,7 +199,7 @@ public class ResourceObservationTests {
         companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         var state = FriendaiServerState.get(h.getLevel().getServer());
-        h.assertTrue(state.brains().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
+        h.assertTrue(state.sessions().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
         CompanionManager.get(h.getLevel().getServer()).register(companion);
         var scheduler = new ObservationScheduler(state.resources()::observe);
         scheduler.register(companion);
@@ -219,7 +219,7 @@ public class ResourceObservationTests {
             var known = dev.friendai.knowledge.ResourceQuery.find(book, query);
             h.assertFalse(known.isEmpty(), "waiting for ordinary observation to record exposed coal");
             h.assertTrue(
-                    state.brains().brainOf(owner.getUUID()).isEmpty(),
+                    state.sessions().brainOf(owner.getUUID()).isEmpty(),
                     "passive observation must not start a brain turn");
             h.succeed();
         });

@@ -117,13 +117,13 @@ public class SkillsTests {
                         1,
                         false);
         List<String> systems = new ArrayList<>();
-        state.brains().setGatewayOverride(owner, (system, messages, tools) -> {
+        state.sessions().setGatewayOverride(owner, (system, messages, tools) -> {
             systems.add(system);
             return CompletableFuture.completedFuture(
                     new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
         });
         CompanionManager.get(server).summon(player);
-        state.brains().post(owner, new BrainEvent.PlayerSaid(owner, "Owner", "hello", BrainEvent.Source.CHAT));
+        state.sessions().post(owner, new BrainEvent.PlayerSaid(owner, "Owner", "hello", BrainEvent.Source.CHAT));
         boolean[] toggled = {false};
         h.succeedWhen(() -> {
             if (!systems.isEmpty() && !toggled[0]) {
@@ -139,7 +139,8 @@ public class SkillsTests {
                                 .ok(),
                         "live disable should succeed");
                 toggled[0] = true;
-                state.brains().post(owner, new BrainEvent.PlayerSaid(owner, "Owner", "again", BrainEvent.Source.CHAT));
+                state.sessions()
+                        .post(owner, new BrainEvent.PlayerSaid(owner, "Owner", "again", BrainEvent.Source.CHAT));
             }
             h.assertTrue(systems.size() >= 2, "waiting for second request");
             h.assertTrue(!systems.get(1).contains("LIVE_TOGGLE_SENTINEL"), "next turn omits disabled procedure");

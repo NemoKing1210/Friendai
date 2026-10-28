@@ -247,9 +247,9 @@ public class FreeTimeTests {
         h.succeed();
     }
 
-    private static dev.friendai.core.FreeTimeDriver driver(GameTestHelper h) {
+    private static dev.friendai.server.agent.FreeTimeDriver driver(GameTestHelper h) {
         return dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains()
+                .sessions()
                 .freeTime();
     }
 
@@ -304,8 +304,9 @@ public class FreeTimeTests {
         var result = dev.friendai.tool.builtin.FriendaiTools.addPlan(
                 c,
                 caller,
-                com.google.gson.JsonParser.parseString("{\"goal\":\"" + dev.friendai.core.FreeTimeDriver.PLAN_PREFIX
-                                + "test\",\"priority\":-10," + "\"on_failure\":\"stop_plan\",\"steps\":" + steps + "}")
+                com.google.gson.JsonParser.parseString("{\"goal\":\""
+                                + dev.friendai.server.agent.FreeTimeDriver.PLAN_PREFIX + "test\",\"priority\":-10,"
+                                + "\"on_failure\":\"stop_plan\",\"steps\":" + steps + "}")
                         .getAsJsonObject(),
                 builtins.taskTools(),
                 false,
@@ -337,7 +338,7 @@ public class FreeTimeTests {
         h.setBlock(6, 2, 6, Blocks.CHEST);
         UUID owner = UUID.randomUUID();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(owner, (system, messages, tools) -> {
             throw new AssertionError("a reflex must not ask the model");
         });
@@ -411,7 +412,7 @@ public class FreeTimeTests {
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         UUID owner = player.getUUID();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(
                 owner,
                 (system, messages, tools) -> java.util.concurrent.CompletableFuture.failedFuture(
@@ -493,7 +494,7 @@ public class FreeTimeTests {
         c.setFollowMode(false);
         h.assertTrue(!c.followMode(), "following is off");
         var result = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains()
+                .sessions()
                 .runTool(owner, "end_free_time", "{}");
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(c.followMode(), "the order to come back turns following on: " + result.content());
@@ -524,7 +525,7 @@ public class FreeTimeTests {
     private static CompanionEntity onlineCompanion(GameTestHelper h) {
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(
                 player.getUUID(),
                 (system, messages, tools) -> java.util.concurrent.CompletableFuture.failedFuture(
@@ -590,7 +591,7 @@ public class FreeTimeTests {
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setPlannerOverride(
                 owner,
                 input -> java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no plan")));
@@ -644,7 +645,7 @@ public class FreeTimeTests {
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setPlannerOverride(owner, input -> {
             h.assertTrue(!input.toolDigest().contains("attack_player"), "denied tools are not offered");
             return java.util.concurrent.CompletableFuture.completedFuture(jumpPlan());
@@ -700,7 +701,7 @@ public class FreeTimeTests {
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         var pending = new java.util.concurrent.CompletableFuture<dev.friendai.agent.plan.PlanProposal>();
         brains.setPlannerOverride(owner, input -> pending);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
@@ -909,7 +910,7 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(
                 player.getUUID(),
                 (system, messages, tools) -> java.util.concurrent.CompletableFuture.failedFuture(
@@ -931,7 +932,7 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(
                 player.getUUID(),
                 (system, messages, tools) -> java.util.concurrent.CompletableFuture.failedFuture(
@@ -1020,7 +1021,7 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 24);
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setGatewayOverride(
                 player.getUUID(),
                 (system, messages, tools) ->
@@ -1071,7 +1072,7 @@ public class FreeTimeTests {
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         brains.setPlannerOverride(owner, input -> CompletableFuture.completedFuture(jumpPlan()));
         var state = driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "practise jumping");
         h.assertTrue(!state.awaitingChoice(), "the wish does not wait for the director");
@@ -1092,7 +1093,7 @@ public class FreeTimeTests {
         drainSystemMessages(owner.channel());
         CompanionEntity companion = registered(h, owner.player().getUUID());
         var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
+                .sessions();
         h.assertTrue(
                 dev.friendai.agent.autonomy.ReflexPlans.fallback(dev.friendai.agent.autonomy.NeedKind.FOOD, null)
                         .isPresent(),
@@ -1133,7 +1134,7 @@ public class FreeTimeTests {
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         UUID owner = player.getUUID();
         var server = h.getLevel().getServer();
-        var brains = dev.friendai.core.FriendaiServerState.get(server).brains();
+        var brains = dev.friendai.core.FriendaiServerState.get(server).sessions();
         ToolScript script = new ToolScript("approach", "{\"target\":\"owner\"}");
         brains.setGatewayOverride(owner, script);
         CompanionEntity c = registered(h, owner);
@@ -1142,7 +1143,7 @@ public class FreeTimeTests {
                 .start(owner, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "", System.currentTimeMillis());
         shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
         h.assertTrue(
-                dev.friendai.core.FreeTimeDriver.DENIED.contains("follow_player"),
+                dev.friendai.server.agent.FreeTimeDriver.DENIED.contains("follow_player"),
                 "a free-time plan can never queue the follow task");
         brains.post(owner, new BrainEvent.PlayerSaid(owner, "owner", "come here", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {

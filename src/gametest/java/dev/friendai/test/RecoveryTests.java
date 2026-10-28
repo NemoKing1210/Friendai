@@ -4,7 +4,6 @@ import com.google.gson.JsonParser;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.brain.LlmGateway;
 import dev.friendai.config.ServerConfig;
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.LogEntry;
 import dev.friendai.debug.LogKind;
@@ -14,6 +13,7 @@ import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.Usage;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolResult;
@@ -38,7 +38,7 @@ public class RecoveryTests {
                 new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
     }
 
-    private static boolean logHas(BrainService brains, ServerPlayer player, String text) {
+    private static boolean logHas(CompanionSessions brains, ServerPlayer player, String text) {
         List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 200);
         return log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains(text));
     }
@@ -48,7 +48,7 @@ public class RecoveryTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
@@ -73,7 +73,7 @@ public class RecoveryTests {
         ServerConfig noReplans = ServerConfig.defaults();
         noReplans.agent.maxReplans = 0;
         state.applyConfig(noReplans);
-        BrainService brains = state.brains();
+        CompanionSessions brains = state.sessions();
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.

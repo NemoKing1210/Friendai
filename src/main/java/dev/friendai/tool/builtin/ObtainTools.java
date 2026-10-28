@@ -106,7 +106,7 @@ final class ObtainTools {
         TradingContext trading = null;
         if (caller.access() == AccessLevel.OWNER && caller.uuid() != null && caller.tradingScope() != null) {
             var authority = FriendaiServerState.get(((ServerLevel) companion.level()).getServer())
-                    .brains()
+                    .sessions()
                     .tradeAuthorityFor(caller.uuid());
             var budget = authority.budgetFor(caller.tradingScope()).orElse(null);
             if (budget != null) {

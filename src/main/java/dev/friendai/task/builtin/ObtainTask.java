@@ -368,12 +368,12 @@ public final class ObtainTask implements Task {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("planned offer disappeared"));
         if (trader.revision() != step.revision()
-                || !state.brains()
+                || !state.sessions()
                         .tradeAuthorityFor(caller.uuid())
                         .permitsPayment(step.scopeId(), offer.fingerprint())) {
             throw new IllegalStateException("planned offer or payment authority is stale");
         }
-        var authority = state.brains().tradeAuthorityFor(caller.uuid());
+        var authority = state.sessions().tradeAuthorityFor(caller.uuid());
         long deadline = authority.deadlineFor(step.scopeId());
         long now = c.level().getServer().overworld().getGameTime();
         if (deadline <= now) throw new IllegalStateException("owner trading scope expired");

@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.agent;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -26,9 +26,12 @@ import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.brain.AgentSettings.Autonomy;
 import dev.friendai.config.ServerConfig;
+import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.place.PlaceStore;
 import dev.friendai.queue.JobQueue;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.text.UserMessage;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
@@ -48,7 +51,7 @@ import net.minecraft.server.MinecraftServer;
 
 /**
  * Runs free time on the server thread: starts it after an idle spell, queues reflexes and fallbacks, keeps the
- * shift in step with its queue plan, and ends it on stop. Ticked once a second from {@link BrainService}.
+ * shift in step with its queue plan, and ends it on stop. Ticked once a second from {@link CompanionSessions}.
  */
 public final class FreeTimeDriver {
     /** Tools free time never uses, whatever the director or a template asks for. */
@@ -84,8 +87,11 @@ public final class FreeTimeDriver {
     static final long CHOICE_GRACE_MILLIS = 3_000;
 
     private final MinecraftServer server;
-    private final BrainService brains;
+    private final CompanionSessions brains;
     private final Supplier<ServerConfig> config;
+    private final Supplier<ServerSettings> settings;
+    private final FreeTimeService freeTimeService;
+    private final PlaceStore places;
     private final Map<String, TaskToolDef> taskTools;
     private final Map<String, TaskToolDef> planTools;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
@@ -110,13 +116,19 @@ public final class FreeTimeDriver {
 
     FreeTimeDriver(
             MinecraftServer server,
-            BrainService brains,
+            CompanionSessions brains,
             Supplier<ServerConfig> config,
+            Supplier<ServerSettings> settings,
+            FreeTimeService freeTimeService,
+            PlaceStore places,
             Map<String, TaskToolDef> taskTools,
             Map<String, TaskToolDef> planTools) {
         this.server = server;
         this.brains = brains;
         this.config = config;
+        this.settings = settings;
+        this.freeTimeService = freeTimeService;
+        this.places = places;
         this.taskTools = taskTools;
         this.planTools = planTools;
     }
@@ -128,7 +140,7 @@ public final class FreeTimeDriver {
     }
 
     private FreeTimeService service() {
-        return FriendaiServerState.get(server).freeTime();
+        return freeTimeService;
     }
 
     public ShiftBudget budget(UUID owner) {
@@ -462,7 +474,7 @@ public final class FreeTimeDriver {
         }
         long since = quietSince.computeIfAbsent(owner, id -> nowMillis);
         // Free time switched off on this server is not a stall: nothing may start anyway.
-        int watchdogSeconds = FriendaiServerState.get(server).settings().tasks().freeTimeWatchdogSec();
+        int watchdogSeconds = settings.get().tasks().freeTimeWatchdogSec();
         if (!IdleWatchdog.due(state.on() && s.enabled(), busy, since, nowMillis, watchdogSeconds)) {
             return;
         }
@@ -671,7 +683,7 @@ public final class FreeTimeDriver {
         planTools.forEach((name, def) -> {
             if (!DENIED.contains(name)) {
                 schemas.put(name, def.schema());
-                digest.append("- ").append(BrainService.describeTool(def)).append('\n');
+                digest.append("- ").append(CompanionSessions.describeTool(def)).append('\n');
             }
         });
         ServerConfig cfg = config.get();
@@ -679,16 +691,10 @@ public final class FreeTimeDriver {
         guard.refresh();
         return new dev.friendai.agent.plan.PlannerInput(
                 goal,
-                new CompanionPerception(companion).describe(caller),
+                new CompanionPerception(companion, brains.perceptionContext()).describe(caller),
                 digest.toString(),
                 dev.friendai.place.PlaceText.planner(
-                        cfg.places.enabled
-                                ? FriendaiServerState.get(server)
-                                        .places()
-                                        .book(owner)
-                                        .all()
-                                : List.of(),
-                        cfg.places.plannerLimit),
+                        cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
                 Optional.of(
                         dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), guard, null, 20, false)),
                 state.lessons(),

@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.PendingTrust;
 import dev.friendai.memory.TrustRequest;
+import dev.friendai.server.agent.CompanionSessions;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -24,12 +25,12 @@ import net.minecraft.server.level.ServerPlayer;
 public final class TrustConfirmations {
     private final MinecraftServer server;
     private final MemoryStore memory;
-    private final BrainService brains;
+    private final CompanionSessions brains;
     private final Supplier<ServerConfig> config;
     private final PendingTrust pending = new PendingTrust();
 
     public TrustConfirmations(
-            MinecraftServer server, MemoryStore memory, BrainService brains, Supplier<ServerConfig> config) {
+            MinecraftServer server, MemoryStore memory, CompanionSessions brains, Supplier<ServerConfig> config) {
         this.server = server;
         this.memory = memory;
         this.brains = brains;

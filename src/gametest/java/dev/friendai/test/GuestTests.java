@@ -88,7 +88,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = FriendaiServerState.get(server).brains();
+        var brains = FriendaiServerState.get(server).sessions();
         Script script = new Script().text("Hello");
         Said said = new Said();
         brains.setGatewayOverride(owner.getUUID(), script);
@@ -113,7 +113,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = FriendaiServerState.get(server).brains();
+        var brains = FriendaiServerState.get(server).sessions();
         Script script = new Script().call("stay", "{}").text("No");
         brains.setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
@@ -138,7 +138,7 @@ public class GuestTests {
                 .book(owner.getUUID())
                 .setTrusted(guest.getUUID(), guest.getName().getString(), true, 0);
         Script script = new Script().call("stay", "{}").text("Okay");
-        state.brains().setGatewayOverride(owner.getUUID(), script);
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
         ChatRouter.onChat(guest, "Friendai, stay there");
         h.succeedWhen(() -> {
@@ -157,7 +157,7 @@ public class GuestTests {
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
-        var brains = state.brains();
+        var brains = state.sessions();
         brains.setGatewayOverride(
                 owner.getUUID(),
                 (system, messages, tools) -> CompletableFuture.completedFuture(

@@ -7,7 +7,6 @@ import dev.friendai.brain.LlmGateway;
 import dev.friendai.brain.Speaker;
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.combat.ProtectionPolicy;
-import dev.friendai.core.CompanionPerception;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionCarryData;
@@ -25,11 +24,13 @@ import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.Subject;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.pathing.Pos;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.place.PlaceValues;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.agent.CompanionPerception;
 import dev.friendai.skin.SkinHash;
 import dev.friendai.survival.DeathRecord;
 import dev.friendai.task.builtin.StayTask;
@@ -403,7 +404,11 @@ public class CompanionDeathTests {
         h.succeedWhen(() -> {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
-            String prompt = new CompanionPerception(back.get()).describe();
+            var state = FriendaiServerState.get(h.getLevel().getServer());
+            String prompt = new CompanionPerception(
+                            back.get(),
+                            () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()))
+                    .describe();
             h.assertTrue(prompt.contains("Last death:"), "the prompt should carry the death, was: " + prompt);
             h.assertTrue(
                     prompt.contains(h.getLevel().dimension().identifier().getPath()),
@@ -420,8 +425,8 @@ public class CompanionDeathTests {
         UUID dead = companion.getUUID();
         Script script = new Script();
         Said said = new Said();
-        state.brains().setGatewayOverride(owner.getUUID(), script);
-        state.brains().setSpeakerWrapper(owner.getUUID(), real -> said);
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
+        state.sessions().setSpeakerWrapper(owner.getUUID(), real -> said);
 
         kill(companion, h);
 

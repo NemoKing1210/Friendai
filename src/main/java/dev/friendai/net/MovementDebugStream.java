@@ -35,7 +35,7 @@ public final class MovementDebugStream {
         if (++counter % INTERVAL_TICKS != 0) {
             return;
         }
-        DebugService debug = FriendaiServerState.get(server).brains().debug();
+        DebugService debug = FriendaiServerState.get(server).sessions().debug();
         for (UUID owner : debug.movementViewers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(owner);
             if (player == null || !Operators.isOperator(player)) {
@@ -48,12 +48,15 @@ public final class MovementDebugStream {
 
     /** Switches the overlay for the player; switching off sends an empty view so the client clears it. */
     public static void set(ServerPlayer player, boolean on) {
-        FriendaiServerState.get(player.level().getServer()).brains().debug().setMovementDebug(player.getUUID(), on);
+        FriendaiServerState.get(player.level().getServer()).sessions().debug().setMovementDebug(player.getUUID(), on);
         send(player, on);
     }
 
     public static void onDisconnect(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer()).brains().debug().setMovementDebug(player.getUUID(), false);
+        FriendaiServerState.get(player.level().getServer())
+                .sessions()
+                .debug()
+                .setMovementDebug(player.getUUID(), false);
     }
 
     private static void send(ServerPlayer player, boolean on) {

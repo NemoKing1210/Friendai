@@ -132,7 +132,8 @@ public final class TradeRequestHandler {
                     var result = dev.friendai.tool.builtin.TradingTools.previewFromMenu(companion, caller, args);
                     player.sendSystemMessage(Component.literal(result.content()));
                 } else if (request.action() == TradeRequestC2SPayload.Action.SUBMIT) {
-                    caller = state.brains().tradeAuthorityFor(player.getUUID()).begin(caller, true);
+                    caller =
+                            state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .taskRunner()
                             .start(
@@ -140,7 +141,8 @@ public final class TradeRequestHandler {
                                     "traders_menu");
                 } else if (request.action() == TradeRequestC2SPayload.Action.BARTER) {
                     args.remove("kind");
-                    caller = state.brains().tradeAuthorityFor(player.getUUID()).begin(caller, true);
+                    caller =
+                            state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .taskRunner()
                             .start(

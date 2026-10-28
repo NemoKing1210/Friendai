@@ -1157,7 +1157,7 @@ public class CompanionEntity extends PathfinderMob {
         if (level() instanceof ServerLevel serverLevel) {
             Optional<String> savedQueue = readSavedQueue(input);
             if (savedQueue.isPresent()) {
-                FriendaiServerState.get(serverLevel.getServer()).brains().restoreQueue(this, savedQueue.get());
+                FriendaiServerState.get(serverLevel.getServer()).sessions().restoreQueue(this, savedQueue.get());
             } else {
                 input.getString("SavedTask")
                         .flatMap(saved -> restoreTask(saved, serverLevel))
@@ -1204,7 +1204,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Plans are rebuilt with the server's tool set; every other task restores on its own. */
     private Optional<Task> restoreTask(String saved, ServerLevel level) {
         if (saved.startsWith(PlanSave.PREFIX)) {
-            return FriendaiServerState.get(level.getServer()).brains().restorePlan(this, saved);
+            return FriendaiServerState.get(level.getServer()).sessions().restorePlan(this, saved);
         }
         return TaskFactory.restore(saved, level);
     }

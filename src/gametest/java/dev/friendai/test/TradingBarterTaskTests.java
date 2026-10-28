@@ -32,9 +32,10 @@ public final class TradingBarterTaskTests {
         Piglin piglin = h.spawn(EntityTypes.PIGLIN, 3, 2, 2);
         piglin.setNoAi(true);
         var state = FriendaiServerState.get(h.getLevel().getServer());
-        Caller caller =
-                state.brains().tradeAuthorityFor(ownerId).begin(new Caller(ownerId, "owner", AccessLevel.OWNER), true);
-        BarterOrder order = state.brains()
+        Caller caller = state.sessions()
+                .tradeAuthorityFor(ownerId)
+                .begin(new Caller(ownerId, "owner", AccessLevel.OWNER), true);
+        BarterOrder order = state.sessions()
                 .tradeAuthorityFor(ownerId)
                 .authorizeBarter(
                         caller,

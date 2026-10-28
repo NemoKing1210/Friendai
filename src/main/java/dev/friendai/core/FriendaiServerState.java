@@ -18,6 +18,7 @@ import dev.friendai.place.PlaceLimits;
 import dev.friendai.place.PlaceStore;
 import dev.friendai.placed.PlacedLimits;
 import dev.friendai.placed.PlacedStore;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.runtime.RuntimeResources;
@@ -41,7 +42,7 @@ public final class FriendaiServerState {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
-    private final BrainService brains;
+    private final CompanionSessions sessions;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
     private final SkillService skills;
@@ -114,13 +115,14 @@ public final class FriendaiServerState {
                 this.resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
-        this.brains = resources.own(new BrainService(server, config, memory));
-        this.skills.setTeachingContextSource(brains::teachingContext);
+        this.sessions = resources.own(new CompanionSessions(
+                server, config, memory, this::settings, skills, goals, trading, places, this.resources, freeTime));
+        this.skills.setTeachingContextSource(sessions::teachingContext);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         resources.onClose(chunkLoader::stop);
-        this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
+        this.trust = new TrustConfirmations(server, memory, sessions, () -> this.config);
         CompanionManager manager = CompanionManager.get(server);
-        CompanionManager.Listener listener = brains::onCompanionRemoved;
+        CompanionManager.Listener listener = sessions::onCompanionRemoved;
         manager.addListener(listener);
         resources.onClose(() -> manager.removeListener(listener));
     }
@@ -147,8 +149,8 @@ public final class FriendaiServerState {
         return store;
     }
 
-    public BrainService brains() {
-        return brains;
+    public CompanionSessions sessions() {
+        return sessions;
     }
 
     /** Keeps loaded companions' chunks ticking and restores them on startup. */
@@ -238,7 +240,7 @@ public final class FriendaiServerState {
     public void stopAcceptingWork() {
         if (stopping) return;
         stopping = true;
-        brains.stopAcceptingWork();
+        sessions.stopAcceptingWork();
         tradeSessionGuard.closeAll("server stopping");
         chunkLoader.stop();
         for (CompanionEntity companion : CompanionManager.get(server).all())
@@ -288,14 +290,14 @@ public final class FriendaiServerState {
         this.config = cfg;
         if (tradingWasEnabled && !configuration.current().trading().enabled()) {
             tradeSessionGuard.closeAll("trading disabled by server config");
-            brains.invalidateTradingAuthorities("trading disabled by server config");
+            sessions.invalidateTradingAuthorities("trading disabled by server config");
         }
         syncCompanionNames(cfg);
         ServerSettings applied = configuration.current();
         for (CompanionEntity companion : CompanionManager.get(server).all()) {
             companion.taskRunner().applySettings(applied);
         }
-        brains.reload(cfg);
+        sessions.reload(cfg);
         return problems;
     }
 

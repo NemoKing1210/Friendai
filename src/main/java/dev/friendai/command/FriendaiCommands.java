@@ -97,7 +97,10 @@ public final class FriendaiCommands {
         CompanionManager manager = CompanionManager.get(ctx.getSource().getServer());
         Component name =
                 manager.find(player.getUUID()).map(CompanionEntity::getName).orElse(Component.empty());
-        FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime().stop(player.getUUID(), "dismissed");
+        FriendaiServerState.get(ctx.getSource().getServer())
+                .sessions()
+                .freeTime()
+                .stop(player.getUUID(), "dismissed");
         if (manager.dismiss(player)) {
             ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.dismissed", name), false);
             return 1;
@@ -114,7 +117,7 @@ public final class FriendaiCommands {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
             return 0;
         }
-        var driver = FriendaiServerState.get(server).brains().freeTime();
+        var driver = FriendaiServerState.get(server).sessions().freeTime();
         if (driver.disabled()) {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.freetime.disabled"));
             return 0;
@@ -127,7 +130,7 @@ public final class FriendaiCommands {
     private static int freeTimeOff(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         FriendaiServerState.get(ctx.getSource().getServer())
-                .brains()
+                .sessions()
                 .freeTime()
                 .stop(player.getUUID(), "owner ended free time");
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.off"), false);
@@ -137,7 +140,7 @@ public final class FriendaiCommands {
     private static int freeTimeStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         var driver =
-                FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime();
+                FriendaiServerState.get(ctx.getSource().getServer()).sessions().freeTime();
         var status = driver.status(player.getUUID());
         Component answer = !status.on()
                 ? Component.translatable("friendai.command.freetime.status.off", status.plannerModel())
@@ -162,9 +165,9 @@ public final class FriendaiCommands {
             return 0;
         }
         // Free time first: its plan is then released instead of ending as a failed shift.
-        FriendaiServerState.get(server).brains().freeTime().stop(player.getUUID(), "stopped by command");
+        FriendaiServerState.get(server).sessions().freeTime().stop(player.getUUID(), "stopped by command");
         companion.get().taskRunner().stop("stopped by command");
-        FriendaiServerState.get(server).brains().cancel(player.getUUID());
+        FriendaiServerState.get(server).sessions().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
         return 1;
     }
@@ -198,14 +201,14 @@ public final class FriendaiCommands {
             return 0;
         }
         String task = companion.get().taskRunner().current().map(Task::describe).orElse("none");
-        boolean thinking = state.brains()
+        boolean thinking = state.sessions()
                 .brainOf(player.getUUID())
                 .map(b -> b.isThinking())
                 .orElse(false);
         UserMessage message = UserMessage.of(
                 "friendai.command.status",
-                state.brains().activeProvider(),
-                state.brains().activeModel(),
+                state.sessions().activeProvider(),
+                state.sessions().activeModel(),
                 task,
                 UserMessage.of(thinking ? "friendai.common.yes" : "friendai.common.no"));
         ctx.getSource().sendSuccess(() -> Components.of(message), false);

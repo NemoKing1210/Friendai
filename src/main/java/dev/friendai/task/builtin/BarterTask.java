@@ -145,7 +145,7 @@ public final class BarterTask implements Task {
             return finish(context, incompleteState(), "piglin is unwilling, busy or unsafe to approach");
         }
         var authority =
-                FriendaiServerState.get(context.level().getServer()).brains().tradeAuthorityFor(order.owner());
+                FriendaiServerState.get(context.level().getServer()).sessions().tradeAuthorityFor(order.owner());
         if (!authority.reserveBarter(order, 1))
             return finish(context, incompleteState(), "shared gold budget is exhausted");
         attempt = UUID.randomUUID();
@@ -287,7 +287,7 @@ public final class BarterTask implements Task {
 
     private void record(TaskContext context) {
         FriendaiServerState.get(context.level().getServer())
-                .brains()
+                .sessions()
                 .tradeAuthorityFor(order.owner())
                 .recordBarter(progress());
         try {

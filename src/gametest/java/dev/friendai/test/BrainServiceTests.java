@@ -7,7 +7,6 @@ import dev.friendai.brain.LlmGateway;
 import dev.friendai.brain.Speaker;
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.config.ServerConfig;
-import dev.friendai.core.BrainService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -18,6 +17,7 @@ import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
+import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.text.UserMessage;
 import java.util.ArrayDeque;
@@ -83,7 +83,7 @@ public class BrainServiceTests {
     public void chatAddressedMessageReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script().text("Hi");
         Said said = new Said();
         brains.setGatewayOverride(player.getUUID(), script);
@@ -97,7 +97,7 @@ public class BrainServiceTests {
     public void renamedCompanionAnswersToItsNewName(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script().text("Hi");
         Said said = new Said();
         brains.setGatewayOverride(player.getUUID(), script);
@@ -115,7 +115,7 @@ public class BrainServiceTests {
     public void thinkingIsShownOnTheCompanion(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script();
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
@@ -150,7 +150,7 @@ public class BrainServiceTests {
                         .contains(h.absolutePos(log)),
                 "the directly observed log should be queryable by the companion");
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script()
                 .call("mine_blocks", "{\"block\":\"minecraft:mangrove_log\",\"count\":1}")
                 .text("On it")
@@ -176,7 +176,7 @@ public class BrainServiceTests {
     public void noticeReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script().text("Hi").text("Noted");
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionEntity companion = CompanionManager.get(server).summon(player);
@@ -196,7 +196,7 @@ public class BrainServiceTests {
     public void disconnectCancelsBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        BrainService brains = FriendaiServerState.get(server).brains();
+        CompanionSessions brains = FriendaiServerState.get(server).sessions();
         Script script = new Script();
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
@@ -219,10 +219,10 @@ public class BrainServiceTests {
         changed.profiles.get(changed.activeProfile).model = "swapped-model";
         state.applyConfig(changed);
         h.assertTrue(
-                "swapped-model".equals(state.brains().activeModel()),
-                "model was " + state.brains().activeModel());
+                "swapped-model".equals(state.sessions().activeModel()),
+                "model was " + state.sessions().activeModel());
         state.applyConfig(original);
-        h.assertTrue(!"swapped-model".equals(state.brains().activeModel()), "original config should be restored");
+        h.assertTrue(!"swapped-model".equals(state.sessions().activeModel()), "original config should be restored");
         h.succeed();
     }
 }

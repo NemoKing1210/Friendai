@@ -97,7 +97,7 @@ public final class TradingTaskTests {
         MerchantAdapter adapter = state.merchantAdapter();
         TraderRecord quote =
                 adapter.inspect(companion, villager, h.getLevel().getGameTime()).orElseThrow();
-        TradeAuthority authority = state.brains().tradeAuthorityFor(owner.getUUID());
+        TradeAuthority authority = state.sessions().tradeAuthorityFor(owner.getUUID());
         Caller caller = authority.begin(new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), true);
         TradeOrder requested = new TradeOrder(
                 UUID.randomUUID(),
