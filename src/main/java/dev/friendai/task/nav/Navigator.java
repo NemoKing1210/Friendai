@@ -129,7 +129,7 @@ public final class Navigator {
 
     /** Horizontal blocks left on the route being walked, or 0 while none is. */
     public double remainingDistance() {
-        return executor == null ? 0.0 : executor.remainingDistance();
+        return executor == null ? 0.0 : executor.remainingDistance(companion);
     }
 
     public boolean searching() {

@@ -65,8 +65,6 @@ public final class PathExecutor {
     private final PlacementLedger ledger;
     /** Horizontal length left from each step's start, so the pace decision is O(1) per tick. */
     private final double[] remaining;
-    /** The view this step was checked with; reused for the step's own break and place validation. */
-    private LevelCellView view;
     /** A live world view for the per-tick standability test: it re-reads every cell it is asked about. */
     private CellView liveView;
 
@@ -129,13 +127,28 @@ public final class PathExecutor {
         return brokenBlocks;
     }
 
-    /** Horizontal blocks left on the route from the step being executed, for the pace decision. */
-    public double remainingDistance() {
+    /** Horizontal blocks left on the route from the body, for the pace decision. */
+    public double remainingDistance(CompanionEntity companion) {
         if (remaining.length <= 1) {
             return 0.0;
         }
-        int at = index < 0 ? 0 : Math.min(index, remaining.length - 1);
-        return remaining[at];
+        if (index < 0) {
+            return remaining[0];
+        }
+        if (index >= path.steps().size()) {
+            return 0.0;
+        }
+        PathStep step = path.steps().get(index);
+        double stepX = step.to().x() - step.from().x();
+        double stepZ = step.to().z() - step.from().z();
+        double length = Math.hypot(stepX, stepZ);
+        if (length < 1.0e-6) {
+            return remaining[index];
+        }
+        double dx = companion.getX() - (step.from().x() + 0.5);
+        double dz = companion.getZ() - (step.from().z() + 0.5);
+        double done = Math.max(0.0, Math.min(length, (dx * stepX + dz * stepZ) / length));
+        return remaining[index + 1] + (length - done);
     }
 
     public State tick(TaskContext c) {
@@ -209,7 +222,7 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
         liveView = LevelCellView.liveTerrain(c.companion());
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);
@@ -346,25 +359,19 @@ public final class PathExecutor {
         }
         FeetTarget target = feetTarget(c, step);
         boolean climbing = step.move() == Move.CLIMB;
-        boolean holding = !climbing && !companion.onGround() && step.move() == Move.DESCEND;
-        if (!climbing) {
-            float yaw = PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(),
-                    companion.getYRot(), holding);
-            if (yaw != companion.getYRot()) {
-                companion.setYRot(yaw);
-                companion.setYBodyRot(yaw);
-            }
+        boolean holding = climbing || (!companion.onGround() && step.move() == Move.DESCEND);
+        float yaw = PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(),
+                companion.getYRot(), holding);
+        if (yaw != companion.getYRot()) {
+            companion.setYRot(yaw);
+            companion.setYBodyRot(yaw);
         }
-        if (climbing) {
-            companion.getMoveControl().setWantedPosition(companion.getX(), target.y(), companion.getZ(), MOVE_SPEED);
-        } else {
-            double radians = Math.toRadians(companion.getYRot());
-            companion.getMoveControl().setWantedPosition(
-                    companion.getX() - Math.sin(radians),
-                    target.y(),
-                    companion.getZ() + Math.cos(radians),
-                    MOVE_SPEED);
-        }
+        double radians = Math.toRadians(companion.getYRot());
+        companion.getMoveControl().setWantedPosition(
+                companion.getX() - Math.sin(radians),
+                target.y(),
+                companion.getZ() + Math.cos(radians),
+                MOVE_SPEED);
         boolean up = step.to().y() > step.from().y();
         if (companion.isInWater()) {
             double dx = step.to().x() + 0.5 - companion.getX();

@@ -27,7 +27,7 @@ public final class Pace {
      */
     public void update(boolean following, double distance, double pathDistance) {
         boolean crouched = companion.body().sneaking() || companion.body().sitting();
-        boolean run = !crouched && (following
+        boolean run = !crouched && !companion.onClimbable() && (following
                 ? PacePolicy.shouldRun(companion.paceMode(), true, distance, companion.canSprint(),
                         companion.isSprinting())
                 : PacePolicy.shouldRunOnPath(companion.paceMode(), pathDistance, companion.canSprint(),
