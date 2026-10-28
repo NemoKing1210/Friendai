@@ -1,0 +1,15 @@
+root = true
+
+# Everyone writes the same bytes. A tool that writes CRLF into a Java or JSON file makes the index's
+# cached size disagree with the file and `git status` lists it as changed although the content matches.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[*.md]
+trim_trailing_whitespace = false

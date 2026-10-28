@@ -1,8 +1,29 @@
-* text=auto
+# Every text file is stored and checked out with LF. `eol=lf` keeps the working tree byte-identical to
+# the blob, so a formatter, an editor or a checkout cannot leave the index's cached size disagreeing
+# with the file; without it a single CRLF rewrite makes hundreds of files look modified in `git status`
+# although `git diff` is empty.
+* text=auto eol=lf
 gradlew text eol=lf
 *.bat text eol=crlf
+*.cmd text eol=crlf
 *.jar binary
 *.png binary
+*.ogg binary
+*.nbt binary
 .githooks/* text eol=lf
 *.sh text eol=lf
 *.java text eol=lf
+*.json text eol=lf
+*.json5 text eol=lf
+*.md text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.mcmeta text eol=lf
+*.xml text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
