@@ -189,7 +189,7 @@ public final class HoneyTask implements Task {
 
     private static Optional<BlockPos> nearestHive(CompanionEntity companion) {
         if (!(companion.level() instanceof ServerLevel level)) return Optional.empty();
-        var matcher = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives")
+        var matcher = dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("#minecraft:beehives")
                 .orElse(null);
         if (matcher == null) return Optional.empty();
         return dev.friendai.core.FriendaiServerState.get(level.getServer())

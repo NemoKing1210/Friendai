@@ -175,6 +175,12 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.places.PlaceQuery"),
                 edge(
+                        "dev.friendai.features.mining.minecraft.mining.MiningRefusal",
+                        "dev.friendai.features.places.Place"),
+                edge(
+                        "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
+                        "dev.friendai.features.mining.minecraft.mining.BreakAction"),
+                edge(
                         "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
                         "dev.friendai.features.survival.HungerModel"),
                 edge(
@@ -215,6 +221,7 @@ class ArchitectureRulesTest {
                 edge(toolAdapter, "dev.friendai.server.execution.tools.FeatureToolRegistry"),
                 edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition"),
                 edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition$Factory"),
+                edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition$CallerFactory"),
                 edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits"));
         assertTrue(PackageDependencyRules.validate(allowed).isEmpty());
 

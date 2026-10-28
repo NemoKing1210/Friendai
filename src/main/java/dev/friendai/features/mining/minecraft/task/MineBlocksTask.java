@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.mining.minecraft.task;
 
 import dev.friendai.core.Components;
 import dev.friendai.debug.DebugAction;
@@ -8,6 +8,11 @@ import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.mining.MiningBounds;
+import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
+import dev.friendai.features.mining.minecraft.mining.MiningSession;
+import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
 import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
@@ -18,11 +23,6 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
-import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.MiningRefusal;
-import dev.friendai.task.mining.MiningSession;
-import dev.friendai.task.mining.TemporaryBlockCleanup;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -174,8 +174,7 @@ public final class MineBlocksTask implements Task {
     @Override
     public void start(TaskContext c) {
         dimension = c.level().dimension().identifier().toString();
-        autoMinBlocks =
-                dev.friendai.core.FriendaiServerState.get(c.level().getServer()).config().places.autoMineMinBlocks;
+        autoMinBlocks = c.autoMineMinBlocks();
     }
 
     @Override

@@ -51,6 +51,13 @@ public final class ServerSettingsResolver {
                 tradeConfig.maxBarterIngots,
                 tradeConfig.barterDefaultIngots);
 
-        return new ServerSettings(tasks, pathing, breakList, placeList, config.autonomy.toSettings(), trading);
+        return new ServerSettings(
+                tasks,
+                pathing,
+                breakList,
+                placeList,
+                config.autonomy.toSettings(),
+                trading,
+                config.places.autoMineMinBlocks);
     }
 }

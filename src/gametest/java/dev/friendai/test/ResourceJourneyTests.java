@@ -157,8 +157,8 @@ public final class ResourceJourneyTests {
                 result.status = null;
                 phase[0] = 1;
                 runner.start(
-                        new dev.friendai.task.builtin.MineBlocksTask(
-                                dev.friendai.task.mining.BlockMatcher.parse("minecraft:coal_ore")
+                        new dev.friendai.features.mining.minecraft.task.MineBlocksTask(
+                                dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("minecraft:coal_ore")
                                         .orElseThrow(),
                                 1,
                                 64),
@@ -272,8 +272,8 @@ public final class ResourceJourneyTests {
                 result.status = null;
                 phase[0] = 1;
                 runner.start(
-                        new dev.friendai.task.builtin.MineBlocksTask(
-                                dev.friendai.task.mining.BlockMatcher.parse("minecraft:iron_ore")
+                        new dev.friendai.features.mining.minecraft.task.MineBlocksTask(
+                                dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("minecraft:iron_ore")
                                         .orElseThrow(),
                                 1,
                                 16),

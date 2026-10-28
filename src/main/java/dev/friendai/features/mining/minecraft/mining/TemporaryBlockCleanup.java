@@ -1,4 +1,4 @@
-package dev.friendai.task.mining;
+package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.task.TaskContext;

@@ -1,4 +1,4 @@
-package dev.friendai.task.mining;
+package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.mining.MiningBounds;
@@ -55,11 +55,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
                 || unsafeExposure(context.level(), blockPos)) {
             return false;
         }
-        return new LevelCellView(
-                        companion,
-                        context.serverSettings().pathing(),
-                        CostModel.DEFAULTS,
-                        context.serverSettings().breakList())
+        return new LevelCellView(companion, context.pathingConfig(), CostModel.DEFAULTS, context.breakList())
                 .at(pos)
                 .breakable();
     }
@@ -71,7 +67,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         if (!bounds.contains(from) || !bounds.contains(to)) {
             return false;
         }
-        CellView view = planningView(context, context.serverSettings().pathing());
+        CellView view = planningView(context, context.pathingConfig());
         PathStep alreadyExcavated = new PathStep(
                 step.from(),
                 step.to(),
@@ -104,7 +100,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         if (state.requiresCorrectToolForDrops() && !hasCorrectTool(companion, state)) {
             return false;
         }
-        CellView view = planningView(context, context.serverSettings().pathing());
+        CellView view = planningView(context, context.pathingConfig());
         var block = companion.blockPosition();
         var stance = new dev.friendai.features.navigation.pathing.Node(block.getX(), block.getY(), block.getZ());
         return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
@@ -131,8 +127,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
     public CellView planningView(TaskContext context, PathingConfig config) {
         CompanionEntity companion = context.companion();
         ServerLevel level = context.level();
-        CellView terrain = new LevelCellView(
-                companion, config, CostModel.DEFAULTS, context.serverSettings().breakList());
+        CellView terrain = new LevelCellView(companion, config, CostModel.DEFAULTS, context.breakList());
         return (x, y, z) -> {
             BlockPos pos = new BlockPos(x, y, z);
             Cell cell = terrain.at(x, y, z);

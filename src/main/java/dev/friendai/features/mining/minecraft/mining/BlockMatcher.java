@@ -1,4 +1,4 @@
-package dev.friendai.task.mining;
+package dev.friendai.features.mining.minecraft.mining;
 
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;

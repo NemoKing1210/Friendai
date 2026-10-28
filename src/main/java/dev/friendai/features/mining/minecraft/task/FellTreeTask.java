@@ -1,10 +1,13 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.mining.minecraft.task;
 
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
+import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.FellPlan;
 import dev.friendai.features.mining.tree.FellPlanner;
 import dev.friendai.features.mining.tree.TreeCell;
@@ -16,9 +19,6 @@ import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.ScaffoldCleanupTask;
 import dev.friendai.task.inventory.DropCollector;
-import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.TreeFinder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;

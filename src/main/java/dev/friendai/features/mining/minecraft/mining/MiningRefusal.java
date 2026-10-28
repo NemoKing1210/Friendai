@@ -1,4 +1,4 @@
-package dev.friendai.task.mining;
+package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.places.Place;
@@ -62,7 +62,7 @@ public sealed interface MiningRefusal {
         BlockState state = level.getBlockState(pos);
         String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
         boolean creative = companion.creativeMode();
-        if (creative && c.serverSettings().breakList().matches(blockId, LevelCellView.tagsOf(state))) {
+        if (creative && c.breakList().matches(blockId, LevelCellView.tagsOf(state))) {
             return new Blacklisted(pos, blockId);
         }
         if (!creative && state.getDestroySpeed(level, pos) < 0) {

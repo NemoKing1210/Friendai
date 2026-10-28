@@ -53,6 +53,14 @@ public record TaskContext(
         return serverSettings.placeList();
     }
 
+    public int autoMineMinBlocks() {
+        return serverSettings.autoMineMinBlocks();
+    }
+
+    public void addBlockExhaustion() {
+        companion.hunger().addExhaustion(CompanionEntity.EXHAUSTION_BLOCK);
+    }
+
     public List<String> keepItems() {
         return serverSettings.autonomy().keepItems();
     }

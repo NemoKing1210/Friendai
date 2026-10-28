@@ -2,12 +2,12 @@ package dev.friendai.task.build;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.mining.BlockBreaker;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

@@ -1,6 +1,7 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.mining.minecraft.mining.BreakAction;
 import dev.friendai.features.navigation.movement.PathSteering;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.CellView;
@@ -13,7 +14,6 @@ import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
-import dev.friendai.task.mining.BreakAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

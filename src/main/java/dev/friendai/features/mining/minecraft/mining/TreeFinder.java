@@ -1,4 +1,4 @@
-package dev.friendai.task.mining;
+package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.perception.RelativeDirection;
 import dev.friendai.perception.TreeSummary;

@@ -2,8 +2,8 @@ package dev.friendai.task.queue;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.mining.BlockMatcher;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

@@ -767,8 +767,8 @@ public class FreeTimeTests {
     /** Breaks one block with the shared breaker and remembers how it went. */
     private static final class BreakTask implements dev.friendai.task.Task {
         private final BlockPos pos;
-        private dev.friendai.task.mining.BlockBreaker breaker;
-        dev.friendai.task.mining.BlockBreaker.State last;
+        private dev.friendai.features.mining.minecraft.mining.BlockBreaker breaker;
+        dev.friendai.features.mining.minecraft.mining.BlockBreaker.State last;
 
         BreakTask(BlockPos pos) {
             this.pos = pos;
@@ -781,15 +781,15 @@ public class FreeTimeTests {
 
         @Override
         public void start(dev.friendai.task.TaskContext c) {
-            breaker = new dev.friendai.task.mining.BlockBreaker(pos, state -> !state.isAir());
+            breaker = new dev.friendai.features.mining.minecraft.mining.BlockBreaker(pos, state -> !state.isAir());
         }
 
         @Override
         public TaskStatus tick(dev.friendai.task.TaskContext c) {
             last = breaker.tick(c);
-            return last == dev.friendai.task.mining.BlockBreaker.State.WORKING
+            return last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.WORKING
                     ? TaskStatus.RUNNING
-                    : last == dev.friendai.task.mining.BlockBreaker.State.BROKEN
+                    : last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN
                             ? TaskStatus.SUCCESS
                             : TaskStatus.FAILED;
         }
@@ -861,7 +861,7 @@ public class FreeTimeTests {
         BreakTask inside = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), true);
         h.succeedWhen(() -> {
             h.assertTrue(
-                    inside.last == dev.friendai.task.mining.BlockBreaker.State.PROTECTED,
+                    inside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.PROTECTED,
                     "free time may not break inside a place: " + inside.last);
             h.assertBlockPresent(Blocks.HONEYCOMB_BLOCK, 5, 2, 5);
         });
@@ -876,7 +876,7 @@ public class FreeTimeTests {
         BreakTask owner = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), false);
         h.succeedWhen(() -> {
             h.assertTrue(
-                    owner.last == dev.friendai.task.mining.BlockBreaker.State.BROKEN,
+                    owner.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
                     "an owner order still breaks it: " + owner.last);
         });
     }
@@ -889,7 +889,7 @@ public class FreeTimeTests {
         housePlace(h, c, "far house", 3, 2, 3, 2);
         BreakTask outside = breakIn(c, h.absolutePos(new BlockPos(11, 2, 11)), true);
         h.succeedWhen(() -> h.assertTrue(
-                outside.last == dev.friendai.task.mining.BlockBreaker.State.BROKEN,
+                outside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
                 "free time breaks outside places: " + outside.last));
     }
 

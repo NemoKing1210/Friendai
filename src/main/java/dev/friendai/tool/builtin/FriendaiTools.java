@@ -6,6 +6,7 @@ import dev.friendai.features.interaction.minecraft.tool.BodyTools;
 import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
 import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
 import dev.friendai.features.inventory.minecraft.tool.StorageTools;
+import dev.friendai.features.mining.minecraft.tool.GatheringTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import dev.friendai.perception.PerceptionContext;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -80,6 +82,17 @@ public final class FriendaiTools {
             IntSupplier treeRadius,
             MemoryAccess memory,
             Supplier<PerceptionContext> perceptionContext) {
+        return build(mineRadius, treeRadius, memory, perceptionContext, () -> true, () -> true);
+    }
+
+    /** Builds the runtime registry with live mining and tree settings from the server-owned settings snapshot. */
+    public static Builtins build(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            MemoryAccess memory,
+            Supplier<PerceptionContext> perceptionContext,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
         FeatureToolRegistry featureTools = new FeatureToolRegistry(registry, definition -> {
@@ -90,7 +103,7 @@ public final class FriendaiTools {
         List<FeatureToolContributor> contributors =
                 List.of(new MovementTools(), new RelativeMovementTools(), new BodyTools(), new InteractionTools());
         contributors.forEach(contributor -> contributor.register(featureTools));
-        GatheringTools.register(registry, defs, mineRadius, treeRadius);
+        new GatheringTools(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops).register(featureTools);
         new InventoryTools().register(featureTools);
         BuildingTools.register(registry, defs);
         new StorageTools().register(featureTools);

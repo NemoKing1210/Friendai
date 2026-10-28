@@ -3,12 +3,12 @@ package dev.friendai.task.builtin;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.inventory.DropSettle;
-import dev.friendai.task.mining.BlockBreaker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Block;
 

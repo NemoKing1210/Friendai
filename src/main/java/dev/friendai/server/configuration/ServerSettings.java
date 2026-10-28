@@ -14,7 +14,8 @@ public record ServerSettings(
         BlockList breakList,
         BlockList placeList,
         AutonomySettings autonomy,
-        TradingRuntimeSettings trading) {
+        TradingRuntimeSettings trading,
+        int autoMineMinBlocks) {
 
     public static final ServerSettings DEFAULTS = defaults();
 
@@ -25,6 +26,17 @@ public record ServerSettings(
         placeList = placeList == null ? BlockList.parse(pathing.placeBlacklist(), ignored -> {}) : placeList;
         autonomy = autonomy == null ? AutonomySettings.DEFAULTS : autonomy;
         trading = trading == null ? TradingRuntimeSettings.DEFAULTS : trading;
+        autoMineMinBlocks = autoMineMinBlocks < 1 ? 16 : autoMineMinBlocks;
+    }
+
+    public ServerSettings(
+            TaskRuntimeSettings tasks,
+            PathingConfig pathing,
+            BlockList breakList,
+            BlockList placeList,
+            AutonomySettings autonomy,
+            TradingRuntimeSettings trading) {
+        this(tasks, pathing, breakList, placeList, autonomy, trading, 16);
     }
 
     public static ServerSettings defaults() {

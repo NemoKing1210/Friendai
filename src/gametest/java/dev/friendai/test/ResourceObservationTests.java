@@ -173,12 +173,12 @@ public class ResourceObservationTests {
         h.assertTrue(
                 !facts.stationsNearby().contains(Station.FURNACE.noun()), "hidden furnace entered available stations");
         h.assertTrue(facts.containerItems().isEmpty(), "unopened container contents entered WorldFacts");
-        var beds =
-                dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beds").orElseThrow();
-        var hives = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives")
+        var beds = dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("#minecraft:beds")
                 .orElseThrow();
-        var logs =
-                dev.friendai.task.mining.BlockMatcher.parse("#minecraft:logs").orElseThrow();
+        var hives = dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("#minecraft:beehives")
+                .orElseThrow();
+        var logs = dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("#minecraft:logs")
+                .orElseThrow();
         h.assertTrue(resources.knownOrVisible(companion, beds, 24, 4).isEmpty(), "hidden bed was selected");
         h.assertTrue(resources.visible(companion, hives, 24, 4).isEmpty(), "hidden hive was selected");
         h.assertTrue(resources.visibleBlockIds(companion, 24).isEmpty(), "hidden tree was offered");

@@ -1,12 +1,12 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.BlockSearch;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
-import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

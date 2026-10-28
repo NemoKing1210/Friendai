@@ -128,7 +128,9 @@ public final class CompanionSessions implements AutoCloseable {
                         return memory.book(owner);
                     }
                 },
-                perceptionContext);
+                perceptionContext,
+                () -> settings.get().tasks().mineCollectDrops(),
+                () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();

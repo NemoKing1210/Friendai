@@ -15,6 +15,8 @@ final class PackageDependencyRules {
             "dev.friendai.server.runtime.ServerTickPipeline");
     private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
             new FeatureDependency("mining", "navigation"),
+            new FeatureDependency("mining", "places"),
+            new FeatureDependency("navigation", "mining"),
             new FeatureDependency("fire", "navigation"),
             new FeatureDependency("construction", "navigation"),
             new FeatureDependency("acquisition", "crafting"),
@@ -37,6 +39,7 @@ final class PackageDependencyRules {
             "dev.friendai.server.execution.tools.FeatureToolRegistry",
             "dev.friendai.server.execution.tools.TaskToolDefinition",
             "dev.friendai.server.execution.tools.TaskToolDefinition$Factory",
+            "dev.friendai.server.execution.tools.TaskToolDefinition$CallerFactory",
             "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits");
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
