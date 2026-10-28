@@ -13,6 +13,11 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
+import dev.friendai.queue.PlanDefinition;
+import dev.friendai.queue.PlanNode;
+import dev.friendai.queue.QueuedStep;
+import dev.friendai.queue.GuardAction;
+import com.google.gson.JsonObject;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
@@ -71,7 +76,9 @@ class CompanionBrainPlannerTest {
     }
 
     private static PlanProposal proposal() {
-        return new PlanProposal(List.of(), new JsonArray(), "gather first, then build", "a finished house");
+        PlanDefinition plan = new PlanDefinition(List.of(new PlanNode.Action(new QueuedStep("noop", new JsonObject(),
+                null, List.of(), GuardAction.WAIT, null, 1, List.of()))));
+        return new PlanProposal(plan, new JsonArray(), "gather first, then build", "a finished house");
     }
 
     private FakeGateway gateway;

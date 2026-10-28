@@ -387,7 +387,10 @@ public class FreeTimeTests {
     }
 
     private static dev.friendai.agent.plan.PlanProposal jumpPlan() {
-        return new dev.friendai.agent.plan.PlanProposal(java.util.List.of(),
+        var step = new dev.friendai.queue.QueuedStep("jump", new com.google.gson.JsonObject(), null,
+                java.util.List.of(), dev.friendai.queue.GuardAction.WAIT, null, 1, java.util.List.of());
+        return new dev.friendai.agent.plan.PlanProposal(new dev.friendai.queue.PlanDefinition(java.util.List.of(
+                new dev.friendai.queue.PlanNode.Action(step), new dev.friendai.queue.PlanNode.Action(step))),
                 com.google.gson.JsonParser.parseString("[{\"tool\":\"jump\",\"args\":\"{}\"},{\"tool\":\"jump\","
                         + "\"args\":\"{}\"}]").getAsJsonArray(), "", "");
     }

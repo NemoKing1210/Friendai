@@ -99,7 +99,7 @@ class PlannerParserTest {
         }
         PlannerParser.Parsed p = parse(steps.append("]}").toString());
         assertFalse(p.ok());
-        assertTrue(p.errors().get(0).contains("at most 12 steps"), p.errors().toString());
+        assertTrue(p.errors().get(0).contains("worst-case action count exceeds 12"), p.errors().toString());
     }
 
     @Test
@@ -117,5 +117,32 @@ class PlannerParserTest {
     void parsedStepsCarryTheListOrder() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"jump\"}]}");
         assertEquals(List.of("go_to", "jump"), p.proposal().orElseThrow().steps().stream().map(s -> s.tool()).toList());
+    }
+
+    @Test
+    void nestedActionObjectArgumentsNormalizeAndPreserveThePlanTree() {
+        PlannerParser.Parsed parsed = parse("""
+                {"steps":[
+                  {"when":{"type":"fluid_ahead"},"then":[{"tool":"jump","args":{"count":2}}],
+                   "else":[{"repeat":{"steps":[{"tool":"go_to","args":{"count":3}}],
+                     "until":{"type":"time_elapsed","ticks":20},"max_iterations":2}}]}
+                ]}
+                """);
+        assertTrue(parsed.ok(), parsed.errors().toString());
+        var proposal = parsed.proposal().orElseThrow();
+        assertEquals(2, proposal.steps().size());
+        assertTrue(proposal.stepsJson().get(0).getAsJsonObject().getAsJsonArray("then").get(0)
+                .getAsJsonObject().get("args").getAsJsonPrimitive().isString());
+        assertTrue(proposal.plan().nodes().getFirst() instanceof dev.friendai.queue.PlanNode.Conditional);
+    }
+
+    @Test
+    void nestedDisallowedToolHasAPathQualifiedError() {
+        PlannerParser.Parsed parsed = parse("""
+                {"steps":[{"when":{"type":"fluid_ahead"},"then":[{"tool":"trust_player"}]}]}
+                """);
+        assertFalse(parsed.ok());
+        assertTrue(parsed.errors().stream().anyMatch(error -> error.contains("step 1 → then #1")
+                && error.contains("cannot be used in a plan")), parsed.errors().toString());
     }
 }

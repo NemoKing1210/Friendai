@@ -65,7 +65,10 @@ public class PlannerTests {
             JsonObject step = new JsonObject();
             step.addProperty("tool", "jump");
             steps.add(step);
-            return CompletableFuture.completedFuture(new PlanProposal(List.of(), steps, "hop first", "it hopped"));
+            var action = new dev.friendai.queue.QueuedStep("jump", new JsonObject(), null, List.of(),
+                    dev.friendai.queue.GuardAction.WAIT, null, 1, List.of());
+            return CompletableFuture.completedFuture(new PlanProposal(new dev.friendai.queue.PlanDefinition(List.of(
+                    new dev.friendai.queue.PlanNode.Action(action))), steps, "hop first", "it hopped"));
         };
     }
 

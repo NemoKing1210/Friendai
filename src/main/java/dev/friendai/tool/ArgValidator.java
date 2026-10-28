@@ -39,6 +39,16 @@ public final class ArgValidator {
     }
 
     private static void checkProperty(String label, JsonObject spec, JsonElement value, List<String> errors) {
+        if (spec.has("oneOf") && spec.get("oneOf").isJsonArray()) {
+            for (JsonElement candidate : spec.getAsJsonArray("oneOf")) {
+                if (!candidate.isJsonObject()) continue;
+                List<String> candidateErrors = new ArrayList<>();
+                checkProperty(label, candidate.getAsJsonObject(), value, candidateErrors);
+                if (candidateErrors.isEmpty()) return;
+            }
+            errors.add("'" + label + "' must match one supported shape");
+            return;
+        }
         String type = spec.has("type") ? spec.get("type").getAsString() : "";
         switch (type) {
             case "string" -> {

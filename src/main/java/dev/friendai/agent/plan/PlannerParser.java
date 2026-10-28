@@ -38,12 +38,12 @@ public final class PlannerParser {
             return failed("the object needs a \"steps\" array");
         }
         JsonArray steps = normalize(root.getAsJsonArray("steps"));
-        QueueParser.Result parsed = QueueParser.parse(steps, schemas, allTools, maxSteps, maxArgs, maxTotal);
+        QueueParser.PlanResult parsed = QueueParser.parsePlan(steps, schemas, allTools, maxSteps, maxArgs, maxTotal);
         if (!parsed.ok()) {
             return new Parsed(Optional.empty(), parsed.errors());
         }
         return new Parsed(Optional.of(new PlanProposal(
-                parsed.steps(), steps, note(root, "rationale"), note(root, "expected_outcome"))), List.of());
+                parsed.plan(), steps, note(root, "rationale"), note(root, "expected_outcome"))), List.of());
     }
 
     /**
@@ -153,15 +153,25 @@ public final class PlannerParser {
         for (JsonElement element : steps) {
             if (element.isJsonObject()) {
                 JsonObject step = element.getAsJsonObject().deepCopy();
-                if (step.has("args") && step.get("args").isJsonObject()) {
-                    step.addProperty("args", step.get("args").toString());
-                }
+                normalizeNode(step);
                 out.add(step);
             } else {
                 out.add(element);
             }
         }
         return out;
+    }
+
+    private static void normalizeNode(JsonObject node) {
+        if (node.has("tool")) {
+            if (node.has("args") && node.get("args").isJsonObject()) node.addProperty("args", node.get("args").toString());
+        } else if (node.has("then") && node.get("then").isJsonArray()) {
+            node.add("then", normalize(node.getAsJsonArray("then")));
+            if (node.has("else") && node.get("else").isJsonArray()) node.add("else", normalize(node.getAsJsonArray("else")));
+        } else if (node.has("repeat") && node.get("repeat").isJsonObject()) {
+            JsonObject repeat = node.getAsJsonObject("repeat");
+            if (repeat.has("steps") && repeat.get("steps").isJsonArray()) repeat.add("steps", normalize(repeat.getAsJsonArray("steps")));
+        }
     }
 
     private static String note(JsonObject root, String key) {

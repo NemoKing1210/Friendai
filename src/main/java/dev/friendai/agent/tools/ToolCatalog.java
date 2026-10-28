@@ -87,7 +87,7 @@ public final class ToolCatalog {
 
     public static ToolCatalog defaults() {
         List<ToolMeta> metas = new ArrayList<>();
-        core(metas, ToolGroup.CORE, "stop", "queue_add", "queue_show", "queue_edit", "look_around", "get_inventory",
+        core(metas, ToolGroup.CORE, "stop", "queue_add", "plan_help", "plan_validate", "queue_show", "queue_edit", "look_around", "get_inventory",
                 "set_goal", "update_goal", "finish_goal", "request_tools", "find_place");
         core(metas, ToolGroup.MEMORY, "remember", "recall", "forget", "use_skill", "manage_skill");
         group(metas, ToolGroup.MOVEMENT, Cost.MEDIUM, "follow_player", "stay", "go_to", "jump", "set_pace",
