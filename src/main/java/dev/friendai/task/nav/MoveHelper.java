@@ -103,7 +103,10 @@ public final class MoveHelper {
     }
 
     private State tickCompanion(CompanionEntity companion, Vec3 target) {
-        companion.pace().update(!Double.isNaN(ownerDistance), ownerDistance);
+        boolean followingOwner = !Double.isNaN(ownerDistance);
+        double paceDistance = followingOwner ? ownerDistance
+                : (navigator != null ? navigator.remainingDistance() : 0.0);
+        companion.pace().update(followingOwner, paceDistance, paceDistance);
         TaskContext context = companion.taskRunner().activeTaskContext();
         boolean passiveFollow = companion.taskRunner().currentIsDefaultActivity()
                 && CreativeModeService.ownerMayUsePassiveFlight(companion);

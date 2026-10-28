@@ -27,4 +27,19 @@ public final class PacePolicy {
             }
         };
     }
+
+    /**
+     * The same decision for a walked route: the distance that matters is the length still to walk, not the owner.
+     * Hysteresis is identical, so a long leg starts at ten blocks and stops at five rather than flickering.
+     */
+    public static boolean shouldRunOnPath(PaceMode mode, double remainingBlocks, boolean canSprint, boolean running) {
+        if (!canSprint) {
+            return false;
+        }
+        return switch (mode) {
+            case RUN -> true;
+            case WALK -> false;
+            case AUTO -> running ? remainingBlocks > RUN_STOP_DISTANCE : remainingBlocks > RUN_START_DISTANCE;
+        };
+    }
 }

@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.pathing.GoalPoint;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MoveHelper;
@@ -16,12 +17,16 @@ public final class FollowTask implements Task {
     /** The gap between where the companion stops and where it sets off again. */
     private static final double START_MARGIN = 2.0;
     private static final int RETRY_TICKS = 40;
+    /** How long the terrain view under an airborne owner is reused. */
+    private static final int TERRAIN_TICKS = 5;
 
     private final boolean quiet;
     private boolean moving;
     private MoveHelper mover;
     private double stopDistance = -1.0;
     private int retryCooldown;
+    private LevelCellView terrain;
+    private int terrainTick = Integer.MIN_VALUE;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -94,7 +99,7 @@ public final class FollowTask implements Task {
     }
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
-    private static Vec3 followTarget(TaskContext c, ServerPlayer owner) {
+    private Vec3 followTarget(TaskContext c, ServerPlayer owner) {
         boolean passiveFlight = c.runner() != null && c.runner().currentIsDefaultActivity()
                 && CreativeModeService.ownerMayUsePassiveFlight(c.companion());
         if (c.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFlight) {
@@ -108,10 +113,23 @@ public final class FollowTask implements Task {
         if (grounded) {
             return owner.position();
         }
-        LevelCellView view = LevelCellView.terrain(c.companion());
+        LevelCellView view = terrain(c.companion());
         return GoalPoint.groundBelow(view, owner.getBlockX(), owner.getBlockY(), owner.getBlockZ(), 64)
                 .map(pos -> new Vec3(pos.x() + 0.5, pos.y(), pos.z() + 0.5))
                 .orElse(null);
+    }
+
+    /**
+     * The terrain view for this follow tick. An airborne owner asks for the ground below every tick while nothing
+     * moves, so the view is kept for a few ticks instead of rebuilding its cache each tick.
+     */
+    private LevelCellView terrain(CompanionEntity companion) {
+        int now = companion.tickCount;
+        if (terrain == null || now < terrainTick || now - terrainTick >= TERRAIN_TICKS) {
+            terrain = LevelCellView.terrain(companion);
+            terrainTick = now;
+        }
+        return terrain;
     }
 
     @Override

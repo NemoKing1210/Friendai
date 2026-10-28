@@ -41,4 +41,19 @@ class PacePolicyTest {
         assertTrue(PacePolicy.shouldRun(PaceMode.AUTO, true, 7.0, true, true));
         assertFalse(PacePolicy.shouldRun(PaceMode.AUTO, true, 4.9, true, true));
     }
+
+    @Test
+    void autoPathRunsLongLegsWithHysteresis() {
+        assertFalse(PacePolicy.shouldRunOnPath(PaceMode.AUTO, 9.9, true, false));
+        assertTrue(PacePolicy.shouldRunOnPath(PaceMode.AUTO, 10.1, true, false));
+        assertTrue(PacePolicy.shouldRunOnPath(PaceMode.AUTO, 7.0, true, true));
+        assertFalse(PacePolicy.shouldRunOnPath(PaceMode.AUTO, 4.9, true, true));
+    }
+
+    @Test
+    void explicitModesKeepTheirMeaningOnAPath() {
+        assertFalse(PacePolicy.shouldRunOnPath(PaceMode.WALK, 50.0, true, true));
+        assertTrue(PacePolicy.shouldRunOnPath(PaceMode.RUN, 0.0, true, false));
+        assertFalse(PacePolicy.shouldRunOnPath(PaceMode.RUN, 50.0, false, false));
+    }
 }

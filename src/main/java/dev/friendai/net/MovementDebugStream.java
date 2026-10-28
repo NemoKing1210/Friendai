@@ -121,6 +121,8 @@ public final class MovementDebugStream {
         lines.add(String.format(Locale.ROOT, "vel %.3f %.3f %.3f (%.3f b/t)", v.x, v.y, v.z, Math.hypot(v.x, v.z)));
         lines.add("ground " + c.onGround() + ", water " + c.isInWater() + ", head in water "
                 + c.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) + ", pathing " + c.pathing());
+        lines.add(String.format(Locale.ROOT, "yaw %.1f, pitch %.1f, speed %.2f, sprint %b",
+                c.getYRot(), c.getXRot(), c.getSpeed(), c.isSprinting()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
         List<String> upcoming = MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
