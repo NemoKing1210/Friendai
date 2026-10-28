@@ -1,5 +1,6 @@
 package dev.friendai.test;
 
+import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.brain.LlmGateway;
@@ -22,6 +23,7 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.DepositTask;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +35,12 @@ import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -40,6 +48,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class FreeTimeTests {
+    private record MockOwner(net.minecraft.server.level.ServerPlayer player, EmbeddedChannel channel) {}
+
     private static final class Result implements TaskListener {
         TaskStatus status;
         String summary;
@@ -249,6 +259,41 @@ public class FreeTimeTests {
         c.setOwner(owner);
         dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(c);
         return c;
+    }
+
+    @SuppressWarnings("removal")
+    private static MockOwner mockOwner(GameTestHelper h) {
+        var server = h.getLevel().getServer();
+        GameProfile profile = new GameProfile(
+                UUID.randomUUID(), "free-time-" + UUID.randomUUID().toString().substring(0, 8));
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+        var player =
+                new net.minecraft.server.level.ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        EmbeddedChannel channel = new EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection, player, cookie);
+        var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(3, 2, 3));
+        player.teleportTo(pos.x, pos.y, pos.z);
+        return new MockOwner(player, channel);
+    }
+
+    private static List<Component> drainSystemMessages(EmbeddedChannel channel) {
+        List<Component> messages = new ArrayList<>();
+        Object packet;
+        while ((packet = channel.outboundMessages().poll()) != null) {
+            if (packet instanceof ClientboundSystemChatPacket chat) {
+                messages.add(chat.content());
+            }
+        }
+        return messages;
+    }
+
+    private static boolean containsTranslation(Component component, String key) {
+        if (component.getContents() instanceof TranslatableContents translated
+                && translated.getKey().equals(key)) {
+            return true;
+        }
+        return component.getSiblings().stream().anyMatch(sibling -> containsTranslation(sibling, key));
     }
 
     /** Queues a free-time shift by hand: one plan the driver owns, the way a reflex would. */
@@ -1036,6 +1081,47 @@ public class FreeTimeTests {
             h.assertTrue(linked.shift() != null && linked.shift().planId() != 0, "the plan is linked: " + linked);
             h.assertTrue(c.taskRunner().queue().plan(linked.shift().planId()).isPresent(), "the plan is queued");
             driver(h).stop(owner, "test over");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void failingPlannerTellsOwnerOneLocalizedLine(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        MockOwner owner = mockOwner(h);
+        drainSystemMessages(owner.channel());
+        CompanionEntity companion = registered(h, owner.player().getUUID());
+        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
+                .brains();
+        h.assertTrue(
+                dev.friendai.agent.autonomy.ReflexPlans.fallback(dev.friendai.agent.autonomy.NeedKind.FOOD, null)
+                        .isPresent(),
+                "FOOD has a deterministic fallback template");
+        brains.setGatewayOverride(
+                owner.player().getUUID(),
+                (system, messages, tools) -> CompletableFuture.completedFuture(
+                        new LlmResponse("", List.of(), StopReason.END, new Usage(0, 0))));
+        CompletableFuture<dev.friendai.agent.plan.PlanProposal> pending = new CompletableFuture<>();
+        brains.setPlannerOverride(owner.player().getUUID(), input -> pending);
+        var started =
+                driver(h).start(companion, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "make a small camp");
+        h.assertTrue(started.shift() != null, "the owner wish starts a shift");
+        h.assertValueEqual(started.shift().need(), dev.friendai.agent.autonomy.NeedKind.FOOD, "the selected need");
+        pending.completeExceptionally(
+                new dev.friendai.agent.plan.PlannerException(new dev.friendai.agent.plan.PlanFailure(
+                        dev.friendai.agent.plan.PlanFailure.Code.BROKEN_JSON, "private parser detail", 2)));
+        h.succeedWhen(() -> {
+            List<Component> messages = drainSystemMessages(owner.channel());
+            h.assertTrue(!messages.isEmpty(), "the owner receives the planning result");
+            h.assertValueEqual(messages.size(), 1, "one line is sent");
+            Component line = messages.getFirst();
+            h.assertTrue(
+                    containsTranslation(line, "friendai.freetime.no_plan.broken_json"),
+                    "the line uses the failure translation: " + line);
+            h.assertTrue(!line.getString().contains("Exception"), "no exception type leaks: " + line);
+            h.assertTrue(!line.getString().contains("private parser detail"), "parser detail stays private: " + line);
+            h.assertTrue(driver(h).state(owner.player().getUUID()).shift() == null, "the failed shift ends");
+            h.assertValueEqual(companion.taskRunner().queue().planCount(), 0, "no fallback plan is guessed");
+            h.succeed();
         });
     }
 

@@ -25,14 +25,29 @@ public final class LlmClient implements LlmGateway {
 
     @Override
     public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
+        return complete(system, messages, tools, false, profile.maxTokens());
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> completeJson(String system, List<Message> messages, int outputMultiplier) {
+        return complete(system, messages, List.of(), true, multipliedMaxTokens(profile.maxTokens(), outputMultiplier));
+    }
+
+    private CompletableFuture<LlmResponse> complete(
+            String system, List<Message> messages, List<ToolSpec> tools, boolean jsonObject, int maxTokens) {
         try {
             Route route = registry.resolve(profile);
             LlmRequest request = new LlmRequest(
-                    profile.model(), system, messages, tools, profile.temperature(), profile.maxTokens());
+                    profile.model(), system, messages, tools, profile.temperature(), maxTokens, jsonObject);
             return route.protocol().complete(route.endpoint(), request);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private static int multipliedMaxTokens(int maxTokens, int multiplier) {
+        long product = (long) Math.max(0, maxTokens) * Math.max(1, multiplier);
+        return (int) Math.min(Integer.MAX_VALUE, product);
     }
 
     public CompletableFuture<List<String>> listModels() {

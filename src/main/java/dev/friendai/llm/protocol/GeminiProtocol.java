@@ -77,6 +77,9 @@ public final class GeminiProtocol implements LlmProtocol {
 
         JsonObject config = new JsonObject();
         config.addProperty("maxOutputTokens", r.maxTokens());
+        if (r.jsonObject()) {
+            config.addProperty("responseMimeType", "application/json");
+        }
         if (r.temperature() != null) {
             config.addProperty("temperature", r.temperature());
         }

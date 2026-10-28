@@ -1,9 +1,11 @@
 package dev.friendai.agent.plan;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.Strictness;
 import dev.friendai.tool.QueueParser;
 import java.util.List;
 import java.util.Map;
@@ -13,10 +15,13 @@ import java.util.Set;
 /** Turns the planner's text into a validated {@link PlanProposal}, or a list of errors to show it on a retry. */
 public final class PlannerParser {
     static final int MAX_NOTE = 240;
+    static final int MAX_REPLY_CHARS = 196608;
+    private static final Gson STRICT =
+            new GsonBuilder().setStrictness(Strictness.STRICT).create();
 
     private PlannerParser() {}
 
-    public record Parsed(Optional<PlanProposal> proposal, List<String> errors) {
+    public record Parsed(Optional<PlanProposal> proposal, List<String> errors, PlanFailure failure) {
         public boolean ok() {
             return proposal.isPresent();
         }
@@ -33,23 +38,41 @@ public final class PlannerParser {
             int maxSteps,
             int maxArgs,
             int maxTotal) {
-        JsonElement extracted = extract(modelText);
+        if (modelText != null && modelText.length() > MAX_REPLY_CHARS)
+            return failed(PlanFailure.Code.TOO_LARGE, "reply exceeds " + MAX_REPLY_CHARS + " characters");
+        if (modelText == null || modelText.isBlank())
+            return failed(PlanFailure.Code.EMPTY_REPLY, "reply contains no answer text");
+        JsonElement extracted;
+        try {
+            extracted = extract(modelText);
+        } catch (RuntimeException e) {
+            return failed(PlanFailure.Code.BROKEN_JSON, e.getMessage());
+        }
         if (extracted == null) {
-            return failed("the reply is not a JSON object");
+            return failed(PlanFailure.Code.NO_JSON, "reply has no JSON object or steps array");
         }
         JsonObject root = extracted.isJsonArray() ? steps(extracted.getAsJsonArray()) : extracted.getAsJsonObject();
         if (!root.has("steps") || !root.get("steps").isJsonArray()) {
-            return failed("the object needs a \"steps\" array");
+            return failed(PlanFailure.Code.STEPS_INVALID, "the object needs a \"steps\" array");
         }
         JsonArray steps = normalize(root.getAsJsonArray("steps"));
         QueueParser.PlanResult parsed = QueueParser.parsePlan(steps, schemas, allTools, maxSteps, maxArgs, maxTotal);
         if (!parsed.ok()) {
-            return new Parsed(Optional.empty(), parsed.errors());
+            boolean oversized =
+                    parsed.errors().stream().anyMatch(e -> e.contains("exceeds") || e.contains("arguments exceed"));
+            return new Parsed(
+                    Optional.empty(),
+                    parsed.errors(),
+                    new PlanFailure(
+                            oversized ? PlanFailure.Code.TOO_LARGE : PlanFailure.Code.STEPS_INVALID,
+                            String.join("; ", parsed.errors()),
+                            1));
         }
         return new Parsed(
                 Optional.of(new PlanProposal(
                         parsed.plan(), steps, note(root, "rationale"), note(root, "expected_outcome"))),
-                List.of());
+                List.of(),
+                null);
     }
 
     /**
@@ -70,15 +93,23 @@ public final class PlannerParser {
         }
         JsonElement firstObject = null;
         JsonElement firstArray = null;
+        RuntimeException firstError = null;
         for (int i = 0; i < text.length(); i++) {
             char open = text.charAt(i);
             if (open != '{' && open != '[') {
                 continue;
             }
-            JsonElement candidate = tryParse(balanced(text, i, open, open == '{' ? '}' : ']'));
-            if (candidate == null) {
+            String container = balanced(text, i, open, open == '{' ? '}' : ']');
+            JsonElement candidate;
+            try {
+                candidate = STRICT.fromJson(container, JsonElement.class);
+            } catch (RuntimeException e) {
+                if (firstError == null) firstError = e;
+                // Never salvage a nested action from a broken outer plan.
+                i += container.length() - 1;
                 continue;
             }
+            i += container.length() - 1;
             if (candidate.isJsonObject()) {
                 if (candidate.getAsJsonObject().has("steps")) {
                     return candidate;
@@ -95,6 +126,7 @@ public final class PlannerParser {
                 }
             }
         }
+        if (firstObject == null && firstArray == null && firstError != null) throw firstError;
         return firstObject != null ? firstObject : firstArray;
     }
 
@@ -128,7 +160,7 @@ public final class PlannerParser {
 
     private static JsonElement tryParse(String json) {
         try {
-            return JsonParser.parseString(json);
+            return STRICT.fromJson(json, JsonElement.class);
         } catch (RuntimeException e) {
             return null;
         }
@@ -191,7 +223,8 @@ public final class PlannerParser {
         return text.length() > MAX_NOTE ? text.substring(0, MAX_NOTE) : text;
     }
 
-    private static Parsed failed(String error) {
-        return new Parsed(Optional.empty(), List.of(error));
+    private static Parsed failed(PlanFailure.Code code, String error) {
+        PlanFailure failure = new PlanFailure(code, error, 1);
+        return new Parsed(Optional.empty(), List.of(failure.detail()), failure);
     }
 }

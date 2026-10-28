@@ -58,6 +58,11 @@ public final class OpenAiChatProtocol implements LlmProtocol {
             messages.add(messageToWire(m));
         }
         body.add("messages", messages);
+        if (r.jsonObject()) {
+            JsonObject responseFormat = new JsonObject();
+            responseFormat.addProperty("type", "json_object");
+            body.add("response_format", responseFormat);
+        }
         if (r.tools() != null && !r.tools().isEmpty()) {
             JsonArray tools = new JsonArray();
             for (ToolSpec t : r.tools()) {

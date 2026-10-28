@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 14;
+    public static final int VERSION = 15;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -86,6 +86,8 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
+        /** Total planner attempts, including the first request. */
+        public int plannerRetries = 2;
 
         public int plannerTimeoutSec = 60;
     }
@@ -250,6 +252,7 @@ public class ServerConfig {
      * Version 12 added the {@code autonomy} section, whose field defaults fill in old files.
      * Trading settings use defaults when absent, including for older configurations.
      * Version 14 added the search escort fields, whose defaults fill in old files.
+     * Version 15 added plannerRetries, whose field default fills in old files.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 13 && json.has("companion") && json.get("companion").isJsonObject()) {
@@ -416,6 +419,16 @@ public class ServerConfig {
         agent.maxReplans = clamp(problems, "agent.maxReplans", agent.maxReplans, 0, 10);
         agent.goalTickSec = clamp(problems, "agent.goalTickSec", agent.goalTickSec, 10, 600);
         agent.plannerTimeoutSec = clamp(problems, "agent.plannerTimeoutSec", agent.plannerTimeoutSec, 10, 300);
+        agent.plannerRetries = clamp(problems, "agent.plannerRetries", agent.plannerRetries, 1, 4);
+        if (agent.planner != null) {
+            agent.planner = agent.planner.strip();
+            if (agent.planner.isEmpty()) {
+                agent.planner = null;
+            } else if (!profiles.containsKey(agent.planner)) {
+                problems.add("agent.planner " + agent.planner + " is not a configured profile, using active profile");
+                agent.planner = null;
+            }
+        }
         if (agent.promptBudget != 0) {
             agent.promptBudget = clamp(problems, "agent.promptBudget", agent.promptBudget, 2_000, 60_000);
         }

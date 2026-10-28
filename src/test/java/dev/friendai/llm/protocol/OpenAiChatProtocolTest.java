@@ -113,6 +113,14 @@ class OpenAiChatProtocolTest {
         JsonObject w = protocol.toWire(request(List.of(), List.of(), null));
         assertEquals(1024, w.get("max_tokens").getAsInt());
         assertFalse(w.has("temperature"));
+        assertFalse(w.has("response_format"));
+    }
+
+    @Test
+    void toWireRequestsJsonObjectOnlyWhenEnabled() {
+        LlmRequest request = new LlmRequest("gpt-x", "SYS", List.of(), List.of(), null, 1024, true);
+        JsonObject responseFormat = protocol.toWire(request).getAsJsonObject("response_format");
+        assertEquals("json_object", responseFormat.get("type").getAsString());
     }
 
     @Test

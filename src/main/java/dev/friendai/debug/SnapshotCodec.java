@@ -87,10 +87,11 @@ public final class SnapshotCodec {
             // Optional trailing section: a peer running an older build reads none of it.
             out.writeBoolean(s.freeTimeWaiting());
             out.writeBoolean(s.followMode());
-            out.writeByte(2);
+            out.writeByte(3);
             writeString(out, s.freeTimeNext());
             writeString(out, s.freeTimeBudget());
             writeString(out, s.freeTimeLast());
+            writeString(out, s.freeTimePlannerModel());
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -201,14 +202,18 @@ public final class SnapshotCodec {
             String freeTimeNext = "";
             String freeTimeBudget = "";
             String freeTimeLast = "";
+            String freeTimePlannerModel = "";
             if (in.available() > 0) {
                 int tailVersion = in.readByte();
-                if (tailVersion != 2) {
+                if (tailVersion != 2 && tailVersion != 3) {
                     throw new IllegalArgumentException("unknown snapshot tail version " + tailVersion);
                 }
                 freeTimeNext = readString(in);
                 freeTimeBudget = readString(in);
                 freeTimeLast = readString(in);
+                if (tailVersion >= 3) {
+                    freeTimePlannerModel = readString(in);
+                }
             }
             if (in.available() != 0) {
                 throw new IllegalArgumentException("trailing bytes");
@@ -237,7 +242,8 @@ public final class SnapshotCodec {
                     followMode,
                     freeTimeNext,
                     freeTimeBudget,
-                    freeTimeLast);
+                    freeTimeLast,
+                    freeTimePlannerModel);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

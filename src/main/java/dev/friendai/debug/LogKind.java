@@ -8,5 +8,6 @@ public enum LogKind {
     TOOL_RESULT,
     ERROR,
     TASK,
-    MANUAL
+    MANUAL,
+    PLANNER
 }

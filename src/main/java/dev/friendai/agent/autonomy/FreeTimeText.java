@@ -75,6 +75,9 @@ public final class FreeTimeText {
         if (!status.last().isBlank()) {
             sb.append("; last: ").append(status.last());
         }
+        if (!status.plannerModel().isBlank()) {
+            sb.append("; planner model: ").append(status.plannerModel());
+        }
         return sb.append('.').toString();
     }
 }

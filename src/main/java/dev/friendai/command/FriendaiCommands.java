@@ -140,14 +140,15 @@ public final class FriendaiCommands {
                 FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime();
         var status = driver.status(player.getUUID());
         Component answer = !status.on()
-                ? Component.translatable("friendai.command.freetime.status.off")
+                ? Component.translatable("friendai.command.freetime.status.off", status.plannerModel())
                 : Component.translatable(
                         "friendai.command.freetime.status.detail",
                         status.activity().isBlank() ? "-" : status.activity(),
                         status.why().isBlank() ? "-" : status.why(),
                         status.next().isBlank() ? "-" : status.next(),
                         status.budget().isBlank() ? "-" : status.budget(),
-                        status.last().isBlank() ? "-" : status.last());
+                        status.last().isBlank() ? "-" : status.last(),
+                        status.plannerModel().isBlank() ? "-" : status.plannerModel());
         ctx.getSource().sendSuccess(() -> answer, false);
         return status.on() ? 1 : 0;
     }

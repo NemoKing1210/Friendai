@@ -20,18 +20,20 @@ class FreeTimeStatusTest {
         ShiftRecord last = new ShiftRecord(2, "stock logs", NeedKind.STOCK, true, "got 16 logs", 0);
         FreeTime state = new FreeTime(
                 true, FreeTime.Origin.COMMAND, "", 0, shift, false, 4, List.of(last), List.of(), Map.of(), List.of());
-        FreeTimeStatus status = FreeTimeStatus.of(state, "reflex: HUNGER", 3, 6, 2);
+        FreeTimeStatus status = FreeTimeStatus.of(state, "reflex: HUNGER", 3, 6, 2, "planner-x");
         assertEquals("mine iron", status.activity());
         assertEquals("gear is missing", status.why());
         assertEquals("reflex: HUNGER", status.next());
         assertTrue(status.budget().contains("3/6"), status.budget());
         assertTrue(status.budget().contains("backoff 2"), status.budget());
         assertTrue(status.last().contains("stock logs"), status.last());
+        assertEquals("planner-x", status.plannerModel());
         String line = FreeTimeText.statusLine(status);
         assertTrue(
                 line.contains("mine iron") && line.contains("gear is missing") && line.contains("reflex: HUNGER"),
                 line);
         assertTrue(line.contains("stock logs"), line);
+        assertTrue(line.contains("planner model: planner-x"), line);
     }
 
     @Test

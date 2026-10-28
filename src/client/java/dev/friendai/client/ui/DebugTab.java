@@ -148,11 +148,18 @@ final class DebugTab implements MenuTab {
         int bodyTop = top + 16 + GAP;
         int bodyHeight = bottom - bodyBottomOffset - bodyTop;
         Ui.well(g, left, bodyTop, width, bodyHeight);
+        var snapshot = CompanionClientState.snapshot();
         String body = showPrompt && !CompanionClientState.prompt().isEmpty()
                 ? CompanionClientState.prompt()
-                : CompanionClientState.snapshot()
-                        .map(CompanionSnapshot::perception)
-                        .orElse("");
+                : snapshot.map(CompanionSnapshot::perception).orElse("");
+        if (!showPrompt && snapshot.filter(CompanionSnapshot::operator).isPresent()) {
+            String planner = snapshot.get().freeTimePlannerModel();
+            if (!planner.isBlank()) {
+                body = Component.translatable("friendai.menu.free_time.planner_model", planner)
+                                .getString()
+                        + (body.isBlank() ? "" : "\n" + body);
+            }
+        }
         int textWidth = width - 16;
         if (wrappedWidth != textWidth || !body.equals(wrappedFor)) {
             List<FormattedCharSequence> out = new ArrayList<>();

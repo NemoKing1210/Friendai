@@ -1,6 +1,7 @@
 package dev.friendai.llm.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -39,10 +40,20 @@ class AnthropicMessagesProtocolTest {
                 request(List.of(Message.user("hi")), List.of(new ToolSpec("stay", "Stay put", schema))));
         assertEquals("SYS", w.get("system").getAsString());
         assertEquals(1024, w.get("max_tokens").getAsInt());
+        assertFalse(w.has("response_format"));
+        assertFalse(w.has("output_format"));
         JsonObject t = w.getAsJsonArray("tools").get(0).getAsJsonObject();
         assertEquals("stay", t.get("name").getAsString());
         assertEquals("Stay put", t.get("description").getAsString());
         assertEquals(schema, t.getAsJsonObject("input_schema"));
+    }
+
+    @Test
+    void ignoresJsonObjectRequestBecauseAnthropicHasNoJsonMode() {
+        LlmRequest request = new LlmRequest("claude-x", "SYS", List.of(), List.of(), null, 1024, true);
+        JsonObject wire = protocol.toWire(request);
+        assertFalse(wire.has("response_format"));
+        assertFalse(wire.has("output_format"));
     }
 
     @Test

@@ -153,7 +153,7 @@ public final class FreeTimeDriver {
     public FreeTimeStatus status(UUID owner) {
         FreeTime state = service().state(owner);
         if (!state.on()) {
-            return FreeTimeStatus.off();
+            return FreeTimeStatus.off(brains.plannerModel());
         }
         ServerConfig cfg = config.get();
         boolean online = wasOnline.getOrDefault(owner, true);
@@ -164,7 +164,8 @@ public final class FreeTimeDriver {
                 lastDecision.getOrDefault(owner, "waiting"),
                 budget(owner).used(now),
                 perHour,
-                budget(owner).failStreak());
+                budget(owner).failStreak(),
+                brains.plannerModel());
     }
 
     /**
@@ -601,15 +602,29 @@ public final class FreeTimeDriver {
                             : queue(owner, companion, state.shift().goal(), proposal.stepsJson(), minutes, planTools);
                     if (plan.isEmpty()) {
                         long now = now();
-                        String reason = error == null || error.getMessage() == null
-                                ? "the plan was refused"
-                                : error.getMessage();
-                        // The need did not fail, the planner could not draft work for it: try the deterministic
-                        // template
-                        // for the same need before giving the hour up. The director still backs off.
+                        Throwable ownerError = error;
+                        if (ownerError == null && proposal != null) {
+                            ownerError = new dev.friendai.agent.plan.PlannerException(
+                                    new dev.friendai.agent.plan.PlanFailure(
+                                            dev.friendai.agent.plan.PlanFailure.Code.STEPS_INVALID,
+                                            "the proposed plan was refused by the queue",
+                                            1));
+                        }
+                        Throwable cause = dev.friendai.agent.plan.PlanFailure.unwrap(error);
+                        String reason = cause instanceof dev.friendai.agent.plan.PlannerException failure
+                                ? "planner failed: " + failure.failure().code()
+                                : "planner could not produce a usable plan";
+                        brains.plannerDebug(
+                                owner,
+                                error == null && proposal != null
+                                        ? "planner disposition=queue refused: the proposed plan was refused by the queue"
+                                        : "planner disposition=given up");
+                        // The director may keep its hour moving with a deterministic template. An owner-requested
+                        // draft must report the planner failure and end without guessing at a different plan.
                         AutonomyFacts f = facts.build(companion, owner, now);
-                        Optional<List<ReflexStep>> template =
-                                ReflexPlans.fallback(state.shift().need(), f);
+                        Optional<List<ReflexStep>> template = speakFailure
+                                ? Optional.empty()
+                                : ReflexPlans.fallback(state.shift().need(), f);
                         if (template.isPresent()) {
                             Optional<Long> fallback =
                                     queue(owner, companion, state.shift().goal(), template.get(), minutes, taskTools);
@@ -617,6 +632,7 @@ public final class FreeTimeDriver {
                                 service().linkPlan(owner, fallback.get());
                                 facts.invalidate(owner);
                                 budget(owner).failed();
+                                brains.plannerDebug(owner, "planner disposition=queued fallback");
                                 return;
                             }
                         }
@@ -625,12 +641,13 @@ public final class FreeTimeDriver {
                         budget(owner).failed();
                         if (speakFailure) {
                             // The owner asked for this one: the sentence "I'll do that" must not be left hanging.
-                            tell(owner, companion, UserMessage.of("friendai.freetime.no_plan", reason));
+                            tell(owner, companion, dev.friendai.agent.plan.PlanFailure.ownerMessage(ownerError));
                         }
                         return;
                     }
                     service().linkPlan(owner, plan.get());
                     facts.invalidate(owner);
+                    brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
                 }));
     }
 

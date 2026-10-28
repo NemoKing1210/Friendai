@@ -61,6 +61,7 @@ final class LogTab implements MenuTab {
             case ERROR -> "friendai.menu.log.kind.error";
             case TASK -> "friendai.menu.log.kind.task";
             case MANUAL -> "friendai.menu.log.kind.manual";
+            case PLANNER -> "friendai.menu.log.kind.planner";
         };
     }
 
@@ -73,6 +74,7 @@ final class LogTab implements MenuTab {
             case ERROR -> Ui.BAD;
             case TASK -> Ui.WARN;
             case MANUAL -> Ui.PALETTE[6];
+            case PLANNER -> Ui.PALETTE[5];
         };
     }
 

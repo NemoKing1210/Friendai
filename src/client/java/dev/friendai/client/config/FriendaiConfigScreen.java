@@ -348,6 +348,9 @@ public final class FriendaiConfigScreen {
 
     private static ConfigCategory companionCategory(ServerConfig server) {
         var c = server.companion;
+        List<String> plannerProfiles = new ArrayList<>();
+        plannerProfiles.add("");
+        plannerProfiles.addAll(server.profiles.keySet());
         return ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.companion"))
                 .option(stringOption(
@@ -387,6 +390,25 @@ public final class FriendaiConfigScreen {
                         .binding(6, () -> server.skills.modelWritesPerHour, v -> server.skills.modelWritesPerHour = v)
                         .controller(
                                 opt -> IntegerFieldControllerBuilder.create(opt).range(0, 60))
+                        .build())
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.agent.planner"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.planner.tooltip")))
+                        .binding(
+                                "",
+                                () -> server.agent.planner == null ? "" : server.agent.planner,
+                                value -> server.agent.planner = value == null || value.isBlank() ? null : value.strip())
+                        .controller(option -> DropdownStringControllerBuilder.create(option)
+                                .values(plannerProfiles)
+                                .allowAnyValue(false)
+                                .allowEmptyValue(true))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.agent.planner_retries"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.planner_retries.tooltip")))
+                        .binding(2, () -> server.agent.plannerRetries, value -> server.agent.plannerRetries = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 4))
                         .build())
                 .build();
     }

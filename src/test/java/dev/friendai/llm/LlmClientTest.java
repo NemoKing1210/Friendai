@@ -53,6 +53,28 @@ class LlmClientTest {
     }
 
     @Test
+    void completeJsonEnablesJsonModeAndMultipliesOutputLimitSafely() throws Exception {
+        server.enqueue(200, "{\"choices\":[{\"message\":{\"content\":\"{}\"},\"finish_reason\":\"stop\"}]}");
+        client.completeJson("SYS", List.of(Message.user("plan")), 3).get();
+        JsonObject body =
+                JsonParser.parseString(server.requests().get(0).body()).getAsJsonObject();
+        assertEquals(1536, body.get("max_tokens").getAsInt());
+        assertEquals(
+                "json_object",
+                body.getAsJsonObject("response_format").get("type").getAsString());
+    }
+
+    @Test
+    void completeJsonSaturatesOutputLimitInsteadOfOverflowing() throws Exception {
+        server.enqueue(200, "{\"choices\":[{\"message\":{\"content\":\"{}\"},\"finish_reason\":\"stop\"}]}");
+        client.completeJson("SYS", List.of(Message.user("plan")), Integer.MAX_VALUE)
+                .get();
+        JsonObject body =
+                JsonParser.parseString(server.requests().get(0).body()).getAsJsonObject();
+        assertEquals(Integer.MAX_VALUE, body.get("max_tokens").getAsInt());
+    }
+
+    @Test
     void testConnectionReportsToolCalling() throws Exception {
         server.enqueue(200, """
                 {"choices":[{"message":{"content":null,"tool_calls":[

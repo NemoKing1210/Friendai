@@ -42,6 +42,7 @@ class OllamaProtocolTest {
                 null,
                 1024));
         assertFalse(w.get("stream").getAsBoolean());
+        assertFalse(w.has("format"));
         assertEquals(
                 "system",
                 w.getAsJsonArray("messages")
@@ -63,6 +64,12 @@ class OllamaProtocolTest {
         assertEquals("tool", tool.get("role").getAsString());
         assertEquals("go_to", tool.get("tool_name").getAsString());
         assertEquals("ok", tool.get("content").getAsString());
+    }
+
+    @Test
+    void toWireRequestsJsonFormatOnlyWhenEnabled() {
+        LlmRequest request = new LlmRequest("llama", "SYS", List.of(), List.of(), null, 1024, true);
+        assertEquals("json", protocol.toWire(request).get("format").getAsString());
     }
 
     @Test

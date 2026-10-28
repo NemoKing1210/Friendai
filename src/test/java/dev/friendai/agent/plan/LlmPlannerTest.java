@@ -53,7 +53,7 @@ class LlmPlannerTest {
         gateway.enqueue(FakeGateway.text(GOOD));
         planner.propose(input()).get();
         assertEquals(2, gateway.requests.size());
-        String secondUser = gateway.requests.get(1).messages().get(0).text();
+        String secondUser = gateway.requests.get(1).messages().getLast().text();
         assertTrue(secondUser.contains("unknown tool 'teleport'"), secondUser);
     }
 

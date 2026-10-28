@@ -50,6 +50,13 @@ public final class OpenAiResponsesProtocol implements LlmProtocol {
         body.addProperty("instructions", r.system());
         body.addProperty("store", false);
         body.addProperty("max_output_tokens", r.maxTokens());
+        if (r.jsonObject()) {
+            JsonObject format = new JsonObject();
+            format.addProperty("type", "json_object");
+            JsonObject text = new JsonObject();
+            text.add("format", format);
+            body.add("text", text);
+        }
         if (r.temperature() != null) {
             body.addProperty("temperature", r.temperature());
         }

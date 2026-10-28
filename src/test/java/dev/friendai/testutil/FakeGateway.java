@@ -17,8 +17,11 @@ import java.util.concurrent.CompletableFuture;
 public final class FakeGateway implements LlmGateway {
     public record Request(String system, List<Message> messages, List<ToolSpec> tools) {}
 
+    public record JsonRequest(String system, List<Message> messages, int outputMultiplier) {}
+
     private final Queue<CompletableFuture<LlmResponse>> queue = new ArrayDeque<>();
     public final List<Request> requests = new ArrayList<>();
+    public final List<JsonRequest> jsonRequests = new ArrayList<>();
 
     public static LlmResponse text(String text) {
         return new LlmResponse(text, List.of(), StopReason.END, new Usage(0, 0));
@@ -51,5 +54,11 @@ public final class FakeGateway implements LlmGateway {
         requests.add(new Request(system, new ArrayList<>(messages), tools));
         CompletableFuture<LlmResponse> next = queue.poll();
         return next != null ? next : CompletableFuture.failedFuture(new IllegalStateException("no response queued"));
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> completeJson(String system, List<Message> messages, int outputMultiplier) {
+        jsonRequests.add(new JsonRequest(system, new ArrayList<>(messages), outputMultiplier));
+        return complete(system, messages, List.of());
     }
 }

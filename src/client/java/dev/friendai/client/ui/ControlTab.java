@@ -288,6 +288,11 @@ final class ControlTab implements MenuTab {
                     .append(Component.translatable("friendai.menu.free_time.last", s.freeTimeLast())
                             .getString());
         }
+        if (!s.freeTimePlannerModel().isBlank()) {
+            sb.append('\n')
+                    .append(Component.translatable("friendai.menu.free_time.planner_model", s.freeTimePlannerModel())
+                            .getString());
+        }
         return sb.toString();
     }
 

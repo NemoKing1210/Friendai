@@ -3,6 +3,7 @@ package dev.friendai.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -373,6 +374,7 @@ class ServerConfigTest {
         assertEquals(24_000, c.agent.promptBudget);
         assertEquals(60, c.agent.plannerTimeoutSec);
         assertEquals(null, c.agent.planner);
+        assertEquals(2, c.agent.plannerRetries);
     }
 
     @Test
@@ -382,14 +384,65 @@ class ServerConfigTest {
         c.agent.goalTickSec = 1;
         c.agent.promptBudget = 500;
         c.agent.plannerTimeoutSec = 1;
+        c.agent.plannerRetries = 99;
         c.agent.autonomy = "reckless";
         List<String> problems = c.validate();
         assertEquals(10, c.agent.maxReplans);
         assertEquals(10, c.agent.goalTickSec);
         assertEquals(2_000, c.agent.promptBudget);
         assertEquals(10, c.agent.plannerTimeoutSec);
+        assertEquals(4, c.agent.plannerRetries);
         assertEquals("assistive", c.agent.autonomy);
         assertTrue(problems.stream().anyMatch(p -> p.contains("agent.autonomy")), problems.toString());
+        assertTrue(problems.stream().anyMatch(p -> p.contains("agent.plannerRetries")), problems.toString());
+    }
+
+    @Test
+    void plannerRetriesClampToOneThroughFour() {
+        ServerConfig c = ServerConfig.defaults();
+        c.agent.plannerRetries = 0;
+        c.validate();
+        assertEquals(1, c.agent.plannerRetries);
+        c.agent.plannerRetries = 5;
+        c.validate();
+        assertEquals(4, c.agent.plannerRetries);
+    }
+
+    @Test
+    void unknownPlannerProfileFallsBackToActiveProfileWithProblem() {
+        ServerConfig c = ServerConfig.defaults();
+        c.agent.planner = "missing";
+
+        List<String> problems = c.validate();
+
+        assertNull(c.agent.planner);
+        assertTrue(problems.stream().anyMatch(p -> p.contains("agent.planner") && p.contains("missing")));
+    }
+
+    @Test
+    void blankPlannerProfileUsesActiveProfile() {
+        ServerConfig c = ServerConfig.defaults();
+        c.agent.planner = "  ";
+
+        List<String> problems = c.validate();
+
+        assertNull(c.agent.planner);
+        assertFalse(problems.stream().anyMatch(p -> p.contains("agent.planner")));
+    }
+
+    @Test
+    void version14ConfigGetsPlannerRetryDefault(@TempDir Path dir) throws IOException {
+        Path f = dir.resolve("s.json");
+        Files.writeString(f, "{\"version\":14,\"agent\":{\"planner\":\"main\"}}");
+        var store = new ConfigStore<>(
+                f, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+
+        ServerConfig c = store.load();
+
+        assertEquals(2, c.agent.plannerRetries);
+        assertEquals("main", c.agent.planner);
+        assertEquals(ServerConfig.VERSION, c.version);
+        assertTrue(Files.readString(f).contains("\"version\": " + ServerConfig.VERSION));
     }
 
     @Test

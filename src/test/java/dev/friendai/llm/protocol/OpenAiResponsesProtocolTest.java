@@ -39,6 +39,19 @@ class OpenAiResponsesProtocolTest {
         assertEquals("user", item.get("role").getAsString());
         assertEquals("hi", item.get("content").getAsString());
         assertFalse(w.has("temperature"));
+        assertFalse(w.has("text"));
+    }
+
+    @Test
+    void toWireRequestsJsonObjectOnlyWhenEnabled() {
+        LlmRequest request = new LlmRequest("gpt-x", "SYS", List.of(), List.of(), null, 1024, true);
+        assertEquals(
+                "json_object",
+                protocol.toWire(request)
+                        .getAsJsonObject("text")
+                        .getAsJsonObject("format")
+                        .get("type")
+                        .getAsString());
     }
 
     @Test

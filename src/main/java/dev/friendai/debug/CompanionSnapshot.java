@@ -12,6 +12,7 @@ import java.util.List;
  * @param freeTimeNext the next decision free time will take, in words
  * @param freeTimeBudget the director budget and backoff
  * @param freeTimeLast the last finished shift and its result
+ * @param freeTimePlannerModel the effective model selected for free-time plan drafting
  */
 public record CompanionSnapshot(
         boolean present,
@@ -37,16 +38,72 @@ public record CompanionSnapshot(
         boolean followMode,
         String freeTimeNext,
         String freeTimeBudget,
-        String freeTimeLast) {
+        String freeTimeLast,
+        String freeTimePlannerModel) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
+    public static final int MAX_MODEL = 120;
 
     public CompanionSnapshot {
         freeTimeActivity = cut(freeTimeActivity, MAX_ACTIVITY);
         freeTimeNext = cut(freeTimeNext, MAX_NEXT);
         freeTimeBudget = cut(freeTimeBudget, MAX_BUDGET);
         freeTimeLast = cut(freeTimeLast, MAX_ACTIVITY);
+        freeTimePlannerModel = cut(freeTimePlannerModel, MAX_MODEL);
+    }
+
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                "");
     }
 
     private static String cut(String text, int max) {

@@ -62,6 +62,7 @@ class GeminiProtocolTest {
                 1024,
                 w.getAsJsonObject("generationConfig").get("maxOutputTokens").getAsInt());
         assertFalse(w.getAsJsonObject("generationConfig").has("temperature"));
+        assertFalse(w.getAsJsonObject("generationConfig").has("responseMimeType"));
         JsonArray contents = w.getAsJsonArray("contents");
         assertEquals("user", contents.get(0).getAsJsonObject().get("role").getAsString());
         assertEquals(
@@ -74,6 +75,17 @@ class GeminiProtocolTest {
                         .get("text")
                         .getAsString());
         assertEquals("model", contents.get(1).getAsJsonObject().get("role").getAsString());
+    }
+
+    @Test
+    void toWireRequestsJsonMimeTypeOnlyWhenEnabled() {
+        LlmRequest request = new LlmRequest("gemini-x", "SYS", List.of(), List.of(), null, 1024, true);
+        assertEquals(
+                "application/json",
+                protocol.toWire(request)
+                        .getAsJsonObject("generationConfig")
+                        .get("responseMimeType")
+                        .getAsString());
     }
 
     @Test

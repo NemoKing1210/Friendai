@@ -208,20 +208,30 @@ class SnapshotCodecTest {
                 true,
                 "reflex: HUNGER",
                 "3/6 director turns this hour",
-                "stock logs: ok");
+                "stock logs: ok",
+                "planner-x");
         assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
     }
 
     @Test
     void decodesABytesFromTheOlderFormat() {
-        // A payload from before the status tail: the version byte and three empty strings are absent.
+        // A payload from before the status tail: the version byte and empty strings are absent.
         byte[] fullBytes = SnapshotCodec.encode(full());
-        byte[] oldBytes = java.util.Arrays.copyOf(fullBytes, fullBytes.length - 13);
+        byte[] oldBytes = java.util.Arrays.copyOf(fullBytes, fullBytes.length - 17);
         CompanionSnapshot decoded = SnapshotCodec.decode(oldBytes);
         assertEquals(false, decoded.freeTimeWaiting());
         assertEquals(true, decoded.followMode(), "an old payload keeps following on, like the config default");
         assertEquals("", decoded.freeTimeNext());
         assertEquals("", decoded.freeTimeLast());
+    }
+
+    @Test
+    void decodesVersionTwoStatusTailWithoutPlannerModel() {
+        byte[] current = SnapshotCodec.encode(full());
+        byte[] versionTwo = java.util.Arrays.copyOf(current, current.length - Integer.BYTES);
+        versionTwo[versionTwo.length - 13] = 2;
+        CompanionSnapshot decoded = SnapshotCodec.decode(versionTwo);
+        assertEquals("", decoded.freeTimePlannerModel());
     }
 
     @Test

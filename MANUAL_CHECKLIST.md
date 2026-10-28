@@ -400,3 +400,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Export to text, copy/paste, import into the same or another companion, and verify imported metadata cannot grant global/model/builtin authority. Exercise the text-dialog fallback without using the clipboard.
 - [ ] After a real goal or failed free-time shift, inspect a proposed model procedure, approve/reject it, and confirm only approved guidance appears next turn. Restart the world and confirm records, approvals and hourly allowance survive.
 - [ ] On a dedicated server without YACL, exercise /friendai skills list|show|create|edit|duplicate|delete|enable|disable|approve|reject|import|export and /friendai description show|set|clear|language|address. Confirm global operations require operator permission.
+
+## Planner JSON and failure diagnostics (TODO 27)
+
+- [ ] OpenAI Chat: capture one redacted planner request/reply and its finish_reason; verify response_format=json_object and actionable owner failure text.
+- [ ] OpenAI Responses: capture one redacted request/reply and status/incomplete_details; verify text.format=json_object.
+- [ ] Anthropic Messages: capture one redacted request/reply and stop_reason; verify prompt-only JSON guidance (no unsupported JSON-mode field).
+- [ ] Gemini: capture one redacted request/reply and finishReason; verify responseMimeType=application/json.
+- [ ] Ollama: capture one redacted request/reply and done_reason; verify format=json.
+- [ ] In both GUI languages select the planner profile and total attempts, save/reload, and confirm the effective model in free-time status and operator debug. With a malformed reply verify one actionable chat line, shift end/backoff, and a bounded redacted operator planner entry. Confirm model-facing logs never expose the raw planner reply.
+
+These live provider and GUI checks were not performed by the automated implementation. Keep API keys and personal prompts out of captured samples; retain only short operator-local excerpts.

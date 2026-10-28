@@ -112,6 +112,8 @@ public final class BrainService {
 
     private String activeModel = "";
     private String activeProvider = "";
+    private String plannerProfileName = "";
+    private String plannerModel = "";
 
     public BrainService(MinecraftServer server, ServerConfig initial, MemoryStore memory) {
         this.server = server;
@@ -197,12 +199,16 @@ public final class BrainService {
             current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
         }
         plannerGateway = null;
+        plannerProfileName = cfg.activeProfile;
+        plannerModel = profile == null ? "?" : profile.model;
         String plannerProfile = cfg.agent.planner;
         if (plannerProfile != null && !plannerProfile.isBlank()) {
             if (cfg.profiles.containsKey(plannerProfile)) {
                 try {
                     plannerGateway = new LlmClient(
                             ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(plannerProfile, System::getenv));
+                    plannerProfileName = plannerProfile;
+                    plannerModel = cfg.profiles.get(plannerProfile).model;
                 } catch (ConfigException e) {
                     FriendaiMod.LOGGER.warn("The planner profile is unusable; the main profile plans instead");
                 }
@@ -210,6 +216,10 @@ public final class BrainService {
                 FriendaiMod.LOGGER.warn("agent.planner names an unknown profile; the main profile plans instead");
             }
         }
+        FriendaiMod.LOGGER.info(
+                "Planner profile: {} (model {})",
+                plannerRedactor.apply(String.valueOf(plannerProfileName)),
+                plannerRedactor.apply(String.valueOf(plannerModel)));
     }
 
     /** Test hook: use this planner instead of the model-backed one for one owner. */
@@ -222,13 +232,47 @@ public final class BrainService {
         if (override != null) {
             return override;
         }
+        String selectedProfile = String.valueOf(plannerProfileName);
+        String selectedModel = String.valueOf(plannerModel);
+        LlmGateway selectedGateway =
+                plannerGateway != null ? plannerGateway : gatewayOverrides.getOrDefault(owner, current);
+        int plannerTimeout = config.agent.plannerTimeoutSec;
+        int plannerAttempts = Math.max(1, Math.min(4, config.agent.plannerRetries));
         return new dev.friendai.agent.plan.LlmPlanner(
-                () -> plannerGateway != null ? plannerGateway : gatewayOverrides.getOrDefault(owner, current),
+                () -> selectedGateway,
                 plannerRedactor,
-                config.agent.plannerTimeoutSec,
+                plannerTimeout,
                 Math.min(12, TaskSettings.queueMaxStepsPerAdd),
                 8192,
-                49152);
+                49152,
+                plannerAttempts,
+                event -> onServerThread(() -> {
+                    String failure = event.failure() == null
+                            ? ""
+                            : " failure=" + event.failure().code() + ": "
+                                    + plannerRedactor.apply(event.failure().detail());
+                    String reply = plannerRedactor.apply(event.reply() == null ? "" : event.reply());
+                    if (reply.length() > 1200) {
+                        reply = reply.substring(0, 1200) + "…";
+                    }
+                    debug.logOf(owner)
+                            .add(
+                                    LogKind.PLANNER,
+                                    "planner profile=" + plannerRedactor.apply(selectedProfile) + " model="
+                                            + plannerRedactor.apply(selectedModel)
+                                            + " attempt=" + event.attempt() + " disposition=" + event.disposition()
+                                            + failure + " reply=" + reply);
+                }));
+    }
+
+    /** The effective model used for plan drafting, after unknown or unusable profiles fall back. */
+    public String plannerModel() {
+        return plannerModel;
+    }
+
+    /** Adds an operator-only planner lifecycle entry. Call on the server thread. */
+    public void plannerDebug(UUID owner, String text) {
+        debug.logOf(owner).add(LogKind.PLANNER, text);
     }
 
     public String activeProvider() {
@@ -770,6 +814,7 @@ public final class BrainService {
             add.add("steps", proposal.stepsJson());
             ToolResult result =
                     executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
+            plannerDebug(owner, result.error() ? "planner disposition=upgrade refused" : "planner disposition=queued");
             goals.save(owner);
             return result;
         }

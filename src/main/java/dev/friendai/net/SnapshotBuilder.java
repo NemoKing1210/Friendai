@@ -62,7 +62,8 @@ public final class SnapshotBuilder {
                     followMode,
                     status.next(),
                     status.budget(),
-                    status.last());
+                    status.last(),
+                    status.plannerModel());
         }
         CompanionEntity c = companion.get();
         return new CompanionSnapshot(
@@ -89,7 +90,8 @@ public final class SnapshotBuilder {
                 c.followMode(),
                 status.next(),
                 status.budget(),
-                status.last());
+                status.last(),
+                status.plannerModel());
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

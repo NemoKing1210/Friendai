@@ -77,6 +77,9 @@ public final class OllamaProtocol implements LlmProtocol {
             }
         }
         body.add("messages", messages);
+        if (r.jsonObject()) {
+            body.addProperty("format", "json");
+        }
         if (r.tools() != null && !r.tools().isEmpty()) {
             JsonArray tools = new JsonArray();
             for (ToolSpec t : r.tools()) {

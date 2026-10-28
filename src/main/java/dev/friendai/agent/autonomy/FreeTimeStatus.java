@@ -1,10 +1,12 @@
 package dev.friendai.agent.autonomy;
 
 /** What free time is doing, why, what it will decide next, and what the budget allows. Shown to the owner. */
-public record FreeTimeStatus(boolean on, String activity, String why, String next, String budget, String last) {
+public record FreeTimeStatus(
+        boolean on, String activity, String why, String next, String budget, String last, String plannerModel) {
 
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_TEXT = 160;
+    public static final int MAX_MODEL = 120;
 
     public FreeTimeStatus {
         activity = cut(activity, MAX_ACTIVITY);
@@ -12,10 +14,19 @@ public record FreeTimeStatus(boolean on, String activity, String why, String nex
         next = cut(next, MAX_TEXT);
         budget = cut(budget, 80);
         last = cut(last, MAX_ACTIVITY);
+        plannerModel = cut(plannerModel, MAX_MODEL);
+    }
+
+    public FreeTimeStatus(boolean on, String activity, String why, String next, String budget, String last) {
+        this(on, activity, why, next, budget, last, "");
     }
 
     public static FreeTimeStatus off() {
-        return new FreeTimeStatus(false, "", "", "", "", "");
+        return new FreeTimeStatus(false, "", "", "", "", "", "");
+    }
+
+    public static FreeTimeStatus off(String plannerModel) {
+        return new FreeTimeStatus(false, "", "", "", "", "", plannerModel);
     }
 
     /**
@@ -24,6 +35,11 @@ public record FreeTimeStatus(boolean on, String activity, String why, String nex
      * @param failStreak unanswered director turns, which back the next one off
      */
     public static FreeTimeStatus of(FreeTime state, String next, int used, int perHour, int failStreak) {
+        return of(state, next, used, perHour, failStreak, "");
+    }
+
+    public static FreeTimeStatus of(
+            FreeTime state, String next, int used, int perHour, int failStreak, String plannerModel) {
         if (!state.on()) {
             return off();
         }
@@ -33,7 +49,7 @@ public record FreeTimeStatus(boolean on, String activity, String why, String nex
         String last = state.history().isEmpty() ? "" : lastLine(state.history().getFirst());
         String budget = used + "/" + Math.max(1, perHour) + " director turns this hour"
                 + (failStreak > 0 ? ", backoff " + failStreak : "");
-        return new FreeTimeStatus(state.on(), activity, why, next, budget, last);
+        return new FreeTimeStatus(state.on(), activity, why, next, budget, last, plannerModel);
     }
 
     private static String lastLine(ShiftRecord record) {
