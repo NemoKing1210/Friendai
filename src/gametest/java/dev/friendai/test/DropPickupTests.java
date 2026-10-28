@@ -203,4 +203,15 @@ public class DropPickupTests {
                     companion.inventory().countItem(Items.COBBLESTONE), 3, "the settled drop is not in the inventory");
         });
     }
+
+    @GameTest
+    public void repeatedNearbyPickupDoesNotDuplicateAnItem(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ItemEntity item = drop(h, 2.5, 2.0, 2.5, new ItemStack(Items.COBBLESTONE, 3));
+        h.assertValueEqual(companion.collectNearbyItems(2.0), 3, "first pickup count");
+        h.assertValueEqual(companion.collectNearbyItems(2.0), 0, "second pickup moved an already collected stack");
+        h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3, "repeated pickup duplicated items");
+        h.assertTrue(item.isRemoved(), "fully collected entity should be removed");
+        h.succeed();
+    }
 }

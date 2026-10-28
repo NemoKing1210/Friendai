@@ -11,6 +11,10 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.net.DebugStream;
+import dev.friendai.server.companion.CompanionExecution;
+import dev.friendai.server.companion.CompanionPickup;
+import dev.friendai.server.companion.persistence.CompanionBodyCodec;
+import dev.friendai.server.companion.persistence.CompanionCarryCodec;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
@@ -31,7 +35,6 @@ import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
 import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.tool.InventoryAccess;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -107,19 +110,6 @@ public class CompanionEntity extends PathfinderMob {
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
-    /** The slots a death snapshot carries, in a stable order shared by save and restore. */
-    private static final EquipmentSlot[] CARRY_SLOTS = {
-        EquipmentSlot.FEET,
-        EquipmentSlot.LEGS,
-        EquipmentSlot.CHEST,
-        EquipmentSlot.HEAD,
-        EquipmentSlot.MAINHAND,
-        EquipmentSlot.OFFHAND
-    };
-
-    private static final Codec<List<ItemStack>> CARRY_EQUIPMENT = ItemStack.OPTIONAL_CODEC.listOf();
-    /** Vanilla's starting saturation, used when an old save has no hunger fields. */
-    private static final float STARTING_SATURATION = 5.0f;
     /** Vanilla exhaustion per block broken, per attack, per hit taken and per jump. */
     public static final float EXHAUSTION_BLOCK = 0.005f;
 
@@ -360,6 +350,10 @@ public class CompanionEntity extends PathfinderMob {
         return combatController;
     }
 
+    public FireReflex fireReflex() {
+        return fireReflex;
+    }
+
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
@@ -452,9 +446,7 @@ public class CompanionEntity extends PathfinderMob {
                 tickHunger((ServerLevel) level());
             }
             collectExperienceOrbs();
-            combatController.tick();
-            fireReflex.tick();
-            executionCoordinator.tick();
+            CompanionExecution.tick(this);
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();
             facing.tick();
@@ -991,15 +983,7 @@ public class CompanionEntity extends PathfinderMob {
 
     /** Moves dropped stacks within {@code radius} that pass {@code filter}; returns the number of items moved. */
     public int collectNearbyItems(double radius, Predicate<ItemEntity> filter) {
-        int moved = 0;
-        List<ItemEntity> items =
-                level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(radius));
-        for (ItemEntity entity : items) {
-            if (canCollect(entity) && filter.test(entity)) {
-                moved += storeItem(entity);
-            }
-        }
-        return moved;
+        return CompanionPickup.collect(this, radius, filter);
     }
 
     /**
@@ -1010,21 +994,11 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid == null) {
             return;
         }
-        List<ItemEntity> items =
-                level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(OWNER_PICKUP_RADIUS));
-        for (ItemEntity entity : items) {
-            if (entity.isRemoved()) {
-                continue;
-            }
-            if (entity.getOwner() instanceof ServerPlayer player
-                    && player.getUUID().equals(ownerUuid)) {
-                storeItem(entity);
-            }
-        }
+        CompanionPickup.collectOwnerThrows(this, OWNER_PICKUP_RADIUS, ownerUuid);
     }
 
     /** Moves one item entity's stack into the inventory; the leftover stays on the ground. */
-    private int storeItem(ItemEntity entity) {
+    public int storeItem(ItemEntity entity) {
         ItemStack stack = entity.getItem().copy();
         int before = stack.getCount();
         ItemStack leftover = inventory.addItem(stack);
@@ -1110,37 +1084,13 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid != null) {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
-        saveBody(output);
+        CompanionBodyCodec.write(this, output);
     }
 
     /** The persistent carry fields, shared by the world save and the death snapshot. */
-    private void saveBody(ValueOutput output) {
-        inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
-        output.putString("CombatSettings", combatSettings.encode());
-        // Old builds still read the legacy label; new builds prefer CombatSettings when it is present.
-        output.putString("CombatMode", combatMode().label());
-        output.putString("PaceMode", paceMode.label());
-        output.putInt("Food", hunger.food());
-        output.putFloat("Saturation", hunger.saturation());
-        output.putFloat("Exhaustion", hunger.exhaustion());
-        output.putInt("XpPoints", experience.points());
-        if (level() instanceof ServerLevel serverLevel) {
-            var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
-            persistence
-                    .capture(executionCoordinator)
-                    .ifPresent(saved -> output.store(
-                            "SavedExecution", Codec.STRING.listOf(), persistence.split(persistence.encode(saved))));
-        }
-    }
-
     /** Writes what must survive death: the body plus the six equipment slots the superclass save covers. */
     private void saveCarry(ValueOutput output) {
-        saveBody(output);
-        List<ItemStack> equipment = new ArrayList<>(CARRY_SLOTS.length);
-        for (EquipmentSlot slot : CARRY_SLOTS) {
-            equipment.add(getItemBySlot(slot));
-        }
-        output.store("CarryEquipment", CARRY_EQUIPMENT, equipment);
+        CompanionCarryCodec.write(this, output);
     }
 
     @Override
@@ -1152,28 +1102,7 @@ public class CompanionEntity extends PathfinderMob {
         setNoGravity(false);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         syncCreativeModePreference();
-        readBody(input);
-    }
-
-    /** The persistent carry fields; the superclass has already restored equipment on a world load. */
-    private void readBody(ValueInput input) {
-        input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
-        String savedSettings = input.getString("CombatSettings").orElse(null);
-        this.combatSettings = savedSettings != null
-                ? CombatSettings.decodeOrDefault(savedSettings)
-                : CombatMode.parse(input.getString("CombatMode").orElse(null)).toSettings();
-        this.paceMode = PaceMode.parse(input.getString("PaceMode").orElse(null));
-        hunger.load(
-                input.getInt("Food").orElse(HungerModel.MAX_FOOD),
-                input.getFloatOr("Saturation", STARTING_SATURATION),
-                input.getFloatOr("Exhaustion", 0.0f));
-        experience.load(input.getInt("XpPoints").orElse(0));
-        syncExperience();
-        if (level() instanceof ServerLevel serverLevel) {
-            var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
-            input.read("SavedExecution", Codec.STRING.listOf())
-                    .ifPresent(parts -> persistence.restoreEncoded(this, parts));
-        }
+        CompanionBodyCodec.read(this, input);
     }
 
     /** A copy of everything this body carries, for the respawn that replaces it. */
@@ -1186,15 +1115,6 @@ public class CompanionEntity extends PathfinderMob {
     /** Applies a capture from {@link #captureCarry()} to this fresh body. */
     public void restoreCarry(CompoundTag carry) {
         ValueInput input = TagValueInput.create(ProblemReporter.DISCARDING, level().registryAccess(), carry.copy());
-        readCarry(input);
-    }
-
-    private void readCarry(ValueInput input) {
-        readBody(input);
-        input.read("CarryEquipment", CARRY_EQUIPMENT).ifPresent(equipment -> {
-            for (int i = 0; i < CARRY_SLOTS.length && i < equipment.size(); i++) {
-                setItemSlot(CARRY_SLOTS[i], equipment.get(i));
-            }
-        });
+        CompanionCarryCodec.read(this, input);
     }
 }

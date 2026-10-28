@@ -212,29 +212,17 @@ public class CompanionEntityTests {
     }
 
     @GameTest
-    public void missingCombatSettingsMigrateLegacyModes(GameTestHelper h) {
-        for (var pair : java.util.List.of(
-                java.util.Map.entry("defensive", dev.friendai.combat.ProtectionPolicy.BODYGUARD),
-                java.util.Map.entry("guard", dev.friendai.combat.ProtectionPolicy.GUARD),
-                java.util.Map.entry("passive", dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT))) {
-            TagValueOutput out = TagValueOutput.createWithContext(
-                    ProblemReporter.DISCARDING, h.getLevel().registryAccess());
-            out.putString("CombatMode", pair.getKey());
-            CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-            loaded.load(TagValueInput.create(
-                    ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-            h.assertValueEqual(
-                    loaded.combatSettings().protection(),
-                    pair.getValue(),
-                    "legacy " + pair.getKey() + " mapped to " + loaded.combatSettings());
-            h.assertValueEqual(
-                    loaded.combatSettings().style(),
-                    dev.friendai.combat.FightingStyle.BALANCED,
-                    "legacy style for " + pair.getKey());
-            h.assertFalse(loaded.combatSettings().allowSplashPotions(), "legacy migration enabled potions");
-            h.assertValueEqual(loaded.combatSettings().pursuitLimitBlocks(), 24, "legacy pursuit limit");
-            loaded.discard();
-        }
+    public void legacyCombatModeKeyIsIgnored(GameTestHelper h) {
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        out.putString("CombatMode", "guard");
+        CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        loaded.load(
+                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+        h.assertValueEqual(
+                loaded.combatSettings(),
+                dev.friendai.combat.CombatSettings.defaults(),
+                "the target format ignores the retired legacy key");
         h.succeed();
     }
 
