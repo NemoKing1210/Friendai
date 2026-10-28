@@ -198,6 +198,50 @@ public class PlacedBlockTests {
     }
 
     @GameTest(maxTicks = 100)
+    public void recordsBothHalvesOfADoublePlantPlacedIntoReplaceableGrass(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        c.setOwner(owner);
+        h.setBlock(new BlockPos(4, 1, 2), Blocks.DIRT);
+        h.setBlock(new BlockPos(4, 2, 2), Blocks.SHORT_GRASS);
+        BlockPos grass = h.absolutePos(new BlockPos(4, 2, 2));
+        c.hands().place(new ItemStack(Items.SUNFLOWER), grass, Direction.NORTH);
+        h.assertTrue(h.getLevel().getBlockState(grass).is(Blocks.SUNFLOWER),
+                "lower half missing: " + h.getLevel().getBlockState(grass));
+        h.assertTrue(h.getLevel().getBlockState(grass.above()).is(Blocks.SUNFLOWER),
+                "upper half missing: " + h.getLevel().getBlockState(grass.above()));
+        List<PlacedBlock> entries = book(h, owner).all().stream()
+                .filter(entry -> entry.pos().x() == grass.getX() && entry.pos().z() == grass.getZ())
+                .toList();
+        h.assertTrue(entries.size() == 2, "recorded " + entries.size() + ": " + entries);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void placedContainerIsFoundBehindManyNearerPlacements(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        int recorded = 0;
+        for (int x = 3; x <= 11 && recorded < 65; x++) {
+            for (int z = 2; z <= 9 && recorded < 65; z++) {
+                h.setBlock(new BlockPos(x, 2, z), Blocks.OAK_LOG);
+                BlockPos cell = h.absolutePos(new BlockPos(x, 2, z));
+                PlacedService.record(c, cell, h.getLevel().getBlockState(cell), "test");
+                recorded++;
+            }
+        }
+        h.setBlock(new BlockPos(13, 2, 13), Blocks.CHEST);
+        BlockPos chest = h.absolutePos(new BlockPos(13, 2, 13));
+        PlacedService.record(c, chest, h.getLevel().getBlockState(chest), "test");
+        var found = PlacedService.nearestContainer(c, 64);
+        h.assertTrue(found.isPresent() && found.get().equals(chest),
+                "container behind nearer placements was " + found);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
     public void failedPlacementLeavesNoEntry(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

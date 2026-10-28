@@ -190,7 +190,7 @@ public final class PlacedService {
         if (!(companion.level() instanceof ServerLevel level)) {
             return Optional.empty();
         }
-        PlacedQuery.Result result = find(companion, null, radius, PRUNE_BUDGET);
+        PlacedQuery.Result result = find(companion, null, radius, Integer.MAX_VALUE);
         for (PlacedBlock entry : result.entries()) {
             BlockPos pos = toBlockPos(entry);
             if (level.hasChunkAt(pos) && ContainerAccess.at(level, pos).isPresent()) {

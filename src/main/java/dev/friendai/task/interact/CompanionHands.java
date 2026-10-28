@@ -92,7 +92,8 @@ public final class CompanionHands {
         BlockPos target = against.relative(face);
         BlockState targetBefore = blockItem == null ? null : level.getBlockState(target);
         BlockState againstBefore = blockItem == null ? null : level.getBlockState(against);
-        BlockState aboveBefore = blockItem == null ? null : level.getBlockState(target.above());
+        BlockState targetAboveBefore = blockItem == null ? null : level.getBlockState(target.above());
+        BlockState againstAboveBefore = blockItem == null ? null : level.getBlockState(against.above());
         InteractionResult result;
         try {
             result = hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
@@ -107,7 +108,8 @@ public final class CompanionHands {
         if (blockItem != null) {
             recordPlacement(level, target, targetBefore, blockItem);
             recordPlacement(level, against, againstBefore, blockItem);
-            recordPlacement(level, target.above(), aboveBefore, blockItem);
+            recordPlacement(level, target.above(), targetAboveBefore, blockItem);
+            recordPlacement(level, against.above(), againstAboveBefore, blockItem);
         }
         return result;
     }
