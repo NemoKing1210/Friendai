@@ -4,8 +4,15 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.features.mining.BreakProgress;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
+import dev.friendai.features.navigation.minecraft.nav.PathExecutor;
+import dev.friendai.features.navigation.minecraft.task.FollowTask;
+import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.features.navigation.pathing.Cell;
 import dev.friendai.features.navigation.pathing.CostModel;
 import dev.friendai.features.navigation.pathing.GoalPoint;
@@ -20,16 +27,9 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.FollowTask;
-import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.nav.LevelCellView;
-import dev.friendai.task.nav.MaterialPicker;
-import dev.friendai.task.nav.MoveHelper;
-import dev.friendai.task.nav.Navigator;
-import dev.friendai.task.nav.PathExecutor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -497,11 +497,12 @@ public class PathingTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = walker(h, 2, 2, 2);
         MoveHelper mover = new MoveHelper(1.0, 1.5);
+        TaskContext context = new TaskContext(c, h.getLevel());
         Vec3 finalTarget = h.absoluteVec(new Vec3(14.5, 2, 2.5));
         h.succeedWhen(() -> {
             int step = Math.min(4, (int) (h.getTick() / 20));
             double x = 6 + 2.0 * step;
-            mover.tick(c, h.absoluteVec(new Vec3(x + 0.5, 2, 2.5)));
+            mover.tick(context, h.absoluteVec(new Vec3(x + 0.5, 2, 2.5)));
             double distance = c.position().distanceTo(finalTarget);
             h.assertTrue(
                     h.getTick() >= 100 && distance <= 1.75,
@@ -517,10 +518,10 @@ public class PathingTests {
             h.setBlock(new BlockPos(x, floor + 1, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
-        Navigator navigator = new Navigator(c);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
         Vec3 target = h.absoluteVec(new Vec3(7.5, floor + 2, 2.5));
         navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
-        TaskContext context = new TaskContext(c, h.getLevel());
         Navigator.State[] state = {Navigator.State.SEARCHING};
         h.onEachTick(() -> state[0] = navigator.tick(context));
         h.succeedWhen(() -> {
@@ -538,10 +539,10 @@ public class PathingTests {
             h.setBlock(new BlockPos(8, y, 2), Blocks.SCAFFOLDING);
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
-        Navigator navigator = new Navigator(c);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
         Vec3 target = h.absoluteVec(new Vec3(8.5, floor + 5, 2.5));
         navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
-        TaskContext context = new TaskContext(c, h.getLevel());
         Navigator.State[] state = {Navigator.State.SEARCHING};
         h.onEachTick(() -> state[0] = navigator.tick(context));
         h.succeedWhen(() -> {
@@ -691,9 +692,9 @@ public class PathingTests {
         Vec3 max = h.absoluteVec(new Vec3(9, floor + 7, 3));
         c.setPathBounds(new AABB(min, max));
         Vec3 target = h.absoluteVec(new Vec3(8.5, floor + 4, 2.5));
-        Navigator navigator = new Navigator(c, false);
-        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.4));
         TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context, false);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.4));
         Navigator.State[] state = {Navigator.State.SEARCHING};
         h.onEachTick(() -> state[0] = navigator.tick(context));
         h.succeedWhen(() -> {
@@ -734,12 +735,13 @@ public class PathingTests {
     public void moveHelperResetStopsTheRoute(GameTestHelper h) {
         GameTestSupport.platformAt(h, 190, 14);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 191, 2);
+        TaskContext context = new TaskContext(c, h.getLevel());
         MoveHelper mover = new MoveHelper(1.0, 0.3);
         Vec3 target = h.absoluteVec(new Vec3(11.5, 191, 2.5));
         h.succeedWhen(() -> {
-            mover.tick(c, target);
+            mover.tick(context, target);
             h.assertTrue(c.pathing(), "wait for an executing path");
-            mover.reset(new TaskContext(c, h.getLevel()));
+            mover.reset(context);
             h.assertFalse(c.pathing(), "reset must immediately stop the navigator");
         });
     }
@@ -762,9 +764,10 @@ public class PathingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 201, 2);
         Vec3 target = h.absoluteVec(new Vec3(2.5, 201, 2.5));
         c.setPos(target.x - 0.45, target.y, target.z);
+        TaskContext context = new TaskContext(c, h.getLevel());
         MoveHelper mover = new MoveHelper(1.0, 0.1);
         h.succeedWhen(() -> {
-            MoveHelper.State state = mover.tick(c, target);
+            MoveHelper.State state = mover.tick(context, target);
             double distance = Math.hypot(c.getX() - target.x, c.getZ() - target.z);
             if (state == MoveHelper.State.ARRIVED) {
                 h.assertTrue(distance <= 0.1, "reported arrival " + distance + " blocks from the point");
@@ -802,9 +805,9 @@ public class PathingTests {
     private static void walkCorridorAndCheckYaw(GameTestHelper h, int base, double targetX, double targetY) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 5, 11);
         Vec3 target = h.absoluteVec(new Vec3(targetX, targetY, 11.5));
-        Navigator navigator = new Navigator(c);
-        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         Navigator.State[] state = {Navigator.State.SEARCHING};
         float[] lastYaw = {c.getYRot()};
         float[] maxStep = {0};
@@ -847,9 +850,9 @@ public class PathingTests {
         GameTestSupport.platformAt(h, base, 40);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 20);
         Vec3 target = h.absoluteVec(new Vec3(34.5, base + 1, 20.5));
-        Navigator navigator = new Navigator(c);
-        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         Navigator.State[] state = {Navigator.State.SEARCHING};
         long[] arrivedAt = {-1};
         h.onEachTick(() -> {
@@ -882,9 +885,9 @@ public class PathingTests {
         c.setYRot(0.0F);
         c.setYHeadRot(0.0F);
         Vec3 target = h.absoluteVec(new Vec3(18.5, base + 1, 2.5));
-        Navigator navigator = new Navigator(c, false);
-        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context, false);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
         Navigator.State[] state = {Navigator.State.SEARCHING};
         double[] lastX = {c.getX()};
         double[] lastZ = {c.getZ()};

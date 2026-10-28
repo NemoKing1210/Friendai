@@ -1,4 +1,4 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.Pos;

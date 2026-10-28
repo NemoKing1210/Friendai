@@ -42,7 +42,7 @@ legacy-server-state-lookup	dev.friendai.task.builtin.WaitForRestockTask	dev.frie
 legacy-server-state-lookup	dev.friendai.task.crafting.Stations	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.interact.ContainerAccess	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.mining.BreakAction	dev.friendai.core.FriendaiServerState	11
-legacy-server-state-lookup	dev.friendai.task.nav.MaterialGatherer	dev.friendai.core.FriendaiServerState	11
+legacy-server-state-lookup	dev.friendai.features.navigation.minecraft.nav.MaterialGatherer	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.nav.ResourceJourney	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.obtain.ResourceSearchDriver	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.obtain.SearchTargets	dev.friendai.core.FriendaiServerState	11

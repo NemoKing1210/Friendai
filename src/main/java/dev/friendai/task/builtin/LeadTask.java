@@ -1,13 +1,13 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Animals;
 import dev.friendai.task.inventory.DropSettle;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -152,7 +152,7 @@ public final class LeadTask implements Task {
         if (approach == null) {
             approach = new Approach(target.blockPosition());
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
@@ -204,7 +204,7 @@ public final class LeadTask implements Task {
         } else {
             waitTicks = 0;
         }
-        mover.tick(c.companion(), Vec3.atCenterOf(destination));
+        mover.tick(c, Vec3.atCenterOf(destination));
         if (c.companion().position().distanceToSqr(Vec3.atCenterOf(destination)) <= 4.0) {
             return finishTying(c, findFence(c.level()));
         }

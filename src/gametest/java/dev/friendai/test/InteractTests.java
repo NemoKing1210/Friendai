@@ -2,7 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.task.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.task.TaskContext;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,8 +21,9 @@ public class InteractTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(10, 2, 2));
         Approach approach = new Approach(target);
+        TaskContext context = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
-            Approach.State state = approach.tick(c);
+            Approach.State state = approach.tick(context);
             h.assertTrue(state == Approach.State.IN_REACH, "state was " + state);
             double distance = c.getEyePosition().distanceTo(Vec3.atCenterOf(target));
             h.assertTrue(distance <= Approach.REACH, "eye distance was " + distance);
@@ -45,8 +47,9 @@ public class InteractTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(targetRel);
         Approach approach = new Approach(target);
+        TaskContext context = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
-            Approach.State state = approach.tick(c);
+            Approach.State state = approach.tick(context);
             h.assertTrue(state == Approach.State.UNREACHABLE, "state was " + state);
         });
     }

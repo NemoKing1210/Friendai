@@ -7,6 +7,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.navigation.minecraft.task.GoToPlaceTask;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
@@ -16,7 +17,6 @@ import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.Task;
-import dev.friendai.task.builtin.GoToPlaceTask;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -233,8 +233,15 @@ final class PlaceTools {
     }
 
     private static Task goTo(CompanionEntity companion, JsonObject args) {
+        Place place = PlaceService.requireReachable(companion, args.get("name").getAsString(), "go_to_place");
+        BlockPos target = new BlockPos(
+                place.anchor().x(), place.anchor().y(), place.anchor().z());
         return new GoToPlaceTask(
-                PlaceService.requireReachable(companion, args.get("name").getAsString(), "go_to_place"));
+                place.name(),
+                target,
+                place.radius(),
+                context -> PlaceService.markVisit(
+                        context.companion(), place.id(), context.level().getGameTime()));
     }
 
     private static ToolResult rename(CompanionEntity companion, Caller caller, JsonObject args) {

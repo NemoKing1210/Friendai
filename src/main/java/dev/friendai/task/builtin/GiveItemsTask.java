@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.nav.MoveHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -53,7 +53,7 @@ public final class GiveItemsTask implements Task {
             return TaskStatus.FAILED;
         }
         boolean close = companion.distanceTo(owner) <= GIVE_DISTANCE;
-        MoveHelper.State state = close ? MoveHelper.State.ARRIVED : mover.tick(companion, owner.position());
+        MoveHelper.State state = close ? MoveHelper.State.ARRIVED : mover.tick(c, owner.position());
         if (state == MoveHelper.State.STUCK) {
             summary = "can't reach the owner";
             return TaskStatus.FAILED;

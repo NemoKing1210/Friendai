@@ -13,6 +13,8 @@ import dev.friendai.features.construction.special.StructureSnapshot;
 import dev.friendai.features.construction.special.StructureStep;
 import dev.friendai.features.construction.special.Trigger;
 import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceCandidate;
@@ -25,8 +27,6 @@ import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.structure.StructureSite;
 import dev.friendai.task.structure.StructureSnapshotBuilder;
 import java.util.ArrayDeque;
@@ -238,7 +238,7 @@ public final class SpecialStructureTask implements Task {
         if (approach == null) {
             approach = new Approach(pos);
         }
-        switch (approach.tick(companion)) {
+        switch (approach.tick(c)) {
             case UNREACHABLE -> {
                 summary = new PlacementRefusal.OutOfReach(toPos(pos), "finishing the " + structure.id(), 0).describe();
                 return TaskStatus.FAILED;
@@ -280,7 +280,7 @@ public final class SpecialStructureTask implements Task {
             return TaskStatus.FAILED;
         }
         lease.place(companion.hands(), against, face);
-        approach.stop(companion);
+        approach.stop(c);
         approach = null;
         waited = 0;
         steps.poll();
@@ -335,7 +335,7 @@ public final class SpecialStructureTask implements Task {
                 return TaskStatus.FAILED;
             }
         }
-        if (aside.tick(companion, Vec3.atBottomCenterOf(asideTarget)) == MoveHelper.State.MOVING) {
+        if (aside.tick(c, Vec3.atBottomCenterOf(asideTarget)) == MoveHelper.State.MOVING) {
             return TaskStatus.RUNNING;
         }
         aside.reset(c);
@@ -403,7 +403,7 @@ public final class SpecialStructureTask implements Task {
             child = null;
         }
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
         aside.stop(c);
     }

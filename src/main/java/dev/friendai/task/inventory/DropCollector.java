@@ -1,12 +1,12 @@
 package dev.friendai.task.inventory;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.combat.Threats;
-import dev.friendai.task.nav.LevelCellView;
-import dev.friendai.task.nav.Navigator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -246,11 +246,7 @@ public final class DropCollector {
     private Navigator navigator(TaskContext context) {
         if (navigator == null) {
             navigator = new Navigator(
-                    context.companion(),
-                    false,
-                    context.serverSettings().pathing().withActions(false, false),
-                    null,
-                    context.serverSettings());
+                    context, false, context.serverSettings().pathing().withActions(false, false), null);
         }
         return navigator;
     }

@@ -3,11 +3,11 @@ package dev.friendai.task.builtin;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Crops;
-import dev.friendai.task.nav.Approach;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -85,7 +85,7 @@ public final class BonemealTask implements Task {
             }
             approach = new Approach(current);
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
@@ -112,7 +112,7 @@ public final class BonemealTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
     }
 

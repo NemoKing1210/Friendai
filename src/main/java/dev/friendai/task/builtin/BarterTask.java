@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.BarterOrder;
 import dev.friendai.features.trading.BarterProgress;
 import dev.friendai.features.trading.TradeItem;
@@ -9,7 +10,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.task.inventory.DropCollector;
-import dev.friendai.task.nav.Navigator;
 import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.trading.TradeItemCodec;
@@ -60,7 +60,7 @@ public final class BarterTask implements Task {
     public void start(TaskContext context) {
         ownerAtStart = context.companion().ownerUuid();
         dimensionAtStart = context.level().dimension().identifier().toString();
-        navigator = TraderTaskNavigation.navigator(context.companion());
+        navigator = TraderTaskNavigation.navigator(context);
         collector = null;
         attempt = null;
         attemptStarted = 0;

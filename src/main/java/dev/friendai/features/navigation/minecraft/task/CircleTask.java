@@ -1,9 +1,9 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.navigation.minecraft.task;
 
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.function.Supplier;
 import net.minecraft.world.phys.Vec3;
 
@@ -58,7 +58,7 @@ public final class CircleTask implements Task {
         double angle = startAngle + 2.0 * Math.PI * (point + 1) / POINTS_PER_LAP;
         Vec3 waypoint = new Vec3(
                 middle.x + Math.cos(angle) * radius, c.companion().getY(), middle.z + Math.sin(angle) * radius);
-        switch (mover.tick(c.companion(), waypoint)) {
+        switch (mover.tick(c, waypoint)) {
             case ARRIVED -> {
                 point++;
                 mover.reset(c);

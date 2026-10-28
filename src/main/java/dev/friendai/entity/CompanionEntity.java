@@ -10,6 +10,8 @@ import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.StationLease;
 import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.navigation.minecraft.nav.Pace;
+import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.features.survival.Difficulty;
 import dev.friendai.features.survival.ExperienceModel;
@@ -26,14 +28,12 @@ import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
 import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.builtin.CollectStationTask;
-import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.combat.CombatController;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.interact.CompanionHands;
-import dev.friendai.task.nav.Pace;
 import dev.friendai.task.survival.HungerWatcher;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +155,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
     private transient int pathingTicks;
     /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
-    private transient dev.friendai.task.nav.Navigator lastNavigator;
+    private transient dev.friendai.features.navigation.minecraft.nav.Navigator lastNavigator;
 
     private transient long lastNavigatorTick;
     /** Flight and landing are runtime-only; the mode preference itself is persisted separately. */
@@ -410,13 +410,13 @@ public class CompanionEntity extends PathfinderMob {
         return pathingTicks > 0;
     }
 
-    public void noteNavigator(dev.friendai.task.nav.Navigator navigator) {
+    public void noteNavigator(dev.friendai.features.navigation.minecraft.nav.Navigator navigator) {
         this.lastNavigator = navigator;
         this.lastNavigatorTick = level().getGameTime();
     }
 
     /** The navigator that drove the companion within the last second, or null. */
-    public dev.friendai.task.nav.Navigator activeNavigator() {
+    public dev.friendai.features.navigation.minecraft.nav.Navigator activeNavigator() {
         return lastNavigator != null && level().getGameTime() - lastNavigatorTick <= 20 ? lastNavigator : null;
     }
 

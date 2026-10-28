@@ -201,7 +201,7 @@ public class FreeTimeTests {
         long plan = runner.enqueuePlan(
                 "free time",
                 java.util.List.of(stay),
-                java.util.List.of(ctx -> new dev.friendai.task.builtin.StayTask()),
+                java.util.List.of(ctx -> new dev.friendai.features.navigation.minecraft.task.StayTask()),
                 new dev.friendai.execution.queue.PlanOptions(-10, dev.friendai.execution.queue.FailurePolicy.ASK, 0));
         runner.markAutonomousPlan(plan);
         runner.tick();
@@ -445,7 +445,7 @@ public class FreeTimeTests {
         h.assertTrue(
                 c.executionCoordinator().autonomousActive(),
                 "the shift job runs: " + c.executionCoordinator().currentToolName());
-        c.executionCoordinator().interrupt(new dev.friendai.task.builtin.StayTask(40), "stay");
+        c.executionCoordinator().interrupt(new dev.friendai.features.navigation.minecraft.task.StayTask(40), "stay");
         h.assertTrue(c.executionCoordinator().movementOrderActive(), "the stay is a movement order, not owner work");
         h.assertTrue(!c.executionCoordinator().busyWithOther(), "a movement order is not work in the way");
         h.assertTrue(c.executionCoordinator().queue().plan(plan).isPresent(), "the held plan is still queued");

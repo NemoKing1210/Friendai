@@ -5,6 +5,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import java.util.Optional;
@@ -38,12 +40,40 @@ public record TaskContext(
         return serverSettings.tasks();
     }
 
+    public PathingConfig pathingConfig() {
+        return serverSettings.pathing();
+    }
+
+    public BlockList breakList() {
+        return serverSettings.breakList();
+    }
+
+    public BlockList placeList() {
+        return serverSettings.placeList();
+    }
+
     public Optional<ServerPlayer> owner() {
         return companion.owner();
     }
 
     public boolean canUseCreativeAction(CreativeAction action) {
         return CreativeModeService.isActionAuthorized(companion, creativeActionContext, action);
+    }
+
+    public boolean flightAuthorized() {
+        return canUseCreativeAction(CreativeAction.FLIGHT);
+    }
+
+    public boolean passiveFlightAllowed() {
+        return CreativeModeService.ownerMayUsePassiveFlight(companion);
+    }
+
+    public boolean defaultActivity() {
+        return execution != null && execution.currentIsDefaultActivity();
+    }
+
+    public void debug(String text) {
+        if (execution != null) execution.debug(text);
     }
 
     /** The running task belongs to free time, which follows stricter rules than an owner order. */

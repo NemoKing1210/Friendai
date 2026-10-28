@@ -1,10 +1,10 @@
 package dev.friendai.task.mining;
 
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
+import dev.friendai.features.navigation.minecraft.nav.Sight;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.MoveHelper;
-import dev.friendai.task.nav.PlacementLedger;
-import dev.friendai.task.nav.Sight;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
@@ -173,7 +173,7 @@ public final class BlockBreaker {
 
     /** Stops navigation and clears the crack overlay. */
     public void stop(TaskContext c) {
-        approach.stop(c.companion());
+        approach.stop(c);
         if (viewApproach != null) {
             viewApproach.stop(c);
             viewApproach = null;
@@ -197,7 +197,7 @@ public final class BlockBreaker {
             return State.GONE;
         }
         if (viewApproach == null) {
-            switch (approach.tick(companion)) {
+            switch (approach.tick(c)) {
                 case UNREACHABLE -> {
                     refusal = new MiningRefusal.OutOfReach(target != null ? target : candidates.get(0), "no route");
                     return State.UNREACHABLE;
@@ -224,7 +224,7 @@ public final class BlockBreaker {
                 }
             }
             if (viewApproach != null) {
-                MoveHelper.State state = viewApproach.tick(companion, viewPoint);
+                MoveHelper.State state = viewApproach.tick(c, viewPoint);
                 if (state == MoveHelper.State.MOVING) {
                     return State.WORKING;
                 }

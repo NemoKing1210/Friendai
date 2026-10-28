@@ -8,6 +8,7 @@ import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.mining.tree.FellPlan;
 import dev.friendai.features.mining.tree.FellPlanner;
 import dev.friendai.features.mining.tree.TreeCell;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -18,7 +19,6 @@ import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -193,7 +193,7 @@ public final class FellTreeTask implements Task {
         if (mover == null) {
             mover = new MoveHelper(1.0, 0.3, false);
         }
-        MoveHelper.State state = mover.tick(c.companion(), Vec3.atBottomCenterOf(column));
+        MoveHelper.State state = mover.tick(c, Vec3.atBottomCenterOf(column));
         if (state == MoveHelper.State.ARRIVED) {
             BlockPos feet = c.companion().blockPosition();
             mover.stop(c);

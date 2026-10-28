@@ -1,4 +1,4 @@
-package dev.friendai.features.mining;
+package dev.friendai.features.navigation.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

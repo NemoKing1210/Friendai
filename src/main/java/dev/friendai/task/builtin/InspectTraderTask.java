@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.Navigator;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
@@ -40,7 +40,7 @@ public final class InspectTraderTask implements Task {
     public void start(TaskContext context) {
         ownerAtStart = context.companion().ownerUuid();
         dimensionAtStart = context.level().dimension().identifier().toString();
-        navigator = TraderTaskNavigation.navigator(context.companion());
+        navigator = TraderTaskNavigation.navigator(context);
         result = null;
         terminal = null;
         reason = "";

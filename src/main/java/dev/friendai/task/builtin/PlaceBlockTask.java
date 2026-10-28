@@ -3,6 +3,7 @@ package dev.friendai.task.builtin;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceKind;
@@ -15,7 +16,6 @@ import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.nav.Approach;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -134,7 +134,7 @@ public final class PlaceBlockTask implements Task {
             prepared = true;
         }
 
-        switch (approach.tick(companion)) {
+        switch (approach.tick(c)) {
             case UNREACHABLE -> {
                 summary = "can't reach " + coords(spot);
                 return TaskStatus.FAILED;
@@ -186,7 +186,7 @@ public final class PlaceBlockTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
     }
 

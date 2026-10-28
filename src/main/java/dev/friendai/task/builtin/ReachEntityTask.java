@@ -1,10 +1,10 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.EntityTargets;
-import dev.friendai.task.nav.MoveHelper;
 import net.minecraft.world.entity.Entity;
 
 /**
@@ -41,7 +41,7 @@ abstract class ReachEntityTask implements Task {
             mover.stop(c);
             return reached(c);
         }
-        if (mover.tick(c.companion(), target.position()) == MoveHelper.State.STUCK) {
+        if (mover.tick(c, target.position()) == MoveHelper.State.STUCK) {
             summary = "can't reach the " + EntityTargets.label(target);
             return TaskStatus.FAILED;
         }

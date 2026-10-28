@@ -5,12 +5,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.navigation.minecraft.task.FollowTask;
+import dev.friendai.features.navigation.minecraft.task.GoToTask;
+import dev.friendai.features.navigation.minecraft.task.JumpTask;
+import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.task.Task;
-import dev.friendai.task.builtin.FollowTask;
-import dev.friendai.task.builtin.GoToTask;
-import dev.friendai.task.builtin.JumpTask;
-import dev.friendai.task.builtin.StayTask;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 

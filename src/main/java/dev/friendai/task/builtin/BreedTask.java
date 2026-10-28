@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Animals;
-import dev.friendai.task.nav.Approach;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -215,7 +215,7 @@ public final class BreedTask implements Task {
             approachPos = animal.blockPosition().immutable();
             approach = new Approach(approachPos);
         }
-        switch (approach.tick(c.companion())) {
+        switch (approach.tick(c)) {
             case MOVING -> {
                 return Feed.MOVING;
             }

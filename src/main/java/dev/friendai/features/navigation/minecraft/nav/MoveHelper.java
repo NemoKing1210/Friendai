@@ -1,13 +1,10 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.navigation.pathing.Cell;
 import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.phys.Vec3;
 
@@ -73,8 +70,8 @@ public final class MoveHelper {
     }
 
     public State tick(PathfinderMob mob, Vec3 target) {
-        if (mob instanceof CompanionEntity companion) {
-            return tickCompanion(companion, target);
+        if (mob instanceof CompanionEntity) {
+            throw new IllegalArgumentException("companion movement requires its task context");
         }
         double dx = target.x - mob.getX();
         double dy = target.y - mob.getY();
@@ -102,15 +99,14 @@ public final class MoveHelper {
         return State.MOVING;
     }
 
-    private State tickCompanion(CompanionEntity companion, Vec3 target) {
+    public State tick(TaskContext context, Vec3 target) {
+        CompanionEntity companion = context.companion();
         boolean followingOwner = !Double.isNaN(ownerDistance);
         double paceDistance =
                 followingOwner ? ownerDistance : (navigator != null ? navigator.remainingDistance() : 0.0);
         companion.pace().update(followingOwner, paceDistance, paceDistance);
-        TaskContext context = companion.executionCoordinator().activeTaskContext();
-        boolean passiveFollow = companion.executionCoordinator().currentIsDefaultActivity()
-                && CreativeModeService.ownerMayUsePassiveFlight(companion);
-        boolean mayFly = context.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFollow;
+        boolean passiveFollow = context.defaultActivity() && context.passiveFlightAllowed();
+        boolean mayFly = context.flightAuthorized() || passiveFollow;
         if (companion.creativeMode() && mayFly) {
             if (navigator != null) {
                 navigator.stop(context);
@@ -128,14 +124,14 @@ public final class MoveHelper {
             flightNavigator = null;
         }
         if (navigator == null) {
-            navigator = new Navigator(companion, mayPlace, null, null, context.serverSettings());
+            navigator = new Navigator(context, mayPlace, null, null);
         }
         if (lastGoal == null || lastGoal.distanceToSqr(target) > goalTolerance * goalTolerance) {
             lastGoal = target;
             navigator.setGoal(goalFor(companion, target));
         }
         return switch (navigator.tick(context)) {
-            case ARRIVED -> finishAlignment(companion);
+            case ARRIVED -> finishAlignment(context);
             case UNREACHABLE -> State.STUCK;
             default -> State.MOVING;
         };
@@ -156,13 +152,14 @@ public final class MoveHelper {
     }
 
     /** Node centres approximate a goal band; an exact positioning caller still needs the real feet inside it. */
-    private State finishAlignment(CompanionEntity companion) {
+    private State finishAlignment(TaskContext context) {
+        CompanionEntity companion = context.companion();
         GoalPoint point = (GoalPoint) navigator.goal();
         double dx = point.x() - companion.getX();
         double dz = point.z() - companion.getZ();
         double horizontal = Math.hypot(dx, dz);
         if (horizontal <= arriveDistance) {
-            navigator.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+            navigator.stop(context);
             return State.ARRIVED;
         }
         companion.setPathing(true);
@@ -173,7 +170,7 @@ public final class MoveHelper {
         if (++sinceCheckpoint >= STUCK_CHECK_TICKS) {
             sinceCheckpoint = 0;
             if (checkpointDistance - horizontal < Math.min(MIN_PROGRESS, arriveDistance)) {
-                navigator.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+                navigator.stop(context);
                 return State.STUCK;
             }
         }

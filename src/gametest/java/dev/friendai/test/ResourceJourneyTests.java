@@ -224,7 +224,7 @@ public final class ResourceJourneyTests {
                         && (start.getX() >> 4) != (ore.getX() >> 4),
                 "start, sighting and ore must occupy three distinct chunks");
         companion.teleportTo(viewpoint.getX() + 0.5, viewpoint.getY(), viewpoint.getZ() + 0.5);
-        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.assertTrue(
                 GameTestSupport.observeVisible(h, companion, ore), "iron ore should be learned only from direct sight");
         companion.teleportTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5);

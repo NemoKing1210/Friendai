@@ -1,6 +1,9 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.pathing.MaterialPrices;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
@@ -12,9 +15,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.KeepPolicy;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.LevelCellView;
-import dev.friendai.task.nav.MaterialPicker;
 import dev.friendai.task.obtain.DropIndex;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -103,7 +103,7 @@ public final class DepositTask implements Task {
         if (approach == null) {
             approach = new Approach(target);
         }
-        switch (approach.tick(c.companion())) {
+        switch (approach.tick(c)) {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
@@ -204,7 +204,7 @@ public final class DepositTask implements Task {
 
     private void next(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
         approach = null;
         index++;
@@ -284,7 +284,7 @@ public final class DepositTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
     }
 

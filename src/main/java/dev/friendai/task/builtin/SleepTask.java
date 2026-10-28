@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -107,7 +107,7 @@ public final class SleepTask implements Task {
             }
             approach = new Approach(bed);
         }
-        switch (approach.tick(c.companion())) {
+        switch (approach.tick(c)) {
             case UNREACHABLE -> {
                 if (automatic) {
                     bed = null;

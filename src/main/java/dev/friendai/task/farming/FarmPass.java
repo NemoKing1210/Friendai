@@ -14,11 +14,11 @@ import dev.friendai.features.farming.FarmPlanner;
 import dev.friendai.features.farming.FarmReport;
 import dev.friendai.features.farming.FarmStep;
 import dev.friendai.features.farming.FieldCell;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -356,7 +356,7 @@ public final class FarmPass {
             return Step.BUSY;
         }
         if (berryPos != null) {
-            Approach.State state = berryApproach.tick(c.companion());
+            Approach.State state = berryApproach.tick(c);
             if (state == Approach.State.MOVING) {
                 return Step.BUSY;
             }
@@ -404,7 +404,7 @@ public final class FarmPass {
             }
             approach = new Approach(below);
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
@@ -437,7 +437,7 @@ public final class FarmPass {
             }
             approach = new Approach(pos);
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
@@ -467,7 +467,7 @@ public final class FarmPass {
         if (approach == null) {
             approach = new Approach(pos);
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }
@@ -513,7 +513,7 @@ public final class FarmPass {
             approach = new Approach(pos);
             meals = 0;
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return Step.BUSY;
         }

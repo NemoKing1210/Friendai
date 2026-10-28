@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -91,7 +91,7 @@ public final class LightAreaTask implements Task {
 
     private TaskStatus act(TaskContext c) {
         var companion = c.companion();
-        switch (approach.tick(companion)) {
+        switch (approach.tick(c)) {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
@@ -179,7 +179,7 @@ public final class LightAreaTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
     }
 

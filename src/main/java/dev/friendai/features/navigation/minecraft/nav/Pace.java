@@ -1,4 +1,4 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.movement.PacePolicy;

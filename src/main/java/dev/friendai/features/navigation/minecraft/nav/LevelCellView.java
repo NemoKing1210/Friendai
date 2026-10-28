@@ -1,8 +1,8 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.mining.BreakProgress;
 import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.features.navigation.pathing.Cell;
 import dev.friendai.features.navigation.pathing.CellView;
 import dev.friendai.features.navigation.pathing.CostModel;

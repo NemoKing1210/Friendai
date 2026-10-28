@@ -1,4 +1,4 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.pathing.BlockList;
@@ -15,7 +15,6 @@ import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.navigation.pathing.SearchOptions;
 import dev.friendai.features.navigation.pathing.SearchResult;
-import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -51,7 +50,7 @@ public final class Navigator {
     private static final int TRIM_LOOKAHEAD = 8;
 
     private final CompanionEntity companion;
-    private final ServerSettings settings;
+    private final PathingConfig settings;
     private final BlockList breakList;
     private final BlockList placeList;
     /** Whether a route may place blocks. Approaching a block to act on it walks and digs, but never builds. */
@@ -79,8 +78,8 @@ public final class Navigator {
     /** The last search's summary, for the movement debug overlay. */
     private String lastSearch = "";
 
-    public Navigator(CompanionEntity companion) {
-        this(companion, true, null, null, companion.serverSettings());
+    public Navigator(TaskContext context) {
+        this(context, true, null, null);
     }
 
     /**
@@ -88,16 +87,16 @@ public final class Navigator {
      *     (a chest, a block a task places or breaks) keeps it false: the task owns the terrain and the inventory it
      *     brought for its own work, and a pillar of scaffold blocks would spend both.
      */
-    public Navigator(CompanionEntity companion, boolean mayPlace) {
-        this(companion, mayPlace, null, null, companion.serverSettings());
+    public Navigator(TaskContext context, boolean mayPlace) {
+        this(context, mayPlace, null, null);
     }
 
     /**
-     * @param override settings for this route only, or null to use the supplied server snapshot. A collector that
+     * @param override settings for this route only, or null to use the task's captured snapshot. A collector that
      *     must not change the terrain walks with digging and placing switched off.
      */
-    public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override) {
-        this(companion, mayPlace, override, null, companion.serverSettings());
+    public Navigator(TaskContext context, boolean mayPlace, @Nullable PathingConfig override) {
+        this(context, mayPlace, override, null);
     }
 
     /**
@@ -105,27 +104,15 @@ public final class Navigator {
      *     null for routes whose placements are meant to stay.
      */
     public Navigator(
-            CompanionEntity companion,
-            boolean mayPlace,
-            @Nullable PathingConfig override,
-            @Nullable PlacementLedger ledger) {
-        this(companion, mayPlace, override, ledger, companion.serverSettings());
-    }
-
-    public Navigator(
-            CompanionEntity companion,
-            boolean mayPlace,
-            @Nullable PathingConfig override,
-            @Nullable PlacementLedger ledger,
-            ServerSettings settings) {
-        this.companion = companion;
-        this.settings = settings;
+            TaskContext context, boolean mayPlace, @Nullable PathingConfig override, @Nullable PlacementLedger ledger) {
+        this.companion = context.companion();
+        this.settings = context.pathingConfig();
         boolean usesServerLists = override == null
-                || override.breakBlacklist().equals(settings.pathing().breakBlacklist())
-                        && override.placeBlacklist().equals(settings.pathing().placeBlacklist());
+                || override.breakBlacklist().equals(settings.breakBlacklist())
+                        && override.placeBlacklist().equals(settings.placeBlacklist());
         if (usesServerLists) {
-            this.breakList = settings.breakList();
-            this.placeList = settings.placeList();
+            this.breakList = context.breakList();
+            this.placeList = context.placeList();
         } else {
             this.breakList = BlockList.parse(override.breakBlacklist(), ignored -> {});
             java.util.ArrayList<String> entries = new java.util.ArrayList<>(override.breakBlacklist());
@@ -137,14 +124,9 @@ public final class Navigator {
         this.ledger = ledger;
     }
 
-    /** A route that may place blocks and reports them to {@code ledger}. */
-    public Navigator(CompanionEntity companion, boolean mayPlace, PlacementLedger ledger) {
-        this(companion, mayPlace, null, ledger, companion.serverSettings());
-    }
-
     /** The settings this route captured when it was created, optionally adjusted for route-local actions. */
     private PathingConfig config() {
-        return override != null ? override : settings.pathing();
+        return override != null ? override : settings;
     }
 
     private MaterialPicker materials(PathingConfig config) {
@@ -308,7 +290,7 @@ public final class Navigator {
         int missing = path.places() - availableAtProbe;
         // A few spare blocks: an extra bridge cell or a pillar is cheaper to gather now than to walk back for.
         int needed = Math.min(missing + 4, config().maxGatherBlocks());
-        gatherer = new MaterialGatherer(needed, avoidCells(path), settings);
+        gatherer = new MaterialGatherer(needed, avoidCells(path), settings, breakList, placeList);
         state = State.GATHERING;
     }
 
@@ -366,7 +348,7 @@ public final class Navigator {
         if (probed) {
             line.append(", material probe");
         }
-        companion.executionCoordinator().debug(line.toString());
+        c.debug(line.toString());
         lastSearch = line.toString();
         search = null;
         if (result.status() == SearchResult.Status.FOUND

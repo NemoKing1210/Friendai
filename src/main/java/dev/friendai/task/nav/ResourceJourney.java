@@ -4,6 +4,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.ExpeditionChunkHorizon;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.travel.TrailGraph;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -52,7 +53,7 @@ public final class ResourceJourney {
         this.session = session;
         this.trails = Objects.requireNonNull(trails);
         this.requestChunks = requestChunks;
-        this.navigator = new Navigator(context.companion(), false, null, null, context.serverSettings());
+        this.navigator = new Navigator(context, false, null, null);
         Pos start = current(context);
         executedLeg.add(start);
         legStartedTick = logicalTick(context);

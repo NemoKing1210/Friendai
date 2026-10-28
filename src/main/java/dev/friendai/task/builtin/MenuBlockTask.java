@@ -1,12 +1,12 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
-import dev.friendai.task.nav.Approach;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -51,7 +51,7 @@ abstract class MenuBlockTask implements Task {
             approach = new Approach(pos);
         }
         if (approach != null) {
-            switch (approach.tick(c.companion())) {
+            switch (approach.tick(c)) {
                 case UNREACHABLE -> {
                     summary = "can't reach the " + noun + " at " + coords(pos);
                     return TaskStatus.FAILED;
@@ -76,7 +76,7 @@ abstract class MenuBlockTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
             approach = null;
         }
         c.companion().hands().closeMenu();

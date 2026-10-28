@@ -1,10 +1,10 @@
 package dev.friendai.task.mining;
 
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
-import dev.friendai.task.nav.LevelCellView;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -13,7 +14,6 @@ import dev.friendai.task.cooking.FurnaceSlots;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -147,7 +147,7 @@ public final class CollectSmeltedTask implements Task {
         if (approach == null) {
             approach = new Approach(current.pos());
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }

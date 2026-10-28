@@ -1,10 +1,10 @@
 package dev.friendai.task.fire;
 
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.Approach;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 
@@ -47,7 +47,7 @@ public final class RecoverWaterTask implements Task {
             summary = "left the water at " + source.x() + " " + source.y() + " " + source.z();
             return TaskStatus.FAILED;
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
@@ -65,7 +65,7 @@ public final class RecoverWaterTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
     }
 

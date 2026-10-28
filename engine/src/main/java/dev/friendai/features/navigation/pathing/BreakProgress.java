@@ -1,4 +1,4 @@
-package dev.friendai.features.mining;
+package dev.friendai.features.navigation.pathing;
 
 public final class BreakProgress {
     private BreakProgress() {}

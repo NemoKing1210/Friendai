@@ -1,12 +1,12 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.nav.Navigator;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -76,10 +76,9 @@ final class TraderTaskNavigation {
                 == HitResult.Type.MISS;
     }
 
-    static Navigator navigator(CompanionEntity companion) {
-        var settings = companion.serverSettings();
-        PathingConfig noTerrainChanges = settings.pathing().withActions(false, false);
-        return new Navigator(companion, false, noTerrainChanges, null, settings);
+    static Navigator navigator(TaskContext context) {
+        PathingConfig noTerrainChanges = context.pathingConfig().withActions(false, false);
+        return new Navigator(context, false, noTerrainChanges, null);
     }
 
     static void aimAt(Navigator navigator, Entity target, CompanionEntity companion) {

@@ -5,6 +5,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -19,7 +20,6 @@ import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -522,12 +522,12 @@ public final class SmeltTask implements Task {
     }
 
     private TaskStatus tickApproachSpot(TaskContext c) {
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
         if (state == Approach.State.UNREACHABLE) {
-            approach.stop(c.companion());
+            approach.stop(c);
             summary = "couldn't place a " + kind.noun() + ": can't reach the spot";
             return TaskStatus.FAILED;
         }
@@ -613,7 +613,7 @@ public final class SmeltTask implements Task {
         if (approach == null) {
             approach = new Approach(pos);
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
@@ -805,7 +805,7 @@ public final class SmeltTask implements Task {
             if (waitApproach == null) {
                 waitApproach = new Approach(first);
             }
-            if (waitApproach.tick(c.companion()) == Approach.State.MOVING) {
+            if (waitApproach.tick(c) == Approach.State.MOVING) {
                 return TaskStatus.RUNNING;
             }
             waitApproach = null;

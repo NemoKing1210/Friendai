@@ -1,9 +1,9 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.navigation.minecraft.task;
 
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.Locale;
 import net.minecraft.world.phys.Vec3;
 
@@ -40,7 +40,7 @@ public final class GoToTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
-        switch (mover.tick(c.companion(), target)) {
+        switch (mover.tick(c, target)) {
             case ARRIVED -> {
                 summary = "reached " + coords();
                 return TaskStatus.SUCCESS;

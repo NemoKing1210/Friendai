@@ -2,12 +2,12 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.task.nav.Approach;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -100,7 +100,7 @@ abstract class ContainerTaskBase implements Task {
         }
 
         if (!arrived) {
-            switch (approach.tick(c.companion())) {
+            switch (approach.tick(c)) {
                 case UNREACHABLE -> {
                     summary = "can't reach " + coords();
                     return TaskStatus.FAILED;
@@ -139,7 +139,7 @@ abstract class ContainerTaskBase implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
         close(c);
     }

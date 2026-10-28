@@ -1,7 +1,6 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.navigation.movement.FlightSearch;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -45,9 +44,7 @@ public final class FlightNavigator {
     /** {@code passiveFollow} is only used for the system-owned default follow behavior. */
     public State tick(TaskContext context, Vec3 requested, boolean passiveFollow) {
         CompanionEntity companion = context.companion();
-        if (!companion.creativeMode()
-                || !passiveFollow && !context.canUseCreativeAction(CreativeAction.FLIGHT)
-                || !finite(requested)) {
+        if (!companion.creativeMode() || !passiveFollow && !context.flightAuthorized() || !finite(requested)) {
             stop(context);
             return State.UNREACHABLE;
         }

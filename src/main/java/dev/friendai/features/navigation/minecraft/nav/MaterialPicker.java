@@ -1,4 +1,4 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.MaterialPrices;

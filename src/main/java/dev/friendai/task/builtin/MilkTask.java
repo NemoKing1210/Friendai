@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Animals;
-import dev.friendai.task.nav.Approach;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -83,7 +83,7 @@ public final class MilkTask implements Task {
         if (approach == null) {
             approach = new Approach(target.blockPosition());
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }

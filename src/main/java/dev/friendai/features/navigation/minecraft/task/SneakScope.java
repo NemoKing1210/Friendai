@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.task.TaskContext;
 

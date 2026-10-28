@@ -10,6 +10,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.acquisition.Spiral;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.mining.MiningBounds;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.Sight;
 import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
@@ -20,8 +22,6 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.MiningSession;
-import dev.friendai.task.nav.MoveHelper;
-import dev.friendai.task.nav.Sight;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -197,7 +197,7 @@ public final class ExploreTask implements Task {
                 return finishFailure(c);
             }
         }
-        switch (mover.tick(companion, waypoint)) {
+        switch (mover.tick(c, waypoint)) {
             case ARRIVED -> {
                 waypoint = null;
                 mover.reset(c);

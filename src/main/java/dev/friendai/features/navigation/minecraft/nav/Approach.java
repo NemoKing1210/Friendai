@@ -1,7 +1,6 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -112,21 +111,17 @@ public final class Approach {
         return reached != null ? reached : candidates.get(0);
     }
 
-    public State tick(CompanionEntity companion) {
-        return tick(companion.executionCoordinator().activeTaskContext());
-    }
-
     /** Uses authorized creative flight when available; survival approaches keep their walking and planning path. */
     public State tick(TaskContext context) {
         CompanionEntity companion = context.companion();
         BlockPos near = nearestWithinReach(companion);
         if (near != null) {
             reached = near;
-            stop(context, context.canUseCreativeAction(CreativeAction.FLIGHT));
+            stop(context, context.flightAuthorized());
             lookAt(companion, near);
             return State.IN_REACH;
         }
-        if (companion.creativeMode() && context.canUseCreativeAction(CreativeAction.FLIGHT)) {
+        if (companion.creativeMode() && context.flightAuthorized()) {
             if (navigator != null) {
                 navigator.stop(context);
                 navigator = null;
@@ -170,7 +165,7 @@ public final class Approach {
         }
         if (phase == Phase.PLAN) {
             if (navigator == null) {
-                navigator = new Navigator(companion, mayPlace, null, ledger, context.serverSettings());
+                navigator = new Navigator(context, mayPlace, null, ledger);
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }
@@ -192,7 +187,7 @@ public final class Approach {
                 }
             }
         }
-        State walked = closer(companion);
+        State walked = closer(context);
         if (walked == State.UNREACHABLE && phase == Phase.WALK) {
             // The plain walk cannot get closer: there is something in the way. Let the planner dig or bridge through
             // it.
@@ -218,7 +213,8 @@ public final class Approach {
      * Walks toward the nearest block with plain navigation until the eyes are within reach. Used for the last metre
      * after a planned route, and as the fallback when no route exists.
      */
-    private State closer(CompanionEntity companion) {
+    private State closer(TaskContext context) {
+        CompanionEntity companion = context.companion();
         Vec3 center = Vec3.atCenterOf(nearest(companion));
         double distance = companion.getEyePosition().distanceTo(center);
         if (closerTicks % CLOSER_REPATH_TICKS == 0) {
@@ -235,10 +231,6 @@ public final class Approach {
         }
         closerTicks++;
         return State.MOVING;
-    }
-
-    public void stop(CompanionEntity companion) {
-        stop(companion.executionCoordinator().activeTaskContext());
     }
 
     public void stop(TaskContext context) {

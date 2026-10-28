@@ -15,6 +15,8 @@ import dev.friendai.features.construction.blueprint.PlacementRefusal;
 import dev.friendai.features.construction.blueprint.StanceOrder;
 import dev.friendai.features.construction.blueprint.StructureParts;
 import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceCandidate;
@@ -41,8 +43,6 @@ import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -1108,7 +1108,7 @@ public final class BuildTask implements Task {
             if (!freeStanding(c.level(), column) || !columnFree(c.level(), column, feetY)) {
                 continue;
             }
-            return switch (pillarMover.tick(companion, Vec3.atBottomCenterOf(column))) {
+            return switch (pillarMover.tick(c, Vec3.atBottomCenterOf(column))) {
                 case ARRIVED -> {
                     pillarMover.reset(c);
                     yield Column.ALIGNED;
@@ -1219,11 +1219,11 @@ public final class BuildTask implements Task {
             }
             asideTarget = candidate;
             if (approach != null) {
-                approach.stop(companion);
+                approach.stop(c);
                 approach = null;
             }
         }
-        MoveHelper.State state = asideMover.tick(companion, Vec3.atBottomCenterOf(asideTarget));
+        MoveHelper.State state = asideMover.tick(c, Vec3.atBottomCenterOf(asideTarget));
         if (state == MoveHelper.State.MOVING) {
             return TaskStatus.RUNNING;
         }
@@ -1533,7 +1533,7 @@ public final class BuildTask implements Task {
             takeBack.stop(c);
         }
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
         if (takeTask != null) {
             takeTask.stop(c);

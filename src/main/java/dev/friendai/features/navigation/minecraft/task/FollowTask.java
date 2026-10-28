@@ -1,14 +1,12 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.navigation.minecraft.task;
 
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.LevelCellView;
-import dev.friendai.task.nav.MoveHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
@@ -84,7 +82,7 @@ public final class FollowTask implements Task {
             return TaskStatus.RUNNING;
         }
         mover.following(distance);
-        switch (mover.tick(c.companion(), target)) {
+        switch (mover.tick(c, target)) {
             case ARRIVED -> {
                 mover.stopAtDestination(c);
                 moving = false;
@@ -101,10 +99,8 @@ public final class FollowTask implements Task {
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
     private Vec3 followTarget(TaskContext c, ServerPlayer owner) {
-        boolean passiveFlight = c.execution() != null
-                && c.execution().currentIsDefaultActivity()
-                && CreativeModeService.ownerMayUsePassiveFlight(c.companion());
-        if (c.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFlight) {
+        boolean passiveFlight = c.defaultActivity() && c.passiveFlightAllowed();
+        if (c.flightAuthorized() || passiveFlight) {
             Vec3 away = c.companion().position().subtract(owner.position());
             away = new Vec3(away.x, 0.0, away.z);
             if (away.lengthSqr() < 1.0E-6) away = new Vec3(1.0, 0.0, 0.0);

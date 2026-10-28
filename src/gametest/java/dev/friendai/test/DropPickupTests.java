@@ -2,10 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.inventory.DropSettle;
-import dev.friendai.task.nav.LevelCellView;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;

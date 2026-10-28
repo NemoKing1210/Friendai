@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 public final class DropSettle {
     /**
      * The radius a settle takes drops from: a drop from a block or animal acted on at arm's length lands at the
-     * target, and the companion may stand {@link dev.friendai.task.nav.Approach#REACH} (4.0) eye-blocks away and a
+     * target, and the companion may stand {@link dev.friendai.features.navigation.minecraft.nav.Approach#REACH} (4.0) eye-blocks away and a
      * little higher than its feet, so anything under that distance can be just out of a tighter radius.
      */
     public static final double INTERACT_RADIUS = 6.0;

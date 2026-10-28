@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
-import dev.friendai.task.nav.Approach;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.IntSupplier;
@@ -100,7 +100,7 @@ public final class FishTask implements Task {
         if (caughtCount >= count) {
             return finish();
         }
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }

@@ -10,6 +10,7 @@ import dev.friendai.features.crafting.CraftText;
 import dev.friendai.features.crafting.Ingredient;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -20,7 +21,6 @@ import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
 import it.unimi.dsi.fastutil.ints.IntList;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -276,20 +276,20 @@ public final class CraftTask implements Task {
 
     private TaskStatus tickApproach(TaskContext c, CraftStep step) {
         Station station = step.recipe().station();
-        Approach.State state = approach.tick(c.companion());
+        Approach.State state = approach.tick(c);
         if (state == Approach.State.MOVING) {
             return TaskStatus.RUNNING;
         }
         if (phase == StationPhase.APPROACH_SPOT) {
             if (state == Approach.State.UNREACHABLE) {
-                approach.stop(c.companion());
+                approach.stop(c);
                 summary = "couldn't place a " + station.noun() + ": can't reach " + coords(spot);
                 return TaskStatus.FAILED;
             }
             return placeStation(c, step);
         }
         if (state == Approach.State.UNREACHABLE) {
-            approach.stop(c.companion());
+            approach.stop(c);
             summary = "can't reach the " + station.noun() + " at " + coords(stationPos);
             return TaskStatus.FAILED;
         }

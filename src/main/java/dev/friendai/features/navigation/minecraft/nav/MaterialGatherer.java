@@ -1,9 +1,10 @@
-package dev.friendai.task.nav;
+package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.GoalReach;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.mining.BlockMatcher;
@@ -59,7 +60,9 @@ public final class MaterialGatherer {
     /** Cells the planned route walks or builds through, which must not be taken away from it. */
     private final Set<BlockPos> avoid;
 
-    private ServerSettings settings;
+    private final PathingConfig settings;
+    private final BlockList breakList;
+    private final BlockList placeList;
     private MaterialPicker picker;
     private final Set<BlockPos> blacklist = new HashSet<>();
 
@@ -71,22 +74,15 @@ public final class MaterialGatherer {
     private int gathered;
     private boolean noticed;
 
-    public MaterialGatherer(int needed) {
-        this(needed, Set.of());
-    }
-
-    /**
-     * @param avoid block cells the route itself needs; they are skipped as candidates
-     */
-    public MaterialGatherer(int needed, Set<BlockPos> avoid) {
-        this(needed, avoid, null);
-    }
-
-    public MaterialGatherer(int needed, Set<BlockPos> avoid, ServerSettings settings) {
+    /** @param avoid block cells the route itself needs; they are skipped as candidates */
+    public MaterialGatherer(
+            int needed, Set<BlockPos> avoid, PathingConfig settings, BlockList breakList, BlockList placeList) {
         this.needed = needed;
         this.avoid = Set.copyOf(avoid);
         this.settings = settings;
-        if (settings != null) this.picker = materials(settings);
+        this.breakList = breakList;
+        this.placeList = placeList;
+        this.picker = materials(settings, breakList, placeList);
     }
 
     /** How many blocks were broken so far; the inventory count is the authority, this is the fallback. */
@@ -96,11 +92,7 @@ public final class MaterialGatherer {
 
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
-        if (settings == null) {
-            settings = c.serverSettings();
-            picker = materials(settings);
-        }
-        if (!settings.pathing().allowBreak()) {
+        if (!settings.allowBreak()) {
             // Gathering is digging; a server that forbids breaking forbids this too.
             return finish(c);
         }
@@ -128,16 +120,14 @@ public final class MaterialGatherer {
             candidates = findCandidates(c, companion);
             if (!candidates.isEmpty() && !noticed) {
                 noticed = true;
-                companion
-                        .executionCoordinator()
-                        .debug("gathering " + label(c, candidates.get(0)) + " to build a bridge");
+                c.debug("gathering " + label(c, candidates.get(0)) + " to build a bridge");
             }
         }
         if (candidates.isEmpty()) {
             // Nothing left to try: the search decides what that means.
             return finish(c);
         }
-        navigator = new Navigator(companion, false, null, null, settings);
+        navigator = new Navigator(c, false, null, null);
         navigator.setGoal(goal(companion));
         return State.WORKING;
     }
@@ -182,7 +172,7 @@ public final class MaterialGatherer {
     }
 
     private State tickBreak(TaskContext c, CompanionEntity companion) {
-        switch (action.tick(c, state -> !state.isAir() && dropsMaterial(state, companion, settings))) {
+        switch (action.tick(c, state -> !state.isAir() && dropsMaterial(state, companion))) {
             case WORKING -> {
                 return State.WORKING;
             }
@@ -227,7 +217,7 @@ public final class MaterialGatherer {
         BlockMatcher matcher = new BlockMatcher() {
             @Override
             public boolean test(BlockState state) {
-                return dropsMaterial(state, companion, settings);
+                return dropsMaterial(state, companion);
             }
 
             @Override
@@ -255,11 +245,11 @@ public final class MaterialGatherer {
     }
 
     /** Whether breaking {@code state} yields a block the companion can bridge with. */
-    private static boolean dropsMaterial(BlockState state, CompanionEntity companion, ServerSettings settings) {
+    private boolean dropsMaterial(BlockState state, CompanionEntity companion) {
         if (state.isAir()) {
             return false;
         }
-        if (settings.breakList().matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
+        if (breakList.matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
             return false;
         }
         if (DIRT.test(state) || GRASS.test(state) || NETHERRACK.test(state)) {
@@ -272,8 +262,8 @@ public final class MaterialGatherer {
         return holdsCorrectTool(companion, state);
     }
 
-    private static MaterialPicker materials(ServerSettings settings) {
-        return new MaterialPicker(settings.pathing(), settings.breakList(), settings.placeList());
+    private static MaterialPicker materials(PathingConfig settings, BlockList breakList, BlockList placeList) {
+        return new MaterialPicker(settings, breakList, placeList);
     }
 
     private static boolean holdsCorrectTool(CompanionEntity companion, BlockState state) {

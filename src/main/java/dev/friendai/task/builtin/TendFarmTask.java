@@ -4,13 +4,13 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.farming.FarmReport;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.Crops;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -124,7 +124,7 @@ public final class TendFarmTask implements Task {
     private void stayNear(TaskContext c) {
         Vec3 at = Vec3.atCenterOf(center);
         if (c.companion().position().distanceToSqr(at) > STAY_DISTANCE * STAY_DISTANCE) {
-            mover.tick(c.companion(), at);
+            mover.tick(c, at);
         } else {
             c.companion().getNavigation().stop();
         }

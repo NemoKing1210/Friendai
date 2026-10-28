@@ -132,7 +132,7 @@ public class CombatDefenseTests {
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
                 .setBaseValue(100.0);
         zombie.setHealth(100.0f);
-        c.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        c.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.runAfterDelay(
                 5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.runAfterDelay(30, () -> {

@@ -1,6 +1,6 @@
 package dev.friendai.task.build;
 
-import dev.friendai.task.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;

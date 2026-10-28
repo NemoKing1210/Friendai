@@ -6,6 +6,8 @@ import dev.friendai.features.fire.ExtinguishStep;
 import dev.friendai.features.fire.FirePlanner;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.FireText;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -14,8 +16,6 @@ import dev.friendai.task.fire.FireHands;
 import dev.friendai.task.fire.FireScan;
 import dev.friendai.task.fire.RecoverWaterTask;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.task.nav.MoveHelper;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -154,7 +154,7 @@ public final class ExtinguishFireTask implements Task {
     @Override
     public void stop(TaskContext c) {
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
             approach = null;
         }
         if (breaker != null) {
@@ -273,7 +273,7 @@ public final class ExtinguishFireTask implements Task {
         if (mover == null) {
             mover = new MoveHelper(1.0, 1.0);
         }
-        if (mover.tick(c.companion(), Vec3.atBottomCenterOf(blockPos(pos))) == MoveHelper.State.MOVING) {
+        if (mover.tick(c, Vec3.atBottomCenterOf(blockPos(pos))) == MoveHelper.State.MOVING) {
             return StepResult.RUNNING;
         }
         return ticks % 20 == 0 ? StepResult.REFUSED : StepResult.RUNNING;
@@ -315,13 +315,13 @@ public final class ExtinguishFireTask implements Task {
     /** Walks within reach of a cell once; the approach is kept while it keeps the same target. */
     private Approach.State approach(TaskContext c, BlockPos cell) {
         if (approach != null && cell.equals(approach.target())) {
-            return approach.tick(c.companion());
+            return approach.tick(c);
         }
         if (approach != null) {
-            approach.stop(c.companion());
+            approach.stop(c);
         }
         approach = new Approach(List.of(cell), false);
-        return approach.tick(c.companion());
+        return approach.tick(c);
     }
 
     private boolean resolved(TaskContext c) {

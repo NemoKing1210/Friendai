@@ -13,7 +13,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.task.builtin.StayTask;
+import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
