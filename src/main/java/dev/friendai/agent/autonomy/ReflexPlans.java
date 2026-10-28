@@ -41,7 +41,7 @@ public final class ReflexPlans {
             case PROCESS -> Optional.of(List.of(step("smelt_items")));
             case FOOD -> Optional.of(List.of(step("get_food")));
             case LIGHT -> Optional.of(List.of(step("obtain_item", "item", "minecraft:torch", "count", 16)));
-            case BUILD -> Optional.of(List.of(buildShelterStep()));
+            case BUILD -> hasShelterMaterial(f) ? Optional.of(List.of(buildShelterStep())) : Optional.empty();
             case STORAGE -> f.homeHere().map(home -> List.of(
                     step("go_to_place", "name", home.name()),
                     step("obtain_item", "item", "minecraft:chest", "count", 1),
@@ -76,6 +76,10 @@ public final class ReflexPlans {
         args.addProperty("till", true);
         args.addProperty("crop", "minecraft:wheat_seeds");
         return new ReflexStep("farm", args);
+    }
+
+    private static boolean hasShelterMaterial(AutonomyFacts f) {
+        return f.count(StockKind.PLANKS) >= 16 || f.count(StockKind.COBBLE) >= 16 || f.count(StockKind.LOGS) >= 8;
     }
 
     /** A small wooden house; the finished build is remembered as a home by {@code BuildTask}. */
