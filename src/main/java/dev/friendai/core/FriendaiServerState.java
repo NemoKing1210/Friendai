@@ -18,6 +18,8 @@ import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.place.PlaceLimits;
 import dev.friendai.place.PlaceStore;
+import dev.friendai.placed.PlacedLimits;
+import dev.friendai.placed.PlacedStore;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.trading.TradeStore;
 import dev.friendai.task.trading.MerchantAdapter;
@@ -51,6 +53,7 @@ public final class FriendaiServerState {
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final PlaceStore places;
+    private final PlacedStore placed;
     private final TradeStore trading;
     private final MerchantLeases merchantLeases;
     private final TradeSessionGuard tradeSessionGuard;
@@ -90,6 +93,8 @@ public final class FriendaiServerState {
                 .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
         this.places = new PlaceStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS);
+        this.placed = new PlacedStore(server.getWorldPath(LevelResource.ROOT)
+                .resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS);
         this.trading = new TradeStore(server.getWorldPath(LevelResource.ROOT)
                 .resolve("friendai").resolve("trading"));
         this.merchantLeases = new MerchantLeases();
@@ -168,6 +173,11 @@ public final class FriendaiServerState {
     public PlaceStore places() {
         return places;
     }
+
+    /** Per-owner record of the blocks the companion placed and may still be there. */
+    public PlacedStore placed() {
+        return placed;
+    }
     /** Per-owner trader observations and informational order history. */
     public TradeStore trading() { return trading; }
 
@@ -192,6 +202,7 @@ public final class FriendaiServerState {
         trading.close();
         knowledge.close();
         places.close();
+        placed.close();
         skills.close();
     }
 

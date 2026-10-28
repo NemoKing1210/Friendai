@@ -66,6 +66,7 @@ public class FriendaiMod implements ModInitializer {
             state.tick(System.currentTimeMillis());
             state.memory().flushIfDue();
             state.places().flushIfDue();
+            state.placed().flushIfDue();
             state.trading().flushIfDue();
             DebugStream.tick(server);
             MemoryViewStream.tick(server);
@@ -78,6 +79,7 @@ public class FriendaiMod implements ModInitializer {
             state.memory().flushAll();
             state.knowledge().flushAll();
             state.places().flushAll();
+            state.placed().flushAll();
             state.trading().flushAll();
         });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
