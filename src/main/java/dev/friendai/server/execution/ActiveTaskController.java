@@ -183,7 +183,7 @@ public final class ActiveTaskController {
 
     private TaskContext context(TaskContext base, ActiveTask active) {
         return new TaskContext(
-                base.companion(), base.level(), base.runner(), active.creativeActionContext(), active.settings());
+                base.companion(), base.level(), base.execution(), active.creativeActionContext(), active.settings());
     }
 
     private void safeStop(Task task, TaskContext taskContext, String reason) {

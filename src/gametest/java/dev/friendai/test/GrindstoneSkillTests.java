@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.GrindstoneItemTask;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -67,7 +67,7 @@ public class GrindstoneSkillTests {
         EnchantmentHelper.updateEnchantments(sword, mutable -> mutable.set(sharpness, 3));
         c.inventory().addItem(sword);
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(new GrindstoneItemTask(match(Items.DIAMOND_SWORD), null, null), "grindstone_item");
         h.succeedWhen(() -> {
@@ -85,7 +85,7 @@ public class GrindstoneSkillTests {
         CompanionEntity c = setup(h, 148, true);
         c.inventory().addItem(new ItemStack(Items.STICK));
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(new GrindstoneItemTask(match(Items.STICK), null, null), "grindstone_item");
         h.succeedWhen(() -> {
@@ -104,7 +104,7 @@ public class GrindstoneSkillTests {
         c.inventory().addItem(new ItemStack(Items.DIAMOND_SWORD));
         BlockPos nowhere = h.absolutePos(new BlockPos(6, 157, 6));
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(new GrindstoneItemTask(match(Items.DIAMOND_SWORD), null, nowhere), "grindstone_item");
         h.succeedWhen(() -> {

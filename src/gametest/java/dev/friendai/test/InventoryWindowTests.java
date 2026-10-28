@@ -28,7 +28,8 @@ public class InventoryWindowTests {
         h.assertTrue(denial == InventoryAccess.Denial.NONE, "open denied: " + denial);
         AbstractContainerMenu menu = owner.containerMenu;
         h.assertTrue(menu instanceof CompanionInventoryMenu, "menu was " + menu);
-        h.assertTrue(companion.taskRunner().held(), "the companion must stand still while the window is open");
+        h.assertTrue(
+                companion.executionCoordinator().held(), "the companion must stand still while the window is open");
 
         // The companion's first inventory slot is menu slot 6: shift-clicking it fills the player's inventory.
         ItemStack moved = menu.quickMoveStack(owner, CompanionInventoryMenu.GEAR_SLOTS);
@@ -50,7 +51,7 @@ public class InventoryWindowTests {
         h.assertValueEqual(companion.inventory().countItem(Items.STONE), 5, "stone back in the companion");
 
         owner.closeContainer();
-        h.assertTrue(!companion.taskRunner().held(), "the companion must move again when the window closes");
+        h.assertTrue(!companion.executionCoordinator().held(), "the companion must move again when the window closes");
         h.succeed();
     }
 
@@ -66,7 +67,7 @@ public class InventoryWindowTests {
                 FriendaiMenus.open(other, companion) == InventoryAccess.Denial.NOT_OWNER,
                 "a non-owner must not open the window");
         h.assertTrue(other.containerMenu == other.inventoryMenu, "a window opened for a non-owner");
-        h.assertTrue(!companion.taskRunner().held(), "a denied open must not hold the companion");
+        h.assertTrue(!companion.executionCoordinator().held(), "a denied open must not hold the companion");
 
         h.assertTrue(FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.NONE, "the owner was denied");
         Slot helmet = owner.containerMenu.slots.get(0);

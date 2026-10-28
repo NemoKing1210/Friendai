@@ -35,7 +35,7 @@ public final class PlaceGuard {
         if (!c.autonomous() || !enabled(c.companion())) {
             return null;
         }
-        String tool = c.runner() == null ? "" : c.runner().currentToolName();
+        String tool = c.execution() == null ? "" : c.execution().currentToolName();
         if (STATION_TOOLS.contains(tool)) {
             return null;
         }

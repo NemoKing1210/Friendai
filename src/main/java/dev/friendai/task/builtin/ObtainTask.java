@@ -298,7 +298,7 @@ public final class ObtainTask implements Task {
         if (ticks - lastNoticeTick >= NOTICE_INTERVAL) {
             lastNoticeTick = ticks;
             companion
-                    .taskRunner()
+                    .executionCoordinator()
                     .debug("obtain " + item + ": " + ObtainText.stepText(currentStep) + " (step " + (stepsRun + 1)
                             + ")");
         }

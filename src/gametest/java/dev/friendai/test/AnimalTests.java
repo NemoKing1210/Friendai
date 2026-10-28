@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.BreedTask;
 import dev.friendai.task.builtin.FishTask;
@@ -53,8 +53,8 @@ public class AnimalTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner runner = new TaskRunner(c, () -> 600, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 600, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -85,7 +85,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.COW, 7, 2, 4);
         c.inventory().addItem(new ItemStack(Items.WHEAT, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BreedTask(EntityTypes.COW, 1), "breed_animals");
         h.succeedWhen(() -> {
             runner.tick();
@@ -107,7 +107,7 @@ public class AnimalTests {
         }
         c.inventory().addItem(new ItemStack(Items.CARROT, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BreedTask(EntityTypes.PIG, 1), "breed_animals");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -123,7 +123,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.SHEEP, 7, 2, 4);
         c.inventory().addItem(new ItemStack(Items.DIRT, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BreedTask(EntityTypes.SHEEP, 1), "breed_animals");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -140,7 +140,7 @@ public class AnimalTests {
         baby.setAge(-24000);
         c.inventory().addItem(new ItemStack(Items.DANDELION, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BreedTask(EntityTypes.RABBIT, 1), "breed_animals");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -156,7 +156,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.SHEEP, 6, 2, 4);
         c.inventory().addItem(new ItemStack(Items.SHEARS));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new ShearTask(EntityTypes.SHEEP, 2), "shear");
         h.succeedWhen(() -> {
             runner.tick();
@@ -184,7 +184,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.spawn(EntityTypes.SHEEP, 4, 2, 4);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new ShearTask(EntityTypes.SHEEP, 1), "shear");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -200,7 +200,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.SHEEP, 10, 181, 7);
         c.inventory().addItem(new ItemStack(Items.SHEARS));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new ShearTask(EntityTypes.SHEEP, 2), "shear");
         int[] ticks = {0};
         boolean[] killed = {false};
@@ -223,7 +223,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.COW, 4, 221, 4);
         c.inventory().addItem(new ItemStack(Items.BUCKET, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MilkTask(2, EntityTypes.COW), "milk");
         h.succeedWhen(() -> {
             runner.tick();
@@ -240,7 +240,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.spawn(EntityTypes.COW, 4, 2, 4);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MilkTask(1, EntityTypes.COW), "milk");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -257,7 +257,7 @@ public class AnimalTests {
         Wolf wolf = h.spawn(EntityTypes.WOLF, 5, 2, 4);
         c.inventory().addItem(new ItemStack(Items.BONE, 64));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TameTask("wolf", 1), "tame_animal");
         h.succeedWhen(() -> {
             runner.tick();
@@ -294,7 +294,7 @@ public class AnimalTests {
                 "setup: wolf owner");
         c.inventory().addItem(new ItemStack(Items.BONE, 4));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TameTask("wolf", 1), "tame_animal");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -308,7 +308,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.spawn(EntityTypes.CAT, 5, 2, 4);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TameTask("cat", 1), "tame_animal");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -320,7 +320,7 @@ public class AnimalTests {
     public void leadsPigsAndTiesThem(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        c.taskRunner().setPaused(true);
+        c.executionCoordinator().setPaused(true);
         Pig first = h.spawn(EntityTypes.PIG, 4, 2, 3);
         Pig second = h.spawn(EntityTypes.PIG, 5, 2, 3);
         h.setBlock(10, 2, 2, Blocks.OAK_FENCE);
@@ -328,7 +328,7 @@ public class AnimalTests {
         c.inventory().addItem(new ItemStack(Items.BREAD, 4));
         BlockPos destination = h.absolutePos(new BlockPos(10, 2, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LeadTask(EntityTypes.PIG, 2, destination, true), "lead_animals");
         h.succeedWhen(() -> {
             runner.tick();
@@ -352,7 +352,7 @@ public class AnimalTests {
         net.minecraft.world.entity.animal.goat.Goat goat = h.spawn(EntityTypes.GOAT, 4, 2, 4);
         c.inventory().addItem(new ItemStack(Items.LEAD));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LeadTask(EntityTypes.GOAT, 1, h.absolutePos(new BlockPos(8, 2, 4)), false), "lead_animals");
         h.succeedWhen(() -> {
             runner.tick();
@@ -372,7 +372,7 @@ public class AnimalTests {
         h.setBlock(10, 181, 2, Blocks.OAK_FENCE);
         c.inventory().addItem(new ItemStack(Items.LEAD, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LeadTask(EntityTypes.PIG, 2, h.absolutePos(new BlockPos(10, 181, 2)), true), "lead_animals");
         int[] ticks = {0};
         boolean[] killed = {false};
@@ -398,7 +398,7 @@ public class AnimalTests {
         blockEntity.addOccupant(h.spawn(EntityTypes.BEE, 5, 4, 5));
         c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
         runner.tick();
         BlockPos at = h.absolutePos(hive);
@@ -422,7 +422,7 @@ public class AnimalTests {
         h.setBlock(5, 1, 5, Blocks.CAMPFIRE.defaultBlockState().setValue(CampfireBlock.LIT, true));
         c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
         h.succeedWhen(() -> {
             runner.tick();
@@ -443,7 +443,7 @@ public class AnimalTests {
         h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 2));
         c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new HoneyTask(true, h.absolutePos(hive)), "harvest_honey");
         runner.tick();
         BlockPos at = h.absolutePos(hive);
@@ -466,7 +466,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.FISHING_ROD));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new FishTask(2, () -> 20), "fish");
         h.succeedWhen(() -> {
             runner.tick();
@@ -491,7 +491,7 @@ public class AnimalTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new FishTask(1, () -> 20), "fish");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -505,7 +505,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 141, 2);
         c.inventory().addItem(new ItemStack(Items.FISHING_ROD));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new FishTask(1, () -> 20), "fish");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -521,7 +521,7 @@ public class AnimalTests {
         h.spawn(EntityTypes.COW, 7, 241, 4);
         c.inventory().addItem(new ItemStack(Items.WHEAT, 8));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BreedTask(EntityTypes.COW, 2), "breed_animals");
         h.succeedWhen(() -> {
             runner.tick();

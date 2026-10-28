@@ -99,8 +99,8 @@ public class PlannerTests {
             CompanionEntity c =
                     CompanionManager.get(server).find(player.getUUID()).orElseThrow();
             h.assertTrue(
-                    c.taskRunner().queue().plan(goal.get().planId()).isPresent()
-                            || !c.taskRunner().queue().archives().isEmpty(),
+                    c.executionCoordinator().queue().plan(goal.get().planId()).isPresent()
+                            || !c.executionCoordinator().queue().archives().isEmpty(),
                     "the plan is in the queue or already done");
         });
     }
@@ -171,8 +171,8 @@ public class PlannerTests {
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(goal.planId() != firstPlan && goal.planId() != 0, "the goal now follows the new plan");
             h.assertTrue(
-                    c.taskRunner().queue().plan(firstPlan).isEmpty()
-                            || c.taskRunner().queue().jobsOfPlan(firstPlan).stream()
+                    c.executionCoordinator().queue().plan(firstPlan).isEmpty()
+                            || c.executionCoordinator().queue().jobsOfPlan(firstPlan).stream()
                                     .allMatch(j -> dev.friendai.queue.JobQueue.terminal(j)),
                     "the old plan no longer runs");
         });
@@ -231,20 +231,20 @@ public class PlannerTests {
             h.assertTrue(
                     ticksAfterTheLine[0] > 100,
                     "observing " + ticksAfterTheLine[0] + " ticks, task="
-                            + c.taskRunner().currentToolName());
+                            + c.executionCoordinator().currentToolName());
             h.assertTrue(said.said.size() == 1, "exactly one line for the failure, got " + said.said);
             double distance = c.position().distanceTo(player.position());
             h.assertTrue(
                     distance > distanceBefore - 1.0,
                     "the companion walked to the owner to say it: " + distanceBefore + " -> " + distance
-                            + " blocks, running " + c.taskRunner().currentToolName());
+                            + " blocks, running " + c.executionCoordinator().currentToolName());
             long planId = state.goals()
                     .board(player.getUUID())
                     .primary()
                     .map(dev.friendai.agent.goal.Goal::planId)
                     .orElse(0L);
             h.assertTrue(planId != 0, "the goal lost its plan");
-            var queue = c.taskRunner().queue();
+            var queue = c.executionCoordinator().queue();
             var remainingPlan = queue.plan(planId).orElse(null);
             h.assertTrue(
                     remainingPlan != null && queue.planStatus(planId) == dev.friendai.queue.PlanStatus.NEEDS_DECISION,

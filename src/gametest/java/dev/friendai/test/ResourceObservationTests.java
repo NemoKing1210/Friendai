@@ -196,7 +196,7 @@ public class ResourceObservationTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
         companion.setNoGravity(true);
-        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         var state = FriendaiServerState.get(h.getLevel().getServer());
         h.assertTrue(state.sessions().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
@@ -269,7 +269,7 @@ public class ResourceObservationTests {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setNoGravity(true);
-        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         var state = FriendaiServerState.get(h.getLevel().getServer());
@@ -300,7 +300,7 @@ public class ResourceObservationTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 14, 8);
         companion.setOwner(owner.getUUID());
         companion.setNoGravity(true);
-        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         for (int x = 0; x < 17; x++)
             for (int z = 0; z < 17; z++) {
                 h.setBlock(x, 10, z, Blocks.STONE);
@@ -362,7 +362,7 @@ public class ResourceObservationTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 14, 8);
         companion.setOwner(owner.getUUID());
         companion.setNoGravity(true);
-        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         for (int x = 0; x < 17; x++)
             for (int z = 0; z < 17; z++) {
                 h.setBlock(x, 10, z, Blocks.STONE);

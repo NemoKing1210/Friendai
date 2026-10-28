@@ -128,7 +128,9 @@ public final class MaterialGatherer {
             candidates = findCandidates(c, companion);
             if (!candidates.isEmpty() && !noticed) {
                 noticed = true;
-                companion.taskRunner().debug("gathering " + label(c, candidates.get(0)) + " to build a bridge");
+                companion
+                        .executionCoordinator()
+                        .debug("gathering " + label(c, candidates.get(0)) + " to build a bridge");
             }
         }
         if (candidates.isEmpty()) {

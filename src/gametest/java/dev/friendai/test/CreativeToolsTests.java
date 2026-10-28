@@ -50,13 +50,13 @@ public final class CreativeToolsTests {
             long count,
             CreateItemsTask.Destination destination) {
         CreateItemsTask task = new CreateItemsTask(new ItemStack(item), count, destination);
-        companion.taskRunner().start(task, "create_item", ownerCaller(owner), true);
+        companion.executionCoordinator().start(task, "create_item", ownerCaller(owner), true);
         return task;
     }
 
     private static void tick(CompanionEntity companion, int count) {
         for (int i = 0; i < count; i++) {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
         }
     }
 
@@ -100,7 +100,7 @@ public final class CreativeToolsTests {
         h.assertTrue(
                 full.resultSummary().contains("10 remaining"), "full-inventory result was " + full.resultSummary());
 
-        companion.taskRunner().stop("reset for partial inventory test");
+        companion.executionCoordinator().stop("reset for partial inventory test");
         companion.inventory().setItem(0, ItemStack.EMPTY);
         CreateItemsTask partial = start(h, companion, owner, Items.DIAMOND, 100, CreateItemsTask.Destination.SELF);
         tick(companion, 2);
@@ -121,7 +121,7 @@ public final class CreativeToolsTests {
         CreateItemsTask cancelled = start(h, companion, owner, Items.DIAMOND, 1_000, CreateItemsTask.Destination.SELF);
         tick(companion, 1);
         h.assertTrue(companion.inventory().countItem(Items.DIAMOND) == 64, "first bounded batch was not delivered");
-        companion.taskRunner().stop("cancel test");
+        companion.executionCoordinator().stop("cancel test");
         tick(companion, 4);
         h.assertTrue(companion.inventory().countItem(Items.DIAMOND) == 64, "cancelled task continued creating items");
         h.assertTrue(cancelled.remaining() == 936, "cancellation changed the task's remaining count");

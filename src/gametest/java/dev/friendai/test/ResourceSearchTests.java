@@ -37,7 +37,7 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         var started = tools().bind(companion)
                 .execute(
                         searchCall("minecraft:stone", "auto", "local"),
@@ -81,7 +81,7 @@ public final class ResourceSearchTests {
                         searchCall("minecraft:coal_ore", "auto", "expedition"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
         h.assertTrue(result.error(), "trusted caller must not escalate to expedition scope");
-        h.assertTrue(!companion.taskRunner().hasWork(), "denied expedition must not start a task");
+        h.assertTrue(!companion.executionCoordinator().hasWork(), "denied expedition must not start a task");
         config.tasks.resources.allowExpeditions = oldExpeditions;
         config.companion.chunkLoading.enabled = oldChunkLoading;
         state.applyConfig(config);
@@ -120,12 +120,12 @@ public final class ResourceSearchTests {
                 "search must use server policy values, not arbitrary tool overrides");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("search_resource") && task.saveData() == null)
                         .orElse(false),
                 "active search should rely on coordinator interruption, not a resumable task checkpoint");
-        companion.taskRunner().stop("test cleanup");
+        companion.executionCoordinator().stop("test cleanup");
         config.tasks.resources.allowExpeditions = oldExpeditions;
         config.tasks.resources.expeditionRadius = oldRadius;
         config.tasks.resources.expeditionTicks = oldTicks;
@@ -145,11 +145,11 @@ public final class ResourceSearchTests {
                         searchCall("minecraft:coal_ore", "surface", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), "owner search should start: " + started.content());
-        original.taskRunner().tick();
+        original.executionCoordinator().tick();
 
         var state = FriendaiServerState.get(h.getLevel().getServer());
         var persistence = state.taskPersistence();
-        var saved = persistence.capture(original.taskRunner()).orElseThrow();
+        var saved = persistence.capture(original.executionCoordinator()).orElseThrow();
         h.assertTrue(saved.queue().activeJobId() > 0, "the saved search should be an active queue job");
         h.assertTrue(saved.activeTask() == null, "searches must not carry restartable task checkpoints");
 
@@ -158,12 +158,16 @@ public final class ResourceSearchTests {
         persistence.restore(
                 restored, persistence.decode(persistence.encode(saved)).orElseThrow());
 
-        var job = restored.taskRunner().queue().job(saved.queue().activeJobId()).orElseThrow();
+        var job = restored.executionCoordinator()
+                .queue()
+                .job(saved.queue().activeJobId())
+                .orElseThrow();
         var sessions = state.knowledge().book(owner.getUUID()).searchLedger().snapshot();
         h.assertTrue(
                 job.state() == dev.friendai.queue.JobState.CANCELLED,
                 "active resource search must be cancelled on restart");
-        h.assertTrue(restored.taskRunner().current().isEmpty(), "resource search must not resume automatically");
+        h.assertTrue(
+                restored.executionCoordinator().current().isEmpty(), "resource search must not resume automatically");
         h.assertTrue(
                 sessions.size() == 1 && sessions.getFirst().phase() == SearchSession.Phase.INTERRUPTED,
                 "search ledger must record the interruption and keep its spent budget");
@@ -188,7 +192,7 @@ public final class ResourceSearchTests {
                         searchCall("minecraft:coal_ore", "surface", "expedition"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
-        var task = companion.taskRunner().current().orElseThrow();
+        var task = companion.executionCoordinator().current().orElseThrow();
         var context = new dev.friendai.task.TaskContext(companion, h.getLevel());
         for (int i = 0; i < 50 && state.chunkLoader().expeditionHorizon().activeLeases() == 0; i++) {
             task.tick(context);
@@ -197,7 +201,7 @@ public final class ResourceSearchTests {
                 state.chunkLoader().expeditionHorizon().activeLeases() == 1,
                 "an outbound expedition leg should hold exactly its next-leg ticket");
 
-        companion.taskRunner().stop("test cancellation");
+        companion.executionCoordinator().stop("test cancellation");
         h.assertTrue(
                 state.chunkLoader().expeditionHorizon().activeLeases() == 0
                         && state.chunkLoader().expeditionHorizon().ticketKeys() == 0,
@@ -246,13 +250,13 @@ public final class ResourceSearchTests {
                 "local mining strategy must use the bounded default search budget");
         h.assertTrue(
                 !companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary())
                         .orElse("")
                         .contains("no observed entrance or safe local route"),
                 "permitted MINE strategy must start its guarded mining driver");
-        companion.taskRunner().stop("test cleanup");
+        companion.executionCoordinator().stop("test cleanup");
         h.succeed();
     }
 
@@ -280,7 +284,7 @@ public final class ResourceSearchTests {
                 "readiness failure must not acquire or consume a session");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary().contains("16 torches"))
                         .orElse(false),
@@ -312,7 +316,7 @@ public final class ResourceSearchTests {
                 "readiness failure must not acquire or consume a session");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary().contains("need food"))
                         .orElse(false),
@@ -343,7 +347,7 @@ public final class ResourceSearchTests {
                 "a cave search without observed entrance evidence must not acquire or spend a session");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary().contains("no directly observed cave entrance"))
                         .orElse(false),
@@ -378,12 +382,12 @@ public final class ResourceSearchTests {
         h.assertTrue(session != null, "a permitted observed cave entrance should acquire a bounded session");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("search_resource") && task.saveData() == null)
                         .orElse(false),
                 "the active cave search should not have a resumable checkpoint");
-        companion.taskRunner().stop("test cleanup");
+        companion.executionCoordinator().stop("test cleanup");
         h.succeed();
     }
 
@@ -394,7 +398,7 @@ public final class ResourceSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
 
         var started = tools().bind(companion)
                 .execute(
@@ -431,7 +435,7 @@ public final class ResourceSearchTests {
                                 new Pos(start.getX(), start.getY(), start.getZ()),
                                 level.getServer().overworld().getGameTime()));
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
 
         var started = tools().bind(companion)
                 .execute(

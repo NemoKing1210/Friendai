@@ -218,7 +218,7 @@ public class CompanionDeathTests {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
-        companion.taskRunner().start(new StayTask(), "stay");
+        companion.executionCoordinator().start(new StayTask(), "stay");
         UUID dead = companion.getUUID();
 
         kill(companion, h);
@@ -226,9 +226,10 @@ public class CompanionDeathTests {
         h.succeedWhen(() -> {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
-            h.assertTrue(back.get().taskRunner().current().isPresent(), "the running task should be restored");
+            h.assertTrue(
+                    back.get().executionCoordinator().current().isPresent(), "the running task should be restored");
             h.assertValueEqual(
-                    back.get().taskRunner().current().orElseThrow().type(),
+                    back.get().executionCoordinator().current().orElseThrow().type(),
                     "stay",
                     "the restored task should be the one that was running");
         });
@@ -240,7 +241,7 @@ public class CompanionDeathTests {
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .queue()
                 .addDirect(new QueuedStep(
                         "stay", new JsonObject(), null, List.of(), null, null, 1, List.of(), owner.getUUID(), false));
@@ -251,9 +252,10 @@ public class CompanionDeathTests {
         h.succeedWhen(() -> {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
-            h.assertTrue(back.get().taskRunner().queue().jobCount() > 0, "the queued work should be restored");
             h.assertTrue(
-                    back.get().taskRunner().queue().jobs().stream()
+                    back.get().executionCoordinator().queue().jobCount() > 0, "the queued work should be restored");
+            h.assertTrue(
+                    back.get().executionCoordinator().queue().jobs().stream()
                             .noneMatch(job -> dev.friendai.queue.Job.MISSING_TOOL_RESULT.equals(job.result())),
                     "the restored job must still name a known tool");
         });
@@ -365,7 +367,7 @@ public class CompanionDeathTests {
         UUID ownerId = owner.getUUID();
         long now = System.currentTimeMillis();
         var added = companion
-                .taskRunner()
+                .executionCoordinator()
                 .queue()
                 .addPlan(
                         "free time: gather wood",
@@ -383,7 +385,11 @@ public class CompanionDeathTests {
             Optional<CompanionEntity> back = replacement(manager, ownerId, dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
             h.assertTrue(
-                    back.get().taskRunner().queue().plan(added.planId()).isPresent(),
+                    back.get()
+                            .executionCoordinator()
+                            .queue()
+                            .plan(added.planId())
+                            .isPresent(),
                     "the shift's plan must be restored with its id");
             var shift = state.freeTime().state(ownerId).shift();
             h.assertTrue(

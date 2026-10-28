@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.PlaceBlockTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -33,8 +33,8 @@ public class PlaceBlockTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -54,7 +54,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.SMOOTH_STONE));
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         PlaceBlockTask task = place(Items.SMOOTH_STONE, target);
         runner.start(task, "place_block");
         h.succeedWhen(() -> {
@@ -76,7 +76,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.FURNACE));
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.FURNACE, target), "place_block");
         h.succeedWhen(() -> {
             runner.tick();
@@ -96,7 +96,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.CRAFTING_TABLE));
         BlockPos start = c.blockPosition();
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         PlaceBlockTask task = place(Items.CRAFTING_TABLE, null);
         runner.start(task, "place_block");
         h.succeedWhen(() -> {
@@ -123,7 +123,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS));
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.MUD_BRICKS, target), "place_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -140,7 +140,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.END_STONE));
         BlockPos target = h.absolutePos(new BlockPos(8, 5, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.END_STONE, target), "place_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -156,7 +156,7 @@ public class PlaceBlockTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.END_STONE, target), "place_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -171,7 +171,7 @@ public class PlaceBlockTests {
         c.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PURPUR_BLOCK));
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.PURPUR_BLOCK, target), "place_block");
         h.succeedWhen(() -> {
             runner.tick();
@@ -188,7 +188,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.SUGAR_CANE));
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.SUGAR_CANE, target), "place_block");
         h.succeedWhen(() -> {
             runner.tick();
@@ -210,7 +210,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.RED_NETHER_BRICKS));
         BlockPos target = h.absolutePos(new BlockPos(12, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.RED_NETHER_BRICKS, target), "place_block");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -234,7 +234,7 @@ public class PlaceBlockTests {
         c.inventory().addItem(new ItemStack(Items.TORCH));
         BlockPos target = h.absolutePos(new BlockPos(8, 3, 4));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.TORCH, target), "place_block");
         h.succeedWhen(() -> {
             runner.tick();
@@ -257,7 +257,7 @@ public class PlaceBlockTests {
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         c.hands().overrideProtection(p -> p.equals(target));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(place(Items.QUARTZ_BLOCK, target), "place_block");
         h.succeedWhen(() -> {
             runner.tick();

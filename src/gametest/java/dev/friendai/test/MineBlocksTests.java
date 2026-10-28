@@ -3,8 +3,8 @@ package dev.friendai.test;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.MineBlocksTask;
@@ -36,8 +36,8 @@ public class MineBlocksTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -85,7 +85,7 @@ public class MineBlocksTests {
             vein.add(absolute);
         }
         MineBlocksTask task = mine("minecraft:coal_ore", 6);
-        TaskRunner runner = runner(c, new Result());
+        ExecutionCoordinator runner = runner(c, new Result());
         runner.start(task, "mine_blocks");
         runner.tick();
         var work = task.debugWorkSets().getFirst();
@@ -118,7 +118,7 @@ public class MineBlocksTests {
                     "requested log should be directly visible at " + relative);
         }
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("#minecraft:acacia_logs", 3), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -140,7 +140,7 @@ public class MineBlocksTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(LOGS[0])), "birch log should be visible");
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(LOGS[1])), "upper birch log should be visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:birch_log", 5), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -154,7 +154,7 @@ public class MineBlocksTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:spruce_log", 3), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -171,7 +171,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(bedrock)), "bedrock should be visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:bedrock", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -192,7 +192,7 @@ public class MineBlocksTests {
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.STONE_AXE));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:jungle_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -219,7 +219,7 @@ public class MineBlocksTests {
         c.setOwner(java.util.UUID.randomUUID());
         h.assertTrue(GameTestSupport.observeVisible(h, c, target), "target log should be visible");
         MineBlocksTask task = mine("minecraft:acacia_log", 1);
-        TaskRunner runner = runner(c, new Result());
+        ExecutionCoordinator runner = runner(c, new Result());
         runner.start(task, "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -257,7 +257,7 @@ public class MineBlocksTests {
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, target), "emerald target should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             runner.tick();
@@ -280,7 +280,7 @@ public class MineBlocksTests {
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, target), "initial lapis block should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -302,7 +302,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
@@ -318,7 +318,7 @@ public class MineBlocksTests {
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, target), "bedrock target should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
@@ -336,7 +336,7 @@ public class MineBlocksTests {
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(p -> p.equals(target));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             runner.tick();
@@ -364,7 +364,7 @@ public class MineBlocksTests {
         BlockPos nearer = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(p -> p.equals(nearer));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:dark_prismarine", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -390,7 +390,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:granite", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -425,7 +425,7 @@ public class MineBlocksTests {
         // Dirt to pillar up the trunk: the upper logs are out of reach from the ground.
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:oak_log", 5), "mine_blocks");
         h.succeedWhen(() -> {
             for (int y = 2; y <= 6; y++) {
@@ -468,7 +468,7 @@ public class MineBlocksTests {
         buryLog(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -488,7 +488,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             runner.tick();
@@ -511,7 +511,7 @@ public class MineBlocksTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
                 "log should be visible around the leaf");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -533,7 +533,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
         int[] ticks = {0};
         int[] brokenAt = {-1};
@@ -577,7 +577,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -629,7 +629,7 @@ public class MineBlocksTests {
             c.inventory().addItem(new ItemStack(Items.DIRT, 64));
         }
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(mine("minecraft:acacia_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();

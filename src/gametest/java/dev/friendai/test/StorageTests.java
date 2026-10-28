@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.StoreItemsTask;
@@ -43,8 +43,8 @@ public class StorageTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -86,7 +86,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.DIORITE, 10));
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -116,7 +116,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.GRANITE, 4));
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(matcher("#minecraft:wool"), Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -152,7 +152,7 @@ public class StorageTests {
         }
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -187,7 +187,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.POLISHED_ANDESITE, 64));
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -209,7 +209,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 1));
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -228,7 +228,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 1));
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -246,7 +246,7 @@ public class StorageTests {
         var nearest = ContainerAccess.nearest(h.getLevel(), c.blockPosition(), 16);
         h.assertTrue(nearest.isEmpty(), "found container at " + nearest.orElse(null));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -264,7 +264,7 @@ public class StorageTests {
         c.inventory().addItem(named);
         c.inventory().addItem(new ItemStack(Items.IRON_SHOVEL));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(matcher("minecraft:iron_shovel"), Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -288,7 +288,7 @@ public class StorageTests {
         c.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.GOLDEN_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.TERRACOTTA, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -307,7 +307,7 @@ public class StorageTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 1));
         BlockPos target = h.absolutePos(new BlockPos(12, 2, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 12, 2, 3), "store_items");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -333,7 +333,7 @@ public class StorageTests {
                 "first chest should be directly visible");
         c.inventory().addItem(new ItemStack(Items.DIRT, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(store(null, Integer.MAX_VALUE, h, 12, 2, 3), "store_items");
         runner.tick();
         runner.tick();
@@ -366,7 +366,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:iron_nugget"), 12, target), "take_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -390,7 +390,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:gold_nugget"), 12, target), "take_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -413,7 +413,7 @@ public class StorageTests {
         BlockPos far = h.absolutePos(new BlockPos(12, 2, 6));
         h.assertTrue(GameTestSupport.observeVisible(h, c, far), "the chest with lapis should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:lapis_lazuli"), 3, null), "take_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -436,7 +436,7 @@ public class StorageTests {
         }
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:amethyst_shard"), 1, target), "take_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
@@ -452,7 +452,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TakeItemsTask(matcher("minecraft:quartz"), 1, target), "take_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -474,7 +474,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new CheckContainerTask(target), "check_container");
         h.succeedWhen(() -> {
             runner.tick();
@@ -493,7 +493,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new CheckContainerTask(target), "check_container");
         h.succeedWhen(() -> {
             runner.tick();
@@ -539,7 +539,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new CheckContainerTask(target), "check_container");
         h.succeedWhen(() -> {
             runner.tick();
@@ -557,7 +557,7 @@ public class StorageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(5, 2, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new CheckContainerTask(target), "check_container");
         boolean[] opened = {false};
         boolean[] stopped = {false};

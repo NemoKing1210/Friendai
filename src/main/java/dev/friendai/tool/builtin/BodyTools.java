@@ -138,8 +138,11 @@ final class BodyTools {
                         new TaskToolDef.QueueTraits(true, null)));
         registry.register(ToolKit.instantTool("stand", "Stand up from sitting or crouching.", (c, a) -> {
             boolean wasSitting = c.body().sitting();
-            if (c.taskRunner().current().map(t -> t instanceof SitTask).orElse(false)) {
-                c.taskRunner().stop("stand up");
+            if (c.executionCoordinator()
+                    .current()
+                    .map(t -> t instanceof SitTask)
+                    .orElse(false)) {
+                c.executionCoordinator().stop("stand up");
             }
             c.body().setSitting(false);
             c.body().setSneaking(false, 0);

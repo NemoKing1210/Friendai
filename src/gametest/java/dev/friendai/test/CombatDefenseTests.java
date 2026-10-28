@@ -132,14 +132,14 @@ public class CombatDefenseTests {
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
                 .setBaseValue(100.0);
         zombie.setHealth(100.0f);
-        c.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        c.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.runAfterDelay(
                 5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.runAfterDelay(30, () -> {
             h.assertTrue(
                     c.combatController().state() == CombatController.State.FIGHTING,
                     "the reflex fight did not start: " + c.combatController().state());
-            h.assertTrue(c.taskRunner().paused(), "the runner was not paused by the reflex fight");
+            h.assertTrue(c.executionCoordinator().paused(), "the runner was not paused by the reflex fight");
             c.setCombatSettings(c.combatSettings().withProtection(ProtectionPolicy.AVOID_COMBAT));
         });
         h.runAfterDelay(40, () -> zombie.kill(h.getLevel()));
@@ -152,7 +152,7 @@ public class CombatDefenseTests {
                     c.combatController().target().isEmpty(),
                     "target after the settings change: " + c.combatController().target());
             h.assertTrue(
-                    !c.taskRunner().paused(),
+                    !c.executionCoordinator().paused(),
                     "the task pause was not released: " + c.combatController().state());
             h.succeed();
         });

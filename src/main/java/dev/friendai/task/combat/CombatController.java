@@ -14,6 +14,8 @@ import dev.friendai.combat.ThreatTable;
 import dev.friendai.combat.WeaponPolicy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.movement.Facing;
+import dev.friendai.server.execution.ExecutionHold;
+import dev.friendai.server.execution.HoldReason;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
@@ -61,6 +63,8 @@ import net.minecraft.world.phys.Vec3;
 
 /** Reflex combat, ticked before the task runner: fight back, defend the owner, guard. */
 public final class CombatController {
+    private ExecutionHold executionHold;
+
     public enum State {
         IDLE,
         FIGHTING,
@@ -280,7 +284,7 @@ public final class CombatController {
         if (companion.creativeMode() && !taskDriven) {
             if (state == State.FIGHTING) {
                 abandonFight();
-                companion.taskRunner().setPaused(false);
+                releaseExecutionHold();
             } else if (state == State.RETREATING) {
                 finishRetreat();
             } else if (state == State.EATING) {
@@ -515,7 +519,7 @@ public final class CombatController {
         retreatNoticed = false;
         retreatFromCreeper = fromCreeper;
         retreatTarget = null;
-        companion.taskRunner().setPaused(true);
+        acquireExecutionHold();
         retreatNoticed();
         if (!threats.isEmpty() && !fromCreeper) {
             retreatTarget = chooseRetreatTarget(level, threats);
@@ -578,7 +582,20 @@ public final class CombatController {
         }
         retreatNoticed = true;
         String text = "retreating: health " + number(companion.getHealth()) + "/" + number(companion.getMaxHealth());
-        companion.taskRunner().notice(Food.choose(companion, false).isEmpty() ? text + ", I have no food" : text);
+        companion
+                .executionCoordinator()
+                .notice(Food.choose(companion, false).isEmpty() ? text + ", I have no food" : text);
+    }
+
+    private void acquireExecutionHold() {
+        if (executionHold == null)
+            executionHold = companion.executionCoordinator().acquireHold(HoldReason.COMBAT);
+    }
+
+    private void releaseExecutionHold() {
+        if (executionHold == null) return;
+        executionHold.close();
+        executionHold = null;
     }
 
     private void finishRetreat() {
@@ -587,7 +604,7 @@ public final class CombatController {
         retreatTarget = null;
         retreatFromCreeper = false;
         companion.getNavigation().stop();
-        companion.taskRunner().setPaused(false);
+        releaseExecutionHold();
     }
 
     private Selection selectTarget(ServerLevel level) {
@@ -785,8 +802,8 @@ public final class CombatController {
         companion.stopUsingItem();
         equipWeapon();
         if (!ordered) {
-            companion.taskRunner().setPaused(true);
-            companion.taskRunner().notice(startNotice(selection));
+            acquireExecutionHold();
+            companion.executionCoordinator().notice(startNotice(selection));
         }
     }
 
@@ -1104,7 +1121,7 @@ public final class CombatController {
             return;
         }
         ammoNoticed = true;
-        companion.taskRunner().notice("out of arrows; switching to melee");
+        companion.executionCoordinator().notice("out of arrows; switching to melee");
     }
 
     private double meleeReach(LivingEntity enemy) {
@@ -1594,7 +1611,7 @@ public final class CombatController {
         decision = CombatDecision.none();
         band = WeaponPolicy.Band.UNKNOWN;
         if (!taskDriven) {
-            companion.taskRunner().notice(endNotice());
+            companion.executionCoordinator().notice(endNotice());
         }
         state = State.IDLE;
         target = null;
@@ -1628,8 +1645,8 @@ public final class CombatController {
         unreachableTicks = 0;
         lastDistance = Double.MAX_VALUE;
         if (!taskDriven) {
-            companion.taskRunner().notice(endNotice());
-            companion.taskRunner().setPaused(false);
+            companion.executionCoordinator().notice(endNotice());
+            releaseExecutionHold();
         }
         taskDriven = false;
         ownerConsent = false;

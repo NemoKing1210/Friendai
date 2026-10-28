@@ -6,8 +6,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.pathing.Pos;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.ExploreTask;
 import dev.friendai.task.mining.BlockMatcher;
@@ -63,7 +63,7 @@ public final class ExploreTests {
                 "the fixture must be remembered, not recent");
 
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(companion, () -> 200, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 200, () -> false);
         runner.setListener(result);
         runner.start(
                 new ExploreTask(BlockMatcher.parse("#minecraft:logs").orElseThrow(), false, 0, 16, 128, 600),

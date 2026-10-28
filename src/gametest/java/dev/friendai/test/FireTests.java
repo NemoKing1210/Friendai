@@ -5,8 +5,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.fire.FireTarget;
 import dev.friendai.pathing.Pos;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.ExtinguishFireTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -35,8 +35,8 @@ public class FireTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner run(CompanionEntity c, Result result, ExtinguishFireTask task) {
-        TaskRunner runner = new TaskRunner(c, () -> ExtinguishFireTask.TIMEOUT_TICKS, () -> false);
+    private static ExecutionCoordinator run(CompanionEntity c, Result result, ExtinguishFireTask task) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> ExtinguishFireTask.TIMEOUT_TICKS, () -> false);
         runner.setListener(result);
         runner.start(task, "extinguish_fire");
         return runner;
@@ -57,7 +57,8 @@ public class FireTests {
         c.inventory().addItem(new ItemStack(Items.BUCKET));
         BlockPos fire = h.absolutePos(new BlockPos(3, 2, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
+        ExecutionCoordinator runner =
+                run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();
@@ -91,7 +92,8 @@ public class FireTests {
         BlockPos fire = h.absolutePos(new BlockPos(3, 3, 2));
         BlockPos frame = h.absolutePos(new BlockPos(2, 3, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 3, 2)), 8));
+        ExecutionCoordinator runner =
+                run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 3, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();
@@ -142,7 +144,7 @@ public class FireTests {
         BlockPos first = h.absolutePos(new BlockPos(3, 2, 2));
         BlockPos second = h.absolutePos(new BlockPos(5, 2, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result, ExtinguishFireTask.near(8));
+        ExecutionCoordinator runner = run(c, result, ExtinguishFireTask.near(8));
 
         h.succeedWhen(() -> {
             runner.tick();
@@ -168,7 +170,7 @@ public class FireTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         BlockPos fire = h.absolutePos(new BlockPos(7, 2, 7));
         Result result = new Result();
-        TaskRunner runner = run(c, result, ExtinguishFireTask.near(8));
+        ExecutionCoordinator runner = run(c, result, ExtinguishFireTask.near(8));
 
         h.succeedWhen(() -> {
             runner.tick();
@@ -190,7 +192,8 @@ public class FireTests {
         c.inventory().addItem(new ItemStack(Items.BUCKET));
         BlockPos fire = h.absolutePos(new BlockPos(3, 2, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
+        ExecutionCoordinator runner =
+                run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
         runner.tick();
         runner.stop("test stop");
 
@@ -215,7 +218,8 @@ public class FireTests {
         BlockPos campfire = h.absolutePos(new BlockPos(3, 1, 2));
         c.stationLease().keep(Station.CAMPFIRE, campfire.asLong(), h.getLevel().getGameTime());
         Result result = new Result();
-        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 1, 2)), 8));
+        ExecutionCoordinator runner =
+                run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 1, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();

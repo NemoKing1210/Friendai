@@ -9,9 +9,9 @@ import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.JobState;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.StayTask;
 import java.util.List;
@@ -56,7 +56,7 @@ public final class TradingAuthorityTests {
         UUID owner = UUID.randomUUID();
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner);
-        TaskRunner before = original.taskRunner();
+        ExecutionCoordinator before = original.executionCoordinator();
         long active = before.enqueue(step("obtain_item", true, owner), ctx -> new UnrestorableTask());
         long pending = before.enqueue(step("trade_item", true, owner), ctx -> new StayTask());
         long ordinary = before.enqueue(step("stay", false, owner), ctx -> new StayTask());
@@ -67,7 +67,7 @@ public final class TradingAuthorityTests {
 
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         restored.setOwner(owner);
-        TaskRunner after = restored.taskRunner();
+        ExecutionCoordinator after = restored.executionCoordinator();
         persistence.restore(restored, saved);
 
         h.assertTrue(
@@ -91,7 +91,7 @@ public final class TradingAuthorityTests {
         UUID owner = UUID.randomUUID();
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner);
-        TaskRunner before = original.taskRunner();
+        ExecutionCoordinator before = original.executionCoordinator();
         var spending = step("obtain_item", true, owner);
         var ordinary = step("stay", false, owner);
         long plan = before.enqueuePlan(
@@ -106,7 +106,7 @@ public final class TradingAuthorityTests {
 
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         restored.setOwner(owner);
-        TaskRunner after = restored.taskRunner();
+        ExecutionCoordinator after = restored.executionCoordinator();
         persistence.restore(restored, saved);
 
         h.assertTrue(after.queue().plan(plan).isEmpty(), "plan containing an expired spending step was restored");
@@ -119,11 +119,11 @@ public final class TradingAuthorityTests {
         UUID owner = UUID.randomUUID();
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner);
-        long job = original.taskRunner().enqueue(step("stay", false, null), ctx -> new StayTask());
+        long job = original.executionCoordinator().enqueue(step("stay", false, null), ctx -> new StayTask());
         var persistence = FriendaiServerState.get(h.getLevel().getServer()).taskPersistence();
         var saved = persistence
                 .decode(persistence.encode(
-                        persistence.capture(original.taskRunner()).orElseThrow()))
+                        persistence.capture(original.executionCoordinator()).orElseThrow()))
                 .orElseThrow();
 
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
@@ -131,9 +131,10 @@ public final class TradingAuthorityTests {
         persistence.restore(restored, saved);
 
         h.assertTrue(
-                restored.taskRunner().queue().job(job).orElseThrow().state() == JobState.CANCELLED,
+                restored.executionCoordinator().queue().job(job).orElseThrow().state() == JobState.CANCELLED,
                 "work without an initiating actor must not resume");
-        h.assertTrue(restored.taskRunner().current().isEmpty(), "missing actor's task must not be instantiated");
+        h.assertTrue(
+                restored.executionCoordinator().current().isEmpty(), "missing actor's task must not be instantiated");
         h.succeed();
     }
 

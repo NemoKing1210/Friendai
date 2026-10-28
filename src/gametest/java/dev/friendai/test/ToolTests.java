@@ -79,7 +79,10 @@ public class ToolTests {
         ToolResult r = run(tools(c), "jump", "{}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
         h.assertTrue(
-                c.taskRunner().current().map(task -> task.type().equals("jump")).orElse(false),
+                c.executionCoordinator()
+                        .current()
+                        .map(task -> task.type().equals("jump"))
+                        .orElse(false),
                 "jump task should be current");
         h.succeed();
     }
@@ -89,7 +92,8 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_blocks", "{\"block\":\"oak_log\",\"count\":3}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("mine_blocks"), "mine task should be current");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("mine_blocks"), "mine task should be current");
         h.succeed();
     }
 
@@ -116,7 +120,8 @@ public class ToolTests {
         c.inventory().addItem(new ItemStack(Items.OAK_LOG));
         ToolResult r = run(tools(c), "craft_item", "{\"item\":\"oak_planks\",\"count\":4}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("craft_item"), "craft task should be current");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("craft_item"), "craft task should be current");
         h.succeed();
     }
 
@@ -135,7 +140,8 @@ public class ToolTests {
         c.inventory().addItem(new ItemStack(Items.RAW_IRON));
         ToolResult r = run(tools(c), "smelt_items", "{\"item\":\"minecraft:raw_iron\",\"count\":1}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("smelt_items"), "smelt task should be current");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("smelt_items"), "smelt task should be current");
         h.succeed();
     }
 
@@ -144,7 +150,8 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "get_food", "{}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("get_food"), "get_food task should be current");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("get_food"), "get_food task should be current");
         h.succeed();
     }
 
@@ -163,10 +170,10 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         run(tools, "stay", "{}");
-        h.assertTrue(c.taskRunner().current().get().type().equals("stay"), "should be staying");
+        h.assertTrue(c.executionCoordinator().current().get().type().equals("stay"), "should be staying");
         ToolResult r = run(tools, "stop", "{}");
         h.assertTrue(!r.error() && r.content().equals("stopped"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be following again");
+        h.assertTrue(c.executionCoordinator().current().get().type().equals("follow"), "should be following again");
         h.succeed();
     }
 
@@ -183,14 +190,16 @@ public class ToolTests {
         h.assertTrue(
                 miss.error() && miss.content().startsWith("not running: mine_blocks; current task: staying in place"),
                 "miss was " + miss.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("stay"), "a missed name must leave the task alone");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("stay"),
+                "a missed name must leave the task alone");
 
-        c.taskRunner().start(new StayTask(), "mine_blocks");
+        c.executionCoordinator().start(new StayTask(), "mine_blocks");
         ToolResult spaced = run(tools, "stop", "{\"what\":\"Mine Blocks\"}");
         h.assertTrue(
                 !spaced.error() && spaced.content().equals("stopped staying in place"),
                 "named stop was " + spaced.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be following again");
+        h.assertTrue(c.executionCoordinator().current().get().type().equals("follow"), "should be following again");
 
         run(tools, "stay", "{}");
         c.furnaceJobs()
@@ -208,7 +217,9 @@ public class ToolTests {
                 "all was " + all.content());
         h.assertTrue(!all.content().contains("fight"), "no fight was running, all was " + all.content());
         h.assertTrue(c.furnaceJobs().all().isEmpty(), "furnace jobs should be cleared");
-        h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be back on the default activity");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("follow"),
+                "should be back on the default activity");
         h.succeed();
     }
 
@@ -596,7 +607,7 @@ public class ToolTests {
                 "queue_add",
                 "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
         h.assertTrue(!r.error() && r.content().startsWith("plan #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().queue().planCount() == 1, "the plan should be in the queue");
+        h.assertTrue(c.executionCoordinator().queue().planCount() == 1, "the plan should be in the queue");
         h.succeed();
     }
 
@@ -655,12 +666,12 @@ public class ToolTests {
                 !golem.error() && golem.content().startsWith("task #"),
                 "the owner's order should start the hunt: " + golem.content());
         h.assertTrue(
-                c.taskRunner()
+                c.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("attack"))
                         .orElse(false),
                 "the hunt task should be running");
-        c.taskRunner().stop("test");
+        c.executionCoordinator().stop("test");
         ToolResult companion = runAs(
                 tools,
                 "attack",
@@ -789,7 +800,7 @@ public class ToolTests {
                 !own.error() && own.content().startsWith("task #"),
                 "the owner asking for it should start the fight: " + own.content());
         h.assertTrue(
-                c.taskRunner()
+                c.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("attack_player"))
                         .orElse(false),
@@ -841,7 +852,10 @@ public class ToolTests {
                 owner.getHealth() < owner.getMaxHealth(),
                 "the owner's health is still " + owner.getHealth() + " (mode " + owner.gameMode() + ", state "
                         + c.combatController().state() + ", distance " + c.distanceTo(owner) + ", task "
-                        + c.taskRunner().current().map(task -> task.type()).orElse("none") + ")"));
+                        + c.executionCoordinator()
+                                .current()
+                                .map(task -> task.type())
+                                .orElse("none") + ")"));
     }
 
     @GameTest
@@ -997,7 +1011,10 @@ public class ToolTests {
         h.assertTrue(!r.error(), "result was " + r.content());
         h.assertTrue(c.foodRule("minecraft:rotten_flesh").orElse(false), "the owner naming it should allow it");
         h.assertTrue(
-                c.taskRunner().current().map(task -> task.type().equals("eat")).orElse(false),
+                c.executionCoordinator()
+                        .current()
+                        .map(task -> task.type().equals("eat"))
+                        .orElse(false),
                 "the eat task should be running");
         h.succeed();
     }
@@ -1049,7 +1066,9 @@ public class ToolTests {
         BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
         ToolResult r = runArgs(tools(c), "build_structure", buildArgs(PLATFORM_3, at));
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().get().type().equals("build_structure"), "build task should be current");
+        h.assertTrue(
+                c.executionCoordinator().current().get().type().equals("build_structure"),
+                "build task should be current");
         h.succeed();
     }
 

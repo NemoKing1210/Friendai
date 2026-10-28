@@ -2,9 +2,9 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.EnchantItemTask;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -62,7 +62,7 @@ public class EnchantSkillTests {
         c.inventory().addItem(new ItemStack(Items.LAPIS_LAZULI, 3));
         levels(c, 30);
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(
                 new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, null), "enchant_item");
@@ -85,7 +85,7 @@ public class EnchantSkillTests {
     private static void failing(
             GameTestHelper h, CompanionEntity c, EnchantItemTask task, String expected, Runnable extra) {
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(task, "enchant_item");
         h.succeedWhen(() -> {

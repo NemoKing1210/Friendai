@@ -55,8 +55,8 @@ final class ToolKit {
                 return ToolResult.error(e.getMessage());
             }
             if (def.queueTraits().interrupts()) {
-                c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
-                return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
+                c.executionCoordinator().interrupt(task, def.name(), caller, def.creativeSensitive());
+                return ToolResult.ok("task #" + c.executionCoordinator().currentId() + " started: " + task.describe());
             }
             try {
                 QueueTradeScope.EnqueueCapture capture = QueueTradeScope.captureEnqueue(
@@ -66,7 +66,7 @@ final class ToolKit {
                         1);
                 JsonObject queuedArgs = capture.args();
                 Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
-                long id = c.taskRunner()
+                long id = c.executionCoordinator()
                         .enqueue(
                                 new QueuedStep(
                                         def.name(),
@@ -84,7 +84,7 @@ final class ToolKit {
                                                 ctx.companion(),
                                                 currentCaller(ctx.companion(), queuedCaller),
                                                 queuedArgs.deepCopy()));
-                boolean active = c.taskRunner()
+                boolean active = c.executionCoordinator()
                         .queue()
                         .active()
                         .map(job -> job.id() == id)
@@ -93,7 +93,7 @@ final class ToolKit {
                         active
                                 ? "task #" + id + " started: " + task.describe()
                                 : "job #" + id + " queued behind "
-                                        + c.taskRunner().pendingJobs() + " jobs");
+                                        + c.executionCoordinator().pendingJobs() + " jobs");
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
@@ -119,8 +119,9 @@ final class ToolKit {
                         return ToolResult.error(e.getMessage());
                     }
                     if (def.queueTraits().interrupts()) {
-                        c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
-                        return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
+                        c.executionCoordinator().interrupt(task, def.name(), caller, def.creativeSensitive());
+                        return ToolResult.ok(
+                                "task #" + c.executionCoordinator().currentId() + " started: " + task.describe());
                     }
                     Task preview = task;
                     QueueTradeScope.EnqueueCapture capture;
@@ -137,7 +138,7 @@ final class ToolKit {
                     Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
                     long id;
                     try {
-                        id = c.taskRunner()
+                        id = c.executionCoordinator()
                                 .enqueue(
                                         new QueuedStep(
                                                 def.name(),
@@ -160,7 +161,7 @@ final class ToolKit {
                     } catch (IllegalArgumentException e) {
                         return ToolResult.error(e.getMessage());
                     }
-                    boolean active = c.taskRunner()
+                    boolean active = c.executionCoordinator()
                             .queue()
                             .active()
                             .map(job -> job.id() == id)
@@ -169,7 +170,7 @@ final class ToolKit {
                             active
                                     ? "task #" + id + " started: " + preview.describe()
                                     : "job #" + id + " queued behind "
-                                            + c.taskRunner().pendingJobs() + " jobs");
+                                            + c.executionCoordinator().pendingJobs() + " jobs");
                 });
     }
 
@@ -191,7 +192,7 @@ final class ToolKit {
 
     /** Starts a task the tool has already built and reports its id. */
     static ToolResult startTask(CompanionEntity c, String name, Task task) {
-        int id = c.taskRunner().start(task, name);
+        int id = c.executionCoordinator().start(task, name);
         return ToolResult.ok("task #" + id + " started: " + task.describe());
     }
 
@@ -199,7 +200,7 @@ final class ToolKit {
         if (!CreativeModeService.mayStartWorldChangingTask(c, caller == null ? null : caller.uuid())) {
             return creativeAuthorizationError();
         }
-        int id = c.taskRunner().start(task, name, caller, true);
+        int id = c.executionCoordinator().start(task, name, caller, true);
         return ToolResult.ok("task #" + id + " started: " + task.describe());
     }
 

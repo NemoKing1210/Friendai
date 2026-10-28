@@ -7,10 +7,10 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.DropItemsTask;
@@ -59,8 +59,8 @@ public class PlanTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -157,7 +157,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.TUFF, 3));
         c.inventory().addItem(new ItemStack(Items.CALCITE, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(
                 new SequenceTask(
                         "clean up", List.of(drop("minecraft:tuff", 3), drop("minecraft:calcite", 2)), () -> 300),
@@ -178,7 +178,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.BASALT, 1));
         c.inventory().addItem(new ItemStack(Items.BLACKSTONE, 4));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(
                 new SequenceTask(
                         null,
@@ -203,7 +203,7 @@ public class PlanTests {
     public void factoryErrorFailsStep(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         PlanEntry broken = new PlanEntry("drop_items", ctx -> {
             throw new IllegalArgumentException("unknown item: x:y");
         });
@@ -221,7 +221,7 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(
                 new SequenceTask(null, List.of(new PlanEntry("fake", ctx -> new Throwing())), () -> 300), "run_plan");
         runner.tick();
@@ -239,7 +239,7 @@ public class PlanTests {
     public void stopStopsActiveStep(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         NeverEnding fake = new NeverEnding(true);
         runner.start(new SequenceTask(null, List.of(new PlanEntry("fake", ctx -> fake)), () -> 300), "run_plan");
         runner.tick();
@@ -254,7 +254,7 @@ public class PlanTests {
     public void stepTimeout(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         NeverEnding fake = new NeverEnding(true);
         runner.start(new SequenceTask("t", List.of(new PlanEntry("fake", ctx -> fake)), () -> 20), "run_plan");
         h.succeedWhen(() -> {
@@ -271,7 +271,7 @@ public class PlanTests {
     public void describeShowsCurrentStep(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         SequenceTask plan = new SequenceTask(
                 "g",
                 List.of(
@@ -290,7 +290,7 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = ownerTools(c);
         String json =
                 "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
@@ -301,7 +301,7 @@ public class PlanTests {
                 new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
         });
     }
@@ -314,14 +314,14 @@ public class PlanTests {
         c.setOwner(owner);
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
         String json = "{\"goal\":\"drop twice\",\"steps\":["
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"}]}";
         JsonObject dropArgs = JsonParser.parseString("{\"item\":\"minecraft:mud_bricks\",\"count\":1}")
                 .getAsJsonObject();
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(
                         new SequenceTask(
                                 "drop twice",
@@ -346,10 +346,10 @@ public class PlanTests {
                         "run_plan");
         String[] saved = {null};
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             if (saved[0] == null && c.inventory().countItem(Items.MUD_BRICKS) == 1) {
                 // The first step is done: take the plan's state as the reload would.
-                saved[0] = c.taskRunner().current().orElseThrow().saveData();
+                saved[0] = c.executionCoordinator().current().orElseThrow().saveData();
                 h.assertTrue(saved[0] != null && saved[0].startsWith("{"), "saved was " + saved[0]);
                 Task restored = FriendaiServerState.get(h.getLevel().getServer())
                         .sessions()
@@ -357,7 +357,7 @@ public class PlanTests {
                         .restore(new TaskState("run_plan", saved[0]), c)
                         .orElseThrow();
                 h.assertTrue(saved[0].equals(restored.saveData()), "the plan must survive the round trip");
-                c.taskRunner().start(restored, "run_plan");
+                c.executionCoordinator().start(restored, "run_plan");
             }
             h.assertTrue(saved[0] != null, "the first step never finished");
             h.assertTrue(
@@ -402,7 +402,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.RAW_IRON));
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = ownerTools(c);
         String json = "{\"goal\":\"smelt and craft\",\"steps\":["
                 + "{\"tool\":\"smelt_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:raw_iron\\\","
@@ -415,7 +415,7 @@ public class PlanTests {
                 new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 9, "iron nuggets");
         });
@@ -429,7 +429,7 @@ public class PlanTests {
         chest.setItem(0, new ItemStack(Items.CRAFTING_TABLE, 1));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(8, 2, 2));
 
@@ -458,7 +458,7 @@ public class PlanTests {
         ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             boolean found = false;
             for (int dx = -4; dx <= 4 && !found; dx++) {
@@ -484,7 +484,7 @@ public class PlanTests {
         chest.setItem(0, new ItemStack(Items.OAK_LOG, 2));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(11, 2, 11));
 
@@ -514,7 +514,7 @@ public class PlanTests {
         ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(0, c.inventory().countItem(Items.OAK_LOG), "logs left");
             h.assertValueEqual(8, c.inventory().countItem(Items.OAK_PLANKS), "planks");
@@ -530,7 +530,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.SHEARS));
         Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
         Result result = new Result();
-        c.taskRunner().setListener(result);
+        c.executionCoordinator().setListener(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(10, 2, 10));
 
@@ -560,7 +560,7 @@ public class PlanTests {
         ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             int wool = 0;
             for (int slot = 0; slot < chest.getContainerSize(); slot++) {

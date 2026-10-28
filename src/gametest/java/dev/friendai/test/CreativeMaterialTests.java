@@ -46,9 +46,9 @@ public final class CreativeMaterialTests {
         CompanionEntity companion = creativeCompanion(h, owner);
         BlockPos target = h.absolutePos(new BlockPos(8, 2, 3));
         PlaceBlockTask task = new PlaceBlockTask((BlockItem) Blocks.MUD_BRICKS.asItem(), target);
-        companion.taskRunner().start(task, "place_block", caller(owner), true);
+        companion.executionCoordinator().start(task, "place_block", caller(owner), true);
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             h.assertTrue(
                     h.getLevel().getBlockState(target).is(Blocks.MUD_BRICKS),
                     "creative placement did not create the requested block");
@@ -70,9 +70,9 @@ public final class CreativeMaterialTests {
                 """);
         BlockPos origin = h.absolutePos(new BlockPos(7, 2, 7));
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
-        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+        companion.executionCoordinator().start(task, "build_structure", caller(owner), true);
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             h.assertTrue(
                     h.getLevel().getBlockState(origin).is(Blocks.COBBLESTONE),
                     "blueprint did not place its free creative material");
@@ -106,7 +106,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -116,7 +116,7 @@ public final class CreativeMaterialTests {
             @Override
             public void onCancelled(int id, String toolName, String reason) {}
         });
-        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+        companion.executionCoordinator().start(task, "build_structure", caller(owner), true);
 
         h.succeedWhen(() -> {
             for (int x = 0; x < 9; x++) {
@@ -166,7 +166,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, target, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -176,11 +176,11 @@ public final class CreativeMaterialTests {
             @Override
             public void onCancelled(int id, String toolName, String reason) {}
         });
-        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+        companion.executionCoordinator().start(task, "build_structure", caller(owner), true);
         final double[] highestY = {companion.getY()};
 
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             highestY[0] = Math.max(highestY[0], companion.getY());
             h.assertTrue(status[0] != null, "creative shaft build did not finish");
             h.assertTrue(status[0] == TaskStatus.SUCCESS, "creative shaft build failed; result=" + summary[0]);
@@ -218,7 +218,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -228,7 +228,7 @@ public final class CreativeMaterialTests {
             @Override
             public void onCancelled(int id, String toolName, String reason) {}
         });
-        companion.taskRunner().start(task, "build_structure", caller(owner), true);
+        companion.executionCoordinator().start(task, "build_structure", caller(owner), true);
 
         h.succeedWhen(() -> {
             for (int x = 0; x < 9; x++) {
@@ -275,9 +275,9 @@ public final class CreativeMaterialTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = creativeCompanion(h, owner);
         ObtainTask task = new ObtainTask("minecraft:diamond", 130, false, false);
-        companion.taskRunner().start(task, "obtain_item", caller(owner), true);
+        companion.executionCoordinator().start(task, "obtain_item", caller(owner), true);
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             h.assertTrue(
                     companion.inventory().countItem(Items.DIAMOND) == 130,
                     "obtain delivered " + companion.inventory().countItem(Items.DIAMOND));

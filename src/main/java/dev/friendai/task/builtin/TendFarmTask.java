@@ -238,7 +238,7 @@ public final class TendFarmTask implements Task {
 
     private void notice(TaskContext c, boolean alreadySent, String text) {
         if (!alreadySent) {
-            c.companion().taskRunner().notice(text);
+            c.companion().executionCoordinator().notice(text);
         }
     }
 

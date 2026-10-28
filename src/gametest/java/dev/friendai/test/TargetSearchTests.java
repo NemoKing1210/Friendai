@@ -12,8 +12,8 @@ import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.place.PlaceValues;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.SearchResourceTask;
 import dev.friendai.task.obtain.ResourceSearchDriver;
@@ -58,7 +58,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 301, 4);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         JsonObject args = new JsonObject();
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
@@ -81,7 +81,7 @@ public final class TargetSearchTests {
             h.assertTrue(matcher.find(), "unreadable choice: " + choice);
             int chosenX = Integer.parseInt(matcher.group(1));
             h.assertTrue(chosenX > startX, "search chose the sea side: " + choice);
-            companion.taskRunner().stop("test cleanup");
+            companion.executionCoordinator().stop("test cleanup");
         });
     }
 
@@ -92,7 +92,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         JsonObject args = new JsonObject();
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
@@ -111,7 +111,7 @@ public final class TargetSearchTests {
                 owner.teleportTo(far.x, far.y, far.z);
             } else if (step[0] == 24) {
                 String summary = companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary())
                         .orElse("");
@@ -125,12 +125,12 @@ public final class TargetSearchTests {
                 owner.teleportTo(near.x, near.y, near.z);
             } else if (step[0] >= 40) {
                 String summary = companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.resultSummary())
                         .orElse("");
                 h.assertTrue(!summary.contains("waiting for the owner"), "did not resume: " + summary);
-                companion.taskRunner().stop("test cleanup");
+                companion.executionCoordinator().stop("test cleanup");
             }
         });
     }
@@ -159,7 +159,7 @@ public final class TargetSearchTests {
         var driver = new ResourceSearchDriver(
                 session, target, profile, 32, false, ResourceSearchProfile.Strategy.SURFACE, null, null, null);
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(companion, () -> 600, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
         runner.setListener(result);
         runner.start(driver, "search");
         h.succeedWhen(() -> {
@@ -186,7 +186,7 @@ public final class TargetSearchTests {
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
-        var task = companion.taskRunner().current().orElseThrow();
+        var task = companion.executionCoordinator().current().orElseThrow();
         h.assertTrue(task.type().equals(SearchResourceTask.TYPE), "active task: " + task.type());
         h.assertTrue(
                 dev.friendai.server.execution.persistence.TaskRestoreRegistry.restoreCheckpoint(
@@ -198,7 +198,7 @@ public final class TargetSearchTests {
                                 new dev.friendai.task.TaskState("unknown_task", ""), h.getLevel())
                         .isEmpty(),
                 "unknown task types must be rejected");
-        companion.taskRunner().stop("test cleanup");
+        companion.executionCoordinator().stop("test cleanup");
         h.succeed();
     }
 
@@ -212,7 +212,7 @@ public final class TargetSearchTests {
         BlockPos bell = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, companion, bell), "the bell must be in sight");
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         var started = tools().bind(companion)
                 .execute(
                         targetCall("structure", "village"),
@@ -231,7 +231,7 @@ public final class TargetSearchTests {
                 h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
                 h.assertTrue(result.summary.contains("found"), result.summary);
                 biomeStarted[0] = true;
-                companion.taskRunner().setListener(biomeResult);
+                companion.executionCoordinator().setListener(biomeResult);
                 var biomeStart = tools().bind(companion)
                         .execute(
                                 targetCall("biome", biome),
@@ -268,7 +268,7 @@ public final class TargetSearchTests {
                         ""),
                 h.getLevel().getServer().overworld().getGameTime());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         var started = tools().bind(companion)
                 .execute(
                         targetCall("place", "camp"),

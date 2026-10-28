@@ -60,7 +60,7 @@ public class CompanionControlTests {
         Task cleanup = new GoToTask(workSite);
         boolean[] stopped = {false};
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .start(
                         new Task() {
                             @Override
@@ -102,7 +102,7 @@ public class CompanionControlTests {
         h.assertTrue(stopped[0], "teleport must stop the old task");
         h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
         h.assertTrue(
-                companion.taskRunner().current().orElse(null) != cleanup,
+                companion.executionCoordinator().current().orElse(null) != cleanup,
                 "teleport must not send the companion back to clean up the old work site");
         h.succeed();
     }
@@ -149,7 +149,7 @@ public class CompanionControlTests {
                 "exactly one companion must remain registered");
         state.sessions().runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
-                moved.taskRunner()
+                moved.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("stay"))
                         .orElse(false),
@@ -169,7 +169,7 @@ public class CompanionControlTests {
         FriendaiServerState.get(server).sessions().runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> t.describe().equals("staying in place"))
                         .orElse(false),
@@ -180,7 +180,7 @@ public class CompanionControlTests {
                 "companion stayed at " + companion.position());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> !t.type().equals("stay"))
                         .orElse(true),
@@ -204,7 +204,7 @@ public class CompanionControlTests {
                 "summon moved the companion from " + before + " to " + companion.position());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> t.type().equals("follow"))
                         .orElse(false),
@@ -260,7 +260,7 @@ public class CompanionControlTests {
         h.assertTrue(!result.error(), "stay should succeed: " + result.content());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> t.describe().equals("staying in place"))
                         .orElse(false),
@@ -389,7 +389,7 @@ public class CompanionControlTests {
         brains.runTool(player.getUUID(), "stay", "{}");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> t.describe().equals("staying in place"))
                         .orElse(false),
@@ -397,7 +397,7 @@ public class CompanionControlTests {
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.STOP));
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(t -> !t.describe().equals("staying in place"))
                         .orElse(true),
@@ -510,10 +510,10 @@ public class CompanionControlTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
         h.assertTrue(brains.debug().subscribers().contains(player.getUUID()), "subscribed");
-        h.assertTrue(companion.menuOpen() && companion.taskRunner().held(), "held while the menu is open");
+        h.assertTrue(companion.menuOpen() && companion.executionCoordinator().held(), "held while the menu is open");
         DebugStream.onDisconnect(player);
         h.assertTrue(!brains.debug().subscribers().contains(player.getUUID()), "unsubscribed after disconnect");
-        h.assertTrue(!companion.taskRunner().held(), "a disconnect must not leave the companion held");
+        h.assertTrue(!companion.executionCoordinator().held(), "a disconnect must not leave the companion held");
         h.succeed();
     }
 
@@ -523,14 +523,14 @@ public class CompanionControlTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         CountingTask task = new CountingTask();
-        companion.taskRunner().start(task, "test_counting");
+        companion.executionCoordinator().start(task, "test_counting");
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
-        h.assertTrue(companion.taskRunner().held(), "held while the menu is open");
+        h.assertTrue(companion.executionCoordinator().held(), "held while the menu is open");
         int before = task.ticks;
         h.runAfterDelay(20, () -> {
             h.assertValueEqual(task.ticks, before, "a held companion must not tick its task");
             CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
-            h.assertTrue(!companion.taskRunner().held(), "released when the menu closes");
+            h.assertTrue(!companion.executionCoordinator().held(), "released when the menu closes");
         });
         h.runAfterDelay(40, () -> {
             h.assertTrue(task.ticks > before, "the task resumes after the menu closes");
@@ -546,7 +546,7 @@ public class CompanionControlTests {
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
-        h.assertTrue(!companion.taskRunner().held(), "one close releases a duplicated subscribe");
+        h.assertTrue(!companion.executionCoordinator().held(), "one close releases a duplicated subscribe");
         h.succeed();
     }
 
@@ -556,9 +556,10 @@ public class CompanionControlTests {
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
-        h.assertTrue(companion.menuOpen() && companion.taskRunner().held(), "starts paused behind the open menu");
+        h.assertTrue(
+                companion.menuOpen() && companion.executionCoordinator().held(), "starts paused behind the open menu");
         CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
-        h.assertTrue(!companion.taskRunner().held(), "resumes when the menu closes");
+        h.assertTrue(!companion.executionCoordinator().held(), "resumes when the menu closes");
         h.succeed();
     }
 

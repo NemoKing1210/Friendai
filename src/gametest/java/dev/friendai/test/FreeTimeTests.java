@@ -17,8 +17,8 @@ import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.place.PlaceValues;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.DepositTask;
 import dev.friendai.task.inventory.InventoryOps;
@@ -64,8 +64,8 @@ public class FreeTimeTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -140,7 +140,7 @@ public class FreeTimeTests {
         c.inventory().addItem(new ItemStack(Items.IRON_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.BREAD, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DepositTask("deposit chests", AutonomySettings.DEFAULT_KEEP), "deposit_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -188,7 +188,7 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = companion(h);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         var stay = new dev.friendai.queue.QueuedStep(
                 "stay",
                 new com.google.gson.JsonObject(),
@@ -232,7 +232,7 @@ public class FreeTimeTests {
                 c, caller, args, builtins.plannable(), false, Set.of("attack_player"));
         h.assertTrue(refused.error(), "a denied step must be refused: " + refused.content());
         h.assertTrue(refused.content().contains("attack_player is not allowed in free time"), refused.content());
-        h.assertValueEqual(c.taskRunner().queue().planCount(), 0, "nothing queued");
+        h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "nothing queued");
         var ok = dev.friendai.tool.builtin.FriendaiTools.addPlan(
                 c,
                 caller,
@@ -243,7 +243,7 @@ public class FreeTimeTests {
                 false,
                 Set.of("attack_player"));
         h.assertTrue(!ok.error(), "an allowed plan is queued: " + ok.content());
-        h.assertValueEqual(c.taskRunner().queue().plans().getFirst().priority(), -10, "free-time priority");
+        h.assertValueEqual(c.executionCoordinator().queue().plans().getFirst().priority(), -10, "free-time priority");
         h.succeed();
     }
 
@@ -312,11 +312,11 @@ public class FreeTimeTests {
                 false,
                 Set.of());
         h.assertTrue(!result.error(), result.content());
-        long plan = c.taskRunner().queue().plans().stream()
+        long plan = c.executionCoordinator().queue().plans().stream()
                 .mapToLong(dev.friendai.queue.PlanRecord::id)
                 .max()
                 .orElseThrow();
-        c.taskRunner().markAutonomousPlan(plan);
+        c.executionCoordinator().markAutonomousPlan(plan);
         var service = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
                 .freeTime();
         service.beginShift(
@@ -361,12 +361,12 @@ public class FreeTimeTests {
         CompanionEntity c = registered(h, owner);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
-        c.taskRunner().tick();
-        h.assertTrue(c.taskRunner().autonomousActive(), "the free-time job runs");
-        c.taskRunner().start(new QuickTask(), "quick");
-        h.assertTrue(!c.taskRunner().autonomousActive(), "the owner order runs first");
+        c.executionCoordinator().tick();
+        h.assertTrue(c.executionCoordinator().autonomousActive(), "the free-time job runs");
+        c.executionCoordinator().start(new QuickTask(), "quick");
+        h.assertTrue(!c.executionCoordinator().autonomousActive(), "the owner order runs first");
         h.succeedWhen(() -> {
-            h.assertTrue(c.taskRunner().autonomousActive(), "the free-time job resumes");
+            h.assertTrue(c.executionCoordinator().autonomousActive(), "the free-time job resumes");
             var shift = driver(h).state(owner).shift();
             h.assertTrue(shift != null && shift.planId() == plan, "the shift is kept: " + shift);
             driver(h).stop(owner, "test over");
@@ -391,17 +391,17 @@ public class FreeTimeTests {
                 builtins.taskTools(),
                 true,
                 Set.of());
-        long ownerPlan = c.taskRunner().queue().plans().stream()
+        long ownerPlan = c.executionCoordinator().queue().plans().stream()
                 .mapToLong(dev.friendai.queue.PlanRecord::id)
                 .max()
                 .orElseThrow();
         driver(h).stop(owner, "owner asked to stop");
         h.assertTrue(!driver(h).state(owner).on(), "free time is off");
         h.assertTrue(
-                c.taskRunner().queue().plan(plan).isEmpty()
-                        || c.taskRunner().queue().planStatus(plan) != dev.friendai.queue.PlanStatus.ACTIVE,
+                c.executionCoordinator().queue().plan(plan).isEmpty()
+                        || c.executionCoordinator().queue().planStatus(plan) != dev.friendai.queue.PlanStatus.ACTIVE,
                 "the shift plan is cancelled");
-        h.assertTrue(c.taskRunner().queue().plan(ownerPlan).isPresent(), "the owner plan is untouched");
+        h.assertTrue(c.executionCoordinator().queue().plan(ownerPlan).isPresent(), "the owner plan is untouched");
         h.assertValueEqual(driver(h).state(owner).history().get(0).summary(), "owner asked to stop", "record");
         h.succeed();
     }
@@ -438,22 +438,23 @@ public class FreeTimeTests {
         CompanionEntity c = registered(h, owner);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"jump\",\"args\":\"{}\"}]");
-        c.taskRunner().tick();
+        c.executionCoordinator().tick();
         h.assertTrue(
-                c.taskRunner().autonomousActive(),
-                "the shift job runs: " + c.taskRunner().currentToolName());
-        c.taskRunner().interrupt(new dev.friendai.task.builtin.StayTask(40), "stay");
-        h.assertTrue(c.taskRunner().movementOrderActive(), "the stay is a movement order, not owner work");
-        h.assertTrue(!c.taskRunner().busyWithOther(), "a movement order is not work in the way");
-        h.assertTrue(c.taskRunner().queue().plan(plan).isPresent(), "the held plan is still queued");
+                c.executionCoordinator().autonomousActive(),
+                "the shift job runs: " + c.executionCoordinator().currentToolName());
+        c.executionCoordinator().interrupt(new dev.friendai.task.builtin.StayTask(40), "stay");
+        h.assertTrue(c.executionCoordinator().movementOrderActive(), "the stay is a movement order, not owner work");
+        h.assertTrue(!c.executionCoordinator().busyWithOther(), "a movement order is not work in the way");
+        h.assertTrue(c.executionCoordinator().queue().plan(plan).isPresent(), "the held plan is still queued");
         var shift = driver(h).state(owner).shift();
         h.assertTrue(shift != null && shift.planId() == plan, "the shift is kept, not closed: " + shift);
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
-            h.assertTrue(!c.taskRunner().movementOrderActive(), "the stay ends at its timeout");
+            c.executionCoordinator().tick();
+            h.assertTrue(!c.executionCoordinator().movementOrderActive(), "the stay ends at its timeout");
             h.assertTrue(
-                    c.taskRunner().autonomousActive(),
-                    "the shift job resumes after the stay: " + c.taskRunner().currentToolName());
+                    c.executionCoordinator().autonomousActive(),
+                    "the shift job resumes after the stay: "
+                            + c.executionCoordinator().currentToolName());
             h.assertTrue(driver(h).state(owner).on(), "free time is still on");
             driver(h).stop(owner, "test over");
         });
@@ -467,10 +468,10 @@ public class FreeTimeTests {
         c.setFollowMode(false);
         h.assertTrue(!c.followMode(), "the owner's choice is stored");
         h.assertTrue(!c.mayFollowOwner(), "a companion told not to follow stays put");
-        c.taskRunner().tick();
+        c.executionCoordinator().tick();
         h.assertTrue(
-                !c.taskRunner().currentIsDefaultActivity(),
-                "no default follow starts: " + c.taskRunner().currentToolName());
+                !c.executionCoordinator().currentIsDefaultActivity(),
+                "no default follow starts: " + c.executionCoordinator().currentToolName());
         h.assertTrue(
                 dev.friendai.entity.CompanionLifeData.get(h.getLevel().getServer())
                                 .followModeChoice(c.ownerUuid())
@@ -480,8 +481,8 @@ public class FreeTimeTests {
         c.setFollowMode(true);
         h.assertTrue(c.followMode(), "the switch turns back on");
         h.assertTrue(c.mayFollowOwner(), "following is allowed again");
-        c.taskRunner().tick();
-        h.assertTrue(c.taskRunner().currentIsDefaultActivity(), "the default follow is back");
+        c.executionCoordinator().tick();
+        h.assertTrue(c.executionCoordinator().currentIsDefaultActivity(), "the default follow is back");
         h.succeed();
     }
 
@@ -632,7 +633,9 @@ public class FreeTimeTests {
         h.succeedWhen(() -> {
             var state = driver(h).state(owner);
             h.assertTrue(
-                    state.shift() != null || !c.taskRunner().queue().plans().isEmpty() || state.awaitingChoice(),
+                    state.shift() != null
+                            || !c.executionCoordinator().queue().plans().isEmpty()
+                            || state.awaitingChoice(),
                     "the silent director does not leave free time idle: " + state);
             serverState.applyConfig(originalConfig);
             driver(h).stop(owner, "test over");
@@ -667,7 +670,13 @@ public class FreeTimeTests {
                 h.assertTrue(state.shift() != null && state.shift().planId() != 0, "the plan is linked: " + state);
                 plan[0] = state.shift().planId();
                 h.assertValueEqual(
-                        c.taskRunner().queue().plan(plan[0]).orElseThrow().priority(), -10, "priority");
+                        c.executionCoordinator()
+                                .queue()
+                                .plan(plan[0])
+                                .orElseThrow()
+                                .priority(),
+                        -10,
+                        "priority");
             }
             h.assertTrue(state.shift() == null || state.shift().planId() != plan[0], "the shift ends with its plan");
             h.assertValueEqual(state.history().get(0).goal(), "practise jumping", "history");
@@ -715,7 +724,7 @@ public class FreeTimeTests {
                 stopped[0] = true;
                 h.assertTrue(false, "let the late answer arrive");
             }
-            h.assertValueEqual(c.taskRunner().queue().planCount(), 0, "a late plan is not queued");
+            h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "a late plan is not queued");
             h.assertTrue(!driver(h).state(owner).on(), "free time stays off");
         });
     }
@@ -806,7 +815,7 @@ public class FreeTimeTests {
                 dev.friendai.queue.FailurePolicy.STOP_PLAN,
                 1,
                 java.util.List.of());
-        long plan = c.taskRunner()
+        long plan = c.executionCoordinator()
                 .enqueuePlan(
                         "break",
                         java.util.List.of(step),
@@ -814,7 +823,7 @@ public class FreeTimeTests {
                         new dev.friendai.queue.PlanOptions(
                                 autonomous ? -10 : 0, dev.friendai.queue.FailurePolicy.STOP_PLAN, 0));
         if (autonomous) {
-            c.taskRunner().markAutonomousPlan(plan);
+            c.executionCoordinator().markAutonomousPlan(plan);
         }
         return task;
     }
@@ -940,7 +949,7 @@ public class FreeTimeTests {
         CompanionEntity c = registered(h, player.getUUID());
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
-        c.taskRunner().tick();
+        c.executionCoordinator().tick();
         h.getLevel()
                 .getServer()
                 .getCommands()
@@ -1028,7 +1037,7 @@ public class FreeTimeTests {
                         CompletableFuture.failedFuture(new IllegalStateException("no model in tests")));
         CompanionEntity c = registered(h, player.getUUID());
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> true, c::mayFollowOwner);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> true, c::mayFollowOwner);
         var origin = c.position();
         boolean[] moved = {false};
         int[] ticks = {0};
@@ -1056,7 +1065,7 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = onlineCompanion(h);
         h.assertTrue(!driver(h).state(c.ownerUuid()).on(), "free time is off");
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> true, c::mayFollowOwner);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> true, c::mayFollowOwner);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(runner.currentIsDefaultActivity(), "the default follow still starts");
@@ -1081,7 +1090,12 @@ public class FreeTimeTests {
         h.succeedWhen(() -> {
             var linked = driver(h).state(owner);
             h.assertTrue(linked.shift() != null && linked.shift().planId() != 0, "the plan is linked: " + linked);
-            h.assertTrue(c.taskRunner().queue().plan(linked.shift().planId()).isPresent(), "the plan is queued");
+            h.assertTrue(
+                    c.executionCoordinator()
+                            .queue()
+                            .plan(linked.shift().planId())
+                            .isPresent(),
+                    "the plan is queued");
             driver(h).stop(owner, "test over");
         });
     }
@@ -1122,7 +1136,7 @@ public class FreeTimeTests {
             h.assertTrue(!line.getString().contains("Exception"), "no exception type leaks: " + line);
             h.assertTrue(!line.getString().contains("private parser detail"), "parser detail stays private: " + line);
             h.assertTrue(driver(h).state(owner.player().getUUID()).shift() == null, "the failed shift ends");
-            h.assertValueEqual(companion.taskRunner().queue().planCount(), 0, "no fallback plan is guessed");
+            h.assertValueEqual(companion.executionCoordinator().queue().planCount(), 0, "no fallback plan is guessed");
             h.succeed();
         });
     }
@@ -1147,12 +1161,12 @@ public class FreeTimeTests {
                 "a free-time plan can never queue the follow task");
         brains.post(owner, new BrainEvent.PlayerSaid(owner, "owner", "come here", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             h.assertTrue(script.requests.size() >= 2, "the refused call is answered: " + script.requests.size());
             String transcript = script.transcript();
             h.assertTrue(transcript.contains("stay where you are"), "the refusal names the reason: " + transcript);
             h.assertTrue(driver(h).state(owner).shift() != null, "the shift survives the message");
-            h.assertTrue(!"approach".equals(c.taskRunner().currentToolName()), "no approach started");
+            h.assertTrue(!"approach".equals(c.executionCoordinator().currentToolName()), "no approach started");
             h.assertTrue(driver(h).refusalDuringShift(owner, "approach").isPresent(), "still refused");
             driver(h).stop(owner, "test over");
             h.assertTrue(
@@ -1177,7 +1191,7 @@ public class FreeTimeTests {
                 builtins.taskTools(),
                 true,
                 Set.of());
-        long ownerPlan = c.taskRunner().queue().plans().getFirst().id();
+        long ownerPlan = c.executionCoordinator().queue().plans().getFirst().id();
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         // A shift saved before a death or a rollback points at a plan id the new queue reused.
         var service = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
@@ -1193,11 +1207,11 @@ public class FreeTimeTests {
                 Long.MAX_VALUE);
         service.linkPlan(owner, ownerPlan);
         h.succeedWhen(() -> {
-            c.taskRunner().tick();
+            c.executionCoordinator().tick();
             var state = driver(h).state(owner);
             h.assertTrue(state.shift() == null, "the stale shift is closed: " + state.shift());
-            h.assertTrue(!c.taskRunner().autonomousActive(), "the owner's plan is not free time's");
-            h.assertTrue(c.taskRunner().queue().plan(ownerPlan).isPresent(), "the owner's plan is untouched");
+            h.assertTrue(!c.executionCoordinator().autonomousActive(), "the owner's plan is not free time's");
+            h.assertTrue(c.executionCoordinator().queue().plan(ownerPlan).isPresent(), "the owner's plan is untouched");
             driver(h).stop(owner, "test over");
         });
     }
@@ -1217,7 +1231,7 @@ public class FreeTimeTests {
         storagePlace(h, c, "full chests", 6, 2, 7, 3);
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 10));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DepositTask("full chests", AutonomySettings.DEFAULT_KEEP), "deposit_items");
         h.succeedWhen(() -> {
             runner.tick();

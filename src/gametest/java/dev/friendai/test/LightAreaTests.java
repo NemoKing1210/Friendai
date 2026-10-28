@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.LightAreaTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -29,8 +29,8 @@ public class LightAreaTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -56,7 +56,7 @@ public class LightAreaTests {
         c.inventory().addItem(new ItemStack(Items.TORCH, 16));
         BlockPos origin = c.blockPosition();
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LightAreaTask(6), "light_area");
         int[] after = {-1};
         h.succeedWhen(() -> {
@@ -95,7 +95,7 @@ public class LightAreaTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LightAreaTask(8), "light_area");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
@@ -113,7 +113,7 @@ public class LightAreaTests {
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LightAreaTask(8), "light_area");
         int[] wait = {5};
         h.succeedWhen(() -> {
@@ -135,7 +135,7 @@ public class LightAreaTests {
         c.inventory().addItem(new ItemStack(Items.TORCH, 1));
         c.hands().overrideProtection(p -> true);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LightAreaTask(2), "light_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -152,7 +152,7 @@ public class LightAreaTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.TORCH, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new LightAreaTask(8), "light_area");
         h.succeedWhen(() -> {
             runner.tick();

@@ -10,9 +10,11 @@ import dev.friendai.queue.PlanDefinition;
 import dev.friendai.queue.PlanNode;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.ExecutionHold;
+import dev.friendai.server.execution.HoldReason;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.PlanStepFactory;
 import java.util.ArrayList;
@@ -29,13 +31,13 @@ public final class ConditionalPlansTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         var tree = companion.blockPosition().relative(companion.getDirection()).above();
         h.getLevel().setBlock(tree, Blocks.OAK_LOG.defaultBlockState(), 3);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         List<String> started = new ArrayList<>();
         PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Conditional(
                 new Guard.BlockInFront("minecraft:oak_log", 1),
                 List.of(action("then_action")),
                 List.of(action("else_action")))));
-        runner.enqueueStructuredPlan(
+        runner.enqueuePlan(
                 "choose branch",
                 definition,
                 PlanOptions.DEFAULT,
@@ -56,9 +58,9 @@ public final class ConditionalPlansTests {
     @GameTest
     public void holdPausesAnActiveStructuredAction(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         int[] ticks = {0};
-        long plan = runner.enqueueStructuredPlan(
+        long plan = runner.enqueuePlan(
                 "held plan",
                 new PlanDefinition(List.of(action("held_action"))),
                 PlanOptions.DEFAULT,
@@ -89,11 +91,17 @@ public final class ConditionalPlansTests {
                         return "done";
                     }
                 }));
-        runner.hold();
+        ExecutionHold menuHold = runner.acquireHold(HoldReason.MENU);
+        ExecutionHold inventoryHold = runner.acquireHold(HoldReason.INVENTORY);
+        ExecutionHold combatHold = runner.acquireHold(HoldReason.COMBAT);
         runner.tick();
         h.assertTrue(
-                ticks[0] == 0 && runner.queue().plan(plan).isPresent(), "hold must pause the active action and cursor");
-        runner.release();
+                ticks[0] == 0 && runner.queue().plan(plan).isPresent(), "all scopes together must pause the action");
+        menuHold.close();
+        inventoryHold.close();
+        runner.tick();
+        h.assertTrue(ticks[0] == 0, "remaining combat scope must still hold the action");
+        combatHold.close();
         runner.tick();
         h.assertTrue(
                 ticks[0] == 1 && runner.queue().plan(plan).isPresent(),
@@ -106,9 +114,9 @@ public final class ConditionalPlansTests {
     @GameTest
     public void cancelStopsTheActiveStructuredAction(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         int[] stopped = {0};
-        long plan = runner.enqueueStructuredPlan(
+        long plan = runner.enqueuePlan(
                 "cancel me",
                 new PlanDefinition(List.of(action("cancel_action"))),
                 PlanOptions.DEFAULT,
@@ -141,10 +149,13 @@ public final class ConditionalPlansTests {
                         return "";
                     }
                 }));
+        ExecutionHold hold = runner.acquireHold(HoldReason.COMBAT);
         runner.cancelPlan(plan, "test cancellation");
         h.assertTrue(
                 runner.queue().plan(plan).isEmpty() && stopped[0] == 1,
                 "cancellation should stop the current action and remove its plan");
+        h.assertTrue(runner.held(), "cancellation must not release another owner's hold");
+        hold.close();
         h.assertTrue(!runner.queue().archives().getLast().success(), "cancelled plan should be archived as failed");
         h.succeed();
     }
@@ -154,7 +165,7 @@ public final class ConditionalPlansTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         var tree = companion.blockPosition().relative(companion.getDirection()).above();
         h.getLevel().setBlock(tree, Blocks.OAK_LOG.defaultBlockState(), 3);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         PlanStepFactory denied = new PlanStepFactory() {
             @Override
             public Task create(TaskContext context, QueuedStep step) {
@@ -166,7 +177,7 @@ public final class ConditionalPlansTests {
                 return false;
             }
         };
-        runner.enqueueStructuredPlan(
+        runner.enqueuePlan(
                 "revoked branch",
                 new PlanDefinition(List.of(new PlanNode.Conditional(
                         new Guard.BlockInFront("minecraft:oak_log", 1),
@@ -184,11 +195,11 @@ public final class ConditionalPlansTests {
     @GameTest
     public void repeatStopsAtItsDeclaredCap(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         List<String> started = new ArrayList<>();
         PlanDefinition definition = new PlanDefinition(List.of(
                 new PlanNode.Repeat(List.of(action("repeat_action")), new Guard.HasItem("minecraft:diamond", 1), 2)));
-        runner.enqueueStructuredPlan(
+        runner.enqueuePlan(
                 "bounded repeat",
                 definition,
                 PlanOptions.DEFAULT,

@@ -68,7 +68,7 @@ public final class TradeRequestHandler {
                             CompanionManager.get(player.level().getServer())
                                     .find(player.getUUID())
                                     .ifPresent(companion -> companion
-                                            .taskRunner()
+                                            .executionCoordinator()
                                             .start(new InspectTraderTask(trader), "traders_menu"));
                         },
                         request.traderId());
@@ -85,7 +85,7 @@ public final class TradeRequestHandler {
                                 CompanionManager.get(player.level().getServer())
                                         .find(player.getUUID())
                                         .ifPresent(companion -> companion
-                                                .taskRunner()
+                                                .executionCoordinator()
                                                 .start(new RefreshTradesTask(traders), "traders_menu"));
                         },
                         request.traderId());
@@ -135,7 +135,7 @@ public final class TradeRequestHandler {
                     caller =
                             state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
-                            .taskRunner()
+                            .executionCoordinator()
                             .start(
                                     dev.friendai.tool.builtin.TradingTools.submitFromMenu(companion, caller, args),
                                     "traders_menu");
@@ -144,13 +144,13 @@ public final class TradeRequestHandler {
                     caller =
                             state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
-                            .taskRunner()
+                            .executionCoordinator()
                             .start(
                                     dev.friendai.tool.builtin.TradingTools.barterFromMenu(companion, caller, args),
                                     "traders_menu");
                 } else {
                     companion
-                            .taskRunner()
+                            .executionCoordinator()
                             .start(
                                     dev.friendai.tool.builtin.TradingTools.waitFromMenu(companion, caller, args),
                                     "traders_menu");

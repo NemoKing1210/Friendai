@@ -7,10 +7,10 @@ import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.CraftTask;
@@ -51,13 +51,13 @@ public class CraftingTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner craft(CompanionEntity c, Result result, String item, int count) {
+    private static ExecutionCoordinator craft(CompanionEntity c, Result result, String item, int count) {
         return craft(c, result, item, count, CraftTask.StationPolicy.AUTO);
     }
 
-    private static TaskRunner craft(
+    private static ExecutionCoordinator craft(
             CompanionEntity c, Result result, String item, int count, CraftTask.StationPolicy policy) {
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(new CraftTask(item, count, policy), "craft_item");
         return runner;
@@ -351,7 +351,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.CHERRY_LOG));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:cherry_planks", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:cherry_planks", 4);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -367,7 +367,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.MANGROVE_LOG));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:stick", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:stick", 4);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -385,7 +385,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.ACACIA_LOG));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:crafting_table", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:crafting_table", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -409,7 +409,7 @@ public class CraftingTests {
         c.inventory().addItem(new ItemStack(Items.CRAFTING_TABLE));
         c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:crafting_table", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:crafting_table", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -426,7 +426,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:oak_planks", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:oak_planks", 4);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -451,7 +451,7 @@ public class CraftingTests {
     public void missingMaterialsFails(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:stick", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:stick", 1);
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
         h.assertValueEqual("can't craft 1 minecraft:stick; missing: 2 × #minecraft:planks", result.summary, "summary");
@@ -463,7 +463,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         // 26.3 makes diamond craftable from diamond blocks; netherite scrap is smelting-only.
-        TaskRunner runner = craft(c, result, "minecraft:netherite_scrap", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:netherite_scrap", 1);
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
         h.assertValueEqual(
@@ -477,7 +477,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DARK_OAK_LOG));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:dark_oak_planks", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:dark_oak_planks", 4);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -493,7 +493,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.PALE_OAK_LOG));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:stick", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:stick", 4);
         boolean[] cleared = {false};
         h.succeedWhen(() -> {
             runner.tick();
@@ -519,7 +519,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WOODEN_DECK + 1, 2);
         addLogs(c, Items.JUNGLE_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -563,7 +563,7 @@ public class CraftingTests {
         addLogs(c, Items.JUNGLE_LOG, 8);
         Result first = new Result();
         Result second = new Result();
-        TaskRunner runner = craft(c, first, "minecraft:wooden_pickaxe", 1);
+        ExecutionCoordinator runner = craft(c, first, "minecraft:wooden_pickaxe", 1);
         boolean[] secondStarted = {false};
         BlockPos[] table = new BlockPos[1];
         h.succeedWhen(() -> {
@@ -602,7 +602,7 @@ public class CraftingTests {
                 "base bed should be directly visible");
         addLogs(c, Items.OAK_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
         h.succeedWhen(() -> {
             GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, BASE_DECK + 1, 2)));
             GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, BASE_DECK + 1, 6)));
@@ -623,7 +623,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAKE_BASE_DECK + 1, 2);
         addLogs(c, Items.DARK_OAK_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
         boolean[] sawStationBreakTarget = {false};
         h.succeedWhen(() -> {
             runner.tick();
@@ -647,7 +647,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, KEEP_DECK + 1, 2);
         addLogs(c, Items.ACACIA_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.KEEP);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.KEEP);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -668,7 +668,7 @@ public class CraftingTests {
         c.inventory().addItem(new ItemStack(Items.SPRUCE_PLANKS, 3));
         c.inventory().addItem(new ItemStack(Items.STICK, 2));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -701,7 +701,7 @@ public class CraftingTests {
                 "crafting table should be visible");
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 4));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:andesite_stairs", 4);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:andesite_stairs", 4);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -732,7 +732,7 @@ public class CraftingTests {
         c.inventory().addItem(new ItemStack(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE));
         c.inventory().addItem(new ItemStack(Items.NETHERITE_INGOT));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:netherite_sword", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:netherite_sword", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -764,7 +764,7 @@ public class CraftingTests {
         c.inventory().addItem(new ItemStack(Items.EGG));
         c.inventory().addItem(new ItemStack(Items.WHEAT, 3));
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:cake", 1);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:cake", 1);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -780,7 +780,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAKE_FAIL_DECK + 1, 2);
         addLogs(c, Items.ACACIA_LOG, 3);
         Result result = new Result();
-        TaskRunner runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
         boolean[] protectedOnce = {false};
         h.succeedWhen(() -> {
             runner.tick();

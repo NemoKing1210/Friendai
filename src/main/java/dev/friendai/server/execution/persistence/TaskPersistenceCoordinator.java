@@ -9,8 +9,8 @@ import dev.friendai.queue.JobState;
 import dev.friendai.queue.PlanRecord;
 import dev.friendai.queue.QueueSave;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.builtin.SearchResourceTask;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public final class TaskPersistenceCoordinator {
         this.searchLedger = searchLedger;
     }
 
-    public Optional<SavedExecution> capture(TaskRunner runner) {
+    public Optional<SavedExecution> capture(ExecutionCoordinator runner) {
         JobQueue queue = runner.queue();
         Optional<TaskState> activeTask = runner.persistenceTaskState();
         if (queue.jobCount() == 0 && queue.planCount() == 0 && queue.archives().isEmpty() && activeTask.isEmpty())
@@ -162,7 +162,8 @@ public final class TaskPersistenceCoordinator {
                 var factory = factories.get(activeJobId);
                 if (factory != null) {
                     try {
-                        activeTask = factory.create(companion.taskRunner().activeTaskContext());
+                        activeTask =
+                                factory.create(companion.executionCoordinator().activeTaskContext());
                     } catch (RuntimeException invalidTask) {
                         queue.cancel(activeJobId, "saved task could not be reconstructed");
                         rejected.add("job #" + activeJobId + ": saved task could not be reconstructed");
@@ -184,18 +185,20 @@ public final class TaskPersistenceCoordinator {
         }
 
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .installRestoredState(
                         new QueueSave.Decoded(queue, activeTask == null ? 0 : activeJobId),
                         factories,
                         planFactories,
                         activeTask);
         if (creativeRejected)
-            companion.taskRunner().notice("Saved creative tasks were cancelled after reload; submit them again.");
-        for (Job job : companion.taskRunner().queue().jobs()) {
+            companion
+                    .executionCoordinator()
+                    .notice("Saved creative tasks were cancelled after reload; submit them again.");
+        for (Job job : companion.executionCoordinator().queue().jobs()) {
             if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool()
                                 + " is unavailable");
             }

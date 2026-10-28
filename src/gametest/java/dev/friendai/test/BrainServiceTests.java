@@ -163,7 +163,10 @@ public class BrainServiceTests {
             h.assertTrue(
                     h.getLevel().getBlockState(h.absolutePos(log)).isAir(),
                     "log should be mined; task="
-                            + companion.taskRunner().current().map(task -> task.type() + ":" + task.resultSummary())
+                            + companion
+                                    .executionCoordinator()
+                                    .current()
+                                    .map(task -> task.type() + ":" + task.resultSummary())
                             + ", history="
                             + brains.debug().historyOf(player.getUUID()).recent());
             h.assertTrue(
@@ -181,7 +184,7 @@ public class BrainServiceTests {
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionEntity companion = CompanionManager.get(server).summon(player);
         brains.sendMessage(player.getUUID(), "Steve", "hello");
-        companion.taskRunner().notice("x");
+        companion.executionCoordinator().notice("x");
         h.succeedWhen(() -> {
             h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
             boolean seen = script.requests.stream().anyMatch(request -> {

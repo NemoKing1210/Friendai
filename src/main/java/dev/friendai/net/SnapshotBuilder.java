@@ -74,7 +74,7 @@ public final class SnapshotBuilder {
                 brains.activeProvider(),
                 brains.activeModel(),
                 brains.brainOf(owner).map(b -> b.isThinking()).orElse(false),
-                c.taskRunner().queueSummary(),
+                c.executionCoordinator().queueSummary(),
                 history,
                 log,
                 operator
@@ -84,7 +84,7 @@ public final class SnapshotBuilder {
                         : "",
                 toolNames,
                 vitalsOf(c),
-                c.taskRunner().queueRows(),
+                c.executionCoordinator().queueRows(),
                 autoRespawn,
                 !server.isHardcore(),
                 c.creativeMode(),

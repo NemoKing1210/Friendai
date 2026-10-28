@@ -44,7 +44,7 @@ public final class CreativeModeService {
 
         FriendaiServerState state = FriendaiServerState.get(level.getServer());
         state.sessions().cancel(actor.getUUID());
-        companion.taskRunner().cancelForCapabilityChange();
+        companion.executionCoordinator().cancelForCapabilityChange();
         companion.getNavigation().stop();
         companion.setSprinting(false);
         CompanionLifeData life = state.companionLife();

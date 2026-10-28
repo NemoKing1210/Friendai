@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.DropItemsTask;
 import dev.friendai.task.builtin.GiveItemsTask;
@@ -37,8 +37,8 @@ public class ItemTaskTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
     }
@@ -59,7 +59,7 @@ public class ItemTaskTests {
         dropItem(h, 2.5, 2, 6.5, new ItemStack(Items.OAK_LOG, 2));
         dropItem(h, 4.5, 2, 4.5, new ItemStack(Items.DIRT, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(6), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -78,7 +78,7 @@ public class ItemTaskTests {
         dropItem(h, 4.5, 2, 2.5, new ItemStack(Items.EGG, 3));
         ItemEntity cobblestone = dropItem(h, 2.5, 2, 5.5, new ItemStack(Items.COBBLESTONE, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(6, ItemMatcher.parse("minecraft:egg").orElseThrow()), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -95,7 +95,7 @@ public class ItemTaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ItemEntity far = dropItem(h, 25.5, 2, 2.5, new ItemStack(Items.COBBLESTONE, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(6), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -112,7 +112,7 @@ public class ItemTaskTests {
         h.setBlock(new BlockPos(5, 2, 5), Blocks.MAGMA_BLOCK);
         dropItem(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(6), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -139,7 +139,7 @@ public class ItemTaskTests {
         }
         dropItem(h, 5.5, 3.0, 5.5, new ItemStack(Items.COBBLESTONE, 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(6), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -170,7 +170,7 @@ public class ItemTaskTests {
         c.setOwner(owner.getUUID());
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 10));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:oak_log").orElseThrow(), 4), "give_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -194,7 +194,7 @@ public class ItemTaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:diamond").orElseThrow(), 1), "give_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
@@ -211,7 +211,7 @@ public class ItemTaskTests {
         c.inventory().addItem(new ItemStack(Items.BIRCH_PLANKS, 3));
         c.inventory().addItem(new ItemStack(Items.SPRUCE_PLANKS, 2));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new GiveItemsTask(ItemMatcher.parse("#minecraft:planks").orElseThrow(), 4), "give_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -274,7 +274,7 @@ public class ItemTaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.GRANITE, 10));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:granite").orElseThrow(), 7), "drop_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed");
@@ -295,7 +295,7 @@ public class ItemTaskTests {
         c.inventory().addItem(new ItemStack(Items.WOOL.white(), 2));
         c.inventory().addItem(new ItemStack(Items.WOOL.lime(), 3));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DropItemsTask(ItemMatcher.parse("#minecraft:wool").orElseThrow(), 4), "drop_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed");
@@ -309,7 +309,7 @@ public class ItemTaskTests {
     public void dropNothingFails(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:andesite").orElseThrow(), 1), "drop_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
@@ -323,7 +323,7 @@ public class ItemTaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.TERRACOTTA, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:terracotta").orElseThrow(), 5), "drop_items");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -353,7 +353,7 @@ public class ItemTaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.POLISHED_DIORITE, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(
                 new DropItemsTask(
                         ItemMatcher.parse("minecraft:polished_diorite").orElseThrow(), 5),

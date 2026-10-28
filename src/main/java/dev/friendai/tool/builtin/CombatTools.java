@@ -222,7 +222,7 @@ final class CombatTools {
             }
         }
         EatTask task = new EatTask(food);
-        int taskId = companion.taskRunner().start(task, "eat", caller, true);
+        int taskId = companion.executionCoordinator().start(task, "eat", caller, true);
         return ToolResult.ok(note + "task #" + taskId + " started: " + task.describe());
     }
 
@@ -346,7 +346,7 @@ final class CombatTools {
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());
         }
-        int id = companion.taskRunner().start(task, "attack", caller, true);
+        int id = companion.executionCoordinator().start(task, "attack", caller, true);
         return ToolResult.ok("task #" + id + " started: " + task.describe());
     }
 
@@ -369,7 +369,7 @@ final class CombatTools {
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());
         }
-        int id = companion.taskRunner().start(task, "attack_player", caller, true);
+        int id = companion.executionCoordinator().start(task, "attack_player", caller, true);
         return ToolResult.ok("task #" + id + " started: " + task.describe());
     }
 

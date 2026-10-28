@@ -1380,7 +1380,7 @@ public final class BuildTask implements Task {
         done++;
         int percent = total == 0 ? 100 : done * 100 / total;
         while (nextNotice <= PROGRESS_STEP * 3 && percent >= nextNotice) {
-            c.runner()
+            c.execution()
                     .notice("building " + blueprint.name() + ": " + nextNotice + "% (" + done + "/" + total
                             + " blocks)");
             nextNotice += PROGRESS_STEP;

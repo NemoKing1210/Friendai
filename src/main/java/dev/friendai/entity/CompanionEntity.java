@@ -10,11 +10,14 @@ import dev.friendai.crafting.StationLease;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
+import dev.friendai.net.DebugStream;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.ExecutionHold;
+import dev.friendai.server.execution.HoldReason;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.survival.HungerModel;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.FollowTask;
@@ -143,7 +146,7 @@ public class CompanionEntity extends PathfinderMob {
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final HungerModel hunger = new HungerModel();
     private final ExperienceModel experience = new ExperienceModel();
-    private final TaskRunner taskRunner = new TaskRunner(
+    private final ExecutionCoordinator executionCoordinator = new ExecutionCoordinator(
             this,
             () -> serverSettings().tasks().taskTimeoutSec(),
             () -> serverSettings().tasks().defaultFollow(),
@@ -177,8 +180,12 @@ public class CompanionEntity extends PathfinderMob {
     private int automaticBedSearchTicks;
     /** How many players have the companion's inventory window open; the runner stands still while it is above zero. */
     private int inventoryViewers;
+
+    private ExecutionHold inventoryHold;
     /** Whether the companion menu is open for this companion: the world keeps running, the companion's work pauses. */
     private boolean menuViewerOpen;
+
+    private ExecutionHold menuHold;
     /** Capture once: a second death path (external setHealth, a command) must not append another death. */
     private transient boolean deathCaptured;
 
@@ -292,8 +299,8 @@ public class CompanionEntity extends PathfinderMob {
         return entityData.get(DATA_FOOD);
     }
 
-    public TaskRunner taskRunner() {
-        return taskRunner;
+    public ExecutionCoordinator executionCoordinator() {
+        return executionCoordinator;
     }
 
     /** The immutable effective config snapshot owned by this companion's server. */
@@ -322,7 +329,7 @@ public class CompanionEntity extends PathfinderMob {
                 cfg.autonomy.toSettings(),
                 dev.friendai.brain.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
                 followMode(),
-                taskRunner.busyWithOther() || taskRunner.ownerWorkQueued(),
+                executionCoordinator.busyWithOther() || executionCoordinator.ownerWorkQueued(),
                 inCombat);
     }
 
@@ -447,7 +454,7 @@ public class CompanionEntity extends PathfinderMob {
             collectExperienceOrbs();
             combatController.tick();
             fireReflex.tick();
-            taskRunner.tick();
+            executionCoordinator.tick();
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();
             facing.tick();
@@ -472,8 +479,8 @@ public class CompanionEntity extends PathfinderMob {
     private void tickAutomaticBedRest(ServerLevel level) {
         if (!SleepTask.isNight(level)
                 || !idle()
-                || taskRunner.hasWork()
-                || taskRunner.paused()
+                || executionCoordinator.hasWork()
+                || executionCoordinator.paused()
                 || getTarget() != null
                 || isSleeping()) {
             automaticBedSearchTicks = 0;
@@ -485,7 +492,7 @@ public class CompanionEntity extends PathfinderMob {
         automaticBedSearchTicks = 0;
         List<BlockPos> beds = SleepTask.findNearbyBeds(level, blockPosition());
         if (!beds.isEmpty()) {
-            taskRunner.start(SleepTask.automatic(beds), "auto_sleep");
+            executionCoordinator.start(SleepTask.automatic(beds), "auto_sleep");
         }
     }
 
@@ -495,7 +502,7 @@ public class CompanionEntity extends PathfinderMob {
      * something else is simply forgotten.
      */
     private void fetchBackLeftStations() {
-        if (taskRunner.paused() || !idle()) {
+        if (executionCoordinator.paused() || !idle()) {
             return;
         }
         long now = level().getGameTime();
@@ -512,7 +519,7 @@ public class CompanionEntity extends PathfinderMob {
                     > STATION_RECOVERY_RADIUS * STATION_RECOVERY_RADIUS) {
                 continue;
             }
-            taskRunner.start(new CollectStationTask(station, pos), "collect_station");
+            executionCoordinator.start(new CollectStationTask(station, pos), "collect_station");
             return;
         }
     }
@@ -522,7 +529,10 @@ public class CompanionEntity extends PathfinderMob {
      * may glance at its owner. A real task owns the look, so the companion keeps its eyes on the job instead.
      */
     public boolean idle() {
-        return taskRunner.current().map(task -> task instanceof FollowTask).orElse(true);
+        return executionCoordinator
+                .current()
+                .map(task -> task instanceof FollowTask)
+                .orElse(true);
     }
 
     /** The companion's food, saturation and exhaustion; ticked every server tick by {@link #tick()}. */
@@ -900,7 +910,7 @@ public class CompanionEntity extends PathfinderMob {
     /** A window showing the inventory opened: the first one stops the companion so its items are not moving. */
     public void addInventoryViewer() {
         if (inventoryViewers++ == 0) {
-            taskRunner.hold();
+            inventoryHold = executionCoordinator.acquireHold(HoldReason.INVENTORY);
             getNavigation().stop();
         }
     }
@@ -908,7 +918,8 @@ public class CompanionEntity extends PathfinderMob {
     /** A window closed; the companion goes back to whatever it was doing after the last one. */
     public void removeInventoryViewer() {
         if (inventoryViewers > 0 && --inventoryViewers == 0) {
-            taskRunner.release();
+            closeHold(inventoryHold);
+            inventoryHold = null;
         }
     }
 
@@ -919,7 +930,7 @@ public class CompanionEntity extends PathfinderMob {
     public void addMenuViewer() {
         if (!menuViewerOpen) {
             menuViewerOpen = true;
-            taskRunner.hold();
+            menuHold = executionCoordinator.acquireHold(HoldReason.MENU);
             getNavigation().stop();
         }
     }
@@ -928,8 +939,13 @@ public class CompanionEntity extends PathfinderMob {
     public void removeMenuViewer() {
         if (menuViewerOpen) {
             menuViewerOpen = false;
-            taskRunner.release();
+            closeHold(menuHold);
+            menuHold = null;
         }
+    }
+
+    private static void closeHold(ExecutionHold hold) {
+        if (hold != null) hold.close();
     }
 
     /** True while a client has this companion's menu open. */
@@ -1059,6 +1075,16 @@ public class CompanionEntity extends PathfinderMob {
     /** Killing or dismissing the companion drops its anchor; unloading the chunk or changing dimension keeps it. */
     @Override
     public void remove(RemovalReason reason) {
+        if (ownerUuid != null && !level().isClientSide() && level() instanceof ServerLevel serverLevel) {
+            DebugStream.closeMenu(serverLevel.getServer(), ownerUuid);
+        }
+        closeHold(menuHold);
+        menuHold = null;
+        closeHold(inventoryHold);
+        inventoryHold = null;
+        menuViewerOpen = false;
+        inventoryViewers = 0;
+        executionCoordinator.releaseAllHolds();
         if (reason.shouldDestroy()
                 && ownerUuid != null
                 && !level().isClientSide()
@@ -1101,7 +1127,7 @@ public class CompanionEntity extends PathfinderMob {
         if (level() instanceof ServerLevel serverLevel) {
             var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
             persistence
-                    .capture(taskRunner)
+                    .capture(executionCoordinator)
                     .ifPresent(saved -> output.store(
                             "SavedExecution", Codec.STRING.listOf(), persistence.split(persistence.encode(saved))));
         }

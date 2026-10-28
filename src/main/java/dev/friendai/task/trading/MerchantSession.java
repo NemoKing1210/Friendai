@@ -490,7 +490,8 @@ public final class MerchantSession implements AutoCloseable {
         if (!order.owner().equals(companion.ownerUuid())) return "companion owner changed";
         if (companion.level() != target.level()) return "merchant changed dimension";
         if (!target.isAlive()) return "merchant is no longer alive";
-        if (companion.taskRunner().paused() || companion.taskRunner().suspended()) return "companion task was paused";
+        if (companion.executionCoordinator().paused()
+                || companion.executionCoordinator().suspended()) return "companion task was paused";
         if (!leases.heldBy(order.trader(), order.orderId())) return "merchant lease expired";
         if (merchant.getTradingPlayer() != companion.hands().player()) return "merchant customer changed";
         if (!(companion.level() instanceof ServerLevel level)

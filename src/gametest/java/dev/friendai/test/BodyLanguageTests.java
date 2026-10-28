@@ -31,7 +31,7 @@ public class BodyLanguageTests {
         GameTestSupport.platformAt(h, floor, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
         c.setYRot(0.0f);
-        c.taskRunner().start(TurnTask.toYaw(90.0f, "west"), "turn");
+        c.executionCoordinator().start(TurnTask.toYaw(90.0f, "west"), "turn");
         h.succeedWhen(() -> {
             float diff = Math.abs(net.minecraft.util.Mth.wrapDegrees(c.getYRot() - 90.0f));
             h.assertTrue(diff < 2.0f, "yaw was " + c.getYRot());
@@ -43,7 +43,7 @@ public class BodyLanguageTests {
         int floor = 150;
         GameTestSupport.platformAt(h, floor, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
-        c.taskRunner().start(new EmoteTask(Emotes.Kind.BOW), "emote");
+        c.executionCoordinator().start(new EmoteTask(Emotes.Kind.BOW), "emote");
         boolean[] crouched = {false};
         h.succeedWhen(() -> {
             if (c.getPose() == Pose.CROUCHING) {
@@ -51,8 +51,12 @@ public class BodyLanguageTests {
             }
             h.assertTrue(crouched[0], "a bow never crouched");
             h.assertTrue(
-                    c.taskRunner().current().isEmpty()
-                            || !"emote".equals(c.taskRunner().current().get().type()),
+                    c.executionCoordinator().current().isEmpty()
+                            || !"emote"
+                                    .equals(c.executionCoordinator()
+                                            .current()
+                                            .get()
+                                            .type()),
                     "emote still running");
             h.assertFalse(c.body().sneaking(), "sneak was not released after the emote");
         });
@@ -63,11 +67,11 @@ public class BodyLanguageTests {
         int floor = 160;
         GameTestSupport.platformAt(h, floor, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
-        c.taskRunner().start(new SitTask(), "sit");
+        c.executionCoordinator().start(new SitTask(), "sit");
         h.runAfterDelay(10, () -> {
             h.assertTrue(c.body().sitting(), "not sitting");
             h.assertTrue(c.getPose() == Pose.CROUCHING, "pose was " + c.getPose());
-            c.taskRunner().stop("test");
+            c.executionCoordinator().stop("test");
         });
         h.runAfterDelay(30, () -> {
             h.assertFalse(c.body().sitting(), "still sitting after stop");
@@ -82,7 +86,7 @@ public class BodyLanguageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setYRot(-90.0f);
         Vec3 start = c.position();
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(
                         new RelativeMoveTask(
                                 "step",
@@ -103,7 +107,7 @@ public class BodyLanguageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
         c.inventory().addItem(new ItemStack(Items.APPLE, 3));
         ItemMatcher apple = ItemMatcher.parse("minecraft:apple").orElseThrow();
-        c.taskRunner().start(new ThrowItemTask(apple, 2, null, ""), "throw_item");
+        c.executionCoordinator().start(new ThrowItemTask(apple, 2, null, ""), "throw_item");
         h.succeedWhen(() -> {
             int thrown = h
                     .getLevel()
@@ -122,11 +126,15 @@ public class BodyLanguageTests {
         int floor = 190;
         GameTestSupport.platformAt(h, floor, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
-        c.taskRunner().start(new WaitTask(20), "wait");
+        c.executionCoordinator().start(new WaitTask(20), "wait");
         h.runAfterDelay(40, () -> {
             h.assertTrue(
-                    c.taskRunner().current().isEmpty()
-                            || !"wait".equals(c.taskRunner().current().get().type()),
+                    c.executionCoordinator().current().isEmpty()
+                            || !"wait"
+                                    .equals(c.executionCoordinator()
+                                            .current()
+                                            .get()
+                                            .type()),
                     "still waiting");
             h.succeed();
         });
@@ -206,7 +214,7 @@ public class BodyLanguageTests {
         c.setXRot(0.0F);
         c.inventory().addItem(new ItemStack(Items.APPLE));
         ItemMatcher apple = ItemMatcher.parse("minecraft:apple").orElseThrow();
-        c.taskRunner().start(new ThrowItemTask(apple, 1, null, ""), "throw_item");
+        c.executionCoordinator().start(new ThrowItemTask(apple, 1, null, ""), "throw_item");
         h.succeedWhen(() -> {
             for (ItemEntity item : h.getLevel()
                     .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(6.0))) {

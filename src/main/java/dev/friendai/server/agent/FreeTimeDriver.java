@@ -242,10 +242,10 @@ public final class FreeTimeDriver {
         if (planId == 0) {
             return;
         }
-        companion.taskRunner().unmarkAutonomousPlan(planId);
-        if (companion.taskRunner().queue().plan(planId).isPresent()) {
+        companion.executionCoordinator().unmarkAutonomousPlan(planId);
+        if (companion.executionCoordinator().queue().plan(planId).isPresent()) {
             released.add(planId);
-            companion.taskRunner().cancelPlan(planId, reason);
+            companion.executionCoordinator().cancelPlan(planId, reason);
         }
     }
 
@@ -265,13 +265,14 @@ public final class FreeTimeDriver {
         if (!ownsPlan(owner, planId)) {
             return false;
         }
-        if (companion.taskRunner().queue().plan(planId).isPresent()
-                && companion.taskRunner().queue().planStatus(planId) != dev.friendai.queue.PlanStatus.ACTIVE) {
+        if (companion.executionCoordinator().queue().plan(planId).isPresent()
+                && companion.executionCoordinator().queue().planStatus(planId)
+                        != dev.friendai.queue.PlanStatus.ACTIVE) {
             // a stuck plan: free time does not wait for a decision, it gives up on the shift
             released.add(planId);
-            companion.taskRunner().cancelPlan(planId, "free time gave up");
+            companion.executionCoordinator().cancelPlan(planId, "free time gave up");
         }
-        companion.taskRunner().unmarkAutonomousPlan(planId);
+        companion.executionCoordinator().unmarkAutonomousPlan(planId);
         long now = now();
         Shift shift = service().state(owner).shift();
         facts.invalidate(owner);
@@ -337,7 +338,7 @@ public final class FreeTimeDriver {
         Autonomy ceiling = Autonomy.parse(cfg.agent.autonomy);
         FreeTimeService service = service();
         FreeTime state = service.state(owner);
-        var runner = companion.taskRunner();
+        var runner = companion.executionCoordinator();
         boolean online = companion.owner().isPresent();
         boolean movementOrder = runner.movementOrderActive();
         if (Boolean.TRUE.equals(wasMovementOrder.put(owner, movementOrder)) && !movementOrder) {
@@ -456,7 +457,7 @@ public final class FreeTimeDriver {
             AutonomySettings s,
             boolean brainThinking,
             long nowMillis) {
-        var runner = companion.taskRunner();
+        var runner = companion.executionCoordinator();
         FreeTime state = service().state(owner);
         boolean movementOrder = runner.movementOrderActive();
         IdleWatchdog.Busy busy = new IdleWatchdog.Busy(
@@ -695,8 +696,8 @@ public final class FreeTimeDriver {
                 digest.toString(),
                 dev.friendai.place.PlaceText.planner(
                         cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
-                Optional.of(
-                        dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), guard, null, 20, false)),
+                Optional.of(dev.friendai.queue.QueueText.show(
+                        companion.executionCoordinator().queue(), guard, null, 20, false)),
                 state.lessons(),
                 "",
                 schemas,
@@ -811,7 +812,7 @@ public final class FreeTimeDriver {
             return Optional.empty();
         }
         long planId = Long.parseLong(matcher.group(1));
-        companion.taskRunner().markAutonomousPlan(planId);
+        companion.executionCoordinator().markAutonomousPlan(planId);
         return Optional.of(planId);
     }
 

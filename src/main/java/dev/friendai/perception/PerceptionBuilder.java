@@ -66,7 +66,7 @@ public final class PerceptionBuilder {
                 .filter(o -> o.level() == level)
                 .map(o -> (double) c.distanceTo(o))
                 .orElse(null);
-        String task = c.taskRunner().queueSummary();
+        String task = c.executionCoordinator().queueSummary();
         if (c.ownerUuid() != null) {
             String freeTime =
                     FreeTimeText.stateLine(context.freeTime().state(c.ownerUuid()), System.currentTimeMillis());

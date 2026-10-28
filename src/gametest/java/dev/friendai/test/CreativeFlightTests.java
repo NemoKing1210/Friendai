@@ -63,7 +63,7 @@ public final class CreativeFlightTests {
         AABB targetBox = companion.getBoundingBox().move(target.subtract(companion.position()));
         h.assertTrue(h.getLevel().noCollision(companion, targetBox), "flight test target has a collision");
         FlyToTask task = new FlyToTask(target);
-        companion.taskRunner().start(task, "fly_to", caller(owner), true);
+        companion.executionCoordinator().start(task, "fly_to", caller(owner), true);
         AABB wall = new AABB(h.absoluteVec(new Vec3(6, 2, 0)), h.absoluteVec(new Vec3(7, 6, 6)));
         h.succeedWhen(() -> {
             h.assertFalse(companion.getBoundingBox().intersects(wall), "companion clipped through the wall");
@@ -86,7 +86,7 @@ public final class CreativeFlightTests {
         for (int x = 4; x <= 9; x++) {
             for (int z = 0; z < 6; z++) h.setBlock(x, 1, z, net.minecraft.world.level.block.Blocks.AIR);
         }
-        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+        companion.executionCoordinator().start(new FollowTask(false), "follow_player", caller(owner), true);
         h.succeedWhen(() -> h.assertTrue(
                 companion.position().distanceTo(owner.position()) <= 5.0,
                 "follow did not cross the gap; companion=" + companion.position() + ", owner=" + owner.position()));
@@ -101,7 +101,7 @@ public final class CreativeFlightTests {
         CompanionEntity companion = creativeCompanion(h, owner);
         BlockPos start = h.absolutePos(new BlockPos(2, 10, 2));
         companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
-        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+        companion.executionCoordinator().start(new FollowTask(false), "follow_player", caller(owner), true);
 
         final int[] hoveringTicks = {0};
         final double[] hoverY = {Double.NaN};
@@ -155,7 +155,7 @@ public final class CreativeFlightTests {
         h.assertFalse(h.getLevel().hasChunkAt(target), "test target chunk should be unloaded before flight starts");
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.taskRunner().setListener(new TaskListener() {
+        companion.executionCoordinator().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -166,7 +166,7 @@ public final class CreativeFlightTests {
             public void onCancelled(int id, String toolName, String reason) {}
         });
         Vec3 targetPosition = new Vec3(target.getX() + 0.5, target.getY(), target.getZ() + 0.5);
-        companion.taskRunner().start(new FlyToTask(targetPosition), "fly_to", caller(owner), true);
+        companion.executionCoordinator().start(new FlyToTask(targetPosition), "fly_to", caller(owner), true);
         h.succeedWhen(() -> {
             h.assertTrue(status[0] == TaskStatus.FAILED, "unloaded route status was " + status[0]);
             h.assertTrue(summary[0].contains("loaded collision-safe"), "unexpected failure: " + summary[0]);
@@ -183,7 +183,7 @@ public final class CreativeFlightTests {
         CompanionEntity companion = creativeCompanion(h, owner);
         BlockPos start = h.absolutePos(new BlockPos(2, 10, 2));
         companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
-        companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
+        companion.executionCoordinator().start(new FollowTask(false), "follow_player", caller(owner), true);
 
         final int[] hoveringTicks = {0};
         final int[] stayStartedAtTick = {-1};
@@ -197,7 +197,7 @@ public final class CreativeFlightTests {
                             companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
                 }
                 if (hoveringTicks[0] >= 30) {
-                    companion.taskRunner().start(new StayTask(), "stay", caller(owner), false);
+                    companion.executionCoordinator().start(new StayTask(), "stay", caller(owner), false);
                     stayStartedAtTick[0] = companion.tickCount;
                 }
             }
@@ -236,11 +236,11 @@ public final class CreativeFlightTests {
         companion.setXRot(0.0F);
         Vec3 north = h.absoluteVec(new Vec3(2.5, 2, 2.5));
         Vec3 east = h.absoluteVec(new Vec3(12.5, 2, 2.5));
-        companion.taskRunner().start(new StayTask(5000), "stay");
+        companion.executionCoordinator().start(new StayTask(5000), "stay");
         TaskContext context = new TaskContext(
                 companion,
                 h.getLevel(),
-                companion.taskRunner(),
+                companion.executionCoordinator(),
                 new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
         FlightNavigator navigator = new FlightNavigator();
         int[] leg = {0};
@@ -336,11 +336,11 @@ public final class CreativeFlightTests {
         companion.setYHeadRot(-90.0F);
         companion.setXRot(0.0F);
         Vec3 up = h.absoluteVec(new Vec3(2.5, 7, 2.5));
-        companion.taskRunner().start(new StayTask(5000), "stay");
+        companion.executionCoordinator().start(new StayTask(5000), "stay");
         TaskContext context = new TaskContext(
                 companion,
                 h.getLevel(),
-                companion.taskRunner(),
+                companion.executionCoordinator(),
                 new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
         FlightNavigator navigator = new FlightNavigator();
         float[] maxYawError = {0.0F};

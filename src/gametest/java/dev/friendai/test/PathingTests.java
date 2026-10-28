@@ -97,8 +97,8 @@ public class PathingTests {
     }
 
     private static void walkTo(CompanionEntity c, GameTestHelper h, Outcome out, double x, double y, double z) {
-        c.taskRunner().setListener(out);
-        c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
+        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
     }
 
     private static void assertBlock(
@@ -220,7 +220,7 @@ public class PathingTests {
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The task listener is installed with the owner's brain entry, as it already is for notices.
         brains.currentPrompt(player.getUUID());
-        c.taskRunner().debug("path test");
+        c.executionCoordinator().debug("path test");
         List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
         h.assertTrue(
                 log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains("path test")),
@@ -340,8 +340,8 @@ public class PathingTests {
         MineBlocksTask task = new MineBlocksTask(
                 BlockMatcher.parse("minecraft:polished_andesite").orElseThrow(), 1, 32);
         Outcome out = new Outcome();
-        c.taskRunner().setListener(out);
-        c.taskRunner().start(task, "mine_blocks");
+        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().start(task, "mine_blocks");
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
             BlockState left = h.getLevel().getBlockState(h.absolutePos(new BlockPos(8, 2, 8)));
@@ -369,8 +369,8 @@ public class PathingTests {
         MineBlocksTask task =
                 new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
         Outcome out = new Outcome();
-        c.taskRunner().setListener(out);
-        c.taskRunner().start(task, "mine_blocks");
+        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().start(task, "mine_blocks");
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
             int left = 0;
@@ -603,7 +603,7 @@ public class PathingTests {
         owner.setOnGround(true);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setOwner(owner.getUUID());
-        c.taskRunner().start(new FollowTask(true), "follow");
+        c.executionCoordinator().start(new FollowTask(true), "follow");
         double[] last = {c.getX(), c.getY(), c.getZ()};
         double[] biggest = {0};
         h.onEachTick(() -> {
@@ -629,7 +629,7 @@ public class PathingTests {
         owner.setOnGround(false);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setOwner(owner.getUUID());
-        c.taskRunner().start(new FollowTask(true), "follow");
+        c.executionCoordinator().start(new FollowTask(true), "follow");
         double ceiling = h.absolutePos(new BlockPos(0, floor + 4, 0)).getY();
         h.onEachTick(() ->
                 h.assertTrue(c.getY() < ceiling, "the companion climbed to " + c.getY() + " toward a flying owner"));
@@ -748,10 +748,10 @@ public class PathingTests {
     public void stoppingGoToClearsPathingImmediately(GameTestHelper h) {
         GameTestSupport.platformAt(h, 195, 14);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 196, 2);
-        c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(11.5, 196, 2.5))), "go_to");
+        c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(11.5, 196, 2.5))), "go_to");
         h.succeedWhen(() -> {
             h.assertTrue(c.pathing(), "wait for an executing path");
-            c.taskRunner().stop("test stop");
+            c.executionCoordinator().stop("test stop");
             h.assertFalse(c.pathing(), "stopping the task must immediately stop the navigator");
         });
     }

@@ -38,7 +38,7 @@ public final class TradingRefreshTests {
         h.assertFalse(result.error(), "explicit owner refresh was rejected: " + result.content());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("refresh_trades"))
                         .orElse(false),

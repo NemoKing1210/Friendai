@@ -6,8 +6,8 @@ import dev.friendai.entity.ExpeditionChunkHorizon;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.pathing.Pos;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.ObtainTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -132,7 +132,7 @@ public final class ResourceJourneyTests {
 
         Result result = new Result();
         dev.friendai.entity.CompanionManager.get(server).register(companion);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         runner.setListener(result);
         runner.start(
                 new dev.friendai.task.builtin.VisitResourceTask(
@@ -223,7 +223,7 @@ public final class ResourceJourneyTests {
                         && (start.getX() >> 4) != (ore.getX() >> 4),
                 "start, sighting and ore must occupy three distinct chunks");
         companion.teleportTo(viewpoint.getX() + 0.5, viewpoint.getY(), viewpoint.getZ() + 0.5);
-        companion.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
+        companion.executionCoordinator().start(new dev.friendai.task.builtin.StayTask(), "stay");
         h.assertTrue(
                 GameTestSupport.observeVisible(h, companion, ore), "iron ore should be learned only from direct sight");
         companion.teleportTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
@@ -239,7 +239,7 @@ public final class ResourceJourneyTests {
                 "the recorded sighting must stay in its own chunk and within direct observation range");
         Result result = new Result();
         dev.friendai.entity.CompanionManager.get(server).register(companion);
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         runner.setListener(result);
         runner.start(
                 new dev.friendai.task.builtin.VisitResourceTask(
@@ -345,7 +345,7 @@ public final class ResourceJourneyTests {
                         + dev.friendai.crafting.obtain.ObtainText.planText(plan, "minecraft:oak_log", 2));
 
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(companion, () -> 2400, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 2400, () -> false);
         runner.setListener(result);
         var candidate = state.resources().plannerCandidates(companion, 20).get(0);
         runner.start(

@@ -45,22 +45,28 @@ public final class FriendaiMenus {
             return denial;
         }
         companion.addInventoryViewer();
-        OptionalInt opened = player.openMenu(new ExtendedMenuProvider<Integer>() {
-            @Override
-            public Component getDisplayName() {
-                return companion.getName();
-            }
+        OptionalInt opened;
+        try {
+            opened = player.openMenu(new ExtendedMenuProvider<Integer>() {
+                @Override
+                public Component getDisplayName() {
+                    return companion.getName();
+                }
 
-            @Override
-            public Integer getScreenOpeningData(ServerPlayer ignored) {
-                return companion.getId();
-            }
+                @Override
+                public Integer getScreenOpeningData(ServerPlayer ignored) {
+                    return companion.getId();
+                }
 
-            @Override
-            public AbstractContainerMenu createMenu(int id, Inventory inventory, Player viewer) {
-                return new CompanionInventoryMenu(id, inventory, companion);
-            }
-        });
+                @Override
+                public AbstractContainerMenu createMenu(int id, Inventory inventory, Player viewer) {
+                    return new CompanionInventoryMenu(id, inventory, companion);
+                }
+            });
+        } catch (RuntimeException | Error failure) {
+            companion.removeInventoryViewer();
+            throw failure;
+        }
         if (opened.isEmpty()) {
             companion.removeInventoryViewer();
             return InventoryAccess.Denial.GONE;

@@ -166,7 +166,7 @@ public final class FriendaiCommands {
         }
         // Free time first: its plan is then released instead of ending as a failed shift.
         FriendaiServerState.get(server).sessions().freeTime().stop(player.getUUID(), "stopped by command");
-        companion.get().taskRunner().stop("stopped by command");
+        companion.get().executionCoordinator().stop("stopped by command");
         FriendaiServerState.get(server).sessions().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
         return 1;
@@ -200,7 +200,12 @@ public final class FriendaiCommands {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
             return 0;
         }
-        String task = companion.get().taskRunner().current().map(Task::describe).orElse("none");
+        String task = companion
+                .get()
+                .executionCoordinator()
+                .current()
+                .map(Task::describe)
+                .orElse("none");
         boolean thinking = state.sessions()
                 .brainOf(player.getUUID())
                 .map(b -> b.isThinking())

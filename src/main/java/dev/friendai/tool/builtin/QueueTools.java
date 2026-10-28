@@ -87,7 +87,7 @@ final class QueueTools {
                         .build(),
                 AccessLevel.TRUSTED,
                 (c, args) -> ToolResult.ok(QueueText.show(
-                        c.taskRunner().queue(),
+                        c.executionCoordinator().queue(),
                         new CompanionGuardFacts(c),
                         args.has("plan") ? args.get("plan").getAsLong() : null,
                         args.has("limit") ? args.get("limit").getAsInt() : 20,
@@ -249,24 +249,23 @@ final class QueueTools {
                                         .withTradingScope(QueueTradeScope.read(step.args())),
                                 step.args()))
                         .toList();
-                id = c.taskRunner()
+                id = c.executionCoordinator()
                         .enqueuePlan(goal, steps, factories, new PlanOptions(priority, policy, time), planId -> {
-                            QueueOptimizer.apply(c.taskRunner().queue(), planId, name -> {
+                            QueueOptimizer.apply(c.executionCoordinator().queue(), planId, name -> {
                                 TaskToolDef def = all.get(name);
                                 return def == null ? null : def.queueTraits().mergeableCountArg();
                             });
                             registerFactories(
                                     c,
-                                    c.taskRunner().queue().jobsOfPlan(planId).stream()
+                                    c.executionCoordinator().queue().jobsOfPlan(planId).stream()
                                             .map(dev.friendai.queue.Job::id)
                                             .toList(),
                                     allowed,
                                     caller.uuid());
                         });
             } else {
-                id = c.taskRunner()
-                        .enqueueStructuredPlan(
-                                goal, bound, new PlanOptions(priority, policy, time), planFactories(allowed));
+                id = c.executionCoordinator()
+                        .enqueuePlan(goal, bound, new PlanOptions(priority, policy, time), planFactories(allowed));
             }
         } catch (IllegalArgumentException e) {
             return ToolResult.error("Invalid plan: " + e.getMessage());
@@ -464,7 +463,7 @@ final class QueueTools {
     private static ToolResult edit(CompanionEntity c, Caller caller, JsonObject args, Map<String, TaskToolDef> all) {
         if (!args.has("action")) return error("queue_edit requires action");
         String action = args.get("action").getAsString();
-        var runner = c.taskRunner();
+        var runner = c.executionCoordinator();
         var q = runner.queue();
         try {
             switch (action) {
@@ -521,7 +520,7 @@ final class QueueTools {
                     var r = q.updateArgs(id, obj, caller.uuid(), d.creativeSensitive());
                     if (!r.ok()) return error(r.text());
                     UUID principal = caller.uuid();
-                    c.taskRunner()
+                    c.executionCoordinator()
                             .registerFactory(
                                     id,
                                     ctx -> createTask(
@@ -562,7 +561,7 @@ final class QueueTools {
                     for (int i = 0; i < steps.size(); i++) {
                         QueuedStep step = steps.get(i);
                         TaskToolDef def = allowed.get(step.tool());
-                        c.taskRunner()
+                        c.executionCoordinator()
                                 .registerFactory(
                                         firstNewId + i,
                                         ctx -> createTask(
@@ -605,12 +604,12 @@ final class QueueTools {
     private static void registerFactories(
             CompanionEntity c, List<Long> ids, Map<String, TaskToolDef> allowed, UUID principal) {
         for (long id : ids) {
-            var job = c.taskRunner().queue().job(id).orElse(null);
+            var job = c.executionCoordinator().queue().job(id).orElse(null);
             if (job == null) continue;
             TaskToolDef def = allowed.get(job.tool());
             if (def != null) {
                 JsonObject savedArgs = job.args();
-                c.taskRunner()
+                c.executionCoordinator()
                         .registerFactory(
                                 id,
                                 ctx -> createTask(

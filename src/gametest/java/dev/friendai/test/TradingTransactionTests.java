@@ -677,7 +677,7 @@ public final class TradingTransactionTests {
                             authorized.order(),
                             authorized.authority(),
                             helper.getLevel().getGameTime());
-            f.companion().taskRunner().setPaused(true);
+            f.companion().executionCoordinator().setPaused(true);
             f.guard().tick(helper.getLevel().getGameTime());
             helper.assertTrue(
                     f.villager().getTradingPlayer() == null
@@ -690,7 +690,7 @@ public final class TradingTransactionTests {
                     count(f.companion(), Items.EMERALD) == 2 && offer.getUses() == 0,
                     "guard cleanup changed an unattempted transaction");
             session.close();
-            f.companion().taskRunner().setPaused(false);
+            f.companion().executionCoordinator().setPaused(false);
             helper.succeed();
         }
     }

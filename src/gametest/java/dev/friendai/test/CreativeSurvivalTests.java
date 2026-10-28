@@ -46,7 +46,7 @@ public final class CreativeSurvivalTests {
         companion.hungerWatcher().tick();
         h.assertFalse(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("get_food"))
                         .orElse(false),
@@ -57,7 +57,7 @@ public final class CreativeSurvivalTests {
             h.assertTrue(companion.getHealth() == health, "starvation damaged the companion in creative mode");
             h.assertFalse(
                     companion
-                            .taskRunner()
+                            .executionCoordinator()
                             .current()
                             .map(task -> task.type().equals("get_food"))
                             .orElse(false),
@@ -151,7 +151,8 @@ public final class CreativeSurvivalTests {
                 current.placeList(),
                 current.autonomy(),
                 current.trading());
-        TaskContext context = new TaskContext(companion, h.getLevel(), companion.taskRunner(), null, testSettings);
+        TaskContext context =
+                new TaskContext(companion, h.getLevel(), companion.executionCoordinator(), null, testSettings);
         BreakAction.State state = action.tick(context, block -> block.is(Blocks.DIAMOND_ORE));
         h.assertTrue(state == BreakAction.State.BROKEN, "creative break was refused: " + state);
         AABB nearby = new AABB(target).inflate(3);

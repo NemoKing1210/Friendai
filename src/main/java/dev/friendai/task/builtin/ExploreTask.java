@@ -99,7 +99,7 @@ public final class ExploreTask implements Task {
         waypoint = origin;
         // Progress only goes to the task log: a notice would start a model turn in the middle of the task.
         c.companion()
-                .taskRunner()
+                .executionCoordinator()
                 .debug(
                         down
                                 ? "going down to Y " + depthY + " to look for " + target.label()

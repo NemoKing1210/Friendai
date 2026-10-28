@@ -1,7 +1,7 @@
 package dev.friendai.task.survival;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.TaskRunner;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.builtin.GetFoodTask;
 import dev.friendai.task.combat.Food;
 import java.util.Optional;
@@ -68,7 +68,7 @@ public final class HungerWatcher {
             readyAtTick = waitStartTick + autoDelayTicks;
             return;
         }
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         int now = companion.tickCount;
         int food = companion.hunger().food();
         int stage = stageOf(food);

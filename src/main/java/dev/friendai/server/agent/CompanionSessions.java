@@ -155,7 +155,8 @@ public final class CompanionSessions implements AutoCloseable {
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous) {
         var companion = CompanionManager.get(server).find(owner);
-        String task = companion.map(c -> c.taskRunner().currentToolName()).orElse("");
+        String task =
+                companion.map(c -> c.executionCoordinator().currentToolName()).orElse("");
         boolean combat = companion
                 .map(c -> c.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE)
                 .orElse(false);
@@ -343,14 +344,16 @@ public final class CompanionSessions implements AutoCloseable {
     public void onOwnerLeft(UUID owner) {
         cancel(owner);
         CompanionManager.get(server).find(owner).ifPresent(c -> {
-            if (c.creativeMode()) c.taskRunner().cancelForCapabilityChange();
-            c.taskRunner().suspend();
+            if (c.creativeMode()) c.executionCoordinator().cancelForCapabilityChange();
+            c.executionCoordinator().suspend();
         });
     }
 
     /** The owner came back to a still-loaded companion. */
     public void onOwnerJoined(UUID owner) {
-        CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().resume());
+        CompanionManager.get(server)
+                .find(owner)
+                .ifPresent(c -> c.executionCoordinator().resume());
     }
 
     public TaskRestoreRegistry taskRestoreRegistry() {
@@ -450,8 +453,8 @@ public final class CompanionSessions implements AutoCloseable {
                     active,
                     idle,
                     companion.owner().isPresent(),
-                    companion.taskRunner().paused()
-                            || companion.taskRunner().suspended()
+                    companion.executionCoordinator().paused()
+                            || companion.executionCoordinator().suspended()
                             || companion.isSleeping()
                             || companion.getTarget() != null,
                     entry.getValue().isThinking(),
@@ -481,7 +484,7 @@ public final class CompanionSessions implements AutoCloseable {
 
     /** Nothing runs and no plan moves by itself; a plan waiting for a decision counts as blocked. */
     private static boolean queueIdleOrBlocked(CompanionEntity companion) {
-        var runner = companion.taskRunner();
+        var runner = companion.executionCoordinator();
         var queue = runner.queue();
         if (queue.jobCount() == 0) {
             return !runner.hasWork();
@@ -534,8 +537,8 @@ public final class CompanionSessions implements AutoCloseable {
             });
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            String queue =
-                    dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), facts, null, 20, false);
+            String queue = dev.friendai.queue.QueueText.show(
+                    companion.executionCoordinator().queue(), facts, null, 20, false);
             return Optional.of(new dev.friendai.agent.plan.PlannerInput(
                     primary.get(),
                     new CompanionPerception(companion, perceptionContext).describe(caller),
@@ -566,7 +569,7 @@ public final class CompanionSessions implements AutoCloseable {
             if (primary.isPresent()
                     && primary.get().planId() != 0
                     && companion
-                            .taskRunner()
+                            .executionCoordinator()
                             .queue()
                             .plan(primary.get().planId())
                             .isPresent()) {
@@ -749,7 +752,7 @@ public final class CompanionSessions implements AutoCloseable {
                 caller,
                 message,
                 turn,
-                companion.taskRunner().currentToolName(),
+                companion.executionCoordinator().currentToolName(),
                 brain.isSkillFreeTimeTurn(),
                 false,
                 companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
@@ -771,10 +774,10 @@ public final class CompanionSessions implements AutoCloseable {
             String plan = "";
             if (primary.isPresent() && primary.get().planId() != 0) {
                 long planId = primary.get().planId();
-                plan = companion.taskRunner().queue().plan(planId).isPresent()
+                plan = companion.executionCoordinator().queue().plan(planId).isPresent()
                         ? "plan #" + planId + " "
                                 + companion
-                                        .taskRunner()
+                                        .executionCoordinator()
                                         .queue()
                                         .planStatus(planId)
                                         .name()
@@ -787,7 +790,7 @@ public final class CompanionSessions implements AutoCloseable {
             return board.view(plan, facts);
         });
         AgentEvents agent = new AgentEvents(owner, companion);
-        companion.taskRunner().setListener(new TaskListener() {
+        companion.executionCoordinator().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 if (!isCurrent(session, companion)) return;

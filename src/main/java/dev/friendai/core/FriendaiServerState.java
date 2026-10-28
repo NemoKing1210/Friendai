@@ -256,7 +256,7 @@ public final class FriendaiServerState {
         tradeSessionGuard.closeAll("server stopping");
         chunkLoader.stop();
         for (CompanionEntity companion : CompanionManager.get(server).all())
-            companion.taskRunner().suspend();
+            companion.executionCoordinator().suspend();
     }
 
     /** The name the owner gave their companion, or the configured default. */
@@ -307,7 +307,7 @@ public final class FriendaiServerState {
         syncCompanionNames(cfg);
         ServerSettings applied = configuration.current();
         for (CompanionEntity companion : CompanionManager.get(server).all()) {
-            companion.taskRunner().applySettings(applied);
+            companion.executionCoordinator().applySettings(applied);
         }
         sessions.reload(cfg);
         return problems;

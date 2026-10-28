@@ -6,10 +6,10 @@ import dev.friendai.debug.MovementDebug;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.GoToTask;
@@ -52,8 +52,9 @@ public class TaskTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity c, Events events, int timeoutSec, boolean defaultFollow) {
-        TaskRunner r = new TaskRunner(c, () -> timeoutSec, () -> defaultFollow);
+    private static ExecutionCoordinator runner(
+            CompanionEntity c, Events events, int timeoutSec, boolean defaultFollow) {
+        ExecutionCoordinator r = new ExecutionCoordinator(c, () -> timeoutSec, () -> defaultFollow);
         r.setListener(events);
         return r;
     }
@@ -61,7 +62,7 @@ public class TaskTests {
     @GameTest
     public void debugPreviewShowsPendingPlanStepsInQueueOrder(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = runner(c, new Events(), 300, false);
+        ExecutionCoordinator runner = runner(c, new Events(), 300, false);
         runner.queue().addDirect(new QueuedStep("first_tool", null, null, List.of(), null, null, 1, List.of()));
         runner.queue().addDirect(new QueuedStep("second_tool", null, null, List.of(), null, null, 1, List.of()));
         runner.queue().addDirect(new QueuedStep("third_tool", null, null, List.of(), null, null, 1, List.of()));
@@ -156,7 +157,7 @@ public class TaskTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         runner.start(new GoToTask(h.absoluteVec(new Vec3(10.5, 2, 2.5))), "go_to");
         h.succeedWhen(() -> {
             runner.tick();
@@ -170,7 +171,7 @@ public class TaskTests {
         wallIn(h, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         runner.start(new GoToTask(h.absoluteVec(new Vec3(10.5, 2, 2.5))), "go_to");
         h.succeedWhen(() -> {
             runner.tick();
@@ -183,7 +184,7 @@ public class TaskTests {
     public void newTaskCancelsCurrent(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         runner.start(new GoToTask(h.absoluteVec(new Vec3(10, 2, 2))), "go_to");
         runner.start(new StayTask(), "stay");
         h.assertTrue(events.log.equals(List.of("cancelled:go_to:replaced by a new task")), "events were " + events.log);
@@ -194,7 +195,7 @@ public class TaskTests {
     public void stopNamedStopsOnlyAMatchingTask(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, true);
+        ExecutionCoordinator runner = runner(c, events, 300, true);
         runner.start(new StayTask(), "mine_blocks");
         h.assertTrue(runner.stopNamed("go_to", "x").isEmpty(), "a different name must not stop the task");
         h.assertTrue(
@@ -215,7 +216,7 @@ public class TaskTests {
     public void stopNamedMatchesTheRunningPlanStep(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, true);
+        ExecutionCoordinator runner = runner(c, events, 300, true);
         for (String name : List.of("mine_blocks", "run_plan")) {
             runner.start(
                     new SequenceTask(
@@ -243,7 +244,7 @@ public class TaskTests {
     @GameTest
     public void sequenceForwardsActiveStepDebugTargets(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = runner(c, new Events(), 300, false);
+        ExecutionCoordinator runner = runner(c, new Events(), 300, false);
         Task step = new Task() {
             @Override
             public String type() {
@@ -291,7 +292,7 @@ public class TaskTests {
     public void planCancelRunsTheStepsCleanup(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         Task cleanup = new StayTask();
         runner.start(
                 new SequenceTask(
@@ -310,7 +311,7 @@ public class TaskTests {
     public void stopFallsBackToFollow(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, true);
+        ExecutionCoordinator runner = runner(c, events, 300, true);
         runner.start(new StayTask(), "stay");
         runner.stop("x");
         h.assertTrue(
@@ -324,7 +325,7 @@ public class TaskTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 1, false);
+        ExecutionCoordinator runner = runner(c, events, 1, false);
         // Too far to arrive within the one-second timeout, and nothing in the way: the timeout must be what fails it.
         runner.start(new GoToTask(h.absoluteVec(new Vec3(14.5, 2, 14.5))), "go_to");
         int[] ticks = {0};
@@ -341,7 +342,7 @@ public class TaskTests {
     public void exceptionInTaskBecomesFailed(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         runner.start(
                 new Task() {
                     @Override
@@ -383,7 +384,7 @@ public class TaskTests {
         UUID owner = UUID.randomUUID();
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         a.setOwner(owner);
-        a.taskRunner().start(new StayTask(), "stay");
+        a.executionCoordinator().start(new StayTask(), "stay");
         TagValueOutput out = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
@@ -392,8 +393,8 @@ public class TaskTests {
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
         h.assertTrue(
-                b.taskRunner().current().isPresent()
-                        && b.taskRunner().current().get().type().equals("stay"),
+                b.executionCoordinator().current().isPresent()
+                        && b.executionCoordinator().current().get().type().equals("stay"),
                 "stay task not restored");
         h.succeed();
     }
@@ -430,7 +431,7 @@ public class TaskTests {
         }
     }
 
-    private static void tick(TaskRunner runner, int times) {
+    private static void tick(ExecutionCoordinator runner, int times) {
         for (int i = 0; i < times; i++) {
             runner.tick();
         }
@@ -440,7 +441,7 @@ public class TaskTests {
     public void pausedTaskDoesNotTick(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         CountingTask task = new CountingTask();
         runner.start(task, "counting");
         tick(runner, 10);
@@ -460,7 +461,7 @@ public class TaskTests {
     public void pauseStopsTimeoutClock(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 2, false);
+        ExecutionCoordinator runner = runner(c, events, 2, false);
         runner.start(new CountingTask(), "counting");
         tick(runner, 20);
         runner.setPaused(true);
@@ -476,7 +477,7 @@ public class TaskTests {
     public void newTaskDuringPauseStartsAfterFight(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = runner(c, events, 300, false);
+        ExecutionCoordinator runner = runner(c, events, 300, false);
         CountingTask first = new CountingTask();
         runner.start(first, "first");
         runner.setPaused(true);

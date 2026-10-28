@@ -1,4 +1,4 @@
-package dev.friendai.task;
+package dev.friendai.server.execution;
 
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.creative.CreativeAction;
@@ -7,7 +7,6 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.movement.MovementOrders;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.GuardFacts;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobQueue;
@@ -24,17 +23,19 @@ import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.server.execution.ActiveTaskController;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
-import dev.friendai.server.execution.StopRequest;
-import dev.friendai.server.execution.TaskEventSink;
-import dev.friendai.server.execution.TaskStartContext;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskState;
+import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
+import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -49,7 +50,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Runs one task at a time and schedules durable jobs when no urgent or legacy task owns the runner. */
-public final class TaskRunner {
+public final class ExecutionCoordinator {
     private static final int POLL_INTERVAL_TICKS = 10;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
 
@@ -58,6 +59,7 @@ public final class TaskRunner {
     private final BooleanSupplier defaultFollow;
     private final Supplier<ServerSettings> settingsSupplier;
     private final ActiveTaskController activeTasks;
+    private final QueueDriver queueDriver = new QueueDriver();
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
 
@@ -89,14 +91,14 @@ public final class TaskRunner {
     private boolean flushingEvents;
     private boolean paused;
     private boolean suspended;
-    private int holds;
+    private final HoldRegistry holds = new HoldRegistry();
 
-    public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
+    public ExecutionCoordinator(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
         this(companion, timeoutSec, defaultFollow, () -> true, companion::serverSettings);
     }
 
     /** A runner that knows whether following is its business at all; the real entity passes the free-time gate. */
-    public TaskRunner(
+    public ExecutionCoordinator(
             CompanionEntity companion,
             IntSupplier timeoutSec,
             BooleanSupplier defaultFollow,
@@ -104,7 +106,7 @@ public final class TaskRunner {
         this(companion, timeoutSec, defaultFollow, mayFollowOwner, companion::serverSettings);
     }
 
-    public TaskRunner(
+    public ExecutionCoordinator(
             CompanionEntity companion,
             IntSupplier timeoutSec,
             BooleanSupplier defaultFollow,
@@ -151,7 +153,7 @@ public final class TaskRunner {
     }
 
     public boolean paused() {
-        return paused || holds > 0;
+        return paused || held();
     }
 
     public void suspend() {
@@ -166,16 +168,12 @@ public final class TaskRunner {
         return suspended;
     }
 
-    public void hold() {
-        holds++;
-    }
-
-    public void release() {
-        if (holds > 0) holds--;
+    public ExecutionHold acquireHold(HoldReason reason) {
+        return holds.acquire(reason);
     }
 
     public boolean held() {
-        return holds > 0;
+        return holds.held();
     }
 
     public void notice(String text) {
@@ -346,12 +344,12 @@ public final class TaskRunner {
         return added.planId();
     }
 
-    public long enqueueStructuredPlan(
+    public long enqueuePlan(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
-        return inTransition(() -> enqueueStructuredPlanActive(goal, definition, options, stepFactories));
+        return inTransition(() -> enqueuePlanActive(goal, definition, options, stepFactories));
     }
 
-    private long enqueueStructuredPlanActive(
+    private long enqueuePlanActive(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
         syncSettings();
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
@@ -366,9 +364,9 @@ public final class TaskRunner {
         return planId;
     }
 
-    public long enqueueStructuredPlan(
+    public long enqueuePlan(
             PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
-        return enqueueStructuredPlan("", definition, options, stepFactories);
+        return enqueuePlan("", definition, options, stepFactories);
     }
 
     private void validateStructuredAuthorization(PlanNode node) {
@@ -644,6 +642,10 @@ public final class TaskRunner {
         inTransition(this::tickActive);
     }
 
+    public void releaseAllHolds() {
+        holds.closeAll();
+    }
+
     private void tickActive() {
         syncSettings();
         revalidateCreativeHover();
@@ -826,16 +828,7 @@ public final class TaskRunner {
     }
 
     private boolean advanceNextStructuredPlan() {
-        PlanRecord selected = null;
-        for (PlanRecord plan : queue.plans()) {
-            if (plan.cursor() == null
-                    || !plan.cursor().pendingActionPath().isEmpty()
-                    || plan.cursor().stack().isEmpty()) continue;
-            if (selected == null
-                    || plan.priority() > selected.priority()
-                    || plan.priority() == selected.priority() && plan.addedTick() < selected.addedTick())
-                selected = plan;
-        }
+        PlanRecord selected = queueDriver.nextStructuredPlan(queue).orElse(null);
         if (selected == null) return false;
         advanceStructuredPlan(selected.id(), new PlanInterpreter.ActionResult.None());
         return true;
@@ -844,12 +837,11 @@ public final class TaskRunner {
     private void advanceStructuredPlan(long planId, PlanInterpreter.ActionResult result) {
         PlanRecord plan = queue.plan(planId).orElse(null);
         if (plan == null || plan.cursor() == null) return;
-        var transition = PlanInterpreter.advance(plan.definition(), plan.cursor(), planFacts(plan), result);
+        var transition = queueDriver.advance(plan.definition(), plan.cursor(), planFacts(plan), result);
         queue.updatePlanCursor(planId, transition.cursor());
         if (transition.event() instanceof PlanInterpreter.Event.EmitAction emit) {
             QueuedStep action = emit.step();
-            PlanStepFactory factory =
-                    structuredFactories.getOrDefault(planId, Map.of()).get(action.tool());
+            PlanStepFactory factory = queueDriver.planFactory(structuredFactories, planId, action.tool());
             if (factory == null) {
                 queue.cancelPlan(planId);
                 finishPlan(planId, "task factory is unavailable for " + action.tool() + " at " + emit.path(), false);
@@ -902,10 +894,10 @@ public final class TaskRunner {
         GuardFacts facts = facts();
         skipUnmet(facts);
         expireDeadlines();
-        Optional<Job> candidate = QueuePolicy.next(queue, facts);
+        Optional<Job> candidate = queueDriver.next(queue, facts);
         if (candidate.isEmpty() && advanceNextStructuredPlan()) {
             facts = facts();
-            candidate = QueuePolicy.next(queue, facts);
+            candidate = queueDriver.next(queue, facts);
         }
         if (candidate.isEmpty()) {
             maybeNoticeBlocked();
@@ -915,7 +907,7 @@ public final class TaskRunner {
         else if (activeTask() != null && movementOrder(activeTask())) clearCurrentSilently();
         else if (activeTask() != null) return false;
         Job job = candidate.get();
-        StepFactory factory = factories.get(job.id());
+        StepFactory factory = queueDriver.factory(factories, job.id());
         if (factory == null) {
             if (isStructuredPlan(job.planId())) {
                 queue.cancelPlan(job.planId());
@@ -935,8 +927,7 @@ public final class TaskRunner {
             return false;
         }
         if (isStructuredPlan(job.planId())) {
-            PlanStepFactory planFactory =
-                    structuredFactories.getOrDefault(job.planId(), Map.of()).get(job.tool());
+            PlanStepFactory planFactory = queueDriver.planFactory(structuredFactories, job.planId(), job.tool());
             QueuedStep step = step(job);
             TaskContext authorizationContext = new TaskContext(
                     companion, (ServerLevel) companion.level(), this, actionContext, settingsSupplier.get());
@@ -956,7 +947,7 @@ public final class TaskRunner {
                     task,
                     new TaskStartContext(
                             job.tool(),
-                            null,
+                            callerFor(job.principal()),
                             actionContext,
                             true,
                             false,
@@ -988,19 +979,17 @@ public final class TaskRunner {
     }
 
     private void skipUnmet(GuardFacts facts) {
-        for (Job j : queue.jobs())
-            if (j.state() == JobState.PENDING
-                    && j.onUnmet() == GuardAction.SKIP
-                    && j.guards().stream().anyMatch(g -> !g.holds(facts))) {
-                queue.skip(j.id());
-                if (isStructuredPlan(j.planId()))
-                    advanceStructuredPlan(j.planId(), new PlanInterpreter.ActionResult.Succeeded());
-                else if (j.planId() > 0 && queue.planStatus(j.planId()) != PlanStatus.ACTIVE)
-                    finishPlan(
-                            j.planId(),
-                            QueueText.planSummary(queue, j.planId()),
-                            queue.planStatus(j.planId()) == PlanStatus.DONE);
-            }
+        Job job;
+        while ((job = queueDriver.nextGuardSkip(queue, facts)) != null) {
+            queue.skip(job.id());
+            if (isStructuredPlan(job.planId()))
+                advanceStructuredPlan(job.planId(), new PlanInterpreter.ActionResult.Succeeded());
+            else if (job.planId() > 0 && queue.planStatus(job.planId()) != PlanStatus.ACTIVE)
+                finishPlan(
+                        job.planId(),
+                        QueueText.planSummary(queue, job.planId()),
+                        queue.planStatus(job.planId()) == PlanStatus.DONE);
+        }
     }
 
     private void handleStructuredActionFailure(long planId, long jobId, String reason) {
@@ -1220,7 +1209,7 @@ public final class TaskRunner {
                         restoredTask,
                         new TaskStartContext(
                                 activeJob.tool(),
-                                null,
+                                callerFor(activeJob.principal()),
                                 actionContext,
                                 true,
                                 false,
@@ -1325,6 +1314,13 @@ public final class TaskRunner {
         return principal == null || !creativeSensitive
                 ? null
                 : new CreativeActionContext(principal, companion.creativeModeRevision());
+    }
+
+    /** Reconstructs only the authority that the saved principal proves; unknown actors stay guests. */
+    private Caller callerFor(java.util.UUID principal) {
+        if (principal == null) return null;
+        AccessLevel access = principal.equals(companion.ownerUuid()) ? AccessLevel.OWNER : AccessLevel.GUEST;
+        return new Caller(principal, "", access);
     }
 
     private void requireCreativeAuthorization(java.util.UUID principal, boolean creativeSensitive) {

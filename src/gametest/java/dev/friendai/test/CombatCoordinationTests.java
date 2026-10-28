@@ -17,7 +17,7 @@ public class CombatCoordinationTests {
 
     private static List<String> notices(CompanionEntity c) {
         List<String> texts = new CopyOnWriteArrayList<>();
-        c.taskRunner().setListener(new TaskListener() {
+        c.executionCoordinator().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {}
 
@@ -66,7 +66,8 @@ public class CombatCoordinationTests {
         h.runAfterDelay(120, () -> {
             // SELF_ONLY still permits self-defence, so the fight may continue; the invariant is one coherent state.
             h.assertTrue(
-                    !c.taskRunner().paused() || c.combatController().state() == CombatController.State.FIGHTING,
+                    !c.executionCoordinator().paused()
+                            || c.combatController().state() == CombatController.State.FIGHTING,
                     "a paused task was left without a fight: "
                             + c.combatController().state());
             h.assertTrue(c.combatController().decision().action() != null, "no decision recorded");

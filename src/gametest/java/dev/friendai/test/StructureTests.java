@@ -4,12 +4,12 @@ import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.structure.Offset;
 import dev.friendai.structure.SpecialStructure;
 import dev.friendai.structure.StructureBook;
 import dev.friendai.structure.StructureSnapshot;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.SpecialStructureTask;
 import dev.friendai.task.structure.StructureIndex;
@@ -88,7 +88,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.IRON_BLOCK, 4));
         GameTestSupport.mockPlayerAt(h, 3, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "iron_golem", 2, 2, 2), "special:iron_golem");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -147,8 +147,8 @@ public class StructureTests {
         public void onNotice(String text) {}
     }
 
-    private static TaskRunner runner(CompanionEntity companion, Result result) {
-        TaskRunner runner = new TaskRunner(companion, () -> 600, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -204,8 +204,8 @@ public class StructureTests {
         h.assertFalse(r.error(), "error: " + r.content());
         h.assertTrue(r.content().contains("minecraft:flint_and_steel"), "result was " + r.content());
         h.assertTrue(
-                c.taskRunner().current().isEmpty()
-                        || !c.taskRunner().current().get().type().startsWith("special:"),
+                c.executionCoordinator().current().isEmpty()
+                        || !c.executionCoordinator().current().get().type().startsWith("special:"),
                 "planning must not start a task");
         h.succeed();
     }
@@ -237,7 +237,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
         c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -253,7 +253,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.IRON_BLOCK, 4));
         c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "iron_golem", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -270,7 +270,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
         c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -287,7 +287,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
         h.setBlock(3, 3, 3, Blocks.STONE);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -304,7 +304,7 @@ public class StructureTests {
         c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
         c.hands().overrideProtection(pos -> true);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "snow_golem", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -319,7 +319,7 @@ public class StructureTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
         c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();
@@ -344,7 +344,7 @@ public class StructureTests {
                             3);
         }
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
         h.succeedWhen(() -> {
             runner.tick();

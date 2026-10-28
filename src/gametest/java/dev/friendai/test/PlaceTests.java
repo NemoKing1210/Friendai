@@ -306,10 +306,10 @@ public class PlaceTests {
         h.assertTrue(
                 cross.content().contains("cannot cross dimensions"), "the error should say why: " + cross.content());
         h.assertTrue(
-                companion.taskRunner().current().isEmpty(),
+                companion.executionCoordinator().current().isEmpty(),
                 "no task may start: "
                         + companion
-                                .taskRunner()
+                                .executionCoordinator()
                                 .current()
                                 .map(task -> task.describe())
                                 .orElse("none"));
@@ -318,7 +318,7 @@ public class PlaceTests {
         h.assertTrue(
                 unknown.error() && unknown.content().equals("no place called nowhere; use find_place"),
                 "an unknown name keeps the original message: " + unknown.content());
-        h.assertTrue(companion.taskRunner().current().isEmpty(), "no task may start for an unknown name");
+        h.assertTrue(companion.executionCoordinator().current().isEmpty(), "no task may start for an unknown name");
         h.succeed();
     }
 
@@ -360,7 +360,7 @@ public class PlaceTests {
                 unknown.error() && unknown.content().contains("no place called nowhere"),
                 "an unknown place keeps the original message: " + unknown.content());
         h.assertTrue(
-                companion.taskRunner().current().isEmpty(),
+                companion.executionCoordinator().current().isEmpty(),
                 "no task may start for an unknown place: " + current(companion));
 
         ToolResult cross = runAs(
@@ -375,7 +375,7 @@ public class PlaceTests {
                 cross.content().contains("cannot cross dimensions"),
                 "a cross-dimension place should say why: " + cross.content());
         h.assertTrue(
-                companion.taskRunner().current().isEmpty(),
+                companion.executionCoordinator().current().isEmpty(),
                 "no task may start across dimensions: " + current(companion));
 
         ToolResult scoped = runAs(
@@ -384,7 +384,7 @@ public class PlaceTests {
         String described = current(companion);
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("mine_blocks"))
                         .orElse(false),
@@ -397,7 +397,11 @@ public class PlaceTests {
     }
 
     private static String current(CompanionEntity companion) {
-        return companion.taskRunner().current().map(task -> task.describe()).orElse("none");
+        return companion
+                .executionCoordinator()
+                .current()
+                .map(task -> task.describe())
+                .orElse("none");
     }
 
     @GameTest(maxTicks = 400)
@@ -407,7 +411,7 @@ public class PlaceTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 12, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         ToolExecutor tools = tools(companion);
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
 
@@ -425,7 +429,7 @@ public class PlaceTests {
         h.assertTrue(!go.error(), "go failed: " + go.content());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("go_to_place")
                                 && task.describe().equals("walking to home"))
@@ -434,7 +438,7 @@ public class PlaceTests {
 
         double successRadius = Math.max(2, Math.min(place.radius(), 8));
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             Place visited = PlaceService.book(companion).byId(place.id()).orElseThrow();
             h.assertValueEqual(visited.visits(), 1, "visits");
@@ -470,14 +474,14 @@ public class PlaceTests {
         companion.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
         Result result = new Result();
         result.companion = companion;
-        companion.taskRunner().setListener(result);
+        companion.executionCoordinator().setListener(result);
         BlockPos plot = h.absolutePos(new BlockPos(5, 2, 5));
-        companion.taskRunner().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
+        companion.executionCoordinator().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
 
         int[] phase = {0};
         long[] created = {0};
         h.succeedWhen(() -> {
-            companion.taskRunner().tick();
+            companion.executionCoordinator().tick();
             h.assertTrue(
                     result.status == TaskStatus.SUCCESS,
                     (phase[0] == 0 ? "the first" : "the second") + " farm pass should finish: " + result.status + " "
@@ -498,7 +502,7 @@ public class PlaceTests {
                 wheatPlot(h);
                 result.status = null;
                 result.summary = "";
-                companion.taskRunner().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
+                companion.executionCoordinator().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
                 h.assertTrue(false, "waiting for the second farm pass to finish");
             }
             h.assertValueEqual(farm.createdTick(), created[0], "a refresh keeps createdTick");

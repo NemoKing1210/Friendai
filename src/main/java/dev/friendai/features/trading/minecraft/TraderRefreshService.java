@@ -46,7 +46,7 @@ public final class TraderRefreshService {
             UUID owner = companion.ownerUuid();
             if (owner == null || companion.owner().isEmpty()) continue;
             if (nextTradingRefresh.getOrDefault(owner, 0L) > now) continue;
-            var runner = companion.taskRunner();
+            var runner = companion.executionCoordinator();
             if (runner.hasWork() || runner.paused()) continue;
             List<TraderRecord> nearby = traderObserver.observe(companion);
             var ownerBook = trading.book(owner);

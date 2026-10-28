@@ -90,9 +90,9 @@ public class CreativeModeTests {
                 CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.DENIED,
                 "a non-operator owner must not activate creative");
 
-        companion.taskRunner().setPaused(true);
+        companion.executionCoordinator().setPaused(true);
         int[] callbacks = {0};
-        companion.taskRunner().setListener(new TaskListener() {
+        companion.executionCoordinator().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 callbacks[0]++;
@@ -109,7 +109,7 @@ public class CreativeModeTests {
             }
         });
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .enqueue(
                         new QueuedStep(
                                 "stay",
@@ -121,7 +121,7 @@ public class CreativeModeTests {
                                 1,
                                 List.of()),
                         ctx -> new StayTask());
-        h.assertTrue(companion.taskRunner().queue().jobCount() == 1, "test job was not queued");
+        h.assertTrue(companion.executionCoordinator().queue().jobCount() == 1, "test job was not queued");
         FriendaiServerState.get(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
 
@@ -134,7 +134,7 @@ public class CreativeModeTests {
                         .companionLife()
                         .creativeMode(owner.getUUID()),
                 "the saved preference was not disabled");
-        h.assertTrue(companion.taskRunner().queue().jobCount() == 0, "mode change must cancel queued work");
+        h.assertTrue(companion.executionCoordinator().queue().jobCount() == 0, "mode change must cancel queued work");
         h.assertTrue(callbacks[0] == 0, "mode change must not emit a task failure or replan event");
         h.succeed();
     }
@@ -145,9 +145,9 @@ public class CreativeModeTests {
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        companion.taskRunner().setPaused(true);
+        companion.executionCoordinator().setPaused(true);
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .enqueue(
                         new QueuedStep(
                                 "stay",
@@ -162,16 +162,16 @@ public class CreativeModeTests {
                         ctx -> new StayTask());
         FriendaiServerState.get(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
-        companion.taskRunner().setPaused(false);
+        companion.executionCoordinator().setPaused(false);
 
-        companion.taskRunner().tick();
+        companion.executionCoordinator().tick();
 
         h.assertTrue(
-                companion.taskRunner().queue().jobCount() == 0,
+                companion.executionCoordinator().queue().jobCount() == 0,
                 "a guest's queued world-changing task must be discarded while creative is active");
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> !task.type().equals("stay"))
                         .orElse(true),
@@ -191,7 +191,7 @@ public class CreativeModeTests {
         h.assertTrue(
                 CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
-        companion.taskRunner().setPaused(true);
+        companion.executionCoordinator().setPaused(true);
 
         JsonObject args = new JsonObject();
         args.addProperty("item", "minecraft:diamond");
@@ -208,22 +208,23 @@ public class CreativeModeTests {
                 owner.getUUID(),
                 true);
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .enqueue(
                         proposedByPlanner,
                         context -> new CreateItemsTask(
                                 new ItemStack(Items.DIAMOND), 128, CreateItemsTask.Destination.SELF));
-        h.assertTrue(companion.taskRunner().queue().jobCount() == 1, "test planner proposal was not queued");
+        h.assertTrue(companion.executionCoordinator().queue().jobCount() == 1, "test planner proposal was not queued");
 
         h.assertTrue(
                 CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
                 "owner could not turn creative mode off");
-        companion.taskRunner().setPaused(false);
-        for (int i = 0; i < 4; i++) companion.taskRunner().tick();
+        companion.executionCoordinator().setPaused(false);
+        for (int i = 0; i < 4; i++) companion.executionCoordinator().tick();
 
         h.assertFalse(companion.creativeMode(), "creative mode stayed enabled");
         h.assertTrue(
-                companion.taskRunner().queue().jobCount() == 0, "mode exit retained a planner-created creative job");
+                companion.executionCoordinator().queue().jobCount() == 0,
+                "mode exit retained a planner-created creative job");
         h.assertTrue(
                 companion.inventory().countItem(Items.DIAMOND) == 0,
                 "planner proposal regained creative material privileges after mode exit");
@@ -247,9 +248,9 @@ public class CreativeModeTests {
 
         life.setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
-        companion.taskRunner().setPaused(true);
+        companion.executionCoordinator().setPaused(true);
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .enqueue(
                         new QueuedStep(
                                 "check_container",
@@ -266,7 +267,8 @@ public class CreativeModeTests {
         CompanionRequestHandler.handle(
                 owner, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "true", ""));
         h.assertTrue(
-                companion.taskRunner().queue().jobCount() == 1, "an idempotent request must not cancel queued work");
+                companion.executionCoordinator().queue().jobCount() == 1,
+                "an idempotent request must not cancel queued work");
 
         CompanionRequestHandler.handle(
                 guest, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "false", ""));

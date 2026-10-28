@@ -11,11 +11,11 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.build.BlueprintResolver;
@@ -409,7 +409,7 @@ public class BuildTests {
         String id = buildId(partialSaved);
         BlueprintStore store = store(h);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         try {
             runner.start(partial, "build_structure");
             runner.tick();
@@ -444,22 +444,27 @@ public class BuildTests {
         Blueprint platform =
                 generator("{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .start(
                         new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false),
                         "build_structure");
         h.runAfterDelay(5, () -> {
-            h.assertTrue(companion.taskRunner().current().isPresent(), "the build must still be running");
-            String saved = companion.taskRunner().current().orElseThrow().saveData();
+            h.assertTrue(companion.executionCoordinator().current().isPresent(), "the build must still be running");
+            String saved =
+                    companion.executionCoordinator().current().orElseThrow().saveData();
             FriendaiServerState.get(server).sessions().onOwnerLeft(owner.getUUID());
             h.assertTrue(
-                    saved.equals(
-                            companion.taskRunner().current().map(Task::saveData).orElse("")),
+                    saved.equals(companion
+                            .executionCoordinator()
+                            .current()
+                            .map(Task::saveData)
+                            .orElse("")),
                     "owner leave cancelled the build");
-            h.assertTrue(companion.taskRunner().suspended(), "the runner must pause while the owner is away");
+            h.assertTrue(companion.executionCoordinator().suspended(), "the runner must pause while the owner is away");
             FriendaiServerState.get(server).sessions().onOwnerJoined(owner.getUUID());
-            h.assertTrue(!companion.taskRunner().suspended(), "the runner must resume when the owner returns");
-            companion.taskRunner().stop("test");
+            h.assertTrue(
+                    !companion.executionCoordinator().suspended(), "the runner must resume when the owner returns");
+            companion.executionCoordinator().stop("test");
             h.succeed();
         });
     }
@@ -474,11 +479,11 @@ public class BuildTests {
         BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
         BlueprintStore store = store(h);
         Result first = new Result();
-        TaskRunner runner = runner(companion, first);
+        ExecutionCoordinator runner = runner(companion, first);
         runner.start(new BuildTask(platform, origin, Rotation.NONE, true, false), "build_structure");
         Result restored = new Result();
         String[] saved = {null};
-        TaskRunner[] restoredRunner = {null};
+        ExecutionCoordinator[] restoredRunner = {null};
         h.succeedWhen(() -> {
             if (saved[0] == null) {
                 runner.tick();
@@ -523,13 +528,13 @@ public class BuildTests {
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         BlueprintStore store = store(h);
         Result first = new Result();
-        TaskRunner runner = runner(companion, first);
+        ExecutionCoordinator runner = runner(companion, first);
         runner.start(
                 new BuildTask(tower, h.absolutePos(new BlockPos(6, 2, 6)), Rotation.NONE, true, false),
                 "build_structure");
         Result restored = new Result();
         String[] saved = {null};
-        TaskRunner[] restoredRunner = {null};
+        ExecutionCoordinator[] restoredRunner = {null};
         int[] ticks = {0};
         h.succeedWhen(() -> {
             ticks[0]++;
@@ -577,7 +582,7 @@ public class BuildTests {
         Blueprint floor =
                 generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(floor, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -607,7 +612,7 @@ public class BuildTests {
         Blueprint single =
                 generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -630,7 +635,7 @@ public class BuildTests {
         Blueprint single =
                 generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -655,7 +660,7 @@ public class BuildTests {
         Blueprint single =
                 generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -678,11 +683,11 @@ public class BuildTests {
         BuildTask task = new BuildTask(single, origin, Rotation.NONE, true, false);
         String saved = task.saveData();
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(task, "build_structure");
         boolean[] retrying = {false};
         Result retried = new Result();
-        TaskRunner[] retryRunner = {null};
+        ExecutionCoordinator[] retryRunner = {null};
         h.succeedWhen(() -> {
             if (!retrying[0]) {
                 runner.tick();
@@ -751,7 +756,7 @@ public class BuildTests {
                 generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
         BuildTask task = new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(task, "build_structure");
         runner.tick();
         String saved = task.saveData();
@@ -963,8 +968,8 @@ public class BuildTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity companion, Result result) {
-        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -1018,7 +1023,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 15));
         Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1061,7 +1066,7 @@ public class BuildTests {
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(house, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1084,7 +1089,7 @@ public class BuildTests {
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         BuildTask task = new BuildTask(
                 house, h.absolutePos(new BlockPos(4, 2, 4)), Rotation.NONE, true, false, Set.of(PartKind.FLOOR));
         runner.start(task, "build_structure");
@@ -1128,7 +1133,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1163,7 +1168,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1198,7 +1203,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 15));
         Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(
                 new BuildTask(
                         wall, h.absolutePos(new BlockPos(4, 2, 6)), Rotation.NONE, true, false, Set.of(PartKind.WALLS)),
@@ -1233,7 +1238,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 6, 2, 6, Direction.WEST), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1263,7 +1268,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
         Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1292,7 +1297,7 @@ public class BuildTests {
                 generator("{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:acacia_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(3, 2, 6));
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(
                 new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true), "build_structure");
         h.succeedWhen(() -> {
@@ -1329,7 +1334,7 @@ public class BuildTests {
         BuildTask.ObtainFactory tight = (item, count) -> new ObtainTask(item, count, false, false, 1, 200, 16, 32, 200);
         BlockPos origin = h.absolutePos(new BlockPos(5, -39, 5));
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(
                 new BuildTask(blueprint, origin, Placement.rotationFor(Direction.SOUTH), true, true, tight),
                 "build_structure");
@@ -1363,7 +1368,7 @@ public class BuildTests {
                 generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:dark_oak_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(
                 new BuildTask(platform, origin, Placement.rotationFor(Direction.SOUTH), true, false),
                 "build_structure");
@@ -1394,7 +1399,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
         Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
         String at = coords(h.absolutePos(new BlockPos(6, 2, 6)));
         h.succeedWhen(() -> {
@@ -1427,7 +1432,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 5, 4, 5, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1465,7 +1470,7 @@ public class BuildTests {
         Blueprint platform =
                 generator("{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:jungle_planks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(platform, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             GameTestSupport.observeVisible(h, companion, nearPos);
@@ -1488,7 +1493,7 @@ public class BuildTests {
         Blueprint tower =
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1513,7 +1518,7 @@ public class BuildTests {
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         trackDisplacement(h, companion, 0.8);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1543,7 +1548,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
         Blueprint tower =
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
-        TaskRunner runner = runner(companion, new Result());
+        ExecutionCoordinator runner = runner(companion, new Result());
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         boolean[] cancelled = {false};
         h.succeedWhen(() -> {
@@ -1570,7 +1575,7 @@ public class BuildTests {
         Blueprint tower =
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1604,7 +1609,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1643,7 +1648,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1683,7 +1688,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1734,7 +1739,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1776,7 +1781,7 @@ public class BuildTests {
         Blueprint tower =
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1803,7 +1808,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
         Blueprint tower = generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1827,7 +1832,7 @@ public class BuildTests {
         Blueprint tower =
                 generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         BlockPos[] guarded = {null};
         h.succeedWhen(() -> {
@@ -1957,7 +1962,7 @@ public class BuildTests {
                 generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
         trackDisplacement(h, companion, 1.5);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(platform, h, 2, 2, 2, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1977,7 +1982,7 @@ public class BuildTests {
         Blueprint platform =
                 generator("{\"type\":\"platform\",\"width\":8,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(platform, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -1999,7 +2004,7 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 5));
         Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":1,\"block\":\"minecraft:oak_planks\"}");
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(wall, h, 5, 2, 5, Direction.SOUTH), "build_structure");
         int[] ticks = {0};
         h.succeedWhen(() -> {
@@ -2064,7 +2069,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -2096,7 +2101,7 @@ public class BuildTests {
                 }
                 """);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
         h.succeedWhen(() -> {
             runner.tick();

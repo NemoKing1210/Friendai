@@ -25,26 +25,27 @@ final class ControlTools {
     private static ToolResult stop(CompanionEntity c, String what) {
         return switch (StopScope.parse(what)) {
             case StopScope.Current ignored -> {
-                c.taskRunner().stop(STOP_REASON);
+                c.executionCoordinator().stop(STOP_REASON);
                 yield ToolResult.ok("stopped");
             }
             case StopScope.All ignored -> stopEverything(c);
             case StopScope.Named named -> {
                 // The model writes "mine blocks" as often as "mine_blocks".
                 String name = named.name().replaceAll("\\s+", "_");
-                Optional<String> stopped = c.taskRunner().stopNamed(name, STOP_REASON);
+                Optional<String> stopped = c.executionCoordinator().stopNamed(name, STOP_REASON);
                 if (stopped.isPresent()) {
                     yield ToolResult.ok("stopped " + stopped.get());
                 }
-                String current = c.taskRunner().current().map(Task::describe).orElse("none");
+                String current =
+                        c.executionCoordinator().current().map(Task::describe).orElse("none");
                 yield ToolResult.error("not running: " + name + "; current task: " + current);
             }
         };
     }
 
     private static ToolResult stopEverything(CompanionEntity c) {
-        String task = c.taskRunner().current().map(Task::describe).orElse("no task");
-        c.taskRunner().stopAll(STOP_REASON);
+        String task = c.executionCoordinator().current().map(Task::describe).orElse("no task");
+        c.executionCoordinator().stopAll(STOP_REASON);
         StringBuilder text = new StringBuilder("stopped everything: ").append(task);
         CombatController.State before = c.combatController().state();
         c.combatController().stopFight();

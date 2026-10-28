@@ -91,7 +91,9 @@ public final class CompanionRequestHandler {
         switch (type) {
             case SUMMON -> companions.summon(player);
             case TELEPORT -> {
-                companions.find(owner).ifPresent(c -> c.taskRunner().stopWithoutCleanup("teleported to the owner"));
+                companions
+                        .find(owner)
+                        .ifPresent(c -> c.executionCoordinator().stopWithoutCleanup("teleported to the owner"));
                 brains.cancel(owner);
                 if (companions.teleportToOwner(player)) {
                     // Cross-dimension teleports replace the entity, while a brain captures its entity-bound tools.
@@ -166,7 +168,7 @@ public final class CompanionRequestHandler {
             case STOP ->
                 companions.find(owner).ifPresent(c -> {
                     brains.freeTime().stop(owner, "stopped from menu");
-                    c.taskRunner().stop("stopped from menu");
+                    c.executionCoordinator().stop("stopped from menu");
                     brains.cancel(owner);
                 });
             case REQUEST_PROMPT ->

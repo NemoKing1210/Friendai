@@ -84,8 +84,8 @@ public final class CreativeCommandTests {
 
     private static void start(
             GameTestHelper h, CompanionEntity companion, ServerPlayer owner, String command, Result result) {
-        companion.taskRunner().setListener(result);
-        companion.taskRunner().start(new ExecuteCommandTask(command), "execute_command", caller(owner), true);
+        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().start(new ExecuteCommandTask(command), "execute_command", caller(owner), true);
     }
 
     @GameTest
@@ -153,7 +153,7 @@ public final class CreativeCommandTests {
         TaskContext context = new TaskContext(
                 companion,
                 h.getLevel(),
-                companion.taskRunner(),
+                companion.executionCoordinator(),
                 new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
         long timeBefore = h.getLevel().getOverworldClockTime();
         ExecuteCommandTask denied = new ExecuteCommandTask("execute as @s run time set day");
@@ -180,7 +180,7 @@ public final class CreativeCommandTests {
         TaskContext context = new TaskContext(
                 companion,
                 h.getLevel(),
-                companion.taskRunner(),
+                companion.executionCoordinator(),
                 new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
         long timeBefore = h.getLevel().getOverworldClockTime();
         ExecuteCommandTask task = new ExecuteCommandTask("time set day");

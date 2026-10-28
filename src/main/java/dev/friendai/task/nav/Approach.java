@@ -113,7 +113,7 @@ public final class Approach {
     }
 
     public State tick(CompanionEntity companion) {
-        return tick(companion.taskRunner().activeTaskContext());
+        return tick(companion.executionCoordinator().activeTaskContext());
     }
 
     /** Uses authorized creative flight when available; survival approaches keep their walking and planning path. */
@@ -238,7 +238,7 @@ public final class Approach {
     }
 
     public void stop(CompanionEntity companion) {
-        stop(companion.taskRunner().activeTaskContext());
+        stop(companion.executionCoordinator().activeTaskContext());
     }
 
     public void stop(TaskContext context) {

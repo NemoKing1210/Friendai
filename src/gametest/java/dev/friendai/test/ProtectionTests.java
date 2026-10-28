@@ -12,9 +12,9 @@ import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.MineBlocksTask;
@@ -57,9 +57,9 @@ public class ProtectionTests {
         }
     }
 
-    private record Run(TaskRunner runner, Result result) {}
+    private record Run(ExecutionCoordinator runner, Result result) {}
 
-    private static Run owner(TaskRunner runner) {
+    private static Run owner(ExecutionCoordinator runner) {
         Result result = new Result();
         runner.setListener(result);
         return new Run(runner, result);
@@ -68,7 +68,7 @@ public class ProtectionTests {
     /** Queues the task as free time's own, so the place guard applies to it; the entity ticks its own runner. */
     private static Run autonomous(CompanionEntity companion, Task task) {
         Result result = new Result();
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         runner.setListener(result);
         QueuedStep step = new QueuedStep(
                 task.type(), new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
@@ -168,7 +168,7 @@ public class ProtectionTests {
         CompanionEntity c = companion(h);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(pos -> pos.equals(target));
-        Run run = owner(new TaskRunner(c, () -> 300, () -> false));
+        Run run = owner(new ExecutionCoordinator(c, () -> 300, () -> false));
         run.runner().start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             run.runner().tick();
@@ -192,7 +192,7 @@ public class ProtectionTests {
         CompanionEntity c = companionAt(h, 310);
         BlockPos target = h.absolutePos(new BlockPos(2, 310, 2));
         c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
-        Run run = owner(new TaskRunner(c, () -> 600, () -> false));
+        Run run = owner(new ExecutionCoordinator(c, () -> 600, () -> false));
         run.runner().start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             run.runner().tick();
@@ -216,7 +216,7 @@ public class ProtectionTests {
         CompanionEntity c = companionAt(h, 310);
         BlockPos target = h.absolutePos(new BlockPos(2, 310, 2));
         c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
-        Run run = owner(new TaskRunner(c, () -> 600, () -> false));
+        Run run = owner(new ExecutionCoordinator(c, () -> 600, () -> false));
         run.runner().start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             run.runner().tick();

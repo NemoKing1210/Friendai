@@ -4,8 +4,8 @@ import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.mining.BlockMatcher;
@@ -71,12 +71,12 @@ public class TreeFellingTests {
         return TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 1, true).get(0);
     }
 
-    private static TaskRunner start(CompanionEntity c, Result result, FellTreeTask task) {
+    private static ExecutionCoordinator start(CompanionEntity c, Result result, FellTreeTask task) {
         return start(c, result, task, 300);
     }
 
-    private static TaskRunner start(CompanionEntity c, Result result, FellTreeTask task, int timeoutSec) {
-        TaskRunner runner = new TaskRunner(c, () -> timeoutSec, () -> false);
+    private static ExecutionCoordinator start(CompanionEntity c, Result result, FellTreeTask task, int timeoutSec) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> timeoutSec, () -> false);
         runner.setListener(result);
         runner.start(task, "fell_tree");
         return runner;
@@ -129,7 +129,7 @@ public class TreeFellingTests {
         TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo(
                 "dark_oak_log", absolute, absolute.get(0), 20, TreeFinder.Kind.STANDING_TREE, 8.0, "south-east");
         Result result = new Result();
-        TaskRunner runner = start(
+        ExecutionCoordinator runner = start(
                 c,
                 result,
                 new FellTreeTask(
@@ -165,7 +165,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         FellTreeTask task = new FellTreeTask(treeAt(h, 6, 6), oak(), 0, true);
-        TaskRunner runner = start(c, result, task);
+        ExecutionCoordinator runner = start(c, result, task);
         var work = task.debugWorkSets().getFirst();
         h.assertValueEqual(work.total(), 5, "full tree work-set size");
         h.assertValueEqual(work.pending() + work.next(), 5, "planned tree logs before work starts");
@@ -201,7 +201,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 12, 12), oak(), 0, false));
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 12, 12), oak(), 0, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -235,7 +235,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 8, 8), oak(), 1, false));
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 8, 8), oak(), 1, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -253,7 +253,7 @@ public class TreeFellingTests {
         leaf(h, 5, 6, 6);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 2, false));
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 2, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -272,7 +272,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -292,7 +292,7 @@ public class TreeFellingTests {
         BlockPos protectedLog = h.absolutePos(new BlockPos(6, 5, 6));
         c.hands().overrideProtection(p -> p.equals(protectedLog));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
@@ -335,7 +335,11 @@ public class TreeFellingTests {
                 run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6,\"type\":\"minecraft:oak_log\"}");
         h.assertTrue(!named.error() && named.content().startsWith("task #"), named.content());
         h.assertTrue(
-                c.taskRunner().current().map(t -> t.type().equals("fell_tree")).orElse(false), "task should start");
+                c.executionCoordinator()
+                        .current()
+                        .map(t -> t.type().equals("fell_tree"))
+                        .orElse(false),
+                "task should start");
         h.succeed();
     }
 
@@ -367,7 +371,7 @@ public class TreeFellingTests {
                 "fell_tree",
                 "{\"near\":\"me\",\"radius\":6}");
         h.assertTrue(!result.error(), result.content());
-        String task = c.taskRunner().current().orElseThrow().describe();
+        String task = c.executionCoordinator().current().orElseThrow().describe();
         h.assertTrue(task.contains(speakers.getX() + " " + speakers.getY() + " " + speakers.getZ()), task);
         h.assertTrue(
                 !task.contains(nearCompanion.getX() + " " + nearCompanion.getY() + " " + nearCompanion.getZ()), task);
@@ -547,7 +551,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(
+        ExecutionCoordinator runner = start(
                 c,
                 result,
                 new FellTreeTask(
@@ -617,7 +621,7 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 32));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(
+        ExecutionCoordinator runner = start(
                 c,
                 result,
                 new FellTreeTask(
@@ -649,7 +653,7 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 64));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 60, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 60, () -> false);
         runner.setListener(result);
         runner.start(new FellTreeTask(info(h, logs, "oak_log", 39), oak(), 0, false), "fell_tree");
         h.succeedWhen(() -> {
@@ -672,7 +676,7 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 60, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 60, () -> false);
         runner.setListener(result);
         runner.start(new FellTreeTask(info(h, logs, "oak_log", 19), oak(), 0, false), "fell_tree");
         h.succeedWhen(() -> {
@@ -701,7 +705,7 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 64));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(
+        ExecutionCoordinator runner = start(
                 c,
                 result,
                 new FellTreeTask(

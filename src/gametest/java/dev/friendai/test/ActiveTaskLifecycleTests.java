@@ -2,10 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.StayTask;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class ActiveTaskLifecycleTests {
 
         @Override
         public TaskStatus tick(TaskContext context) {
-            context.runner().start(new StayTask(), "stay");
+            context.execution().start(new StayTask(), "stay");
             return TaskStatus.SUCCESS;
         }
 
@@ -67,7 +67,7 @@ public class ActiveTaskLifecycleTests {
     public void reentrantReplacementDoesNotCompleteOrEraseTheReplacedTask(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
         runner.setListener(events);
         ReplacingTask task = new ReplacingTask();
         runner.start(task, "replace_during_tick");
@@ -88,7 +88,7 @@ public class ActiveTaskLifecycleTests {
     public void cancellationListenerRunsAfterReplacementTransitionSettles(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
-        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
         runner.setListener(events);
         runner.start(new StayTask(), "original");
         boolean[] startedFromListener = {false};
@@ -115,7 +115,7 @@ public class ActiveTaskLifecycleTests {
     @GameTest
     public void defaultFollowDoesNotExpire(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        TaskRunner runner = new TaskRunner(companion, () -> 1, () -> true);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1, () -> true);
 
         runner.tick();
         h.assertTrue(runner.currentIsDefaultActivity(), "the idle follow should start as the default activity");

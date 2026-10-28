@@ -44,8 +44,8 @@ public final class QueueTests {
                 "{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\",\\\"count\\\":1}\",\"after\":[1]}]}");
         h.assertTrue(badDependency.error(), "forward dependency should fail: " + badDependency.content());
         h.assertTrue(
-                companion.taskRunner().queue().jobCount() == 0
-                        && companion.taskRunner().queue().planCount() == 0,
+                companion.executionCoordinator().queue().jobCount() == 0
+                        && companion.executionCoordinator().queue().planCount() == 0,
                 "invalid input partially changed the queue");
         h.succeed();
     }
@@ -77,7 +77,7 @@ public final class QueueTests {
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         UUID owner = UUID.randomUUID();
         original.setOwner(owner);
-        original.taskRunner()
+        original.executionCoordinator()
                 .enqueue(
                         new QueuedStep(
                                 "stay",
@@ -97,12 +97,13 @@ public final class QueueTests {
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         restored.load(
                 TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), output.buildResult()));
-        h.assertTrue(restored.taskRunner().queue().jobCount() == 1, "queued job did not restore");
+        h.assertTrue(restored.executionCoordinator().queue().jobCount() == 1, "queued job did not restore");
         h.assertTrue(
-                restored.taskRunner().queue().jobs().getFirst().state() == dev.friendai.queue.JobState.RUNNING,
+                restored.executionCoordinator().queue().jobs().getFirst().state()
+                        == dev.friendai.queue.JobState.RUNNING,
                 "active job state did not restore");
         h.assertTrue(
-                restored.taskRunner()
+                restored.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("stay"))
                         .orElse(false),

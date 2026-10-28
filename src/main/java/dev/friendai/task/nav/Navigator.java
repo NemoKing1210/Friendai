@@ -366,7 +366,7 @@ public final class Navigator {
         if (probed) {
             line.append(", material probe");
         }
-        companion.taskRunner().debug(line.toString());
+        companion.executionCoordinator().debug(line.toString());
         lastSearch = line.toString();
         search = null;
         if (result.status() == SearchResult.Status.FOUND

@@ -79,7 +79,7 @@ public class CompanionEntityTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         double ground = companion.getY();
         boolean[] airborne = {false};
-        companion.taskRunner().start(new JumpTask(), "jump");
+        companion.executionCoordinator().start(new JumpTask(), "jump");
         h.succeedWhen(() -> {
             if (companion.getY() > ground + 0.3) {
                 airborne[0] = true;
@@ -96,7 +96,7 @@ public class CompanionEntityTests {
         companion.setOwner(player.getUUID());
 
         LookAtOwnerGoal goal = new LookAtOwnerGoal(companion);
-        companion.taskRunner().start(new StayTask(), "stay");
+        companion.executionCoordinator().start(new StayTask(), "stay");
         for (int tick = 0; tick < 200; tick++) {
             h.assertFalse(goal.canUse(), "a companion with a task must keep its eyes on the job, not the owner");
         }

@@ -107,8 +107,8 @@ public final class MoveHelper {
         double paceDistance =
                 followingOwner ? ownerDistance : (navigator != null ? navigator.remainingDistance() : 0.0);
         companion.pace().update(followingOwner, paceDistance, paceDistance);
-        TaskContext context = companion.taskRunner().activeTaskContext();
-        boolean passiveFollow = companion.taskRunner().currentIsDefaultActivity()
+        TaskContext context = companion.executionCoordinator().activeTaskContext();
+        boolean passiveFollow = companion.executionCoordinator().currentIsDefaultActivity()
                 && CreativeModeService.ownerMayUsePassiveFlight(companion);
         boolean mayFly = context.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFollow;
         if (companion.creativeMode() && mayFly) {

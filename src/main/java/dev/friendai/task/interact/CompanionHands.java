@@ -130,7 +130,7 @@ public final class CompanionHands {
     }
 
     private String placementSource() {
-        String tool = companion.taskRunner().currentToolName();
+        String tool = companion.executionCoordinator().currentToolName();
         return tool == null || tool.isBlank() ? "direct" : tool;
     }
 

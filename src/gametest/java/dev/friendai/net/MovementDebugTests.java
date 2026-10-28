@@ -33,7 +33,7 @@ public final class MovementDebugTests {
     @GameTest
     public void activeTaskWorkSetsAreIncluded(GameTestHelper helper) {
         CompanionEntity companion = helper.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        companion.taskRunner().start(new SnapshotTask(), "debug_snapshot");
+        companion.executionCoordinator().start(new SnapshotTask(), "debug_snapshot");
         MovementDebug view = MovementDebugStream.build(companion);
         helper.assertValueEqual(view.workSets().size(), 1, "active work-set count");
         helper.assertValueEqual(view.workSets().getFirst().total(), 2, "whole work-set total");

@@ -101,8 +101,8 @@ public final class FollowTask implements Task {
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
     private Vec3 followTarget(TaskContext c, ServerPlayer owner) {
-        boolean passiveFlight = c.runner() != null
-                && c.runner().currentIsDefaultActivity()
+        boolean passiveFlight = c.execution() != null
+                && c.execution().currentIsDefaultActivity()
                 && CreativeModeService.ownerMayUsePassiveFlight(c.companion());
         if (c.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFlight) {
             Vec3 away = c.companion().position().subtract(owner.position());

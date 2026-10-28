@@ -3,7 +3,7 @@ package dev.friendai.task.fire;
 import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.fire.FireTarget;
-import dev.friendai.task.TaskRunner;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.builtin.ExtinguishFireTask;
 import dev.friendai.text.UserMessage;
 import java.util.Optional;
@@ -52,7 +52,7 @@ public final class FireReflex {
         if (!selfBurning && !ownerBurning) {
             return;
         }
-        TaskRunner runner = companion.taskRunner();
+        ExecutionCoordinator runner = companion.executionCoordinator();
         if (runner.paused() || runner.currentToolName().equals(TOOL) || cooldown > 0) {
             return;
         }

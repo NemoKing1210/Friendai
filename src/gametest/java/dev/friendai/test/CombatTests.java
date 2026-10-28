@@ -84,7 +84,7 @@ public class CombatTests {
 
     private static Notices listen(CompanionEntity c) {
         Notices notices = new Notices();
-        c.taskRunner().setListener(new TaskListener() {
+        c.executionCoordinator().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 notices.finalStatus = status;
@@ -304,7 +304,7 @@ public class CombatTests {
             h.assertTrue(
                     c.combatController().state() == CombatController.State.IDLE,
                     "state was " + c.combatController().state());
-            h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+            h.assertTrue(!c.executionCoordinator().paused(), "the runner must be unpaused");
             h.assertTrue(c.getMainHandItem().isEmpty(), "main hand not restored: " + c.getMainHandItem());
             h.succeed();
         });
@@ -449,7 +449,7 @@ public class CombatTests {
             h.assertTrue(
                     c.combatController().state() == CombatController.State.IDLE,
                     "state was " + c.combatController().state());
-            h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+            h.assertTrue(!c.executionCoordinator().paused(), "the runner must be unpaused");
             h.succeed();
         });
     }
@@ -512,7 +512,7 @@ public class CombatTests {
         Notices notices = listen(c);
         c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
         c.setFoodRule("minecraft:rotten_flesh", true);
-        c.taskRunner().start(new EatTask(Items.ROTTEN_FLESH), "eat");
+        c.executionCoordinator().start(new EatTask(Items.ROTTEN_FLESH), "eat");
         h.runAfterDelay(100, () -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.SUCCESS,
@@ -528,7 +528,7 @@ public class CombatTests {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.BREAD));
-        c.taskRunner().start(new EatTask(Items.BREAD), "eat");
+        c.executionCoordinator().start(new EatTask(Items.BREAD), "eat");
         // The renderer raises the arm from this use state, the same pose a player eating shows.
         h.runAfterDelay(10, () -> {
             ItemStack used = c.getUseItem();
@@ -621,7 +621,8 @@ public class CombatTests {
         Notices notices = listen(c);
         Chicken first = h.spawnWithNoFreeWill(EntityTypes.CHICKEN, 5, 2, 2);
         Chicken second = h.spawnWithNoFreeWill(EntityTypes.CHICKEN, 7, 2, 2);
-        c.taskRunner().start(new HuntTask(type -> type == EntityTypes.CHICKEN, "minecraft:chicken", 2, 16), "attack");
+        c.executionCoordinator()
+                .start(new HuntTask(type -> type == EntityTypes.CHICKEN, "minecraft:chicken", 2, 16), "attack");
         h.succeedWhen(() -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.SUCCESS,
@@ -648,7 +649,7 @@ public class CombatTests {
         var golem = h.spawn(EntityTypes.IRON_GOLEM, 5, 2, 2);
         h.assertTrue(Threats.isProtected(golem, c), "a golem is off limits without an order");
         h.assertFalse(Threats.isProtected(golem, c, true), "the owner's order lifts the golem rule");
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(
                         new HuntTask(type -> type == EntityTypes.IRON_GOLEM, "minecraft:iron_golem", 1, 16, true),
                         "attack");
@@ -662,10 +663,13 @@ public class CombatTests {
                             + c.combatController().state()
                             + ", target " + c.combatController().target()
                             + ", task "
-                            + c.taskRunner().current().map(task -> task.type()).orElse("none"));
+                            + c.executionCoordinator()
+                                    .current()
+                                    .map(task -> task.type())
+                                    .orElse("none"));
             // Leave nothing fighting behind in the shared test world.
             golem.kill(h.getLevel());
-            c.taskRunner().stop("test");
+            c.executionCoordinator().stop("test");
         });
     }
 
@@ -677,7 +681,8 @@ public class CombatTests {
         Rabbit named = h.spawnWithNoFreeWill(EntityTypes.RABBIT, 5, 2, 2);
         named.setCustomName(Component.literal("Bunny"));
         Rabbit other = h.spawnWithNoFreeWill(EntityTypes.RABBIT, 7, 2, 2);
-        c.taskRunner().start(new HuntTask(type -> type == EntityTypes.RABBIT, "minecraft:rabbit", 1, 16), "attack");
+        c.executionCoordinator()
+                .start(new HuntTask(type -> type == EntityTypes.RABBIT, "minecraft:rabbit", 1, 16), "attack");
         h.succeedWhen(() -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.SUCCESS,
@@ -704,7 +709,7 @@ public class CombatTests {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Notices notices = listen(c);
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(new HuntTask(type -> type == EntityTypes.MOOSHROOM, "minecraft:mooshroom", 1, 16), "attack");
         h.succeedWhen(() -> {
             h.assertTrue(
@@ -739,7 +744,7 @@ public class CombatTests {
                     + " targetTeam=" + target.getTeam()
                     + " ownerMode=" + owner.gameMode.getGameModeForPlayer()
                     + " targetMode=" + target.gameMode.getGameModeForPlayer());
-            c.taskRunner()
+            c.executionCoordinator()
                     .start(
                             new AttackPlayerTask(
                                     target.getUUID(), target.getName().getString()),
@@ -765,7 +770,7 @@ public class CombatTests {
         Notices notices = listen(c);
         c.inventory().addItem(new ItemStack(Items.GOLDEN_HELMET));
         c.inventory().addItem(new ItemStack(Items.TORCH));
-        c.taskRunner().start(new EquipTask(Items.GOLDEN_HELMET, null), "equip_item");
+        c.executionCoordinator().start(new EquipTask(Items.GOLDEN_HELMET, null), "equip_item");
         h.runAfterDelay(4, () -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.SUCCESS,
@@ -775,7 +780,7 @@ public class CombatTests {
                     "helmet summary " + notices.finalSummary);
             h.assertTrue(c.getItemBySlot(EquipmentSlot.HEAD).is(Items.GOLDEN_HELMET), "helmet not worn");
             notices.reset();
-            c.taskRunner().start(new EquipTask(Items.TORCH, EquipmentSlot.OFFHAND), "equip_item");
+            c.executionCoordinator().start(new EquipTask(Items.TORCH, EquipmentSlot.OFFHAND), "equip_item");
         });
         h.runAfterDelay(8, () -> {
             h.assertTrue(
@@ -795,7 +800,7 @@ public class CombatTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Notices notices = listen(c);
         c.inventory().addItem(new ItemStack(Items.IRON_BOOTS));
-        c.taskRunner().start(new EquipTask(Items.IRON_BOOTS, EquipmentSlot.HEAD), "equip_item");
+        c.executionCoordinator().start(new EquipTask(Items.IRON_BOOTS, EquipmentSlot.HEAD), "equip_item");
         h.runAfterDelay(4, () -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.FAILED,
@@ -813,7 +818,7 @@ public class CombatTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Notices notices = listen(c);
         c.inventory().addItem(new ItemStack(Items.BREAD));
-        c.taskRunner().start(new EatTask(Items.BREAD), "eat");
+        c.executionCoordinator().start(new EatTask(Items.BREAD), "eat");
         h.runAfterDelay(100, () -> {
             h.assertTrue(
                     notices.finalStatus == TaskStatus.SUCCESS,
@@ -822,7 +827,7 @@ public class CombatTests {
                     notices.finalSummary.equals("ate minecraft:bread, hunger 20/20, health 20/20"),
                     "bread summary " + notices.finalSummary);
             notices.reset();
-            c.taskRunner().start(new EatTask(null), "eat");
+            c.executionCoordinator().start(new EatTask(null), "eat");
         });
         h.runAfterDelay(104, () -> {
             h.assertTrue(
@@ -832,7 +837,7 @@ public class CombatTests {
                     notices.finalSummary.equals("I have no food I can eat"), "no food summary " + notices.finalSummary);
             notices.reset();
             c.inventory().addItem(new ItemStack(Items.DIRT));
-            c.taskRunner().start(new EatTask(Items.DIRT), "eat");
+            c.executionCoordinator().start(new EatTask(Items.DIRT), "eat");
         });
         h.runAfterDelay(108, () -> {
             h.assertTrue(
@@ -842,7 +847,7 @@ public class CombatTests {
                     notices.finalSummary.equals("minecraft:dirt is not food"), "dirt summary " + notices.finalSummary);
             notices.reset();
             c.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
-            c.taskRunner().start(new EatTask(Items.ROTTEN_FLESH), "eat");
+            c.executionCoordinator().start(new EatTask(Items.ROTTEN_FLESH), "eat");
         });
         h.runAfterDelay(112, () -> {
             h.assertTrue(
@@ -866,7 +871,7 @@ public class CombatTests {
         c.setOwner(owner.getUUID());
         c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
         h.runAfterDelay(20, () -> {
             h.assertTrue(
@@ -876,7 +881,7 @@ public class CombatTests {
             h.assertTrue(
                     c.combatController().target().filter(t -> t == target).isPresent(),
                     "target was " + c.combatController().target());
-            c.taskRunner().stop("test");
+            c.executionCoordinator().stop("test");
             target.kill(h.getLevel());
         });
         h.succeed();
@@ -893,14 +898,14 @@ public class CombatTests {
         c.setOwner(owner.getUUID());
         c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
         h.runAfterDelay(
                 20,
                 () -> h.assertTrue(
                         c.combatController().state() == CombatController.State.FIGHTING,
                         "fight did not start: " + c.combatController().state()));
-        h.runAfterDelay(30, () -> c.taskRunner().stop("test"));
+        h.runAfterDelay(30, () -> c.executionCoordinator().stop("test"));
         h.runAfterDelay(140, () -> {
             h.assertTrue(
                     c.combatController().state() == CombatController.State.IDLE,
@@ -910,13 +915,13 @@ public class CombatTests {
                     c.combatController().target().isEmpty(),
                     "target after stop: " + c.combatController().target());
             h.assertTrue(
-                    c.taskRunner()
+                    c.executionCoordinator()
                             .current()
                             .map(task -> task.type())
                             .filter(type -> type.equals("attack_player"))
                             .isEmpty(),
                     "the ordered attack survived stop: "
-                            + c.taskRunner().current().map(task -> task.type()));
+                            + c.executionCoordinator().current().map(task -> task.type()));
             h.assertValueEqual(
                     c.combatSettings(),
                     dev.friendai.combat.CombatSettings.defaults()
@@ -963,7 +968,7 @@ public class CombatTests {
         zombie.setHealth(60.0F);
         zombie.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(0.1);
         roof(h, 5, 2);
-        c.taskRunner()
+        c.executionCoordinator()
                 .start(
                         new MineBlocksTask(
                                 BlockMatcher.parse("minecraft:crimson_stem").orElseThrow(), 2, 8),
@@ -974,7 +979,7 @@ public class CombatTests {
         h.runAfterDelay(
                 120,
                 () -> h.assertTrue(
-                        c.taskRunner().paused(),
+                        c.executionCoordinator().paused(),
                         "the runner must be paused during the fight, state "
                                 + c.combatController().state()));
         h.succeedWhen(() -> {
@@ -1050,7 +1055,7 @@ public class CombatTests {
                                 + c.combatController().state()
                                 + ", distance " + c.distanceTo(zombie)
                                 + ", notices " + notices.texts);
-                h.assertTrue(!c.taskRunner().paused(), "the runner must be unpaused");
+                h.assertTrue(!c.executionCoordinator().paused(), "the runner must be unpaused");
             }
         });
     }

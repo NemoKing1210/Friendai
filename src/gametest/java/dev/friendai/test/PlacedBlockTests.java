@@ -6,8 +6,8 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.placed.PlacedBlock;
 import dev.friendai.placed.PlacedBook;
 import dev.friendai.placed.PlacedService;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.builtin.PickupItemsTask;
@@ -43,8 +43,8 @@ public class PlacedBlockTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -144,7 +144,7 @@ public class PlacedBlockTests {
         h.setBlock(new BlockPos(3, 2, 4), Blocks.OAK_LOG);
         h.assertTrue(h.getLevel().getBlockState(placedCell).is(Blocks.OAK_LOG), "placed log missing");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(
                 new MineBlocksTask(BlockMatcher.parse("minecraft:oak_log").orElseThrow(), 1, 16, null, false, true),
                 "mine_blocks");
@@ -169,7 +169,7 @@ public class PlacedBlockTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(UUID.randomUUID());
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new PickupItemsTask(8, null, true), "pickup_items");
         h.succeedWhen(() -> {
             runner.tick();
@@ -188,7 +188,7 @@ public class PlacedBlockTests {
         h.assertTrue(h.getLevel().getBlockState(chestCell).is(Blocks.CHEST), "chest missing");
         c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new StoreItemsTask(null, 2, null, true), "store_items");
         h.succeedWhen(() -> {
             runner.tick();

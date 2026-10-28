@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.ClearAreaTask;
 import java.util.ArrayList;
@@ -36,8 +36,8 @@ public class ClearTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity companion, Result result) {
-        TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -54,7 +54,7 @@ public class ClearTests {
         h.setBlock(4, 2, 3, Blocks.SHORT_GRASS);
         h.setBlock(2, 2, 4, Blocks.SNOW);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, false), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -82,7 +82,7 @@ public class ClearTests {
         h.setBlock(3, 2, 2, Blocks.OAK_PLANKS);
         companion.hands().overrideProtection(pos -> pos.equals(target));
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, true), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -100,7 +100,7 @@ public class ClearTests {
         h.setBlock(3, 2, 3, Blocks.WATER);
         companion.inventory().addItem(new ItemStack(Items.BUCKET, 1));
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, false), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -120,7 +120,7 @@ public class ClearTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.setBlock(3, 2, 3, Blocks.WATER);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, false), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -138,7 +138,7 @@ public class ClearTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.setBlock(3, 2, 2, Blocks.SPAWNER);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, true), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();
@@ -155,7 +155,7 @@ public class ClearTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.setBlock(3, 2, 2, Blocks.COBBLESTONE);
         Result result = new Result();
-        TaskRunner runner = runner(companion, result);
+        ExecutionCoordinator runner = runner(companion, result);
         runner.start(clear(h, 2, 2, 2, true), "clear_area");
         h.succeedWhen(() -> {
             runner.tick();

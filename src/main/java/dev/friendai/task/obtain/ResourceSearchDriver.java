@@ -621,14 +621,14 @@ public final class ResourceSearchDriver implements Task {
                     .orElse(null);
         }
         if (!hintLogged && live != null && !live.expired(now)) {
-            context.companion().taskRunner().debug("search hint: " + live.describe(now));
+            context.companion().executionCoordinator().debug("search hint: " + live.describe(now));
             hintLogged = true;
         }
         StringBuilder line = new StringBuilder("search chose ").append(describe(ranked.get(0)));
         for (int i = 1; i < Math.min(4, ranked.size()); i++) {
             line.append("; rejected ").append(describe(ranked.get(i)));
         }
-        context.companion().taskRunner().debug(line.toString());
+        context.companion().executionCoordinator().debug(line.toString());
     }
 
     private static String describe(SearchPlanner.Ranked ranked) {

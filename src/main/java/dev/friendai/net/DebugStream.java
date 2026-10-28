@@ -35,11 +35,15 @@ public final class DebugStream {
 
     /** A client opened the companion menu: subscribe it, pause that player's companion and send the first snapshot. */
     public static void openMenu(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer()).sessions().debug().subscribe(player.getUUID());
-        CompanionManager.get(player.level().getServer())
-                .find(player.getUUID())
-                .ifPresent(companion -> companion.addMenuViewer());
-        sendNow(player);
+        var server = player.level().getServer();
+        FriendaiServerState.get(server).sessions().debug().subscribe(player.getUUID());
+        try {
+            CompanionManager.get(server).find(player.getUUID()).ifPresent(companion -> companion.addMenuViewer());
+            sendNow(player);
+        } catch (RuntimeException | Error failure) {
+            closeMenu(server, player.getUUID());
+            throw failure;
+        }
     }
 
     /**

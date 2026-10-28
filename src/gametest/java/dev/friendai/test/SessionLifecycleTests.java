@@ -194,7 +194,7 @@ public class SessionLifecycleTests {
             h.runAfterDelay(3, () -> {
                 h.assertTrue(speaker.said.isEmpty(), "late planner turn must not speak: " + speaker.said);
                 h.assertTrue(
-                        companion.taskRunner().queue().jobs().stream()
+                        companion.executionCoordinator().queue().jobs().stream()
                                 .noneMatch(job -> job.tool().equals("jump")),
                         "late planner proposal must not queue work");
                 h.succeed();
@@ -259,11 +259,11 @@ public class SessionLifecycleTests {
 
     private static boolean hasStay(CompanionEntity companion) {
         return companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("stay"))
                         .orElse(false)
-                || companion.taskRunner().queue().jobs().stream()
+                || companion.executionCoordinator().queue().jobs().stream()
                         .anyMatch(job -> job.tool().equals("stay"));
     }
 

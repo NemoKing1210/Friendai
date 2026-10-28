@@ -34,7 +34,7 @@ public class PaceTests {
         owner.setOnGround(true);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, floor + 1, 2);
         c.setOwner(owner.getUUID());
-        c.taskRunner().start(new FollowTask(true), "follow");
+        c.executionCoordinator().start(new FollowTask(true), "follow");
         boolean[] sprinted = {false};
         h.succeedWhen(() -> {
             if (c.isSprinting()) {
@@ -53,7 +53,7 @@ public class PaceTests {
         GameTestSupport.platformAt(h, floor, 20);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setPaceMode(PaceMode.RUN);
-        c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(12.5, floor + 1, 2.5))), "go_to");
+        c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(12.5, floor + 1, 2.5))), "go_to");
         h.succeedWhen(() -> h.assertTrue(c.isSprinting(), "not sprinting while walking to the target"));
     }
 
@@ -66,7 +66,7 @@ public class PaceTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 1, floor + 1, 2);
         c.setOwner(owner.getUUID());
         c.setPaceMode(PaceMode.WALK);
-        c.taskRunner().start(new FollowTask(true), "follow");
+        c.executionCoordinator().start(new FollowTask(true), "follow");
         Vec3 start = c.position();
         h.onEachTick(() -> h.assertFalse(c.isSprinting(), "sprinted in walk mode"));
         h.runAfterDelay(100, () -> {
@@ -83,7 +83,7 @@ public class PaceTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setPaceMode(PaceMode.RUN);
         Vec3 target = h.absoluteVec(new Vec3(11.5, floor + 1, 2.5));
-        c.taskRunner().start(new GoToTask(target), "go_to");
+        c.executionCoordinator().start(new GoToTask(target), "go_to");
         boolean[] sprinted = {false};
         long[] arrivedAt = {-1};
         h.succeedWhen(() -> {
@@ -131,8 +131,8 @@ public class PaceTests {
         walker.setPaceMode(PaceMode.WALK);
         runner.setPaceMode(PaceMode.RUN);
         double distance = 9.0;
-        walker.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(14.5, floor + 1, 2.5))), "go_to");
-        runner.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(14.5, floor + 1, 5.5))), "go_to");
+        walker.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(14.5, floor + 1, 2.5))), "go_to");
+        runner.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(14.5, floor + 1, 5.5))), "go_to");
         double walkerStart = walker.getX();
         double runnerStart = runner.getX();
         long[] walkerTicks = {-1};

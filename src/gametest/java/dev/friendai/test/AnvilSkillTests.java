@@ -2,9 +2,9 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.AnvilItemTask;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -87,7 +87,7 @@ public class AnvilSkillTests {
 
     private static void succeeds(GameTestHelper h, CompanionEntity c, AnvilItemTask task, Runnable check) {
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(task, "anvil_item");
         h.succeedWhen(() -> {
@@ -100,7 +100,7 @@ public class AnvilSkillTests {
     private static void fails(
             GameTestHelper h, CompanionEntity c, AnvilItemTask task, String expected, Runnable check) {
         Result result = new Result();
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(task, "anvil_item");
         h.succeedWhen(() -> {

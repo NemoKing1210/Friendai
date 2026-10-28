@@ -7,11 +7,11 @@ import dev.friendai.farming.CellKind;
 import dev.friendai.farming.FarmSnapshot;
 import dev.friendai.farming.FieldCell;
 import dev.friendai.farming.Soil;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.BonemealTask;
@@ -60,8 +60,8 @@ public class FarmingTests {
         }
     }
 
-    private static TaskRunner runner(CompanionEntity c, Result result) {
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+    private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         return runner;
     }
@@ -394,7 +394,7 @@ public class FarmingTests {
         h.setBlock(5, 2, 4, Blocks.CARROTS.defaultBlockState().setValue(CropBlock.AGE, 7));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 4)), 8, null, false), "farm");
         h.succeedWhen(() -> {
             runner.tick();
@@ -408,7 +408,7 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, null, false), "farm");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -426,7 +426,7 @@ public class FarmingTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "harvest chest should be directly visible");
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
         Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
         h.succeedWhen(() -> {
@@ -453,8 +453,8 @@ public class FarmingTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "full harvest chest should be directly visible");
         Result result = new Result();
-        c.taskRunner().setListener(result);
-        c.taskRunner().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
+        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
         int[] ticks = {0};
         h.succeedWhen(() -> {
             ticks[0]++;
@@ -484,7 +484,7 @@ public class FarmingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         c.inventory().addItem(new ItemStack(Items.BONE_MEAL, 20));
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BonemealTask(h.absolutePos(new BlockPos(5, 2, 4)), 4, 20), "use_bonemeal");
         h.succeedWhen(() -> {
             runner.tick();
@@ -504,7 +504,7 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = runner(c, result);
+        ExecutionCoordinator runner = runner(c, result);
         runner.start(new BonemealTask(h.absolutePos(new BlockPos(5, 2, 5)), 4, 5), "use_bonemeal");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
@@ -558,7 +558,7 @@ public class FarmingTests {
         for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
             c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
         }
-        c.taskRunner().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 281, 4)), 8, 100), "tend_farm");
+        c.executionCoordinator().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 281, 4)), 8, 100), "tend_farm");
         int[] ticks = {0};
         h.succeedWhen(() -> {
             ticks[0]++;
@@ -757,7 +757,11 @@ public class FarmingTests {
         h.assertValueEqual(age(h, 5, 2, 4), 7, "crop still ripe");
         h.assertValueEqual(c.inventory().countItem(Items.WHEAT_SEEDS), 3, "inventory unchanged");
         h.assertTrue(
-                c.taskRunner().current().filter(t -> t.type().equals("farm")).isEmpty(), "no farm task started");
+                c.executionCoordinator()
+                        .current()
+                        .filter(t -> t.type().equals("farm"))
+                        .isEmpty(),
+                "no farm task started");
         h.succeed();
     }
 }

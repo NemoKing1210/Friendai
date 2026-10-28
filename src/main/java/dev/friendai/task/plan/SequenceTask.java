@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Runs a list of tasks one after another inside the single-task {@link dev.friendai.task.TaskRunner}: each step's
+ * Runs a list of tasks one after another inside the single-task {@link dev.friendai.server.execution.ExecutionCoordinator}: each step's
  * task is built when the step begins, a step that fails stops the plan, and a step crash or timeout is contained.
  */
 public final class SequenceTask implements Task {

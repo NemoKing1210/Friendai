@@ -82,9 +82,9 @@ public final class MovementDebugStream {
         List<MovementDebug.Cell> goalCells = new ArrayList<>();
         List<String> lines = new ArrayList<>();
         int stepIndex = -1;
-        String task = c.taskRunner().current().map(Task::describe).orElse("none");
+        String task = c.executionCoordinator().current().map(Task::describe).orElse("none");
         lines.add("task: " + task);
-        c.taskRunner().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
+        c.executionCoordinator().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
         var ownerId = c.ownerUuid();
         if (ownerId != null) {
             var freeTime =
@@ -163,8 +163,9 @@ public final class MovementDebugStream {
                 c.getYHeadRot(),
                 c.getXRot()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
-                c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
-        String taskStatus = c.taskRunner().current().map(Task::debugStatus).orElse("");
+                c.executionCoordinator().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
+        String taskStatus =
+                c.executionCoordinator().current().map(Task::debugStatus).orElse("");
         if (!taskStatus.isBlank()) {
             lines.add(
                     taskStatus.length() > MovementDebug.MAX_LINE_CHARS
@@ -172,12 +173,12 @@ public final class MovementDebugStream {
                             : taskStatus);
         }
         List<WorkSet> workSets = WorkSetBudget.select(
-                c.taskRunner().current().map(Task::debugWorkSets).orElse(List.of()),
+                c.executionCoordinator().current().map(Task::debugWorkSets).orElse(List.of()),
                 c.blockPosition().getX(),
                 c.blockPosition().getY(),
                 c.blockPosition().getZ());
         List<String> upcoming =
-                MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
+                MovementDebug.upcomingSteps(c.executionCoordinator().queue().jobs());
         return new MovementDebug(
                 c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming, workSets);
     }

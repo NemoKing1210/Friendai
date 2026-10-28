@@ -136,7 +136,7 @@ public final class ResourceToolsTests {
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("search_resource"))
                         .orElse(false),

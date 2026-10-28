@@ -87,7 +87,7 @@ public class ConfigurationApplyTests {
         return new TaskContext(
                 companion,
                 (net.minecraft.server.level.ServerLevel) companion.level(),
-                companion.taskRunner(),
+                companion.executionCoordinator(),
                 null,
                 settings);
     }

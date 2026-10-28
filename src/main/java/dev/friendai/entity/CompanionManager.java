@@ -279,7 +279,7 @@ public final class CompanionManager {
             CompanionEntity companion = existing.get();
             ensureName(companion);
             if (companion.level() == level) {
-                companion.taskRunner().start(new FollowTask(false), "follow");
+                companion.executionCoordinator().start(new FollowTask(false), "follow");
             }
             return companion;
         }

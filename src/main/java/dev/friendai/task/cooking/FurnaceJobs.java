@@ -76,7 +76,7 @@ public final class FurnaceJobs {
             if (input.isEmpty() && !result.isEmpty()) {
                 notified.add(pos);
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .notice("the " + job.station().noun() + " at " + coords(pos) + " finished: " + result.getCount()
                                 + " " + job.output() + " ready (use collect_smelted)");
                 continue;
@@ -86,7 +86,7 @@ public final class FurnaceJobs {
             if (!input.isEmpty() && !lit && furnace.getItem(1).isEmpty()) {
                 notified.add(pos);
                 companion
-                        .taskRunner()
+                        .executionCoordinator()
                         .notice("the " + job.station().noun() + " at " + coords(pos) + " stopped: " + "out of fuel, "
                                 + input.getCount() + " " + job.input() + " left");
             }
@@ -97,7 +97,7 @@ public final class FurnaceJobs {
         jobs.remove(job);
         notified.remove(job.pos());
         companion
-                .taskRunner()
+                .executionCoordinator()
                 .notice("the " + job.station().noun() + " at " + coords(job.pos()) + " is gone; " + "the job for "
                         + job.output() + " was dropped");
     }

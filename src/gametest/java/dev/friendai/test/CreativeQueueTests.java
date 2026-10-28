@@ -49,7 +49,7 @@ public final class CreativeQueueTests {
                 CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
 
-        var runner = companion.taskRunner();
+        var runner = companion.executionCoordinator();
         runner.setPaused(true);
         long jobId = runner.enqueue(
                 new QueuedStep(

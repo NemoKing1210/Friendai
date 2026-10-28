@@ -7,8 +7,8 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.InspectTraderTask;
 import dev.friendai.task.builtin.LevelTraderTask;
@@ -370,7 +370,7 @@ public final class TradingTaskTests {
         Fixture f = setup(h, "task-paused-dismissal", 1, 1, 1, false, false);
         TradeTask task = new TradeTask(f.order());
         try {
-            var runner = f.companion().taskRunner();
+            var runner = f.companion().executionCoordinator();
             runner.start(task, "trade_item");
             runner.setPaused(true);
             runner.tick();
@@ -394,7 +394,7 @@ public final class TradingTaskTests {
     public void cancelling_frozen_trade_after_payment_terminalizes_authority_and_prevents_replay(GameTestHelper h) {
         Fixture f = setup(h, "task-frozen-cancel", 3, 6, 2, true, false);
         TradeTask trade = new TradeTask(f.order());
-        TaskRunner runner = f.companion().taskRunner();
+        ExecutionCoordinator runner = f.companion().executionCoordinator();
         JsonObject args = new JsonObject();
         args.addProperty("_trade_scope", f.order().scopeId().toString());
         QueuedStep step =
@@ -443,7 +443,7 @@ public final class TradingTaskTests {
             h.assertTrue(otherDimension != null, "test server did not load the nether");
             task.start(f.context());
             TaskContext wrongDimension =
-                    new TaskContext(f.companion(), otherDimension, f.companion().taskRunner());
+                    new TaskContext(f.companion(), otherDimension, f.companion().executionCoordinator());
             TaskStatus status = task.tick(wrongDimension);
             h.assertTrue(status == TaskStatus.FAILED, "task continued in a different level context");
             h.assertTrue(
@@ -549,7 +549,7 @@ public final class TradingTaskTests {
         h.setBlock(7, 2, 2, Blocks.STONE);
         h.setBlock(7, 3, 2, Blocks.STONE);
         TradeTask task = new TradeTask(f.order());
-        f.companion().taskRunner().start(task, "trade_item");
+        f.companion().executionCoordinator().start(task, "trade_item");
         h.runAfterDelay(240, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
             h.assertTrue(
@@ -573,7 +573,7 @@ public final class TradingTaskTests {
         Fixture f = setup(h, "task-follow-moving-trader", 1, 1, 1, false, false, 140);
         f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(12.5, 2, 2.5)));
         TradeTask task = new TradeTask(f.order());
-        f.companion().taskRunner().start(task, "trade_item");
+        f.companion().executionCoordinator().start(task, "trade_item");
         h.runAfterDelay(8, () -> f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(10.5, 2, 4.5))));
         h.runAfterDelay(100, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
@@ -608,7 +608,7 @@ public final class TradingTaskTests {
             for (int z = -2; z <= 7; z++) h.setBlock(x, 5, z, Blocks.BEDROCK);
         }
         TradeTask task = new TradeTask(f.order());
-        f.companion().taskRunner().start(task, "trade_item");
+        f.companion().executionCoordinator().start(task, "trade_item");
         h.runAfterDelay(145, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElse(null);
             h.assertTrue(
