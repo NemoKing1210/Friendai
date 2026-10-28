@@ -24,6 +24,11 @@ import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.ActiveTaskController;
+import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
+import dev.friendai.server.execution.StopRequest;
+import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.server.execution.TaskStartContext;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanStepFactory;
@@ -31,6 +36,7 @@ import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import dev.friendai.tool.Caller;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,53 +53,11 @@ public final class TaskRunner {
     private static final int POLL_INTERVAL_TICKS = 10;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
 
-    private record Active(
-            int id,
-            long jobId,
-            long planId,
-            String toolName,
-            Task task,
-            boolean emit,
-            boolean defaultActivity,
-            boolean interrupt,
-            int startActiveTick,
-            CreativeActionContext creativeActionContext,
-            boolean creativeSensitive,
-            int timeoutSec,
-            ServerSettings settings) {
-        private Active(
-                int id,
-                long jobId,
-                long planId,
-                String toolName,
-                Task task,
-                boolean emit,
-                boolean defaultActivity,
-                boolean interrupt,
-                int startActiveTick,
-                int timeoutSec,
-                ServerSettings settings) {
-            this(
-                    id,
-                    jobId,
-                    planId,
-                    toolName,
-                    task,
-                    emit,
-                    defaultActivity,
-                    interrupt,
-                    startActiveTick,
-                    null,
-                    false,
-                    timeoutSec,
-                    settings);
-        }
-    }
-
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
     private final BooleanSupplier defaultFollow;
     private final Supplier<ServerSettings> settingsSupplier;
+    private final ActiveTaskController activeTasks;
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
 
@@ -108,23 +72,21 @@ public final class TaskRunner {
      */
     private final java.util.Set<Long> awaitingDecision = new java.util.HashSet<>();
     /** A movement order is a task without a job behind it, so waiting in place never pins the queue. */
-    private static boolean movementOrder(Active active) {
+    private static boolean movementOrder(ActiveTask active) {
         return active != null && active.jobId() == 0 && MovementOrders.isOrder(active.toolName());
     }
 
     /** Queue plans that free time started; their jobs are autonomous work. */
     private final java.util.Set<Long> autonomousPlans = new java.util.HashSet<>();
 
-    private Active current;
-    private Active frozen;
-    private int frozenElapsed;
-    private int nextId = 1;
-    private int activeTicks;
     private long blockedSince = -1;
     private long nextPoll;
     private CompanionGuardFacts sharedFacts;
-    private TaskListener listener;
+    private TaskEventSink eventSink;
     private final List<String> pendingNotices = new java.util.ArrayList<>();
+    private final ArrayDeque<java.util.function.Consumer<TaskEventSink>> pendingEvents = new ArrayDeque<>();
+    private int transitionDepth;
+    private boolean flushingEvents;
     private boolean paused;
     private boolean suspended;
     private int holds;
@@ -153,6 +115,7 @@ public final class TaskRunner {
         this.defaultFollow = defaultFollow;
         this.mayFollowOwner = mayFollowOwner;
         this.settingsSupplier = settingsSupplier;
+        this.activeTasks = new ActiveTaskController(timeoutSec);
         this.queueSettings = ServerSettings.DEFAULTS;
         this.queue = new JobQueue(queueSettings.queueLimits());
     }
@@ -168,9 +131,17 @@ public final class TaskRunner {
     }
 
     public void setListener(TaskListener listener) {
-        this.listener = listener;
+        this.eventSink = listener;
         if (listener != null) {
-            for (String notice : pendingNotices) listener.onNotice(notice);
+            for (String notice : pendingNotices) emit(sink -> sink.onNotice(notice));
+            pendingNotices.clear();
+        }
+    }
+
+    public void setEventSink(TaskEventSink eventSink) {
+        this.eventSink = eventSink;
+        if (eventSink != null) {
+            for (String notice : pendingNotices) emit(sink -> sink.onNotice(notice));
             pendingNotices.clear();
         }
     }
@@ -208,7 +179,7 @@ public final class TaskRunner {
     }
 
     public void notice(String text) {
-        if (listener != null) listener.onNotice(text);
+        if (eventSink != null) emit(sink -> sink.onNotice(text));
         else if (text != null) {
             if (pendingNotices.size() == 16) pendingNotices.removeFirst();
             pendingNotices.add(text);
@@ -216,11 +187,11 @@ public final class TaskRunner {
     }
 
     public void debug(String text) {
-        if (listener != null) listener.onDebug(text);
+        if (eventSink != null) emit(sink -> sink.onDebug(text));
     }
 
     public Optional<Task> current() {
-        return Optional.ofNullable(current).map(Active::task);
+        return activeTasks.current();
     }
     /** Current task context for adapters such as movement controllers that tick below the Task boundary. */
     public TaskContext activeTaskContext() {
@@ -228,16 +199,17 @@ public final class TaskRunner {
     }
 
     public boolean currentIsDefaultActivity() {
-        return current != null && current.defaultActivity();
+        return activeTask() != null && activeTask().defaultActivity();
     }
 
     public boolean currentCreativeActionAllowed(CreativeAction action) {
-        return current != null
-                && CreativeModeService.isActionAuthorized(companion, current.creativeActionContext(), action);
+        return activeTask() != null
+                && CreativeModeService.isActionAuthorized(
+                        companion, activeTask().creativeActionContext(), action);
     }
 
     public int currentId() {
-        return current == null ? 0 : current.id();
+        return activeTask() == null ? 0 : activeTask().id();
     }
 
     public JobQueue queue() {
@@ -254,7 +226,9 @@ public final class TaskRunner {
     }
     /** True while the running task is a job of a plan free time started. */
     public boolean autonomousActive() {
-        return current != null && current.planId() > 0 && autonomousPlans.contains(current.planId());
+        return activeTask() != null
+                && activeTask().planId() > 0
+                && autonomousPlans.contains(activeTask().planId());
     }
     /** True while a queued job belongs to the owner rather than to a plan free time started. */
     public boolean ownerWorkQueued() {
@@ -264,13 +238,13 @@ public final class TaskRunner {
     }
     /** The tool that started the running task, empty when nothing runs. */
     public String currentToolName() {
-        return current == null ? "" : current.toolName();
+        return activeTask() == null ? "" : activeTask().toolName();
     }
 
     /** Active queue intent, including its durable plan goal when this task belongs to a plan. */
     public Optional<String> currentQueueIntent() {
-        if (current == null || current.jobId() <= 0) return Optional.empty();
-        Job job = queue.job(current.jobId()).orElse(null);
+        if (activeTask() == null || activeTask().jobId() <= 0) return Optional.empty();
+        Job job = queue.job(activeTask().jobId()).orElse(null);
         if (job == null) return Optional.empty();
         String goal = job.planId() <= 0
                 ? ""
@@ -286,11 +260,14 @@ public final class TaskRunner {
      * shift instead of reading it as work in the way.
      */
     public boolean busyWithOther() {
-        return current != null && !current.defaultActivity() && !autonomousActive() && !movementOrder(current);
+        return activeTask() != null
+                && !activeTask().defaultActivity()
+                && !autonomousActive()
+                && !movementOrder(activeTask());
     }
     /** True while the runner is only holding a movement order, which queued work may end. */
     public boolean movementOrderActive() {
-        return movementOrder(current);
+        return movementOrder(activeTask());
     }
 
     public Optional<Job> activeJob() {
@@ -303,30 +280,38 @@ public final class TaskRunner {
     }
 
     public boolean hasWork() {
-        return queue.jobCount() > 0 || (current != null && !current.defaultActivity());
+        return queue.jobCount() > 0 || (activeTask() != null && !activeTask().defaultActivity());
     }
 
     public java.util.List<dev.friendai.debug.QueueRow> queueRows() {
         return queue.jobCount() == 0 && queue.plans().stream().noneMatch(p -> p.cursor() != null)
                 ? java.util.List.of()
                 : dev.friendai.debug.QueueRows.build(
-                        queue, facts(), current == null ? null : current.task().describe());
+                        queue,
+                        facts(),
+                        activeTask() == null ? null : activeTask().task().describe());
     }
 
     public String queueSummary() {
         return queue.jobCount() == 0 && queue.plans().stream().noneMatch(p -> p.cursor() != null)
                 ? current().map(Task::describe).orElse("none")
                 : QueueText.summary(
-                        queue, facts(), current == null ? null : current.task().describe());
+                        queue,
+                        facts(),
+                        activeTask() == null ? null : activeTask().task().describe());
     }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
+        return inTransition(() -> enqueueActive(step, factory));
+    }
+
+    private long enqueueActive(QueuedStep step, StepFactory factory) {
         syncSettings();
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job = queue.addDirect(step);
         factories.put(job.id(), factory);
         wakeQueue();
-        if (current == null || current.defaultActivity() || movementOrder(current)) startNextQueued();
+        if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
         return job.id();
     }
 
@@ -340,6 +325,15 @@ public final class TaskRunner {
             List<StepFactory> stepFactories,
             PlanOptions options,
             java.util.function.LongConsumer prepare) {
+        return inTransition(() -> enqueuePlanActive(goal, steps, stepFactories, options, prepare));
+    }
+
+    private long enqueuePlanActive(
+            String goal,
+            List<QueuedStep> steps,
+            List<StepFactory> stepFactories,
+            PlanOptions options,
+            java.util.function.LongConsumer prepare) {
         syncSettings();
         if (steps.size() != stepFactories.size()) throw new IllegalArgumentException("steps and factories differ");
         for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
@@ -348,11 +342,16 @@ public final class TaskRunner {
             factories.put(added.jobIds().get(i), stepFactories.get(i));
         prepare.accept(added.planId());
         wakeQueue();
-        if (current == null || current.defaultActivity() || movementOrder(current)) startNextQueued();
+        if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
         return added.planId();
     }
 
     public long enqueueStructuredPlan(
+            String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
+        return inTransition(() -> enqueueStructuredPlanActive(goal, definition, options, stepFactories));
+    }
+
+    private long enqueueStructuredPlanActive(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
         syncSettings();
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
@@ -363,7 +362,7 @@ public final class TaskRunner {
         queue.updatePlanCursor(planId, PlanCursor.start(startTick, startDistance));
         structuredFactories.put(planId, Map.copyOf(stepFactories));
         wakeQueue();
-        if (current == null || current.defaultActivity() || movementOrder(current)) startNextQueued();
+        if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
         return planId;
     }
 
@@ -398,12 +397,17 @@ public final class TaskRunner {
     }
 
     public int start(Task task, String toolName, Caller caller, boolean creativeSensitive) {
+        return inTransition(() -> startActive(task, toolName, caller, creativeSensitive));
+    }
+
+    private int startActive(Task task, String toolName, Caller caller, boolean creativeSensitive) {
         CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
         requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
-        if (current != null && current.jobId() > 0 && !current.interrupt()) freezeCurrent();
+        ActiveTask current = activeTask();
+        if (current != null && current.jobId() > 0 && !current.interrupt()) activeTasks.freezeCurrent();
         else if (current != null && current.defaultActivity()) clearCurrentSilently();
-        else if (current != null) cancelCurrent("replaced by a new task", true);
-        return begin(task, toolName, task.emitsEvents(), false, actionContext, creativeSensitive);
+        else if (current != null) cancelCurrent("replaced by a new task");
+        return begin(task, toolName, task.emitsEvents(), false, caller, actionContext, creativeSensitive);
     }
 
     public void restore(Task task) {
@@ -415,32 +419,35 @@ public final class TaskRunner {
     }
 
     public void interrupt(Task task, String toolName, Caller caller, boolean creativeSensitive) {
-        CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
-        requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
-        if (current != null && current.interrupt()) {
-            cancelCurrent("replaced by urgent task", false);
-        } else if (current != null && current.jobId() > 0) freezeCurrent();
-        else if (current != null && current.defaultActivity()) clearCurrentSilently();
-        else if (current != null) cancelCurrent("interrupted by urgent task", true);
-        begin(task, toolName, task.emitsEvents(), true, actionContext, creativeSensitive);
+        inTransition(() -> interruptActive(task, toolName, caller, creativeSensitive));
     }
 
-    private void freezeCurrent() {
-        frozen = current;
-        frozenElapsed = Math.max(0, activeTicks - current.startActiveTick());
-        current = null;
+    private void interruptActive(Task task, String toolName, Caller caller, boolean creativeSensitive) {
+        CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
+        requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
+        ActiveTask current = activeTask();
+        if (current != null && current.interrupt()) {
+            cancelCurrent("replaced by urgent task");
+        } else if (current != null && current.jobId() > 0) activeTasks.freezeCurrent();
+        else if (current != null && current.defaultActivity()) clearCurrentSilently();
+        else if (current != null) cancelCurrent("interrupted by urgent task");
+        begin(task, toolName, task.emitsEvents(), true, caller, actionContext, creativeSensitive);
     }
 
     public void stop(String reason) {
-        if (current != null && current.interrupt()) {
-            cancelCurrent(reason, false);
+        inTransition(() -> stopActive(reason));
+    }
+
+    private void stopActive(String reason) {
+        if (activeTask() != null && activeTask().interrupt()) {
+            cancelCurrent(reason);
             resumeFrozen();
             return;
         }
-        Active active = current;
+        ActiveTask active = activeTask();
         if (active != null && active.jobId() > 0) {
             Task cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason, false);
+            cancelCurrent(reason);
             if (active.planId() > 0) {
                 queue.cancelPlan(active.planId());
                 finishPlan(active.planId(), "stopped by request", false);
@@ -454,21 +461,22 @@ public final class TaskRunner {
             return;
         }
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
-        if (active != null) cancelCurrent(reason, false);
+        if (active != null) cancelCurrent(reason);
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
         else startNextOrDefault();
     }
 
     public void stopWithoutCleanup(String reason) {
-        if (current != null) cancelCurrent(reason, false);
+        inTransition(() -> stopWithoutCleanupActive(reason));
+    }
+
+    private void stopWithoutCleanupActive(String reason) {
+        if (activeTask() != null) cancelCurrent(reason);
         for (PlanRecord plan : queue.plans()) {
             queue.cancelPlan(plan.id());
             finishPlan(plan.id(), reason, false);
         }
-        if (frozen != null) {
-            safeStop(frozen.task(), context(frozen));
-            frozen = null;
-        }
+        stopFrozen(reason);
         queue.clear();
         factories.clear();
         structuredFactories.clear();
@@ -477,35 +485,41 @@ public final class TaskRunner {
     }
     /** Cancels stale work during a capability transition without reporting task failures to the brain. */
     public void cancelForCapabilityChange() {
-        Active active = current;
+        inTransition(this::cancelForCapabilityChangeActive);
+    }
+
+    private void cancelForCapabilityChangeActive() {
+        ActiveTask active = activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
+        ActiveTask frozen = frozenTask();
         if (frozen != null) {
             cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            safeStop(frozen.task(), context(frozen));
-            frozen = null;
+            stopFrozen("creative authority changed");
         }
         if (active != null) {
-            safeStop(active.task(), context(active));
-            current = null;
+            activeTasks.stop(new StopRequest("creative authority changed"), context(active));
         }
         queue.clear();
         factories.clear();
         blockedPlans.clear();
         awaitingDecision.clear();
-        frozenElapsed = 0;
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
         else startDefault();
     }
 
     public void stopAll(String reason) {
-        Active active = current;
+        inTransition(() -> stopAllActive(reason));
+    }
+
+    private void stopAllActive(String reason) {
+        ActiveTask active = activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
+        ActiveTask frozen = frozenTask();
         if (frozen != null) {
             cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            safeStop(frozen.task(), context(frozen));
-            frozen = null;
+            stopFrozen(reason);
         }
-        if (active != null) cancelCurrent(reason, false);
+        if (active != null) cancelCurrent(reason);
         for (PlanRecord p : queue.plans()) finishPlan(p.id(), "stopped by request", false);
         queue.clear();
         factories.clear();
@@ -515,14 +529,18 @@ public final class TaskRunner {
     }
 
     public String clearQueue(String reason) {
-        Active active = current;
+        return inTransition(() -> clearQueueActive(reason));
+    }
+
+    private String clearQueueActive(String reason) {
+        ActiveTask active = activeTask();
         Task cleanup = active != null && active.jobId() > 0 ? active.task().cleanupAfterCancel(context()) : null;
+        ActiveTask frozen = frozenTask();
         if (frozen != null) {
             cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            safeStop(frozen.task(), context(frozen));
-            frozen = null;
+            stopFrozen(reason);
         }
-        if (active != null && active.jobId() > 0) cancelCurrent(reason, false);
+        if (active != null && active.jobId() > 0) cancelCurrent(reason);
         for (PlanRecord plan : queue.plans()) finishPlan(plan.id(), reason, false);
         String result = queue.clear().text();
         factories.clear();
@@ -533,19 +551,23 @@ public final class TaskRunner {
     }
 
     public void cancelJob(long id, String reason) {
+        inTransition(() -> cancelJobActive(id, reason));
+    }
+
+    private void cancelJobActive(long id, String reason) {
         Job original = queue.job(id).orElse(null);
-        Active active = current;
+        ActiveTask active = activeTask();
         Task cleanup = null;
         if (active != null && active.jobId() == id) {
             cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason, false);
+            cancelCurrent(reason);
             queue.cancel(id);
             factories.remove(id);
         } else {
+            ActiveTask frozen = frozenTask();
             if (frozen != null && frozen.jobId() == id) {
                 cleanup = frozen.task().cleanupAfterCancel(context(frozen));
-                safeStop(frozen.task(), context(frozen));
-                frozen = null;
+                stopFrozen(reason);
             }
             queue.cancel(id);
             factories.remove(id);
@@ -557,13 +579,17 @@ public final class TaskRunner {
             finishPlan(j.planId(), "action cancelled", false);
         } else if (j != null && j.planId() > 0 && queue.planStatus(j.planId()) != PlanStatus.ACTIVE)
             finishPlan(j.planId(), "cancelled", false);
-        if (original != null && original.planId() == 0 && (active == null || active.jobId() != id) && listener != null)
-            listener.onCancelled((int) original.id(), original.tool(), reason);
+        if (original != null && original.planId() == 0 && (active == null || active.jobId() != id))
+            emit(sink -> sink.onCancelled((int) original.id(), original.tool(), reason));
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else if (current == null) startNextOrDefault();
+        else if (activeTask() == null) startNextOrDefault();
     }
 
     public JobQueue.Result skipJob(long id) {
+        return inTransition(() -> skipJobActive(id));
+    }
+
+    private JobQueue.Result skipJobActive(long id) {
         Job job = queue.job(id).orElse(null);
         if (job == null) return JobQueue.Result.error("unknown job #" + id);
         JobQueue.Result result = queue.skip(id);
@@ -580,30 +606,34 @@ public final class TaskRunner {
                     QueueText.planSummary(queue, job.planId()),
                     queue.planStatus(job.planId()) == PlanStatus.DONE);
         wakeQueue();
-        if (current == null) startNextOrDefault();
+        if (activeTask() == null) startNextOrDefault();
         return result;
     }
 
     public void cancelPlan(long id, String reason) {
-        Active active = current;
+        inTransition(() -> cancelPlanActive(id, reason));
+    }
+
+    private void cancelPlanActive(long id, String reason) {
+        ActiveTask active = activeTask();
         Task cleanup = null;
         if (active != null && active.planId() == id) {
             cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason, false);
+            cancelCurrent(reason);
         }
+        ActiveTask frozen = frozenTask();
         if (frozen != null && frozen.planId() == id) {
             cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            safeStop(frozen.task(), context(frozen));
-            frozen = null;
+            stopFrozen(reason);
         }
         queue.cancelPlan(id);
         finishPlan(id, "cancelled", false);
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else if (current == null) startNextOrDefault();
+        else if (activeTask() == null) startNextOrDefault();
     }
 
     public Optional<String> stopNamed(String name, String reason) {
-        Active a = current;
+        ActiveTask a = activeTask();
         if (a == null || !(a.toolName().equals(name) || a.task().matches(name))) return Optional.empty();
         String description = a.task().describe();
         stop(reason);
@@ -611,10 +641,15 @@ public final class TaskRunner {
     }
 
     public void tick() {
+        inTransition(this::tickActive);
+    }
+
+    private void tickActive() {
         syncSettings();
         revalidateCreativeHover();
         if (paused || suspended || held()) return;
-        if (current != null && current.defaultActivity() && !mayFollowOwner.getAsBoolean()) clearCurrentSilently();
+        if (activeTask() != null && activeTask().defaultActivity() && !mayFollowOwner.getAsBoolean())
+            clearCurrentSilently();
         queue.advanceClock();
         expireDeadlines();
         boolean hasStructuredPlan = false;
@@ -627,16 +662,12 @@ public final class TaskRunner {
             if (sharedFacts == null) sharedFacts = new CompanionGuardFacts(companion);
             sharedFacts.refresh();
         }
-        if (current == null) {
+        if (activeTask() == null) {
             if (!pollQueue()) startDefault();
             return;
         }
-        if ((current.defaultActivity() || movementOrder(current)) && pollQueue()) return;
-        activeTicks++;
-        Active active = current;
-        TaskContext taskContext = context(active);
-        TaskStatus status;
-        String summary = null;
+        if ((activeTask().defaultActivity() || movementOrder(activeTask())) && pollQueue()) return;
+        ActiveTask active = activeTask();
         if (active.planId() > 0)
             queue.plan(active.planId()).filter(p -> p.cursor() != null).ifPresent(this::planFacts);
         if (active.creativeSensitive()
@@ -646,22 +677,11 @@ public final class TaskRunner {
             cancelForCapabilityChange();
             return;
         }
-        try {
-            status = active.task().tick(taskContext);
-        } catch (RuntimeException e) {
-            LOGGER.warn("Task {} crashed", active.toolName(), e);
-            status = TaskStatus.FAILED;
-            summary = "task crashed: " + e.getClass().getSimpleName();
-        }
-        if (status == TaskStatus.RUNNING
-                && active.task().hasTimeout()
-                && activeTicks - active.startActiveTick() > active.timeoutSec() * 20) {
-            safeStop(active.task(), taskContext);
-            status = TaskStatus.FAILED;
-            summary = "timed out";
-        }
-        if (status != TaskStatus.RUNNING) completeActive(active, status, summary);
-        else maybeNoticeBlocked();
+        Optional<ActiveTaskController.Completion> completion = activeTasks.tick(context(active));
+        if (completion.isPresent()) {
+            ActiveTaskController.Completion result = completion.get();
+            completeActive(result.active(), result.status(), result.summary());
+        } else if (activeTask() == active) maybeNoticeBlocked();
     }
 
     private void revalidateCreativeHover() {
@@ -672,16 +692,15 @@ public final class TaskRunner {
         companion.getNavigation().stop();
     }
 
-    private void completeActive(Active active, TaskStatus status, String summary) {
+    private void completeActive(ActiveTask active, TaskStatus status, String summary) {
         String result = summary == null ? active.task().resultSummary() : summary;
-        current = null;
         // One place per finished task: a thing the companion built, farmed or mined is worth remembering itself.
-        if (status == TaskStatus.SUCCESS && listener != null) {
+        if (status == TaskStatus.SUCCESS && eventSink != null) {
             PlaceCandidate candidate = active.task().placeCandidate();
-            if (candidate != null) listener.onPlace(candidate, active.toolName());
+            if (candidate != null) emit(sink -> sink.onPlace(candidate, active.toolName()));
         }
         if (active.interrupt()) {
-            if (active.emit() && listener != null) listener.onFinished(active.id(), active.toolName(), status, result);
+            if (active.emit()) emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
             resumeFrozen();
             return;
         }
@@ -689,12 +708,12 @@ public final class TaskRunner {
             boolean retried = false;
             if (status == TaskStatus.SUCCESS) queue.finish(active.jobId(), result);
             else retried = queue.fail(active.jobId(), result).retried();
-            if (!retried && listener != null)
-                listener.onJobFinished(active.jobId(), active.planId(), active.toolName(), status, result);
+            if (!retried)
+                emit(sink -> sink.onJobFinished(active.jobId(), active.planId(), active.toolName(), status, result));
             if (active.planId() == 0) {
                 if (!retried) {
-                    if (active.task().emitsEvents() && listener != null)
-                        listener.onFinished(active.id(), active.toolName(), status, result);
+                    if (active.task().emitsEvents())
+                        emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
                     queue.remove(active.jobId());
                     factories.remove(active.jobId());
                 }
@@ -713,9 +732,8 @@ public final class TaskRunner {
                         active.planId(),
                         QueueText.planSummary(queue, active.planId()),
                         queue.planStatus(active.planId()) == PlanStatus.DONE);
-        } else if (active.emit() && listener != null)
-            listener.onFinished(active.id(), active.toolName(), status, result);
-        if (frozen != null) {
+        } else if (active.emit()) emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
+        if (frozenTask() != null) {
             resumeFrozen();
             return;
         }
@@ -723,7 +741,7 @@ public final class TaskRunner {
     }
 
     private int begin(Task task, String name, boolean emit, boolean interrupt) {
-        return begin(task, name, emit, interrupt, null, false);
+        return begin(task, name, emit, interrupt, null, null, false);
     }
 
     private int begin(
@@ -731,59 +749,52 @@ public final class TaskRunner {
             String name,
             boolean emit,
             boolean interrupt,
+            Caller caller,
             CreativeActionContext actionContext,
             boolean creativeSensitive) {
         ServerSettings settings = settingsSupplier.get();
-        Active active = new Active(
-                emit ? nextId++ : 0,
-                0,
-                0,
+        TaskStartContext start = new TaskStartContext(
                 name,
-                task,
+                caller,
+                actionContext,
                 emit,
                 false,
                 interrupt,
-                activeTicks,
-                actionContext,
+                activeTasks.allocateId(emit),
+                0,
+                0,
                 creativeSensitive,
-                timeoutSec.getAsInt(),
-                settings);
-        current = active;
+                settings,
+                baseContext());
         try {
-            task.start(context(active));
+            return activeTasks.start(task, start);
         } catch (RuntimeException e) {
-            current = null;
             LOGGER.warn("Task {} failed to start", name, e);
-            if (emit && listener != null)
-                listener.onFinished(
-                        active.id(),
+            if (emit)
+                emit(sink -> sink.onFinished(
+                        start.id(),
                         name,
                         TaskStatus.FAILED,
-                        "task crashed: " + e.getClass().getSimpleName());
+                        "task crashed: " + e.getClass().getSimpleName()));
             if (interrupt) resumeFrozen();
             else startNextOrDefault();
+            return start.id();
         }
-        return active.id();
     }
 
-    private void cancelCurrent(String reason, boolean cleanup) {
-        Active a = current;
+    private void cancelCurrent(String reason) {
+        ActiveTask a = activeTask();
         if (a == null) return;
-        current = null;
-        safeStop(a.task(), context(a));
+        activeTasks.stop(new StopRequest(reason), baseContext());
         if (a.jobId() > 0) {
             queue.cancel(a.jobId());
-            if (listener != null)
-                listener.onJobFinished(a.jobId(), a.planId(), a.toolName(), TaskStatus.FAILED, reason);
-            if (a.planId() == 0 && a.emit() && listener != null) listener.onCancelled(a.id(), a.toolName(), reason);
-        } else if (a.emit() && listener != null) listener.onCancelled(a.id(), a.toolName(), reason);
+            emit(sink -> sink.onJobFinished(a.jobId(), a.planId(), a.toolName(), TaskStatus.FAILED, reason));
+            if (a.planId() == 0 && a.emit()) emit(sink -> sink.onCancelled(a.id(), a.toolName(), reason));
+        } else if (a.emit()) emit(sink -> sink.onCancelled(a.id(), a.toolName(), reason));
     }
 
     private void clearCurrentSilently() {
-        if (current != null) {
-            safeStop(current.task(), context(current));
-            current = null;
-        }
+        activeTasks.stop(new StopRequest("cleared without cancellation event"), baseContext());
     }
     /** Idle-time start attempt, throttled so a blocked queue is not re-scanned every tick. */
     private boolean pollQueue() {
@@ -900,9 +911,9 @@ public final class TaskRunner {
             maybeNoticeBlocked();
             return false;
         }
-        if (current != null && current.defaultActivity()) clearCurrentSilently();
-        else if (current != null && movementOrder(current)) clearCurrentSilently();
-        else if (current != null) return false;
+        if (activeTask() != null && activeTask().defaultActivity()) clearCurrentSilently();
+        else if (activeTask() != null && movementOrder(activeTask())) clearCurrentSilently();
+        else if (activeTask() != null) return false;
         Job job = candidate.get();
         StepFactory factory = factories.get(job.id());
         if (factory == null) {
@@ -941,22 +952,22 @@ public final class TaskRunner {
                     new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings));
             queue.markRunning(job.id());
             awaitingDecision.remove(job.planId());
-            Active active = new Active(
-                    (int) job.id(),
-                    job.id(),
-                    job.planId(),
-                    job.tool(),
+            activeTasks.start(
                     task,
-                    true,
-                    false,
-                    false,
-                    activeTicks,
-                    actionContext,
-                    job.creativeSensitive(),
-                    timeoutSec.getAsInt(),
-                    settings);
-            current = active;
-            task.start(context(active));
+                    new TaskStartContext(
+                            job.tool(),
+                            null,
+                            actionContext,
+                            true,
+                            false,
+                            false,
+                            (int) job.id(),
+                            job.id(),
+                            job.planId(),
+                            job.creativeSensitive(),
+                            settings,
+                            new TaskContext(
+                                    companion, (ServerLevel) companion.level(), this, actionContext, settings)));
             blockedSince = -1;
             return true;
         } catch (RuntimeException e) {
@@ -1024,7 +1035,7 @@ public final class TaskRunner {
     }
 
     private void maybeNoticeBlocked() {
-        if (current != null && current.jobId() > 0) return;
+        if (activeTask() != null && activeTask().jobId() > 0) return;
         if (blockedSince < 0) blockedSince = queue.clock();
         if (queue.clock() - blockedSince < settingsSupplier.get().tasks().queueBlockedNoticeSec() * 20) return;
         GuardFacts facts = facts();
@@ -1057,7 +1068,7 @@ public final class TaskRunner {
                 .count();
         String bounded = QueueText.truncate(reason, QueueText.MAX_BLOCKED_REASON);
         blockedPlans.put(plan, bounded);
-        if (listener != null) listener.onPlanBlocked(plan, goal, jobId, job.tool(), bounded, remaining);
+        emit(sink -> sink.onPlanBlocked(plan, goal, jobId, job.tool(), bounded, remaining));
     }
 
     private void finishPlan(long id, String summary, boolean success) {
@@ -1069,15 +1080,15 @@ public final class TaskRunner {
         structuredFactories.remove(id);
         blockedPlans.remove(id);
         awaitingDecision.remove(id);
-        if (listener != null) listener.onPlanFinished(id, goal, success, summary);
+        emit(sink -> sink.onPlanFinished(id, goal, success, summary));
     }
 
     private void expireDeadlines() {
         for (long id : queue.expiredPlans()) {
-            Active a = current;
+            ActiveTask a = activeTask();
             if (a != null && a.planId() == id) {
                 Task cleanup = a.task().cleanupAfterCancel(context());
-                cancelCurrent("ran out of time", false);
+                cancelCurrent("ran out of time");
                 if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
             }
             queue.cancelPlan(id);
@@ -1086,35 +1097,22 @@ public final class TaskRunner {
     }
 
     private void resumeFrozen() {
-        Active old = frozen;
-        frozen = null;
+        ActiveTask old = frozenTask();
         if (old != null
                 && queue.job(old.jobId())
                         .filter(j -> j.state() == JobState.RUNNING)
                         .isPresent()) {
-            current = new Active(
-                    old.id(),
-                    old.jobId(),
-                    old.planId(),
-                    old.toolName(),
-                    old.task(),
-                    old.emit(),
-                    false,
-                    false,
-                    activeTicks - frozenElapsed,
-                    old.creativeActionContext(),
-                    old.creativeSensitive(),
-                    old.timeoutSec(),
-                    old.settings());
+            activeTasks.takeFrozen();
+            activeTasks.resumeFrozen(old);
         } else {
-            if (old != null) safeStop(old.task(), context(old));
+            if (old != null) stopFrozen("frozen task is no longer queued");
             startNextOrDefault();
         }
     }
 
     private void startNextOrDefault() {
-        if (current != null) return;
-        if (frozen != null) {
+        if (activeTask() != null) return;
+        if (frozenTask() != null) {
             resumeFrozen();
             return;
         }
@@ -1136,28 +1134,17 @@ public final class TaskRunner {
         if (!paused
                 && !held()
                 && !suspended
-                && current == null
+                && activeTask() == null
                 && !plansAwaitingDecision()
                 && defaultFollow.getAsBoolean()
                 && mayFollowOwner.getAsBoolean()) {
             ServerSettings settings = settingsSupplier.get();
-            Active a = new Active(
-                    0,
-                    0,
-                    0,
-                    "follow",
-                    new FollowTask(true),
-                    false,
-                    true,
-                    false,
-                    activeTicks,
-                    timeoutSec.getAsInt(),
-                    settings);
-            current = a;
             try {
-                a.task().start(context(a));
+                activeTasks.start(
+                        new FollowTask(true),
+                        new TaskStartContext(
+                                "follow", null, null, false, true, false, 0, 0, 0, false, settings, baseContext()));
             } catch (RuntimeException e) {
-                current = null;
                 LOGGER.warn("Default follow failed to start", e);
             }
         }
@@ -1173,11 +1160,15 @@ public final class TaskRunner {
     }
 
     public long persistenceActiveJobId() {
-        return current != null && current.jobId() > 0 ? current.jobId() : frozen == null ? 0 : frozen.jobId();
+        return activeTask() != null && activeTask().jobId() > 0
+                ? activeTask().jobId()
+                : frozenTask() == null ? 0 : frozenTask().jobId();
     }
 
     public Optional<TaskState> persistenceTaskState() {
-        Active active = current != null && current.jobId() > 0 ? current : frozen != null ? frozen : current;
+        ActiveTask active = activeTask() != null && activeTask().jobId() > 0
+                ? activeTask()
+                : frozenTask() != null ? frozenTask() : activeTask();
         if (active == null || active.defaultActivity() || active.task().type().equals("follow"))
             return Optional.empty();
         String data;
@@ -1202,6 +1193,14 @@ public final class TaskRunner {
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask) {
+        inTransition(() -> installRestoredStateActive(decoded, restoredFactories, restoredPlanFactories, restoredTask));
+    }
+
+    private void installRestoredStateActive(
+            QueueSave.Decoded decoded,
+            Map<Long, StepFactory> restoredFactories,
+            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
+            Task restoredTask) {
         syncSettings();
         queue = decoded.queue();
         queue.setLimits(queueSettings.queueLimits());
@@ -1209,62 +1208,107 @@ public final class TaskRunner {
         factories.putAll(restoredFactories);
         structuredFactories.clear();
         restoredPlanFactories.forEach((id, map) -> structuredFactories.put(id, Map.copyOf(map)));
-        current = null;
-        frozen = null;
+        activeTasks.reset();
         Job activeJob = decoded.activeJobId() == 0
                 ? null
                 : queue.job(decoded.activeJobId()).orElse(null);
         if (restoredTask != null && activeJob != null && activeJob.state() == JobState.RUNNING) {
             CreativeActionContext actionContext = actionContext(activeJob.principal(), activeJob.creativeSensitive());
-            current = new Active(
-                    (int) activeJob.id(),
-                    activeJob.id(),
-                    activeJob.planId(),
-                    activeJob.tool(),
-                    restoredTask,
-                    true,
-                    false,
-                    false,
-                    activeTicks,
-                    actionContext,
-                    activeJob.creativeSensitive(),
-                    timeoutSec.getAsInt(),
-                    settingsSupplier.get());
             try {
-                restoredTask.start(context(current));
+                ServerSettings settings = settingsSupplier.get();
+                activeTasks.start(
+                        restoredTask,
+                        new TaskStartContext(
+                                activeJob.tool(),
+                                null,
+                                actionContext,
+                                true,
+                                false,
+                                false,
+                                (int) activeJob.id(),
+                                activeJob.id(),
+                                activeJob.planId(),
+                                activeJob.creativeSensitive(),
+                                settings,
+                                new TaskContext(
+                                        companion, (ServerLevel) companion.level(), this, actionContext, settings)));
             } catch (RuntimeException e) {
-                current = null;
                 queue.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
             }
         } else if (restoredTask != null && activeJob == null) {
             restore(restoredTask);
         }
         for (Job job : List.copyOf(queue.jobs()))
-            if (job.state() == JobState.RUNNING && (current == null || current.jobId() != job.id()))
-                queue.requeue(job.id());
+            if (job.state() == JobState.RUNNING
+                    && (activeTask() == null || activeTask().jobId() != job.id())) queue.requeue(job.id());
         awaitingDecision.clear();
         for (PlanRecord plan : queue.plans())
             if (queue.planStatus(plan.id()) == PlanStatus.NEEDS_DECISION) awaitingDecision.add(plan.id());
         nextPoll = 0;
     }
 
-    private void safeStop(Task task, TaskContext ctx) {
-        try {
-            task.stop(ctx);
-        } catch (RuntimeException e) {
-            LOGGER.warn("Task {} failed to stop", task.type(), e);
-        }
-    }
-
     private TaskContext context() {
-        Active active = current != null ? current : frozen;
+        ActiveTask active = activeTask() != null ? activeTask() : frozenTask();
         ServerSettings settings = active == null ? settingsSupplier.get() : active.settings();
         CreativeActionContext actionContext = active == null ? null : active.creativeActionContext();
         return context(settings, actionContext);
     }
 
-    private TaskContext context(Active active) {
+    private TaskContext context(ActiveTask active) {
         return context(active.settings(), active.creativeActionContext());
+    }
+
+    private TaskContext baseContext() {
+        return context(settingsSupplier.get(), null);
+    }
+
+    private ActiveTask activeTask() {
+        return activeTasks.currentActive();
+    }
+
+    private ActiveTask frozenTask() {
+        return activeTasks.frozenActive();
+    }
+
+    private void stopFrozen(String reason) {
+        ActiveTask frozen = frozenTask();
+        if (frozen != null) activeTasks.stopFrozen(new StopRequest(reason), context(frozen));
+    }
+
+    private void emit(java.util.function.Consumer<TaskEventSink> event) {
+        if (eventSink == null) return;
+        if (transitionDepth > 0 || flushingEvents) {
+            pendingEvents.addLast(event);
+            return;
+        }
+        event.accept(eventSink);
+    }
+
+    private <T> T inTransition(java.util.function.Supplier<T> action) {
+        transitionDepth++;
+        try {
+            return action.get();
+        } finally {
+            transitionDepth--;
+            if (transitionDepth == 0) flushEvents();
+        }
+    }
+
+    private void inTransition(Runnable action) {
+        inTransition(() -> {
+            action.run();
+            return null;
+        });
+    }
+
+    private void flushEvents() {
+        if (flushingEvents || eventSink == null) return;
+        flushingEvents = true;
+        try {
+            while (!pendingEvents.isEmpty()) pendingEvents.removeFirst().accept(eventSink);
+        } finally {
+            flushingEvents = false;
+        }
     }
 
     private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {

@@ -21,6 +21,7 @@ import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -379,7 +380,9 @@ public class TaskTests {
 
     @GameTest
     public void stayTaskRestoredAfterReload(GameTestHelper h) {
+        UUID owner = UUID.randomUUID();
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        a.setOwner(owner);
         a.taskRunner().start(new StayTask(), "stay");
         TagValueOutput out = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());

@@ -20,6 +20,7 @@
 			"dev.friendai.test.CreativeQueueTests",
 			"dev.friendai.test.CompanionChunkLoadingTests",
 			"dev.friendai.test.DropPickupTests",
+			"dev.friendai.test.ActiveTaskLifecycleTests",
 			"dev.friendai.test.TaskTests",
 			"dev.friendai.test.ItemTaskTests",
 			"dev.friendai.test.MineBlocksTests",
