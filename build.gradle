@@ -88,6 +88,7 @@ dependencies {
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 	testImplementation "com.google.code.gson:gson:2.11.0"
 	testImplementation(testFixtures(project(':engine')))
+	testImplementation sourceSets.client.output
 }
 
 test {

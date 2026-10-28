@@ -12,7 +12,7 @@ malformed class-edge output, or empty dependency graph fails the test.
 |---|---|
 | `engine-forbidden-dependency` | Engine classes and classpaths exclude Minecraft, Fabric, YACL, Mod Menu, Whisper JNI and sherpa-onnx. |
 | `foundation-direction` | Foundation has no platform, agent, feature, protocol, presentation, infrastructure, server, client or transport dependency. |
-| `pure-java-no-platform` | `brain`, `config`, `llm`, `text`, `voice` and non-builtin `tool` classes do not depend on Minecraft or Fabric. |
+| `pure-java-no-platform` | `brain`, `infrastructure/config`, `agent/llm`, `foundation/text`, `features/speech` and non-builtin `tool` classes do not depend on Minecraft or Fabric. |
 | `feature-to-server` | Engine feature code does not depend on server, client, transport, infrastructure, presentation or Minecraft/Fabric adapters. |
 | `agent-direction` | Engine agent/application code calls ports and does not depend on server, client, transport, infrastructure, presentation or Minecraft/Fabric adapters. |
 | `server-to-client` | Server implementation does not depend on client implementation. |

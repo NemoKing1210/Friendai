@@ -1,9 +1,9 @@
 package dev.friendai.client.voice;
 
-import dev.friendai.voice.PcmConverter;
-import dev.friendai.voice.ResolvedStt;
-import dev.friendai.voice.WavCodec;
-import dev.friendai.voice.stt.SttClient;
+import dev.friendai.features.speech.PcmConverter;
+import dev.friendai.features.speech.ResolvedStt;
+import dev.friendai.features.speech.WavCodec;
+import dev.friendai.infrastructure.speech.SttClient;
 import java.util.concurrent.CompletableFuture;
 
 /** A cloud recognizer: the recording becomes a WAV for OpenAI-compatible APIs or raw PCM for Yandex. */

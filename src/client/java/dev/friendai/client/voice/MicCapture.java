@@ -1,6 +1,6 @@
 package dev.friendai.client.voice;
 
-import dev.friendai.voice.AudioLevel;
+import dev.friendai.features.speech.AudioLevel;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;

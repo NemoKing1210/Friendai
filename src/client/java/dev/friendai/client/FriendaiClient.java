@@ -13,11 +13,11 @@ import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
-import dev.friendai.config.ClientConfig;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.memory.MemoryViewCodec;
 import dev.friendai.features.places.PlaceViewCodec;
 import dev.friendai.features.trading.TradeViewCodec;
+import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.CompanionSnapshotS2CPayload;
@@ -48,7 +48,7 @@ public class FriendaiClient implements ClientModInitializer {
                     ClientConfig.class,
                     ClientConfig::defaults,
                     ClientConfig.CURRENT_VERSION,
-                    ClientConfig::migrate);
+                    null);
         }
         return clientConfigStore;
     }

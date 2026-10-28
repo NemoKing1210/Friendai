@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Loads and saves a JSON config file: defaults on first run, backup on corruption, versioned migrations. */
+/** Loads and saves a JSON config file: defaults on first run, backup on corruption, and optional migrations. */
 public final class ConfigStore<T> {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     private static final Gson GSON =
@@ -79,6 +79,10 @@ public final class ConfigStore<T> {
             }
             boolean migrated = version < currentVersion;
             if (migrated) {
+                if (migrator == null) {
+                    unsupported = true;
+                    throw new UnsupportedStoreVersionException();
+                }
                 json = migrator.apply(json, version);
                 json.addProperty("version", currentVersion);
             }
@@ -150,6 +154,10 @@ public final class ConfigStore<T> {
             throw new UnsupportedStoreVersionException();
         }
         if (version < currentVersion) {
+            if (migrator == null) {
+                unsupported = true;
+                throw new UnsupportedStoreVersionException();
+            }
             try {
                 migrator.apply(json, version);
             } catch (RuntimeException e) {

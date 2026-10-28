@@ -1,14 +1,14 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.audio.WhisperModel;
+import dev.friendai.client.audio.WhisperModelManager;
+import dev.friendai.features.speech.ResolvedStt;
+import dev.friendai.features.speech.VoiceReadiness;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.voice.ResolvedStt;
-import dev.friendai.voice.VoiceConfig;
-import dev.friendai.voice.VoiceHttp;
-import dev.friendai.voice.VoiceReadiness;
-import dev.friendai.voice.WhisperModel;
-import dev.friendai.voice.WhisperModelManager;
-import dev.friendai.voice.stt.SttClient;
+import dev.friendai.infrastructure.config.VoiceConfig;
+import dev.friendai.infrastructure.speech.SttClient;
+import dev.friendai.infrastructure.speech.VoiceHttp;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

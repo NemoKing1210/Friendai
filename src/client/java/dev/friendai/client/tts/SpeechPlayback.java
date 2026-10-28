@@ -1,11 +1,11 @@
 package dev.friendai.client.tts;
 
+import dev.friendai.features.speech.PcmConverter;
+import dev.friendai.features.speech.SpatialAudio;
+import dev.friendai.features.speech.tts.PlaybackGate;
+import dev.friendai.features.speech.tts.TtsClip;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.voice.PcmConverter;
-import dev.friendai.voice.SpatialAudio;
-import dev.friendai.voice.tts.PlaybackGate;
-import dev.friendai.voice.tts.TtsClip;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;

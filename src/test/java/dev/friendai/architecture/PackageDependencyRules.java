@@ -28,14 +28,13 @@ final class PackageDependencyRules {
             new FeatureDependency("instructions", "memory"));
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
-            "dev.friendai.config",
+            "dev.friendai.infrastructure.config",
             "dev.friendai.execution.queue",
             "dev.friendai.execution.tool",
             "dev.friendai.foundation",
             "dev.friendai.infrastructure",
-            "dev.friendai.infrastructure",
             "dev.friendai.llm",
-            "dev.friendai.voice");
+            "dev.friendai.features.speech");
     private static final Comparator<Violation> VIOLATION_ORDER = Comparator.comparing(Violation::ruleId)
             .thenComparing(Violation::sourceClass)
             .thenComparing(Violation::targetClass);
