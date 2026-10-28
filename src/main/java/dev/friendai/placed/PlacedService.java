@@ -3,7 +3,10 @@ package dev.friendai.placed;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
+import dev.friendai.perception.RelativeDirection;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -104,6 +107,36 @@ public final class PlacedService {
             book.remove(entry.dimension(), entry.pos());
         }
         return remove.size();
+    }
+
+    /** The prompt block for this caller; empty for guests, an empty ledger or a companion without a level. */
+    public static String promptBlock(CompanionEntity companion, Caller caller) {
+        if (caller == null || !caller.access().allows(AccessLevel.TRUSTED)
+                || !(companion.level() instanceof ServerLevel level)) {
+            return "";
+        }
+        BlockPos origin = companion.blockPosition();
+        Pos here = new Pos(origin.getX(), origin.getY(), origin.getZ());
+        prune(companion);
+        PlacedQuery.Result result = PlacedQuery.find(
+                book(companion),
+                level.dimension().identifier().toString(),
+                here,
+                PROMPT_RADIUS,
+                entry -> true,
+                PROMPT_ENTRIES);
+        if (result.total() == 0) {
+            return "";
+        }
+        List<PlacedText.Group> groups = PlacedText.group(result.entries(), entry -> {
+            int distance = (int) Math.round(Math.sqrt(PlacedQuery.distanceSquared(here, entry.pos())));
+            return distance + " blocks " + RelativeDirection.compass(
+                    entry.pos().x() - origin.getX(), entry.pos().z() - origin.getZ());
+        });
+        if (groups.size() > PROMPT_GROUPS) {
+            groups = groups.subList(0, PROMPT_GROUPS);
+        }
+        return PlacedText.prompt(groups, PROMPT_CHARS);
     }
 
     /** The recorded blocks matching {@code matcher} within {@code radius} of the companion, nearest first. */

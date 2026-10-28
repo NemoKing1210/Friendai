@@ -67,6 +67,7 @@ public final class CompanionBrain {
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
     private PlaceSource placeSource = PlaceSource.NONE;
+    private PlacedSource placedSource = PlacedSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
     private TradingTurnPort tradingTurnPort = TradingTurnPort.NOOP;
     private boolean plannedThisTurn;
@@ -213,6 +214,10 @@ public final class CompanionBrain {
         this.placeSource = java.util.Objects.requireNonNull(placeSource);
     }
 
+    public void setPlacedSource(PlacedSource placedSource) {
+        this.placedSource = java.util.Objects.requireNonNull(placedSource);
+    }
+
     private dev.friendai.skill.TeachingContext teachingContext;
     public dev.friendai.skill.TeachingContext teachingContext() { return thinking ? teachingContext : null; }
 
@@ -253,7 +258,7 @@ public final class CompanionBrain {
                 agentSettings.get().promptBudget(),
                 catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
                         decision.mode() == TurnMode.CHAT),
-                placeSource.describe(turnCaller), note, safeTradingPrompt(), skillSession.sections(), a -> {
+                placeSource.describe(turnCaller), placedSource.describe(turnCaller), note, safeTradingPrompt(), skillSession.sections(), a -> {
                     skillSession.recordAssembly(a.keptSectionIds());
                     var ids = a.keptSectionIds().stream().filter(id -> id.startsWith("skill:")).toList();
                     int chars = skillSession.sections().stream().filter(section -> ids.contains(section.id()))

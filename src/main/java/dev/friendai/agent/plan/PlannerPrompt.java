@@ -26,7 +26,7 @@ public final class PlannerPrompt {
     public static String system(PlannerInput input) {
         var protocol = new dev.friendai.skill.SkillPromptSection("planner-protocol",system(),Integer.MAX_VALUE);
         var context = new dev.friendai.agent.prompt.TurnContext(new dev.friendai.brain.Persona("","","auto"),"",null,"",
-                dev.friendai.brain.TurnKind.EVENT,"",java.util.List.of(),"","",input.instructions());
+                dev.friendai.brain.TurnKind.EVENT,"",java.util.List.of(),"","","",input.instructions());
         return new dev.friendai.agent.prompt.PromptAssembler(java.util.List.of(protocol),input.promptBudget()).assemble(context);
     }
 

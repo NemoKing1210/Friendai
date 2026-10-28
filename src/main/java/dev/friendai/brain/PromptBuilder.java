@@ -85,9 +85,18 @@ public final class PromptBuilder {
             int budget,List<String> toolHints,String places,String plannerNote,String tradingSummary,
             List<dev.friendai.agent.prompt.PromptSection> instructions,
             java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
+        return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "", plannerNote,
+                tradingSummary, instructions, diagnostics);
+    }
+
+    /** @param placedBlock the rendered blocks-the-companion-placed block, or {@code ""} when the caller sees none */
+    public static String system(Persona p,String perception,Caller caller,String memoryBlock,TurnKind turn,GoalView goal,
+            int budget,List<String> toolHints,String places,String placedBlock,String plannerNote,String tradingSummary,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
         var result = PromptAssembler.defaults(budget).assembleDetailed(new TurnContext(
                 p, perception, caller, memoryBlock, turn, MissionText.render(goal, plannerNote), toolHints,
-                places, tradingSummary, instructions));
+                places, placedBlock, tradingSummary, instructions));
         diagnostics.accept(result);
         return result.text();
     }

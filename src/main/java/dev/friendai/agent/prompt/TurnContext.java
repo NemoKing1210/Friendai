@@ -15,19 +15,27 @@ public record TurnContext(
         String mission,
         List<String> toolHints,
         String places,
+        String placedBlock,
         String tradingSummary, List<PromptSection> instructionSections) {
     public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
             String mission, List<String> toolHints, String places, String tradingSummary) {
-        this(persona,perception,caller,memoryBlock,turn,mission,toolHints,places,tradingSummary,List.of());
+        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, "", tradingSummary, List.of());
     }
+
+    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
+            String mission, List<String> toolHints, String places, String placedBlock, String tradingSummary) {
+        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, placedBlock,
+                tradingSummary, List.of());
+    }
+
     public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
                        String mission, List<String> toolHints) {
-        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, "", "");
+        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, "", "", "");
     }
 
     public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
                        String mission, List<String> toolHints, String places) {
-        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, "");
+        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, "", "");
     }
 
     public TurnContext {
@@ -36,6 +44,7 @@ public record TurnContext(
         mission = mission == null ? "" : mission;
         toolHints = toolHints == null ? List.of() : List.copyOf(toolHints);
         places = places == null ? "" : places;
+        placedBlock = placedBlock == null ? "" : placedBlock;
         tradingSummary = tradingSummary == null ? "" : tradingSummary;
     }
 }

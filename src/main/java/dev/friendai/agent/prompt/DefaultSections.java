@@ -27,7 +27,7 @@ public final class DefaultSections {
 
     /** Identity, speech, rules, role, memory, mission, places and state; priorities decide what a tight budget cuts first. */
     public static List<PromptSection> all() {
-        return List.of(identity(), speech(), protocol(), rules(), toolHints(), trading(), role(), memory(), mission(), places(), state());
+        return List.of(identity(), speech(), protocol(), rules(), toolHints(), trading(), role(), memory(), mission(), placed(), places(), state());
     }
 
     /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
@@ -162,6 +162,16 @@ public final class DefaultSections {
     static PromptSection mission() {
         return of("mission", 70,
                 ctx -> ctx.caller().access().allows(AccessLevel.TRUSTED) ? ctx.mission() : "");
+    }
+
+    /** The blocks the companion placed and may take back; the ledger facade enforces the same guest gate. */
+    static PromptSection placed() {
+        return of("placed", 75, ctx -> {
+            if (!ctx.caller().access().allows(AccessLevel.TRUSTED) || ctx.placedBlock().isBlank()) {
+                return "";
+            }
+            return ctx.placedBlock();
+        });
     }
 
     /** The places block, rendered verbatim; the service that builds it enforces the same guest gate. */

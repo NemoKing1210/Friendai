@@ -801,6 +801,9 @@ public final class BrainService {
         brain.setPlaceSource(caller -> config.places.enabled
                 ? PlaceService.promptBlock(companion, caller)
                 : "");
+        brain.setPlacedSource(caller -> config.places.enabled
+                ? dev.friendai.placed.PlacedService.promptBlock(companion, caller)
+                : "");
         brain.setGoalSource(caller -> {
             var board = FriendaiServerState.get(server).goals().board(owner);
             var primary = board.primary();

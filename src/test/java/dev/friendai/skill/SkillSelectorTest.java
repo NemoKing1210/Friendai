@@ -68,7 +68,7 @@ class SkillSelectorTest {
         var mandatory=new SkillPromptSection("mandatory","M".repeat(300),Integer.MAX_VALUE);
         var instruction=new SkillPromptSection("skill:one","Advice",30);
         var ctx=new dev.friendai.agent.prompt.TurnContext(new dev.friendai.brain.Persona("A","B","auto"),"",
-                context(AccessLevel.OWNER,"").caller(),"",dev.friendai.brain.TurnKind.PLAYER,"",List.of(),"","",List.of(instruction));
+                context(AccessLevel.OWNER,"").caller(),"",dev.friendai.brain.TurnKind.PLAYER,"",List.of(),"","","",List.of(instruction));
         var fits=new dev.friendai.agent.prompt.PromptAssembler(List.of(mandatory),302).assembleDetailed(ctx);
         assertEquals(List.of("mandatory"),fits.keptSectionIds());
         assertFalse(fits.mandatoryOverrun());
