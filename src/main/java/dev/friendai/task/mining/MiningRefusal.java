@@ -3,7 +3,6 @@ package dev.friendai.task.mining;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.nav.LevelCellView;
 import java.util.Locale;
@@ -63,7 +62,7 @@ public sealed interface MiningRefusal {
         BlockState state = level.getBlockState(pos);
         String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
         boolean creative = companion.creativeMode();
-        if (creative && TaskSettings.breakList.matches(blockId, LevelCellView.tagsOf(state))) {
+        if (creative && c.serverSettings().breakList().matches(blockId, LevelCellView.tagsOf(state))) {
             return new Blacklisted(pos, blockId);
         }
         if (!creative && state.getDestroySpeed(level, pos) < 0) {

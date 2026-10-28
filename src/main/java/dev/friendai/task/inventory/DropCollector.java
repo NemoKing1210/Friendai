@@ -4,7 +4,6 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.Navigator;
@@ -121,7 +120,7 @@ public final class DropCollector {
         if (!positions.equals(goalPositions)) {
             goalPositions = positions;
             arrivedTicks = 0;
-            navigator(companion).setGoal(new GoalReach(new ArrayList<>(positions), REACH, companion.getEyeHeight()));
+            navigator(c).setGoal(new GoalReach(new ArrayList<>(positions), REACH, companion.getEyeHeight()));
         }
         tickNavigator(c);
         return State.COLLECTING;
@@ -244,9 +243,14 @@ public final class DropCollector {
         return drops.stream().anyMatch(ItemEntity::isRemoved);
     }
 
-    private Navigator navigator(CompanionEntity companion) {
+    private Navigator navigator(TaskContext context) {
         if (navigator == null) {
-            navigator = new Navigator(companion, false, TaskSettings.pathing.withActions(false, false));
+            navigator = new Navigator(
+                    context.companion(),
+                    false,
+                    context.serverSettings().pathing().withActions(false, false),
+                    null,
+                    context.serverSettings());
         }
         return navigator;
     }

@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 15;
+    public static final int VERSION = 16;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -122,6 +122,7 @@ public class ServerConfig {
         public int queueMaxPlans = 8;
         public int queueBlockedNoticeSec = 30;
         public int queueMaxStepsPerAdd = 32;
+        public int freeTimeWatchdogSec = 120;
         public ResourceSection resources = new ResourceSection();
         public TradingSection trading = new TradingSection();
     }
@@ -253,6 +254,7 @@ public class ServerConfig {
      * Trading settings use defaults when absent, including for older configurations.
      * Version 14 added the search escort fields, whose defaults fill in old files.
      * Version 15 added plannerRetries, whose field default fills in old files.
+     * Version 16 added the free-time watchdog timeout, defaulting to 120 seconds.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 13 && json.has("companion") && json.get("companion").isJsonObject()) {
@@ -284,6 +286,13 @@ public class ServerConfig {
                             : new JsonObject();
             resources.addProperty("observationRadius", 64);
             tasks.add("resources", resources);
+            json.add("tasks", tasks);
+        }
+        if (from < 16) {
+            JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
+                    ? json.getAsJsonObject("tasks")
+                    : new JsonObject();
+            if (!tasks.has("freeTimeWatchdogSec")) tasks.addProperty("freeTimeWatchdogSec", 120);
             json.add("tasks", tasks);
         }
         // Version 11's trading section is filled by field defaults when older JSON is deserialized.
@@ -480,6 +489,7 @@ public class ServerConfig {
         tasks.queueBlockedNoticeSec =
                 clamp(problems, "tasks.queueBlockedNoticeSec", tasks.queueBlockedNoticeSec, 5, 600);
         tasks.queueMaxStepsPerAdd = clamp(problems, "tasks.queueMaxStepsPerAdd", tasks.queueMaxStepsPerAdd, 1, 64);
+        tasks.freeTimeWatchdogSec = clamp(problems, "tasks.freeTimeWatchdogSec", tasks.freeTimeWatchdogSec, 1, 600);
         tasks.treeSearchRadius = clamp(problems, "tasks.treeSearchRadius", tasks.treeSearchRadius, 4, 64);
         tasks.treePerceptionRadius = clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);
         memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 500);

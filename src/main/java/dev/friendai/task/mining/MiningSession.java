@@ -18,7 +18,6 @@ import dev.friendai.pathing.Pos;
 import dev.friendai.pathing.SearchOptions;
 import dev.friendai.pathing.SearchResult;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.MaterialPicker;
 import dev.friendai.task.nav.PathExecutor;
@@ -212,7 +211,7 @@ public final class MiningSession {
         if (search == null) {
             createTargetSearch(context);
         }
-        SearchResult result = search.step(searchBudget(), System::nanoTime);
+        SearchResult result = search.step(searchBudget(context), System::nanoTime);
         if (result.status() == SearchResult.Status.RUNNING) {
             setPhase("approach");
             return State.WORKING;
@@ -228,7 +227,10 @@ public final class MiningSession {
         }
         Node current = node();
         if (path.steps().isEmpty()) {
-            var visibleTarget = goal.targetAt(current, guard(context).planningView(context, TaskSettings.pathing));
+            var visibleTarget = goal.targetAt(
+                    current,
+                    guard(context)
+                            .planningView(context, context.serverSettings().pathing()));
             if (visibleTarget.isEmpty()) {
                 excludedStances.add(current);
                 return retryPlan("friendai.mining.unreachable");
@@ -256,7 +258,8 @@ public final class MiningSession {
 
     private State tickExplore(TaskContext context) {
         if (exploration == null) {
-            var view = guard(context).planningView(context, TaskSettings.pathing);
+            var view = guard(context)
+                    .planningView(context, context.serverSettings().pathing());
             exploration = new ExplorationPlanner(
                     view,
                     node(),
@@ -265,9 +268,9 @@ public final class MiningSession {
                     bounds,
                     supports,
                     CostModel.DEFAULTS,
-                    TaskSettings.pathing.maxNodes());
+                    context.serverSettings().pathing().maxNodes());
         }
-        ExplorationPlanner.Status result = exploration.step(searchBudget(), System::nanoTime);
+        ExplorationPlanner.Status result = exploration.step(searchBudget(context), System::nanoTime);
         if (result == ExplorationPlanner.Status.RUNNING) {
             setPhase(node().y() <= targetY ? "tunnel" : "descend");
             return State.WORKING;
@@ -408,8 +411,17 @@ public final class MiningSession {
             return exhaust(context);
         }
         Path route = new Path(chain, cost, (int) breaks, 0, false);
-        PathingConfig config = TaskSettings.pathing.withActions(true, false);
-        executor = new PathExecutor(route, new MaterialPicker(config), config, guard(context));
+        PathingConfig config = context.serverSettings().pathing().withActions(true, false);
+        executor = new PathExecutor(
+                route,
+                new MaterialPicker(
+                        config,
+                        context.serverSettings().breakList(),
+                        context.serverSettings().placeList()),
+                config,
+                guard(context),
+                null,
+                context.serverSettings().breakList());
         activeSteps = List.copyOf(chain);
         search = null;
         return State.WORKING;
@@ -424,7 +436,7 @@ public final class MiningSession {
     }
 
     private void createTargetSearch(TaskContext context) {
-        var view = guard(context).planningView(context, TaskSettings.pathing);
+        var view = guard(context).planningView(context, context.serverSettings().pathing());
         List<Pos> candidates = new ArrayList<>();
         for (BlockPos candidate : targets) {
             Pos plain = plain(candidate);
@@ -453,7 +465,7 @@ public final class MiningSession {
                 CostModel.DEFAULTS,
                 goal,
                 node(),
-                new SearchOptions(TaskSettings.pathing.maxNodes(), bounds.radius(), 0, 1),
+                new SearchOptions(context.serverSettings().pathing().maxNodes(), bounds.radius(), 0, 1),
                 policy);
     }
 
@@ -529,8 +541,8 @@ public final class MiningSession {
         companion.owner().ifPresent(player -> player.sendSystemMessage(Components.of(message), true));
     }
 
-    private long searchBudget() {
-        return Math.max(0, TaskSettings.pathing.searchBudgetMs()) * 1_000_000L;
+    private long searchBudget(TaskContext context) {
+        return Math.max(0, context.serverSettings().pathing().searchBudgetMs()) * 1_000_000L;
     }
 
     private ExcavationGuard guard(TaskContext context) {

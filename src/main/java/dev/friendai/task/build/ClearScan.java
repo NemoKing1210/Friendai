@@ -3,7 +3,7 @@ package dev.friendai.task.build;
 import dev.friendai.build.ClearCell;
 import dev.friendai.build.ClearKind;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.TaskSettings;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.task.nav.LevelCellView;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -61,6 +61,24 @@ public final class ClearScan {
 
     public static Result scan(
             ServerLevel level, CompanionEntity companion, BlockPos min, BlockPos max, boolean water, boolean blocks) {
+        return scan(
+                level,
+                companion,
+                min,
+                max,
+                water,
+                blocks,
+                companion.serverSettings().breakList());
+    }
+
+    public static Result scan(
+            ServerLevel level,
+            CompanionEntity companion,
+            BlockPos min,
+            BlockPos max,
+            boolean water,
+            boolean blocks,
+            BlockList breakList) {
         List<ClearCell> candidates = new ArrayList<>();
         EnumMap<SkipReason, Integer> skipped = new EnumMap<>(SkipReason.class);
         int solids = 0;
@@ -79,8 +97,7 @@ public final class ClearScan {
                         skipped.merge(SkipReason.PROTECTED, 1, Integer::sum);
                         continue;
                     }
-                    if (TaskSettings.breakList.matches(
-                            LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
+                    if (breakList.matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
                         skipped.merge(SkipReason.BLACKLISTED, 1, Integer::sum);
                         continue;
                     }

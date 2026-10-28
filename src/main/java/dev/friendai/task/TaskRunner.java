@@ -25,6 +25,7 @@ import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanStepFactory;
@@ -40,6 +41,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +62,9 @@ public final class TaskRunner {
             boolean interrupt,
             int startActiveTick,
             CreativeActionContext creativeActionContext,
-            boolean creativeSensitive) {
+            boolean creativeSensitive,
+            int timeoutSec,
+            ServerSettings settings) {
         private Active(
                 int id,
                 long jobId,
@@ -70,18 +74,35 @@ public final class TaskRunner {
                 boolean emit,
                 boolean defaultActivity,
                 boolean interrupt,
-                int startActiveTick) {
-            this(id, jobId, planId, toolName, task, emit, defaultActivity, interrupt, startActiveTick, null, false);
+                int startActiveTick,
+                int timeoutSec,
+                ServerSettings settings) {
+            this(
+                    id,
+                    jobId,
+                    planId,
+                    toolName,
+                    task,
+                    emit,
+                    defaultActivity,
+                    interrupt,
+                    startActiveTick,
+                    null,
+                    false,
+                    timeoutSec,
+                    settings);
         }
     }
 
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
     private final BooleanSupplier defaultFollow;
+    private final Supplier<ServerSettings> settingsSupplier;
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
 
     private JobQueue queue;
+    private ServerSettings queueSettings;
     private final Map<Long, StepFactory> factories = new HashMap<>();
     private final Map<Long, Map<String, PlanStepFactory>> structuredFactories = new HashMap<>();
     private final Map<Long, String> blockedPlans = new HashMap<>();
@@ -113,7 +134,7 @@ public final class TaskRunner {
     private int holds;
 
     public TaskRunner(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
-        this(companion, timeoutSec, defaultFollow, () -> true);
+        this(companion, timeoutSec, defaultFollow, () -> true, companion::serverSettings);
     }
 
     /** A runner that knows whether following is its business at all; the real entity passes the free-time gate. */
@@ -122,11 +143,32 @@ public final class TaskRunner {
             IntSupplier timeoutSec,
             BooleanSupplier defaultFollow,
             BooleanSupplier mayFollowOwner) {
+        this(companion, timeoutSec, defaultFollow, mayFollowOwner, companion::serverSettings);
+    }
+
+    public TaskRunner(
+            CompanionEntity companion,
+            IntSupplier timeoutSec,
+            BooleanSupplier defaultFollow,
+            BooleanSupplier mayFollowOwner,
+            Supplier<ServerSettings> settingsSupplier) {
         this.companion = companion;
         this.timeoutSec = timeoutSec;
         this.defaultFollow = defaultFollow;
         this.mayFollowOwner = mayFollowOwner;
-        this.queue = new JobQueue(TaskSettings.queueLimits());
+        this.settingsSupplier = settingsSupplier;
+        this.queueSettings = ServerSettings.DEFAULTS;
+        this.queue = new JobQueue(queueSettings.queueLimits());
+    }
+
+    public void applySettings(ServerSettings settings) {
+        if (settings == null || queueSettings == settings) return;
+        queue.setLimits(settings.queueLimits());
+        queueSettings = settings;
+    }
+
+    private void syncSettings() {
+        applySettings(settingsSupplier.get());
     }
 
     public void setListener(TaskListener listener) {
@@ -203,6 +245,7 @@ public final class TaskRunner {
     }
 
     public JobQueue queue() {
+        syncSettings();
         return queue;
     }
     /** Marks a queue plan as free time's own, so its jobs act under the autonomous rules. */
@@ -282,6 +325,7 @@ public final class TaskRunner {
     }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
+        syncSettings();
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job = queue.addDirect(step);
         factories.put(job.id(), factory);
@@ -300,6 +344,7 @@ public final class TaskRunner {
             List<StepFactory> stepFactories,
             PlanOptions options,
             java.util.function.LongConsumer prepare) {
+        syncSettings();
         if (steps.size() != stepFactories.size()) throw new IllegalArgumentException("steps and factories differ");
         for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         JobQueue.Added added = queue.addPlan(goal, steps, options);
@@ -313,6 +358,7 @@ public final class TaskRunner {
 
     public long enqueueStructuredPlan(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
+        syncSettings();
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
         facts();
         long startTick = companion.level().getGameTime();
@@ -424,7 +470,7 @@ public final class TaskRunner {
             finishPlan(plan.id(), reason, false);
         }
         if (frozen != null) {
-            safeStop(frozen.task(), context());
+            safeStop(frozen.task(), context(frozen));
             frozen = null;
         }
         queue.clear();
@@ -438,12 +484,12 @@ public final class TaskRunner {
         Active active = current;
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
         if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context()));
-            safeStop(frozen.task(), context());
+            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
+            safeStop(frozen.task(), context(frozen));
             frozen = null;
         }
         if (active != null) {
-            safeStop(active.task(), context());
+            safeStop(active.task(), context(active));
             current = null;
         }
         queue.clear();
@@ -459,8 +505,8 @@ public final class TaskRunner {
         Active active = current;
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
         if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context()));
-            safeStop(frozen.task(), context());
+            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
+            safeStop(frozen.task(), context(frozen));
             frozen = null;
         }
         if (active != null) cancelCurrent(reason, false);
@@ -476,8 +522,8 @@ public final class TaskRunner {
         Active active = current;
         Task cleanup = active != null && active.jobId() > 0 ? active.task().cleanupAfterCancel(context()) : null;
         if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context()));
-            safeStop(frozen.task(), context());
+            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
+            safeStop(frozen.task(), context(frozen));
             frozen = null;
         }
         if (active != null && active.jobId() > 0) cancelCurrent(reason, false);
@@ -501,8 +547,8 @@ public final class TaskRunner {
             factories.remove(id);
         } else {
             if (frozen != null && frozen.jobId() == id) {
-                cleanup = frozen.task().cleanupAfterCancel(context());
-                safeStop(frozen.task(), context());
+                cleanup = frozen.task().cleanupAfterCancel(context(frozen));
+                safeStop(frozen.task(), context(frozen));
                 frozen = null;
             }
             queue.cancel(id);
@@ -550,8 +596,8 @@ public final class TaskRunner {
             cancelCurrent(reason, false);
         }
         if (frozen != null && frozen.planId() == id) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context()));
-            safeStop(frozen.task(), context());
+            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
+            safeStop(frozen.task(), context(frozen));
             frozen = null;
         }
         queue.cancelPlan(id);
@@ -569,6 +615,7 @@ public final class TaskRunner {
     }
 
     public void tick() {
+        syncSettings();
         revalidateCreativeHover();
         if (paused || suspended || held()) return;
         if (current != null && current.defaultActivity() && !mayFollowOwner.getAsBoolean()) clearCurrentSilently();
@@ -591,6 +638,7 @@ public final class TaskRunner {
         if ((current.defaultActivity() || movementOrder(current)) && pollQueue()) return;
         activeTicks++;
         Active active = current;
+        TaskContext taskContext = context(active);
         TaskStatus status;
         String summary = null;
         if (active.planId() > 0)
@@ -603,7 +651,7 @@ public final class TaskRunner {
             return;
         }
         try {
-            status = active.task().tick(context());
+            status = active.task().tick(taskContext);
         } catch (RuntimeException e) {
             LOGGER.warn("Task {} crashed", active.toolName(), e);
             status = TaskStatus.FAILED;
@@ -611,8 +659,8 @@ public final class TaskRunner {
         }
         if (status == TaskStatus.RUNNING
                 && active.task().hasTimeout()
-                && activeTicks - active.startActiveTick() > timeoutSec.getAsInt() * 20) {
-            safeStop(active.task(), context());
+                && activeTicks - active.startActiveTick() > active.timeoutSec() * 20) {
+            safeStop(active.task(), taskContext);
             status = TaskStatus.FAILED;
             summary = "timed out";
         }
@@ -689,6 +737,7 @@ public final class TaskRunner {
             boolean interrupt,
             CreativeActionContext actionContext,
             boolean creativeSensitive) {
+        ServerSettings settings = settingsSupplier.get();
         Active active = new Active(
                 emit ? nextId++ : 0,
                 0,
@@ -700,10 +749,12 @@ public final class TaskRunner {
                 interrupt,
                 activeTicks,
                 actionContext,
-                creativeSensitive);
+                creativeSensitive,
+                timeoutSec.getAsInt(),
+                settings);
         current = active;
         try {
-            task.start(context());
+            task.start(context(active));
         } catch (RuntimeException e) {
             current = null;
             LOGGER.warn("Task {} failed to start", name, e);
@@ -723,7 +774,7 @@ public final class TaskRunner {
         Active a = current;
         if (a == null) return;
         current = null;
-        safeStop(a.task(), context());
+        safeStop(a.task(), context(a));
         if (a.jobId() > 0) {
             queue.cancel(a.jobId());
             if (listener != null)
@@ -734,7 +785,7 @@ public final class TaskRunner {
 
     private void clearCurrentSilently() {
         if (current != null) {
-            safeStop(current.task(), context());
+            safeStop(current.task(), context(current));
             current = null;
         }
     }
@@ -880,8 +931,8 @@ public final class TaskRunner {
             PlanStepFactory planFactory =
                     structuredFactories.getOrDefault(job.planId(), Map.of()).get(job.tool());
             QueuedStep step = step(job);
-            TaskContext authorizationContext =
-                    new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext);
+            TaskContext authorizationContext = new TaskContext(
+                    companion, (ServerLevel) companion.level(), this, actionContext, settingsSupplier.get());
             if (planFactory == null || !planFactory.authorized(authorizationContext, step)) {
                 queue.cancelPlan(job.planId());
                 finishPlan(job.planId(), "access to " + job.tool() + " was revoked before the action started", false);
@@ -889,8 +940,9 @@ public final class TaskRunner {
             }
         }
         try {
-            Task task =
-                    factory.create(new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext));
+            ServerSettings settings = settingsSupplier.get();
+            Task task = factory.create(
+                    new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings));
             queue.markRunning(job.id());
             awaitingDecision.remove(job.planId());
             Active active = new Active(
@@ -904,9 +956,11 @@ public final class TaskRunner {
                     false,
                     activeTicks,
                     actionContext,
-                    job.creativeSensitive());
+                    job.creativeSensitive(),
+                    timeoutSec.getAsInt(),
+                    settings);
             current = active;
-            task.start(context());
+            task.start(context(active));
             blockedSince = -1;
             return true;
         } catch (RuntimeException e) {
@@ -976,7 +1030,7 @@ public final class TaskRunner {
     private void maybeNoticeBlocked() {
         if (current != null && current.jobId() > 0) return;
         if (blockedSince < 0) blockedSince = queue.clock();
-        if (queue.clock() - blockedSince < TaskSettings.queueBlockedNoticeTicks()) return;
+        if (queue.clock() - blockedSince < settingsSupplier.get().tasks().queueBlockedNoticeSec() * 20) return;
         GuardFacts facts = facts();
         for (PlanRecord plan : queue.plans()) {
             if (queue.planStatus(plan.id()) != PlanStatus.ACTIVE) continue;
@@ -1053,9 +1107,11 @@ public final class TaskRunner {
                     false,
                     activeTicks - frozenElapsed,
                     old.creativeActionContext(),
-                    old.creativeSensitive());
+                    old.creativeSensitive(),
+                    old.timeoutSec(),
+                    old.settings());
         } else {
-            if (old != null) safeStop(old.task(), context());
+            if (old != null) safeStop(old.task(), context(old));
             startNextOrDefault();
         }
     }
@@ -1088,10 +1144,22 @@ public final class TaskRunner {
                 && !plansAwaitingDecision()
                 && defaultFollow.getAsBoolean()
                 && mayFollowOwner.getAsBoolean()) {
-            Active a = new Active(0, 0, 0, "follow", new FollowTask(true), false, true, false, activeTicks);
+            ServerSettings settings = settingsSupplier.get();
+            Active a = new Active(
+                    0,
+                    0,
+                    0,
+                    "follow",
+                    new FollowTask(true),
+                    false,
+                    true,
+                    false,
+                    activeTicks,
+                    timeoutSec.getAsInt(),
+                    settings);
             current = a;
             try {
-                a.task().start(context());
+                a.task().start(context(a));
             } catch (RuntimeException e) {
                 current = null;
                 LOGGER.warn("Default follow failed to start", e);
@@ -1125,7 +1193,9 @@ public final class TaskRunner {
             QueueSave.Decoded decoded,
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories) {
+        syncSettings();
         queue = decoded.queue();
+        queue.setLimits(queueSettings.queueLimits());
         factories.clear();
         factories.putAll(restoredFactories);
         structuredFactories.clear();
@@ -1205,9 +1275,11 @@ public final class TaskRunner {
                             false,
                             activeTicks,
                             actionContext,
-                            job.creativeSensitive());
+                            job.creativeSensitive(),
+                            timeoutSec.getAsInt(),
+                            settingsSupplier.get());
                     try {
-                        task.start(context());
+                        task.start(context(current));
                     } catch (RuntimeException e) {
                         current = null;
                         queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName());
@@ -1263,11 +1335,18 @@ public final class TaskRunner {
     }
 
     private TaskContext context() {
-        return new TaskContext(
-                companion,
-                (ServerLevel) companion.level(),
-                this,
-                current == null ? null : current.creativeActionContext());
+        Active active = current != null ? current : frozen;
+        ServerSettings settings = active == null ? settingsSupplier.get() : active.settings();
+        CreativeActionContext actionContext = active == null ? null : active.creativeActionContext();
+        return context(settings, actionContext);
+    }
+
+    private TaskContext context(Active active) {
+        return context(active.settings(), active.creativeActionContext());
+    }
+
+    private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {
+        return new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings);
     }
 
     private CreativeActionContext actionContext(Caller caller, boolean creativeSensitive) {

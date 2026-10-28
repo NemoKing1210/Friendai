@@ -2,7 +2,6 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
 
 /**
@@ -12,13 +11,11 @@ import dev.friendai.task.TaskStatus;
  * stay at once, and free time keeps its shift instead of reading the wait as owner work.
  */
 public final class StayTask implements Task {
-    private final int maxTicks;
+    private int maxTicks;
     private int ticks;
 
     /** A stay of the configured length: the task timeout bounds every order, this one included. */
-    public StayTask() {
-        this(TaskSettings.stayTimeoutSec * 20);
-    }
+    public StayTask() {}
 
     public StayTask(int maxTicks) {
         this.maxTicks = Math.max(1, maxTicks);
@@ -31,6 +28,7 @@ public final class StayTask implements Task {
 
     @Override
     public void start(TaskContext c) {
+        if (maxTicks == 0) maxTicks = Math.max(1, c.settings().taskTimeoutSec() * 20);
         c.companion().getNavigation().stop();
     }
 

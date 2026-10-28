@@ -8,7 +8,6 @@ import dev.friendai.structure.StructurePlan;
 import dev.friendai.structure.StructurePlanner;
 import dev.friendai.structure.StructureSnapshot;
 import dev.friendai.structure.Trigger;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.build.Placement;
 import dev.friendai.task.builtin.SpecialStructureTask;
 import dev.friendai.task.structure.StructureSite;
@@ -45,7 +44,10 @@ final class StructureTools {
                                         "I need " + missing + " in the inventory first; get it with obtain_item");
                             }
                             return new SpecialStructureTask(
-                                    structure, site.origin(), site.rotation(), TaskSettings.maxNearbySpawned);
+                                    structure,
+                                    site.origin(),
+                                    site.rotation(),
+                                    c.serverSettings().tasks().maxNearbySpawned());
                         },
                         true));
         registry.register(ToolKit.instantTool(
@@ -96,7 +98,11 @@ final class StructureTools {
     private static StructureSnapshot snapshot(
             CompanionEntity companion, SpecialStructure structure, StructureSite site) {
         return StructureSnapshotBuilder.build(
-                (ServerLevel) companion.level(), companion, structure, site, TaskSettings.maxNearbySpawned);
+                (ServerLevel) companion.level(),
+                companion,
+                structure,
+                site,
+                companion.serverSettings().tasks().maxNearbySpawned());
     }
 
     /** The finishing item the bag lacks, or null when it is there. */

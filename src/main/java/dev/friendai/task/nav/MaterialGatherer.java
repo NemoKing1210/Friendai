@@ -3,8 +3,8 @@ package dev.friendai.task.nav;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BreakAction;
@@ -59,7 +59,8 @@ public final class MaterialGatherer {
     /** Cells the planned route walks or builds through, which must not be taken away from it. */
     private final Set<BlockPos> avoid;
 
-    private final MaterialPicker picker = new MaterialPicker(TaskSettings.pathing);
+    private ServerSettings settings;
+    private MaterialPicker picker;
     private final Set<BlockPos> blacklist = new HashSet<>();
 
     private List<BlockPos> candidates = List.of();
@@ -78,8 +79,14 @@ public final class MaterialGatherer {
      * @param avoid block cells the route itself needs; they are skipped as candidates
      */
     public MaterialGatherer(int needed, Set<BlockPos> avoid) {
+        this(needed, avoid, null);
+    }
+
+    public MaterialGatherer(int needed, Set<BlockPos> avoid, ServerSettings settings) {
         this.needed = needed;
         this.avoid = Set.copyOf(avoid);
+        this.settings = settings;
+        if (settings != null) this.picker = materials(settings);
     }
 
     /** How many blocks were broken so far; the inventory count is the authority, this is the fallback. */
@@ -89,7 +96,11 @@ public final class MaterialGatherer {
 
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
-        if (!TaskSettings.pathing.allowBreak()) {
+        if (settings == null) {
+            settings = c.serverSettings();
+            picker = materials(settings);
+        }
+        if (!settings.pathing().allowBreak()) {
             // Gathering is digging; a server that forbids breaking forbids this too.
             return finish(c);
         }
@@ -124,7 +135,7 @@ public final class MaterialGatherer {
             // Nothing left to try: the search decides what that means.
             return finish(c);
         }
-        navigator = new Navigator(companion, false);
+        navigator = new Navigator(companion, false, null, null, settings);
         navigator.setGoal(goal(companion));
         return State.WORKING;
     }
@@ -169,7 +180,7 @@ public final class MaterialGatherer {
     }
 
     private State tickBreak(TaskContext c, CompanionEntity companion) {
-        switch (action.tick(c, state -> !state.isAir() && dropsMaterial(state, companion))) {
+        switch (action.tick(c, state -> !state.isAir() && dropsMaterial(state, companion, settings))) {
             case WORKING -> {
                 return State.WORKING;
             }
@@ -214,7 +225,7 @@ public final class MaterialGatherer {
         BlockMatcher matcher = new BlockMatcher() {
             @Override
             public boolean test(BlockState state) {
-                return dropsMaterial(state, companion);
+                return dropsMaterial(state, companion, settings);
             }
 
             @Override
@@ -242,11 +253,11 @@ public final class MaterialGatherer {
     }
 
     /** Whether breaking {@code state} yields a block the companion can bridge with. */
-    private static boolean dropsMaterial(BlockState state, CompanionEntity companion) {
+    private static boolean dropsMaterial(BlockState state, CompanionEntity companion, ServerSettings settings) {
         if (state.isAir()) {
             return false;
         }
-        if (TaskSettings.breakList.matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
+        if (settings.breakList().matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
             return false;
         }
         if (DIRT.test(state) || GRASS.test(state) || NETHERRACK.test(state)) {
@@ -257,6 +268,10 @@ public final class MaterialGatherer {
         }
         // Stone and deepslate drop nothing without a pickaxe.
         return holdsCorrectTool(companion, state);
+    }
+
+    private static MaterialPicker materials(ServerSettings settings) {
+        return new MaterialPicker(settings.pathing(), settings.breakList(), settings.placeList());
     }
 
     private static boolean holdsCorrectTool(CompanionEntity companion, BlockState state) {

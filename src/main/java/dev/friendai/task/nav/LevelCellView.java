@@ -1,12 +1,12 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.mining.BreakProgress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,6 +69,7 @@ public final class LevelCellView implements CellView {
     private final ServerLevel level;
     private final PathingConfig config;
     private final CostModel costs;
+    private final BlockList breakList;
     private final Map<Long, Cell> cache = new HashMap<>();
     /** What breaking a block costs, per block state: independent of where the state stands. */
     private final Map<BlockState, BreakInfo> breakInfo = new HashMap<>();
@@ -137,10 +138,15 @@ public final class LevelCellView implements CellView {
     }
 
     public LevelCellView(CompanionEntity companion, PathingConfig config, CostModel costs) {
+        this(companion, config, costs, BlockList.parse(config.breakBlacklist(), ignored -> {}));
+    }
+
+    public LevelCellView(CompanionEntity companion, PathingConfig config, CostModel costs, BlockList breakList) {
         this.companion = companion;
         this.level = (ServerLevel) companion.level();
         this.config = config;
         this.costs = costs;
+        this.breakList = breakList;
     }
 
     @Override
@@ -235,7 +241,7 @@ public final class LevelCellView implements CellView {
 
     private BreakInfo breakInfoOf(BlockState state) {
         Set<String> tags = tagsOf(state);
-        if (TaskSettings.breakList.matches(idOf(state.getBlock()), tags)) {
+        if (breakList.matches(idOf(state.getBlock()), tags)) {
             return new BreakInfo(true, false, 0f, false);
         }
         ItemStack tool = bestTool(state);

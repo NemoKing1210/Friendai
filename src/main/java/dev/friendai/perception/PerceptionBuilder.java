@@ -3,7 +3,7 @@ package dev.friendai.perception;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.task.TaskSettings;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.combat.Threats;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
@@ -55,6 +55,8 @@ public final class PerceptionBuilder {
 
     private static PerceptionSnapshot build(CompanionEntity c, int blockRadius, OwnerFocus focus) {
         ServerLevel level = (ServerLevel) c.level();
+        FriendaiServerState serverState = FriendaiServerState.get(level.getServer());
+        ServerSettings settings = serverState.settings();
         BlockPos pos = c.blockPosition();
         String biome = level.getBiome(pos)
                 .unwrapKey()
@@ -68,12 +70,10 @@ public final class PerceptionBuilder {
         String task = c.taskRunner().queueSummary();
         if (c.ownerUuid() != null) {
             String freeTime = dev.friendai.agent.autonomy.FreeTimeText.stateLine(
-                    FriendaiServerState.get(level.getServer()).freeTime().state(c.ownerUuid()),
-                    System.currentTimeMillis());
+                    serverState.freeTime().state(c.ownerUuid()), System.currentTimeMillis());
             task = freeTime.isEmpty() ? task : task + "\n" + freeTime;
         }
-        ResourceCandidates resources =
-                FriendaiServerState.get(level.getServer()).resources();
+        ResourceCandidates resources = serverState.resources();
         return new PerceptionSnapshot(
                 pos.getX() + " " + pos.getY() + " " + pos.getZ(),
                 level.dimension().identifier().getPath(),
@@ -93,7 +93,7 @@ public final class PerceptionBuilder {
                 selfStatus(c, level, pos),
                 threats(c, level),
                 LandmarkScanner.scan(c, resources),
-                trees(c, resources, pos),
+                trees(c, resources, pos, settings),
                 c.experience().level(),
                 c.creativeMode());
     }
@@ -108,13 +108,14 @@ public final class PerceptionBuilder {
     }
 
     /** The nearest tree-like clusters, so the model need not infer a tree from a count of log blocks. */
-    private static List<TreeSummary> trees(CompanionEntity c, ResourceCandidates resources, BlockPos pos) {
-        if (!TaskSettings.treePerception) {
+    private static List<TreeSummary> trees(
+            CompanionEntity c, ResourceCandidates resources, BlockPos pos, ServerSettings settings) {
+        if (!settings.tasks().treePerception()) {
             return List.of();
         }
         BlockMatcher leaves = BlockMatcher.parse("#minecraft:leaves").orElse(null);
         Map<BlockPos, String> observedLogs =
-                resources.visibleBlockIds(c, TaskSettings.treePerceptionRadius).entrySet().stream()
+                resources.visibleBlockIds(c, settings.tasks().treePerceptionRadius()).entrySet().stream()
                         .filter(entry -> {
                             var id = Identifier.tryParse(entry.getValue());
                             return id != null
@@ -127,7 +128,7 @@ public final class PerceptionBuilder {
                         .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         Set<BlockPos> observedLeaves = leaves == null
                 ? Set.of()
-                : Set.copyOf(resources.visible(c, leaves, TaskSettings.treePerceptionRadius, 1024));
+                : Set.copyOf(resources.visible(c, leaves, settings.tasks().treePerceptionRadius(), 1024));
         return TreeFinder.findObserved((ServerLevel) c.level(), pos, observedLogs, observedLeaves, MAX_TREES).stream()
                 .map(TreeFinder.TreeInfo::summary)
                 .toList();

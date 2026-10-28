@@ -170,7 +170,7 @@ public final class Approach {
         }
         if (phase == Phase.PLAN) {
             if (navigator == null) {
-                navigator = new Navigator(companion, mayPlace, ledger);
+                navigator = new Navigator(companion, mayPlace, null, ledger, context.serverSettings());
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }

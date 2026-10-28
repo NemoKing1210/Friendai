@@ -128,7 +128,13 @@ public final class ClearAreaTask implements Task {
         BlockPos min = center.offset(-radius, -depth, -radius);
         BlockPos max = center.offset(radius, height, radius);
         ClearScan.Result result = ClearScan.scan(
-                level, c.companion(), min, max, wanted.contains(ClearKind.WATER), wanted.contains(ClearKind.BLOCK));
+                level,
+                c.companion(),
+                min,
+                max,
+                wanted.contains(ClearKind.WATER),
+                wanted.contains(ClearKind.BLOCK),
+                c.serverSettings().breakList());
         ClearPlan plan = ClearPlan.of(result.candidates(), wanted, MAX_CELLS);
         queue.addAll(plan.cells());
         planned = plan.cells().size();

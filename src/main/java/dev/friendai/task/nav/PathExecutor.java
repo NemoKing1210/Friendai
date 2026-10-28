@@ -2,6 +2,7 @@ package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.movement.PathSteering;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.Move;
@@ -71,6 +72,7 @@ public final class PathExecutor {
     private final Path path;
     private final MaterialPicker materials;
     private final PathingConfig config;
+    private final BlockList breakList;
     private final PathExecutionGuard guard;
     /** Where blocks this route places are remembered for cleanup, or null when the caller does not want them. */
     private final PlacementLedger ledger;
@@ -119,11 +121,22 @@ public final class PathExecutor {
             PathingConfig config,
             PathExecutionGuard guard,
             PlacementLedger ledger) {
+        this(path, materials, config, guard, ledger, BlockList.parse(config.breakBlacklist(), ignored -> {}));
+    }
+
+    public PathExecutor(
+            Path path,
+            MaterialPicker materials,
+            PathingConfig config,
+            PathExecutionGuard guard,
+            PlacementLedger ledger,
+            BlockList breakList) {
         this.path = path;
         this.materials = materials;
         this.config = config;
         this.guard = guard;
         this.ledger = ledger;
+        this.breakList = breakList;
         this.remaining = new double[path.steps().size() + 1];
         for (int i = path.steps().size() - 1; i >= 0; i--) {
             PathStep step = path.steps().get(i);
@@ -238,7 +251,7 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS, breakList);
         liveView = LevelCellView.liveTerrain(c.companion());
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);

@@ -62,6 +62,19 @@ class JobQueueTest {
     }
 
     @Test
+    void updatedRuntimeLimitsApplyToNewWorkWithoutDiscardingQueuedJobs() {
+        JobQueue q = new JobQueue(new QueueLimits(2, 2, 2, 8192, 5));
+        q.addDirect(step("a"));
+        q.addDirect(step("b"));
+
+        q.setLimits(new QueueLimits(1, 1, 1, 8192, 3));
+
+        assertEquals(2, q.jobCount());
+        assertEquals(1, q.limits().maxJobs());
+        assertThrows(IllegalArgumentException.class, () -> q.addDirect(step("c")));
+    }
+
+    @Test
     void movePriorityUpdateRetrySkipAndArchiveAreExplicit() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
         JobQueue.Added added = q.addPlan("p", List.of(step("a"), step("b")), PlanOptions.DEFAULT);

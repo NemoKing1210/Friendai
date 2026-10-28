@@ -1,8 +1,8 @@
 package dev.friendai.task.nav;
 
+import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.MaterialPrices;
 import dev.friendai.pathing.PathingConfig;
-import dev.friendai.task.TaskSettings;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -21,9 +21,17 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class MaterialPicker {
 
     private final PathingConfig config;
+    private final BlockList breakList;
+    private final BlockList placeList;
 
     public MaterialPicker(PathingConfig config) {
+        this(config, breakList(config), placeList(config));
+    }
+
+    public MaterialPicker(PathingConfig config, BlockList breakList, BlockList placeList) {
         this.config = config;
+        this.breakList = breakList;
+        this.placeList = placeList;
     }
 
     /** How many blocks the inventory holds that may be used as material. */
@@ -106,7 +114,17 @@ public final class MaterialPicker {
         }
         Set<String> tags = LevelCellView.tagsOf(state);
         String id = LevelCellView.idOf(block);
-        return !TaskSettings.placeList.matches(id, tags) && !TaskSettings.breakList.matches(id, tags);
+        return !placeList.matches(id, tags) && !breakList.matches(id, tags);
+    }
+
+    private static BlockList breakList(PathingConfig config) {
+        return BlockList.parse(config.breakBlacklist(), ignored -> {});
+    }
+
+    private static BlockList placeList(PathingConfig config) {
+        java.util.ArrayList<String> entries = new java.util.ArrayList<>(config.breakBlacklist());
+        entries.addAll(config.placeBlacklist());
+        return BlockList.parse(entries, ignored -> {});
     }
 
     private static double price(ItemStack stack) {

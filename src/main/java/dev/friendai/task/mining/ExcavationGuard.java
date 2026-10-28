@@ -10,7 +10,6 @@ import dev.friendai.pathing.PathStep;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.PathExecutionGuard;
@@ -56,7 +55,11 @@ public final class ExcavationGuard implements PathExecutionGuard {
                 || unsafeExposure(context.level(), blockPos)) {
             return false;
         }
-        return new LevelCellView(companion, TaskSettings.pathing, CostModel.DEFAULTS)
+        return new LevelCellView(
+                        companion,
+                        context.serverSettings().pathing(),
+                        CostModel.DEFAULTS,
+                        context.serverSettings().breakList())
                 .at(pos)
                 .breakable();
     }
@@ -68,7 +71,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         if (!bounds.contains(from) || !bounds.contains(to)) {
             return false;
         }
-        CellView view = planningView(context, TaskSettings.pathing);
+        CellView view = planningView(context, context.serverSettings().pathing());
         PathStep alreadyExcavated = new PathStep(
                 step.from(),
                 step.to(),
@@ -101,7 +104,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         if (state.requiresCorrectToolForDrops() && !hasCorrectTool(companion, state)) {
             return false;
         }
-        CellView view = planningView(context, TaskSettings.pathing);
+        CellView view = planningView(context, context.serverSettings().pathing());
         var block = companion.blockPosition();
         var stance = new dev.friendai.pathing.Node(block.getX(), block.getY(), block.getZ());
         return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
@@ -128,7 +131,8 @@ public final class ExcavationGuard implements PathExecutionGuard {
     public CellView planningView(TaskContext context, PathingConfig config) {
         CompanionEntity companion = context.companion();
         ServerLevel level = context.level();
-        CellView terrain = new LevelCellView(companion, config, CostModel.DEFAULTS);
+        CellView terrain = new LevelCellView(
+                companion, config, CostModel.DEFAULTS, context.serverSettings().breakList());
         return (x, y, z) -> {
             BlockPos pos = new BlockPos(x, y, z);
             Cell cell = terrain.at(x, y, z);

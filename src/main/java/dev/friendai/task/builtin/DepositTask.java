@@ -9,7 +9,6 @@ import dev.friendai.place.PlaceQuery;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.KeepPolicy;
@@ -216,7 +215,10 @@ public final class DepositTask implements Task {
         SimpleContainer bag = c.companion().inventory();
         List<KeepPolicy.Slot> slots = new ArrayList<>();
         DropIndex tools = DropIndex.of(c.level());
-        MaterialPicker blocks = new MaterialPicker(TaskSettings.pathing);
+        MaterialPicker blocks = new MaterialPicker(
+                c.serverSettings().pathing(),
+                c.serverSettings().breakList(),
+                c.serverSettings().placeList());
         for (int i = 0; i < bag.getContainerSize(); i++) {
             ItemStack stack = bag.getItem(i);
             if (stack.isEmpty()) {

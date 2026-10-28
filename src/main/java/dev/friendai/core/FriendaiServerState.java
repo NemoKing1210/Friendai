@@ -12,15 +12,15 @@ import dev.friendai.knowledge.KnowledgeLimits;
 import dev.friendai.knowledge.KnowledgeStore;
 import dev.friendai.memory.MemoryStore;
 import dev.friendai.memory.MemoryViewers;
-import dev.friendai.pathing.BlockList;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.place.PlaceLimits;
 import dev.friendai.place.PlaceStore;
 import dev.friendai.placed.PlacedLimits;
 import dev.friendai.placed.PlacedStore;
+import dev.friendai.server.configuration.ServerConfiguration;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.skin.SkinStore;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.builtin.RefreshTradesTask;
 import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.MerchantAdapter;
@@ -29,7 +29,6 @@ import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
 import dev.friendai.trading.TradeStore;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +43,7 @@ public final class FriendaiServerState {
 
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
+    private final ServerConfiguration configuration;
     private final BrainService brains;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
@@ -81,8 +81,9 @@ public final class FriendaiServerState {
                 ServerConfig.VERSION,
                 ServerConfig::migrate);
         this.config = store.load();
-        logProblems(config.validate());
-        applyTaskSettings(config);
+        this.configuration = new ServerConfiguration(
+                entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
+        logProblems(configuration.apply(config));
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
@@ -132,6 +133,10 @@ public final class FriendaiServerState {
 
     public ServerConfig config() {
         return config;
+    }
+
+    public ServerSettings settings() {
+        return configuration.current();
     }
 
     public ConfigStore<ServerConfig> store() {
@@ -307,16 +312,19 @@ public final class FriendaiServerState {
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */
     public List<String> applyConfig(ServerConfig cfg) {
-        List<String> problems = cfg.validate();
+        boolean tradingWasEnabled = configuration.current().trading().enabled();
+        List<String> problems = configuration.apply(cfg);
         logProblems(problems);
-        boolean tradingWasEnabled = config.tasks.trading.enabled;
         this.config = cfg;
-        if (tradingWasEnabled && !cfg.tasks.trading.enabled) {
+        if (tradingWasEnabled && !configuration.current().trading().enabled()) {
             tradeSessionGuard.closeAll("trading disabled by server config");
             brains.invalidateTradingAuthorities("trading disabled by server config");
         }
         syncCompanionNames(cfg);
-        applyTaskSettings(cfg);
+        ServerSettings applied = configuration.current();
+        for (CompanionEntity companion : CompanionManager.get(server).all()) {
+            companion.taskRunner().applySettings(applied);
+        }
         brains.reload(cfg);
         return problems;
     }
@@ -329,32 +337,6 @@ public final class FriendaiServerState {
                 companion.applyName(cfg.companion.name);
             }
         }
-    }
-
-    private static void applyTaskSettings(ServerConfig cfg) {
-        TaskSettings.taskTimeoutSec = cfg.tasks.taskTimeoutSec;
-        TaskSettings.queueMaxJobs = cfg.tasks.queueMaxJobs;
-        TaskSettings.queueMaxPlans = cfg.tasks.queueMaxPlans;
-        TaskSettings.queueBlockedNoticeSec = cfg.tasks.queueBlockedNoticeSec;
-        TaskSettings.queueMaxStepsPerAdd = cfg.tasks.queueMaxStepsPerAdd;
-        TaskSettings.defaultFollow = cfg.tasks.defaultFollow;
-        TaskSettings.stayTimeoutSec = cfg.tasks.taskTimeoutSec;
-        TaskSettings.mineSearchRadius = cfg.tasks.mineSearchRadius;
-        TaskSettings.treeSearchRadius = cfg.tasks.treeSearchRadius;
-        TaskSettings.fellCollectDrops = cfg.tasks.fellCollectDrops;
-        TaskSettings.mineCollectDrops = cfg.tasks.mineCollectDrops;
-        TaskSettings.treePerception = cfg.tasks.treePerception;
-        TaskSettings.treePerceptionRadius = cfg.tasks.treePerceptionRadius;
-        TaskSettings.maxNearbySpawned = cfg.structures.maxNearbySpawned;
-        TaskSettings.pathing = cfg.pathing.toPathingConfig();
-        TaskSettings.breakList = BlockList.parse(
-                cfg.pathing.breakBlacklist,
-                entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
-        List<String> placeEntries = new ArrayList<>(cfg.pathing.breakBlacklist);
-        if (cfg.pathing.placeBlacklist != null) {
-            placeEntries.addAll(cfg.pathing.placeBlacklist);
-        }
-        TaskSettings.placeList = BlockList.parse(placeEntries, entry -> {});
     }
 
     private static void logProblems(List<String> problems) {

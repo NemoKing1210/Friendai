@@ -441,9 +441,7 @@ public class FreeTimeTests {
         h.assertTrue(
                 c.taskRunner().autonomousActive(),
                 "the shift job runs: " + c.taskRunner().currentToolName());
-        int staySeconds = dev.friendai.task.TaskSettings.stayTimeoutSec;
-        dev.friendai.task.TaskSettings.stayTimeoutSec = 2;
-        c.taskRunner().interrupt(new dev.friendai.task.builtin.StayTask(), "stay");
+        c.taskRunner().interrupt(new dev.friendai.task.builtin.StayTask(40), "stay");
         h.assertTrue(c.taskRunner().movementOrderActive(), "the stay is a movement order, not owner work");
         h.assertTrue(!c.taskRunner().busyWithOther(), "a movement order is not work in the way");
         h.assertTrue(c.taskRunner().queue().plan(plan).isPresent(), "the held plan is still queued");
@@ -456,7 +454,6 @@ public class FreeTimeTests {
                     c.taskRunner().autonomousActive(),
                     "the shift job resumes after the stay: " + c.taskRunner().currentToolName());
             h.assertTrue(driver(h).state(owner).on(), "free time is still on");
-            dev.friendai.task.TaskSettings.stayTimeoutSec = staySeconds;
             driver(h).stop(owner, "test over");
         });
     }
@@ -624,15 +621,19 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
-        int window = dev.friendai.task.TaskSettings.freeTimeWatchdogSec;
-        dev.friendai.task.TaskSettings.freeTimeWatchdogSec = 1;
+        var serverState = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var gson = new com.google.gson.Gson();
+        var originalConfig = gson.fromJson(gson.toJson(serverState.config()), dev.friendai.config.ServerConfig.class);
+        var shortWatchdogConfig = gson.fromJson(gson.toJson(originalConfig), dev.friendai.config.ServerConfig.class);
+        shortWatchdogConfig.tasks.freeTimeWatchdogSec = 1;
+        serverState.applyConfig(shortWatchdogConfig);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         h.succeedWhen(() -> {
             var state = driver(h).state(owner);
             h.assertTrue(
                     state.shift() != null || !c.taskRunner().queue().plans().isEmpty() || state.awaitingChoice(),
                     "the silent director does not leave free time idle: " + state);
-            dev.friendai.task.TaskSettings.freeTimeWatchdogSec = window;
+            serverState.applyConfig(originalConfig);
             driver(h).stop(owner, "test over");
         });
     }

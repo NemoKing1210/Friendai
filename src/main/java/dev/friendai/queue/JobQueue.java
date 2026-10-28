@@ -27,7 +27,7 @@ public final class JobQueue {
 
     public record FailureOutcome(Job job, boolean retried) {}
 
-    private final QueueLimits limits;
+    private QueueLimits limits;
     private final LinkedHashMap<Long, Job> jobs = new LinkedHashMap<>();
     private final LinkedHashMap<Long, PlanRecord> plans = new LinkedHashMap<>();
     private final List<PlanArchive> archives = new ArrayList<>();
@@ -79,6 +79,12 @@ public final class JobQueue {
 
     public QueueLimits limits() {
         return limits;
+    }
+
+    /** Applies current runtime limits without discarding queued work. */
+    public void setLimits(QueueLimits limits) {
+        this.limits = limits == null ? QueueLimits.DEFAULTS : limits;
+        while (archives.size() > this.limits.maxArchives()) archives.removeFirst();
     }
 
     public long clock() {

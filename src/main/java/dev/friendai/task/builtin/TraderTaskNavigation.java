@@ -5,7 +5,6 @@ import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.nav.Navigator;
 import dev.friendai.trading.TraderRecord;
 import java.util.List;
@@ -78,8 +77,9 @@ final class TraderTaskNavigation {
     }
 
     static Navigator navigator(CompanionEntity companion) {
-        PathingConfig noTerrainChanges = TaskSettings.pathing.withActions(false, false);
-        return new Navigator(companion, false, noTerrainChanges);
+        var settings = companion.serverSettings();
+        PathingConfig noTerrainChanges = settings.pathing().withActions(false, false);
+        return new Navigator(companion, false, noTerrainChanges, null, settings);
     }
 
     static void aimAt(Navigator navigator, Entity target, CompanionEntity companion) {

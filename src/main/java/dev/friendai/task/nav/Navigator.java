@@ -1,6 +1,7 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.GoalReach;
@@ -14,8 +15,8 @@ import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
 import dev.friendai.pathing.SearchOptions;
 import dev.friendai.pathing.SearchResult;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -50,9 +51,12 @@ public final class Navigator {
     private static final int TRIM_LOOKAHEAD = 8;
 
     private final CompanionEntity companion;
+    private final ServerSettings settings;
+    private final BlockList breakList;
+    private final BlockList placeList;
     /** Whether a route may place blocks. Approaching a block to act on it walks and digs, but never builds. */
     private final boolean mayPlace;
-    /** Settings for this route, or null to read the live server settings on every use. */
+    /** Route-local action overrides; when absent, the route uses its captured server settings snapshot. */
     private final @Nullable PathingConfig override;
     /** Where blocks this route places are remembered for cleanup, or null when they are meant to stay. */
     private final @Nullable PlacementLedger ledger;
@@ -76,7 +80,7 @@ public final class Navigator {
     private String lastSearch = "";
 
     public Navigator(CompanionEntity companion) {
-        this(companion, true, (PathingConfig) null);
+        this(companion, true, null, null, companion.serverSettings());
     }
 
     /**
@@ -85,15 +89,15 @@ public final class Navigator {
      *     brought for its own work, and a pillar of scaffold blocks would spend both.
      */
     public Navigator(CompanionEntity companion, boolean mayPlace) {
-        this(companion, mayPlace, (PathingConfig) null);
+        this(companion, mayPlace, null, null, companion.serverSettings());
     }
 
     /**
-     * @param override settings for this route only, or null to read the live server settings. A collector that must
-     *     not change the terrain walks with digging and placing switched off.
+     * @param override settings for this route only, or null to use the supplied server snapshot. A collector that
+     *     must not change the terrain walks with digging and placing switched off.
      */
     public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override) {
-        this(companion, mayPlace, override, null);
+        this(companion, mayPlace, override, null, companion.serverSettings());
     }
 
     /**
@@ -105,7 +109,29 @@ public final class Navigator {
             boolean mayPlace,
             @Nullable PathingConfig override,
             @Nullable PlacementLedger ledger) {
+        this(companion, mayPlace, override, ledger, companion.serverSettings());
+    }
+
+    public Navigator(
+            CompanionEntity companion,
+            boolean mayPlace,
+            @Nullable PathingConfig override,
+            @Nullable PlacementLedger ledger,
+            ServerSettings settings) {
         this.companion = companion;
+        this.settings = settings;
+        boolean usesServerLists = override == null
+                || override.breakBlacklist().equals(settings.pathing().breakBlacklist())
+                        && override.placeBlacklist().equals(settings.pathing().placeBlacklist());
+        if (usesServerLists) {
+            this.breakList = settings.breakList();
+            this.placeList = settings.placeList();
+        } else {
+            this.breakList = BlockList.parse(override.breakBlacklist(), ignored -> {});
+            java.util.ArrayList<String> entries = new java.util.ArrayList<>(override.breakBlacklist());
+            entries.addAll(override.placeBlacklist());
+            this.placeList = BlockList.parse(entries, ignored -> {});
+        }
         this.mayPlace = mayPlace;
         this.override = override;
         this.ledger = ledger;
@@ -113,12 +139,16 @@ public final class Navigator {
 
     /** A route that may place blocks and reports them to {@code ledger}. */
     public Navigator(CompanionEntity companion, boolean mayPlace, PlacementLedger ledger) {
-        this(companion, mayPlace, null, ledger);
+        this(companion, mayPlace, null, ledger, companion.serverSettings());
     }
 
-    /** The settings this route uses: its own, or the live server settings. */
+    /** The settings this route captured when it was created, optionally adjusted for route-local actions. */
     private PathingConfig config() {
-        return override != null ? override : TaskSettings.pathing;
+        return override != null ? override : settings.pathing();
+    }
+
+    private MaterialPicker materials(PathingConfig config) {
+        return new MaterialPicker(config, breakList, placeList);
     }
 
     public State state() {
@@ -258,8 +288,8 @@ public final class Navigator {
     /** Searches once more as if the companion carried every block it needs, to learn how many it is short of. */
     private void beginProbe() {
         PathingConfig settings = config();
-        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
-        availableAtProbe = new MaterialPicker(settings).count(companion.inventory());
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
+        availableAtProbe = materials(settings).count(companion.inventory());
         probing = true;
         search = new PathSearch(
                 view,
@@ -278,7 +308,7 @@ public final class Navigator {
         int missing = path.places() - availableAtProbe;
         // A few spare blocks: an extra bridge cell or a pillar is cheaper to gather now than to walk back for.
         int needed = Math.min(missing + 4, config().maxGatherBlocks());
-        gatherer = new MaterialGatherer(needed, avoidCells(path));
+        gatherer = new MaterialGatherer(needed, avoidCells(path), settings);
         state = State.GATHERING;
     }
 
@@ -381,8 +411,8 @@ public final class Navigator {
             executor.stop(c);
         }
         Path trimmed = path.afterNode(node(), TRIM_LOOKAHEAD);
-        plan = PathSmoother.simplify(trimmed, new LevelCellView(companion, config(), CostModel.DEFAULTS));
-        executor = new PathExecutor(plan, new MaterialPicker(config()), config(), PathExecutionGuard.DEFAULT, ledger);
+        plan = PathSmoother.simplify(trimmed, new LevelCellView(companion, config(), CostModel.DEFAULTS, breakList));
+        executor = new PathExecutor(plan, materials(config()), config(), PathExecutionGuard.DEFAULT, ledger, breakList);
         state = State.MOVING;
     }
 
@@ -479,10 +509,10 @@ public final class Navigator {
 
     private void startSearch() {
         PathingConfig settings = config();
-        MaterialPicker materials = new MaterialPicker(settings);
+        MaterialPicker materials = materials(settings);
         int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
-        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
         SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price);
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
@@ -498,12 +528,12 @@ public final class Navigator {
                 return true;
             }
         }
-        return goal.isGoal(node(), new LevelCellView(companion, config(), CostModel.DEFAULTS));
+        return goal.isGoal(node(), new LevelCellView(companion, config(), CostModel.DEFAULTS, breakList));
     }
 
     private Node node() {
         var pos = companion.blockPosition();
-        LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
+        LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS, breakList);
         // A partial support physically contains the feet, while the pure grid puts its node above the support.
         int y = pos.getY();
         if (companion.onGround()

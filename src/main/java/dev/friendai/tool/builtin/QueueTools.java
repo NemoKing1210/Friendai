@@ -17,7 +17,6 @@ import dev.friendai.queue.QueueOptimizer;
 import dev.friendai.queue.QueueText;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.plan.PlanStepFactory;
@@ -77,7 +76,7 @@ final class QueueTools {
                         .build(),
                 AccessLevel.TRUSTED,
                 () -> true,
-                (c, caller, args) -> validateTool(args.getAsJsonArray("steps"), caller, all)));
+                (c, caller, args) -> validateTool(c, args.getAsJsonArray("steps"), caller, all)));
         registry.register(ToolKit.instantTool(
                 "queue_show",
                 "Show queued jobs, plan status, waiting reasons and archives.",
@@ -213,7 +212,7 @@ final class QueueTools {
                 input,
                 schemas,
                 all.keySet(),
-                TaskSettings.queueMaxStepsPerAdd,
+                c.serverSettings().tasks().queueMaxStepsPerAdd(),
                 LIMITS.maxArgsChars(),
                 LIMITS.maxAddChars());
         if (!parsed.ok()) return ToolResult.error("Invalid plan: " + String.join("; ", parsed.errors()));
@@ -277,7 +276,8 @@ final class QueueTools {
                 + bound.worstCaseActions() + " worst-case actions");
     }
 
-    private static ToolResult validateTool(JsonArray steps, Caller caller, Map<String, TaskToolDef> all) {
+    private static ToolResult validateTool(
+            CompanionEntity companion, JsonArray steps, Caller caller, Map<String, TaskToolDef> all) {
         Map<String, TaskToolDef> allowed = allowed(caller, all);
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
         allowed.forEach((n, d) -> schemas.put(n, d.schema()));
@@ -285,7 +285,7 @@ final class QueueTools {
                 steps,
                 schemas,
                 all.keySet(),
-                TaskSettings.queueMaxStepsPerAdd,
+                companion.serverSettings().tasks().queueMaxStepsPerAdd(),
                 LIMITS.maxArgsChars(),
                 LIMITS.maxAddChars());
         if (!parsed.ok())
@@ -542,7 +542,7 @@ final class QueueTools {
                             args.getAsJsonArray("steps"),
                             schemas,
                             all.keySet(),
-                            TaskSettings.queueMaxStepsPerAdd,
+                            c.serverSettings().tasks().queueMaxStepsPerAdd(),
                             LIMITS.maxArgsChars(),
                             LIMITS.maxAddChars());
                     if (!parsed.ok()) return error("Invalid replacement: " + String.join("; ", parsed.errors()));

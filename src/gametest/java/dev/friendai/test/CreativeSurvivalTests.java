@@ -4,7 +4,6 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.mining.BreakAction;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -144,24 +143,26 @@ public final class CreativeSurvivalTests {
         BlockPos target = h.absolutePos(new BlockPos(3, 2, 2));
         h.setBlock(new BlockPos(3, 2, 2), Blocks.DIAMOND_ORE);
         BreakAction action = new BreakAction(target);
-        TaskContext context = new TaskContext(companion, h.getLevel());
-        BlockList oldBreakList = TaskSettings.breakList;
-        TaskSettings.breakList = BlockList.parse(java.util.List.of(), ignored -> {});
-        try {
-            BreakAction.State state = action.tick(context, block -> block.is(Blocks.DIAMOND_ORE));
-            h.assertTrue(state == BreakAction.State.BROKEN, "creative break was refused: " + state);
-            AABB nearby = new AABB(target).inflate(3);
-            h.assertTrue(
-                    h.getLevel().getEntitiesOfClass(ItemEntity.class, nearby).isEmpty(),
-                    "creative break spawned item drops");
-            h.assertTrue(
-                    h.getLevel()
-                            .getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, nearby)
-                            .isEmpty(),
-                    "creative break spawned experience");
-        } finally {
-            TaskSettings.breakList = oldBreakList;
-        }
+        var current = companion.serverSettings();
+        var testSettings = new dev.friendai.server.configuration.ServerSettings(
+                current.tasks(),
+                current.pathing(),
+                BlockList.parse(java.util.List.of(), ignored -> {}),
+                current.placeList(),
+                current.autonomy(),
+                current.trading());
+        TaskContext context = new TaskContext(companion, h.getLevel(), companion.taskRunner(), null, testSettings);
+        BreakAction.State state = action.tick(context, block -> block.is(Blocks.DIAMOND_ORE));
+        h.assertTrue(state == BreakAction.State.BROKEN, "creative break was refused: " + state);
+        AABB nearby = new AABB(target).inflate(3);
+        h.assertTrue(
+                h.getLevel().getEntitiesOfClass(ItemEntity.class, nearby).isEmpty(),
+                "creative break spawned item drops");
+        h.assertTrue(
+                h.getLevel()
+                        .getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, nearby)
+                        .isEmpty(),
+                "creative break spawned experience");
         h.succeed();
     }
 

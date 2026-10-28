@@ -29,7 +29,6 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.queue.JobQueue;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.text.UserMessage;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
@@ -463,7 +462,8 @@ public final class FreeTimeDriver {
         }
         long since = quietSince.computeIfAbsent(owner, id -> nowMillis);
         // Free time switched off on this server is not a stall: nothing may start anyway.
-        if (!IdleWatchdog.due(state.on() && s.enabled(), busy, since, nowMillis, TaskSettings.freeTimeWatchdogSec)) {
+        int watchdogSeconds = FriendaiServerState.get(server).settings().tasks().freeTimeWatchdogSec();
+        if (!IdleWatchdog.due(state.on() && s.enabled(), busy, since, nowMillis, watchdogSeconds)) {
             return;
         }
         quietSince.put(owner, nowMillis);
@@ -475,7 +475,7 @@ public final class FreeTimeDriver {
         if (queueFirstTemplate(owner, companion, f, s, nowMillis)) {
             return;
         }
-        if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= TaskSettings.freeTimeWatchdogSec * 1000L) {
+        if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= watchdogSeconds * 1000L) {
             stallSaidAt.put(owner, nowMillis);
             tell(owner, companion, UserMessage.of("friendai.freetime.stalled"));
         }

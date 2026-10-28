@@ -52,7 +52,7 @@ public final class ResourceJourney {
         this.session = session;
         this.trails = Objects.requireNonNull(trails);
         this.requestChunks = requestChunks;
-        this.navigator = new Navigator(context.companion(), false);
+        this.navigator = new Navigator(context.companion(), false, null, null, context.serverSettings());
         Pos start = current(context);
         executedLeg.add(start);
         legStartedTick = logicalTick(context);

@@ -46,7 +46,6 @@ import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanSave;
@@ -120,7 +119,9 @@ public final class BrainService {
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
         FriendaiTools.Builtins builtins = FriendaiTools.build(
-                () -> this.config.tasks.mineSearchRadius, () -> this.config.tasks.treeSearchRadius, new MemoryAccess() {
+                () -> FriendaiServerState.get(server).settings().tasks().mineSearchRadius(),
+                () -> FriendaiServerState.get(server).settings().tasks().treeSearchRadius(),
+                new MemoryAccess() {
                     @Override
                     public boolean enabled() {
                         return config != null && config.memory.enabled;
@@ -242,7 +243,7 @@ public final class BrainService {
                 () -> selectedGateway,
                 plannerRedactor,
                 plannerTimeout,
-                Math.min(12, TaskSettings.queueMaxStepsPerAdd),
+                Math.min(12, FriendaiServerState.get(server).settings().tasks().queueMaxStepsPerAdd()),
                 8192,
                 49152,
                 plannerAttempts,
@@ -452,7 +453,8 @@ public final class BrainService {
     public void restoreQueue(CompanionEntity companion, String saved) {
         if (saved == null || companion.ownerUuid() == null) return;
         tradeAuthority(companion.ownerUuid()).invalidateAll("trading authority expired after restart");
-        Optional<QueueSave.Decoded> decoded = QueueSave.decode(saved, TaskSettings.queueLimits());
+        Optional<QueueSave.Decoded> decoded = QueueSave.decode(
+                saved, FriendaiServerState.get(server).settings().queueLimits());
         if (decoded.isEmpty()) {
             FriendaiMod.LOGGER.warn("Discarding malformed task queue for {}", companion.ownerUuid());
             return;
@@ -606,8 +608,9 @@ public final class BrainService {
         Task active = data.active() == null || !(companion.level() instanceof ServerLevel level)
                 ? null
                 : TaskFactory.restore(data.active(), level).orElse(null);
-        return Optional.of(SequenceTask.resumed(
-                data.goal(), entries, data.index(), data.done(), active, () -> TaskSettings.taskTimeoutSec * 20));
+        int timeoutTicks = FriendaiServerState.get(server).settings().tasks().taskTimeoutSec() * 20;
+        return Optional.of(
+                SequenceTask.resumed(data.goal(), entries, data.index(), data.done(), active, () -> timeoutTicks));
     }
 
     public void tick() {
@@ -962,14 +965,14 @@ public final class BrainService {
                     || !owner.equals(caller.uuid())
                     || !(companion.level() instanceof ServerLevel level)) return "";
             var book = FriendaiServerState.get(server).trading().book(owner);
-            var tradingConfig = FriendaiServerState.get(server).config().tasks.trading;
+            var tradingConfig = FriendaiServerState.get(server).settings().trading();
             return TradePromptSummary.render(
                     book,
                     companion.hands().player().getUUID(),
                     request,
                     level.getServer().overworld().getGameTime(),
-                    tradingConfig.quoteFreshTicks,
-                    tradingConfig.locationFreshTicks);
+                    tradingConfig.quoteFreshTicks(),
+                    tradingConfig.locationFreshTicks());
         });
         brain.setSkillSource((caller, message, turn) -> FriendaiServerState.get(server)
                 .skills()

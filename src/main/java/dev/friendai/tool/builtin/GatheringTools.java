@@ -5,7 +5,6 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.place.PlaceNames;
 import dev.friendai.task.Task;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.builtin.FellTreeSearchTask;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
@@ -184,7 +183,7 @@ final class GatheringTools {
         BlockPos origin = named ? NearResolver.resolve(c, caller, a) : null;
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
-                : TaskSettings.mineCollectDrops;
+                : c.serverSettings().tasks().mineCollectDrops();
         boolean placed = a.has("placed")
                 && !a.get("placed").isJsonNull()
                 && a.get("placed").getAsBoolean();
@@ -228,7 +227,7 @@ final class GatheringTools {
         int limit = a.has("limit") ? a.get("limit").getAsInt() : 0;
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
-                : TaskSettings.fellCollectDrops;
+                : c.serverSettings().tasks().fellCollectDrops();
         List<TreeFinder.TreeInfo> all = TreeFinder.findObserved(level, origin, observed, leaves, 1 + 8);
         List<TreeFinder.TreeInfo> found = all.stream()
                 .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)

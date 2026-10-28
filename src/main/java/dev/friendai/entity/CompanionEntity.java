@@ -11,13 +11,13 @@ import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.queue.QueueSave;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.FollowTask;
@@ -148,7 +148,11 @@ public class CompanionEntity extends PathfinderMob {
     private final HungerModel hunger = new HungerModel();
     private final ExperienceModel experience = new ExperienceModel();
     private final TaskRunner taskRunner = new TaskRunner(
-            this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow, this::mayFollowOwner);
+            this,
+            () -> serverSettings().tasks().taskTimeoutSec(),
+            () -> serverSettings().tasks().defaultFollow(),
+            this::mayFollowOwner,
+            this::serverSettings);
     private final CombatController combatController = new CombatController(this);
     private final FireReflex fireReflex = new FireReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
@@ -296,6 +300,14 @@ public class CompanionEntity extends PathfinderMob {
         return taskRunner;
     }
 
+    /** The immutable effective config snapshot owned by this companion's server. */
+    public ServerSettings serverSettings() {
+        var server = level().getServer();
+        return server == null
+                ? ServerSettings.DEFAULTS
+                : FriendaiServerState.get(server).settings();
+    }
+
     /**
      * The idle fallback may walk to the owner unless free time is the companion's own business right now or the owner
      * switched following off. Both are persisted, so a reload does not turn the companion back into a follower.
@@ -325,9 +337,11 @@ public class CompanionEntity extends PathfinderMob {
     public boolean followMode() {
         var server = level().getServer();
         if (server == null || ownerUuid == null) {
-            return TaskSettings.defaultFollow;
+            return serverSettings().tasks().defaultFollow();
         }
-        return CompanionLifeData.get(server).followModeChoice(ownerUuid).orElse(TaskSettings.defaultFollow);
+        return CompanionLifeData.get(server)
+                .followModeChoice(ownerUuid)
+                .orElse(serverSettings().tasks().defaultFollow());
     }
 
     /** Switches following; a running default follow stops on the next tick through {@link #mayFollowOwner()}. */

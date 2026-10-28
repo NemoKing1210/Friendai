@@ -7,7 +7,6 @@ import dev.friendai.fire.FireFacts;
 import dev.friendai.fire.FireTarget;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.nav.LevelCellView;
 import java.util.ArrayList;
@@ -261,8 +260,11 @@ public final class FireScan {
             return false;
         }
         if (c.companion().creativeMode()
-                && TaskSettings.breakList.matches(
-                        BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state))) {
+                && c.serverSettings()
+                        .breakList()
+                        .matches(
+                                BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
+                                LevelCellView.tagsOf(state))) {
             return false;
         }
         return c.companion().hands().canInteract(cell) && !PlaceGuard.protects(c, cell);

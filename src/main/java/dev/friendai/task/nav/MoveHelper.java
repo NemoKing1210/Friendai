@@ -128,7 +128,7 @@ public final class MoveHelper {
             flightNavigator = null;
         }
         if (navigator == null) {
-            navigator = new Navigator(companion, mayPlace);
+            navigator = new Navigator(companion, mayPlace, null, null, context.serverSettings());
         }
         if (lastGoal == null || lastGoal.distanceToSqr(target) > goalTolerance * goalTolerance) {
             lastGoal = target;
