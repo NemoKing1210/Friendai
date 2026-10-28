@@ -66,6 +66,8 @@ public final class CompanionCarryData extends SavedData {
 
     private final Map<UUID, OwnerCarry> owners;
     private final int version;
+    /** A file written by a newer build is read but never overwritten. */
+    private final boolean readOnly;
 
     public CompanionCarryData() {
         this(SAVE_VERSION, Map.of());
@@ -74,15 +76,17 @@ public final class CompanionCarryData extends SavedData {
     private CompanionCarryData(int version, Map<UUID, OwnerCarry> owners) {
         if (version > SAVE_VERSION) {
             FriendaiMod.LOGGER.warn(
-                    "Companion carry data has format {} but this build reads {}; keeping nothing",
+                    "Companion carry data has format {} but this build reads {}; keeping it read-only",
                     version,
                     SAVE_VERSION);
-            this.version = SAVE_VERSION;
+            this.version = version;
             this.owners = new HashMap<>();
+            this.readOnly = true;
             return;
         }
         this.version = SAVE_VERSION;
         this.owners = new HashMap<>(owners == null ? Map.of() : owners);
+        this.readOnly = false;
     }
 
     public static CompanionCarryData get(MinecraftServer server) {
@@ -91,7 +95,7 @@ public final class CompanionCarryData extends SavedData {
 
     /** Stores the body captured at death and appends the death, keeping only the newest {@link #MAX_DEATHS}. */
     public void record(UUID owner, CompoundTag body, DeathRecord death) {
-        if (owner == null) {
+        if (owner == null || readOnly) {
             return;
         }
         OwnerCarry current = owners.get(owner);
@@ -114,12 +118,21 @@ public final class CompanionCarryData extends SavedData {
 
     /** Drops the pending body but keeps the death log: the state was applied, the owner still remembers dying. */
     public void clearCarry(UUID owner) {
+        if (readOnly) {
+            return;
+        }
         OwnerCarry current = owners.get(owner);
         if (current == null || !current.hasBody()) {
             return;
         }
         owners.put(owner, new OwnerCarry(new CompoundTag(), current.deaths()));
         setDirty();
+    }
+
+    /** How many deaths this build has recorded for the owner, capped at {@link #MAX_DEATHS}. */
+    public int deathCount(UUID owner) {
+        OwnerCarry current = owners.get(owner);
+        return current == null ? 0 : current.deaths().size();
     }
 
     /** The newest recorded death, empty when the companion has never died in this world. */

@@ -9,10 +9,12 @@ import dev.friendai.chat.ChatRouter;
 import dev.friendai.combat.ProtectionPolicy;
 import dev.friendai.core.CompanionPerception;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.StopReason;
@@ -31,6 +33,7 @@ import dev.friendai.queue.QueuedStep;
 import dev.friendai.skin.SkinHash;
 import dev.friendai.survival.DeathRecord;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +49,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -53,6 +57,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
 
 /** Death keeps what the companion carries, resumes its work and leaves one prompt line behind. */
@@ -122,6 +128,13 @@ public class CompanionDeathTests {
         byte[] skin = {1, 2, 3};
         state.skins().save(owner.getUUID(), skin, true);
         state.companionLife().setCreativeMode(owner.getUUID(), true);
+        long leaseKey = 42L;
+        companion
+                .stationLease()
+                .keep(Station.CRAFTING_TABLE, leaseKey, h.getLevel().getGameTime());
+        BlockPos furnacePos = h.absolutePos(new BlockPos(10, BED_Y, 10));
+        h.setBlock(new BlockPos(10, BED_Y, 10), Blocks.FURNACE);
+        companion.furnaceJobs().add(new FurnaceJob(furnacePos, Station.FURNACE, "iron_ore", "iron_ingot", 0, false));
         companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         companion.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
         companion.hunger().load(7, 2.5f, 1.0f);
@@ -153,12 +166,50 @@ public class CompanionDeathTests {
             h.assertValueEqual(revived.getSkinHash(), SkinHash.of(skin), "the owner's skin must survive death");
             h.assertTrue(revived.isSlimSkin(), "the slim arm model must survive death");
             h.assertTrue(revived.creativeMode(), "the creative preference must survive death");
+            h.assertValueEqual(
+                    revived.stationLease()
+                            .held(Station.CRAFTING_TABLE, h.getLevel().getGameTime())
+                            .orElse(-1L),
+                    leaseKey,
+                    "the station lease must survive death");
+            h.assertTrue(
+                    revived.furnaceJobs().all().stream()
+                            .anyMatch(job -> job.pos().equals(furnacePos)),
+                    "the loaded furnace must survive death");
             h.assertTrue(
                     h.getLevel().getEntitiesOfClass(ItemEntity.class, spot).stream()
                             .noneMatch(item -> item.getItem().is(Items.OAK_LOG)
                                     || item.getItem().is(Items.IRON_BOOTS)),
                     "death must not scatter the carried items");
+
+            TagValueOutput out = TagValueOutput.createWithContext(
+                    ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+            revived.saveWithoutId(out);
+            CompanionEntity copy = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+            copy.load(TagValueInput.create(
+                    ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+            h.assertTrue(
+                    copy.inventory().countItem(Items.OAK_LOG) == 5, "a world reload must keep the restored inventory");
+            h.assertTrue(
+                    copy.getItemBySlot(EquipmentSlot.FEET).is(Items.IRON_BOOTS),
+                    "a world reload must keep the restored equipment");
         });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void aSecondDeathCallIsNotRecordedTwice(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+
+        companion.die(h.getLevel().damageSources().genericKill());
+        companion.die(h.getLevel().damageSources().genericKill());
+
+        h.assertValueEqual(
+                CompanionCarryData.get(h.getLevel().getServer()).deathCount(owner.getUUID()),
+                1,
+                "a repeated death path must not append a second record");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 200)
@@ -409,6 +460,24 @@ public class CompanionDeathTests {
         h.assertValueEqual(
                 decoded.carry(owner).orElseThrow().getString("Probe").orElse(""), "kept", "the body must round-trip");
         h.assertValueEqual(decoded.lastDeath(owner).orElseThrow().describe(), death.describe(), "the death");
+
+        CompoundTag newer = new CompoundTag();
+        newer.putInt("version", 2);
+        newer.put("owners", new CompoundTag());
+        CompanionCarryData future = CompanionCarryData.TYPE
+                .codec()
+                .parse(NbtOps.INSTANCE, newer)
+                .result()
+                .orElseThrow();
+        future.record(owner, body, death);
+        h.assertTrue(future.carry(owner).isEmpty(), "a newer format must not be written by this build");
+        Tag reencoded = CompanionCarryData.TYPE
+                .codec()
+                .encodeStart(NbtOps.INSTANCE, future)
+                .result()
+                .orElseThrow();
+        h.assertValueEqual(
+                ((CompoundTag) reencoded).getInt("version").orElse(0), 2, "the newer version header must be kept");
         h.succeed();
     }
 }

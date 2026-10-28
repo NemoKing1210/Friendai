@@ -279,7 +279,10 @@ public final class CompanionManager {
         companion.applyName(FriendaiServerState.get(level.getServer()).companionName(owner.getUUID()));
         BlockPos spot = spawnSpot(level, owner);
         companion.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, owner.getYRot() + 180.0F, 0.0F);
-        level.addFreshEntity(companion);
+        if (!level.addFreshEntity(companion)) {
+            // Do not index or consume the pending carry: a later summon retries with the state intact.
+            return companion;
+        }
         register(companion);
         // Auto-respawn may be off, or the server restarted between the death and this summon.
         if (CompanionCarryData.get(level.getServer()).carry(owner.getUUID()).isPresent()) {

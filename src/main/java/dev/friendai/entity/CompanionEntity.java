@@ -179,6 +179,8 @@ public class CompanionEntity extends PathfinderMob {
     private int inventoryViewers;
     /** Whether the companion menu is open for this companion: the world keeps running, the companion's work pauses. */
     private boolean menuViewerOpen;
+    /** Capture once: a second death path (external setHealth, a command) must not append another death. */
+    private transient boolean deathCaptured;
 
     private CombatSettings combatSettings = CombatSettings.defaults();
     private PaceMode paceMode = PaceMode.AUTO;
@@ -1021,8 +1023,12 @@ public class CompanionEntity extends PathfinderMob {
 
     @Override
     public void die(DamageSource source) {
-        if (!level().isClientSide() && level() instanceof ServerLevel serverLevel && ownerUuid != null) {
+        if (!level().isClientSide()
+                && level() instanceof ServerLevel serverLevel
+                && ownerUuid != null
+                && !deathCaptured) {
             // Capture while the body, the equipment and the queue are still intact.
+            deathCaptured = true;
             CompanionManager.get(serverLevel.getServer()).onDeath(this, serverLevel, source);
         }
         super.die(source);
