@@ -4,7 +4,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.perception.RelativeDirection;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.mining.BlockMatcher;

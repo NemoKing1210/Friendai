@@ -3,8 +3,8 @@ package dev.friendai.server.configuration;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
-import dev.friendai.pathing.BlockList;
-import dev.friendai.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.trading.TradingRuntimeSettings;
 
 /** Coherent immutable view of the settings consumed by one server runtime. */

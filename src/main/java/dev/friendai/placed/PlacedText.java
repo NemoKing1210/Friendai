@@ -1,6 +1,6 @@
 package dev.friendai.placed;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;

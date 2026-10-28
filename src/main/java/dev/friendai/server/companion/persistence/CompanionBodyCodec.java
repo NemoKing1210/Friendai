@@ -1,11 +1,11 @@
 package dev.friendai.server.companion.persistence;
 
 import com.mojang.serialization.Codec;
-import dev.friendai.combat.CombatSettings;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.movement.PaceMode;
-import dev.friendai.survival.HungerModel;
+import dev.friendai.features.combat.CombatSettings;
+import dev.friendai.features.navigation.movement.PaceMode;
+import dev.friendai.features.survival.HungerModel;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.ValueInput;

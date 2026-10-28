@@ -1,7 +1,7 @@
 package dev.friendai.knowledge.travel;
 
 import com.google.gson.JsonObject;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

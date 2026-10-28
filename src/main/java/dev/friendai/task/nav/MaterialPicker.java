@@ -1,8 +1,8 @@
 package dev.friendai.task.nav;
 
-import dev.friendai.pathing.BlockList;
-import dev.friendai.pathing.MaterialPrices;
-import dev.friendai.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.MaterialPrices;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

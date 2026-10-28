@@ -1,8 +1,8 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.GoalReach;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.GoalReach;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;

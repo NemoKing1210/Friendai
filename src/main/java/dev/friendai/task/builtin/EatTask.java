@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.survival.HungerModel;
+import dev.friendai.features.survival.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

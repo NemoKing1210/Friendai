@@ -1,10 +1,10 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.build.ClearCell;
-import dev.friendai.build.ClearKind;
-import dev.friendai.build.ClearPlan;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.features.construction.blueprint.ClearCell;
+import dev.friendai.features.construction.blueprint.ClearKind;
+import dev.friendai.features.construction.blueprint.ClearPlan;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

@@ -3,7 +3,7 @@ package dev.friendai.entity;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.friendai.FriendaiMod;
-import dev.friendai.survival.DeathRecord;
+import dev.friendai.features.survival.DeathRecord;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,12 +33,22 @@ public final class CompanionCarryData extends SavedData {
     /** How many deaths are kept per owner; the prompt renders only the newest. */
     public static final int MAX_DEATHS = 5;
 
+    private static final Codec<DeathRecord> DEATH_RECORD_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                    Codec.STRING.optionalFieldOf("dimension", "").forGetter(DeathRecord::dimension),
+                    Codec.INT.optionalFieldOf("x", 0).forGetter(DeathRecord::x),
+                    Codec.INT.optionalFieldOf("y", 0).forGetter(DeathRecord::y),
+                    Codec.INT.optionalFieldOf("z", 0).forGetter(DeathRecord::z),
+                    Codec.STRING.optionalFieldOf("cause", "").forGetter(DeathRecord::cause),
+                    Codec.STRING.optionalFieldOf("killer", "").forGetter(DeathRecord::killer),
+                    Codec.LONG.optionalFieldOf("tick", 0L).forGetter(DeathRecord::tick))
+            .apply(instance, DeathRecord::new));
+
     private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths) {
         private static final Codec<OwnerCarry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                         CompoundTag.CODEC
                                 .optionalFieldOf("body", new CompoundTag())
                                 .forGetter(OwnerCarry::body),
-                        DeathRecord.CODEC
+                        DEATH_RECORD_CODEC
                                 .listOf()
                                 .optionalFieldOf("deaths", List.of())
                                 .forGetter(OwnerCarry::deaths))

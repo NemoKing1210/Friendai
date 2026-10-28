@@ -1,16 +1,16 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.build.BlockSpec;
-import dev.friendai.build.Blueprint;
-import dev.friendai.build.BlueprintParser;
-import dev.friendai.build.ParseResult;
-import dev.friendai.build.PartKind;
-import dev.friendai.build.PlacementRefusal;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.construction.blueprint.BlockSpec;
+import dev.friendai.features.construction.blueprint.Blueprint;
+import dev.friendai.features.construction.blueprint.BlueprintParser;
+import dev.friendai.features.construction.blueprint.ParseResult;
+import dev.friendai.features.construction.blueprint.PartKind;
+import dev.friendai.features.construction.blueprint.PlacementRefusal;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
@@ -1010,7 +1010,7 @@ public class BuildTests {
     }
 
     private static Blueprint generator(String json) {
-        ParseResult result = dev.friendai.build.Generators.generate(
+        ParseResult result = dev.friendai.features.construction.blueprint.Generators.generate(
                 com.google.gson.JsonParser.parseString(json).getAsJsonObject(), BlueprintResolver.knownState());
         check(result.blueprint().isPresent(), "generator failed: " + result.errors());
         return result.blueprint().get();

@@ -12,7 +12,7 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;
@@ -99,7 +99,7 @@ public class FreeTimeTests {
     private static void drainHunger(GameTestHelper h, CompanionEntity c, int target) {
         while (c.hunger().food() > target) {
             c.hunger().addExhaustion(4.0f);
-            c.hunger().tick(dev.friendai.survival.Difficulty.NORMAL, true, c.getHealth(), c.getMaxHealth());
+            c.hunger().tick(dev.friendai.features.survival.Difficulty.NORMAL, true, c.getHealth(), c.getMaxHealth());
         }
     }
 

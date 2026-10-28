@@ -1,8 +1,8 @@
 package dev.friendai.task.farming;
 
-import dev.friendai.farming.CropBook;
-import dev.friendai.farming.CropInfo;
-import dev.friendai.farming.Soil;
+import dev.friendai.features.farming.CropBook;
+import dev.friendai.features.farming.CropInfo;
+import dev.friendai.features.farming.Soil;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

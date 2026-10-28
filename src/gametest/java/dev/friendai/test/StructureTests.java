@@ -7,11 +7,11 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.construction.special.Offset;
+import dev.friendai.features.construction.special.SpecialStructure;
+import dev.friendai.features.construction.special.StructureBook;
+import dev.friendai.features.construction.special.StructureSnapshot;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.structure.Offset;
-import dev.friendai.structure.SpecialStructure;
-import dev.friendai.structure.StructureBook;
-import dev.friendai.structure.StructureSnapshot;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.SpecialStructureTask;
@@ -124,7 +124,7 @@ public class StructureTests {
         h.setBlock(3, 2, 2, net.minecraft.world.level.block.Blocks.IRON_BLOCK);
         StructureSnapshot snap = snapshot(h, c, "iron_golem", 4);
         h.assertTrue(
-                snap.correctBodyBlocks().contains(new dev.friendai.structure.Offset(1, 0, 0)),
+                snap.correctBodyBlocks().contains(new dev.friendai.features.construction.special.Offset(1, 0, 0)),
                 "the iron block at offset 1,0,0 should count as built");
         h.assertTrue(snap.footprintFree(), "a correct body block does not block the footprint");
         h.succeed();

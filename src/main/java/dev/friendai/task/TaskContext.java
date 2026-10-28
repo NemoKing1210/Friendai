@@ -1,10 +1,10 @@
 package dev.friendai.task;
 
 import dev.friendai.core.CreativeModeService;
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import java.util.Optional;

@@ -4,7 +4,7 @@ import dev.friendai.FriendaiMod;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugDetail;
 import dev.friendai.debug.MovementDebug;
-import dev.friendai.pathing.Move;
+import dev.friendai.features.navigation.pathing.Move;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.DeltaTracker;

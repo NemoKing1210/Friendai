@@ -2,6 +2,7 @@ package dev.friendai.task.mining;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.mining.BreakProgress;
 import dev.friendai.task.TaskContext;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;

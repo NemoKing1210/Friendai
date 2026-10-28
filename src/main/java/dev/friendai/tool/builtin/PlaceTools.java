@@ -7,7 +7,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceQuery;

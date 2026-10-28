@@ -5,7 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.movement.PaceMode;
+import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;

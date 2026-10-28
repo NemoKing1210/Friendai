@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
-import dev.friendai.movement.Facing;
+import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.ApproachTask;
 import dev.friendai.task.builtin.CircleTask;

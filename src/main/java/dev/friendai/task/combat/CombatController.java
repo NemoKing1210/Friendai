@@ -1,22 +1,22 @@
 package dev.friendai.task.combat;
 
-import dev.friendai.combat.CombatDecision;
-import dev.friendai.combat.CombatPolicy;
-import dev.friendai.combat.CombatSettings;
-import dev.friendai.combat.CombatSnapshot;
-import dev.friendai.combat.GroupPressure;
-import dev.friendai.combat.PotionFacts;
-import dev.friendai.combat.PotionPolicy;
-import dev.friendai.combat.ProjectileThreat;
-import dev.friendai.combat.ProtectionPolicy;
-import dev.friendai.combat.ShieldPolicy;
-import dev.friendai.combat.ThreatTable;
-import dev.friendai.combat.WeaponPolicy;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.movement.Facing;
+import dev.friendai.features.combat.CombatDecision;
+import dev.friendai.features.combat.CombatPolicy;
+import dev.friendai.features.combat.CombatSettings;
+import dev.friendai.features.combat.CombatSnapshot;
+import dev.friendai.features.combat.GroupPressure;
+import dev.friendai.features.combat.PotionFacts;
+import dev.friendai.features.combat.PotionPolicy;
+import dev.friendai.features.combat.ProjectileThreat;
+import dev.friendai.features.combat.ProtectionPolicy;
+import dev.friendai.features.combat.ShieldPolicy;
+import dev.friendai.features.combat.ThreatTable;
+import dev.friendai.features.combat.WeaponPolicy;
+import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.features.survival.HungerModel;
 import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
-import dev.friendai.survival.HungerModel;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
 import java.util.ArrayList;
@@ -1045,13 +1045,13 @@ public final class CombatController {
             } else {
                 decision = new CombatDecision(CombatDecision.Action.ATTACK, reasonFor(targetKind));
                 // Cautious fighters raise the shield between swings.
-                if (companion.combatSettings().style() == dev.friendai.combat.FightingStyle.CAUTIOUS
+                if (companion.combatSettings().style() == dev.friendai.features.combat.FightingStyle.CAUTIOUS
                         && shieldAvailable()) {
                     raiseShield();
                     decision = new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.POSITION);
                 }
             }
-        } else if (companion.combatSettings().style() == dev.friendai.combat.FightingStyle.RANGED
+        } else if (companion.combatSettings().style() == dev.friendai.features.combat.FightingStyle.RANGED
                 && Equipment.hasBowAndArrows(companion)
                 && distance < 5.0
                 && backOff(level, enemy)) {

@@ -11,7 +11,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;

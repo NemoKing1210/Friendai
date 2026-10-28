@@ -1,7 +1,7 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.movement.PacePolicy;
+import dev.friendai.features.navigation.movement.PacePolicy;
 
 /** Applies the pace policy to one companion: turns sprinting on or off from its mode and situation. */
 public final class Pace {

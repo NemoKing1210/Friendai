@@ -1,9 +1,9 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceSource;

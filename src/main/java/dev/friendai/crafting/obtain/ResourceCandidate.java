@@ -1,6 +1,6 @@
 package dev.friendai.crafting.obtain;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.Objects;
 
 /** A historical resource site offered as a conditional acquisition source. */

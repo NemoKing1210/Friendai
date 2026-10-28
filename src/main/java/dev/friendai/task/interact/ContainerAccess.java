@@ -2,9 +2,9 @@ package dev.friendai.task.interact;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.knowledge.ResourceObservation;
-import dev.friendai.pathing.Pos;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;

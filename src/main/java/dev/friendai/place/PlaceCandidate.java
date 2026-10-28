@@ -1,6 +1,6 @@
 package dev.friendai.place;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 
 /**
  * A place a task noticed on its own, before the registry decides whether it is new. Produced by tasks and turned

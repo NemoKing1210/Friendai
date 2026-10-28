@@ -5,8 +5,8 @@ import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.ResourceObservation;
-import dev.friendai.pathing.Pos;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
@@ -634,7 +634,7 @@ public class ResourceObservationTests {
         return outcome;
     }
 
-    private static dev.friendai.pathing.Pos pos(BlockPos pos) {
-        return new dev.friendai.pathing.Pos(pos.getX(), pos.getY(), pos.getZ());
+    private static dev.friendai.features.navigation.pathing.Pos pos(BlockPos pos) {
+        return new dev.friendai.features.navigation.pathing.Pos(pos.getX(), pos.getY(), pos.getZ());
     }
 }

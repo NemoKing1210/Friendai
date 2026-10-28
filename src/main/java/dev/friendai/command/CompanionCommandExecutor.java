@@ -1,7 +1,7 @@
 package dev.friendai.command;
 
-import dev.friendai.creative.CreativeCommandPolicy;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.creative.CreativeCommandPolicy;
 import dev.friendai.net.Operators;
 import java.util.ArrayList;
 import java.util.List;

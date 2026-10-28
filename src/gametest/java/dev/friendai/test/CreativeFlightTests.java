@@ -1,13 +1,13 @@
 package dev.friendai.test;
 
 import dev.friendai.core.CreativeModeService;
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.movement.Facing;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;

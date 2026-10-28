@@ -291,8 +291,9 @@ public class ObtainTests {
                                 "minecraft:acacia_log",
                                 new dev.friendai.knowledge.ResourceObservation.Location(
                                         level.dimension().identifier().toString(),
-                                        new dev.friendai.pathing.Pos(log.getX(), log.getY(), log.getZ())),
-                                new dev.friendai.pathing.Pos(2, 2, 2),
+                                        new dev.friendai.features.navigation.pathing.Pos(
+                                                log.getX(), log.getY(), log.getZ())),
+                                new dev.friendai.features.navigation.pathing.Pos(2, 2, 2),
                                 level.getServer().overworld().getGameTime()));
         h.runAfterDelay(20, () -> {
             WorldFacts world = WorldScan.scan(level, c, 32, false, false);

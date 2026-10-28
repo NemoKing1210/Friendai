@@ -1,8 +1,8 @@
 package dev.friendai.task.build;
 
-import dev.friendai.build.BlockSpec;
-import dev.friendai.build.Blueprint;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.construction.blueprint.BlockSpec;
+import dev.friendai.features.construction.blueprint.Blueprint;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;

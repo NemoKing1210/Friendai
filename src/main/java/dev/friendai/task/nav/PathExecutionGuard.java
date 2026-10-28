@@ -1,7 +1,7 @@
 package dev.friendai.task.nav;
 
-import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 
 /** Live execution checks applied immediately before a path break or move. */

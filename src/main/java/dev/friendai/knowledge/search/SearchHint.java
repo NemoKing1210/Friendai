@@ -1,6 +1,6 @@
 package dev.friendai.knowledge.search;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.Objects;
 
 /**

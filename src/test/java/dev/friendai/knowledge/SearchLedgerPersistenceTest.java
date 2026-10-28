@@ -3,11 +3,11 @@ package dev.friendai.knowledge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.search.ResourceSearchProfile;
 import dev.friendai.knowledge.search.SearchCoverage;
 import dev.friendai.knowledge.search.SearchLedger;
 import dev.friendai.knowledge.search.SearchSession;
-import dev.friendai.pathing.Pos;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

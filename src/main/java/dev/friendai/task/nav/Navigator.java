@@ -1,20 +1,20 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.BlockList;
-import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.GoalPoint;
-import dev.friendai.pathing.GoalReach;
-import dev.friendai.pathing.Node;
-import dev.friendai.pathing.Path;
-import dev.friendai.pathing.PathGoal;
-import dev.friendai.pathing.PathSearch;
-import dev.friendai.pathing.PathSmoother;
-import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.PathingConfig;
-import dev.friendai.pathing.Pos;
-import dev.friendai.pathing.SearchOptions;
-import dev.friendai.pathing.SearchResult;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.GoalPoint;
+import dev.friendai.features.navigation.pathing.GoalReach;
+import dev.friendai.features.navigation.pathing.Node;
+import dev.friendai.features.navigation.pathing.Path;
+import dev.friendai.features.navigation.pathing.PathGoal;
+import dev.friendai.features.navigation.pathing.PathSearch;
+import dev.friendai.features.navigation.pathing.PathSmoother;
+import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.features.navigation.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.features.navigation.pathing.SearchOptions;
+import dev.friendai.features.navigation.pathing.SearchResult;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
@@ -537,7 +537,8 @@ public final class Navigator {
         // A partial support physically contains the feet, while the pure grid puts its node above the support.
         int y = pos.getY();
         if (companion.onGround()
-                && view.at(pos.getX(), y, pos.getZ()).kind() == dev.friendai.pathing.Cell.Kind.PARTIAL) {
+                && view.at(pos.getX(), y, pos.getZ()).kind()
+                        == dev.friendai.features.navigation.pathing.Cell.Kind.PARTIAL) {
             y++;
         }
         return new Node(pos.getX(), y, pos.getZ());

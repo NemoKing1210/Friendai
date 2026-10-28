@@ -2,10 +2,10 @@ package dev.friendai.task.fire;
 
 import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.fire.BurningCell;
-import dev.friendai.fire.FireFacts;
-import dev.friendai.fire.FireTarget;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.fire.BurningCell;
+import dev.friendai.features.fire.FireFacts;
+import dev.friendai.features.fire.FireTarget;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.nav.LevelCellView;
@@ -29,7 +29,7 @@ import net.minecraft.world.phys.AABB;
 
 /**
  * Reads the world for one fire decision: which cells burn, what each of them allows, and what the bag holds.
- * Server thread only; the result is plain data for {@link dev.friendai.fire.FirePlanner}.
+ * Server thread only; the result is plain data for {@link dev.friendai.features.fire.FirePlanner}.
  */
 public final class FireScan {
     /** How close the companion has to be to act on a cell, matching {@code Approach.REACH}. */

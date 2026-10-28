@@ -2,10 +2,10 @@ package dev.friendai.task.nav;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.ExpeditionChunkHorizon;
+import dev.friendai.features.navigation.pathing.GoalPoint;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.search.SearchSession;
 import dev.friendai.knowledge.travel.TrailGraph;
-import dev.friendai.pathing.GoalPoint;
-import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.List;

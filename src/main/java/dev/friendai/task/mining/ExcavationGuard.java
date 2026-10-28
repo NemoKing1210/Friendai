@@ -1,15 +1,15 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.mining.MiningBounds;
+import dev.friendai.features.mining.MiningSafety;
+import dev.friendai.features.navigation.pathing.Cell;
+import dev.friendai.features.navigation.pathing.CellView;
+import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.features.navigation.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.mining.MiningBounds;
-import dev.friendai.mining.MiningSafety;
-import dev.friendai.pathing.Cell;
-import dev.friendai.pathing.CellView;
-import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.PathingConfig;
-import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.LevelCellView;
@@ -106,7 +106,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         }
         CellView view = planningView(context, context.serverSettings().pathing());
         var block = companion.blockPosition();
-        var stance = new dev.friendai.pathing.Node(block.getX(), block.getY(), block.getZ());
+        var stance = new dev.friendai.features.navigation.pathing.Node(block.getX(), block.getY(), block.getZ());
         return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
     }
 

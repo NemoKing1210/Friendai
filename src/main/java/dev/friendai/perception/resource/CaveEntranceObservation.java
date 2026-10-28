@@ -1,6 +1,6 @@
 package dev.friendai.perception.resource;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.Objects;
 
 /** Short-lived evidence of an open cave passage proven by one direct, unobstructed sight ray. */

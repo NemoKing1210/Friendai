@@ -1,9 +1,9 @@
 package dev.friendai.task.build;
 
-import dev.friendai.build.ClearCell;
-import dev.friendai.build.ClearKind;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.BlockList;
+import dev.friendai.features.construction.blueprint.ClearCell;
+import dev.friendai.features.construction.blueprint.ClearKind;
+import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.task.nav.LevelCellView;
 import java.util.ArrayList;
 import java.util.EnumMap;

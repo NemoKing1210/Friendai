@@ -2,7 +2,8 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.farming.FarmReport;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
@@ -12,7 +13,6 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.farming.FarmPass;
-import dev.friendai.task.farming.FarmReport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;

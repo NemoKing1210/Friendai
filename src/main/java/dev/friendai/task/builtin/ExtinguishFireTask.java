@@ -1,12 +1,12 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.fire.BurningCell;
-import dev.friendai.fire.ExtinguishPlan;
-import dev.friendai.fire.ExtinguishStep;
-import dev.friendai.fire.FirePlanner;
-import dev.friendai.fire.FireTarget;
-import dev.friendai.fire.FireText;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.fire.BurningCell;
+import dev.friendai.features.fire.ExtinguishPlan;
+import dev.friendai.features.fire.ExtinguishStep;
+import dev.friendai.features.fire.FirePlanner;
+import dev.friendai.features.fire.FireTarget;
+import dev.friendai.features.fire.FireText;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

@@ -1,16 +1,16 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.movement.PathSteering;
-import dev.friendai.pathing.BlockList;
-import dev.friendai.pathing.CellView;
-import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.Move;
-import dev.friendai.pathing.MoveGenerator;
-import dev.friendai.pathing.Path;
-import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.PathingConfig;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.movement.PathSteering;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.CellView;
+import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.features.navigation.pathing.MoveGenerator;
+import dev.friendai.features.navigation.pathing.Path;
+import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.features.navigation.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BreakAction;

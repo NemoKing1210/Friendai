@@ -2,11 +2,11 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.mining.MiningBounds;
-import dev.friendai.pathing.Move;
-import dev.friendai.pathing.Node;
-import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.mining.MiningBounds;
+import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.features.navigation.pathing.Node;
+import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;

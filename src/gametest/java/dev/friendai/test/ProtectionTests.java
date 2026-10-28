@@ -9,7 +9,7 @@ import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceSource;

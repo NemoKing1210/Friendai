@@ -13,6 +13,10 @@ final class PackageDependencyRules {
             "dev.friendai.server.runtime.ServerRuntime",
             "dev.friendai.server.runtime.ServerRuntimeFactory",
             "dev.friendai.server.runtime.ServerTickPipeline");
+    private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
+            new FeatureDependency("mining", "navigation"),
+            new FeatureDependency("fire", "navigation"),
+            new FeatureDependency("construction", "navigation"));
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
             "dev.friendai.config",
@@ -71,6 +75,9 @@ final class PackageDependencyRules {
             }
             if (isUnder(source, "dev.friendai.features") && isFeatureAdapter(source, target)) {
                 add(violations, "feature-to-server", edge);
+            }
+            if (hasUnlistedFeatureDependency(source, target)) {
+                add(violations, "feature-dependency-not-allowed", edge);
             }
             if (isUnder(source, "dev.friendai.agent")
                     && !isUnder(source, "dev.friendai.agent.llm.protocol")
@@ -157,6 +164,22 @@ final class PackageDependencyRules {
                 || !isMinecraftFeatureAdapter(source) && isPlatformPackage(target);
     }
 
+    private static boolean hasUnlistedFeatureDependency(String source, String target) {
+        if (!isUnder(source, "dev.friendai.features") || !isUnder(target, "dev.friendai.features")) {
+            return false;
+        }
+        String sourceFeature = featureBoundary(source);
+        String targetFeature = featureBoundary(target);
+        return !sourceFeature.equals(targetFeature)
+                && !ALLOWED_FEATURE_DEPENDENCIES.contains(new FeatureDependency(sourceFeature, targetFeature));
+    }
+
+    private static String featureBoundary(String className) {
+        String featureClass = className.substring("dev.friendai.features.".length());
+        int nextPackage = featureClass.indexOf('.');
+        return nextPackage < 0 ? featureClass : featureClass.substring(0, nextPackage);
+    }
+
     private static boolean isMinecraftFeatureAdapter(String className) {
         if (!isUnder(className, "dev.friendai.features")) {
             return false;
@@ -222,6 +245,8 @@ final class PackageDependencyRules {
             }
         }
     }
+
+    private record FeatureDependency(String sourceFeature, String targetFeature) {}
 
     record Violation(String ruleId, String sourceClass, String targetClass) {
         Violation {

@@ -1,6 +1,6 @@
 package dev.friendai.task.build;
 
-import dev.friendai.build.Blueprint;
+import dev.friendai.features.construction.blueprint.Blueprint;
 import java.util.UUID;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;

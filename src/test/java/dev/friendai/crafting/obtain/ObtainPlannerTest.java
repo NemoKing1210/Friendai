@@ -8,7 +8,7 @@ import dev.friendai.crafting.FakeRecipeBook;
 import dev.friendai.crafting.Ingredient;
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

@@ -1,7 +1,7 @@
 package dev.friendai.task.structure;
 
-import dev.friendai.structure.Offset;
-import dev.friendai.structure.SpecialStructure;
+import dev.friendai.features.construction.special.Offset;
+import dev.friendai.features.construction.special.SpecialStructure;
 import dev.friendai.task.build.Placement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Rotation;

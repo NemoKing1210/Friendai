@@ -1,7 +1,7 @@
 package dev.friendai.server.execution;
 
-import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 

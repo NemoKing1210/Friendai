@@ -3,7 +3,7 @@ package dev.friendai.place;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 

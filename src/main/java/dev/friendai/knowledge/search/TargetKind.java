@@ -2,7 +2,7 @@ package dev.friendai.knowledge.search;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;

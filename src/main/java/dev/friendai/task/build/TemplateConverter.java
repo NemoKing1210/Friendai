@@ -1,8 +1,8 @@
 package dev.friendai.task.build;
 
-import dev.friendai.build.BlockSpec;
-import dev.friendai.build.Blueprint;
-import dev.friendai.build.ParseResult;
+import dev.friendai.features.construction.blueprint.BlockSpec;
+import dev.friendai.features.construction.blueprint.Blueprint;
+import dev.friendai.features.construction.blueprint.ParseResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

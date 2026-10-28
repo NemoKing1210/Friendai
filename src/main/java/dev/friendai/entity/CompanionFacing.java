@@ -1,7 +1,7 @@
 package dev.friendai.entity;
 
-import dev.friendai.movement.BodyFacing;
-import dev.friendai.movement.Facing;
+import dev.friendai.features.navigation.movement.BodyFacing;
+import dev.friendai.features.navigation.movement.Facing;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 

@@ -1,13 +1,13 @@
 package dev.friendai.core;
 
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.creative.CreativeActionContext;
-import dev.friendai.creative.CreativeMode;
-import dev.friendai.creative.CreativePermissions;
-import dev.friendai.creative.CreativePolicy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.features.creative.CreativeMode;
+import dev.friendai.features.creative.CreativePermissions;
+import dev.friendai.features.creative.CreativePolicy;
 import dev.friendai.net.Operators;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;

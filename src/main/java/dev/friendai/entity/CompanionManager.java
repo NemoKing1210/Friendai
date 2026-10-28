@@ -1,7 +1,7 @@
 package dev.friendai.entity;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.survival.DeathRecord;
+import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.SleepTask;
 import java.util.ArrayList;

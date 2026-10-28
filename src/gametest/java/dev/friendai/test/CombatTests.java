@@ -2,7 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.movement.PaceMode;
+import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -210,7 +210,7 @@ public class CombatTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatMode(dev.friendai.task.combat.CombatMode.GUARD);
+        c.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         ZombieVillager zombieVillager = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE_VILLAGER, 8, 2, 2);
         roof(h, 8, 2);
@@ -255,7 +255,7 @@ public class CombatTests {
         ServerPlayer other = GameTestSupport.mockPlayerAt(h, 14, 2, 14);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatMode(dev.friendai.task.combat.CombatMode.GUARD);
+        c.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
         Wolf wolf = h.spawn(EntityTypes.WOLF, 6, 2, 2);
         wolf.tame(other);
         Villager villager = h.spawn(EntityTypes.VILLAGER, 7, 2, 3);
@@ -338,7 +338,7 @@ public class CombatTests {
     public void passiveRunsAway(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 2, 7);
-        c.setCombatMode(dev.friendai.task.combat.CombatMode.PASSIVE);
+        c.setCombatMode(dev.friendai.features.combat.CombatMode.PASSIVE);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 10, 2, 7);
         zombie.setCustomName(Component.literal("test-passive-zombie"));
         roof(h, 10, 7);
@@ -869,7 +869,8 @@ public class CombatTests {
         target.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
+        c.setCombatSettings(
+                c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT));
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         c.executionCoordinator()
                 .start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
@@ -896,7 +897,8 @@ public class CombatTests {
         target.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT));
+        c.setCombatSettings(
+                c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT));
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         c.executionCoordinator()
                 .start(new AttackPlayerTask(target.getUUID(), target.getName().getString()), "attack_player");
@@ -924,8 +926,8 @@ public class CombatTests {
                             + c.executionCoordinator().current().map(task -> task.type()));
             h.assertValueEqual(
                     c.combatSettings(),
-                    dev.friendai.combat.CombatSettings.defaults()
-                            .withProtection(dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT),
+                    dev.friendai.features.combat.CombatSettings.defaults()
+                            .withProtection(dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT),
                     "stop changed the protection settings");
             target.kill(h.getLevel());
             h.succeed();
@@ -936,8 +938,8 @@ public class CombatTests {
     public void perceptionDescribesProtectionAndStyle(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setCombatSettings(c.combatSettings()
-                .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
-                .withStyle(dev.friendai.combat.FightingStyle.RANGED));
+                .withProtection(dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY)
+                .withStyle(dev.friendai.features.combat.FightingStyle.RANGED));
         var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
         String text = dev.friendai.perception.PerceptionBuilder.brief(
                         c,

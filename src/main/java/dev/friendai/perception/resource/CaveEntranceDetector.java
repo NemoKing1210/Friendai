@@ -1,6 +1,6 @@
 package dev.friendai.perception.resource;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.List;
 import java.util.Optional;
 

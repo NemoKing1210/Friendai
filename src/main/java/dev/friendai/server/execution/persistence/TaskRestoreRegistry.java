@@ -1,8 +1,6 @@
 package dev.friendai.server.execution.persistence;
 
 import com.google.gson.JsonObject;
-import dev.friendai.build.Blueprint;
-import dev.friendai.build.PartKind;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanNode;
@@ -10,6 +8,8 @@ import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.construction.blueprint.Blueprint;
+import dev.friendai.features.construction.blueprint.PartKind;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

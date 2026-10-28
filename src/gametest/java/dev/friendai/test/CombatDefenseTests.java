@@ -1,8 +1,8 @@
 package dev.friendai.test;
 
-import dev.friendai.combat.ProtectionPolicy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.combat.ProtectionPolicy;
 import dev.friendai.task.combat.CombatController;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -96,7 +96,7 @@ public class CombatDefenseTests {
     public void shieldRestoresOffhandOnStop(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
-        c.setCombatSettings(c.combatSettings().withStyle(dev.friendai.combat.FightingStyle.CAUTIOUS));
+        c.setCombatSettings(c.combatSettings().withStyle(dev.friendai.features.combat.FightingStyle.CAUTIOUS));
         c.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TORCH));
         c.inventory().addItem(new ItemStack(Items.SHIELD));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 4, 2, 3);

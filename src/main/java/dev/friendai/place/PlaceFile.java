@@ -2,7 +2,7 @@ package dev.friendai.place;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;

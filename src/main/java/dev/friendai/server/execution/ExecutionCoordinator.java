@@ -1,8 +1,6 @@
 package dev.friendai.server.execution;
 
 import dev.friendai.core.CreativeModeService;
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;
@@ -19,7 +17,9 @@ import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.movement.MovementOrders;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.features.navigation.movement.MovementOrders;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;

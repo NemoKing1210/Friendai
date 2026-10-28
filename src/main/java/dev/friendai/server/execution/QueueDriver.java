@@ -1,6 +1,5 @@
 package dev.friendai.server.execution;
 
-import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardFacts;
@@ -17,6 +16,7 @@ import dev.friendai.execution.queue.QueuePolicy;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.plan.PlanStepFactory;

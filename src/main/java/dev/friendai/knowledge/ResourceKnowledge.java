@@ -1,9 +1,9 @@
 package dev.friendai.knowledge;
 
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.search.SearchCoverage;
 import dev.friendai.knowledge.search.SearchLedger;
 import dev.friendai.knowledge.travel.TrailGraph;
-import dev.friendai.pathing.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

@@ -169,14 +169,15 @@ public class CompanionEntityTests {
     @GameTest
     public void combatModeSurvivesSave(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
-        a.setCombatMode(dev.friendai.task.combat.CombatMode.GUARD);
+        a.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
         TagValueOutput out = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertTrue(b.combatMode() == dev.friendai.task.combat.CombatMode.GUARD, "combat mode was " + b.combatMode());
+        h.assertTrue(
+                b.combatMode() == dev.friendai.features.combat.CombatMode.GUARD, "combat mode was " + b.combatMode());
 
         CompanionEntity fresh = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
         TagValueOutput plain = TagValueOutput.createWithContext(
@@ -186,7 +187,7 @@ public class CompanionEntityTests {
         loaded.load(
                 TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), plain.buildResult()));
         h.assertTrue(
-                loaded.combatMode() == dev.friendai.task.combat.CombatMode.DEFENSIVE,
+                loaded.combatMode() == dev.friendai.features.combat.CombatMode.DEFENSIVE,
                 "missing mode should default to defensive, was " + loaded.combatMode());
         h.succeed();
     }
@@ -194,12 +195,12 @@ public class CompanionEntityTests {
     @GameTest
     public void combatSettingsRoundTrip(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
-        dev.friendai.combat.CombatSettings settings = new dev.friendai.combat.CombatSettings(
-                dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
-                dev.friendai.combat.FightingStyle.RANGED,
+        dev.friendai.features.combat.CombatSettings settings = new dev.friendai.features.combat.CombatSettings(
+                dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY,
+                dev.friendai.features.combat.FightingStyle.RANGED,
                 true,
                 40,
-                dev.friendai.combat.RetreatPreference.CONSERVATIVE);
+                dev.friendai.features.combat.RetreatPreference.CONSERVATIVE);
         a.setCombatSettings(settings);
         TagValueOutput out = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());
@@ -221,7 +222,7 @@ public class CompanionEntityTests {
                 TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
         h.assertValueEqual(
                 loaded.combatSettings(),
-                dev.friendai.combat.CombatSettings.defaults(),
+                dev.friendai.features.combat.CombatSettings.defaults(),
                 "the target format ignores the retired legacy key");
         h.succeed();
     }
@@ -238,11 +239,11 @@ public class CompanionEntityTests {
                 TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
         h.assertValueEqual(
                 loaded.combatSettings(),
-                dev.friendai.combat.CombatSettings.defaults(),
+                dev.friendai.features.combat.CombatSettings.defaults(),
                 "malformed settings must fall back to the whole safe default");
         h.assertValueEqual(
                 loaded.combatSettings().protection(),
-                dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+                dev.friendai.features.combat.ProtectionPolicy.BODYGUARD,
                 "malformed data must not silently grant guard behaviour");
         h.succeed();
     }
@@ -252,18 +253,18 @@ public class CompanionEntityTests {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         a.setCombatSettings(a.combatSettings()
-                .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
+                .withProtection(dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY)
                 .withPursuitLimit(12));
         b.setCombatSettings(b.combatSettings()
-                .withProtection(dev.friendai.combat.ProtectionPolicy.GUARD)
+                .withProtection(dev.friendai.features.combat.ProtectionPolicy.GUARD)
                 .withPursuitLimit(48));
         h.assertValueEqual(
                 a.combatSettings().protection(),
-                dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
+                dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY,
                 "first owner settings changed");
         h.assertValueEqual(
                 b.combatSettings().protection(),
-                dev.friendai.combat.ProtectionPolicy.GUARD,
+                dev.friendai.features.combat.ProtectionPolicy.GUARD,
                 "second owner settings changed");
         h.assertValueEqual(a.combatSettings().pursuitLimitBlocks(), 12, "first pursuit changed");
         h.assertValueEqual(b.combatSettings().pursuitLimitBlocks(), 48, "second pursuit changed");

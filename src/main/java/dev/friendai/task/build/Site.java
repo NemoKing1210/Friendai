@@ -1,8 +1,8 @@
 package dev.friendai.task.build;
 
-import dev.friendai.build.PlacementRefusal;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.construction.blueprint.PlacementRefusal;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.placed.PlacedBlock;
 import dev.friendai.placed.PlacedQuery;
 import dev.friendai.placed.PlacedService;

@@ -1,8 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.ResourceSite;
-import dev.friendai.pathing.Pos;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

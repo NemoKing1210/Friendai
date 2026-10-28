@@ -1,8 +1,8 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.MaterialPrices;
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.MaterialPrices;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceQuery;

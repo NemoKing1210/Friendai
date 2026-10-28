@@ -2,7 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.movement.Emotes;
+import dev.friendai.features.navigation.movement.Emotes;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.builtin.EmoteTask;
 import dev.friendai.task.builtin.RelativeMoveTask;

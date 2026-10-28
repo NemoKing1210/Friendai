@@ -687,7 +687,7 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "set_combat_mode", "{\"mode\":\"guard\"}");
         h.assertTrue(!r.error() && r.content().equals("combat mode is now guard"), "result was " + r.content());
-        h.assertTrue(c.combatMode() == dev.friendai.task.combat.CombatMode.GUARD, "mode was " + c.combatMode());
+        h.assertTrue(c.combatMode() == dev.friendai.features.combat.CombatMode.GUARD, "mode was " + c.combatMode());
         h.succeed();
     }
 
@@ -715,7 +715,7 @@ public class ToolTests {
         }
         h.assertValueEqual(
                 c.combatSettings(),
-                dev.friendai.combat.CombatSettings.defaults(),
+                dev.friendai.features.combat.CombatSettings.defaults(),
                 "unauthorized calls changed settings");
         h.succeed();
     }
@@ -729,14 +729,14 @@ public class ToolTests {
         h.assertTrue(bad.error(), "out-of-range pursuit was accepted: " + bad.content());
         h.assertValueEqual(
                 c.combatSettings().protection(),
-                dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+                dev.friendai.features.combat.ProtectionPolicy.BODYGUARD,
                 "the valid field was applied despite the invalid one");
 
         ToolResult unknown = runAs(tools, "set_combat_settings", "{\"protection\":\"friendship\"}", owner);
         h.assertTrue(unknown.error(), "unknown label was accepted: " + unknown.content());
         h.assertValueEqual(
                 c.combatSettings(),
-                dev.friendai.combat.CombatSettings.defaults(),
+                dev.friendai.features.combat.CombatSettings.defaults(),
                 "settings changed after a rejected request");
         h.succeed();
     }
@@ -756,14 +756,15 @@ public class ToolTests {
         h.assertFalse(legacy.error(), "legacy mode failed: " + legacy.content());
         h.assertValueEqual(
                 c.combatSettings().protection(),
-                dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT,
+                dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT,
                 "legacy protection");
-        h.assertValueEqual(c.combatSettings().style(), dev.friendai.combat.FightingStyle.BALANCED, "legacy style");
+        h.assertValueEqual(
+                c.combatSettings().style(), dev.friendai.features.combat.FightingStyle.BALANCED, "legacy style");
         h.assertTrue(c.combatSettings().allowSplashPotions(), "legacy mode reset potion allowance");
         h.assertValueEqual(c.combatSettings().pursuitLimitBlocks(), 40, "legacy mode reset pursuit limit");
         h.assertValueEqual(
                 c.combatSettings().retreatPreference(),
-                dev.friendai.combat.RetreatPreference.CONSERVATIVE,
+                dev.friendai.features.combat.RetreatPreference.CONSERVATIVE,
                 "legacy mode reset retreat preference");
         h.succeed();
     }

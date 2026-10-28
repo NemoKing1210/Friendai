@@ -1,11 +1,11 @@
 package dev.friendai.task.farming;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.farming.CellKind;
-import dev.friendai.farming.FarmSnapshot;
-import dev.friendai.farming.FieldCell;
-import dev.friendai.farming.FoodNeed;
-import dev.friendai.farming.Soil;
+import dev.friendai.features.farming.CellKind;
+import dev.friendai.features.farming.FarmSnapshot;
+import dev.friendai.features.farming.FieldCell;
+import dev.friendai.features.farming.FoodNeed;
+import dev.friendai.features.farming.Soil;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.combat.Food;
 import dev.friendai.task.interact.ContainerAccess;

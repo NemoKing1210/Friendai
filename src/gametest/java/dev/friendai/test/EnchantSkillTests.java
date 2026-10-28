@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.survival.ExperienceModel;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.EnchantItemTask;

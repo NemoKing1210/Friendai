@@ -1,7 +1,7 @@
 package dev.friendai.task.combat;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.survival.HungerModel;
+import dev.friendai.features.survival.HungerModel;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;

@@ -1,6 +1,6 @@
 package dev.friendai.place;
 
-import dev.friendai.pathing.Pos;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

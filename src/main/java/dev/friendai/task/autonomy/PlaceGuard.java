@@ -90,6 +90,6 @@ public final class PlaceGuard {
     }
 
     private static boolean inside(Place place, BlockPos pos) {
-        return place.contains(new dev.friendai.pathing.Pos(pos.getX(), pos.getY(), pos.getZ()));
+        return place.contains(new dev.friendai.features.navigation.pathing.Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 }

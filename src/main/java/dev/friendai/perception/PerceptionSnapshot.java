@@ -1,6 +1,6 @@
 package dev.friendai.perception;
 
-import dev.friendai.survival.HungerModel;
+import dev.friendai.features.survival.HungerModel;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;

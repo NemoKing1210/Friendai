@@ -62,7 +62,7 @@ public class CombatCoordinationTests {
         h.runAfterDelay(
                 40,
                 () -> c.setCombatSettings(
-                        c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)));
+                        c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY)));
         h.runAfterDelay(120, () -> {
             // SELF_ONLY still permits self-defence, so the fight may continue; the invariant is one coherent state.
             h.assertTrue(

@@ -2,13 +2,13 @@ package dev.friendai.perception.resource;
 
 import dev.friendai.crafting.obtain.ResourceCandidate;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.knowledge.KnowledgeStore;
 import dev.friendai.knowledge.ObservationWindow;
 import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.ResourceQuery;
 import dev.friendai.knowledge.ResourceSite;
-import dev.friendai.pathing.Pos;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;

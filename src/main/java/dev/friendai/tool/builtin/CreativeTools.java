@@ -2,13 +2,13 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.friendai.creative.CreativeCommandPolicy;
-import dev.friendai.creative.CreativeItemCount;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.features.creative.CreativeCommandPolicy;
+import dev.friendai.features.creative.CreativeItemCount;
 import dev.friendai.task.builtin.CreateItemsTask;
 import dev.friendai.task.builtin.ExecuteCommandTask;
 import dev.friendai.task.builtin.FlyToTask;

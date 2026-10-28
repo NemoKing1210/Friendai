@@ -148,6 +148,23 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void featureDependenciesRequireAnExplicitDirectedEdge() {
+        List<DependencyEdge> edges = List.of(
+                edge(
+                        "dev.friendai.features.mining.ExplorationPlanner",
+                        "dev.friendai.features.navigation.pathing.PathStep"),
+                edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"));
+
+        assertEquals(
+                List.of(violation(
+                        "feature-dependency-not-allowed",
+                        "dev.friendai.features.combat.CombatPolicy",
+                        "dev.friendai.features.farming.FarmPlanner")),
+                PackageDependencyRules.validate(edges));
+    }
+
+    @Test
     void engineRejectsGameOptionalUiAndNativeAudioDependencies() {
         List<DependencyEdge> edges = List.of(
                 edge("dev.friendai.foundation.Text", "net.minecraft.world.level.Level"),

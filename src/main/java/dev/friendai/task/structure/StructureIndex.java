@@ -1,9 +1,9 @@
 package dev.friendai.task.structure;
 
-import dev.friendai.structure.Outcome;
-import dev.friendai.structure.SpecialStructure;
-import dev.friendai.structure.StructureBook;
-import dev.friendai.structure.Trigger;
+import dev.friendai.features.construction.special.Outcome;
+import dev.friendai.features.construction.special.SpecialStructure;
+import dev.friendai.features.construction.special.StructureBook;
+import dev.friendai.features.construction.special.Trigger;
 import dev.friendai.task.build.BlueprintResolver;
 import java.util.ArrayList;
 import java.util.List;

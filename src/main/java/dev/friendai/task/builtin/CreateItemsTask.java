@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.creative.CreativeItemCount;
+import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.features.creative.CreativeItemCount;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

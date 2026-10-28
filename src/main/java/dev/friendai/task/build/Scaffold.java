@@ -1,7 +1,7 @@
 package dev.friendai.task.build;
 
-import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;

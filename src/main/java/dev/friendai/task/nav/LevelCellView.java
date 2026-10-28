@@ -1,13 +1,13 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.BlockList;
-import dev.friendai.pathing.Cell;
-import dev.friendai.pathing.CellView;
-import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.PathingConfig;
-import dev.friendai.pathing.Pos;
-import dev.friendai.task.mining.BreakProgress;
+import dev.friendai.features.mining.BreakProgress;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.Cell;
+import dev.friendai.features.navigation.pathing.CellView;
+import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.PathingConfig;
+import dev.friendai.features.navigation.pathing.Pos;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
