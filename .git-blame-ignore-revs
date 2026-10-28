@@ -1,0 +1,6 @@
+# Commits that only reformat Java sources, so `git blame` keeps pointing at the change that wrote the code.
+# Git and GitHub read this file automatically; a local clone opts in once with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply palantir-java-format to the java sources
+dec581f685654e7d5b58b4898cf4daa0d9a8eaf7
