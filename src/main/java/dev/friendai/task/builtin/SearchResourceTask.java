@@ -207,9 +207,16 @@ public final class SearchResourceTask implements Task {
         boolean sameDimension = ownerOnline && owner.level().dimension().identifier()
                 .equals(context.level().dimension().identifier());
         boolean ownerInCurrentDimension = !ownerOnline || sameDimension;
+        // Night is a real risk only when nobody safe is at hand: an autonomous search or an expedition far from
+        // home. A short owner-led local search keeps going; the owner chose to send it out.
+        var origin = session.snapshot().origin();
+        var here = position(context);
+        double fromOrigin = Math.hypot((double) here.x() - origin.x(), (double) here.z() - origin.z());
+        boolean nightRisk = context.level().isDarkOutside()
+                && (autonomous || (scope.equals("expedition") && fromOrigin > 16));
         var abandon = AbandonPolicy.check(new AbandonPolicy.Facts(
                 context.companion().getHealth(), context.companion().getMaxHealth(),
-                context.companion().hunger().food(), context.level().isDarkOutside(),
+                context.companion().hunger().food(), nightRisk,
                 !context.level().canSeeSky(context.companion().blockPosition()), ownerOnline || autonomous,
                 ownerInCurrentDimension));
         if (abandon.isPresent()) {
@@ -223,9 +230,13 @@ public final class SearchResourceTask implements Task {
         String dimension = context.level().dimension().identifier().toString();
         var ledger = FriendaiServerState.get(context.level().getServer()).knowledge()
                 .book(ownerId).searchLedger();
+        boolean asked = ledger.asked(ownerId, dimension, target.coverageKey());
+        if (!ownerOnline && autonomous && !asked) {
+            askOnce(FriendaiServerState.get(context.level().getServer()),
+                    "free time: searching for " + target.label() + " on its own", dimension);
+        }
         EscortPolicy.Decision decision = escort.decide(new EscortPolicy.Input(ownerOnline, autonomous,
-                sameDimension, ownerDistance, ownerWasNear, radius,
-                ledger.asked(ownerId, dimension, target.coverageKey())));
+                sameDimension, ownerDistance, ownerWasNear, radius, asked));
         switch (decision.action()) {
             case WAIT -> {
                 if (!(driver instanceof ResourceSearchDriver search)) return TaskStatus.FAILED;
