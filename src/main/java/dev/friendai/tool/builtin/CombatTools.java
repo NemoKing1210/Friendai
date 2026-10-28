@@ -16,7 +16,6 @@ import dev.friendai.features.combat.RetreatPreference;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.AttackPlayerTask;
 import dev.friendai.task.builtin.EatTask;
-import dev.friendai.task.builtin.EquipTask;
 import dev.friendai.task.builtin.GetFoodTask;
 import dev.friendai.task.builtin.HuntTask;
 import dev.friendai.task.combat.Food;
@@ -122,27 +121,6 @@ final class CombatTools {
                         .build(),
                 AccessLevel.OWNER,
                 CombatTools::setCombatSettings));
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "equip_item",
-                        "Wear or hold an item from the inventory: armor goes to its slot, other items to the main hand unless a slot is given.",
-                        SchemaBuilder.object()
-                                .string("item", "Item id like minecraft:iron_helmet")
-                                .enumeration(
-                                        "slot",
-                                        "Where to put it",
-                                        "mainhand",
-                                        "offhand",
-                                        "head",
-                                        "chest",
-                                        "legs",
-                                        "feet")
-                                .required("item")
-                                .build(),
-                        (c, a) -> new EquipTask(item(a.get("item").getAsString()), slot(a)),
-                        true));
         ToolKit.addCaller(
                 registry,
                 defs,

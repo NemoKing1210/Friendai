@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;

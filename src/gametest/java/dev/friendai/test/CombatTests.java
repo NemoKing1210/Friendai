@@ -2,13 +2,13 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.inventory.minecraft.task.EquipTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.AttackPlayerTask;
 import dev.friendai.task.builtin.EatTask;
-import dev.friendai.task.builtin.EquipTask;
 import dev.friendai.task.builtin.HuntTask;
 import dev.friendai.task.builtin.MineBlocksTask;
 import dev.friendai.task.combat.CombatController;

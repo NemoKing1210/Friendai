@@ -9,6 +9,7 @@ import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -50,6 +51,10 @@ public record TaskContext(
 
     public BlockList placeList() {
         return serverSettings.placeList();
+    }
+
+    public List<String> keepItems() {
+        return serverSettings.autonomy().keepItems();
     }
 
     public Optional<ServerPlayer> owner() {

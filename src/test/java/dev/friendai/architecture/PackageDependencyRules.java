@@ -27,7 +27,11 @@ final class PackageDependencyRules {
             new FeatureDependency("placements", "navigation"),
             new FeatureDependency("instructions", "memory"),
             new FeatureDependency("interaction", "creative"),
-            new FeatureDependency("interaction", "navigation"));
+            new FeatureDependency("interaction", "navigation"),
+            new FeatureDependency("inventory", "acquisition"),
+            new FeatureDependency("inventory", "navigation"),
+            new FeatureDependency("inventory", "places"),
+            new FeatureDependency("inventory", "survival"));
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",

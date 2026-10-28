@@ -9,6 +9,7 @@ import dev.friendai.task.combat.Threats;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.farming.Crops;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.interact.ContainerSession;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -19,6 +20,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Leashable;
@@ -264,12 +266,19 @@ public final class GetFoodTask implements Task {
     }
 
     /** Chest contents are inspected only after the companion has walked to and opened a known container. */
-    private static final class TakeFoodFromChestTask extends ContainerTaskBase {
+    private static final class TakeFoodFromChestTask implements Task {
         private final int wanted;
+        private final ContainerSession session;
+        private String summary = "";
 
         private TakeFoodFromChestTask(int wanted) {
-            super(null);
             this.wanted = wanted;
+            this.session = new ContainerSession(
+                    null,
+                    (level, companion) -> ContainerAccess.nearest(companion, CONTAINER_RADIUS),
+                    false,
+                    () -> "no known storage container within " + CONTAINER_RADIUS + " blocks",
+                    position -> "the storage container is no longer there");
         }
 
         @Override
@@ -281,22 +290,11 @@ public final class GetFoodTask implements Task {
         public void start(TaskContext c) {}
 
         @Override
-        protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
-            return ContainerAccess.nearest(companion, CONTAINER_RADIUS);
+        public TaskStatus tick(TaskContext c) {
+            return session.tick(c, this::takeFood);
         }
 
-        @Override
-        protected String noTargetSummary() {
-            return "no known storage container within " + CONTAINER_RADIUS + " blocks";
-        }
-
-        @Override
-        protected String missingTargetSummary() {
-            return "the storage container is no longer there";
-        }
-
-        @Override
-        protected TaskStatus work(TaskContext c) {
+        private TaskStatus takeFood(TaskContext c, BlockPos containerPos, Container container) {
             int bestSlot = -1;
             FoodProperties best = null;
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
@@ -311,7 +309,7 @@ public final class GetFoodTask implements Task {
                 }
             }
             if (bestSlot < 0) {
-                summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords()
+                summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords(containerPos)
                         + " has no ready food";
                 return TaskStatus.FAILED;
             }
@@ -330,7 +328,7 @@ public final class GetFoodTask implements Task {
             summary = taken == 0
                     ? "my inventory is full"
                     : "took " + taken + " ready food from the " + ContainerAccess.shortLabel(c.level(), containerPos)
-                            + " at " + coords();
+                            + " at " + coords(containerPos);
             return taken == 0 ? TaskStatus.FAILED : TaskStatus.SUCCESS;
         }
 
@@ -341,7 +339,21 @@ public final class GetFoodTask implements Task {
 
         @Override
         public String resultSummary() {
-            return summary;
+            return summary.isEmpty() ? session.failureSummary() : summary;
+        }
+
+        @Override
+        public void stop(TaskContext c) {
+            session.stop(c);
+        }
+
+        @Override
+        public List<dev.friendai.debug.DebugTarget> debugTargets() {
+            return session.debugTargets();
+        }
+
+        private static String coords(BlockPos position) {
+            return position.getX() + " " + position.getY() + " " + position.getZ();
         }
     }
 

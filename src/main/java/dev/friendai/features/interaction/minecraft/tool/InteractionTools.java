@@ -16,17 +16,14 @@ import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.SleepTask;
-import dev.friendai.task.builtin.ThrowItemTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.phys.Vec3;
 
 /** Simple contact with the world: animals, vehicles, beds, tossing things. */
 public final class InteractionTools implements FeatureToolContributor {
@@ -83,22 +80,6 @@ public final class InteractionTools implements FeatureToolContributor {
                         optionalPos(a).orElse(null),
                         !a.has("until_morning") || a.get("until_morning").getAsBoolean()),
                 true);
-        registerTask(
-                registry,
-                "throw_item",
-                "Toss items from your inventory toward someone or something (owner, a player's name, an animal/mob type), "
-                        + "toward x, y, z, or straight ahead. They land as ordinary items on the ground.",
-                SchemaBuilder.object()
-                        .string("item", "Item id or tag to throw")
-                        .integer("count", "How many to throw (1 to 64); default 1", 1, 64)
-                        .string("target", "owner, a player name, or an entity type such as cow")
-                        .number("x", "Aim at this X coordinate")
-                        .number("y", "Aim at this Y coordinate")
-                        .number("z", "Aim at this Z coordinate")
-                        .required("item")
-                        .build(),
-                InteractionTools::throwItem,
-                true);
     }
 
     private static Task interactEntity(CompanionEntity c, JsonObject a) {
@@ -109,43 +90,6 @@ public final class InteractionTools implements FeatureToolContributor {
                     "generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
         }
         return new InteractEntityTask(target, item, c);
-    }
-
-    private static Task throwItem(CompanionEntity c, JsonObject a) {
-        var matcher = parseItemMatcher(a.get("item").getAsString());
-        int count = a.has("count") ? a.get("count").getAsInt() : 1;
-        Supplier<Vec3> aim = null;
-        String label = "";
-        Entity targetEntity = null;
-        if (a.has("target")) {
-            targetEntity = named(c, a.get("target").getAsString());
-            if (targetEntity instanceof Piglin && matcher.test(new ItemStack(Items.GOLD_INGOT))) {
-                throw new IllegalArgumentException(
-                        "generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
-            }
-            Entity exactTarget = targetEntity;
-            aim = () -> exactTarget.isAlive() && !exactTarget.isRemoved() ? exactTarget.getEyePosition() : null;
-            label = EntityTargets.label(targetEntity);
-        } else if (a.has("x") && a.has("y") && a.has("z")) {
-            Vec3 fixed = new Vec3(
-                    a.get("x").getAsDouble(),
-                    a.get("y").getAsDouble(),
-                    a.get("z").getAsDouble());
-            if (matcher.test(new ItemStack(Items.GOLD_INGOT))
-                    && c.level()
-                                    .getEntitiesOfClass(
-                                            Piglin.class,
-                                            net.minecraft.world.phys.AABB.ofSize(fixed, 2.0, 2.0, 2.0),
-                                            Entity::isAlive)
-                                    .size()
-                            > 0) {
-                throw new IllegalArgumentException(
-                        "generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required");
-            }
-            aim = () -> fixed;
-            label = (int) Math.floor(fixed.x) + " " + (int) Math.floor(fixed.y) + " " + (int) Math.floor(fixed.z);
-        }
-        return new ThrowItemTask(matcher, count, aim, label, targetEntity);
     }
 
     private static Entity named(CompanionEntity c, String name) {

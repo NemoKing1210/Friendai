@@ -166,6 +166,18 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
                         "dev.friendai.features.creative.CreativeCommandPolicy"),
                 edge(
+                        "dev.friendai.features.inventory.minecraft.task.GiveItemsTask",
+                        "dev.friendai.features.navigation.minecraft.nav.MoveHelper"),
+                edge(
+                        "dev.friendai.features.inventory.minecraft.task.DepositTask",
+                        "dev.friendai.features.acquisition.ToolNeed"),
+                edge(
+                        "dev.friendai.features.inventory.minecraft.task.DepositTask",
+                        "dev.friendai.features.places.PlaceQuery"),
+                edge(
+                        "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
+                        "dev.friendai.features.survival.HungerModel"),
+                edge(
                         "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                 edge(

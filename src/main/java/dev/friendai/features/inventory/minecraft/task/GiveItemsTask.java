@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;

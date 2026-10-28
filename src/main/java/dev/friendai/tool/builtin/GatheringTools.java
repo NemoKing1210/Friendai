@@ -15,7 +15,6 @@ import dev.friendai.task.builtin.FellTreeSearchTask;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.MineBlocksTask;
-import dev.friendai.task.builtin.PickupItemsTask;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
 import java.util.List;
@@ -145,29 +144,6 @@ final class GatheringTools {
                             }
                             return new MineBlockAtTask(new BlockPos(x, y, z));
                         },
-                        true));
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "pickup_items",
-                        "Pick up dropped items within the given radius.",
-                        SchemaBuilder.object()
-                                .integer("radius", "Search radius in blocks", 1, 16)
-                                .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")
-                                .bool(
-                                        "placed",
-                                        "Pick up around the nearest block you placed instead of around yourself")
-                                .required("radius")
-                                .build(),
-                        (c, a) -> new PickupItemsTask(
-                                a.get("radius").getAsInt(),
-                                a.has("item") && !a.get("item").isJsonNull()
-                                        ? ToolKit.parseItemMatcher(a.get("item").getAsString())
-                                        : null,
-                                a.has("placed")
-                                        && !a.get("placed").isJsonNull()
-                                        && a.get("placed").getAsBoolean()),
                         true));
     }
 

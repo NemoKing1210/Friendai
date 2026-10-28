@@ -2,13 +2,15 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
+import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
+import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.CheckContainerTask;
-import dev.friendai.task.builtin.StoreItemsTask;
-import dev.friendai.task.builtin.TakeItemsTask;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.interact.ContainerSession;
 import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -575,5 +577,29 @@ public class StorageTests {
                     ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
                     "the lid must close on stop, openers " + ChestBlockEntity.getOpenCount(h.getLevel(), target));
         });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void containerSessionClosesWhenWorkThrows(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 5);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        ContainerSession session =
+                new ContainerSession(target, null, false, () -> "no container", ignored -> "container disappeared");
+        TaskContext context = new TaskContext(c, h.getLevel());
+        boolean threw = false;
+        try {
+            session.tick(context, (taskContext, position, container) -> {
+                throw new IllegalStateException("work failed");
+            });
+        } catch (IllegalStateException expected) {
+            threw = true;
+        }
+        h.assertTrue(threw, "the container work callback must run and throw");
+        h.assertTrue(
+                ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
+                "the lid must close after work throws, openers " + ChestBlockEntity.getOpenCount(h.getLevel(), target));
+        h.succeed();
     }
 }

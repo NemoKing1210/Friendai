@@ -16,6 +16,8 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.task.interact.ContainerTransfer;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
@@ -309,7 +311,7 @@ public final class ObtainTask implements Task {
     private Task subtask(TaskContext c, ObtainStep step) {
         ServerLevel level = c.level();
         return switch (step) {
-            case ObtainStep.Take take -> new TakeItemsTask(itemMatcher(take.item()), take.count(), null);
+            case ObtainStep.Take take -> new TakeFromContainerTask(itemMatcher(take.item()), take.count());
             case ObtainStep.Craft craft -> new CraftTask(craft.item(), craft.count(), CraftTask.StationPolicy.AUTO);
             case ObtainStep.Smelt smelt ->
                 new SmeltTask(
@@ -583,6 +585,74 @@ public final class ObtainTask implements Task {
             task.stop(c);
         } catch (RuntimeException ignored) {
             // A task that cannot stop cleanly must not take the whole obtain down with it.
+        }
+    }
+
+    /** Acquisition owns this nested step; container access and inventory movement are shared helpers. */
+    private static final class TakeFromContainerTask implements Task {
+        private final ItemMatcher matcher;
+        private final int count;
+        private final ContainerSession session;
+        private String summary = "";
+        private boolean preflightDone;
+
+        private TakeFromContainerTask(ItemMatcher matcher, int count) {
+            this.matcher = matcher;
+            this.count = count;
+            this.session = new ContainerSession(
+                    null,
+                    (level, companion) -> ContainerAccess.nearest(companion, CONTAINER_RADIUS),
+                    true,
+                    () -> "no storage container with " + matcher.label() + " within " + CONTAINER_RADIUS + " blocks",
+                    position -> "there is no chest, barrel or other storage at " + position.getX() + " "
+                            + position.getY() + " " + position.getZ());
+        }
+
+        @Override
+        public String type() {
+            return "take_items";
+        }
+
+        @Override
+        public void start(TaskContext c) {
+            summary = "";
+            preflightDone = false;
+        }
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            if (!preflightDone) {
+                preflightDone = true;
+                if (!ContainerTransfer.canFit(c.companion(), matcher)) {
+                    summary = "my inventory is full";
+                    return TaskStatus.FAILED;
+                }
+            }
+            return session.tick(c, (context, position, container) -> {
+                ContainerTransfer.Result result = ContainerTransfer.take(context, position, container, matcher, count);
+                summary = result.summary();
+                return result.status();
+            });
+        }
+
+        @Override
+        public void stop(TaskContext c) {
+            session.stop(c);
+        }
+
+        @Override
+        public String describe() {
+            return "taking " + count + " " + matcher.label() + " from a container";
+        }
+
+        @Override
+        public String resultSummary() {
+            return summary.isEmpty() ? session.failureSummary() : summary;
+        }
+
+        @Override
+        public List<DebugTarget> debugTargets() {
+            return session.debugTargets();
         }
     }
 

@@ -13,6 +13,8 @@ import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.interaction.minecraft.tool.BodyTools;
 import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
+import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
+import dev.friendai.features.inventory.minecraft.tool.StorageTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import java.util.Set;
@@ -77,11 +79,9 @@ class FeatureToolRegistryTest {
                 "interact_entity",
                 "mount",
                 "dismount",
-                "sleep",
-                "throw_item");
-        Set<String> taskNames =
-                Set.of("turn", "emote", "sit", "wait", "interact_entity", "mount", "sleep", "throw_item");
-        Set<String> plannableNames = Set.of("turn", "emote", "wait", "interact_entity", "mount", "sleep", "throw_item");
+                "sleep");
+        Set<String> taskNames = Set.of("turn", "emote", "sit", "wait", "interact_entity", "mount", "sleep");
+        Set<String> plannableNames = Set.of("turn", "emote", "wait", "interact_entity", "mount", "sleep");
         Set<String> runtimeNames =
                 tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
         Set<String> metadataNames = registry.catalogMetadata().stream()
@@ -94,6 +94,57 @@ class FeatureToolRegistryTest {
         assertEquals(taskNames, registry.restorableTaskNames());
         assertEquals(
                 plannableNames,
+                registry.taskDefinitions().values().stream()
+                        .filter(TaskToolDefinition::plannable)
+                        .map(TaskToolDefinition::name)
+                        .collect(java.util.stream.Collectors.toSet()));
+
+        ToolCatalog catalog = ToolCatalog.defaults();
+        for (var metadata : registry.catalogMetadata()) {
+            assertEquals(catalog.meta(metadata.name()).orElseThrow(), metadata);
+        }
+    }
+
+    @Test
+    void inventoryContributionsKeepRuntimeTaskAndCatalogNamesAligned() {
+        ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
+        FeatureToolRegistry registry = new FeatureToolRegistry(tools, FeatureToolRegistryTest::taskTool);
+        new InventoryTools().register(registry);
+        new StorageTools().register(registry);
+
+        Set<String> expectedNames = Set.of(
+                "get_inventory",
+                "give_items",
+                "drop_items",
+                "pickup_items",
+                "equip_item",
+                "throw_item",
+                "store_items",
+                "take_items",
+                "check_container",
+                "deposit_items");
+        Set<String> taskNames = Set.of(
+                "give_items",
+                "drop_items",
+                "pickup_items",
+                "equip_item",
+                "throw_item",
+                "store_items",
+                "take_items",
+                "check_container",
+                "deposit_items");
+        Set<String> runtimeNames =
+                tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
+        Set<String> metadataNames = registry.catalogMetadata().stream()
+                .map(meta -> meta.name())
+                .collect(java.util.stream.Collectors.toSet());
+
+        assertEquals(expectedNames, runtimeNames);
+        assertEquals(expectedNames, metadataNames);
+        assertEquals(taskNames, registry.taskDefinitions().keySet());
+        assertEquals(taskNames, registry.restorableTaskNames());
+        assertEquals(
+                taskNames,
                 registry.taskDefinitions().values().stream()
                         .filter(TaskToolDefinition::plannable)
                         .map(TaskToolDefinition::name)

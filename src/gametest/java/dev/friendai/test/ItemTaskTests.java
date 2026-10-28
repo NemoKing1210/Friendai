@@ -2,12 +2,12 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.inventory.minecraft.task.DropItemsTask;
+import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
+import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.DropItemsTask;
-import dev.friendai.task.builtin.GiveItemsTask;
-import dev.friendai.task.builtin.PickupItemsTask;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;

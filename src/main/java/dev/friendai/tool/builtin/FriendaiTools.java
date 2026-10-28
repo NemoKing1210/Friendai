@@ -4,6 +4,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.interaction.minecraft.tool.BodyTools;
 import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
+import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
+import dev.friendai.features.inventory.minecraft.tool.StorageTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import dev.friendai.perception.PerceptionContext;
@@ -85,12 +87,13 @@ public final class FriendaiTools {
             defs.add(task);
             return ToolKit.taskTool(task);
         });
-        List<FeatureToolContributor> contributors = List.of(new MovementTools(), new RelativeMovementTools());
+        List<FeatureToolContributor> contributors =
+                List.of(new MovementTools(), new RelativeMovementTools(), new BodyTools(), new InteractionTools());
         contributors.forEach(contributor -> contributor.register(featureTools));
         GatheringTools.register(registry, defs, mineRadius, treeRadius);
-        InventoryTools.register(registry, defs);
+        new InventoryTools().register(featureTools);
         BuildingTools.register(registry, defs);
-        StorageTools.register(registry, defs);
+        new StorageTools().register(featureTools);
         CraftingTools.register(registry, defs);
         CookingTools.register(registry, defs);
         EnchantTools.register(registry, defs);
@@ -108,8 +111,6 @@ public final class FriendaiTools {
         ControlTools.register(registry, defs);
         TradingTools.register(registry, defs);
         QueueTools.register(registry, defs);
-        new BodyTools().register(featureTools);
-        new InteractionTools().register(featureTools);
         FireTools.register(registry, defs);
         CreativeTools.register(registry, defs);
         GoalTools.register(registry);

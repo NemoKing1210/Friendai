@@ -38,6 +38,8 @@ import dev.friendai.task.build.ScaffoldCleanupTask;
 import dev.friendai.task.build.Site;
 import dev.friendai.task.build.SupportNeeds;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.task.interact.ContainerTransfer;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
@@ -158,7 +160,9 @@ public final class BuildTask implements Task {
     private int clearedCount;
     private int foundationCount;
 
-    private TakeItemsTask takeTask;
+    private ContainerSession takeSession;
+    private ItemMatcher takeMatcher;
+    private int takeCount;
     private BlockPos takeTarget;
     private final Set<BlockPos> exhaustedStorage = new HashSet<>();
 
@@ -530,15 +534,21 @@ public final class BuildTask implements Task {
      * site is cleared or a block is placed, so a failed gather leaves the world untouched.
      */
     private TaskStatus take(TaskContext c) {
-        if (takeTask != null) {
-            TaskStatus status = takeTask.tick(c);
+        if (takeSession != null) {
+            TaskStatus status = takeSession.tick(c, (context, position, container) -> {
+                ContainerTransfer.Result result =
+                        ContainerTransfer.take(context, position, container, takeMatcher, takeCount);
+                return result.status();
+            });
             if (status == TaskStatus.RUNNING) {
                 return TaskStatus.RUNNING;
             }
             if (status == TaskStatus.FAILED && takeTarget != null) {
                 exhaustedStorage.add(takeTarget);
             }
-            takeTask = null;
+            takeSession = null;
+            takeMatcher = null;
+            takeCount = 0;
             takeTarget = null;
             return TaskStatus.RUNNING;
         }
@@ -573,8 +583,15 @@ public final class BuildTask implements Task {
                 continue;
             }
             ItemMatcher matcher = ItemMatcher.parse(itemId(entry.getKey())).orElseThrow();
-            takeTask = new TakeItemsTask(matcher, entry.getValue(), container);
-            takeTask.start(c);
+            takeSession = new ContainerSession(
+                    container,
+                    null,
+                    false,
+                    () -> "no storage container at " + container,
+                    position -> "there is no chest, barrel or other storage at " + position.getX() + " "
+                            + position.getY() + " " + position.getZ());
+            takeMatcher = matcher;
+            takeCount = entry.getValue();
             takeTarget = container;
             return TaskStatus.RUNNING;
         }
@@ -1535,8 +1552,8 @@ public final class BuildTask implements Task {
         if (approach != null) {
             approach.stop(c);
         }
-        if (takeTask != null) {
-            takeTask.stop(c);
+        if (takeSession != null) {
+            takeSession.stop(c);
         }
         if (gatherTask != null) {
             gatherTask.stop(c);

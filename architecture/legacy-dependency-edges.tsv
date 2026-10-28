@@ -55,7 +55,6 @@ legacy-server-state-lookup	dev.friendai.tool.builtin.ObtainTools	dev.friendai.co
 legacy-server-state-lookup	dev.friendai.tool.builtin.QueueTools	dev.friendai.core.FriendaiServerState	8
 legacy-server-state-lookup	dev.friendai.tool.builtin.ResourceTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.SkillTools	dev.friendai.core.FriendaiServerState	11
-legacy-server-state-lookup	dev.friendai.tool.builtin.StorageTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.ToolKit	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.TradingTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.TrustTools	dev.friendai.core.FriendaiServerState	11

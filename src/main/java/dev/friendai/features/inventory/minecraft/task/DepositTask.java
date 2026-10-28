@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
@@ -64,7 +64,11 @@ public final class DepositTask implements Task {
 
     public DepositTask(String placeName, List<String> keepItems) {
         this.placeName = placeName == null || placeName.isBlank() ? null : placeName.strip();
-        this.keepItems = List.copyOf(keepItems);
+        this.keepItems = keepItems == null ? null : List.copyOf(keepItems);
+    }
+
+    public DepositTask(String placeName) {
+        this(placeName, null);
     }
 
     @Override
@@ -215,10 +219,8 @@ public final class DepositTask implements Task {
         SimpleContainer bag = c.companion().inventory();
         List<KeepPolicy.Slot> slots = new ArrayList<>();
         DropIndex tools = DropIndex.of(c.level());
-        MaterialPicker blocks = new MaterialPicker(
-                c.serverSettings().pathing(),
-                c.serverSettings().breakList(),
-                c.serverSettings().placeList());
+        List<String> configuredKeepItems = keepItems == null ? c.keepItems() : keepItems;
+        MaterialPicker blocks = new MaterialPicker(c.pathingConfig(), c.breakList(), c.placeList());
         for (int i = 0; i < bag.getContainerSize(); i++) {
             ItemStack stack = bag.getItem(i);
             if (stack.isEmpty()) {
@@ -235,14 +237,14 @@ public final class DepositTask implements Task {
             slots.add(new KeepPolicy.Slot(
                     i,
                     id,
-                    keptTags(stack),
+                    keptTags(stack, configuredKeepItems),
                     stack.getCount(),
                     tool.kind().name(),
                     tool.tier().ordinal(),
                     food == null ? 0 : food.nutrition(),
                     price));
         }
-        Map<Integer, Integer> keep = KeepPolicy.keep(slots, keepItems);
+        Map<Integer, Integer> keep = KeepPolicy.keep(slots, configuredKeepItems);
         Map<Integer, Integer> deposit = new java.util.LinkedHashMap<>();
         for (KeepPolicy.Slot slot : slots) {
             int count = slot.count() - keep.getOrDefault(slot.index(), 0);
@@ -254,7 +256,7 @@ public final class DepositTask implements Task {
     }
 
     /** The {@code #tags} of {@code keepItems} this stack carries, without the {@code #}. */
-    private Set<String> keptTags(ItemStack stack) {
+    private static Set<String> keptTags(ItemStack stack, List<String> keepItems) {
         Set<String> tags = new HashSet<>();
         for (String entry : keepItems) {
             if (entry.startsWith("#")) {
