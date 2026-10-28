@@ -20,8 +20,9 @@ import dev.friendai.placed.PlacedLimits;
 import dev.friendai.placed.PlacedStore;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.runtime.RuntimeResources;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.skin.SkinStore;
-import dev.friendai.task.builtin.RefreshTradesTask;
 import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.MerchantAdapter;
 import dev.friendai.task.trading.MerchantLeases;
@@ -30,17 +31,13 @@ import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
 import dev.friendai.trading.TradeStore;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.WeakHashMap;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
-/** Per-server mod state: the loaded config and the brains. */
+/** Existing server service graph, now constructed and closed only by {@code ServerRuntime}. */
 public final class FriendaiServerState {
-    private static final Map<MinecraftServer, FriendaiServerState> STATES = new WeakHashMap<>();
-
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
@@ -70,9 +67,9 @@ public final class FriendaiServerState {
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
-    private final Map<UUID, Long> nextTradingRefresh = new java.util.HashMap<>();
+    private boolean stopping;
 
-    private FriendaiServerState(MinecraftServer server) {
+    public FriendaiServerState(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         this.store = new ConfigStore<>(
                 FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
@@ -87,48 +84,55 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
-        this.skills = new SkillService(
+        resources.onClose(memory::flushAll);
+        this.skills = resources.own(new SkillService(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
                 () -> this.config,
-                memory);
+                memory));
         this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
         this.skins = new SkinStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
-        this.knowledge = new KnowledgeStore(
+        this.knowledge = resources.own(new KnowledgeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("knowledge"),
-                KnowledgeLimits.DEFAULTS);
-        this.places = new PlaceStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS);
-        this.placed = new PlacedStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS);
-        this.trading = new TradeStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"));
+                KnowledgeLimits.DEFAULTS));
+        this.places = resources.own(new PlaceStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS));
+        this.placed = resources.own(new PlacedStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS));
+        this.trading = resources.own(new TradeStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading")));
         this.merchantLeases = new MerchantLeases();
         this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
+        resources.onClose(() -> tradeSessionGuard.closeAll("server stopped"));
         this.traderObserver = new TraderObserver(
                 trading, () -> this.config.tasks.trading.observationRadius, () -> this.config.tasks.trading.enabled);
         this.merchantAdapter = new MerchantAdapter(trading, merchantLeases, tradeSessionGuard);
         this.resources = new ResourceCandidates(knowledge);
         this.observations = new ObservationScheduler(
-                resources::observe,
-                resources::observeCaveEntrance,
+                this.resources::observe,
+                this.resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
-        this.brains = new BrainService(server, config, memory);
+        this.brains = resources.own(new BrainService(server, config, memory));
         this.skills.setTeachingContextSource(brains::teachingContext);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
+        resources.onClose(chunkLoader::stop);
         this.trust = new TrustConfirmations(server, memory, brains, () -> this.config);
-        CompanionManager.get(server).addListener(brains::onCompanionRemoved);
+        CompanionManager manager = CompanionManager.get(server);
+        CompanionManager.Listener listener = brains::onCompanionRemoved;
+        manager.addListener(listener);
+        resources.onClose(() -> manager.removeListener(listener));
     }
 
-    public static synchronized FriendaiServerState get(MinecraftServer server) {
-        return STATES.computeIfAbsent(server, FriendaiServerState::new);
+    /** Temporary bridge while service callers move to their owning adapters; expiry owners are in the edge manifest. */
+    public static FriendaiServerState get(MinecraftServer server) {
+        return ServerRuntimeRegistry.getOrCreate(server).state();
     }
 
-    public static synchronized void close(MinecraftServer server) {
-        FriendaiServerState state = STATES.remove(server);
-        if (state != null) state.shutdown();
+    /** Temporary test/transition bridge; lifecycle callbacks use ServerRuntimeRegistry directly. */
+    public static void close(MinecraftServer server) {
+        ServerRuntimeRegistry.removeAndClose(server);
     }
 
     public ServerConfig config() {
@@ -231,13 +235,14 @@ public final class FriendaiServerState {
         return resources;
     }
 
-    private void shutdown() {
-        tradeSessionGuard.closeAll("server stopped");
-        trading.close();
-        knowledge.close();
-        places.close();
-        placed.close();
-        skills.close();
+    public void stopAcceptingWork() {
+        if (stopping) return;
+        stopping = true;
+        brains.stopAcceptingWork();
+        tradeSessionGuard.closeAll("server stopping");
+        chunkLoader.stop();
+        for (CompanionEntity companion : CompanionManager.get(server).all())
+            companion.taskRunner().suspend();
     }
 
     /** The name the owner gave their companion, or the configured default. */
@@ -273,41 +278,6 @@ public final class FriendaiServerState {
         }
         lastTrustTick = now;
         trust.tick(now);
-    }
-
-    /** Schedules one local offer inspection only while the owner's task runner has no work to displace. */
-    public void tickTrading() {
-        if (!config.tasks.trading.enabled || !config.tasks.trading.idleRefresh) return;
-        long now = server.overworld().getGameTime();
-        for (CompanionEntity companion : CompanionManager.get(server).all()) {
-            UUID owner = companion.ownerUuid();
-            if (owner == null || companion.owner().isEmpty()) continue;
-            if (nextTradingRefresh.getOrDefault(owner, 0L) > now) continue;
-            var runner = companion.taskRunner();
-            if (runner.hasWork() || runner.paused()) continue;
-            List<dev.friendai.trading.TraderRecord> nearby = traderObserver.observe(companion);
-            var ownerBook = trading.book(owner);
-            dev.friendai.trading.TraderRecord candidate = nearby.stream()
-                    .filter(record -> !"minecraft:piglin".equals(record.entityType()))
-                    .map(record -> ownerBook.trader(record.id()).orElse(record))
-                    .sorted(java.util.Comparator.comparing((dev.friendai.trading.TraderRecord record) ->
-                                    record.status() == dev.friendai.trading.TraderRecord.Status.VERIFIED)
-                            .thenComparingLong(record -> record.offersSeen() < 0 ? -1 : record.offersSeen())
-                            .thenComparing(dev.friendai.trading.TraderRecord::id))
-                    .findFirst()
-                    .orElse(null);
-            nextTradingRefresh.put(owner, now + config.tasks.trading.idleRefreshIntervalTicks);
-            if (candidate != null) {
-                runner.start(
-                        new RefreshTradesTask(List.of(candidate.id()), now + config.tasks.trading.maxWaitTicks),
-                        "refresh_trades");
-                break;
-            }
-        }
-        nextTradingRefresh
-                .keySet()
-                .removeIf(owner -> CompanionManager.get(server).all().stream()
-                        .noneMatch(companion -> owner.equals(companion.ownerUuid())));
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */

@@ -13,7 +13,6 @@ legacy-server-state-lookup	dev.friendai.core.FreeTimeDriver	dev.friendai.core.Fr
 legacy-server-state-lookup	dev.friendai.entity.CompanionEntity	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionManager	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionRenamer	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.FriendaiMod	dev.friendai.core.FriendaiServerState	4
 legacy-server-state-lookup	dev.friendai.mixin.BehaviorUtilsBarterOutputMixin	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.net.CompanionRequestHandler	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.net.DebugStream	dev.friendai.core.FriendaiServerState	16

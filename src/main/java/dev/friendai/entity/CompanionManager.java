@@ -57,6 +57,11 @@ public final class CompanionManager {
         return INSTANCES.computeIfAbsent(server, CompanionManager::new);
     }
 
+    /** Detaches this server's owner-thread index after runtime shutdown. */
+    public static synchronized void close(MinecraftServer server) {
+        INSTANCES.remove(server);
+    }
+
     public Optional<CompanionEntity> find(UUID owner) {
         return Optional.ofNullable(byOwner.get(owner)).filter(e -> !e.isRemoved());
     }
@@ -109,6 +114,10 @@ public final class CompanionManager {
 
     public void addListener(Listener listener) {
         listeners.add(listener);
+    }
+
+    public void removeListener(Listener listener) {
+        listeners.remove(listener);
     }
 
     /** Called only from the entity's actual death path; removals and unloads do not qualify. */

@@ -56,6 +56,15 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.text.LanguageDetector", "net.fabricmc.api.ModInitializer"),
                 edge("dev.friendai.agent.turn.Agent", "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.server.ServerRuntime"),
+                edge("dev.friendai.features.navigation.Navigator", "net.minecraft.server.MinecraftServer"),
+                edge(
+                        "dev.friendai.features.trading.minecraft.TraderRefreshService",
+                        "net.minecraft.server.MinecraftServer"),
+                edge(
+                        "dev.friendai.features.trading.minecraft.TraderRefreshService",
+                        "dev.friendai.server.runtime.ServerRuntime"),
+                edge("dev.friendai.server.LegacyCaller", "dev.friendai.core.FriendaiServerState"),
+                edge("dev.friendai.server.runtime.ServerTickPipeline", "dev.friendai.core.FriendaiServerState"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.friendai.client.ui.CompanionScreen"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
                 edge(
@@ -81,9 +90,21 @@ class ArchitectureRulesTest {
                                 "dev.friendai.features.navigation.Navigator",
                                 "dev.friendai.server.ServerRuntime"),
                         violation(
+                                "feature-to-server",
+                                "dev.friendai.features.navigation.Navigator",
+                                "net.minecraft.server.MinecraftServer"),
+                        violation(
+                                "feature-to-server",
+                                "dev.friendai.features.trading.minecraft.TraderRefreshService",
+                                "dev.friendai.server.runtime.ServerRuntime"),
+                        violation(
                                 "foundation-direction",
                                 "dev.friendai.foundation.Text",
                                 "net.minecraft.world.level.Level"),
+                        violation(
+                                "legacy-server-state-lookup",
+                                "dev.friendai.server.LegacyCaller",
+                                "dev.friendai.core.FriendaiServerState"),
                         violation(
                                 "optional-integration-isolation",
                                 "dev.friendai.server.runtime.ServerRuntime",

@@ -5,6 +5,7 @@ import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.queue.QueueLimits;
+import dev.friendai.trading.TradingRuntimeSettings;
 
 /** Coherent immutable view of the settings consumed by one server runtime. */
 public record ServerSettings(

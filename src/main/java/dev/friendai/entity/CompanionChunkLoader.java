@@ -44,6 +44,7 @@ public final class CompanionChunkLoader {
     private final ExpeditionChunkHorizon expeditionHorizon;
     private final Map<UUID, Pending> pending = new HashMap<>();
     private long ticks;
+    private boolean stopped;
 
     public CompanionChunkLoader(MinecraftServer server, Supplier<ServerConfig> config) {
         this.server = server;
@@ -55,6 +56,7 @@ public final class CompanionChunkLoader {
 
     /** Arms the chunk of every saved anchor so its companion wakes up without a player nearby. */
     public void restore() {
+        if (stopped) return;
         if (!enabled()) {
             return;
         }
@@ -77,6 +79,7 @@ public final class CompanionChunkLoader {
 
     /** Moves tickets to follow the loaded companions and persists their anchors. */
     public void tick() {
+        if (stopped) return;
         ticks++;
         expeditionHorizon.tick();
         CompanionAnchors anchors = anchors();
@@ -150,6 +153,15 @@ public final class CompanionChunkLoader {
 
     public ExpeditionChunkHorizon expeditionHorizon() {
         return expeditionHorizon;
+    }
+
+    /** Releases runtime-only tickets while the server levels are still available. */
+    public void stop() {
+        if (stopped) return;
+        stopped = true;
+        pending.clear();
+        expeditionHorizon.closeAll();
+        apply(tickets.update(Set.of()));
     }
 
     /** The anchor recorded for an owner, for diagnostics and tests. */

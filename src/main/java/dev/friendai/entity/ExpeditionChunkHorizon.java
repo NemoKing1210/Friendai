@@ -55,6 +55,11 @@ public final class ExpeditionChunkHorizon {
         closeOwner(owner);
     }
 
+    /** Releases all outstanding runtime-only chunk tickets during server shutdown. */
+    public synchronized void closeAll() {
+        owners.keySet().stream().toList().forEach(this::closeOwner);
+    }
+
     public synchronized int activeLeases() {
         return owners.size();
     }

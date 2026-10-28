@@ -1,6 +1,6 @@
-package dev.friendai.server.configuration;
+package dev.friendai.trading;
 
-/** Immutable trading policy copied from the server config. */
+/** Immutable trading policy copied from the server config and shared with server-side feature adapters. */
 public record TradingRuntimeSettings(
         boolean enabled,
         boolean idleRefresh,

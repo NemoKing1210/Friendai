@@ -9,6 +9,10 @@ import java.util.regex.Pattern;
 /** Checks stable module and package boundaries against compiled class dependency edges. */
 final class PackageDependencyRules {
     private static final Pattern CLASS_NAME = Pattern.compile("[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)+");
+    private static final Set<String> SERVER_RUNTIME_STATE_OWNERS = Set.of(
+            "dev.friendai.server.runtime.ServerRuntime",
+            "dev.friendai.server.runtime.ServerRuntimeFactory",
+            "dev.friendai.server.runtime.ServerTickPipeline");
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.brain", "dev.friendai.config", "dev.friendai.llm", "dev.friendai.text", "dev.friendai.voice");
     private static final Comparator<Violation> VIOLATION_ORDER = Comparator.comparing(Violation::ruleId)
@@ -59,7 +63,7 @@ final class PackageDependencyRules {
             if (isPurePackage(source) && isPlatformPackage(target)) {
                 add(violations, "pure-java-no-platform", edge);
             }
-            if (isUnder(source, "dev.friendai.features") && isFeatureAdapter(target)) {
+            if (isUnder(source, "dev.friendai.features") && isFeatureAdapter(source, target)) {
                 add(violations, "feature-to-server", edge);
             }
             if (isUnder(source, "dev.friendai.agent") && isAgentAdapter(target)) {
@@ -82,7 +86,9 @@ final class PackageDependencyRules {
             if (isUnder(source, "dev.friendai.protocol") && isProtocolForbidden(target)) {
                 add(violations, "protocol-direction", edge);
             }
-            if (target.equals("dev.friendai.core.FriendaiServerState")) {
+            // Runtime construction and tick orchestration intentionally own the transitional state graph.
+            if (target.equals("dev.friendai.core.FriendaiServerState")
+                    && !SERVER_RUNTIME_STATE_OWNERS.contains(source)) {
                 add(violations, "legacy-server-state-lookup", edge);
             }
         }
@@ -134,13 +140,22 @@ final class PackageDependencyRules {
                 || isUnder(className, "dev.friendai.transport");
     }
 
-    private static boolean isFeatureAdapter(String className) {
-        return isUnder(className, "dev.friendai.server")
-                || isUnder(className, "dev.friendai.client")
-                || isUnder(className, "dev.friendai.transport")
-                || isUnder(className, "dev.friendai.infrastructure")
-                || isUnder(className, "dev.friendai.presentation")
-                || isPlatformPackage(className);
+    private static boolean isFeatureAdapter(String source, String target) {
+        return isUnder(target, "dev.friendai.server")
+                || isUnder(target, "dev.friendai.client")
+                || isUnder(target, "dev.friendai.transport")
+                || isUnder(target, "dev.friendai.infrastructure")
+                || isUnder(target, "dev.friendai.presentation")
+                || !isMinecraftFeatureAdapter(source) && isPlatformPackage(target);
+    }
+
+    private static boolean isMinecraftFeatureAdapter(String className) {
+        if (!isUnder(className, "dev.friendai.features")) {
+            return false;
+        }
+        String[] segments =
+                className.substring("dev.friendai.features.".length()).split("\\.");
+        return segments.length >= 3 && segments[1].equals("minecraft");
     }
 
     private static boolean isAgentAdapter(String className) {

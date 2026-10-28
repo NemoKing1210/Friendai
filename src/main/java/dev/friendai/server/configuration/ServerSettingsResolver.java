@@ -4,6 +4,7 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.pathing.BlockList;
 import dev.friendai.pathing.PathingConfig;
+import dev.friendai.trading.TradingRuntimeSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;

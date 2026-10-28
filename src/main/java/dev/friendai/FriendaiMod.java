@@ -2,23 +2,16 @@ package dev.friendai;
 
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.command.FriendaiCommands;
-import dev.friendai.core.FriendaiServerState;
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.menu.FriendaiMenus;
-import dev.friendai.net.DebugStream;
 import dev.friendai.net.FriendaiNetworking;
-import dev.friendai.net.MemoryViewStream;
-import dev.friendai.net.MovementDebugStream;
-import dev.friendai.net.PlaceViewStream;
-import java.util.UUID;
+import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,69 +30,26 @@ public class FriendaiMod implements ModInitializer {
         FriendaiMenus.register();
         FriendaiCommands.register();
         ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
-            if (entity instanceof CompanionEntity companion) {
-                CompanionManager.get(level.getServer()).register(companion);
-                FriendaiServerState.get(level.getServer()).observations().register(companion);
-            }
+            ServerRuntimeRegistry.getOrCreate(level.getServer()).onEntityLoaded(entity);
         });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, level) -> {
-            if (entity instanceof CompanionEntity companion) {
-                FriendaiServerState.get(level.getServer()).observations().unregister(companion);
-                CompanionManager.get(level.getServer()).unregister(companion);
-            }
+            ServerRuntimeRegistry.find(level.getServer()).ifPresent(runtime -> runtime.onEntityUnloaded(entity));
         });
         FriendaiNetworking.register();
         ChatRouter.register();
-        ServerLifecycleEvents.SERVER_STARTING.register(FriendaiServerState::get);
+        ServerLifecycleEvents.SERVER_STARTING.register(ServerRuntimeRegistry::getOrCreate);
         ServerLifecycleEvents.SERVER_STARTED.register(
-                server -> FriendaiServerState.get(server).chunkLoader().restore());
-        ServerLifecycleEvents.SERVER_STOPPED.register(FriendaiServerState::close);
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            FriendaiServerState state = FriendaiServerState.get(server);
-            state.barterDropTracker().expire(server.overworld().getGameTime());
-            state.tradeSessionGuard().tick(server.overworld().getGameTime());
-            state.tickTrading();
-            state.observations().tick(server, server.overworld().getGameTime());
-            state.brains().tick();
-            state.chunkLoader().tick();
-            CompanionManager.get(server).tick();
-            state.tick(System.currentTimeMillis());
-            state.memory().flushIfDue();
-            state.places().flushIfDue();
-            state.placed().flushIfDue();
-            state.trading().flushIfDue();
-            DebugStream.tick(server);
-            MemoryViewStream.tick(server);
-            dev.friendai.net.SkillsViewStream.tick(server);
-            PlaceViewStream.tick(server);
-            MovementDebugStream.tick(server);
-        });
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            FriendaiServerState state = FriendaiServerState.get(server);
-            state.memory().flushAll();
-            state.knowledge().flushAll();
-            state.places().flushAll();
-            state.placed().flushAll();
-            state.trading().flushAll();
-        });
+                server -> ServerRuntimeRegistry.find(server).ifPresent(ServerRuntime::onServerStarted));
+        ServerLifecycleEvents.SERVER_STOPPING.register(
+                server -> ServerRuntimeRegistry.find(server).ifPresent(ServerRuntime::stopAcceptingWork));
+        ServerLifecycleEvents.SERVER_STOPPED.register(ServerRuntimeRegistry::removeAndClose);
+        ServerTickEvents.END_SERVER_TICK.register(
+                server -> ServerRuntimeRegistry.find(server).ifPresent(ServerRuntime::tick));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            FriendaiServerState state = FriendaiServerState.get(server);
-            UUID player = handler.getPlayer().getUUID();
-            state.brains().onOwnerJoined(player);
-            state.memory().book(player);
-            if (state.memory().takeCorruptionNotice(player)) {
-                handler.getPlayer().sendSystemMessage(Component.translatable("friendai.memory.corrupt"));
-            }
+            ServerRuntimeRegistry.getOrCreate(server).onOwnerJoined(handler.getPlayer());
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            DebugStream.onDisconnect(handler.getPlayer());
-            MovementDebugStream.onDisconnect(handler.getPlayer());
-            MemoryViewStream.onDisconnect(handler.getPlayer());
-            dev.friendai.net.SkillsViewStream.onDisconnect(handler.getPlayer());
-            PlaceViewStream.onDisconnect(handler.getPlayer());
-            FriendaiServerState.get(server)
-                    .brains()
-                    .onOwnerLeft(handler.getPlayer().getUUID());
+            ServerRuntimeRegistry.find(server).ifPresent(runtime -> runtime.onOwnerLeft(handler.getPlayer()));
         });
         LOGGER.info("Friendai initialized");
     }

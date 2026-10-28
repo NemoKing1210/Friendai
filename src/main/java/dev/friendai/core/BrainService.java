@@ -75,7 +75,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
-public final class BrainService {
+public final class BrainService implements AutoCloseable {
     private record Entry(CompanionBrain brain) {}
 
     private final MinecraftServer server;
@@ -84,6 +84,7 @@ public final class BrainService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<UUID, Entry> entries = new HashMap<>();
     private final Map<UUID, TradeAuthority> tradeAuthorities = new HashMap<>();
+    private boolean acceptingWork = true;
     private final Map<UUID, LlmGateway> gatewayOverrides = new HashMap<>();
     private final Map<UUID, UnaryOperator<Speaker>> speakerWrappers = new HashMap<>();
     private final ToolRegistry<CompanionEntity> tools;
@@ -379,6 +380,7 @@ public final class BrainService {
     }
 
     private Optional<Entry> entryFor(UUID owner) {
+        if (!acceptingWork) return Optional.empty();
         Entry entry = entries.get(owner);
         if (entry == null) {
             Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
@@ -616,6 +618,21 @@ public final class BrainService {
     public void tick() {
         scheduler.tick();
         agentTick();
+    }
+
+    /** Cancels in-flight model work while the server and its owner-thread state are still available. */
+    public void stopAcceptingWork() {
+        if (!acceptingWork) return;
+        acceptingWork = false;
+        for (Entry entry : List.copyOf(entries.values())) entry.brain().cancel();
+        invalidateTradingAuthorities("server stopping");
+    }
+
+    @Override
+    public void close() {
+        stopAcceptingWork();
+        entries.clear();
+        tradeAuthorities.clear();
     }
 
     /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
