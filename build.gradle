@@ -136,13 +136,25 @@ java {
 // One Java style for the whole tree. `./gradlew spotlessApply` rewrites the sources, `spotlessCheck` (part of
 // `check`) fails on a file that was edited by hand in another style. Palantir's formatter is the one that matches
 // this repository: 4-space indent and 120-column lines, where google-java-format re-indents everything to 2 spaces.
+// `-PspotlessFiles=a/Foo.java,b/Bar.java` restricts both tasks to those files: several sessions share this checkout
+// and an agent must format its own work without rewriting another session's uncommitted files.
 spotless {
 	java {
-		target 'src/*/java/**/*.java'
+		def selected = providers.gradleProperty('spotlessFiles')
+				.map { it.split(',')*.trim().findAll { path -> !path.isEmpty() } }
+				.getOrElse(null)
+		if (selected != null) {
+			target selected
+		} else {
+			target 'src/*/java/**/*.java'
+		}
 		palantirJavaFormat(project.palantir_java_format_version)
 		removeUnusedImports()
 		trimTrailingWhitespace()
 		endWithNewline()
+		// The repository stores Java as LF (`* text=auto` in .gitattributes); the formatter must produce the same
+		// bytes on every OS, or a Windows run and a Linux CI run disagree about the same file.
+		lineEndings(com.diffplug.spotless.LineEnding.UNIX)
 	}
 }
 

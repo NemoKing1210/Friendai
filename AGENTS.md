@@ -50,7 +50,7 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
-| `./gradlew spotlessApply` | Rewrites every Java source with the project formatter (Palantir: 4-space indent, 120 columns) and sorts the imports. Run it before a commit; CI runs `spotlessCheck` on the same files. |
+| `./gradlew spotlessApply` | Rewrites Java sources with the project formatter (Palantir: 4-space indent, 120 columns) and sorts the imports. `-PspotlessFiles=<a.java,b.java>` limits it to those files. Run it at the end of a task; CI runs `spotlessCheck`. |
 | `./gradlew assemble` | Compile and package; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
 | `./gradlew runClient` / `runServer` | Dev client / server. `run/` is git-ignored; the server needs `run/eula.txt` with `eula=true`. |
 | `./gradlew genSources` | Decompiled Minecraft sources, for looking up API names (see "Minecraft API notes"). |
@@ -126,7 +126,8 @@ The mod ships one mixin set — `friendai.mixins.json`, package `dev.friendai.mi
 
 Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://github.com/diffplug/spotless) to [palantir-java-format](https://github.com/palantir/palantir-java-format) over `src/*/java/**/*.java`, both versions pinned in `gradle.properties`. Palantir is the formatter that matches this repository — 4-space indent and 120-column lines — where google-java-format would re-indent every file to 2 spaces.
 
-- Run `./gradlew spotlessApply` after writing code and before the commit. It rewrites the file, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so a hand-written layout costs a red gate.
+- **Formatting is the last step of every task, before the commit.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. It rewrites them, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
+- **Never run a bare `./gradlew spotlessApply` in a shared checkout.** Without `-PspotlessFiles` it rewrites the whole tree, including another session's uncommitted files (see "Parallel sessions"). The bare form is for a checkout you own and for the one-time sweep after a formatter bump; in a shared one, pass your own files, or `./gradlew spotlessCheck -PspotlessFiles=…` to check without writing.
 - The tool owns the layout: never hand-format around it, and do not reflow a file yourself to "fix" its diff.
 - `// spotless:off` and `// spotless:on` around a block that must keep its own layout (an ASCII table, a generated literal, a golden file written out as text), with a reason next to it.
 - A new source set is added to the `target` line in `build.gradle`. A formatter bump goes into `gradle.properties` together with the `style:` commit that applies it.
@@ -154,7 +155,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 2. Run once, only the group that covers it (see "Test scope"), and read every failure before touching anything.
 3. Fix all of them in one pass, then re-run. Do not restart the loop after each individual fix.
 4. Treat compilation as part of the batch: write against the type system, not against the compiler's first error message.
-5. Format as part of the batch too: one `./gradlew spotlessApply` before the single test run, never after it (see "Formatting").
+5. Format as part of the batch too: one `./gradlew spotlessApply -PspotlessFiles=<your files>` before the single test run, never after it (see "Formatting").
 
 **Keep the tests honest while batching.** A test written next to its implementation is still the specification, but a test that passes on the first run has proven nothing until you know it can fail. Write it against the current behavior when you can, or break the one line it guards and watch the red once, inside the same batch. Also watch for a failure that is not the one you are testing: a missing floor, a GameTest class absent from `fabric-gametest`, a fixture that throws, a test that fails on setup — each hides whether the behavior is right.
 
@@ -236,6 +237,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 | GameTest fails only in the full run | Shared world or timing. Re-run that test filtered; if it passes alone, note it as flaky rather than changing unrelated code. |
 | A mob freezes, a fight never lands a second hit, a companion stops arriving | The entity left the force-loaded chunks; use `GameTestSupport.platform`/`platformAt`/`enclose`. |
 | `LangFilesTest` fails | Key missing in one language, placeholder mismatch, or a key built by concatenation. |
+| `spotlessCheck` fails on files you did not touch | Another session's uncommitted work. Format and commit only your own files; do not rewrite theirs. |
 | A Minecraft/Fabric name does not compile | Look it up in decompiled sources or with `javap`; do not guess a variant. |
 | A GameTest class does not run | It is missing from the `fabric-gametest` entrypoints in `src/gametest/resources/fabric.mod.json`. |
 | `./gradlew build` stops in `runGameTest` | Fix the GameTest first; `test` may not have run. Run `./gradlew test` for the unit count. |
@@ -341,7 +343,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 ## Definition of done
 
-0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble` (compiles every source set and packages) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. Formatting is part of this gate: run `./gradlew spotlessApply` before the commit (see "Formatting").
+0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble` (compiles every source set and packages) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. Formatting is part of this gate: run `./gradlew spotlessApply -PspotlessFiles=<the files you changed>` before the commit (see "Formatting").
 1. Tests are not a gate for a commit: commit a coherent change when it is ready. Run only your group's tests (see "Test scope" under Testing); the full suite is CI's job at merge to `main`. Quote the real result of what you ran (unit-test count and GameTest line) instead of assuming.
 2. New player-facing strings exist in both language files.
 3. New behavior has a test that pins it and would fail without the change (see "Batch the loop" for how to prove that inside one run); bugs get a regression test.
