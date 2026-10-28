@@ -1063,6 +1063,7 @@ public final class ExecutionCoordinator {
         for (Job job : List.copyOf(queueDriver.queue().jobs()))
             if (job.state() == JobState.RUNNING
                     && (activeTask() == null || activeTask().jobId() != job.id())) queueDriver.requeue(job.id());
+        queueDriver.rebuildAwaitingDecisionState();
     }
 
     private TaskContext context() {

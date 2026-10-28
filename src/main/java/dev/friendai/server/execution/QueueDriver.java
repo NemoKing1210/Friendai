@@ -235,6 +235,12 @@ public final class QueueDriver {
         return !awaitingDecision.isEmpty();
     }
 
+    void rebuildAwaitingDecisionState() {
+        awaitingDecision.clear();
+        for (PlanRecord plan : queue.plans())
+            if (queue.planStatus(plan.id()) == PlanStatus.NEEDS_DECISION) awaitingDecision.add(plan.id());
+    }
+
     void cancelPlanAndFinish(long id, String summary) {
         queue.cancelPlan(id);
         finishPlan(id, summary, false);
@@ -258,8 +264,6 @@ public final class QueueDriver {
         structuredFactories.clear();
         restoredPlanFactories.forEach((id, map) -> structuredFactories.put(id, Map.copyOf(map)));
         awaitingDecision.clear();
-        for (PlanRecord plan : queue.plans())
-            if (queue.planStatus(plan.id()) == PlanStatus.NEEDS_DECISION) awaitingDecision.add(plan.id());
         nextPoll = 0;
     }
 
