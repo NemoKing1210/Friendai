@@ -38,6 +38,7 @@ public final class PlanInterpreter {
             }
             state.pendingPath = "";
             state.pendingAction = null;
+            state.pendingJobId = 0;
         } else if (!(result instanceof ActionResult.None)) {
             return failed(state, "plan", "received an action result while no action was pending");
         }
@@ -71,6 +72,7 @@ public final class PlanInterpreter {
             if (node instanceof PlanNode.Action action) {
                 state.pendingPath = nodePath;
                 state.pendingAction = action.step();
+                state.pendingJobId = 0;
                 return new Transition(state.freeze(), new Event.EmitAction(action.step(), nodePath));
             }
             if (node instanceof PlanNode.Conditional conditional) {
@@ -146,6 +148,7 @@ public final class PlanInterpreter {
         private final long startDistance;
         private String pendingPath;
         private QueuedStep pendingAction;
+        private long pendingJobId;
 
         private Mutable(PlanCursor cursor) {
             stack = new ArrayList<>(cursor.stack());
@@ -155,9 +158,10 @@ public final class PlanInterpreter {
             startDistance = cursor.startDistance();
             pendingPath = cursor.pendingActionPath();
             pendingAction = cursor.pendingAction();
+            pendingJobId = cursor.pendingJobId();
         }
 
         private void replaceLast(PlanCursor.Frame frame) { stack.set(stack.size() - 1, frame); }
-        private PlanCursor freeze() { return new PlanCursor(stack, selectedBranches, repeatIterations, startTick, startDistance, pendingPath, pendingAction); }
+        private PlanCursor freeze() { return new PlanCursor(stack, selectedBranches, repeatIterations, startTick, startDistance, pendingPath, pendingAction, pendingJobId); }
     }
 }

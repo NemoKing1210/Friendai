@@ -6,7 +6,11 @@ import java.util.Map;
 /** Immutable continuation state for a plan interpreter. */
 public record PlanCursor(List<Frame> stack, Map<String, Boolean> selectedBranches,
                          Map<String, Integer> repeatIterations, long startTick, long startDistance,
-                         String pendingActionPath, QueuedStep pendingAction) {
+                         String pendingActionPath, QueuedStep pendingAction, long pendingJobId) {
+    public PlanCursor(List<Frame> stack, Map<String, Boolean> selectedBranches, Map<String, Integer> repeatIterations,
+                      long startTick, long startDistance, String pendingActionPath, QueuedStep pendingAction) {
+        this(stack, selectedBranches, repeatIterations, startTick, startDistance, pendingActionPath, pendingAction, 0);
+    }
     public PlanCursor {
         stack = List.copyOf(stack == null ? List.of() : stack);
         selectedBranches = Map.copyOf(selectedBranches == null ? Map.of() : selectedBranches);
@@ -14,6 +18,12 @@ public record PlanCursor(List<Frame> stack, Map<String, Boolean> selectedBranche
         pendingActionPath = pendingActionPath == null ? "" : pendingActionPath;
         if (pendingActionPath.isEmpty()) pendingAction = null;
         else if (pendingAction == null) throw new IllegalArgumentException("pending action required");
+        if (pendingActionPath.isEmpty() && pendingJobId != 0 || pendingJobId < 0) throw new IllegalArgumentException("invalid pending job");
+    }
+
+    public PlanCursor withPendingJob(long jobId) {
+        return new PlanCursor(stack, selectedBranches, repeatIterations, startTick, startDistance,
+                pendingActionPath, pendingAction, jobId);
     }
 
     public static PlanCursor start(long tick, long distance) {

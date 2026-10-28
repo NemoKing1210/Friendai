@@ -46,7 +46,10 @@ public final class QueuePolicy {
     }
 
     public static PlanStatus planStatus(JobQueue queue, long id) {
-        return status(queue, queue.jobsOfPlan(id));
+        List<Job> jobs = queue.jobsOfPlan(id);
+        if (jobs.isEmpty()) return queue.plan(id).filter(p -> p.definition() != null && p.cursor() != null)
+                .map(p -> p.cursor().stack().isEmpty() ? PlanStatus.FAILED : PlanStatus.ACTIVE).orElse(PlanStatus.FAILED);
+        return status(queue, jobs);
     }
 
     /** The status of every plan, computed in one pass over the jobs. */
@@ -55,6 +58,10 @@ public final class QueuePolicy {
         for (Job job : queue.jobs()) if (job.planId() != 0) byPlan.computeIfAbsent(job.planId(), id -> new ArrayList<>()).add(job);
         Map<Long, PlanStatus> result = new HashMap<>();
         byPlan.forEach((id, jobs) -> result.put(id, status(queue, jobs)));
+        for (PlanRecord plan : queue.plans()) if (!result.containsKey(plan.id())) {
+            result.put(plan.id(), plan.definition() != null && plan.cursor() != null && !plan.cursor().stack().isEmpty()
+                    ? PlanStatus.ACTIVE : PlanStatus.FAILED);
+        }
         return result;
     }
 

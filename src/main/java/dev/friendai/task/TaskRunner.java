@@ -14,6 +14,10 @@ import dev.friendai.queue.JobQueue;
 import dev.friendai.queue.JobState;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.PlanRecord;
+import dev.friendai.queue.PlanDefinition;
+import dev.friendai.queue.PlanCursor;
+import dev.friendai.queue.PlanInterpreter;
+import dev.friendai.queue.PlanNode;
 import dev.friendai.queue.PlanStatus;
 import dev.friendai.queue.QueueLimits;
 import dev.friendai.queue.QueuePolicy;
@@ -25,6 +29,7 @@ import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
+import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import dev.friendai.tool.Caller;
 import dev.friendai.queue.QueueTradeScope;
@@ -60,6 +65,7 @@ public final class TaskRunner {
     private final BooleanSupplier mayFollowOwner;
     private JobQueue queue;
     private final Map<Long, StepFactory> factories = new HashMap<>();
+    private final Map<Long, Map<String, PlanStepFactory>> structuredFactories = new HashMap<>();
     private final Map<Long, String> blockedPlans = new HashMap<>();
     /**
      * Plans whose remaining steps wait for a decision (a failed step, a missing tool result). The companion stands
@@ -144,8 +150,8 @@ public final class TaskRunner {
     public Optional<Job> activeJob() { return queue.active(); }
     public int pendingJobs() { return (int)queue.jobs().stream().filter(j->j.state()==JobState.PENDING).count(); }
     public boolean hasWork() { return queue.jobCount()>0 || (current!=null&&!current.defaultActivity()); }
-    public java.util.List<dev.friendai.debug.QueueRow> queueRows() { return queue.jobCount()==0?java.util.List.of():dev.friendai.debug.QueueRows.build(queue,facts(),current==null?null:current.task().describe()); }
-    public String queueSummary() { return queue.jobCount()==0?current().map(Task::describe).orElse("none"):QueueText.summary(queue,facts(),current==null?null:current.task().describe()); }
+    public java.util.List<dev.friendai.debug.QueueRow> queueRows() { return queue.jobCount()==0 && queue.plans().stream().noneMatch(p->p.cursor()!=null)?java.util.List.of():dev.friendai.debug.QueueRows.build(queue,facts(),current==null?null:current.task().describe()); }
+    public String queueSummary() { return queue.jobCount()==0 && queue.plans().stream().noneMatch(p->p.cursor()!=null)?current().map(Task::describe).orElse("none"):QueueText.summary(queue,facts(),current==null?null:current.task().describe()); }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
@@ -160,6 +166,28 @@ public final class TaskRunner {
         JobQueue.Added added=queue.addPlan(goal,steps,options); for(int i=0;i<stepFactories.size();i++)factories.put(added.jobIds().get(i),stepFactories.get(i));
         prepare.accept(added.planId());
         wakeQueue(); if(current==null || current.defaultActivity() || movementOrder(current))startNextQueued(); return added.planId();
+    }
+    public long enqueueStructuredPlan(String goal, PlanDefinition definition, PlanOptions options,
+                                      Map<String, PlanStepFactory> stepFactories) {
+        for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
+        facts();
+        long startTick = companion.level().getGameTime();
+        long startDistance = sharedFacts == null ? 0 : sharedFacts.totalTravelledDistance();
+        long planId = queue.addStructuredPlan(goal, definition, options);
+        queue.updatePlanCursor(planId, PlanCursor.start(startTick, startDistance));
+        structuredFactories.put(planId, Map.copyOf(stepFactories));
+        wakeQueue(); if(current==null || current.defaultActivity() || movementOrder(current))startNextQueued(); return planId;
+    }
+    public long enqueueStructuredPlan(PlanDefinition definition, PlanOptions options,
+                                      Map<String, PlanStepFactory> stepFactories) {
+        return enqueueStructuredPlan("", definition, options, stepFactories);
+    }
+    private void validateStructuredAuthorization(PlanNode node) {
+        if (node instanceof PlanNode.Action action) requireCreativeAuthorization(action.step().principal(), action.step().creativeSensitive());
+        else if (node instanceof PlanNode.Conditional conditional) {
+            conditional.thenNodes().forEach(this::validateStructuredAuthorization);
+            conditional.elseNodes().forEach(this::validateStructuredAuthorization);
+        } else ((PlanNode.Repeat) node).body().forEach(this::validateStructuredAuthorization);
     }
     public void wakeQueue() { blockedSince=-1; nextPoll=0; factories.keySet().removeIf(id->queue.job(id).isEmpty()); }
     public void registerFactory(long jobId,StepFactory factory){factories.put(jobId,factory);}
@@ -210,7 +238,7 @@ public final class TaskRunner {
         if(current!=null)cancelCurrent(reason,false);
         for(PlanRecord plan:queue.plans()){queue.cancelPlan(plan.id());finishPlan(plan.id(),reason,false);}
         if(frozen!=null){safeStop(frozen.task(),context());frozen=null;}
-        queue.clear();factories.clear();awaitingDecision.clear();startDefault();
+        queue.clear();factories.clear();structuredFactories.clear();awaitingDecision.clear();startDefault();
     }
     /** Cancels stale work during a capability transition without reporting task failures to the brain. */
     public void cancelForCapabilityChange() {
@@ -257,7 +285,7 @@ public final class TaskRunner {
         Task cleanup=null;
         if(active!=null&&active.jobId()==id) { cleanup=active.task().cleanupAfterCancel(context()); cancelCurrent(reason,false); queue.cancel(id); factories.remove(id); }
         else { if(frozen!=null&&frozen.jobId()==id){cleanup=frozen.task().cleanupAfterCancel(context());safeStop(frozen.task(),context());frozen=null;} queue.cancel(id); factories.remove(id); }
-        Job j=queue.job(id).orElse(null); if(j!=null&&j.planId()==0)queue.remove(id);else if(j!=null&&j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),"cancelled",false);
+        Job j=queue.job(id).orElse(null); if(j!=null&&j.planId()==0)queue.remove(id);else if(j!=null&&isStructuredPlan(j.planId())){queue.cancelPlan(j.planId());finishPlan(j.planId(),"action cancelled",false);}else if(j!=null&&j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),"cancelled",false);
         if(original!=null&&original.planId()==0&&(active==null||active.jobId()!=id)&&listener!=null)listener.onCancelled((int)original.id(),original.tool(),reason);
         if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);else if(current==null)startNextOrDefault();
     }
@@ -265,6 +293,7 @@ public final class TaskRunner {
         Job job=queue.job(id).orElse(null);if(job==null)return JobQueue.Result.error("unknown job #"+id);
         JobQueue.Result result=queue.skip(id);if(!result.ok())return result;
         if(job.planId()==0){queue.remove(id);factories.remove(id);}
+        else if(isStructuredPlan(job.planId()))advanceStructuredPlan(job.planId(), new PlanInterpreter.ActionResult.Succeeded());
         else if(queue.planStatus(job.planId())==PlanStatus.DONE||queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),QueueText.planSummary(queue,job.planId()),queue.planStatus(job.planId())==PlanStatus.DONE);
         wakeQueue();if(current==null)startNextOrDefault();return result;
     }
@@ -285,9 +314,16 @@ public final class TaskRunner {
         if(paused||suspended||held())return;
         if(current!=null&&current.defaultActivity()&&!mayFollowOwner.getAsBoolean())clearCurrentSilently();
         queue.advanceClock(); expireDeadlines();
+        boolean hasStructuredPlan = false;
+        for (PlanRecord plan : queue.plans()) if (plan.cursor() != null && !plan.cursor().stack().isEmpty()) { hasStructuredPlan = true; break; }
+        if (hasStructuredPlan) {
+            if (sharedFacts == null) sharedFacts = new CompanionGuardFacts(companion);
+            sharedFacts.refresh();
+        }
         if(current==null) { if(!pollQueue())startDefault(); return; }
         if((current.defaultActivity() || movementOrder(current)) && pollQueue())return;
         activeTicks++; Active active=current; TaskStatus status; String summary=null;
+        if (active.planId() > 0) queue.plan(active.planId()).filter(p -> p.cursor() != null).ifPresent(this::planFacts);
         if (active.creativeSensitive() && companion.creativeMode()
                 && !CreativeModeService.isActionAuthorized(companion, active.creativeActionContext(),
                 CreativeAction.WORLD_CHANGING_TASK)) {
@@ -327,6 +363,11 @@ public final class TaskRunner {
                     if(active.task().emitsEvents()&&listener!=null)listener.onFinished(active.id(),active.toolName(),status,result);
                     queue.remove(active.jobId());factories.remove(active.jobId());
                 }
+            } else if (isStructuredPlan(active.planId())) {
+                if (!retried) {
+                    if (status == TaskStatus.SUCCESS) advanceStructuredPlan(active.planId(), new PlanInterpreter.ActionResult.Succeeded());
+                    else handleStructuredActionFailure(active.planId(), active.jobId(), result);
+                }
             }
             else if(queue.planStatus(active.planId())==PlanStatus.NEEDS_DECISION){awaitingDecision.add(active.planId());notifyBlocked(active.planId(),active.jobId(),result);}
             else if(queue.planStatus(active.planId())==PlanStatus.DONE||queue.planStatus(active.planId())==PlanStatus.FAILED) finishPlan(active.planId(),QueueText.planSummary(queue,active.planId()),queue.planStatus(active.planId())==PlanStatus.DONE);
@@ -354,30 +395,120 @@ public final class TaskRunner {
     private void clearCurrentSilently(){ if(current!=null){safeStop(current.task(),context());current=null;} }
     /** Idle-time start attempt, throttled so a blocked queue is not re-scanned every tick. */
     private boolean pollQueue() {
-        if(queue.jobCount()==0||queue.clock()<nextPoll)return false;
+        if((queue.jobCount()==0 && queue.plans().stream().noneMatch(plan -> plan.cursor() != null))||queue.clock()<nextPoll)return false;
         boolean started=startNextQueued(); if(!started)nextPoll=queue.clock()+POLL_INTERVAL_TICKS; return started;
     }
     private GuardFacts facts() { if(sharedFacts==null)sharedFacts=new CompanionGuardFacts(companion); sharedFacts.refresh(); return sharedFacts; }
+    private GuardFacts planFacts(PlanRecord plan) {
+        if (sharedFacts == null) sharedFacts = new CompanionGuardFacts(companion);
+        long baseline = plan.cursor() == null ? 0 : plan.cursor().startDistance();
+        sharedFacts.refresh(plan.cursor() == null ? plan.addedTick() : plan.cursor().startTick(), baseline);
+        return sharedFacts;
+    }
+    private boolean isStructuredPlan(long planId) {
+        return queue.plan(planId).map(plan -> plan.definition() != null && plan.cursor() != null).orElse(false);
+    }
+    private boolean advanceNextStructuredPlan() {
+        PlanRecord selected = null;
+        for (PlanRecord plan : queue.plans()) {
+            if (plan.cursor() == null || !plan.cursor().pendingActionPath().isEmpty() || plan.cursor().stack().isEmpty()) continue;
+            if (selected == null || plan.priority() > selected.priority()
+                    || plan.priority() == selected.priority() && plan.addedTick() < selected.addedTick()) selected = plan;
+        }
+        if (selected == null) return false;
+        advanceStructuredPlan(selected.id(), new PlanInterpreter.ActionResult.None());
+        return true;
+    }
+    private void advanceStructuredPlan(long planId, PlanInterpreter.ActionResult result) {
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        if (plan == null || plan.cursor() == null) return;
+        var transition = PlanInterpreter.advance(plan.definition(), plan.cursor(), planFacts(plan), result);
+        queue.updatePlanCursor(planId, transition.cursor());
+        if (transition.event() instanceof PlanInterpreter.Event.EmitAction emit) {
+            QueuedStep action = emit.step();
+            PlanStepFactory factory = structuredFactories.getOrDefault(planId, Map.of()).get(action.tool());
+            if (factory == null) {
+                queue.cancelPlan(planId);
+                finishPlan(planId, "task factory is unavailable for " + action.tool() + " at " + emit.path(), false);
+                return;
+            }
+            TaskContext taskContext = new TaskContext(companion, (ServerLevel) companion.level(), this,
+                    actionContext(action.principal(), action.creativeSensitive()));
+            if (!factory.authorized(taskContext, action)) {
+                queue.cancelPlan(planId);
+                finishPlan(planId, "access to " + action.tool() + " was revoked at " + emit.path(), false);
+                return;
+            }
+            try {
+                requireCreativeAuthorization(action.principal(), action.creativeSensitive());
+                QueuedStep emitted = new QueuedStep(action.tool(), action.args(), action.priority(), action.guards(),
+                        action.onUnmet(), action.onFailure(), action.maxAttempts(), List.of(), action.principal(), action.creativeSensitive());
+                Job job = queue.addJob(planId, emitted);
+                queue.updatePlanCursor(planId, queue.plan(planId).orElseThrow().cursor().withPendingJob(job.id()));
+                factories.put(job.id(), context -> factory.create(context, emitted));
+            } catch (RuntimeException exception) {
+                queue.cancelPlan(planId);
+                finishPlan(planId, "could not emit action at " + emit.path() + ": " + exception.getMessage(), false);
+            }
+        } else if (transition.event() instanceof PlanInterpreter.Event.Complete) {
+            finishPlan(planId, "conditional plan completed", true);
+        } else if (transition.event() instanceof PlanInterpreter.Event.Failed failed) {
+            queue.cancelPlan(planId);
+            finishPlan(planId, failed.path() + ": " + failed.reason(), false);
+        }
+    }
     private boolean startNextQueued() {
-        if(queue.jobCount()==0||paused||suspended||held())return false;
+        if((queue.jobCount()==0 && queue.plans().stream().noneMatch(plan -> plan.cursor() != null))||paused||suspended||held())return false;
         GuardFacts facts=facts(); skipUnmet(facts); expireDeadlines();
         Optional<Job> candidate=QueuePolicy.next(queue,facts);
+        if (candidate.isEmpty() && advanceNextStructuredPlan()) {
+            facts = facts();
+            candidate = QueuePolicy.next(queue, facts);
+        }
         if(candidate.isEmpty()){maybeNoticeBlocked();return false;}
         if(current!=null&&current.defaultActivity())clearCurrentSilently();
         else if(current!=null&&movementOrder(current))clearCurrentSilently();
         else if(current!=null)return false;
         Job job=candidate.get(); StepFactory factory=factories.get(job.id());
-        if(factory==null){queue.fail(job.id(),"task factory is unavailable");if(job.planId()>0)notifyBlocked(job.planId(),job.id(),"task factory is unavailable");return startNextQueued();}
+        if(factory==null){
+            if (isStructuredPlan(job.planId())) { queue.cancelPlan(job.planId()); finishPlan(job.planId(), "task factory is unavailable for " + job.tool(), false); }
+            else { queue.fail(job.id(),"task factory is unavailable");if(job.planId()>0)notifyBlocked(job.planId(),job.id(),"task factory is unavailable"); }
+            return startNextQueued();
+        }
         CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
         if (companion.creativeMode() && job.creativeSensitive()
                 && !CreativeModeService.isActionAuthorized(companion, actionContext, CreativeAction.WORLD_CHANGING_TASK)) {
             cancelForCapabilityChange();
             return false;
         }
+        if (isStructuredPlan(job.planId())) {
+            PlanStepFactory planFactory = structuredFactories.getOrDefault(job.planId(), Map.of()).get(job.tool());
+            QueuedStep step = step(job);
+            TaskContext authorizationContext = new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext);
+            if (planFactory == null || !planFactory.authorized(authorizationContext, step)) {
+                queue.cancelPlan(job.planId());
+                finishPlan(job.planId(), "access to " + job.tool() + " was revoked before the action started", false);
+                return startNextQueued();
+            }
+        }
         try { Task task=factory.create(new TaskContext(companion,(ServerLevel)companion.level(),this,actionContext));queue.markRunning(job.id());awaitingDecision.remove(job.planId());Active active=new Active((int)job.id(),job.id(),job.planId(),job.tool(),task,true,false,false,activeTicks,actionContext,job.creativeSensitive());current=active;task.start(context());blockedSince=-1;return true; }
-        catch(RuntimeException e){String reason=e instanceof IllegalArgumentException?e.getMessage():"task crashed: "+e.getClass().getSimpleName();var failed=queue.fail(job.id(),reason);if(!failed.retried()&&job.planId()>0){if(queue.planStatus(job.planId())==PlanStatus.NEEDS_DECISION){awaitingDecision.add(job.planId());notifyBlocked(job.planId(),job.id(),reason);}else if(queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),reason,false);}return startNextQueued();}
+        catch(RuntimeException e){String reason=e instanceof IllegalArgumentException?e.getMessage():"task crashed: "+e.getClass().getSimpleName();var failed=queue.fail(job.id(),reason);if(!failed.retried()&&isStructuredPlan(job.planId()))handleStructuredActionFailure(job.planId(),job.id(),reason);else if(!failed.retried()&&job.planId()>0){if(queue.planStatus(job.planId())==PlanStatus.NEEDS_DECISION){awaitingDecision.add(job.planId());notifyBlocked(job.planId(),job.id(),reason);}else if(queue.planStatus(job.planId())==PlanStatus.FAILED)finishPlan(job.planId(),reason,false);}return startNextQueued();}
     }
-    private void skipUnmet(GuardFacts facts) { for(Job j:queue.jobs())if(j.state()==JobState.PENDING&&j.onUnmet()==GuardAction.SKIP&&j.guards().stream().anyMatch(g->!g.holds(facts))){queue.skip(j.id());if(j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),QueueText.planSummary(queue,j.planId()),queue.planStatus(j.planId())==PlanStatus.DONE);} }
+    private void skipUnmet(GuardFacts facts) { for(Job j:queue.jobs())if(j.state()==JobState.PENDING&&j.onUnmet()==GuardAction.SKIP&&j.guards().stream().anyMatch(g->!g.holds(facts))){queue.skip(j.id());if(isStructuredPlan(j.planId()))advanceStructuredPlan(j.planId(),new PlanInterpreter.ActionResult.Succeeded());else if(j.planId()>0&&queue.planStatus(j.planId())!=PlanStatus.ACTIVE)finishPlan(j.planId(),QueueText.planSummary(queue,j.planId()),queue.planStatus(j.planId())==PlanStatus.DONE);} }
+    private void handleStructuredActionFailure(long planId, long jobId, String reason) {
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        if (plan == null) return;
+        FailurePolicy policy = queue.job(jobId).map(Job::onFailure).orElse(plan.onFailure());
+        switch (policy) {
+            case SKIP -> advanceStructuredPlan(planId, new PlanInterpreter.ActionResult.Succeeded());
+            case STOP_PLAN -> { queue.cancelPlan(planId); finishPlan(planId, reason, false); }
+            case ASK -> { awaitingDecision.add(planId); notifyBlocked(planId, jobId, reason); }
+        }
+    }
+    private static QueuedStep step(Job job) {
+        return new QueuedStep(job.tool(), job.args(), job.priorityExplicit() ? job.priority() : null, job.guards(), job.onUnmet(),
+                job.onFailure(), job.maxAttempts(), List.of(), job.principal(), job.creativeSensitive());
+    }
     private void maybeNoticeBlocked() {
         if(current!=null&&current.jobId()>0)return;
         if(blockedSince<0)blockedSince=queue.clock(); if(queue.clock()-blockedSince<TaskSettings.queueBlockedNoticeTicks())return;
@@ -393,7 +524,7 @@ public final class TaskRunner {
         }
     }
     private void notifyBlocked(long plan,long jobId,String reason) { Job job=queue.job(jobId).orElse(null);if(job==null)return;String goal=queue.plan(plan).map(PlanRecord::goal).orElse("");int remaining=(int)queue.jobsOfPlan(plan).stream().filter(j->j.state()==JobState.PENDING).count();String bounded=QueueText.truncate(reason,QueueText.MAX_BLOCKED_REASON);blockedPlans.put(plan,bounded);if(listener!=null)listener.onPlanBlocked(plan,goal,jobId,job.tool(),bounded,remaining); }
-    private void finishPlan(long id,String summary,boolean success) { PlanRecord p=queue.plan(id).orElse(null);if(p==null)return;String goal=p.goal();queue.archivePlan(id,success,summary);factories.entrySet().removeIf(e->queue.job(e.getKey()).isEmpty());blockedPlans.remove(id);awaitingDecision.remove(id);if(listener!=null)listener.onPlanFinished(id,goal,success,summary); }
+    private void finishPlan(long id,String summary,boolean success) { PlanRecord p=queue.plan(id).orElse(null);if(p==null)return;String goal=p.goal();queue.archivePlan(id,success,summary);factories.entrySet().removeIf(e->queue.job(e.getKey()).isEmpty());structuredFactories.remove(id);blockedPlans.remove(id);awaitingDecision.remove(id);if(listener!=null)listener.onPlanFinished(id,goal,success,summary); }
     private void expireDeadlines() { for(long id:queue.expiredPlans()){Active a=current;if(a!=null&&a.planId()==id){Task cleanup=a.task().cleanupAfterCancel(context());cancelCurrent("ran out of time",false);if(cleanup!=null)begin(cleanup,"scaffold_cleanup",false,false);}queue.cancelPlan(id);finishPlan(id,"ran out of time",false);} }
     private void resumeFrozen(){Active old=frozen;frozen=null;if(old!=null&&queue.job(old.jobId()).filter(j->j.state()==JobState.RUNNING).isPresent()){current=new Active(old.id(),old.jobId(),old.planId(),old.toolName(),old.task(),old.emit(),false,false,activeTicks-frozenElapsed,old.creativeActionContext(),old.creativeSensitive());}else{if(old!=null)safeStop(old.task(),context());startNextOrDefault();}}
     private void startNextOrDefault(){if(current!=null)return;if(frozen!=null){resumeFrozen();return;}if(!startNextQueued())startDefault();}
@@ -404,11 +535,17 @@ public final class TaskRunner {
      * failure is reported from there, so the follow cannot preempt the work it is about.
      */
     private boolean plansAwaitingDecision(){if(awaitingDecision.isEmpty())return false;awaitingDecision.removeIf(id->queue.planStatus(id)!=PlanStatus.NEEDS_DECISION);return !awaitingDecision.isEmpty();}
-    public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
+    public Optional<String> savedQueue(){long active=current!=null&&current.jobId()>0?current.jobId():frozen!=null?frozen.jobId():0;String taskSave="";if(current!=null&&current.jobId()>0)taskSave=current.task().saveData();else if(frozen!=null)taskSave=frozen.task().saveData();if(queue.jobCount()==0&&queue.planCount()==0&&queue.archives().isEmpty())return Optional.empty();return Optional.of(QueueSave.encode(queue,taskSave));}
     public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories) {
+        restoreQueue(decoded, restoredFactories, Map.of());
+    }
+    public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories,
+                             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories) {
         queue = decoded.queue();
         factories.clear();
         factories.putAll(restoredFactories);
+        structuredFactories.clear();
+        restoredPlanFactories.forEach((id, map) -> structuredFactories.put(id, Map.copyOf(map)));
         current = null;
         frozen = null;
         if (companion.creativeMode()) {

@@ -18,15 +18,38 @@ public final class CompanionGuardFacts implements GuardFacts {
     private Integer emptySlots, ownerDistance;
     private Float healthFraction;
     private String dimension;
+    private double totalDistance;
+    private double lastX = Double.NaN, lastZ = Double.NaN;
+    private long lastSampleTick = Long.MIN_VALUE;
+    private long planStartTick;
+    private long planStartDistance;
+    private long elapsedTicks;
+    private int travelledBlocks;
     private long blockStamp = Long.MIN_VALUE;
     private static final long BLOCK_TTL_TICKS = 40;
     public CompanionGuardFacts(CompanionEntity companion) { this.companion = companion; }
     /** Starts a new pass: cheap facts are re-read, the expensive block scans are reused for a short while. */
     public void refresh() {
+        refresh(0, 0);
+    }
+    /** Refreshes a pass and exposes distance/time relative to one stored plan baseline. */
+    public void refresh(long startTick, long startDistance) {
         itemCounts.clear(); emptySlots = null; ownerDistance = null; healthFraction = null; dimension = null;
         long now = companion.level().getGameTime();
+        planStartTick = Math.max(0, startTick); planStartDistance = Math.max(0, startDistance);
+        if (now != lastSampleTick) {
+            double x = companion.getX(), z = companion.getZ();
+            if (!Double.isNaN(lastX)) totalDistance += Math.hypot(x - lastX, z - lastZ);
+            lastX = x; lastZ = z; lastSampleTick = now;
+        }
+        elapsedTicks = Math.max(0, now - planStartTick);
+        travelledBlocks = (int) Math.clamp((long) Math.floor(totalDistance - planStartDistance / 1000.0), 0, Integer.MAX_VALUE);
         if (now - blockStamp >= BLOCK_TTL_TICKS || now < blockStamp) { blockFacts.clear(); blockStamp = now; }
     }
+    /** Cumulative horizontal distance in milli-blocks, retaining a plan's fractional baseline. */
+    public long totalTravelledDistance() { return Math.round(totalDistance * 1000.0); }
+    @Override public int distanceTravelled() { return travelledBlocks; }
+    @Override public long timeElapsed() { return elapsedTicks; }
     @Override public int countItems(String id) {
         if (itemCounts.containsKey(id)) return itemCounts.get(id);
         var matcher = ItemMatcher.parse(id).orElse(null); if (matcher == null) return 0; int count=matcher.test(companion.getMainHandItem())?companion.getMainHandItem().getCount():0;
