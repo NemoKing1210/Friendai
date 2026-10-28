@@ -88,4 +88,22 @@ class JobQueueTest {
         assertEquals(editor, q.job(id).orElseThrow().principal());
         assertTrue(!q.job(id).orElseThrow().creativeSensitive());
     }
+
+    @Test
+    void structuredPlanStoresTreeWithoutJobsAndCancellationClosesItsCursor() {
+        PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Conditional(new Guard.FluidAhead(),
+                List.of(new PlanNode.Action(step("work"))), List.of())));
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long planId = queue.addStructuredPlan(definition, PlanOptions.DEFAULT);
+
+        assertEquals(1, queue.planCount());
+        assertEquals(0, queue.jobCount());
+        assertEquals(definition, queue.plan(planId).orElseThrow().definition());
+        Job emitted = queue.addJob(planId, step("work"));
+        assertEquals(planId, emitted.planId());
+        assertEquals(1, queue.jobCount());
+
+        queue.cancelPlan(planId);
+        assertThrows(IllegalArgumentException.class, () -> queue.addJob(planId, step("later")));
+    }
 }

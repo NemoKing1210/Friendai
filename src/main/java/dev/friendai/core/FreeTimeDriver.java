@@ -540,7 +540,7 @@ public final class FreeTimeDriver {
         return queue(owner, companion, goal, array, minutes, tools);
     }
 
-    /** As above, with steps already in the {@code queue_add} wire shape. */
+    /** As above, with the full normalized plan tree in the {@code queue_add} wire shape. */
     Optional<Long> queue(UUID owner, CompanionEntity companion, String goal, JsonArray steps, int minutes,
                          Map<String, TaskToolDef> tools) {
         JsonObject args = new JsonObject();

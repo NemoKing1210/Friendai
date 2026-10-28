@@ -6,11 +6,13 @@ import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Bounded versioned queue serialization; malformed saves are deliberately dropped. */
 public final class QueueSave {
-    public static final String PREFIX = "queue:v1:";
+    public static final String PREFIX = "queue:v2:";
+    private static final String LEGACY_PREFIX = "queue:v1:";
     public static final int MAX_SAVE_CHARS = 1_000_000;
     public static final int MAX_FIELD_CHARS = 8_192;
     private QueueSave() {}
@@ -35,7 +37,10 @@ public final class QueueSave {
         for (PlanRecord p : queue.plans()) {
             JsonObject o = new JsonObject(); o.addProperty("id", p.id()); o.addProperty("goal", bounded(p.goal(), 300));
             o.addProperty("priority", p.priority()); o.addProperty("added", p.addedTick());
-            o.addProperty("deadline", p.deadlineTick()); o.addProperty("onFailure", p.onFailure().name()); plans.add(o);
+            o.addProperty("deadline", p.deadlineTick()); o.addProperty("onFailure", p.onFailure().name());
+            if (p.definition() != null) o.add("definition", PlanCodec.toJson(p.definition()));
+            if (p.cursor() != null) o.add("cursor", cursorJson(p.cursor()));
+            plans.add(o);
         }
         root.add("plans", plans);
         JsonArray jobs = new JsonArray();
@@ -68,15 +73,52 @@ public final class QueueSave {
     }
 
     public static Optional<Decoded> decode(String text, QueueLimits limits) {
-        if (text == null || text.length() > MAX_SAVE_CHARS || text.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS || !text.startsWith(PREFIX)) return Optional.empty();
+        if (text == null || text.length() > MAX_SAVE_CHARS || text.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS) return Optional.empty();
+        boolean legacy = text.startsWith(LEGACY_PREFIX);
+        if (!legacy && !text.startsWith(PREFIX)) return Optional.empty();
         try {
-            JsonObject root = JsonParser.parseString(text.substring(PREFIX.length())).getAsJsonObject();
+            String prefix = legacy ? LEGACY_PREFIX : PREFIX;
+            JsonObject root = JsonParser.parseString(text.substring(prefix.length())).getAsJsonObject();
             JsonArray planRows = root.getAsJsonArray("plans"), jobRows = root.getAsJsonArray("jobs"), archiveRows = root.getAsJsonArray("archives");
             if (planRows == null || jobRows == null || archiveRows == null) return Optional.empty();
-            List<PlanRecord> plans = new ArrayList<>();
-            for (var e : planRows) { JsonObject p=e.getAsJsonObject(); plans.add(new PlanRecord(p.get("id").getAsLong(), field(p,"goal"), p.get("priority").getAsInt(), p.get("added").getAsLong(), p.get("deadline").getAsLong(), FailurePolicy.valueOf(p.get("onFailure").getAsString()))); }
+            List<JsonObject> planObjects = new ArrayList<>();
+            for (var e : planRows) planObjects.add(e.getAsJsonObject());
             List<Job> jobs = new ArrayList<>();
             for (var e : jobRows) { JsonObject j=e.getAsJsonObject(); jobs.add(readJob(j)); }
+            List<PlanRecord> plans = new ArrayList<>();
+            for (JsonObject p : planObjects) {
+                long id = p.get("id").getAsLong();
+                PlanDefinition definition;
+                PlanCursor cursor = null;
+                if (legacy) {
+                    List<Job> planJobs = jobs.stream().filter(j -> j.planId() == id).sorted(java.util.Comparator.comparingLong(Job::order)).toList();
+                    if (planJobs.isEmpty()) return Optional.empty();
+                    List<PlanNode> actions = new ArrayList<>();
+                    for (Job job : planJobs) {
+                        List<Integer> after = new ArrayList<>();
+                        for (long dep : job.after()) {
+                            int depIndex = -1;
+                            for (int index = 0; index < planJobs.size(); index++) if (planJobs.get(index).id() == dep) depIndex = index + 1;
+                            if (depIndex < 1 || depIndex >= actions.size() + 1) return Optional.empty();
+                            after.add(depIndex);
+                        }
+                        QueuedStep step = new QueuedStep(job.tool(), job.args(), job.priorityExplicit() ? job.priority() : null,
+                                job.guards(), job.onUnmet(), job.onFailure(), job.maxAttempts(), after, job.principal(), job.creativeSensitive());
+                        actions.add(new PlanNode.Action(step));
+                    }
+                    definition = new PlanDefinition(actions);
+                } else {
+                    definition = PlanCodec.fromJson(p.getAsJsonArray("definition"));
+                    if (p.has("cursor")) cursor = readCursor(p.getAsJsonObject("cursor"));
+                }
+                plans.add(new PlanRecord(id, field(p,"goal"), p.get("priority").getAsInt(), p.get("added").getAsLong(),
+                        p.get("deadline").getAsLong(), FailurePolicy.valueOf(p.get("onFailure").getAsString()), definition, cursor));
+            }
+            for (PlanRecord plan : plans) if (plan.cursor() != null && !plan.cursor().pendingActionPath().isEmpty()) {
+                Job linked = jobs.stream().filter(job -> job.id() == plan.cursor().pendingJobId() && job.planId() == plan.id()).findFirst().orElse(null);
+                if (linked == null || !linked.tool().equals(plan.cursor().pendingAction().tool())
+                        || !linked.args().equals(plan.cursor().pendingAction().args())) return Optional.empty();
+            }
             List<PlanArchive> archives = new ArrayList<>();
             for (var e : archiveRows) { JsonObject a=e.getAsJsonObject(); archives.add(new PlanArchive(a.get("id").getAsLong(), field(a,"goal"), a.get("success").getAsBoolean(), a.get("steps").getAsInt(), field(a,"summary"), a.get("finished").getAsLong())); }
             int argumentChars = jobs.stream().mapToInt(j -> j.args().toString().length()).sum();
@@ -105,6 +147,42 @@ public final class QueueSave {
                 after, field(j,"result"), j.get("retryAt").getAsLong(),
                 j.has("principal") ? java.util.UUID.fromString(field(j,"principal")) : null,
                 !j.has("creativeSensitive") || j.get("creativeSensitive").getAsBoolean());
+    }
+
+    private static JsonObject cursorJson(PlanCursor cursor) {
+        JsonObject json = new JsonObject();
+        json.addProperty("startTick", cursor.startTick()); json.addProperty("startDistance", cursor.startDistance());
+        JsonArray stack = new JsonArray();
+        for (PlanCursor.Frame frame : cursor.stack()) {
+            JsonObject f = new JsonObject(); JsonArray route = new JsonArray(); frame.route().forEach(route::add);
+            f.add("route", route); f.addProperty("nextIndex", frame.nextIndex()); f.addProperty("pathPrefix", frame.pathPrefix());
+            f.addProperty("ownerPath", frame.ownerPath()); f.addProperty("repeatBody", frame.repeatBody()); stack.add(f);
+        }
+        json.add("stack", stack);
+        JsonObject branches = new JsonObject(); cursor.selectedBranches().forEach(branches::addProperty); json.add("branches", branches);
+        JsonObject repeats = new JsonObject(); cursor.repeatIterations().forEach(repeats::addProperty); json.add("repeats", repeats);
+        json.addProperty("pendingPath", cursor.pendingActionPath());
+        json.addProperty("pendingJob", cursor.pendingJobId());
+        if (cursor.pendingAction() != null) json.add("pendingAction", PlanCodec.actionJson(cursor.pendingAction()));
+        return json;
+    }
+
+    private static PlanCursor readCursor(JsonObject json) {
+        List<PlanCursor.Frame> stack = new ArrayList<>();
+        for (var e : json.getAsJsonArray("stack")) {
+            JsonObject f = e.getAsJsonObject(); List<Integer> route = new ArrayList<>();
+            for (var part : f.getAsJsonArray("route")) route.add(part.getAsInt());
+            stack.add(new PlanCursor.Frame(route, f.get("nextIndex").getAsInt(), field(f, "pathPrefix"),
+                    field(f, "ownerPath"), f.get("repeatBody").getAsBoolean()));
+        }
+        Map<String, Boolean> branches = new java.util.LinkedHashMap<>();
+        for (String key : json.getAsJsonObject("branches").keySet()) branches.put(key, json.getAsJsonObject("branches").get(key).getAsBoolean());
+        Map<String, Integer> repeats = new java.util.LinkedHashMap<>();
+        for (String key : json.getAsJsonObject("repeats").keySet()) repeats.put(key, json.getAsJsonObject("repeats").get(key).getAsInt());
+        String pendingPath = field(json, "pendingPath");
+        QueuedStep pending = json.has("pendingAction") ? PlanCodec.readAction(json.getAsJsonObject("pendingAction")) : null;
+        long pendingJob = json.has("pendingJob") ? json.get("pendingJob").getAsLong() : 0;
+        return new PlanCursor(stack, branches, repeats, json.get("startTick").getAsLong(), json.get("startDistance").getAsLong(), pendingPath, pending, pendingJob);
     }
     private static String bounded(String value) { return bounded(value, MAX_FIELD_CHARS); }
     private static String bounded(String value, int max) { return value == null ? "" : value.substring(0, Math.min(value.length(), max)); }

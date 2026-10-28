@@ -63,12 +63,53 @@ public final class JobQueue {
             for (int after : step.afterSteps()) if (after < 1 || after > i) throw new IllegalArgumentException("after may only name an earlier step");
         }
         long planId = nextPlan++;
+        List<PlanNode> nodes = steps.stream().map(PlanNode.Action::new).map(PlanNode.class::cast).toList();
+        PlanDefinition definition = new PlanDefinition(nodes);
         plans.put(planId, new PlanRecord(planId, goal, options.priority(), clock,
-                options.timeLimitTicks() == 0 ? 0 : clock + options.timeLimitTicks(), options.onFailure()));
+                options.timeLimitTicks() == 0 ? 0 : clock + options.timeLimitTicks(), options.onFailure(), definition, null));
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) ids.add(nextJob++);
         for (int i = 0; i < steps.size(); i++) putNew(ids.get(i), planId, steps.get(i), options, ids);
         return new Added(planId, ids);
+    }
+
+    /** Stores a tree without allocating jobs for actions in unselected branches or loop iterations. */
+    public long addStructuredPlan(PlanDefinition definition, PlanOptions options) {
+        return addStructuredPlan("", definition, options);
+    }
+
+    public long addStructuredPlan(String goal, PlanDefinition definition, PlanOptions options) {
+        if (definition == null || definition.nodes().isEmpty()
+                || definition.worstCaseActions() > limits.maxStepsPerAdd()) throw new IllegalArgumentException("invalid structured plan");
+        if (plans.size() >= limits.maxPlans()) throw new IllegalArgumentException("queue has too many plans");
+        options = options == null ? PlanOptions.DEFAULT : options;
+        List<QueuedStep> worstCase = new ArrayList<>();
+        collectWorstCase(definition.nodes(), worstCase);
+        if (worstCase.size() > limits.maxStepsPerAdd()) throw new IllegalArgumentException("invalid structured plan");
+        validateBudget(worstCase);
+        for (QueuedStep step : worstCase) if (step.tool().isBlank()) throw new IllegalArgumentException("tool is blank");
+        long planId = nextPlan++;
+        plans.put(planId, new PlanRecord(planId, goal, options.priority(), clock,
+                options.timeLimitTicks() == 0 ? 0 : clock + options.timeLimitTicks(), options.onFailure(), definition,
+                PlanCursor.start(clock, 0)));
+        return planId;
+    }
+
+    private static void collectWorstCase(List<PlanNode> nodes, List<QueuedStep> actions) {
+        for (PlanNode node : nodes) {
+            if (node instanceof PlanNode.Action action) actions.add(action.step());
+            else if (node instanceof PlanNode.Conditional conditional) {
+                List<QueuedStep> thenSteps = new ArrayList<>(), elseSteps = new ArrayList<>();
+                collectWorstCase(conditional.thenNodes(), thenSteps);
+                collectWorstCase(conditional.elseNodes(), elseSteps);
+                actions.addAll(thenSteps.size() >= elseSteps.size() ? thenSteps : elseSteps);
+            } else {
+                PlanNode.Repeat repeat = (PlanNode.Repeat) node;
+                List<QueuedStep> body = new ArrayList<>();
+                collectWorstCase(repeat.body(), body);
+                for (int i = 0; i < repeat.maxIterations(); i++) actions.addAll(body);
+            }
+        }
     }
 
     public Job addDirect(QueuedStep step) {
@@ -83,13 +124,22 @@ public final class JobQueue {
 
     public Job addJob(long planId, QueuedStep step) {
         PlanRecord plan = plans.get(planId);
-        if (plan == null || !step.afterSteps().isEmpty()) throw new IllegalArgumentException("unknown plan or dependencies");
+        if (plan == null || plan.cursor() != null && plan.cursor().stack().isEmpty()
+                && plan.cursor().pendingActionPath().isEmpty() || !step.afterSteps().isEmpty()) {
+            throw new IllegalArgumentException("unknown or closed plan, or dependencies");
+        }
         ensureJobCapacity(1); validateBudget(List.of(step));
         long id = nextJob++;
         Job job = new Job(id, planId, step.tool(), step.args(), step.priority() == null ? plan.priority() : step.priority(), step.priority() != null,
                 nextOrder, JobState.PENDING, step.guards(), step.onUnmet(), step.onFailure() == null ? plan.onFailure() : step.onFailure(),
                 step.maxAttempts(), 0, List.of(), "", 0, step.principal(), step.creativeSensitive());
         nextOrder += 100; jobs.put(id, job); return job;
+    }
+
+    public void updatePlanCursor(long planId, PlanCursor cursor) {
+        PlanRecord plan = plans.get(planId);
+        if (plan == null || plan.definition() == null || cursor == null) throw new IllegalArgumentException("unknown structured plan");
+        plans.put(planId, plan.withCursor(cursor));
     }
 
     private void putNew(long id, long planId, QueuedStep step, PlanOptions options, List<Long> ids) {
@@ -237,7 +287,7 @@ public final class JobQueue {
     }
     private static String bound(String text) { return text == null ? "" : text.length() <= MAX_STORED_RESULT ? text : text.substring(0, MAX_STORED_RESULT); }
     private static Job copy(Job j,JsonObject args,int priority,boolean explicit,long order,JobState state,List<Long> after,String result,long retryAt){return new Job(j.id(),j.planId(),j.tool(),args,priority,explicit,order,state,j.guards(),j.onUnmet(),j.onFailure(),j.maxAttempts(),j.attempts(),after,result,retryAt,j.principal(),j.creativeSensitive());}
-    public Result cancelPlan(long planId) { if (!plans.containsKey(planId)) return Result.error("unknown plan #" + planId); for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0); return Result.ok("cancelled plan #" + planId); }
+    public Result cancelPlan(long planId) { PlanRecord plan=plans.get(planId);if(plan==null)return Result.error("unknown plan #"+planId);for(Job j:jobsOfPlan(planId))if(!terminal(j))replace(j,JobState.CANCELLED,"cancelled",j.attempts(),0);if(plan.definition()!=null&&plan.cursor()!=null)plans.put(planId,plan.withCursor(new PlanCursor(List.of(),plan.cursor().selectedBranches(),plan.cursor().repeatIterations(),plan.cursor().startTick(),plan.cursor().startDistance(),"",null)));return Result.ok("cancelled plan #"+planId); }
     public Result remove(long id) { return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id); }
     public Result clear() {
         int pc = plans.size(), jc = jobs.size();

@@ -18,7 +18,7 @@ public final class FriendaiTools {
 
     /**
      * Queues a plan the way {@code queue_add} does, for callers outside the model's turn (free time). The plan is
-     * not linked to the owner's goal when {@code linkGoal} is false, and any step using a {@code denied} tool
+     * not linked to the owner's goal when {@code linkGoal} is false, and any nested action using a {@code denied} tool
      * refuses the whole plan. Never throws for a bad plan.
      */
     public static dev.friendai.tool.ToolResult addPlan(CompanionEntity companion, dev.friendai.tool.Caller caller,

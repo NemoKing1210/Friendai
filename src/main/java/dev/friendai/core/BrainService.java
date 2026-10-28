@@ -48,11 +48,15 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.StepFactory;
+import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.trading.TradeAuthority;
 import dev.friendai.trading.TradePromptSummary;
 import dev.friendai.queue.Job;
 import dev.friendai.queue.JobState;
+import dev.friendai.queue.PlanNode;
+import dev.friendai.queue.PlanRecord;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.queue.QueueSave;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.plan.PlanEntry;
@@ -391,12 +395,18 @@ public final class BrainService {
             if (job.planId() > 0) expiredPlans.add(job.planId());
             else restoredQueue.cancel(job.id(), "trading authority expired after restart");
         }
+        for (PlanRecord plan : restoredQueue.plans()) {
+            if (plan.cursor() != null && plan.definition() != null && structuredPlanNeedsFreshAuthority(plan.definition().nodes())) {
+                expiredPlans.add(plan.id());
+            }
+        }
         for (long planId : expiredPlans) {
             restoredQueue.cancelPlan(planId);
             restoredQueue.archivePlan(planId, false, "trading authority expired after restart");
         }
         entryFor(companion.ownerUuid()); // Attach the listener before emitting restore notices.
         Map<Long, StepFactory> factories = new HashMap<>();
+        Map<Long, Map<String, PlanStepFactory>> planFactories = new HashMap<>();
         for (Job job : restoredQueue.jobs()) {
             TaskToolDef def = taskTools.get(job.tool());
             if (def == null) {
@@ -413,7 +423,30 @@ public final class BrainService {
                     : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion().ownerUuid(), principal),
                             args.deepCopy()));
         }
-        companion.taskRunner().restoreQueue(decoded.get(), factories);
+        for (PlanRecord plan : restoredQueue.plans()) {
+            if (plan.cursor() == null || plan.definition() == null) continue;
+            Map<String, TaskToolDef> definitions = new HashMap<>();
+            collectPlanTools(plan.definition().nodes(), definitions);
+            Map<String, PlanStepFactory> byTool = new HashMap<>();
+            for (var entry : definitions.entrySet()) {
+                TaskToolDef def = entry.getValue();
+                if (def == null || !def.plannable()) continue;
+                byTool.put(entry.getKey(), new PlanStepFactory() {
+                    @Override public Task create(dev.friendai.task.TaskContext ctx, QueuedStep step) {
+                        JsonObject args = step.args();
+                        Caller caller = currentCaller(ctx.companion().ownerUuid(), step.principal())
+                                .withTradingScope(QueueTradeScope.read(args));
+                        return def.callerFactory() == null ? def.factory().create(ctx.companion(), args)
+                                : def.callerFactory().create(ctx.companion(), caller, args);
+                    }
+                    @Override public boolean authorized(dev.friendai.task.TaskContext ctx, QueuedStep step) {
+                        return currentCaller(ctx.companion().ownerUuid(), step.principal()).access().allows(def.minAccess());
+                    }
+                });
+            }
+            planFactories.put(plan.id(), byTool);
+        }
+        companion.taskRunner().restoreQueue(decoded.get(), factories, planFactories);
         for (Job job : companion.taskRunner().queue().jobs()) {
             if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
                 companion.taskRunner().notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool() + " is no longer available");
@@ -428,6 +461,28 @@ public final class BrainService {
                 : owner != null && memory.book(owner).isTrusted(principal) ? AccessLevel.TRUSTED : AccessLevel.GUEST;
         return new Caller(principal, "", access);
     }
+
+    private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDef> result) {
+        for (PlanNode node : nodes) {
+            if (node instanceof PlanNode.Action action) result.put(action.step().tool(), taskTools.get(action.step().tool()));
+            else if (node instanceof PlanNode.Conditional conditional) {
+                collectPlanTools(conditional.thenNodes(), result); collectPlanTools(conditional.elseNodes(), result);
+            } else collectPlanTools(((PlanNode.Repeat) node).body(), result);
+        }
+    }
+
+    private boolean structuredPlanNeedsFreshAuthority(List<PlanNode> nodes) {
+        for (PlanNode node : nodes) {
+            if (node instanceof PlanNode.Action action) {
+                TaskToolDef def = taskTools.get(action.step().tool());
+                if (QueueTradeScope.requiresFreshAuthority(action.step().args(), def != null && def.queueTraits().requiresTradingScope())) return true;
+            } else if (node instanceof PlanNode.Conditional conditional) {
+                if (structuredPlanNeedsFreshAuthority(conditional.thenNodes()) || structuredPlanNeedsFreshAuthority(conditional.elseNodes())) return true;
+            } else if (structuredPlanNeedsFreshAuthority(((PlanNode.Repeat) node).body())) return true;
+        }
+        return false;
+    }
+
 
     /**
      * Rebuilds a plan saved with the world. The steps come from this server's tools, so a plan is only resumed when
@@ -642,6 +697,7 @@ public final class BrainService {
             primary.ifPresent(goal -> board.linkPlan(goal.id(), 0));
             JsonObject add = new JsonObject();
             add.addProperty("goal", primary.map(dev.friendai.agent.goal.Goal::text).orElse("planned work"));
+            // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
             add.add("steps", proposal.stepsJson());
             ToolResult result = executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
             goals.save(owner);

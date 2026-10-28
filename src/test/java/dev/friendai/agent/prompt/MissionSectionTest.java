@@ -30,7 +30,7 @@ class MissionSectionTest {
         assertTrue(s.contains("- Goal: build a house"), s);
         assertTrue(s.contains("Not yet confirmed: roof; door; light"), s);
         assertFalse(s.contains("zzfourth"), "only three unmet criteria are shown");
-        assertTrue(s.contains("- Plan: plan 3 running"), s);
+        assertTrue(s.contains("- Plan: plan 3 running (when/then/else; server selects, repeat cap 64)"), s);
         assertTrue(s.contains("- Lesson learned: no axe"), s);
     }
 

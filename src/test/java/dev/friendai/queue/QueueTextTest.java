@@ -23,4 +23,25 @@ class QueueTextTest {
         String text = QueueText.summary(q, FACTS, "mining stone");
         assertTrue(text.contains("Running: #" + active)); assertTrue(text.contains("Blocked: #")); assertTrue(text.contains("needs 3 minecraft:iron_ingot"));
     }
+
+    @Test
+    void structuredInspectionShowsSelectedBranchPathAndRepeatProgress() {
+        PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Conditional(new Guard.FluidAhead(),
+                List.of(new PlanNode.Repeat(List.of(new PlanNode.Action(new QueuedStep("go_to", new JsonObject(), null,
+                        List.of(), GuardAction.WAIT, null, 1, List.of()))), new Guard.TimeElapsed(100), 10)), List.of())));
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addStructuredPlan("travel", definition, PlanOptions.DEFAULT);
+        queue.updatePlanCursor(plan, new PlanCursor(List.of(new PlanCursor.Frame(List.of(), 0, "", "", false)),
+                Map.of("step 1", true), Map.of("step 1 → then #1", 3), 0, 0, "", null));
+
+        String shown = QueueText.show(queue, FACTS, null, 20, false);
+        assertTrue(shown.contains("step 1 → then #1"), shown);
+        assertTrue(shown.contains("selected then"), shown);
+        assertTrue(shown.contains("3/10"), shown);
+        assertTrue(shown.contains("tree: [if("), shown);
+        assertTrue(shown.contains("repeat("), shown);
+        assertTrue(shown.contains("go_to"), shown);
+        var rows = dev.friendai.debug.QueueRows.build(queue, FACTS, null);
+        assertTrue(rows.stream().anyMatch(row -> row.planId() == plan && row.note().contains("3/10")));
+    }
 }
