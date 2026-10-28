@@ -30,26 +30,41 @@ class GuardTest {
 
     @Test
     void everyGuardChecksItsFact() {
-        assertTrue(Guard.parse(json("{\"type\":\"inventory_space\",\"slots\":2}")).orElseThrow().holds(facts(Map.of())));
-        assertTrue(Guard.parse(json("{\"type\":\"health_at_least\",\"percent\":50}")).orElseThrow().holds(facts(Map.of())));
-        assertTrue(Guard.parse(json("{\"type\":\"owner_within\",\"blocks\":16}")).orElseThrow().holds(facts(Map.of())));
-        assertTrue(Guard.parse(json("{\"type\":\"block_within\",\"block\":\"minecraft:oak_log\",\"radius\":8,\"count\":4}")).orElseThrow().holds(facts(Map.of())));
-        assertTrue(Guard.parse(json("{\"type\":\"dimension\",\"dimension\":\"minecraft:the_nether\"}")).orElseThrow().holds(facts(Map.of())));
+        assertTrue(Guard.parse(json("{\"type\":\"inventory_space\",\"slots\":2}"))
+                .orElseThrow()
+                .holds(facts(Map.of())));
+        assertTrue(Guard.parse(json("{\"type\":\"health_at_least\",\"percent\":50}"))
+                .orElseThrow()
+                .holds(facts(Map.of())));
+        assertTrue(Guard.parse(json("{\"type\":\"owner_within\",\"blocks\":16}"))
+                .orElseThrow()
+                .holds(facts(Map.of())));
+        assertTrue(Guard.parse(
+                        json("{\"type\":\"block_within\",\"block\":\"minecraft:oak_log\",\"radius\":8,\"count\":4}"))
+                .orElseThrow()
+                .holds(facts(Map.of())));
+        assertTrue(Guard.parse(json("{\"type\":\"dimension\",\"dimension\":\"minecraft:the_nether\"}"))
+                .orElseThrow()
+                .holds(facts(Map.of())));
     }
 
     @Test
     void rejectsUnknownTypeAndBadNumbers() {
         assertTrue(Guard.parse(json("{\"type\":\"nope\"}")).isEmpty());
-        assertTrue(Guard.parse(json("{\"type\":\"health_at_least\",\"percent\":0}")).isEmpty());
+        assertTrue(Guard.parse(json("{\"type\":\"health_at_least\",\"percent\":0}"))
+                .isEmpty());
         assertTrue(Guard.parse(json("{\"type\":\"has_item\",\"item\":\"\"}")).isEmpty());
-        assertTrue(Guard.parse(json("{\"type\":\"block_within\",\"block\":\"minecraft:stone\",\"radius\":33}")).isEmpty());
+        assertTrue(Guard.parse(json("{\"type\":\"block_within\",\"block\":\"minecraft:stone\",\"radius\":33}"))
+                .isEmpty());
     }
 
     @Test
     void blockWithinUsesTheEarlyExitFact() {
         Guard.BlockWithin guard = new Guard.BlockWithin("minecraft:stone", 8, 4);
-        assertTrue(guard.holds(new FakeGuardFacts(Map.of(), 0, 1, 0, Map.of("minecraft:stone", 4), "minecraft:overworld")));
-        assertFalse(guard.holds(new FakeGuardFacts(Map.of(), 0, 1, 0, Map.of("minecraft:stone", 3), "minecraft:overworld")));
+        assertTrue(guard.holds(
+                new FakeGuardFacts(Map.of(), 0, 1, 0, Map.of("minecraft:stone", 4), "minecraft:overworld")));
+        assertFalse(guard.holds(
+                new FakeGuardFacts(Map.of(), 0, 1, 0, Map.of("minecraft:stone", 3), "minecraft:overworld")));
     }
 
     @Test
@@ -86,30 +101,75 @@ class GuardTest {
     @Test
     void conditionalPrimitivesReadTheirOwnFactsAndRejectOutOfRangeValues() {
         GuardFacts world = new GuardFacts() {
-            @Override public int countItems(String idOrTag) { return 0; }
-            @Override public int emptySlots() { return 0; }
-            @Override public float healthFraction() { return 0; }
-            @Override public int ownerDistance() { return -1; }
-            @Override public int countBlocks(String idOrTag, int radius) { return 0; }
-            @Override public String dimension() { return "minecraft:overworld"; }
-            @Override public boolean blockInFront(String idOrTag, int distance) {
+            @Override
+            public int countItems(String idOrTag) {
+                return 0;
+            }
+
+            @Override
+            public int emptySlots() {
+                return 0;
+            }
+
+            @Override
+            public float healthFraction() {
+                return 0;
+            }
+
+            @Override
+            public int ownerDistance() {
+                return -1;
+            }
+
+            @Override
+            public int countBlocks(String idOrTag, int radius) {
+                return 0;
+            }
+
+            @Override
+            public String dimension() {
+                return "minecraft:overworld";
+            }
+
+            @Override
+            public boolean blockInFront(String idOrTag, int distance) {
                 return idOrTag.equals("minecraft:oak_log") && distance == 8;
             }
-            @Override public String biome() { return "minecraft:plains"; }
-            @Override public boolean fluidAhead() { return true; }
-            @Override public int distanceTravelled() { return 16384; }
-            @Override public long timeElapsed() { return 24000; }
+
+            @Override
+            public String biome() {
+                return "minecraft:plains";
+            }
+
+            @Override
+            public boolean fluidAhead() {
+                return true;
+            }
+
+            @Override
+            public int distanceTravelled() {
+                return 16384;
+            }
+
+            @Override
+            public long timeElapsed() {
+                return 24000;
+            }
         };
 
         assertTrue(Guard.parse(json("{\"type\":\"block_in_front\",\"block\":\"minecraft:oak_log\",\"distance\":8}"))
-                .orElseThrow().holds(world));
+                .orElseThrow()
+                .holds(world));
         assertTrue(Guard.parse(json("{\"type\":\"biome\",\"biome\":\"minecraft:plains\"}"))
-                .orElseThrow().holds(world));
+                .orElseThrow()
+                .holds(world));
         assertTrue(Guard.parse(json("{\"type\":\"fluid_ahead\"}")).orElseThrow().holds(world));
         assertTrue(Guard.parse(json("{\"type\":\"distance_travelled\",\"blocks\":16384}"))
-                .orElseThrow().holds(world));
+                .orElseThrow()
+                .holds(world));
         assertTrue(Guard.parse(json("{\"type\":\"time_elapsed\",\"ticks\":24000}"))
-                .orElseThrow().holds(world));
+                .orElseThrow()
+                .holds(world));
 
         for (String invalid : List.of(
                 "{\"type\":\"all_of\",\"conditions\":[]}",

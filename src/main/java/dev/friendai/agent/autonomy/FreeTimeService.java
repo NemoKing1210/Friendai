@@ -25,17 +25,38 @@ public final class FreeTimeService {
 
     /** The owner's state, decoded from the book on first use; a missing or broken save is {@link FreeTime#OFF}. */
     public FreeTime state(UUID owner) {
-        return states.computeIfAbsent(owner, id -> books.apply(id).freeTime()
-                .flatMap(FreeTimeSave::decode)
-                .orElse(FreeTime.OFF));
+        return states.computeIfAbsent(
+                owner,
+                id -> books.apply(id).freeTime().flatMap(FreeTimeSave::decode).orElse(FreeTime.OFF));
     }
 
     /** Turns free time on; when it is already on, only the wish changes. */
     public FreeTime start(UUID owner, FreeTime.Origin origin, String wish, long now) {
-        return update(owner, s -> s.on()
-                ? copy(s, true, s.origin(), wish, s.sinceMillis(), s.shift(), s.awaitingChoice(), s.nextShiftId(),
-                        s.history(), s.cooldownUntil())
-                : copy(s, true, origin, wish, now, null, false, s.nextShiftId(), s.history(), s.cooldownUntil()));
+        return update(
+                owner,
+                s -> s.on()
+                        ? copy(
+                                s,
+                                true,
+                                s.origin(),
+                                wish,
+                                s.sinceMillis(),
+                                s.shift(),
+                                s.awaitingChoice(),
+                                s.nextShiftId(),
+                                s.history(),
+                                s.cooldownUntil())
+                        : copy(
+                                s,
+                                true,
+                                origin,
+                                wish,
+                                now,
+                                null,
+                                false,
+                                s.nextShiftId(),
+                                s.history(),
+                                s.cooldownUntil()));
     }
 
     /** Turns free time off, closing a shift in progress as failed with {@code reason}. */
@@ -54,34 +75,98 @@ public final class FreeTimeService {
 
     /** A director turn was asked to choose an activity. */
     public FreeTime awaitChoice(UUID owner) {
-        return update(owner, s -> copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(), s.shift(), true,
-                s.nextShiftId(), s.history(), s.cooldownUntil()));
+        return update(
+                owner,
+                s -> copy(
+                        s,
+                        s.on(),
+                        s.origin(),
+                        s.wish(),
+                        s.sinceMillis(),
+                        s.shift(),
+                        true,
+                        s.nextShiftId(),
+                        s.history(),
+                        s.cooldownUntil()));
     }
 
     /** The director turn ended without a choice. */
     public FreeTime clearChoice(UUID owner) {
-        return update(owner, s -> copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(), s.shift(), false,
-                s.nextShiftId(), s.history(), s.cooldownUntil()));
+        return update(
+                owner,
+                s -> copy(
+                        s,
+                        s.on(),
+                        s.origin(),
+                        s.wish(),
+                        s.sinceMillis(),
+                        s.shift(),
+                        false,
+                        s.nextShiftId(),
+                        s.history(),
+                        s.cooldownUntil()));
     }
 
-    public FreeTime beginShift(UUID owner, String goal, List<String> criteria, String why, NeedKind need,
-                               boolean reflex, long now, long deadline) {
+    public FreeTime beginShift(
+            UUID owner,
+            String goal,
+            List<String> criteria,
+            String why,
+            NeedKind need,
+            boolean reflex,
+            long now,
+            long deadline) {
         return update(owner, s -> {
             Shift shift = new Shift(s.nextShiftId(), goal, criteria, why, 0, now, deadline, reflex, need);
-            return copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(), shift, false, s.nextShiftId() + 1,
-                    s.history(), s.cooldownUntil());
+            return copy(
+                    s,
+                    s.on(),
+                    s.origin(),
+                    s.wish(),
+                    s.sinceMillis(),
+                    shift,
+                    false,
+                    s.nextShiftId() + 1,
+                    s.history(),
+                    s.cooldownUntil());
         });
     }
 
     public FreeTime linkPlan(UUID owner, long planId) {
-        return update(owner, s -> s.shift() == null ? s : copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(),
-                s.shift().withPlan(planId), s.awaitingChoice(), s.nextShiftId(), s.history(), s.cooldownUntil()));
+        return update(
+                owner,
+                s -> s.shift() == null
+                        ? s
+                        : copy(
+                                s,
+                                s.on(),
+                                s.origin(),
+                                s.wish(),
+                                s.sinceMillis(),
+                                s.shift().withPlan(planId),
+                                s.awaitingChoice(),
+                                s.nextShiftId(),
+                                s.history(),
+                                s.cooldownUntil()));
     }
 
     /** Ends the current shift and records how it went. */
     public FreeTime finishShift(UUID owner, boolean success, String summary, long now) {
-        return update(owner, s -> s.shift() == null ? s : copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(),
-                null, s.awaitingChoice(), s.nextShiftId(), withRecord(s, success, summary, now), s.cooldownUntil()));
+        return update(
+                owner,
+                s -> s.shift() == null
+                        ? s
+                        : copy(
+                                s,
+                                s.on(),
+                                s.origin(),
+                                s.wish(),
+                                s.sinceMillis(),
+                                null,
+                                s.awaitingChoice(),
+                                s.nextShiftId(),
+                                withRecord(s, success, summary, now),
+                                s.cooldownUntil()));
     }
 
     public FreeTime cooldown(UUID owner, NeedKind need, long untilMillis) {
@@ -89,8 +174,17 @@ public final class FreeTimeService {
             Map<NeedKind, Long> cooldowns = new EnumMap<>(NeedKind.class);
             cooldowns.putAll(s.cooldownUntil());
             cooldowns.put(need, untilMillis);
-            return copy(s, s.on(), s.origin(), s.wish(), s.sinceMillis(), s.shift(), s.awaitingChoice(),
-                    s.nextShiftId(), s.history(), cooldowns);
+            return copy(
+                    s,
+                    s.on(),
+                    s.origin(),
+                    s.wish(),
+                    s.sinceMillis(),
+                    s.shift(),
+                    s.awaitingChoice(),
+                    s.nextShiftId(),
+                    s.history(),
+                    cooldowns);
         });
     }
 
@@ -98,8 +192,18 @@ public final class FreeTimeService {
         return update(owner, s -> {
             List<String> lessons = new ArrayList<>(s.lessons());
             lessons.add(lesson);
-            return new FreeTime(s.on(), s.origin(), s.wish(), s.sinceMillis(), s.shift(), s.awaitingChoice(),
-                    s.nextShiftId(), s.history(), lessons, s.cooldownUntil(), s.away());
+            return new FreeTime(
+                    s.on(),
+                    s.origin(),
+                    s.wish(),
+                    s.sinceMillis(),
+                    s.shift(),
+                    s.awaitingChoice(),
+                    s.nextShiftId(),
+                    s.history(),
+                    lessons,
+                    s.cooldownUntil(),
+                    s.away());
         });
     }
 
@@ -118,10 +222,18 @@ public final class FreeTimeService {
         return history;
     }
 
-    private static FreeTime copy(FreeTime s, boolean on, FreeTime.Origin origin, String wish, long since,
-                                 Shift shift, boolean awaiting, long nextShift, List<ShiftRecord> history,
-                                 Map<NeedKind, Long> cooldowns) {
-        return new FreeTime(on, origin, wish, since, shift, awaiting, nextShift, history, s.lessons(), cooldowns,
-                s.away());
+    private static FreeTime copy(
+            FreeTime s,
+            boolean on,
+            FreeTime.Origin origin,
+            String wish,
+            long since,
+            Shift shift,
+            boolean awaiting,
+            long nextShift,
+            List<ShiftRecord> history,
+            Map<NeedKind, Long> cooldowns) {
+        return new FreeTime(
+                on, origin, wish, since, shift, awaiting, nextShift, history, s.lessons(), cooldowns, s.away());
     }
 }

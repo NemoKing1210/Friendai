@@ -24,8 +24,10 @@ class MissionSectionTest {
 
     @Test
     void rendersGoalUnmetCriteriaAndLesson() {
-        String s = prompt(AccessLevel.OWNER,
-                new GoalView("build a house", List.of("roof", "door", "light", "zzfourth"), "plan 3 running", "no axe"));
+        String s = prompt(
+                AccessLevel.OWNER,
+                new GoalView(
+                        "build a house", List.of("roof", "door", "light", "zzfourth"), "plan 3 running", "no axe"));
         assertTrue(s.contains("Mission:"), s);
         assertTrue(s.contains("- Goal: build a house"), s);
         assertTrue(s.contains("Not yet confirmed: roof; door; light"), s);
@@ -42,7 +44,8 @@ class MissionSectionTest {
 
     @Test
     void guestNeverSeesTheMission() {
-        assertFalse(prompt(AccessLevel.GUEST, new GoalView("secret plan", List.of(), "", "")).contains("secret plan"));
+        assertFalse(prompt(AccessLevel.GUEST, new GoalView("secret plan", List.of(), "", ""))
+                .contains("secret plan"));
     }
 
     @Test

@@ -1,8 +1,8 @@
 package dev.friendai.client.debug;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.debug.DebugDetail;
 import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugDetail;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.pathing.Move;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -79,16 +79,21 @@ public final class MovementDebugRenderer {
             }
         }
         for (MovementDebug.Cell c : view.breaks()) {
-            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(BREAK, 2f)).setAlwaysOnTop();
+            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(BREAK, 2f))
+                    .setAlwaysOnTop();
         }
         for (MovementDebug.Cell c : view.places()) {
-            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(PLACE, 2f)).setAlwaysOnTop();
+            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(PLACE, 2f))
+                    .setAlwaysOnTop();
         }
         for (MovementDebug.Cell c : view.goalCells()) {
-            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(GOAL, 3f)).setAlwaysOnTop();
-            Gizmos.billboardText(Component.translatable("friendai.debug.goal").getString(),
-                    new Vec3(c.x() + 0.5, c.y() + 1.4, c.z() + 0.5),
-                    TextGizmo.Style.forColorAndCentered(GOAL)).setAlwaysOnTop();
+            Gizmos.cuboid(new BlockPos(c.x(), c.y(), c.z()), GizmoStyle.stroke(GOAL, 3f))
+                    .setAlwaysOnTop();
+            Gizmos.billboardText(
+                            Component.translatable("friendai.debug.goal").getString(),
+                            new Vec3(c.x() + 0.5, c.y() + 1.4, c.z() + 0.5),
+                            TextGizmo.Style.forColorAndCentered(GOAL))
+                    .setAlwaysOnTop();
         }
         for (var target : view.targets()) {
             int color = actionColor(target.action());
@@ -97,16 +102,23 @@ public final class MovementDebugRenderer {
             String action = actionLabel(target.action());
             String detail = detailLabel(target.detail());
             String label = detail.isBlank() ? action : action + " · " + detail;
-            Gizmos.billboardText(clipLabel(label), new Vec3(target.x() + 0.5, target.y() + 1.35,
-                    target.z() + 0.5), TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
+            Gizmos.billboardText(
+                            clipLabel(label),
+                            new Vec3(target.x() + 0.5, target.y() + 1.35, target.z() + 0.5),
+                            TextGizmo.Style.forColorAndCentered(color))
+                    .setAlwaysOnTop();
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && current < view.route().size()) {
             Entity companion = mc.level.getEntity(view.companionId());
             if (companion != null) {
                 MovementDebug.Segment s = view.route().get(current);
-                Gizmos.line(companion.position().add(0, 0.2, 0),
-                        new Vec3(s.toX() + 0.5, s.toY() + 0.1, s.toZ() + 0.5), TO_NEXT, 2f).setAlwaysOnTop();
+                Gizmos.line(
+                                companion.position().add(0, 0.2, 0),
+                                new Vec3(s.toX() + 0.5, s.toY() + 0.1, s.toZ() + 0.5),
+                                TO_NEXT,
+                                2f)
+                        .setAlwaysOnTop();
             }
         }
     }
@@ -148,7 +160,8 @@ public final class MovementDebugRenderer {
         }
         String navigation = lineValue(view.lines(), "navigator: ");
         if (!navigation.isBlank()) {
-            lines.add(Component.translatable("friendai.debug.hud.navigation", navigationLabel(navigation)).getString());
+            lines.add(Component.translatable("friendai.debug.hud.navigation", navigationLabel(navigation))
+                    .getString());
         }
         String current = lineValue(view.lines(), "current step: ");
         if (!current.isBlank()) {
@@ -158,10 +171,12 @@ public final class MovementDebugRenderer {
             var target = view.targets().getFirst();
             String action = actionLabel(target.action());
             String detail = target.detail().isBlank() ? "" : " · " + detailLabel(target.detail());
-            lines.add(Component.translatable("friendai.debug.hud.action", action + detail).getString());
+            lines.add(Component.translatable("friendai.debug.hud.action", action + detail)
+                    .getString());
         }
         if (!view.upcomingSteps().isEmpty()) {
-            String steps = view.upcomingSteps().stream().map(MovementDebugRenderer::stepLabel)
+            String steps = view.upcomingSteps().stream()
+                    .map(MovementDebugRenderer::stepLabel)
                     .collect(java.util.stream.Collectors.joining("  ›  "));
             lines.add(Component.translatable("friendai.debug.hud.next", steps).getString());
         }
@@ -169,20 +184,25 @@ public final class MovementDebugRenderer {
     }
 
     private static String lineValue(java.util.List<String> lines, String prefix) {
-        return lines.stream().filter(line -> line.startsWith(prefix)).findFirst()
-                .map(line -> line.substring(prefix.length())).orElse("");
+        return lines.stream()
+                .filter(line -> line.startsWith(prefix))
+                .findFirst()
+                .map(line -> line.substring(prefix.length()))
+                .orElse("");
     }
 
     private static String navigationLabel(String navigation) {
         String state = navigation.split("[ (,]", 2)[0];
-        return Component.translatable(switch (state) {
-            case "searching" -> "friendai.debug.navigation.searching";
-            case "moving" -> "friendai.debug.navigation.moving";
-            case "gathering" -> "friendai.debug.navigation.gathering";
-            case "arrived" -> "friendai.debug.navigation.arrived";
-            case "unreachable" -> "friendai.debug.navigation.unreachable";
-            default -> "friendai.debug.navigation.idle";
-        }).getString();
+        return Component.translatable(
+                        switch (state) {
+                            case "searching" -> "friendai.debug.navigation.searching";
+                            case "moving" -> "friendai.debug.navigation.moving";
+                            case "gathering" -> "friendai.debug.navigation.gathering";
+                            case "arrived" -> "friendai.debug.navigation.arrived";
+                            case "unreachable" -> "friendai.debug.navigation.unreachable";
+                            default -> "friendai.debug.navigation.idle";
+                        })
+                .getString();
     }
 
     private static int actionColor(DebugAction action) {
@@ -198,34 +218,50 @@ public final class MovementDebugRenderer {
     }
 
     private static String actionLabel(DebugAction action) {
-        return Component.translatable(switch (action) {
-            case BREAK -> "friendai.debug.action.break";
-            case PLACE -> "friendai.debug.action.place";
-            case HARVEST -> "friendai.debug.action.harvest";
-            case USE -> "friendai.debug.action.use";
-            case CRAFT -> "friendai.debug.action.craft";
-            case SMELT -> "friendai.debug.action.smelt";
-            case COLLECT -> "friendai.debug.action.collect";
-        }).getString();
+        return Component.translatable(
+                        switch (action) {
+                            case BREAK -> "friendai.debug.action.break";
+                            case PLACE -> "friendai.debug.action.place";
+                            case HARVEST -> "friendai.debug.action.harvest";
+                            case USE -> "friendai.debug.action.use";
+                            case CRAFT -> "friendai.debug.action.craft";
+                            case SMELT -> "friendai.debug.action.smelt";
+                            case COLLECT -> "friendai.debug.action.collect";
+                        })
+                .getString();
     }
 
     private static String stepLabel(String tool) {
         return switch (tool) {
-            case "mine_blocks" -> Component.translatable("friendai.debug.step.mine_blocks").getString();
-            case "mine_block_at" -> Component.translatable("friendai.debug.step.mine_block_at").getString();
-            case "place_block" -> Component.translatable("friendai.debug.step.place_block").getString();
-            case "use_block" -> Component.translatable("friendai.debug.step.use_block").getString();
-            case "build_structure" -> Component.translatable("friendai.debug.step.build_structure").getString();
-            case "build_special" -> Component.translatable("friendai.debug.step.build_special").getString();
-            case "craft_item" -> Component.translatable("friendai.debug.step.craft_item").getString();
-            case "smelt_items" -> Component.translatable("friendai.debug.step.smelt_items").getString();
-            case "cook_food" -> Component.translatable("friendai.debug.step.cook_food").getString();
-            case "collect_smelted" -> Component.translatable("friendai.debug.step.collect_smelted").getString();
-            case "collect_station" -> Component.translatable("friendai.debug.step.collect_station").getString();
+            case "mine_blocks" ->
+                Component.translatable("friendai.debug.step.mine_blocks").getString();
+            case "mine_block_at" ->
+                Component.translatable("friendai.debug.step.mine_block_at").getString();
+            case "place_block" ->
+                Component.translatable("friendai.debug.step.place_block").getString();
+            case "use_block" ->
+                Component.translatable("friendai.debug.step.use_block").getString();
+            case "build_structure" ->
+                Component.translatable("friendai.debug.step.build_structure").getString();
+            case "build_special" ->
+                Component.translatable("friendai.debug.step.build_special").getString();
+            case "craft_item" ->
+                Component.translatable("friendai.debug.step.craft_item").getString();
+            case "smelt_items" ->
+                Component.translatable("friendai.debug.step.smelt_items").getString();
+            case "cook_food" ->
+                Component.translatable("friendai.debug.step.cook_food").getString();
+            case "collect_smelted" ->
+                Component.translatable("friendai.debug.step.collect_smelted").getString();
+            case "collect_station" ->
+                Component.translatable("friendai.debug.step.collect_station").getString();
             case "farm" -> Component.translatable("friendai.debug.step.farm").getString();
-            case "tend_farm" -> Component.translatable("friendai.debug.step.tend_farm").getString();
-            case "use_bonemeal" -> Component.translatable("friendai.debug.step.use_bonemeal").getString();
-            case "obtain_item" -> Component.translatable("friendai.debug.step.obtain_item").getString();
+            case "tend_farm" ->
+                Component.translatable("friendai.debug.step.tend_farm").getString();
+            case "use_bonemeal" ->
+                Component.translatable("friendai.debug.step.use_bonemeal").getString();
+            case "obtain_item" ->
+                Component.translatable("friendai.debug.step.obtain_item").getString();
             default -> Component.translatable("friendai.debug.step.generic").getString();
         };
     }
@@ -243,7 +279,12 @@ public final class MovementDebugRenderer {
             argument = Component.translatable("item." + namespace + "." + path).getString();
         } else if (!argument.isBlank()) {
             String block = switch (argument) {
-                case "furnace", "crafting table", "stonecutter", "smithing table", "blast furnace", "smoker",
+                case "furnace",
+                        "crafting table",
+                        "stonecutter",
+                        "smithing table",
+                        "blast furnace",
+                        "smoker",
                         "campfire" -> "block.minecraft." + argument.replace(' ', '_');
                 default -> null;
             };

@@ -4,24 +4,25 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
-import io.netty.channel.embedded.EmbeddedChannel;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.memory.CompanionName;
-import dev.friendai.crafting.Station;
 import dev.friendai.task.builtin.StayTask;
-import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.task.combat.Food;
+import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
+import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -34,7 +35,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.scores.PlayerTeam;
-import java.util.UUID;
 
 public class ToolTests {
     private static ToolResult run(ToolExecutor tools, String name, String json) {
@@ -72,7 +72,8 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "jump", "{}");
         h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("jump")).orElse(false),
+        h.assertTrue(
+                c.taskRunner().current().map(task -> task.type().equals("jump")).orElse(false),
                 "jump task should be current");
         h.succeed();
     }
@@ -90,7 +91,8 @@ public class ToolTests {
     public void mineToolRejectsUnknownBlock(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_blocks", "{\"block\":\"nonsense:block\",\"count\":3}");
-        h.assertTrue(r.error() && r.content().equals("unknown block or tag: nonsense:block"), "result was " + r.content());
+        h.assertTrue(
+                r.error() && r.content().equals("unknown block or tag: nonsense:block"), "result was " + r.content());
         h.succeed();
     }
 
@@ -115,8 +117,8 @@ public class ToolTests {
     @GameTest
     public void smeltToolRejectsNonFuel(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolResult r = run(tools(c), "smelt_items",
-                "{\"item\":\"minecraft:raw_iron\",\"count\":1,\"fuel\":\"minecraft:dirt\"}");
+        ToolResult r = run(
+                tools(c), "smelt_items", "{\"item\":\"minecraft:raw_iron\",\"count\":1,\"fuel\":\"minecraft:dirt\"}");
         h.assertTrue(r.error() && r.content().equals("minecraft:dirt is not a fuel"), "result was " + r.content());
         h.succeed();
     }
@@ -172,19 +174,32 @@ public class ToolTests {
 
         run(tools, "stay", "{}");
         ToolResult miss = run(tools, "stop", "{\"what\":\"mine_blocks\"}");
-        h.assertTrue(miss.error() && miss.content().startsWith("not running: mine_blocks; current task: staying in place"), "miss was " + miss.content());
+        h.assertTrue(
+                miss.error() && miss.content().startsWith("not running: mine_blocks; current task: staying in place"),
+                "miss was " + miss.content());
         h.assertTrue(c.taskRunner().current().get().type().equals("stay"), "a missed name must leave the task alone");
 
         c.taskRunner().start(new StayTask(), "mine_blocks");
         ToolResult spaced = run(tools, "stop", "{\"what\":\"Mine Blocks\"}");
-        h.assertTrue(!spaced.error() && spaced.content().equals("stopped staying in place"), "named stop was " + spaced.content());
+        h.assertTrue(
+                !spaced.error() && spaced.content().equals("stopped staying in place"),
+                "named stop was " + spaced.content());
         h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be following again");
 
         run(tools, "stay", "{}");
-        c.furnaceJobs().add(new FurnaceJob(h.absolutePos(new BlockPos(5, 2, 5)), Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        h.absolutePos(new BlockPos(5, 2, 5)),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        1,
+                        false));
         ToolResult all = run(tools, "stop", "{\"what\":\"all\"}");
         h.assertTrue(!all.error() && all.content().startsWith("stopped everything: "), "all was " + all.content());
-        h.assertTrue(all.content().contains("staying in place") && all.content().contains("dropped 1 furnace job"), "all was " + all.content());
+        h.assertTrue(
+                all.content().contains("staying in place") && all.content().contains("dropped 1 furnace job"),
+                "all was " + all.content());
         h.assertTrue(!all.content().contains("fight"), "no fight was running, all was " + all.content());
         h.assertTrue(c.furnaceJobs().all().isEmpty(), "furnace jobs should be cleared");
         h.assertTrue(c.taskRunner().current().get().type().equals("follow"), "should be back on the default activity");
@@ -194,12 +209,13 @@ public class ToolTests {
     @GameTest
     public void lookAroundListsNearbyLogs(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        List<BlockPos> logs = List.of(new BlockPos(4, 2, 3), new BlockPos(5, 2, 7),
-                new BlockPos(8, 2, 4), new BlockPos(10, 2, 8));
+        List<BlockPos> logs =
+                List.of(new BlockPos(4, 2, 3), new BlockPos(5, 2, 7), new BlockPos(8, 2, 4), new BlockPos(10, 2, 8));
         logs.forEach(pos -> h.setBlock(pos, Blocks.OAK_LOG));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         for (BlockPos relative : logs) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
                     "fixture log should be visible at " + relative);
         }
         ToolResult r = run(tools(c), "look_around", "{}");
@@ -214,14 +230,23 @@ public class ToolTests {
         FriendaiServerState state = FriendaiServerState.get(server);
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
 
-        ToolResult renamed = runAs(tools(companion), "set_name", "{\"name\":\"  Bob  \"}",
+        ToolResult renamed = runAs(
+                tools(companion),
+                "set_name",
+                "{\"name\":\"  Bob  \"}",
                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
-        h.assertTrue(!renamed.error() && renamed.content().equals("my name is now Bob"),
-                "result was " + renamed.content());
-        h.assertTrue(companion.getName().getString().equals("Bob"),
+        h.assertTrue(
+                !renamed.error() && renamed.content().equals("my name is now Bob"), "result was " + renamed.content());
+        h.assertTrue(
+                companion.getName().getString().equals("Bob"),
                 "tag name was " + companion.getName().getString());
         h.assertTrue(companion.isCustomNameVisible(), "the name tag must be visible");
-        h.assertTrue(state.memory().book(owner.getUUID()).companionName().orElseThrow().equals("Bob"),
+        h.assertTrue(
+                state.memory()
+                        .book(owner.getUUID())
+                        .companionName()
+                        .orElseThrow()
+                        .equals("Bob"),
                 "the name should be kept in the owner's book");
 
         var prompt = state.brains().currentPrompt(owner.getUUID());
@@ -240,18 +265,24 @@ public class ToolTests {
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
         ToolExecutor tools = tools(companion);
 
-        ToolResult blank = runAs(tools, "set_name", "{\"name\":\"   \"}",
+        ToolResult blank = runAs(
+                tools,
+                "set_name",
+                "{\"name\":\"   \"}",
                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
-        h.assertTrue(blank.error() && blank.content().equals("Invalid name. " + CompanionName.PROBLEM),
+        h.assertTrue(
+                blank.error() && blank.content().equals("Invalid name. " + CompanionName.PROBLEM),
                 "result was " + blank.content());
 
-        ToolResult tooLong = runAs(tools, "set_name",
+        ToolResult tooLong = runAs(
+                tools,
+                "set_name",
                 "{\"name\":\"" + "x".repeat(CompanionName.MAX_LENGTH + 1) + "\"}",
                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(tooLong.error(), "an over-long name must be rejected");
 
-        ToolResult guest = runAs(tools, "set_name", "{\"name\":\"Bob\"}",
-                new Caller(owner.getUUID(), "guest", AccessLevel.TRUSTED));
+        ToolResult guest = runAs(
+                tools, "set_name", "{\"name\":\"Bob\"}", new Caller(owner.getUUID(), "guest", AccessLevel.TRUSTED));
         h.assertTrue(guest.error() && guest.content().contains("not available"), "result was " + guest.content());
         h.assertTrue(!companion.getName().getString().equals("Bob"), "a guest must not rename the companion");
         h.succeed();
@@ -261,12 +292,18 @@ public class ToolTests {
     public void getInventoryListsItems(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
-        h.assertTrue(run(tools, "get_inventory", "{}").content()
-                        .equals("Inventory is empty\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
+        h.assertTrue(
+                run(tools, "get_inventory", "{}")
+                        .content()
+                        .equals(
+                                "Inventory is empty\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
                 "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         ToolResult r = run(tools, "get_inventory", "{}");
-        h.assertTrue(r.content().equals("Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
+        h.assertTrue(
+                r.content()
+                        .equals(
+                                "Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
                 "result was " + r.content());
         h.succeed();
     }
@@ -289,38 +326,147 @@ public class ToolTests {
 
     @GameTest
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
-        List<String> names = FriendaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
-        h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "fell_tree", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "clear_area", "store_items",
-                "take_items", "check_container", "deposit_items", "craft_item", "get_recipe", "smelt_items", "cook_food",
-                "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player",
-                "set_combat_mode", "get_combat_settings", "set_combat_settings", "equip_item", "eat",
-                "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules",
-                "farm", "plan_farm", "tend_farm", "use_bonemeal", "breed_animals", "shear", "milk", "tame_animal",
-                "lead_animals", "harvest_honey", "fish", "obtain_item", "plan_obtain",
-                "search_resource", "find_target", "search_hint", "known_resources",
-                "remember_place", "find_place", "go_to_place", "rename_place", "forget_place",
-                "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
-                "build_special", "plan_special", "find_trees", "look_around", "find_blocks", "find_placed", "player_view", "describe_block", "survey_area", "trust_player",
-                "untrust_player", "show_inventory", "set_name", "set_follow_mode", "stop", "find_traders",
-                "inspect_trader", "refresh_trades", "wait_for_restock", "level_trader", "barter",
-                "known_trades", "plan_trade", "trade_item", "queue_add", "queue_show", "queue_edit",
-                "look_at", "point_at", "turn", "sneak", "emote", "sit", "stand", "wait", "swap_hands",
-                "set_idle_behavior", "set_follow_distance", "step", "back_away", "approach", "circle",
-                "interact_entity", "mount", "dismount", "sleep", "throw_item", "extinguish_fire",
-                "create_item", "fly_to", "execute_command", "set_goal", "update_goal", "finish_goal",
-                "use_skill", "manage_skill", "request_tools",
-                "start_free_time", "end_free_time", "choose_activity")),
+        List<String> names = FriendaiTools.create(() -> 32).specs().stream()
+                .map(ToolSpec::name)
+                .toList();
+        h.assertTrue(
+                names.equals(List.of(
+                        "follow_player",
+                        "stay",
+                        "go_to",
+                        "jump",
+                        "set_pace",
+                        "fell_tree",
+                        "mine_blocks",
+                        "mine_block_at",
+                        "pickup_items",
+                        "give_items",
+                        "drop_items",
+                        "get_inventory",
+                        "place_block",
+                        "use_block",
+                        "light_area",
+                        "clear_area",
+                        "store_items",
+                        "take_items",
+                        "check_container",
+                        "deposit_items",
+                        "craft_item",
+                        "get_recipe",
+                        "smelt_items",
+                        "cook_food",
+                        "collect_smelted",
+                        "enchant_item",
+                        "anvil_item",
+                        "grindstone_item",
+                        "attack",
+                        "attack_player",
+                        "set_combat_mode",
+                        "get_combat_settings",
+                        "set_combat_settings",
+                        "equip_item",
+                        "eat",
+                        "get_food",
+                        "allow_food",
+                        "forbid_food",
+                        "reset_food_rule",
+                        "get_food_rules",
+                        "farm",
+                        "plan_farm",
+                        "tend_farm",
+                        "use_bonemeal",
+                        "breed_animals",
+                        "shear",
+                        "milk",
+                        "tame_animal",
+                        "lead_animals",
+                        "harvest_honey",
+                        "fish",
+                        "obtain_item",
+                        "plan_obtain",
+                        "search_resource",
+                        "find_target",
+                        "search_hint",
+                        "known_resources",
+                        "remember_place",
+                        "find_place",
+                        "go_to_place",
+                        "rename_place",
+                        "forget_place",
+                        "blueprint_help",
+                        "preview_structure",
+                        "build_structure",
+                        "save_blueprint",
+                        "list_blueprints",
+                        "build_special",
+                        "plan_special",
+                        "find_trees",
+                        "look_around",
+                        "find_blocks",
+                        "find_placed",
+                        "player_view",
+                        "describe_block",
+                        "survey_area",
+                        "trust_player",
+                        "untrust_player",
+                        "show_inventory",
+                        "set_name",
+                        "set_follow_mode",
+                        "stop",
+                        "find_traders",
+                        "inspect_trader",
+                        "refresh_trades",
+                        "wait_for_restock",
+                        "level_trader",
+                        "barter",
+                        "known_trades",
+                        "plan_trade",
+                        "trade_item",
+                        "queue_add",
+                        "queue_show",
+                        "queue_edit",
+                        "look_at",
+                        "point_at",
+                        "turn",
+                        "sneak",
+                        "emote",
+                        "sit",
+                        "stand",
+                        "wait",
+                        "swap_hands",
+                        "set_idle_behavior",
+                        "set_follow_distance",
+                        "step",
+                        "back_away",
+                        "approach",
+                        "circle",
+                        "interact_entity",
+                        "mount",
+                        "dismount",
+                        "sleep",
+                        "throw_item",
+                        "extinguish_fire",
+                        "create_item",
+                        "fly_to",
+                        "execute_command",
+                        "set_goal",
+                        "update_goal",
+                        "finish_goal",
+                        "use_skill",
+                        "manage_skill",
+                        "request_tools",
+                        "start_free_time",
+                        "end_free_time",
+                        "choose_activity")),
                 "names were " + names);
         h.succeed();
     }
 
     @GameTest
     public void guestSeesOnlyLookAround(GameTestHelper h) {
-        List<String> names =
-                FriendaiTools.create(() -> 32).specs(dev.friendai.tool.AccessLevel.GUEST).stream()
-                        .map(ToolSpec::name)
-                        .toList();
+        List<String> names = FriendaiTools.create(() -> 32).specs(dev.friendai.tool.AccessLevel.GUEST).stream()
+                .map(ToolSpec::name)
+                .toList();
         h.assertTrue(names.equals(List.of("look_around")), "names were " + names);
         h.succeed();
     }
@@ -331,11 +477,17 @@ public class ToolTests {
                 .filter(s -> s.name().equals("queue_add"))
                 .findFirst()
                 .orElseThrow();
-        JsonArray allowed = spec.parametersSchema().getAsJsonObject("properties").getAsJsonObject("steps")
-                .getAsJsonObject("items").getAsJsonObject("properties").getAsJsonObject("tool").getAsJsonArray("enum");
+        JsonArray allowed = spec.parametersSchema()
+                .getAsJsonObject("properties")
+                .getAsJsonObject("steps")
+                .getAsJsonObject("items")
+                .getAsJsonObject("properties")
+                .getAsJsonObject("tool")
+                .getAsJsonArray("enum");
         List<String> names = new java.util.ArrayList<>();
         allowed.forEach(entry -> names.add(entry.getAsString()));
-        for (String tool : List.of("place_block", "use_block", "light_area", "store_items", "take_items", "check_container")) {
+        for (String tool :
+                List.of("place_block", "use_block", "light_area", "store_items", "take_items", "check_container")) {
             h.assertTrue(names.contains(tool), tool + " missing from " + names);
         }
         h.succeed();
@@ -353,9 +505,13 @@ public class ToolTests {
     public void placeToolRejectsNonBlockAndPartialCoords(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult nonBlock = run(tools(c), "place_block", "{\"block\":\"minecraft:stick\"}");
-        h.assertTrue(nonBlock.error() && nonBlock.content().equals("minecraft:stick is not a block"), "result was " + nonBlock.content());
+        h.assertTrue(
+                nonBlock.error() && nonBlock.content().equals("minecraft:stick is not a block"),
+                "result was " + nonBlock.content());
         ToolResult partial = run(tools(c), "place_block", "{\"block\":\"minecraft:stone\",\"x\":1}");
-        h.assertTrue(partial.error() && partial.content().equals("give all of x, y, z or none"), "result was " + partial.content());
+        h.assertTrue(
+                partial.error() && partial.content().equals("give all of x, y, z or none"),
+                "result was " + partial.content());
         h.succeed();
     }
 
@@ -371,12 +527,15 @@ public class ToolTests {
         h.setBlock(12, 2, 2, Blocks.IRON_BLOCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         for (BlockPos relative : List.of(new BlockPos(5, 2, 2), new BlockPos(9, 2, 2), new BlockPos(12, 2, 2))) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
                     "fixture iron block should be directly visible at " + relative);
         }
         ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:iron_block\",\"limit\":2}");
         h.assertTrue(!r.error(), "error: " + r.content());
-        h.assertTrue(r.content().startsWith("2 observed/remembered minecraft:iron_block nearest first: "), "content was " + r.content());
+        h.assertTrue(
+                r.content().startsWith("2 observed/remembered minecraft:iron_block nearest first: "),
+                "content was " + r.content());
         String nearest = coords(h.absolutePos(new BlockPos(5, 2, 2))) + " (";
         String second = coords(h.absolutePos(new BlockPos(9, 2, 2))) + " (";
         String cut = coords(h.absolutePos(new BlockPos(12, 2, 2))) + " (";
@@ -391,7 +550,8 @@ public class ToolTests {
     public void findBlocksNone(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:sponge\",\"radius\":8}");
-        h.assertTrue(!r.error() && r.content().equals("no minecraft:sponge within 8 blocks"), "content was " + r.content());
+        h.assertTrue(
+                !r.error() && r.content().equals("no minecraft:sponge within 8 blocks"), "content was " + r.content());
         h.succeed();
     }
 
@@ -400,9 +560,12 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult nonPlannable = run(tools(c), "queue_add", "{\"steps\":[{\"tool\":\"stay\"}]}");
         h.assertTrue(nonPlannable.error(), "result was " + nonPlannable.content());
-        ToolResult badArgs = run(tools(c), "queue_add",
+        ToolResult badArgs = run(
+                tools(c),
+                "queue_add",
                 "{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\"}\"}]}");
-        h.assertTrue(badArgs.error() && badArgs.content().equals("Invalid plan: step 1: missing required argument 'count'"),
+        h.assertTrue(
+                badArgs.error() && badArgs.content().equals("Invalid plan: step 1: missing required argument 'count'"),
                 "result was " + badArgs.content());
         h.succeed();
     }
@@ -410,7 +573,9 @@ public class ToolTests {
     @GameTest
     public void queueAddRejectsArgsObjectInsteadOfString(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolResult r = run(tools(c), "queue_add",
+        ToolResult r = run(
+                tools(c),
+                "queue_add",
                 "{\"steps\":[{\"tool\":\"drop_items\",\"args\":{\"item\":\"minecraft:dirt\",\"count\":1}}]}");
         h.assertTrue(r.error(), "result was " + r.content());
         h.succeed();
@@ -420,7 +585,9 @@ public class ToolTests {
     public void queueAddStartsPlan(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.DRIPSTONE_BLOCK, 1));
-        ToolResult r = run(tools(c), "queue_add",
+        ToolResult r = run(
+                tools(c),
+                "queue_add",
                 "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
         h.assertTrue(!r.error() && r.content().startsWith("plan #"), "result was " + r.content());
         h.assertTrue(c.taskRunner().queue().planCount() == 1, "the plan should be in the queue");
@@ -431,7 +598,8 @@ public class ToolTests {
     public void farmToolRejectsStick(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "farm", "{\"crop\":\"minecraft:stick\"}");
-        h.assertTrue(r.error() && r.content().equals("minecraft:stick is not something I can plant"),
+        h.assertTrue(
+                r.error() && r.content().equals("minecraft:stick is not something I can plant"),
                 "result was " + r.content());
         h.succeed();
     }
@@ -448,15 +616,21 @@ public class ToolTests {
     public void attackToolRefusals(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
-        ToolResult villager = runAs(tools, "attack", "{\"target\":\"minecraft:villager\",\"count\":1}",
+        ToolResult villager = runAs(
+                tools,
+                "attack",
+                "{\"target\":\"minecraft:villager\",\"count\":1}",
                 new Caller(UUID.randomUUID(), "Trusted", AccessLevel.TRUSTED));
-        h.assertTrue(villager.error() && villager.content().equals("I won't attack minecraft:villager"),
+        h.assertTrue(
+                villager.error() && villager.content().equals("I won't attack minecraft:villager"),
                 "a trusted player's order must not lift the rule: " + villager.content());
         ToolResult player = run(tools, "attack", "{\"target\":\"minecraft:player\",\"count\":1}");
-        h.assertTrue(player.error() && player.content().equals("use attack_player for players"),
+        h.assertTrue(
+                player.error() && player.content().equals("use attack_player for players"),
                 "result was " + player.content());
         ToolResult unknown = run(tools, "attack", "{\"target\":\"nonsense:mob\",\"count\":1}");
-        h.assertTrue(unknown.error() && unknown.content().equals("unknown mob: nonsense:mob"),
+        h.assertTrue(
+                unknown.error() && unknown.content().equals("unknown mob: nonsense:mob"),
                 "result was " + unknown.content());
         h.succeed();
     }
@@ -471,12 +645,19 @@ public class ToolTests {
         Caller ownerCaller = new Caller(owner, "", AccessLevel.OWNER);
         ToolExecutor tools = tools(c);
         ToolResult golem = runAs(tools, "attack", "{\"target\":\"minecraft:iron_golem\",\"count\":1}", ownerCaller);
-        h.assertTrue(!golem.error() && golem.content().startsWith("task #"),
+        h.assertTrue(
+                !golem.error() && golem.content().startsWith("task #"),
                 "the owner's order should start the hunt: " + golem.content());
-        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("attack")).orElse(false),
+        h.assertTrue(
+                c.taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("attack"))
+                        .orElse(false),
                 "the hunt task should be running");
         c.taskRunner().stop("test");
-        ToolResult companion = runAs(tools, "attack",
+        ToolResult companion = runAs(
+                tools,
+                "attack",
                 "{\"target\":\"" + BuiltInRegistries.ENTITY_TYPE.getKey(FriendaiEntities.COMPANION) + "\",\"count\":1}",
                 ownerCaller);
         h.assertTrue(companion.error(), "a companion must stay off limits: " + companion.content());
@@ -497,11 +678,14 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         List<String> trustedSpecs = tools.specs(AccessLevel.TRUSTED).stream()
-                .map(spec -> spec.name()).toList();
+                .map(spec -> spec.name())
+                .toList();
         h.assertFalse(trustedSpecs.contains("set_combat_settings"), "TRUSTED sees set_combat_settings");
         h.assertFalse(trustedSpecs.contains("set_combat_mode"), "TRUSTED sees set_combat_mode");
-        h.assertTrue(tools.specs(AccessLevel.OWNER).stream()
-                .anyMatch(spec -> spec.name().equals("set_combat_settings")), "OWNER lacks set_combat_settings");
+        h.assertTrue(
+                tools.specs(AccessLevel.OWNER).stream()
+                        .anyMatch(spec -> spec.name().equals("set_combat_settings")),
+                "OWNER lacks set_combat_settings");
 
         Caller trusted = new Caller(null, "", AccessLevel.TRUSTED);
         Caller guest = new Caller(null, "", AccessLevel.GUEST);
@@ -511,7 +695,9 @@ public class ToolTests {
             ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"guard\"}", caller);
             h.assertTrue(legacy.error(), caller.access() + " changed the legacy mode: " + legacy.content());
         }
-        h.assertValueEqual(c.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+        h.assertValueEqual(
+                c.combatSettings(),
+                dev.friendai.combat.CombatSettings.defaults(),
                 "unauthorized calls changed settings");
         h.succeed();
     }
@@ -521,16 +707,18 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         Caller owner = new Caller(null, "", AccessLevel.OWNER);
-        ToolResult bad = runAs(tools, "set_combat_settings",
-                "{\"protection\":\"guard\",\"pursuit_limit\":99}", owner);
+        ToolResult bad = runAs(tools, "set_combat_settings", "{\"protection\":\"guard\",\"pursuit_limit\":99}", owner);
         h.assertTrue(bad.error(), "out-of-range pursuit was accepted: " + bad.content());
-        h.assertValueEqual(c.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+        h.assertValueEqual(
+                c.combatSettings().protection(),
+                dev.friendai.combat.ProtectionPolicy.BODYGUARD,
                 "the valid field was applied despite the invalid one");
 
-        ToolResult unknown = runAs(tools, "set_combat_settings",
-                "{\"protection\":\"friendship\"}", owner);
+        ToolResult unknown = runAs(tools, "set_combat_settings", "{\"protection\":\"friendship\"}", owner);
         h.assertTrue(unknown.error(), "unknown label was accepted: " + unknown.content());
-        h.assertValueEqual(c.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+        h.assertValueEqual(
+                c.combatSettings(),
+                dev.friendai.combat.CombatSettings.defaults(),
                 "settings changed after a rejected request");
         h.succeed();
     }
@@ -540,18 +728,25 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         Caller owner = new Caller(null, "", AccessLevel.OWNER);
-        ToolResult set = runAs(tools, "set_combat_settings",
-                "{\"splash_potions\":true,\"pursuit_limit\":40,\"retreat\":\"conservative\"}", owner);
+        ToolResult set = runAs(
+                tools,
+                "set_combat_settings",
+                "{\"splash_potions\":true,\"pursuit_limit\":40,\"retreat\":\"conservative\"}",
+                owner);
         h.assertFalse(set.error(), "valid settings failed: " + set.content());
         ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"passive\"}", owner);
         h.assertFalse(legacy.error(), "legacy mode failed: " + legacy.content());
-        h.assertValueEqual(c.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT,
+        h.assertValueEqual(
+                c.combatSettings().protection(),
+                dev.friendai.combat.ProtectionPolicy.AVOID_COMBAT,
                 "legacy protection");
         h.assertValueEqual(c.combatSettings().style(), dev.friendai.combat.FightingStyle.BALANCED, "legacy style");
         h.assertTrue(c.combatSettings().allowSplashPotions(), "legacy mode reset potion allowance");
         h.assertValueEqual(c.combatSettings().pursuitLimitBlocks(), 40, "legacy mode reset pursuit limit");
-        h.assertValueEqual(c.combatSettings().retreatPreference(),
-                dev.friendai.combat.RetreatPreference.CONSERVATIVE, "legacy mode reset retreat preference");
+        h.assertValueEqual(
+                c.combatSettings().retreatPreference(),
+                dev.friendai.combat.RetreatPreference.CONSERVATIVE,
+                "legacy mode reset retreat preference");
         h.succeed();
     }
 
@@ -579,26 +774,43 @@ public class ToolTests {
         c.setOwner(owner.getUUID());
         ToolExecutor tools = tools(c);
 
-        ToolResult own = runAs(tools, "attack_player", "{\"name\":\"" + ownerName + "\"}",
+        ToolResult own = runAs(
+                tools,
+                "attack_player",
+                "{\"name\":\"" + ownerName + "\"}",
                 new Caller(owner.getUUID(), ownerName, AccessLevel.OWNER));
-        h.assertTrue(!own.error() && own.content().startsWith("task #"),
+        h.assertTrue(
+                !own.error() && own.content().startsWith("task #"),
                 "the owner asking for it should start the fight: " + own.content());
-        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("attack_player")).orElse(false),
+        h.assertTrue(
+                c.taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("attack_player"))
+                        .orElse(false),
                 "the attack task should be running");
 
-        ToolResult stranger = runAs(tools, "attack_player", "{\"name\":\"" + ownerName + "\"}",
+        ToolResult stranger = runAs(
+                tools,
+                "attack_player",
+                "{\"name\":\"" + ownerName + "\"}",
                 new Caller(UUID.randomUUID(), "Mallory", AccessLevel.OWNER));
-        h.assertTrue(stranger.error() && stranger.content().equals("I won't attack you"),
+        h.assertTrue(
+                stranger.error() && stranger.content().equals("I won't attack you"),
                 "another caller must not target the owner: " + stranger.content());
 
-        PlayerTeam team = h.getLevel().getScoreboard()
-                .addPlayerTeam("friendai_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10));
+        PlayerTeam team = h.getLevel()
+                .getScoreboard()
+                .addPlayerTeam("friendai_test_"
+                        + UUID.randomUUID().toString().replace("-", "").substring(0, 10));
         team.setAllowFriendlyFire(false);
         h.getLevel().getScoreboard().addPlayerToTeam(owner.getName().getString(), team);
         h.getLevel().getScoreboard().addPlayerToTeam(target.getName().getString(), team);
-        ToolResult friendly = run(tools, "attack_player",
-                "{\"name\":\"" + target.getName().getString() + "\"}");
-        h.assertTrue(friendly.error() && friendly.content().equals("I can't hurt " + target.getName().getString() + " here"),
+        ToolResult friendly =
+                run(tools, "attack_player", "{\"name\":\"" + target.getName().getString() + "\"}");
+        h.assertTrue(
+                friendly.error()
+                        && friendly.content()
+                                .equals("I can't hurt " + target.getName().getString() + " here"),
                 "result was " + friendly.content());
         h.getLevel().getScoreboard().removePlayerTeam(team);
         h.succeed();
@@ -613,10 +825,14 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
-        ToolResult r = runAs(tools(c), "attack_player", "{\"name\":\"" + ownerName + "\"}",
+        ToolResult r = runAs(
+                tools(c),
+                "attack_player",
+                "{\"name\":\"" + ownerName + "\"}",
                 new Caller(owner.getUUID(), ownerName, AccessLevel.OWNER));
         h.assertTrue(!r.error(), "result was " + r.content());
-        h.succeedWhen(() -> h.assertTrue(owner.getHealth() < owner.getMaxHealth(),
+        h.succeedWhen(() -> h.assertTrue(
+                owner.getHealth() < owner.getMaxHealth(),
                 "the owner's health is still " + owner.getHealth() + " (mode " + owner.gameMode() + ", state "
                         + c.combatController().state() + ", distance " + c.distanceTo(owner) + ", task "
                         + c.taskRunner().current().map(task -> task.type()).orElse("none") + ")"));
@@ -700,10 +916,12 @@ public class ToolTests {
         BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
         ToolResult preview = runArgs(tools(c), "preview_structure", buildArgs(PLATFORM_3, at));
         h.assertTrue(!preview.error(), "preview: " + preview.content());
-        String name = "preview_hut_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String name =
+                "preview_hut_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         ToolResult saved = run(tools(c), "save_blueprint", "{\"name\":\"" + name + "\"}");
         h.assertTrue(!saved.error(), "error: " + saved.content());
-        h.assertTrue(saved.content().equals("saved blueprint " + name + " (9 blocks)"), "content was " + saved.content());
+        h.assertTrue(
+                saved.content().equals("saved blueprint " + name + " (9 blocks)"), "content was " + saved.content());
         h.succeed();
     }
 
@@ -711,7 +929,8 @@ public class ToolTests {
     public void listShowsSaved(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        String name = "listed_tower_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String name =
+                "listed_tower_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         JsonObject save = new JsonObject();
         save.addProperty("name", name);
         save.addProperty("blueprint", """
@@ -734,7 +953,8 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "list_blueprints", "{\"query\":\"plains_small\"}");
         h.assertTrue(!r.error(), "error: " + r.content());
-        h.assertTrue(r.content().contains("minecraft:village/plains/houses/plains_small_house_1"),
+        h.assertTrue(
+                r.content().contains("minecraft:village/plains/houses/plains_small_house_1"),
                 "content was " + r.content());
         h.succeed();
     }
@@ -770,7 +990,8 @@ public class ToolTests {
         ToolResult r = run(tools(c), "eat", "{\"item\":\"minecraft:rotten_flesh\"}");
         h.assertTrue(!r.error(), "result was " + r.content());
         h.assertTrue(c.foodRule("minecraft:rotten_flesh").orElse(false), "the owner naming it should allow it");
-        h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("eat")).orElse(false),
+        h.assertTrue(
+                c.taskRunner().current().map(task -> task.type().equals("eat")).orElse(false),
                 "the eat task should be running");
         h.succeed();
     }
@@ -783,8 +1004,8 @@ public class ToolTests {
         Caller guest = new Caller(UUID.randomUUID(), "Bob", AccessLevel.TRUSTED);
         ToolResult eaten = runAs(tools(c), "eat", "{\"item\":\"minecraft:rotten_flesh\"}", guest);
         h.assertTrue(!eaten.error(), "eat result was " + eaten.content());
-        h.assertTrue(c.foodRule("minecraft:rotten_flesh").isEmpty(),
-                "a trusted player must not change the owner's rules");
+        h.assertTrue(
+                c.foodRule("minecraft:rotten_flesh").isEmpty(), "a trusted player must not change the owner's rules");
         ToolResult allowed = runAs(tools(c), "allow_food", "{\"item\":\"minecraft:spider_eye\"}", guest);
         h.assertTrue(allowed.error(), "allow_food is owner-only, got " + allowed.content());
         h.succeed();
@@ -835,16 +1056,24 @@ public class ToolTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
-                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call = new dev.friendai.llm.model.ToolCall(
+                "1",
+                "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
+                args,
+                null);
+        var result = tools.execute(
+                call,
+                new dev.friendai.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("needs a proper tool (you have none)"), result.content());
 
         c.inventory().addItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
-        var withTool = tools.execute(call, new dev.friendai.tool.Caller(
-                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var withTool = tools.execute(
+                call,
+                new dev.friendai.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(withTool.content().contains("you have iron_pickaxe"), withTool.content());
         h.succeed();
     }
@@ -856,10 +1085,16 @@ public class ToolTests {
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(4, 2, 4));
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
-                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call = new dev.friendai.llm.model.ToolCall(
+                "1",
+                "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
+                args,
+                null);
+        var result = tools.execute(
+                call,
+                new dev.friendai.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("unknown at "), result.content());
         h.succeed();
@@ -870,16 +1105,23 @@ public class ToolTests {
         GameTestSupport.platform(h, 12);
         h.setBlock(6, 2, 2, Blocks.IRON_ORE);
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
-        c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+        c.setItemSlot(
+                net.minecraft.world.entity.EquipmentSlot.OFFHAND,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
-                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call = new dev.friendai.llm.model.ToolCall(
+                "1",
+                "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
+                args,
+                null);
+        var result = tools.execute(
+                call,
+                new dev.friendai.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("you have iron_pickaxe"), result.content());
         h.succeed();
@@ -894,14 +1136,19 @@ public class ToolTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "bedrock fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall("1", "describe_block",
-                com.google.gson.JsonParser.parseString(args).getAsJsonObject(), args, null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call = new dev.friendai.llm.model.ToolCall(
+                "1",
+                "describe_block",
+                com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
+                args,
+                null);
+        var result = tools.execute(
+                call,
+                new dev.friendai.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(result.content().contains("cannot be broken"), result.content());
         h.succeed();
     }
-
 
     @GameTest
     public void farmToolsAreRegistered(GameTestHelper h) {

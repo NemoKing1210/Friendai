@@ -44,8 +44,7 @@ public final class FireReflex {
             saidSelf = false;
         }
         Optional<ServerPlayer> owner = companion.owner();
-        boolean ownerBurning = owner
-                .filter(player -> player.level() == companion.level() && player.isOnFire())
+        boolean ownerBurning = owner.filter(player -> player.level() == companion.level() && player.isOnFire())
                 .isPresent();
         if (!ownerBurning) {
             saidOwner = false;
@@ -85,7 +84,6 @@ public final class FireReflex {
 
     /** Says one short line to the owner; the reflex never walks over to talk. */
     private void say(String key) {
-        companion.owner().ifPresent(player ->
-                player.sendSystemMessage(Components.of(UserMessage.of(key)), true));
+        companion.owner().ifPresent(player -> player.sendSystemMessage(Components.of(UserMessage.of(key)), true));
     }
 }

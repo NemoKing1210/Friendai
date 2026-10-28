@@ -25,9 +25,12 @@ public final class GoalService {
 
     /** The owner's board, decoded from the book on first use; a missing or broken save starts empty. */
     public GoalBoard board(UUID owner) {
-        return boards.computeIfAbsent(owner, id -> books.apply(id).goals()
-                .flatMap(saved -> GoalSave.decode(saved, MAX_BACKGROUND, maxReplans.getAsInt()))
-                .orElseGet(() -> new GoalBoard(MAX_BACKGROUND, maxReplans.getAsInt())));
+        return boards.computeIfAbsent(
+                owner,
+                id -> books.apply(id)
+                        .goals()
+                        .flatMap(saved -> GoalSave.decode(saved, MAX_BACKGROUND, maxReplans.getAsInt()))
+                        .orElseGet(() -> new GoalBoard(MAX_BACKGROUND, maxReplans.getAsInt())));
     }
 
     /** Writes the board back into the owner's book; call after every change. */

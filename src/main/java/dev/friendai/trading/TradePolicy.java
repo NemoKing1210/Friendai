@@ -1,7 +1,7 @@
 package dev.friendai.trading;
 
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 /** Pure last-moment check for one vanilla transaction. Component payment matching is adapter-owned. */
 public final class TradePolicy {
@@ -9,14 +9,23 @@ public final class TradePolicy {
 
     public record Decision(boolean allowed, String reason, int repeats) {
         public Decision {
-            if (reason == null || repeats < 0 || repeats > 1 || (allowed && repeats != 1)
-                    || (!allowed && repeats != 0)) throw new IllegalArgumentException("invalid trade decision");
+            if (reason == null || repeats < 0 || repeats > 1 || (allowed && repeats != 1) || (!allowed && repeats != 0))
+                throw new IllegalArgumentException("invalid trade decision");
         }
     }
 
-    public static Decision check(TradeOrder order, TradeOffer live, Map<String, Integer> available,
-                                 TradeProgress progress, boolean outputFits, long nowTick) {
-        if (order == null || live == null || available == null || progress == null || nowTick < 0
+    public static Decision check(
+            TradeOrder order,
+            TradeOffer live,
+            Map<String, Integer> available,
+            TradeProgress progress,
+            boolean outputFits,
+            long nowTick) {
+        if (order == null
+                || live == null
+                || available == null
+                || progress == null
+                || nowTick < 0
                 || !order.orderId().equals(progress.orderId())) return deny("trade progress does not match order");
         if (nowTick > order.deadlineTick()) return deny("trade order expired");
         if (!order.offerRef().equals(live.ref())) return deny("live offer no longer matches order");
@@ -32,12 +41,14 @@ public final class TradePolicy {
             }
         }
         if (received >= order.desiredOutputCount()) return deny("requested output is already complete");
-        long transactions = order.allowPartial() ? 1
-                : divideRoundUp(order.desiredOutputCount() - received, live.output().count());
+        long transactions = order.allowPartial()
+                ? 1
+                : divideRoundUp(
+                        order.desiredOutputCount() - received, live.output().count());
         long plannedOutput;
         try {
-            plannedOutput = Math.addExact(received,
-                    Math.multiplyExact((long) live.output().count(), transactions));
+            plannedOutput = Math.addExact(
+                    received, Math.multiplyExact((long) live.output().count(), transactions));
         } catch (ArithmeticException overflow) {
             return deny("trade output count overflow");
         }
@@ -78,7 +89,8 @@ public final class TradePolicy {
             Integer maximumUnitCost = order.budget().maxUnitCosts().get(itemId);
             if (maximumUnitCost != null) {
                 try {
-                    long allowedCost = Math.multiplyExact((long) maximumUnitCost, live.output().count());
+                    long allowedCost = Math.multiplyExact(
+                            (long) maximumUnitCost, live.output().count());
                     if (cost > allowedCost) return deny("unit price cap exceeded for " + itemId);
                 } catch (ArithmeticException overflow) {
                     return deny("unit price overflow");

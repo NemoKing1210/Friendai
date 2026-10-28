@@ -93,7 +93,9 @@ class PathSearchTest {
     void pitBridgedWhenDetourLong() {
         GridCellView pit = pit(3, 4);
         Path path = path(pit, new Node(1, 1, 0), point(10.5, 1, 0.5), 3);
-        assertEquals(3, path.steps().stream().filter(step -> step.move() == Move.BRIDGE).count());
+        assertEquals(
+                3,
+                path.steps().stream().filter(step -> step.move() == Move.BRIDGE).count());
         assertEquals(3, path.places());
     }
 
@@ -139,12 +141,7 @@ class PathSearchTest {
 
     @Test
     void buriedTargetReachedByTunnel() {
-        GridCellView view = new GridCellView(
-                "##########",
-                "...ddd....",
-                "...d#d....",
-                "...ddd....",
-                "..........");
+        GridCellView view = new GridCellView("##########", "...ddd....", "...d#d....", "...ddd....", "..........");
         GoalReach goal = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62);
         Path path = path(view, new Node(2, 1, 0), goal, 0);
         assertTrue(hasMove(path, Move.DIG));
@@ -174,10 +171,10 @@ class PathSearchTest {
         // A free corridor along z = 1 with the exposed target at its far end; a dirt wall at (5, 1..2, 2)
         // hides a second target just behind it.
         String[] layers = {
-                floorRows(10, 4),
-                String.join("/", "..........", "..........", ".....d....", ".........."),
-                String.join("/", "..........", "..........", ".....d....", ".........."),
-                String.join("/", "..........", "..........", "..........", "..........")
+            floorRows(10, 4),
+            String.join("/", "..........", "..........", ".....d....", ".........."),
+            String.join("/", "..........", "..........", ".....d....", ".........."),
+            String.join("/", "..........", "..........", "..........", "..........")
         };
         GridCellView view = new GridCellView(layers);
         GoalReach goal = new GoalReach(List.of(new Pos(5, 1, 3), new Pos(0, 1, 1)), 4.0, 1.62);
@@ -202,12 +199,17 @@ class PathSearchTest {
         GoalPoint goal = point(18.5, 1, 0.5);
 
         PathSearch incremental = search(view, new Node(1, 1, 0), goal, 20_000, 0);
-        assertEquals(SearchResult.Status.RUNNING, incremental.step(0, System::nanoTime).status());
+        assertEquals(
+                SearchResult.Status.RUNNING,
+                incremental.step(0, System::nanoTime).status());
         SearchResult result = incremental.step(Long.MAX_VALUE, System::nanoTime);
         assertEquals(SearchResult.Status.FOUND, result.status());
 
         PathSearch once = search(view, new Node(1, 1, 0), goal, 20_000, 0);
-        assertEquals(once.step(Long.MAX_VALUE, System::nanoTime).path().cost(), result.path().cost(), 1e-9);
+        assertEquals(
+                once.step(Long.MAX_VALUE, System::nanoTime).path().cost(),
+                result.path().cost(),
+                1e-9);
     }
 
     @Test
@@ -286,24 +288,21 @@ class PathSearchTest {
         // A raised walkway for x=0..4, one block above the ground; the drop at x=5 then flat ground east.
         GridCellView view = new GridCellView("##########", "#####.....", "..........", "..........");
         Path path = path(view, new Node(0, 2, 0), point(8.5, 1, 0.5), 0);
-        assertEquals(1, path.steps().stream().filter(step -> step.move() == Move.DESCEND).count());
+        assertEquals(
+                1,
+                path.steps().stream()
+                        .filter(step -> step.move() == Move.DESCEND)
+                        .count());
         for (PathStep step : path.steps()) {
-            assertTrue(step.to().x() >= step.from().x(),
+            assertTrue(
+                    step.to().x() >= step.from().x(),
                     "the descent path stepped back west: " + step.from() + " -> " + step.to());
         }
     }
 
     /** A 1Г—1 pit three deep in flat ground, the surface at y = 4. */
     private static GridCellView pitWorld() {
-        String[] layers = {
-                "########",
-                "##.###..",
-                "##.###..",
-                "##.###..",
-                "........",
-                "........",
-                "........"
-        };
+        String[] layers = {"########", "##.###..", "##.###..", "##.###..", "........", "........", "........"};
         return new GridCellView(layers);
     }
 }

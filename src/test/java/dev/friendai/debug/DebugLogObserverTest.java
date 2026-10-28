@@ -18,10 +18,7 @@ class DebugLogObserverTest {
         DebugLogObserver observer = new DebugLogObserver(log);
         observer.onEventDropped(
                 new BrainEvent.PlayerSaid(
-                        UUID.fromString("00000000-0000-0000-0000-000000000002"),
-                        "Bob",
-                        "hi",
-                        BrainEvent.Source.CHAT),
+                        UUID.fromString("00000000-0000-0000-0000-000000000002"), "Bob", "hi", BrainEvent.Source.CHAT),
                 "guest cooldown");
         List<LogEntry> entries = log.after(0, 50);
         assertEquals(1, entries.size());
@@ -35,7 +32,8 @@ class DebugLogObserverTest {
         DebugLogObserver observer = new DebugLogObserver(log);
         ToolCall call = new ToolCall("c1", "go_to", new JsonObject(), "{\"x\":1}", null);
 
-        observer.onEvent(new BrainEvent.PlayerSaid(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", "hi", BrainEvent.Source.CHAT));
+        observer.onEvent(new BrainEvent.PlayerSaid(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", "hi", BrainEvent.Source.CHAT));
         observer.onEvent(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
         observer.onAssistantText("Hello");
         observer.onToolCall(call);

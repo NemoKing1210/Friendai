@@ -35,7 +35,8 @@ class AnthropicMessagesProtocolTest {
     @Test
     void toWireSystemTopLevelAndMaxTokensRequired() {
         JsonObject schema = json("{\"type\":\"object\",\"properties\":{}}");
-        JsonObject w = protocol.toWire(request(List.of(Message.user("hi")), List.of(new ToolSpec("stay", "Stay put", schema))));
+        JsonObject w = protocol.toWire(
+                request(List.of(Message.user("hi")), List.of(new ToolSpec("stay", "Stay put", schema))));
         assertEquals("SYS", w.get("system").getAsString());
         assertEquals(1024, w.get("max_tokens").getAsInt());
         JsonObject t = w.getAsJsonArray("tools").get(0).getAsJsonObject();
@@ -50,7 +51,8 @@ class AnthropicMessagesProtocolTest {
         ToolCall malformed = new ToolCall("b", "stay", null, "{bad", null);
         JsonObject w = protocol.toWire(request(
                 List.of(Message.user("go"), Message.assistant("On it", List.of(ok, malformed))), List.of()));
-        JsonArray content = w.getAsJsonArray("messages").get(1).getAsJsonObject().getAsJsonArray("content");
+        JsonArray content =
+                w.getAsJsonArray("messages").get(1).getAsJsonObject().getAsJsonArray("content");
         assertEquals("text", content.get(0).getAsJsonObject().get("type").getAsString());
         JsonObject use = content.get(1).getAsJsonObject();
         assertEquals("tool_use", use.get("type").getAsString());
@@ -64,7 +66,8 @@ class AnthropicMessagesProtocolTest {
         ToolCall a = new ToolCall("a", "x", new JsonObject(), "{}", null);
         ToolCall b = new ToolCall("b", "y", new JsonObject(), "{}", null);
         JsonObject w = protocol.toWire(request(
-                List.of(Message.user("go"), Message.assistant("", List.of(a, b)),
+                List.of(
+                        Message.user("go"), Message.assistant("", List.of(a, b)),
                         Message.toolResult("a", "x", "1"), Message.toolResult("b", "y", "2")),
                 List.of()));
         JsonArray messages = w.getAsJsonArray("messages");
@@ -81,7 +84,8 @@ class AnthropicMessagesProtocolTest {
     void mergesConsecutiveUserMessages() {
         ToolCall a = new ToolCall("a", "x", new JsonObject(), "{}", null);
         JsonObject w = protocol.toWire(request(
-                List.of(Message.user("go"), Message.assistant("", List.of(a)),
+                List.of(
+                        Message.user("go"), Message.assistant("", List.of(a)),
                         Message.toolResult("a", "x", "1"), Message.user("[event] done")),
                 List.of()));
         JsonArray messages = w.getAsJsonArray("messages");
@@ -89,7 +93,8 @@ class AnthropicMessagesProtocolTest {
         JsonArray content = messages.get(2).getAsJsonObject().getAsJsonArray("content");
         assertEquals("tool_result", content.get(0).getAsJsonObject().get("type").getAsString());
         assertEquals("text", content.get(1).getAsJsonObject().get("type").getAsString());
-        assertEquals("[event] done", content.get(1).getAsJsonObject().get("text").getAsString());
+        assertEquals(
+                "[event] done", content.get(1).getAsJsonObject().get("text").getAsString());
     }
 
     @Test
@@ -101,8 +106,14 @@ class AnthropicMessagesProtocolTest {
         assertEquals("Mining", r.text());
         assertEquals(StopReason.TOOL_USE, r.stopReason());
         assertEquals(10, r.toolCalls().get(0).arguments().get("count").getAsInt());
-        assertEquals(StopReason.END, protocol.fromWire(json("{\"stop_reason\":\"end_turn\",\"content\":[]}")).stopReason());
-        assertEquals(StopReason.MAX_TOKENS, protocol.fromWire(json("{\"stop_reason\":\"max_tokens\",\"content\":[]}")).stopReason());
+        assertEquals(
+                StopReason.END,
+                protocol.fromWire(json("{\"stop_reason\":\"end_turn\",\"content\":[]}"))
+                        .stopReason());
+        assertEquals(
+                StopReason.MAX_TOKENS,
+                protocol.fromWire(json("{\"stop_reason\":\"max_tokens\",\"content\":[]}"))
+                        .stopReason());
     }
 
     @Test
@@ -110,7 +121,8 @@ class AnthropicMessagesProtocolTest {
         try (MockHttpServer server = new MockHttpServer()) {
             server.enqueue(200, "{\"stop_reason\":\"end_turn\",\"content\":[]}");
             Endpoint endpoint = new Endpoint(server.baseUrl(), "k", AuthStyle.X_API_KEY);
-            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of())).get();
+            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of()))
+                    .get();
             MockHttpServer.RecordedRequest r = server.requests().get(0);
             assertEquals("/messages", r.path());
             assertEquals("2023-06-01", r.header("anthropic-version"));

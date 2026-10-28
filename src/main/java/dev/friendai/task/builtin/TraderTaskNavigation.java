@@ -10,8 +10,8 @@ import dev.friendai.task.nav.Navigator;
 import dev.friendai.trading.TraderRecord;
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
@@ -26,12 +26,16 @@ final class TraderTaskNavigation {
     private TraderTaskNavigation() {}
 
     static String invalidContext(TaskContext context, UUID expectedOwner, String expectedDimension) {
-        if (context == null || context.companion() == null || context.level() == null) return "task context is unavailable";
+        if (context == null || context.companion() == null || context.level() == null)
+            return "task context is unavailable";
         if (!context.companion().isAlive()) return "companion is no longer alive";
         if (context.companion().level() != context.level()) return "companion changed level";
-        if (expectedOwner == null || !expectedOwner.equals(context.companion().ownerUuid())) return "companion owner changed";
-        if (!expectedDimension.equals(context.level().dimension().identifier().toString())) return "companion changed dimension";
-        if (context.level().getServer().getPlayerList().getPlayer(expectedOwner) == null) return "owner is no longer online";
+        if (expectedOwner == null || !expectedOwner.equals(context.companion().ownerUuid()))
+            return "companion owner changed";
+        if (!expectedDimension.equals(context.level().dimension().identifier().toString()))
+            return "companion changed dimension";
+        if (context.level().getServer().getPlayerList().getPlayer(expectedOwner) == null)
+            return "owner is no longer online";
         return null;
     }
 
@@ -53,16 +57,24 @@ final class TraderTaskNavigation {
         var eye = companion.getEyePosition();
         var center = target.getBoundingBox().getCenter();
         if (eye.distanceTo(center) > ACTION_REACH) return false;
-        return companion.level().clip(new ClipContext(eye, center, ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE, companion)).getType() == HitResult.Type.MISS;
+        return companion
+                        .level()
+                        .clip(new ClipContext(
+                                eye, center, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion))
+                        .getType()
+                == HitResult.Type.MISS;
     }
 
     static boolean atHint(CompanionEntity companion, BlockPos hint) {
         var eye = companion.getEyePosition();
         var center = Vec3.atCenterOf(hint);
         if (eye.distanceTo(center) > ACTION_REACH) return false;
-        return companion.level().clip(new ClipContext(eye, center, ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE, companion)).getType() == HitResult.Type.MISS;
+        return companion
+                        .level()
+                        .clip(new ClipContext(
+                                eye, center, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion))
+                        .getType()
+                == HitResult.Type.MISS;
     }
 
     static Navigator navigator(CompanionEntity companion) {
@@ -75,8 +87,8 @@ final class TraderTaskNavigation {
     }
 
     static void aimAt(Navigator navigator, BlockPos pos, CompanionEntity companion) {
-        navigator.setGoal(new GoalReach(List.of(new Pos(pos.getX(), pos.getY(), pos.getZ())),
-                ACTION_REACH, companion.getEyeHeight()));
+        navigator.setGoal(new GoalReach(
+                List.of(new Pos(pos.getX(), pos.getY(), pos.getZ())), ACTION_REACH, companion.getEyeHeight()));
     }
 
     static void stop(Navigator navigator, TaskContext context) {

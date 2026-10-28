@@ -13,20 +13,17 @@ class LanguageDetectorTest {
 
     @Test
     void cyrillicWithoutUkrainianLettersIsRussian() {
-        assertEquals(Optional.of("Russian"),
-                detect("Привет, как дела? Расскажи мне, что тут можно построить."));
+        assertEquals(Optional.of("Russian"), detect("Привет, как дела? Расскажи мне, что тут можно построить."));
     }
 
     @Test
     void ukrainianIsNamedByItsOwnLetters() {
-        assertEquals(Optional.of("Ukrainian"),
-                detect("Привіт, як справи? Що ти можеш зробити для мене сьогодні?"));
+        assertEquals(Optional.of("Ukrainian"), detect("Привіт, як справи? Що ти можеш зробити для мене сьогодні?"));
     }
 
     @Test
     void englishIsNamedByItsStopwords() {
-        assertEquals(Optional.of("English"),
-                detect("Could you please bring me the iron pickaxe from the chest?"));
+        assertEquals(Optional.of("English"), detect("Could you please bring me the iron pickaxe from the chest?"));
     }
 
     @Test
@@ -36,14 +33,12 @@ class LanguageDetectorTest {
 
     @Test
     void frenchIsNotTakenForSpanish() {
-        assertEquals(Optional.of("French"),
-                detect("Peux-tu me donner la pioche en fer qui est dans le coffre ?"));
+        assertEquals(Optional.of("French"), detect("Peux-tu me donner la pioche en fer qui est dans le coffre ?"));
     }
 
     @Test
     void spanishIsNotTakenForFrench() {
-        assertEquals(Optional.of("Spanish"),
-                detect("¿Puedes traerme el pico de hierro que esta en el cofre?"));
+        assertEquals(Optional.of("Spanish"), detect("¿Puedes traerme el pico de hierro que esta en el cofre?"));
     }
 
     @Test
@@ -66,8 +61,7 @@ class LanguageDetectorTest {
 
     @Test
     void aChatCommandDoesNotHideTheSentenceAroundIt() {
-        assertEquals(Optional.of("Russian"),
-                detect("/friendai привет, расскажи мне про лес и реку"));
+        assertEquals(Optional.of("Russian"), detect("/friendai привет, расскажи мне про лес и реку"));
     }
 
     @Test

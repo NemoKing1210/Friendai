@@ -17,8 +17,8 @@ public final class PlaceGuard {
     /** Harvesting inside a farm is what these tools are for. */
     static final Set<String> FARM_TOOLS = Set.of("farm", "tend_farm", "use_bonemeal");
     /** These break only the crafting or cooking stations they placed themselves. */
-    static final Set<String> STATION_TOOLS = Set.of("collect_smelted", "collect_station", "craft_item",
-            "smelt_items", "cook_food");
+    static final Set<String> STATION_TOOLS =
+            Set.of("collect_smelted", "collect_station", "craft_item", "smelt_items", "cook_food");
 
     private PlaceGuard() {}
 
@@ -56,10 +56,12 @@ public final class PlaceGuard {
     public static boolean overlapsAnyPlace(CompanionEntity companion, BlockPos min, BlockPos max) {
         for (Place place : placesHere(companion)) {
             int r = place.radius();
-            if (max.getX() >= place.anchor().x() - r && min.getX() <= place.anchor().x() + r
+            if (max.getX() >= place.anchor().x() - r
+                    && min.getX() <= place.anchor().x() + r
                     && max.getY() >= place.anchor().y() - place.below()
                     && min.getY() <= place.anchor().y() + place.above()
-                    && max.getZ() >= place.anchor().z() - r && min.getZ() <= place.anchor().z() + r) {
+                    && max.getZ() >= place.anchor().z() - r
+                    && min.getZ() <= place.anchor().z() + r) {
                 return true;
             }
         }
@@ -77,7 +79,9 @@ public final class PlaceGuard {
             return java.util.List.of();
         }
         String dimension = companion.level().dimension().identifier().toString();
-        return PlaceService.book(companion).all().stream().filter(p -> p.dimension().equals(dimension)).toList();
+        return PlaceService.book(companion).all().stream()
+                .filter(p -> p.dimension().equals(dimension))
+                .toList();
     }
 
     private static boolean inside(Place place, BlockPos pos) {

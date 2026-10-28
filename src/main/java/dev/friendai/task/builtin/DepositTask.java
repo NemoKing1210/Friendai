@@ -45,7 +45,10 @@ public final class DepositTask implements Task {
     /** How many containers of one place a deposit visits. */
     static final int MAX_CONTAINERS = 16;
 
-    private enum Pass { SAME, ANY }
+    private enum Pass {
+        SAME,
+        ANY
+    }
 
     private final String placeName;
     private final List<String> keepItems;
@@ -89,7 +92,8 @@ public final class DepositTask implements Task {
             if (pass == Pass.SAME) {
                 pass = Pass.ANY;
                 index = 0;
-                List<BlockPos> ordered = new ArrayList<>(containers.stream().filter(emptyAtOpen::contains).toList());
+                List<BlockPos> ordered = new ArrayList<>(
+                        containers.stream().filter(emptyAtOpen::contains).toList());
                 containers.stream().filter(pos -> !emptyAtOpen.contains(pos)).forEach(ordered::add);
                 containers = ordered;
                 return TaskStatus.RUNNING;
@@ -123,7 +127,8 @@ public final class DepositTask implements Task {
             if (placeName != null) {
                 place = PlaceService.requireReachable(companion, placeName, "deposit_items");
             } else {
-                place = nearest(companion, PlaceKind.STORAGE).or(() -> nearest(companion, PlaceKind.HOUSE))
+                place = nearest(companion, PlaceKind.STORAGE)
+                        .or(() -> nearest(companion, PlaceKind.HOUSE))
                         .orElse(null);
                 if (place == null) {
                     return Optional.of("no storage place here; remember one with remember_place");
@@ -132,7 +137,8 @@ public final class DepositTask implements Task {
         } catch (IllegalArgumentException unknown) {
             return Optional.of(unknown.getMessage());
         }
-        BlockPos anchor = new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
+        BlockPos anchor = new BlockPos(
+                place.anchor().x(), place.anchor().y(), place.anchor().z());
         int r = place.radius();
         containers = ContainerAccess.all(c.level(), anchor, r * 2).stream()
                 .filter(pos -> place.contains(new Pos(pos.getX(), pos.getY(), pos.getZ())))
@@ -145,9 +151,11 @@ public final class DepositTask implements Task {
     }
 
     private static Optional<Place> nearest(CompanionEntity companion, PlaceKind kind) {
-        return PlaceService.find(companion, new PlaceQuery.Request(Optional.empty(), Set.of(kind), Optional.empty(),
-                        1, false))
-                .stream().findFirst().map(PlaceQuery.Result::place);
+        return PlaceService.find(
+                        companion, new PlaceQuery.Request(Optional.empty(), Set.of(kind), Optional.empty(), 1, false))
+                .stream()
+                .findFirst()
+                .map(PlaceQuery.Result::place);
     }
 
     private void visit(TaskContext c, BlockPos pos) {
@@ -222,8 +230,15 @@ public final class DepositTask implements Task {
                 var state = item.getBlock().defaultBlockState();
                 price = MaterialPrices.price(LevelCellView.idOf(item.getBlock()), LevelCellView.tagsOf(state));
             }
-            slots.add(new KeepPolicy.Slot(i, id, keptTags(stack), stack.getCount(), tool.kind().name(),
-                    tool.tier().ordinal(), food == null ? 0 : food.nutrition(), price));
+            slots.add(new KeepPolicy.Slot(
+                    i,
+                    id,
+                    keptTags(stack),
+                    stack.getCount(),
+                    tool.kind().name(),
+                    tool.tier().ordinal(),
+                    food == null ? 0 : food.nutrition(),
+                    price));
         }
         Map<Integer, Integer> keep = KeepPolicy.keep(slots, keepItems);
         Map<Integer, Integer> deposit = new java.util.LinkedHashMap<>();

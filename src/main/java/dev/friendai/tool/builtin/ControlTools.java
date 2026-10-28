@@ -1,7 +1,5 @@
 package dev.friendai.tool.builtin;
 
-import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionRenamer;
 import dev.friendai.memory.CompanionName;
@@ -67,7 +65,8 @@ final class ControlTools {
         }
         InventoryAccess.Denial denial = FriendaiMenus.open(owner, c);
         return switch (denial) {
-            case NONE -> ToolResult.ok("opened my inventory for " + owner.getName().getString());
+            case NONE ->
+                ToolResult.ok("opened my inventory for " + owner.getName().getString());
             case NOT_OWNER -> ToolResult.error("only the owner can open my inventory");
             case OTHER_DIMENSION -> ToolResult.error("can't open it: the owner is in another dimension");
             case TOO_FAR -> ToolResult.error("can't open it: the owner is too far away");
@@ -103,7 +102,8 @@ final class ControlTools {
                 AccessLevel.OWNER,
                 (c, a) -> setName(c, a.get("name").getAsString())));
 
-        registry.register(ToolKit.instantTool("set_follow_mode",
+        registry.register(ToolKit.instantTool(
+                "set_follow_mode",
                 "Turn walking to the owner on or off. Use mode=off when the owner says not to follow them: it only "
                         + "stops your idle walk and never cancels work, so keep working. Use mode=on when they ask you "
                         + "to follow them again.",
@@ -118,12 +118,16 @@ final class ControlTools {
                     return ToolResult.ok(on ? "following the owner again" : "not following the owner; work continues");
                 }));
 
-        registry.register(ToolKit.instantTool("stop",
+        registry.register(ToolKit.instantTool(
+                "stop",
                 "Cancel current work and go back to the default activity. Pass a tool name to stop one action, or all to clear queued work, end a fight and cancel furnace jobs. To stop walking to the owner on your own, use set_follow_mode with mode=off instead; that leaves the work running.",
                 SchemaBuilder.object()
                         .string("what", "current (default), a tool name like mine_blocks, or all")
                         .build(),
-                (c, a) -> stop(c, a.has("what") && !a.get("what").isJsonNull() ? a.get("what").getAsString() : null)));
-
+                (c, a) -> stop(
+                        c,
+                        a.has("what") && !a.get("what").isJsonNull()
+                                ? a.get("what").getAsString()
+                                : null)));
     }
 }

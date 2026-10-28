@@ -7,15 +7,14 @@ import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.PlanOptions;
 import dev.friendai.queue.QueuedStep;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.plan.StepFactory;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 
@@ -24,12 +23,31 @@ public final class TradingAuthorityTests {
     private static final String SCOPE = "00000000-0000-0000-0000-000000000123";
 
     private static final class UnrestorableTask implements Task {
-        @Override public String type() { return "obtain_item"; }
-        @Override public void start(TaskContext context) {}
-        @Override public TaskStatus tick(TaskContext context) { return TaskStatus.RUNNING; }
-        @Override public void stop(TaskContext context) {}
-        @Override public String describe() { return "unrestorable spending task"; }
-        @Override public String resultSummary() { return "unrestorable"; }
+        @Override
+        public String type() {
+            return "obtain_item";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+
+        @Override
+        public String describe() {
+            return "unrestorable spending task";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "unrestorable";
+        }
     }
 
     @GameTest
@@ -44,17 +62,30 @@ public final class TradingAuthorityTests {
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         TaskRunner after = restored.taskRunner();
         int[] factoryCalls = {0};
-        after.restoreQueue(dev.friendai.queue.QueueSave.decode(saved, dev.friendai.queue.QueueLimits.DEFAULTS).orElseThrow(),
-                Map.of(active, countingFactory(factoryCalls), pending, countingFactory(factoryCalls),
-                        ordinary, countingFactory(factoryCalls)));
+        after.restoreQueue(
+                dev.friendai.queue.QueueSave.decode(saved, dev.friendai.queue.QueueLimits.DEFAULTS)
+                        .orElseThrow(),
+                Map.of(
+                        active,
+                        countingFactory(factoryCalls),
+                        pending,
+                        countingFactory(factoryCalls),
+                        ordinary,
+                        countingFactory(factoryCalls)));
 
-        h.assertTrue(after.queue().job(active).orElseThrow().state() == dev.friendai.queue.JobState.CANCELLED,
+        h.assertTrue(
+                after.queue().job(active).orElseThrow().state() == dev.friendai.queue.JobState.CANCELLED,
                 "active spending task was not cancelled before restore");
-        h.assertTrue(after.queue().job(pending).orElseThrow().state() == dev.friendai.queue.JobState.CANCELLED,
+        h.assertTrue(
+                after.queue().job(pending).orElseThrow().state() == dev.friendai.queue.JobState.CANCELLED,
                 "pending spending task was not cancelled before restore");
         h.assertTrue(factoryCalls[0] == 0, "expired spending factories ran during restore");
         after.tick();
-        h.assertTrue(factoryCalls[0] == 1 && after.current().map(task -> task.type().equals("stay")).orElse(false),
+        h.assertTrue(
+                factoryCalls[0] == 1
+                        && after.current()
+                                .map(task -> task.type().equals("stay"))
+                                .orElse(false),
                 "nonspending saved work did not remain runnable");
         h.succeed();
     }
@@ -66,20 +97,25 @@ public final class TradingAuthorityTests {
         int[] factoryCalls = {0};
         var spending = step("obtain_item", true);
         var ordinary = step("stay", false);
-        long plan = before.enqueuePlan("spend only with owner", List.of(spending, ordinary),
-                List.of(countingFactory(factoryCalls), countingFactory(factoryCalls)), PlanOptions.DEFAULT);
+        long plan = before.enqueuePlan(
+                "spend only with owner",
+                List.of(spending, ordinary),
+                List.of(countingFactory(factoryCalls), countingFactory(factoryCalls)),
+                PlanOptions.DEFAULT);
         String saved = before.savedQueue().orElseThrow();
         int factoryCallsBeforeRestore = factoryCalls[0];
 
         CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         TaskRunner after = restored.taskRunner();
-        var decoded = dev.friendai.queue.QueueSave.decode(saved, dev.friendai.queue.QueueLimits.DEFAULTS).orElseThrow();
+        var decoded = dev.friendai.queue.QueueSave.decode(saved, dev.friendai.queue.QueueLimits.DEFAULTS)
+                .orElseThrow();
         var factories = new java.util.HashMap<Long, StepFactory>();
         decoded.queue().jobsOfPlan(plan).forEach(job -> factories.put(job.id(), countingFactory(factoryCalls)));
         after.restoreQueue(decoded, factories);
 
         h.assertTrue(after.queue().plan(plan).isEmpty(), "plan containing an expired spending step was restored");
-        h.assertTrue(factoryCalls[0] == factoryCallsBeforeRestore,
+        h.assertTrue(
+                factoryCalls[0] == factoryCallsBeforeRestore,
                 "a restored plan factory started despite an expired scope");
         h.succeed();
     }

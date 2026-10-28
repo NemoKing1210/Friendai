@@ -6,6 +6,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.llm.model.ToolCall;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
@@ -21,7 +22,6 @@ import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.llm.model.ToolCall;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -153,7 +153,8 @@ public class PlaceTests {
         String remember = "{\"name\":\"home\",\"kind\":\"house\"}";
 
         ToolResult refused = runAs(tools, "remember_place", remember, guest);
-        h.assertTrue(refused.error() && refused.content().contains("not available"),
+        h.assertTrue(
+                refused.error() && refused.content().contains("not available"),
                 "a guest must not remember places: " + refused.content());
 
         ToolResult remembered = runAs(tools, "remember_place", remember, trusted);
@@ -161,13 +162,15 @@ public class PlaceTests {
         h.assertValueEqual(PlaceService.book(companion).all().size(), 1, "places after remember");
 
         ToolResult trustedForget = runAs(tools, "forget_place", "{\"name\":\"home\"}", trusted);
-        h.assertTrue(trustedForget.error() && trustedForget.content().contains("not available"),
+        h.assertTrue(
+                trustedForget.error() && trustedForget.content().contains("not available"),
                 "a trusted speaker must not forget places: " + trustedForget.content());
         h.assertValueEqual(PlaceService.book(companion).all().size(), 1, "places after refused forget");
 
         ToolResult forgotten = runAs(tools, "forget_place", "{\"name\":\"home\"}", ownerCaller);
         h.assertTrue(!forgotten.error(), "the owner should forget: " + forgotten.content());
-        h.assertTrue(PlaceService.book(companion).all().isEmpty(),
+        h.assertTrue(
+                PlaceService.book(companion).all().isEmpty(),
                 "the place should be gone: " + PlaceService.book(companion).all());
         h.succeed();
     }
@@ -176,7 +179,8 @@ public class PlaceTests {
     public void place_tests_command_add_list(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         Commands commands = h.getLevel().getServer().getCommands();
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place add shack");
@@ -189,54 +193,80 @@ public class PlaceTests {
         h.assertValueEqual(shack.radius(), 8, "radius");
         h.assertValueEqual(shack.source(), PlaceSource.COMMAND, "source");
         h.assertValueEqual(shack.anchor(), new Pos(anchor.getX(), anchor.getY(), anchor.getZ()), "anchor");
-        h.assertValueEqual(shack.dimension(), owner.level().dimension().identifier().toString(), "dimension");
+        h.assertValueEqual(
+                shack.dimension(), owner.level().dimension().identifier().toString(), "dimension");
 
         Chat chat = new Chat();
         CommandSourceStack source = owner.createCommandSourceStack().withSource(chat);
         int listed = execute(commands, source, "friendai place list");
         h.assertValueEqual(listed, 1, "list result");
-        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.header")),
+        h.assertTrue(
+                chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.header")),
                 "list header missing: " + chat.messages);
-        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.entry")),
+        h.assertTrue(
+                chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.list.entry")),
                 "list entry missing: " + chat.messages);
-        h.assertTrue(chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.kind.house")),
+        h.assertTrue(
+                chat.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.kind.house")),
                 "list entry should carry the localized kind key: " + chat.messages);
         TranslatableContents shackRow = entryFor(chat, "shack").orElseThrow();
         h.assertValueEqual(shackRow.getArgs().length, 8, "list entry fields");
         h.assertValueEqual(((Number) shackRow.getArgs()[7]).intValue(), 0, "visits in the list entry");
-        h.assertTrue(((Component) shackRow.getArgs()[2]).getSiblings().isEmpty(),
+        h.assertTrue(
+                ((Component) shackRow.getArgs()[2]).getSiblings().isEmpty(),
                 "a place without a label adds no label segment: " + shackRow.getArgs()[2]);
 
         // A labelled place renders the label inside the kind segment, so one row still fits in the chat line.
-        Place lookout = PlaceService.book(companion).remember(
-                new PlaceValues(
-                        "lookout", PlaceKind.LANDMARK, "tower", shack.dimension(),
-                        new Pos(anchor.getX() + 3, anchor.getY(), anchor.getZ()),
-                        8, Set.of(), PlaceSource.MANUAL, owner.getUUID(), ""),
-                companion.level().getGameTime());
+        Place lookout = PlaceService.book(companion)
+                .remember(
+                        new PlaceValues(
+                                "lookout",
+                                PlaceKind.LANDMARK,
+                                "tower",
+                                shack.dimension(),
+                                new Pos(anchor.getX() + 3, anchor.getY(), anchor.getZ()),
+                                8,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                owner.getUUID(),
+                                ""),
+                        companion.level().getGameTime());
         Chat labelled = new Chat();
         execute(commands, owner.createCommandSourceStack().withSource(labelled), "friendai place list");
-        Component kindSegment = (Component) entryFor(labelled, "lookout").orElseThrow().getArgs()[2];
-        h.assertTrue(kindSegment.getSiblings().stream().anyMatch(s -> s.getString().contains("tower")),
+        Component kindSegment =
+                (Component) entryFor(labelled, "lookout").orElseThrow().getArgs()[2];
+        h.assertTrue(
+                kindSegment.getSiblings().stream().anyMatch(s -> s.getString().contains("tower")),
                 "the kind segment should carry the label: " + kindSegment);
         PlaceService.book(companion).remove(lookout.id());
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place remove shack");
-        h.assertTrue(PlaceService.book(companion).all().isEmpty(),
+        h.assertTrue(
+                PlaceService.book(companion).all().isEmpty(),
                 "the place should be gone: " + PlaceService.book(companion).all());
 
         // The sender is in the overworld while the same owner's book holds a nether place: remove must not
         // reach outside the sender's dimension, and must not mutate anything on the way to saying so.
-        PlaceService.book(companion).remember(
-                new PlaceValues(
-                        "nether_home", PlaceKind.PORTAL, "", "minecraft:the_nether", new Pos(8, 64, 8), 8,
-                        Set.of(), PlaceSource.MANUAL, owner.getUUID(), ""),
-                companion.level().getGameTime());
+        PlaceService.book(companion)
+                .remember(
+                        new PlaceValues(
+                                "nether_home",
+                                PlaceKind.PORTAL,
+                                "",
+                                "minecraft:the_nether",
+                                new Pos(8, 64, 8),
+                                8,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                owner.getUUID(),
+                                ""),
+                        companion.level().getGameTime());
         Chat split = new Chat();
         int removed = execute(
                 commands, owner.createCommandSourceStack().withSource(split), "friendai place remove nether_home");
         h.assertValueEqual(removed, 0, "a place in another dimension must not be removed");
-        h.assertTrue(split.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.notfound")),
+        h.assertTrue(
+                split.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.notfound")),
                 "notfound missing: " + split.messages);
         List<Place> kept = PlaceService.book(companion).all();
         h.assertValueEqual(kept.size(), 1, "the nether place must stay: " + kept);
@@ -253,24 +283,40 @@ public class PlaceTests {
         ToolExecutor tools = tools(companion);
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
 
-        PlaceService.book(companion).remember(
-                new PlaceValues(
-                        "home", PlaceKind.PORTAL, "", "minecraft:the_nether", new Pos(8, 64, 8), 8, Set.of(),
-                        PlaceSource.MANUAL, owner.getUUID(), ""),
-                companion.level().getGameTime());
+        PlaceService.book(companion)
+                .remember(
+                        new PlaceValues(
+                                "home",
+                                PlaceKind.PORTAL,
+                                "",
+                                "minecraft:the_nether",
+                                new Pos(8, 64, 8),
+                                8,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                owner.getUUID(),
+                                ""),
+                        companion.level().getGameTime());
 
         ToolResult cross = runAs(tools, "go_to_place", "{\"name\":\"home\"}", caller);
         h.assertTrue(cross.error(), "a cross-dimension place must be refused: " + cross.content());
-        h.assertTrue(cross.content().contains("minecraft:the_nether"),
+        h.assertTrue(
+                cross.content().contains("minecraft:the_nether"),
                 "the error should name the dimension: " + cross.content());
-        h.assertTrue(cross.content().contains("cannot cross dimensions"),
-                "the error should say why: " + cross.content());
-        h.assertTrue(companion.taskRunner().current().isEmpty(),
-                "no task may start: " + companion.taskRunner().current().map(task -> task.describe())
-                        .orElse("none"));
+        h.assertTrue(
+                cross.content().contains("cannot cross dimensions"), "the error should say why: " + cross.content());
+        h.assertTrue(
+                companion.taskRunner().current().isEmpty(),
+                "no task may start: "
+                        + companion
+                                .taskRunner()
+                                .current()
+                                .map(task -> task.describe())
+                                .orElse("none"));
 
         ToolResult unknown = runAs(tools, "go_to_place", "{\"name\":\"nowhere\"}", caller);
-        h.assertTrue(unknown.error() && unknown.content().equals("no place called nowhere; use find_place"),
+        h.assertTrue(
+                unknown.error() && unknown.content().equals("no place called nowhere; use find_place"),
                 "an unknown name keeps the original message: " + unknown.content());
         h.assertTrue(companion.taskRunner().current().isEmpty(), "no task may start for an unknown name");
         h.succeed();
@@ -286,41 +332,66 @@ public class PlaceTests {
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
         BlockPos anchor = h.absolutePos(new BlockPos(8, 2, 3));
 
-        ToolResult remembered = runAs(tools, "remember_place",
-                "{\"name\":\"mine\",\"kind\":\"mine\",\"x\":" + anchor.getX() + ",\"y\":" + anchor.getY()
-                        + ",\"z\":" + anchor.getZ() + ",\"radius\":4}",
+        ToolResult remembered = runAs(
+                tools,
+                "remember_place",
+                "{\"name\":\"mine\",\"kind\":\"mine\",\"x\":" + anchor.getX() + ",\"y\":" + anchor.getY() + ",\"z\":"
+                        + anchor.getZ() + ",\"radius\":4}",
                 caller);
         h.assertTrue(!remembered.error(), "remember failed: " + remembered.content());
-        PlaceService.book(companion).remember(
-                new PlaceValues(
-                        "nethermine", PlaceKind.MINE, "", "minecraft:the_nether", new Pos(8, 64, 8), 4, Set.of(),
-                        PlaceSource.MANUAL, owner.getUUID(), ""),
-                companion.level().getGameTime());
+        PlaceService.book(companion)
+                .remember(
+                        new PlaceValues(
+                                "nethermine",
+                                PlaceKind.MINE,
+                                "",
+                                "minecraft:the_nether",
+                                new Pos(8, 64, 8),
+                                4,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                owner.getUUID(),
+                                ""),
+                        companion.level().getGameTime());
 
-        ToolResult unknown = runAs(tools, "mine_blocks",
-                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nowhere\"}", caller);
-        h.assertTrue(unknown.error() && unknown.content().contains("no place called nowhere"),
+        ToolResult unknown = runAs(
+                tools, "mine_blocks", "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nowhere\"}", caller);
+        h.assertTrue(
+                unknown.error() && unknown.content().contains("no place called nowhere"),
                 "an unknown place keeps the original message: " + unknown.content());
-        h.assertTrue(companion.taskRunner().current().isEmpty(),
+        h.assertTrue(
+                companion.taskRunner().current().isEmpty(),
                 "no task may start for an unknown place: " + current(companion));
 
-        ToolResult cross = runAs(tools, "mine_blocks",
-                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nethermine\"}", caller);
-        h.assertTrue(cross.error() && cross.content().contains("minecraft:the_nether"),
+        ToolResult cross = runAs(
+                tools,
+                "mine_blocks",
+                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"place:nethermine\"}",
+                caller);
+        h.assertTrue(
+                cross.error() && cross.content().contains("minecraft:the_nether"),
                 "a cross-dimension place should name its dimension: " + cross.content());
-        h.assertTrue(cross.content().contains("cannot cross dimensions"),
+        h.assertTrue(
+                cross.content().contains("cannot cross dimensions"),
                 "a cross-dimension place should say why: " + cross.content());
-        h.assertTrue(companion.taskRunner().current().isEmpty(),
+        h.assertTrue(
+                companion.taskRunner().current().isEmpty(),
                 "no task may start across dimensions: " + current(companion));
 
-        ToolResult scoped = runAs(tools, "mine_blocks",
-                "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"Place:mine\"}", caller);
+        ToolResult scoped = runAs(
+                tools, "mine_blocks", "{\"block\":\"minecraft:stone\",\"count\":1,\"near\":\"Place:mine\"}", caller);
         h.assertTrue(!scoped.error(), "mining near a place failed: " + scoped.content());
         String described = current(companion);
-        h.assertTrue(companion.taskRunner().current().map(task -> task.type().equals("mine_blocks")).orElse(false),
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("mine_blocks"))
+                        .orElse(false),
                 "the mine_blocks task should be current: " + described);
         String where = anchor.getX() + " " + anchor.getY() + " " + anchor.getZ();
-        h.assertTrue(described.contains(where),
+        h.assertTrue(
+                described.contains(where),
                 "the task should search around the place anchor " + where + ": " + described);
         h.succeed();
     }
@@ -340,8 +411,8 @@ public class PlaceTests {
         ToolExecutor tools = tools(companion);
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
 
-        ToolResult remembered = runAs(tools, "remember_place",
-                "{\"name\":\"home\",\"kind\":\"house\",\"radius\":8}", caller);
+        ToolResult remembered =
+                runAs(tools, "remember_place", "{\"name\":\"home\",\"kind\":\"house\",\"radius\":8}", caller);
         h.assertTrue(!remembered.error(), "remember failed: " + remembered.content());
         List<Place> places = PlaceService.book(companion).all();
         h.assertValueEqual(places.size(), 1, "places after remember");
@@ -352,8 +423,12 @@ public class PlaceTests {
 
         ToolResult go = runAs(tools, "go_to_place", "{\"name\":\"home\"}", caller);
         h.assertTrue(!go.error(), "go failed: " + go.content());
-        h.assertTrue(companion.taskRunner().current()
-                        .map(task -> task.type().equals("go_to_place") && task.describe().equals("walking to home"))
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("go_to_place")
+                                && task.describe().equals("walking to home"))
                         .orElse(false),
                 "the go_to_place task should be current");
 
@@ -366,8 +441,8 @@ public class PlaceTests {
             double horizontal = Math.hypot(
                     companion.getX() - (visited.anchor().x() + 0.5),
                     companion.getZ() - (visited.anchor().z() + 0.5));
-            h.assertTrue(horizontal <= successRadius,
-                    "arrived " + horizontal + " blocks away, allowed " + successRadius);
+            h.assertTrue(
+                    horizontal <= successRadius, "arrived " + horizontal + " blocks away, allowed " + successRadius);
         });
     }
 
@@ -403,9 +478,10 @@ public class PlaceTests {
         long[] created = {0};
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
-            h.assertTrue(result.status == TaskStatus.SUCCESS,
-                    (phase[0] == 0 ? "the first" : "the second") + " farm pass should finish: "
-                            + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.status == TaskStatus.SUCCESS,
+                    (phase[0] == 0 ? "the first" : "the second") + " farm pass should finish: " + result.status + " "
+                            + result.summary);
             List<Place> places = PlaceService.book(companion).all();
             h.assertValueEqual(places.size(), 1, "places after pass " + (phase[0] + 1) + ": " + places);
             Place farm = places.get(0);
@@ -426,7 +502,8 @@ public class PlaceTests {
                 h.assertTrue(false, "waiting for the second farm pass to finish");
             }
             h.assertValueEqual(farm.createdTick(), created[0], "a refresh keeps createdTick");
-            h.assertTrue(farm.updatedTick() > created[0],
+            h.assertTrue(
+                    farm.updatedTick() > created[0],
                     "a refresh stamps updatedTick " + farm.updatedTick() + " after " + created[0]);
         });
     }

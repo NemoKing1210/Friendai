@@ -6,9 +6,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.Objects;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * Turns a snapshot of a field into an ordered list of steps: what to harvest and replant, what to sow, what to till
@@ -65,8 +65,10 @@ public final class FarmPlanner {
             if (options.isEmpty()) {
                 return null;
             }
-            CropInfo pick = options.stream().filter(info -> free.getOrDefault(info.seed(), 0) > 0)
-                    .min(preference).orElse(null);
+            CropInfo pick = options.stream()
+                    .filter(info -> free.getOrDefault(info.seed(), 0) > 0)
+                    .min(preference)
+                    .orElse(null);
             if (pick == null) {
                 shortfall.merge(options.stream().min(wanted).orElseThrow().seed(), 1, Integer::sum);
                 return null;
@@ -87,7 +89,9 @@ public final class FarmPlanner {
             if (!snapshot.hasHoe()) {
                 notes.add("missing hoe");
             } else {
-                for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.TILLABLE)).stream().limit(TILL_CAP).toList()) {
+                for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.TILLABLE)).stream()
+                        .limit(TILL_CAP)
+                        .toList()) {
                     steps.add(new FarmStep.Till(cell));
                     String seed = sow.apply(Soil.FARMLAND);
                     if (seed == null) {
@@ -103,33 +107,36 @@ public final class FarmPlanner {
                 notes.add("no bone meal");
             } else {
                 List<FieldCell> growing = serpentine(ofKind(snapshot, CellKind.GROWING));
-                growing.stream().sorted(Comparator.comparingInt(FieldCell::age).reversed()).limit(snapshot.boneMeal())
+                growing.stream()
+                        .sorted(Comparator.comparingInt(FieldCell::age).reversed())
+                        .limit(snapshot.boneMeal())
                         .forEach(cell -> steps.add(new FarmStep.Bonemeal(cell)));
             }
         }
 
-        List<FarmStep> capped = new ArrayList<>(
-                steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps);
+        List<FarmStep> capped =
+                new ArrayList<>(steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps);
         shortfall.forEach((item, count) -> capped.add(new FarmStep.NeedSeeds(item, count)));
         return new FarmPlan(capped, unsown, notes);
     }
 
     /** Crops that may go on this soil: only the goal's crop when one is set. */
     private static List<CropInfo> options(CropBook crops, FarmGoal goal, Soil soil) {
-        List<CropInfo> compatible = crops.plantable().stream().filter(info -> info.soil() == soil).toList();
+        List<CropInfo> compatible =
+                crops.plantable().stream().filter(info -> info.soil() == soil).toList();
         if (goal.crop() == null) {
             return compatible;
         }
         return compatible.stream()
-                .filter(info -> info.seed().equals(goal.crop()) || info.crop().equals(goal.crop())).toList();
+                .filter(info -> info.seed().equals(goal.crop()) || info.crop().equals(goal.crop()))
+                .toList();
     }
 
     /** What to ask for when nothing is in stock: the most nourishing crop when hungry, else the first in book order. */
     private static Comparator<CropInfo> wanted(FoodNeed need, CropBook crops) {
         List<CropInfo> order = crops.plantable();
-        Comparator<CropInfo> primary = need == FoodNeed.HIGH
-                ? Comparator.comparingInt((CropInfo info) -> -info.foodValue())
-                : (a, b) -> 0;
+        Comparator<CropInfo> primary =
+                need == FoodNeed.HIGH ? Comparator.comparingInt((CropInfo info) -> -info.foodValue()) : (a, b) -> 0;
         return primary.thenComparingInt(order::indexOf);
     }
 
@@ -151,11 +158,14 @@ public final class FarmPlanner {
      * position is the index of the row among the distinct dz values present. dy breaks ties.
      */
     static List<FieldCell> serpentine(List<FieldCell> cells) {
-        List<Integer> rows = new ArrayList<>(new TreeSet<>(cells.stream().map(FieldCell::dz).toList()));
-        Comparator<FieldCell> order = Comparator.<FieldCell>comparingInt(FieldCell::dz).thenComparing((a, b) -> {
-            int dx = Integer.compare(a.dx(), b.dx());
-            return rows.indexOf(a.dz()) % 2 == 0 ? dx : -dx;
-        }).thenComparingInt(FieldCell::dy);
+        List<Integer> rows =
+                new ArrayList<>(new TreeSet<>(cells.stream().map(FieldCell::dz).toList()));
+        Comparator<FieldCell> order = Comparator.<FieldCell>comparingInt(FieldCell::dz)
+                .thenComparing((a, b) -> {
+                    int dx = Integer.compare(a.dx(), b.dx());
+                    return rows.indexOf(a.dz()) % 2 == 0 ? dx : -dx;
+                })
+                .thenComparingInt(FieldCell::dy);
         return cells.stream().sorted(order).toList();
     }
 }

@@ -2,7 +2,6 @@ package dev.friendai.perception.resource;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -19,13 +18,22 @@ public final class ResourceSight {
 
     private ResourceSight() {}
 
-    public enum Outcome { VISIBLE, OCCLUDED, UNLOADED, PENDING }
+    public enum Outcome {
+        VISIBLE,
+        OCCLUDED,
+        UNLOADED,
+        PENDING
+    }
 
     public interface Job {
         Outcome step(int cellBudget);
+
         int visitedCellsLastStep();
+
         BlockPos hitBlock();
+
         List<BlockPos> openAirCells();
+
         boolean unobstructedOpenCorridor();
     }
 
@@ -52,7 +60,8 @@ public final class ResourceSight {
             this.target = target;
         }
 
-        @Override public Outcome step(int cellBudget) {
+        @Override
+        public Outcome step(int cellBudget) {
             visited = 0;
             if (outcome != Outcome.PENDING) return outcome;
             if (cellBudget <= 0) return Outcome.PENDING;
@@ -97,7 +106,10 @@ public final class ResourceSight {
             // Open blocks such as campfires have no occlusion shape, but their selectable geometry is still
             // directly observable when this ray is aimed at that block.
             if (shape.isEmpty() && target != null && target.equals(pos)) shape = state.getShape(level, pos);
-            if (shape.isEmpty() && target != null && target.equals(pos) && !state.getFluidState().isEmpty()) {
+            if (shape.isEmpty()
+                    && target != null
+                    && target.equals(pos)
+                    && !state.getFluidState().isEmpty()) {
                 float height = state.getFluidState().getHeight(level, pos);
                 if (height > 0.0F) shape = Shapes.box(0.0, 0.0, 0.0, 1.0, height, 1.0);
             }
@@ -106,23 +118,45 @@ public final class ResourceSight {
             }
             if (shape.isEmpty()) return false;
             for (AABB local : shape.toAabbs()) {
-                AABB world = new AABB(local.minX + pos.getX(), local.minY + pos.getY(), local.minZ + pos.getZ(),
-                        local.maxX + pos.getX(), local.maxY + pos.getY(), local.maxZ + pos.getZ());
+                AABB world = new AABB(
+                        local.minX + pos.getX(),
+                        local.minY + pos.getY(),
+                        local.minZ + pos.getZ(),
+                        local.maxX + pos.getX(),
+                        local.maxY + pos.getY(),
+                        local.maxZ + pos.getZ());
                 if (intersectsSegment(from, delta, world)) return true;
             }
             return false;
         }
 
-        @Override public int visitedCellsLastStep() { return visited; }
-        @Override public BlockPos hitBlock() { return hit; }
-        @Override public List<BlockPos> openAirCells() { return List.copyOf(openAirCells); }
-        @Override public boolean unobstructedOpenCorridor() { return unobstructedOpenCorridor; }
+        @Override
+        public int visitedCellsLastStep() {
+            return visited;
+        }
+
+        @Override
+        public BlockPos hitBlock() {
+            return hit;
+        }
+
+        @Override
+        public List<BlockPos> openAirCells() {
+            return List.copyOf(openAirCells);
+        }
+
+        @Override
+        public boolean unobstructedOpenCorridor() {
+            return unobstructedOpenCorridor;
+        }
     }
 
     private static boolean transmitsSight(BlockState state) {
         if (state.is(Blocks.TINTED_GLASS)) return false;
         String path = BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
-        return path.equals("glass") || path.equals("glass_pane") || path.endsWith("_stained_glass")
+        return path.equals("glass")
+                || path.equals("glass_pane")
+                || path.endsWith("_stained_glass")
                 || path.endsWith("_stained_glass_pane");
     }
 

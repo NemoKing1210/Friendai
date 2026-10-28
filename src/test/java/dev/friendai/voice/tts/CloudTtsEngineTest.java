@@ -33,13 +33,12 @@ class CloudTtsEngineTest {
     }
 
     private CloudTtsEngine engine(ResolvedTts settings) {
-        return new CloudTtsEngine(settings,
-                TtsClient.withBuiltins(new VoiceHttp(HttpClient.newHttpClient(), Duration.ofSeconds(5))));
+        return new CloudTtsEngine(
+                settings, TtsClient.withBuiltins(new VoiceHttp(HttpClient.newHttpClient(), Duration.ofSeconds(5))));
     }
 
     private ResolvedTts openAi(String baseUrl, String key) {
-        return new ResolvedTts("openai", "openai_speech", baseUrl,
-                key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);
+        return new ResolvedTts("openai", "openai_speech", baseUrl, key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);
     }
 
     @Test
@@ -47,7 +46,8 @@ class CloudTtsEngineTest {
         byte[] pcm = {1, 0, 2, 0};
         server.enqueue(200, WavCodec.encode(pcm, 24000));
 
-        TtsClip clip = engine(openAi(server.baseUrl() + "/v1", "")).synthesize("Hello").join();
+        TtsClip clip =
+                engine(openAi(server.baseUrl() + "/v1", "")).synthesize("Hello").join();
 
         assertArrayEquals(pcm, clip.pcm16le());
         assertEquals(24000, clip.sampleRate());
@@ -77,10 +77,12 @@ class CloudTtsEngineTest {
         CloudTtsEngine engine = engine(openAi(server.baseUrl() + "/v1", ""));
         engine.close();
 
-        ExecutionException error = assertThrows(ExecutionException.class, () -> engine.synthesize("Hi").get());
+        ExecutionException error = assertThrows(
+                ExecutionException.class, () -> engine.synthesize("Hi").get());
 
         assertInstanceOf(UserFacingException.class, error.getCause());
-        assertEquals("friendai.voice.tts.error.failed",
+        assertEquals(
+                "friendai.voice.tts.error.failed",
                 ((UserFacingException) error.getCause()).userMessage().key());
     }
 
@@ -88,8 +90,11 @@ class CloudTtsEngineTest {
     void aRejectedKeyIsReportedWithoutLeakingIt() {
         server.enqueue(401, "the key sk-secret is invalid");
 
-        ExecutionException error = assertThrows(ExecutionException.class,
-                () -> engine(openAi(server.baseUrl() + "/v1", "sk-secret")).synthesize("Hi").get());
+        ExecutionException error = assertThrows(
+                ExecutionException.class,
+                () -> engine(openAi(server.baseUrl() + "/v1", "sk-secret"))
+                        .synthesize("Hi")
+                        .get());
 
         assertInstanceOf(UserFacingException.class, error.getCause());
         UserFacingException cause = (UserFacingException) error.getCause();
@@ -101,11 +106,15 @@ class CloudTtsEngineTest {
     void aServerErrorReadsAsASynthesisFailure() {
         server.enqueue(500, "boom");
 
-        ExecutionException error = assertThrows(ExecutionException.class,
-                () -> engine(openAi(server.baseUrl() + "/v1", "key")).synthesize("Hi").get());
+        ExecutionException error = assertThrows(
+                ExecutionException.class,
+                () -> engine(openAi(server.baseUrl() + "/v1", "key"))
+                        .synthesize("Hi")
+                        .get());
 
         assertInstanceOf(UserFacingException.class, error.getCause());
-        assertEquals("friendai.voice.tts.error.failed",
+        assertEquals(
+                "friendai.voice.tts.error.failed",
                 ((UserFacingException) error.getCause()).userMessage().key());
     }
 }

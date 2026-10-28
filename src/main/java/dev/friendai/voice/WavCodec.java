@@ -47,9 +47,7 @@ public final class WavCodec {
     }
 
     private static Parsed parse(byte[] wav) {
-        if (wav == null || wav.length < 12
-                || !"RIFF".equals(text(wav, 0, 4))
-                || !"WAVE".equals(text(wav, 8, 4))) {
+        if (wav == null || wav.length < 12 || !"RIFF".equals(text(wav, 0, 4)) || !"WAVE".equals(text(wav, 8, 4))) {
             throw new IllegalArgumentException("not a RIFF/WAVE file");
         }
         ByteBuffer buffer = ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN);

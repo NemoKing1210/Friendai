@@ -14,7 +14,8 @@ public record Diagnosis(FailureKind kind, String detail, List<String> remedies, 
 
     /** The {@code diagnosis:} suffix of an event line. */
     public String line() {
-        StringBuilder out = new StringBuilder("diagnosis: ").append(kind.name()).append(' ').append(detail);
+        StringBuilder out =
+                new StringBuilder("diagnosis: ").append(kind.name()).append(' ').append(detail);
         if (!remedies.isEmpty()) {
             out.append("; try: ").append(String.join(" or ", remedies));
         }

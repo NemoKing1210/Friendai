@@ -18,19 +18,43 @@ class GoalBoardTest {
 
     private static GuardFacts items(Map<String, Integer> items) {
         return new GuardFacts() {
-            @Override public int countItems(String id) { return items.getOrDefault(id, 0); }
-            @Override public int emptySlots() { return 10; }
-            @Override public float healthFraction() { return 1f; }
-            @Override public int ownerDistance() { return 0; }
-            @Override public int countBlocks(String id, int radius) { return 0; }
-            @Override public String dimension() { return "minecraft:overworld"; }
+            @Override
+            public int countItems(String id) {
+                return items.getOrDefault(id, 0);
+            }
+
+            @Override
+            public int emptySlots() {
+                return 10;
+            }
+
+            @Override
+            public float healthFraction() {
+                return 1f;
+            }
+
+            @Override
+            public int ownerDistance() {
+                return 0;
+            }
+
+            @Override
+            public int countBlocks(String id, int radius) {
+                return 0;
+            }
+
+            @Override
+            public String dimension() {
+                return "minecraft:overworld";
+            }
         };
     }
 
     @Test
     void setsPrimaryThenBackgroundUpToThree() {
         GoalBoard board = new GoalBoard(3, 3);
-        assertTrue(board.set("build a house", List.of(text("roof done")), false, 1).ok());
+        assertTrue(
+                board.set("build a house", List.of(text("roof done")), false, 1).ok());
         for (int i = 0; i < 3; i++) {
             assertTrue(board.set("bg" + i, List.of(), true, 1).ok());
         }
@@ -110,7 +134,9 @@ class GoalBoardTest {
     void unmetUsesGuardChecksAgainstFacts() {
         GoalBoard board = new GoalBoard(3, 3);
         Criterion logs = new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)));
-        long id = board.set("wood", List.of(logs, text("ask the owner")), false, 1).value().id();
+        long id = board.set("wood", List.of(logs, text("ask the owner")), false, 1)
+                .value()
+                .id();
         assertEquals(2, board.unmet(id, items(Map.of("minecraft:oak_log", 5))).size());
         List<Criterion> unmet = board.unmet(id, items(Map.of("minecraft:oak_log", 12)));
         assertEquals(1, unmet.size());
@@ -132,16 +158,23 @@ class GoalBoardTest {
     void emptyTextAndTooManyCriteriaAreRejected() {
         GoalBoard board = new GoalBoard(3, 3);
         assertFalse(board.set("  ", List.of(), false, 1).ok());
-        assertFalse(board.set("g", List.of(text("1"), text("2"), text("3"), text("4"), text("5"), text("6"), text("7")),
-                false, 1).ok());
+        assertFalse(board.set(
+                        "g",
+                        List.of(text("1"), text("2"), text("3"), text("4"), text("5"), text("6"), text("7")),
+                        false,
+                        1)
+                .ok());
     }
 
     @Test
     void viewIsEmptyWithoutAGoalAndShowsUnmetOtherwise() {
         GoalBoard board = new GoalBoard(3, 3);
         assertTrue(board.view("none", items(Map.of())).isEmpty());
-        board.set("wood", List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
-                false, 1);
+        board.set(
+                "wood",
+                List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
+                false,
+                1);
         GoalView view = board.view("running", items(Map.of()));
         assertEquals("wood", view.text());
         assertEquals(List.of("12 logs"), view.unmet());

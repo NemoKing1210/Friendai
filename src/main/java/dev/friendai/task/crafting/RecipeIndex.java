@@ -17,6 +17,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
@@ -30,7 +31,6 @@ import net.minecraft.world.item.crafting.StonecutterRecipe;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
 import net.minecraft.world.item.crafting.display.SlotDisplayContext;
-import net.minecraft.util.context.ContextMap;
 
 /** The server's recipes, flattened into the pure model the planner works with. */
 public final class RecipeIndex implements RecipeBook {
@@ -191,7 +191,9 @@ public final class RecipeIndex implements RecipeBook {
         if (cookingByInput != null) {
             for (Ingredient ingredient : ingredients) {
                 for (String input : ingredient.items()) {
-                    cookingByInput.computeIfAbsent(input, key -> new ArrayList<>()).add(recipe);
+                    cookingByInput
+                            .computeIfAbsent(input, key -> new ArrayList<>())
+                            .add(recipe);
                 }
             }
         }
@@ -223,7 +225,8 @@ public final class RecipeIndex implements RecipeBook {
             return ingredients;
         }
         List<Ingredient> ingredients = new ArrayList<>();
-        for (net.minecraft.world.item.crafting.Ingredient slot : holder.value().placementInfo().ingredients()) {
+        for (net.minecraft.world.item.crafting.Ingredient slot :
+                holder.value().placementInfo().ingredients()) {
             Ingredient ingredient = ingredient(slot);
             if (ingredient == null) {
                 return null;

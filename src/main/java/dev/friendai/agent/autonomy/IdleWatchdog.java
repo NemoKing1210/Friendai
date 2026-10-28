@@ -15,8 +15,14 @@ public final class IdleWatchdog {
     private IdleWatchdog() {}
 
     /** What the companion is in the middle of; any true value is a reason to wait. */
-    public record Busy(boolean shift, boolean anyJob, boolean awaitingChoice, boolean brainThinking, boolean planning,
-                       boolean inCombat, boolean movementOrder) {
+    public record Busy(
+            boolean shift,
+            boolean anyJob,
+            boolean awaitingChoice,
+            boolean brainThinking,
+            boolean planning,
+            boolean inCombat,
+            boolean movementOrder) {
         public static final Busy NONE = new Busy(false, false, false, false, false, false, false);
 
         public boolean anything() {
@@ -30,9 +36,10 @@ public final class IdleWatchdog {
      * @param quietSinceMillis when the companion last had something to do; {@code 0} or less means the driver has not
      *                         seen a quiet tick yet
      */
-    public static boolean due(boolean freeTimeActive, Busy busy, long quietSinceMillis, long nowMillis,
-                              int windowSec) {
-        return freeTimeActive && !busy.anything() && quietSinceMillis > 0
+    public static boolean due(boolean freeTimeActive, Busy busy, long quietSinceMillis, long nowMillis, int windowSec) {
+        return freeTimeActive
+                && !busy.anything()
+                && quietSinceMillis > 0
                 && nowMillis - quietSinceMillis >= Math.max(1, windowSec) * 1000L;
     }
 }

@@ -21,13 +21,15 @@ public class CompanionChunkLoadingTests {
     @GameTest
     public void summonRecordsAnAnchor(GameTestHelper h) {
         ServerPlayer player = CompanionEntityTests.mockPlayerHere(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(player);
         h.runAfterDelay(5, () -> {
             var anchor = FriendaiServerState.get(h.getLevel().getServer())
                     .chunkLoader()
                     .anchorFor(player.getUUID());
             h.assertTrue(anchor.isPresent(), "an anchor should be recorded for the owner");
-            h.assertTrue(anchor.get().chunk().equals(companion.chunkPosition()),
+            h.assertTrue(
+                    anchor.get().chunk().equals(companion.chunkPosition()),
                     "the anchor should name the companion's chunk");
             h.succeed();
         });
@@ -42,7 +44,8 @@ public class CompanionChunkLoadingTests {
             manager.dismiss(player);
             h.runAfterDelay(5, () -> {
                 var loader = FriendaiServerState.get(h.getLevel().getServer()).chunkLoader();
-                h.assertTrue(loader.anchorFor(player.getUUID()).isEmpty(),
+                h.assertTrue(
+                        loader.anchorFor(player.getUUID()).isEmpty(),
                         "dismissing the companion should drop its anchor");
                 h.succeed();
             });
@@ -61,7 +64,8 @@ public class CompanionChunkLoadingTests {
         ChunkPos firstChunk = farChunk(h);
         anchors.put(first, new CompanionAnchors.Anchor(level.dimension(), firstChunk));
         h.runAfterDelay(60, () -> {
-            h.assertTrue(level.getChunkSource().getChunkNow(firstChunk.x(), firstChunk.z()) != null,
+            h.assertTrue(
+                    level.getChunkSource().getChunkNow(firstChunk.x(), firstChunk.z()) != null,
                     "a later tick should re-arm the saved anchor");
 
             // Phase 2: restore() over an anchor whose chunk is not in memory must not generate it
@@ -70,16 +74,24 @@ public class CompanionChunkLoadingTests {
             ChunkPos secondChunk = new ChunkPos(firstChunk.x() + 16, firstChunk.z());
             anchors.put(second, new CompanionAnchors.Anchor(level.dimension(), secondChunk));
             loader.restore();
-            h.assertTrue(level.getChunkSource().getChunkNow(secondChunk.x(), secondChunk.z()) == null,
+            h.assertTrue(
+                    level.getChunkSource().getChunkNow(secondChunk.x(), secondChunk.z()) == null,
                     "restore must not generate the anchored chunk on the server thread");
 
-            awaitChunk(h, level, secondChunk, 200, () -> h.runAfterDelay(120, () -> {
-                h.assertTrue(loader.anchorFor(first).isEmpty(),
-                        "an anchor with no companion should be dropped after the grace period");
-                h.assertTrue(loader.anchorFor(second).isEmpty(),
-                        "an anchor with no companion should be dropped after the grace period");
-                h.succeed();
-            }));
+            awaitChunk(
+                    h,
+                    level,
+                    secondChunk,
+                    200,
+                    () -> h.runAfterDelay(120, () -> {
+                        h.assertTrue(
+                                loader.anchorFor(first).isEmpty(),
+                                "an anchor with no companion should be dropped after the grace period");
+                        h.assertTrue(
+                                loader.anchorFor(second).isEmpty(),
+                                "an anchor with no companion should be dropped after the grace period");
+                        h.succeed();
+                    }));
         });
     }
 
@@ -90,12 +102,12 @@ public class CompanionChunkLoadingTests {
         UUID second = UUID.randomUUID();
         anchors.put(first, new CompanionAnchors.Anchor(Level.OVERWORLD, new ChunkPos(1, 2)));
         anchors.put(second, new CompanionAnchors.Anchor(Level.NETHER, new ChunkPos(-3, 4)));
-        CompoundTag encoded = (CompoundTag) CompanionAnchors.TYPE.codec()
+        CompoundTag encoded = (CompoundTag) CompanionAnchors.TYPE
+                .codec()
                 .encodeStart(NbtOps.INSTANCE, anchors)
                 .getOrThrow();
-        CompanionAnchors decoded = CompanionAnchors.TYPE.codec()
-                .parse(NbtOps.INSTANCE, encoded)
-                .getOrThrow();
+        CompanionAnchors decoded =
+                CompanionAnchors.TYPE.codec().parse(NbtOps.INSTANCE, encoded).getOrThrow();
         h.assertTrue(decoded.all().equals(anchors.all()), "anchors should survive a save/load round trip");
         h.succeed();
     }

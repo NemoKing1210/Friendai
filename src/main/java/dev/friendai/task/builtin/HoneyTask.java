@@ -1,10 +1,10 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.task.Task;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.nav.Approach;
@@ -20,7 +20,6 @@ import net.minecraft.world.level.block.BeehiveBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.Nullable;
 
 /** Collects honey from a smoked, full beehive with a bottle or shears. */
@@ -28,8 +27,11 @@ public final class HoneyTask implements Task {
     private static final int RADIUS = 16;
     /** How long the honey gets to land and leave its pickup delay before the task moves on. */
     private static final int SETTLE_TICKS = 12;
-    private static final ItemMatcher HONEY_BOTTLES = ItemMatcher.parse("minecraft:honey_bottle").orElseThrow();
-    private static final ItemMatcher HONEYCOMBS = ItemMatcher.parse("minecraft:honeycomb").orElseThrow();
+
+    private static final ItemMatcher HONEY_BOTTLES =
+            ItemMatcher.parse("minecraft:honey_bottle").orElseThrow();
+    private static final ItemMatcher HONEYCOMBS =
+            ItemMatcher.parse("minecraft:honeycomb").orElseThrow();
 
     private final boolean bottle;
     private final @Nullable BlockPos hive;
@@ -42,6 +44,7 @@ public final class HoneyTask implements Task {
     private Approach approach;
     /** The wait for the honey to land, and what the companion carried when it took from the hive. */
     private DropSettle settle;
+
     private int before;
 
     public HoneyTask(boolean bottle, @Nullable BlockPos hive) {
@@ -77,7 +80,8 @@ public final class HoneyTask implements Task {
                 return TaskStatus.FAILED;
             }
             Item got = bottle ? Items.HONEY_BOTTLE : Items.HONEYCOMB;
-            summary = "got " + gained + " " + BuiltInRegistries.ITEM.getKey(got) + " from the hive at " + coords(target);
+            summary =
+                    "got " + gained + " " + BuiltInRegistries.ITEM.getKey(got) + " from the hive at " + coords(target);
             finished = true;
             return TaskStatus.SUCCESS;
         }
@@ -185,10 +189,14 @@ public final class HoneyTask implements Task {
 
     private static Optional<BlockPos> nearestHive(CompanionEntity companion) {
         if (!(companion.level() instanceof ServerLevel level)) return Optional.empty();
-        var matcher = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives").orElse(null);
+        var matcher = dev.friendai.task.mining.BlockMatcher.parse("#minecraft:beehives")
+                .orElse(null);
         if (matcher == null) return Optional.empty();
-        return dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
-                .visible(companion, matcher, RADIUS, 1).stream().findFirst();
+        return dev.friendai.core.FriendaiServerState.get(level.getServer())
+                .resources()
+                .visible(companion, matcher, RADIUS, 1)
+                .stream()
+                .findFirst();
     }
 
     private static boolean beesEmpty(ServerLevel level, BlockPos pos) {

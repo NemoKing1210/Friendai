@@ -71,7 +71,7 @@ public final class CircleTask implements Task {
                 point++;
                 mover.reset(c);
             }
-            default -> { }
+            default -> {}
         }
         return TaskStatus.RUNNING;
     }

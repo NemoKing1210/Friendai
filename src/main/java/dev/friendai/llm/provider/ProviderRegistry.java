@@ -35,26 +35,55 @@ public final class ProviderRegistry {
                 new OllamaProtocol(transport))) {
             r.protocols.put(p.id(), p);
         }
-        r.add(new ProviderPreset("openai", "OpenAI", "https://api.openai.com/v1", AuthStyle.BEARER,
-                List.of(rule("*", "openai_responses")), "openai_chat"));
-        r.add(new ProviderPreset("openai_compat", "OpenAI-compatible", null, AuthStyle.BEARER,
-                List.of(rule("*", "openai_chat")), "openai_chat"));
-        r.add(new ProviderPreset("anthropic", "Anthropic", "https://api.anthropic.com/v1", AuthStyle.X_API_KEY,
-                List.of(rule("*", "anthropic_messages")), "anthropic_messages"));
-        r.add(new ProviderPreset("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta",
-                AuthStyle.GOOG_API_KEY, List.of(rule("*", "gemini")), "gemini"));
-        r.add(new ProviderPreset("ollama", "Ollama", "http://localhost:11434", AuthStyle.NONE,
-                List.of(rule("*", "ollama")), "ollama"));
+        r.add(new ProviderPreset(
+                "openai",
+                "OpenAI",
+                "https://api.openai.com/v1",
+                AuthStyle.BEARER,
+                List.of(rule("*", "openai_responses")),
+                "openai_chat"));
+        r.add(new ProviderPreset(
+                "openai_compat",
+                "OpenAI-compatible",
+                null,
+                AuthStyle.BEARER,
+                List.of(rule("*", "openai_chat")),
+                "openai_chat"));
+        r.add(new ProviderPreset(
+                "anthropic",
+                "Anthropic",
+                "https://api.anthropic.com/v1",
+                AuthStyle.X_API_KEY,
+                List.of(rule("*", "anthropic_messages")),
+                "anthropic_messages"));
+        r.add(new ProviderPreset(
+                "gemini",
+                "Google Gemini",
+                "https://generativelanguage.googleapis.com/v1beta",
+                AuthStyle.GOOG_API_KEY,
+                List.of(rule("*", "gemini")),
+                "gemini"));
+        r.add(new ProviderPreset(
+                "ollama", "Ollama", "http://localhost:11434", AuthStyle.NONE, List.of(rule("*", "ollama")), "ollama"));
         // OpenCode Zen exposes one path prefix per protocol family under /inference (docs checked 2026-10-22).
-        r.add(new ProviderPreset("opencode_zen", "OpenCode Zen", ZEN + "/v1", AuthStyle.BEARER,
+        r.add(new ProviderPreset(
+                "opencode_zen",
+                "OpenCode Zen",
+                ZEN + "/v1",
+                AuthStyle.BEARER,
                 List.of(
                         new RoutingRule("claude-*", "anthropic_messages", ZEN + "/anthropic/v1"),
                         new RoutingRule("gpt-*", "openai_responses", ZEN + "/openai/v1"),
                         new RoutingRule("gemini-*", "gemini", ZEN + "/google/v1beta"),
                         new RoutingRule("*", "openai_chat", ZEN + "/openai/v1")),
                 "openai_chat"));
-        // OpenCode Go: same layout as Zen under /inference/go; the model list is at /go/v1/models (docs checked 2026-10-23).
-        r.add(new ProviderPreset("opencode_go", "OpenCode Go", GO + "/v1", AuthStyle.BEARER,
+        // OpenCode Go: same layout as Zen under /inference/go; the model list is at /go/v1/models (docs checked
+        // 2026-10-23).
+        r.add(new ProviderPreset(
+                "opencode_go",
+                "OpenCode Go",
+                GO + "/v1",
+                AuthStyle.BEARER,
                 List.of(
                         new RoutingRule("claude-*", "anthropic_messages", GO + "/anthropic/v1"),
                         new RoutingRule("minimax-m3", "anthropic_messages", GO + "/anthropic/v1"),
@@ -68,9 +97,13 @@ public final class ProviderRegistry {
                 // Go rejects requests without a session id and asks clients to use their own user agent.
                 Map.of("User-Agent", "friendai/1.0"),
                 "x-opencode-session"));
-        r.add(new ProviderPreset("command_code", "Command Code", "https://api.commandcode.ai/provider/v1",
+        r.add(new ProviderPreset(
+                "command_code",
+                "Command Code",
+                "https://api.commandcode.ai/provider/v1",
                 AuthStyle.BEARER,
-                List.of(rule("claude-*", "anthropic_messages"), rule("*", "openai_chat")), "openai_chat"));
+                List.of(rule("claude-*", "anthropic_messages"), rule("*", "openai_chat")),
+                "openai_chat"));
         return r;
     }
 
@@ -99,7 +132,8 @@ public final class ProviderRegistry {
         RoutingRule rule = rules.stream()
                 .filter(r -> r.matches(profile.model()))
                 .findFirst()
-                .orElseThrow(() -> new ConfigException(UserMessage.of("friendai.error.config.no_route", profile.model())));
+                .orElseThrow(
+                        () -> new ConfigException(UserMessage.of("friendai.error.config.no_route", profile.model())));
         LlmProtocol protocol = protocols.get(rule.protocol());
         if (protocol == null) {
             throw new ConfigException(UserMessage.of("friendai.error.config.no_route", profile.model()));
@@ -116,8 +150,9 @@ public final class ProviderRegistry {
     }
 
     private ProviderPreset requirePreset(LlmProfile profile) {
-        return preset(profile.provider()).orElseThrow(
-                () -> new ConfigException(UserMessage.of("friendai.error.config.unknown_provider", profile.provider())));
+        return preset(profile.provider())
+                .orElseThrow(() -> new ConfigException(
+                        UserMessage.of("friendai.error.config.unknown_provider", profile.provider())));
     }
 
     private Route route(LlmProtocol protocol, ProviderPreset preset, LlmProfile profile, String base) {

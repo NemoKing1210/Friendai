@@ -20,6 +20,7 @@ public final class LookAtOwnerGoal extends Goal {
     private static final float LOOK_DISTANCE = 8.0f;
     /** Chance per tick to start a glance, the same rate as the vanilla goal this replaced. */
     private static final float PROBABILITY = 0.02f;
+
     private static final int MIN_GLANCE_TICKS = 40;
     private static final int EXTRA_GLANCE_TICKS = 40;
 
@@ -40,7 +41,8 @@ public final class LookAtOwnerGoal extends Goal {
         if (companion.getRandom().nextFloat() >= PROBABILITY) {
             return false;
         }
-        Optional<ServerPlayer> candidate = companion.owner()
+        Optional<ServerPlayer> candidate = companion
+                .owner()
                 .filter(player -> player.level() == companion.level())
                 .filter(player -> companion.distanceToSqr(player) <= (double) LOOK_DISTANCE * LOOK_DISTANCE)
                 .filter(player -> companion.getSensing().hasLineOfSight(player));

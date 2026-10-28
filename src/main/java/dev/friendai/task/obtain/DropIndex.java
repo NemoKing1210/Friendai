@@ -24,14 +24,11 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.tags.TagKey;
-import net.minecraft.util.context.ContextKeySet;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -244,7 +241,9 @@ public final class DropIndex implements SourceBook {
     }
 
     private static Map<String, Double> probeMob(
-            ServerLevel level, EntityType<?> type, net.minecraft.resources.ResourceKey<LootTable> tableKey,
+            ServerLevel level,
+            EntityType<?> type,
+            net.minecraft.resources.ResourceKey<LootTable> tableKey,
             FakePlayer player) {
         Entity entity;
         try {
@@ -298,13 +297,19 @@ public final class DropIndex implements SourceBook {
     }
 
     private static boolean isSurface(BlockState state) {
-        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.SAND)
+        if (state.is(BlockTags.LOGS)
+                || state.is(BlockTags.LEAVES)
+                || state.is(BlockTags.SAND)
                 || state.is(BlockTags.DIRT)) {
             return true;
         }
         Block block = state.getBlock();
-        return block == Blocks.GRAVEL || block == Blocks.CLAY || block == Blocks.STONE
-                || block == Blocks.COBBLESTONE || block == Blocks.ANDESITE || block == Blocks.DIORITE
+        return block == Blocks.GRAVEL
+                || block == Blocks.CLAY
+                || block == Blocks.STONE
+                || block == Blocks.COBBLESTONE
+                || block == Blocks.ANDESITE
+                || block == Blocks.DIORITE
                 || block == Blocks.GRANITE;
     }
 

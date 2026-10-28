@@ -43,7 +43,10 @@ public final class SequenceTask implements Task {
     /** The plan itself, or the tool of the step that is running; a step still waiting in the queue does not match. */
     @Override
     public boolean matches(String name) {
-        return type().equals(name) || (active != null && index < entries.size() && entries.get(index).tool().equals(name));
+        return type().equals(name)
+                || (active != null
+                        && index < entries.size()
+                        && entries.get(index).tool().equals(name));
     }
 
     @Override
@@ -78,9 +81,15 @@ public final class SequenceTask implements Task {
         try {
             status = active.tick(c);
         } catch (RuntimeException e) {
-            LOGGER.warn("Plan step {}/{} ({}) crashed", index + 1, entries.size(), entries.get(index).tool(), e);
+            LOGGER.warn(
+                    "Plan step {}/{} ({}) crashed",
+                    index + 1,
+                    entries.size(),
+                    entries.get(index).tool(),
+                    e);
             safeStop(active, c);
-            return fail(entries.get(index).tool(), "task crashed: " + e.getClass().getSimpleName());
+            return fail(
+                    entries.get(index).tool(), "task crashed: " + e.getClass().getSimpleName());
         }
         if (status == TaskStatus.RUNNING && active.hasTimeout() && elapsed - stepStart > stepTimeoutTicks.getAsInt()) {
             safeStop(active, c);
@@ -121,7 +130,12 @@ public final class SequenceTask implements Task {
      * A plan read back from a save: it continues at {@code index}, already reported the {@code done} summaries, and
      * resumes {@code active} (a build) instead of starting that step again.
      */
-    public static SequenceTask resumed(String goal, List<PlanEntry> entries, int index, List<String> done, Task active,
+    public static SequenceTask resumed(
+            String goal,
+            List<PlanEntry> entries,
+            int index,
+            List<String> done,
+            Task active,
             IntSupplier stepTimeoutTicks) {
         SequenceTask plan = new SequenceTask(goal, entries, stepTimeoutTicks);
         plan.index = Math.min(index, entries.size());
@@ -170,7 +184,12 @@ public final class SequenceTask implements Task {
         try {
             task.stop(c);
         } catch (RuntimeException e) {
-            LOGGER.warn("Plan step {}/{} ({}) failed to stop", index + 1, entries.size(), entries.get(index).tool(), e);
+            LOGGER.warn(
+                    "Plan step {}/{} ({}) failed to stop",
+                    index + 1,
+                    entries.size(),
+                    entries.get(index).tool(),
+                    e);
         }
     }
 

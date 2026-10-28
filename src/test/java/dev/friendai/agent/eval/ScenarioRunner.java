@@ -42,10 +42,12 @@ public final class ScenarioRunner {
     public static Result run(Scenario s, LlmGateway live) {
         FakeGateway gateway = new FakeGateway();
         AtomicInteger liveRequests = new AtomicInteger();
-        LlmGateway used = live == null ? gateway : (system, messages, specs) -> {
-            liveRequests.incrementAndGet();
-            return live.complete(system, messages, specs);
-        };
+        LlmGateway used = live == null
+                ? gateway
+                : (system, messages, specs) -> {
+                    liveRequests.incrementAndGet();
+                    return live.complete(system, messages, specs);
+                };
         int n = 0;
         for (Scenario.Reply reply : s.replies()) {
             List<ToolCall> calls = new ArrayList<>();
@@ -53,9 +55,8 @@ public final class ScenarioRunner {
                 calls.add(FakeGateway.call("c" + (++n), tool));
             }
             String text = reply.text() == null ? "" : reply.text();
-            gateway.enqueue(calls.isEmpty()
-                    ? FakeGateway.text(text)
-                    : FakeGateway.calls(text, calls.toArray(new ToolCall[0])));
+            gateway.enqueue(
+                    calls.isEmpty() ? FakeGateway.text(text) : FakeGateway.calls(text, calls.toArray(new ToolCall[0])));
         }
         FakeToolExecutor tools = new FakeToolExecutor();
         RecordingSpeaker speaker = new RecordingSpeaker();
@@ -84,8 +85,7 @@ public final class ScenarioRunner {
         return new Result(requests, List.copyOf(tools.executed), List.copyOf(speaker.said), failures);
     }
 
-    private static List<String> judge(
-            Scenario.Expectations e, int requests, List<String> called, List<String> spoken) {
+    private static List<String> judge(Scenario.Expectations e, int requests, List<String> called, List<String> spoken) {
         List<String> failures = new ArrayList<>();
         if (e == null) {
             return failures;

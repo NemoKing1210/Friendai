@@ -11,7 +11,9 @@ public record PromptS2CPayload(String prompt) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<PromptS2CPayload> TYPE =
             new CustomPacketPayload.Type<>(FriendaiMod.id("companion_prompt"));
     public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, PromptS2CPayload> CODEC =
-            ByteBufCodecs.stringUtf8(MAX_CHARS).map(PromptS2CPayload::new, PromptS2CPayload::prompt).cast();
+            ByteBufCodecs.stringUtf8(MAX_CHARS)
+                    .map(PromptS2CPayload::new, PromptS2CPayload::prompt)
+                    .cast();
 
     @Override
     public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {

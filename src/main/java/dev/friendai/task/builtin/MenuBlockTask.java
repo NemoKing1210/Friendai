@@ -2,8 +2,8 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.nav.Approach;
@@ -95,9 +95,10 @@ abstract class MenuBlockTask implements Task {
             }
             return given;
         }
-        BlockMatcher matcher = BlockMatcher.parse(BuiltInRegistries.BLOCK.getKey(block).toString()).orElseThrow();
-        BlockPos found = BlockSearch.nearest(
-                        c.level(), c.companion().blockPosition(), SEARCH_RADIUS, matcher, Set.of())
+        BlockMatcher matcher = BlockMatcher.parse(
+                        BuiltInRegistries.BLOCK.getKey(block).toString())
+                .orElseThrow();
+        BlockPos found = BlockSearch.nearest(c.level(), c.companion().blockPosition(), SEARCH_RADIUS, matcher, Set.of())
                 .orElse(null);
         if (found == null) {
             summary = "no " + noun + " within " + SEARCH_RADIUS + " blocks";

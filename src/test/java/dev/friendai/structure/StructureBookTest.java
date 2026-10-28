@@ -26,7 +26,9 @@ class StructureBookTest {
 
     @Test
     void builtinsAreIronGolemSnowGolemAndNetherPortal() {
-        assertEquals(List.of("iron_golem", "nether_portal", "snow_golem"), StructureBook.withBuiltins().ids());
+        assertEquals(
+                List.of("iron_golem", "nether_portal", "snow_golem"),
+                StructureBook.withBuiltins().ids());
     }
 
     @Test
@@ -55,8 +57,8 @@ class StructureBookTest {
     @Test
     void netherPortalIsATenBlockObsidianFrame() {
         SpecialStructure s = get("nether_portal");
-        assertEquals(Set.of("1,0,0", "2,0,0", "1,4,0", "2,4,0",
-                        "0,1,0", "0,2,0", "0,3,0", "3,1,0", "3,2,0", "3,3,0"),
+        assertEquals(
+                Set.of("1,0,0", "2,0,0", "1,4,0", "2,4,0", "0,1,0", "0,2,0", "0,3,0", "3,1,0", "3,2,0", "3,3,0"),
                 positions(s, "minecraft:obsidian"));
         assertEquals(10, s.body().blocks().size());
         assertEquals(4, s.body().width());

@@ -49,7 +49,9 @@ class SkinFetcherTest {
     }
 
     private String keyOf(Runnable action) {
-        return assertThrows(UserFacingException.class, action::run).userMessage().key();
+        return assertThrows(UserFacingException.class, action::run)
+                .userMessage()
+                .key();
     }
 
     @Test
@@ -111,7 +113,11 @@ class SkinFetcherTest {
     @Test
     void urlMustBeHttps() {
         SkinFetcher strict = new SkinFetcher(
-                SkinFetcher.newClient(), Duration.ofSeconds(5), server.baseUri(), server.baseUri(), LOCAL,
+                SkinFetcher.newClient(),
+                Duration.ofSeconds(5),
+                server.baseUri(),
+                server.baseUri(),
+                LOCAL,
                 uri -> "https".equals(uri.getScheme()));
 
         assertEquals("friendai.skin.error.not_https", keyOf(() -> strict.byUrl(textureUrl("/a.png"))));

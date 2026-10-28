@@ -10,19 +10,19 @@ class QueueTradeScopeTest {
     private static final UUID ORIGINAL = UUID.fromString("00000000-0000-0000-0000-000000000123");
     private static final UUID LATER_TURN = UUID.fromString("00000000-0000-0000-0000-000000000456");
 
-    @Test void addCapturesOnlyServerScopeAndRejectsForgedValues() {
+    @Test
+    void addCapturesOnlyServerScopeAndRejectsForgedValues() {
         JsonObject modelArgs = new JsonObject();
         modelArgs.addProperty("count", 2);
         JsonObject queued = QueueTradeScope.capture(modelArgs, ORIGINAL, true);
         assertEquals(ORIGINAL, QueueTradeScope.read(queued));
         assertFalse(modelArgs.has(QueueTradeScope.ARG));
-        assertThrows(IllegalArgumentException.class,
-                () -> QueueTradeScope.capture(queued, LATER_TURN, true));
-        assertThrows(IllegalArgumentException.class,
-                () -> QueueTradeScope.capture(modelArgs, null, true));
+        assertThrows(IllegalArgumentException.class, () -> QueueTradeScope.capture(queued, LATER_TURN, true));
+        assertThrows(IllegalArgumentException.class, () -> QueueTradeScope.capture(modelArgs, null, true));
     }
 
-    @Test void deferredEnqueueCapturesScopeAndLimitsSpendingToOneAttempt() {
+    @Test
+    void deferredEnqueueCapturesScopeAndLimitsSpendingToOneAttempt() {
         JsonObject source = new JsonObject();
         source.addProperty("count", 4);
 
@@ -37,7 +37,8 @@ class QueueTradeScopeTest {
         assertFalse(ordinary.args().has(QueueTradeScope.ARG));
     }
 
-    @Test void updateAndReplacePreserveOriginalScopeAcrossLaterTurns() {
+    @Test
+    void updateAndReplacePreserveOriginalScopeAcrossLaterTurns() {
         JsonObject oldArgs = new JsonObject();
         oldArgs.addProperty(QueueTradeScope.ARG, ORIGINAL.toString());
         JsonObject editedArgs = new JsonObject();
@@ -49,14 +50,15 @@ class QueueTradeScopeTest {
         assertEquals(ORIGINAL, QueueTradeScope.read(updated));
         assertEquals(ORIGINAL, QueueTradeScope.read(replaced));
         assertNotEquals(LATER_TURN, QueueTradeScope.read(updated));
-        assertThrows(IllegalArgumentException.class,
-                () -> QueueTradeScope.preserve(editedArgs, new JsonObject(), true));
+        assertThrows(
+                IllegalArgumentException.class, () -> QueueTradeScope.preserve(editedArgs, new JsonObject(), true));
         JsonObject forged = new JsonObject();
         forged.addProperty(QueueTradeScope.ARG, LATER_TURN.toString());
         assertThrows(IllegalArgumentException.class, () -> QueueTradeScope.preserve(forged, oldArgs, true));
     }
 
-    @Test void nonspendingReplacementDoesNotCarryAnObsoleteScopeMarker() {
+    @Test
+    void nonspendingReplacementDoesNotCarryAnObsoleteScopeMarker() {
         JsonObject oldArgs = new JsonObject();
         oldArgs.addProperty(QueueTradeScope.ARG, ORIGINAL.toString());
         JsonObject ordinaryArgs = new JsonObject();
@@ -67,7 +69,8 @@ class QueueTradeScopeTest {
         assertFalse(replacement.has(QueueTradeScope.ARG));
     }
 
-    @Test void manualRetryUsesOriginalScopeAndRequiresOwnerAccess() {
+    @Test
+    void manualRetryUsesOriginalScopeAndRequiresOwnerAccess() {
         JsonObject savedArgs = new JsonObject();
         savedArgs.addProperty(QueueTradeScope.ARG, ORIGINAL.toString());
         assertEquals(ORIGINAL, QueueTradeScope.retry(savedArgs, true, true));
@@ -75,7 +78,8 @@ class QueueTradeScopeTest {
         assertThrows(IllegalArgumentException.class, () -> QueueTradeScope.retry(new JsonObject(), true, true));
     }
 
-    @Test void restoreRequiresFreshAuthorityForMarkedOrTraitDeclaredSpendingWork() {
+    @Test
+    void restoreRequiresFreshAuthorityForMarkedOrTraitDeclaredSpendingWork() {
         JsonObject obtainArgs = new JsonObject();
         obtainArgs.addProperty(QueueTradeScope.ARG, ORIGINAL.toString());
         assertTrue(QueueTradeScope.requiresFreshAuthority(obtainArgs, false));

@@ -25,15 +25,14 @@ public final class ResourceObserver {
     private static final int SWEEP_RAYS = 128;
     private static final int NEAR_FACE_CHECKS_PER_AXIS = 8;
     private static final Vec3[] CARDINALS = {
-            new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 1, 0),
-            new Vec3(0, -1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)
+        new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 1, 0),
+        new Vec3(0, -1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)
     };
     private static final BlockPos[] FACES = {
-            new BlockPos(1, 0, 0), new BlockPos(-1, 0, 0), new BlockPos(0, 1, 0),
-            new BlockPos(0, -1, 0), new BlockPos(0, 0, 1), new BlockPos(0, 0, -1)
+        new BlockPos(1, 0, 0), new BlockPos(-1, 0, 0), new BlockPos(0, 1, 0),
+        new BlockPos(0, -1, 0), new BlockPos(0, 0, 1), new BlockPos(0, 0, -1)
     };
-    private static final int[][] NEAR_DIRECTIONS = {
-            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    private static final int[][] NEAR_DIRECTIONS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
     };
 
     private final CompanionEntity companion;
@@ -103,17 +102,22 @@ public final class ResourceObserver {
         int sideX = -forwardZ;
         int sideZ = forwardX;
         for (int dy = 0; dy <= 1; dy++) {
-            for (int lateral : new int[]{-1, 1}) {
-                for (int distance : new int[]{3, 5}) {
-                    if (inspectTarget(foot.above(dy).offset(forwardX * distance + sideX * lateral, 0,
-                            forwardZ * distance + sideZ * lateral), false)) scheduled++;
+            for (int lateral : new int[] {-1, 1}) {
+                for (int distance : new int[] {3, 5}) {
+                    if (inspectTarget(
+                            foot.above(dy)
+                                    .offset(
+                                            forwardX * distance + sideX * lateral,
+                                            0,
+                                            forwardZ * distance + sideZ * lateral),
+                            false)) scheduled++;
                 }
             }
         }
         double rotation = ((companion.getId() * 0.6180339887498949 + tick * 0.017) % 1.0) * Math.PI * 2.0;
         double golden = Math.PI * (3.0 - Math.sqrt(5.0));
-        int sphericalRays = SWEEP_RAYS - CARDINALS.length - 4 * NEAR_FACE_CHECKS_PER_AXIS
-                - NEAR_DIRECTIONS.length * 3 - 8;
+        int sphericalRays =
+                SWEEP_RAYS - CARDINALS.length - 4 * NEAR_FACE_CHECKS_PER_AXIS - NEAR_DIRECTIONS.length * 3 - 8;
         for (int i = 0; i < sphericalRays; i++) {
             double y = 1.0 - 2.0 * (i + 0.5) / sphericalRays;
             double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
@@ -139,7 +143,10 @@ public final class ResourceObserver {
         if (!activeLevel()) return;
         BlockPos key = pos.immutable();
         if (queuedTargets.contains(key)) {
-            PendingRay pending = queue.stream().filter(ray -> key.equals(ray.target)).findFirst().orElse(null);
+            PendingRay pending = queue.stream()
+                    .filter(ray -> key.equals(ray.target))
+                    .findFirst()
+                    .orElse(null);
             if (pending != null) {
                 queue.remove(pending);
                 queue.addFirst(pending);
@@ -178,11 +185,14 @@ public final class ResourceObserver {
         if (queue.size() >= MAX_QUEUED_RAYS) return false;
         if (target != null && !queuedTargets.add(target.immutable())) return false;
         PendingRay ray = new PendingRay(from, to, target == null ? null : target.immutable(), changed, dimension);
-        if (focused) queue.addFirst(ray); else queue.addLast(ray);
+        if (focused) queue.addFirst(ray);
+        else queue.addLast(ray);
         return true;
     }
 
-    public int queuedJobs() { return queue.size(); }
+    public int queuedJobs() {
+        return queue.size();
+    }
 
     private double radius() {
         return Math.max(4, Math.min(64, observationRadius.getAsInt()));
@@ -198,11 +208,14 @@ public final class ResourceObserver {
         int rays = 0;
         int cells = 0;
         boolean attemptedWork = false;
-        while (!queue.isEmpty() && rays < rayBudget && cells < cellBudget
+        while (!queue.isEmpty()
+                && rays < rayBudget
+                && cells < cellBudget
                 && (!attemptedWork || System.nanoTime() < deadlineNanos)) {
             PendingRay pending = queue.peekFirst();
             Vec3 eye = companion.getEyePosition();
-            if (pending.dimension == null || !pending.dimension.equals(dimension)
+            if (pending.dimension == null
+                    || !pending.dimension.equals(dimension)
                     || pending.origin.distanceToSqr(eye) > 4.0) {
                 queue.removeFirst();
                 forgetTarget(pending);
@@ -220,28 +233,40 @@ public final class ResourceObserver {
             queue.removeFirst();
             rays++;
             forgetTarget(pending);
-            if (outcome == ResourceSight.Outcome.VISIBLE && pending.origin.distanceToSqr(companion.getEyePosition()) <= 4.0) {
+            if (outcome == ResourceSight.Outcome.VISIBLE
+                    && pending.origin.distanceToSqr(companion.getEyePosition()) <= 4.0) {
                 BlockPos hit = pending.job.hitBlock();
                 if (hit != null) {
                     ServerLevel level = (ServerLevel) companion.level();
                     long observedTick = level.getServer().overworld().getGameTime();
-                    String blockId = BuiltInRegistries.BLOCK.getKey(level.getBlockState(hit).getBlock()).toString();
-                    ResourceObservation.Location location = new ResourceObservation.Location(dimension,
-                            new Pos(hit.getX(), hit.getY(), hit.getZ()));
+                    String blockId = BuiltInRegistries.BLOCK
+                            .getKey(level.getBlockState(hit).getBlock())
+                            .toString();
+                    ResourceObservation.Location location =
+                            new ResourceObservation.Location(dimension, new Pos(hit.getX(), hit.getY(), hit.getZ()));
                     if (emitted.add(location)) {
                         BlockPos viewpoint = companion.blockPosition();
-                        observations.add(new ResourceObservation(blockId, location,
-                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()), observedTick));
+                        observations.add(new ResourceObservation(
+                                blockId,
+                                location,
+                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                observedTick));
                     }
                     if (pending.job.unobstructedOpenCorridor()) {
                         List<Pos> openCells = pending.job.openAirCells().stream()
-                                .map(cell -> new Pos(cell.getX(), cell.getY(), cell.getZ())).toList();
+                                .map(cell -> new Pos(cell.getX(), cell.getY(), cell.getZ()))
+                                .toList();
                         BlockPos eyeCell = BlockPos.containing(pending.origin);
-                        CaveEntranceDetector.detect(openCells,
+                        CaveEntranceDetector.detect(
+                                        openCells,
                                         new Pos(eyeCell.getX(), eyeCell.getY(), eyeCell.getZ()),
                                         new Pos(hit.getX(), hit.getY(), hit.getZ()))
-                                .ifPresent(entrance -> caveEntrances.add(new CaveEntranceObservation(dimension,
-                                        entrance.approach(), entrance.opening(), entrance.interior(), observedTick)));
+                                .ifPresent(entrance -> caveEntrances.add(new CaveEntranceObservation(
+                                        dimension,
+                                        entrance.approach(),
+                                        entrance.opening(),
+                                        entrance.interior(),
+                                        observedTick)));
                     }
                 }
             }
@@ -275,10 +300,14 @@ public final class ResourceObserver {
     }
 
     private String dimension() {
-        return companion.level() instanceof ServerLevel level ? level.dimension().identifier().toString() : "";
+        return companion.level() instanceof ServerLevel level
+                ? level.dimension().identifier().toString()
+                : "";
     }
 
-    private boolean activeLevel() { return companion.level() instanceof ServerLevel && !companion.isRemoved(); }
+    private boolean activeLevel() {
+        return companion.level() instanceof ServerLevel && !companion.isRemoved();
+    }
 
     private static final class PendingRay {
         final Vec3 origin;
@@ -287,6 +316,7 @@ public final class ResourceObserver {
         final boolean changed;
         final String dimension;
         ResourceSight.Job job;
+
         PendingRay(Vec3 origin, Vec3 end, BlockPos target, boolean changed, String dimension) {
             this.origin = origin;
             this.end = end;
@@ -296,6 +326,10 @@ public final class ResourceObserver {
         }
     }
 
-    public record ObservationBatch(List<ResourceObservation> observations, List<CaveEntranceObservation> caveEntrances,
-                                   int raysCompleted, int cellsVisited, int queuedRemaining) {}
+    public record ObservationBatch(
+            List<ResourceObservation> observations,
+            List<CaveEntranceObservation> caveEntrances,
+            int raysCompleted,
+            int cellsVisited,
+            int queuedRemaining) {}
 }

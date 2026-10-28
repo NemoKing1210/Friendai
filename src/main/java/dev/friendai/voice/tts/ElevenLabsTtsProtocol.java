@@ -30,11 +30,11 @@ public final class ElevenLabsTtsProtocol implements TtsProtocol {
         body.addProperty("model_id", settings.model());
         body.add("voice_settings", voiceSettings);
         Map<String, String> headers = new HashMap<>(VoiceAuth.ELEVENLABS.headers(settings.apiKey()));
-        String voice = URLEncoder.encode(settings.voice(), StandardCharsets.UTF_8).replace("+", "%20");
-        URI uri = OpenAiTtsProtocol.join(settings.baseUrl(),
-                "/v1/text-to-speech/" + voice + "?output_format=pcm_24000");
-        return new PreparedRequest(uri, headers, body.toString().getBytes(StandardCharsets.UTF_8),
-                "application/json");
+        String voice =
+                URLEncoder.encode(settings.voice(), StandardCharsets.UTF_8).replace("+", "%20");
+        URI uri =
+                OpenAiTtsProtocol.join(settings.baseUrl(), "/v1/text-to-speech/" + voice + "?output_format=pcm_24000");
+        return new PreparedRequest(uri, headers, body.toString().getBytes(StandardCharsets.UTF_8), "application/json");
     }
 
     @Override

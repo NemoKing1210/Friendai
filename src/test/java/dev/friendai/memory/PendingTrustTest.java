@@ -56,12 +56,14 @@ class PendingTrustTest {
     @Test
     void expireReturnsAndRemoves() {
         TrustRequest old = pending.open(OWNER, TARGET, "Bob", true, 1_000);
-        TrustRequest fresh = pending.open(OTHER_OWNER, OTHER_TARGET, "Ann", true, 1_000
-                + PendingTrust.TTL_MILLIS);
+        TrustRequest fresh = pending.open(OTHER_OWNER, OTHER_TARGET, "Ann", true, 1_000 + PendingTrust.TTL_MILLIS);
         List<TrustRequest> expired = pending.expire(1_000 + PendingTrust.TTL_MILLIS + 1);
         assertEquals(List.of(old), expired);
         assertTrue(pending.current(OWNER, 1_000 + PendingTrust.TTL_MILLIS + 1).isEmpty());
-        assertEquals(fresh, pending.current(OTHER_OWNER, 1_000 + PendingTrust.TTL_MILLIS + 1).orElseThrow());
+        assertEquals(
+                fresh,
+                pending.current(OTHER_OWNER, 1_000 + PendingTrust.TTL_MILLIS + 1)
+                        .orElseThrow());
     }
 
     @Test

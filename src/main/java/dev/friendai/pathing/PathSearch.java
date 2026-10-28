@@ -23,9 +23,8 @@ public final class PathSearch {
 
     private record Entry(double f, double h, long sequence, Record record) {}
 
-    private static final Comparator<Entry> ORDER = Comparator.comparingDouble(Entry::f)
-            .thenComparingDouble(Entry::h)
-            .thenComparingLong(Entry::sequence);
+    private static final Comparator<Entry> ORDER =
+            Comparator.comparingDouble(Entry::f).thenComparingDouble(Entry::h).thenComparingLong(Entry::sequence);
 
     private static final class Record {
         final Node node;
@@ -34,6 +33,7 @@ public final class PathSearch {
         final int headUnderwater;
         /** The step that led here; null for the start. */
         final PathStep step;
+
         final Record parent;
         boolean closed;
         boolean stale;
@@ -70,8 +70,8 @@ public final class PathSearch {
         this(view, costs, goal, start, options, PathPolicy.DEFAULT);
     }
 
-    public PathSearch(CellView view, CostModel costs, PathGoal goal, Node start, SearchOptions options,
-            PathPolicy policy) {
+    public PathSearch(
+            CellView view, CostModel costs, PathGoal goal, Node start, SearchOptions options, PathPolicy policy) {
         this.view = view;
         this.costs = costs;
         this.goal = goal;
@@ -121,7 +121,11 @@ public final class PathSearch {
                 bestHeuristic = h;
                 best = record;
             }
-            moves.neighbours(record.node, record.placed, options.placeable(), record.headUnderwater,
+            moves.neighbours(
+                    record.node,
+                    record.placed,
+                    options.placeable(),
+                    record.headUnderwater,
                     step -> prepareAndRelax(record, step));
         }
         if (open.isEmpty() || expanded >= options.maxNodes()) {
@@ -141,9 +145,12 @@ public final class PathSearch {
             return;
         }
         PathStep candidate = prepared.get();
-        if (!candidate.from().equals(step.from()) || !candidate.to().equals(step.to())
-                || candidate.move() != step.move() || candidate.headUnderwater() != step.headUnderwater()
-                || !candidate.places().equals(step.places()) || !Double.isFinite(candidate.cost())
+        if (!candidate.from().equals(step.from())
+                || !candidate.to().equals(step.to())
+                || candidate.move() != step.move()
+                || candidate.headUnderwater() != step.headUnderwater()
+                || !candidate.places().equals(step.places())
+                || !Double.isFinite(candidate.cost())
                 || candidate.cost() < step.cost()) {
             return;
         }
@@ -168,8 +175,7 @@ public final class PathSearch {
             }
         }
         at.removeIf(existing -> {
-            boolean dominated = g <= existing.g && placed <= existing.placed
-                    && underwater <= existing.headUnderwater;
+            boolean dominated = g <= existing.g && placed <= existing.placed && underwater <= existing.headUnderwater;
             if (dominated) {
                 existing.stale = true;
             }

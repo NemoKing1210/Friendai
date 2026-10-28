@@ -6,14 +6,14 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.search.SearchSession;
-import dev.friendai.perception.resource.CaveEntranceObservation;
+import dev.friendai.llm.model.ToolCall;
 import dev.friendai.pathing.Pos;
+import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolRegistry;
-import dev.friendai.llm.model.ToolCall;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.MemoryAccess;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -38,18 +38,26 @@ public final class ResourceSearchTests {
         companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
         Result result = new Result();
         companion.taskRunner().setListener(result);
-        var started = tools().bind(companion).execute(searchCall("minecraft:stone", "auto", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:stone", "auto", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
         h.succeedWhen(() -> {
             h.assertTrue(result.status != null, "shallow stone search should finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("found"), result.summary);
-            h.assertTrue(companion.blockPosition().getY() < h.absolutePos(new BlockPos(10, 201, 10)).getY(),
+            h.assertTrue(
+                    companion.blockPosition().getY()
+                            < h.absolutePos(new BlockPos(10, 201, 10)).getY(),
                     "search must excavate beneath the dirt rather than wait on the surface");
-            var sessions = FriendaiServerState.get(h.getLevel().getServer()).knowledge().book(owner.getUUID())
-                    .searchLedger().snapshot();
-            h.assertTrue(sessions.size() == 1 && sessions.getFirst().excavationBlocks() > 0,
+            var sessions = FriendaiServerState.get(h.getLevel().getServer())
+                    .knowledge()
+                    .book(owner.getUUID())
+                    .searchLedger()
+                    .snapshot();
+            h.assertTrue(
+                    sessions.size() == 1 && sessions.getFirst().excavationBlocks() > 0,
                     "successful search must account for excavation in its bounded session");
         });
     }
@@ -68,8 +76,10 @@ public final class ResourceSearchTests {
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:coal_ore", "auto", "expedition"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "auto", "expedition"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
         h.assertTrue(result.error(), "trusted caller must not escalate to expedition scope");
         h.assertTrue(!companion.taskRunner().hasWork(), "denied expedition must not start a task");
         config.tasks.resources.allowExpeditions = oldExpeditions;
@@ -96,15 +106,25 @@ public final class ResourceSearchTests {
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:coal_ore", "surface", "expedition"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "surface", "expedition"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!result.error(), "authorized owner expedition should start");
-        var session = state.knowledge().book(owner.getUUID()).searchLedger().snapshot().stream().findFirst().orElse(null);
+        var session = state.knowledge().book(owner.getUUID()).searchLedger().snapshot().stream()
+                .findFirst()
+                .orElse(null);
         h.assertTrue(session != null, "owner request should create a persisted search session");
-        h.assertTrue(session.limits().radius() == 700 && session.limits().ticks() == 18_000,
+        h.assertTrue(
+                session.limits().radius() == 700 && session.limits().ticks() == 18_000,
                 "search must use server policy values, not arbitrary tool overrides");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v2:"))
-                .orElse(false), "active search should carry a restart interruption marker");
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.saveData().startsWith("resource_session:v2:"))
+                        .orElse(false),
+                "active search should carry a restart interruption marker");
         companion.taskRunner().stop("test cleanup");
         config.tasks.resources.allowExpeditions = oldExpeditions;
         config.tasks.resources.expeditionRadius = oldRadius;
@@ -127,24 +147,28 @@ public final class ResourceSearchTests {
         config.tasks.resources.allowExpeditions = true;
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
-        tools().bind(companion).execute(searchCall("minecraft:coal_ore", "surface", "expedition"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "surface", "expedition"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         var task = companion.taskRunner().current().orElseThrow();
         var context = new dev.friendai.task.TaskContext(companion, h.getLevel());
         for (int i = 0; i < 50 && state.chunkLoader().expeditionHorizon().activeLeases() == 0; i++) {
             task.tick(context);
         }
-        h.assertTrue(state.chunkLoader().expeditionHorizon().activeLeases() == 1,
+        h.assertTrue(
+                state.chunkLoader().expeditionHorizon().activeLeases() == 1,
                 "an outbound expedition leg should hold exactly its next-leg ticket");
 
         companion.taskRunner().stop("test cancellation");
-        h.assertTrue(state.chunkLoader().expeditionHorizon().activeLeases() == 0
+        h.assertTrue(
+                state.chunkLoader().expeditionHorizon().activeLeases() == 0
                         && state.chunkLoader().expeditionHorizon().ticketKeys() == 0,
                 "stopping an expedition must release its next-leg ticket immediately");
-        h.assertTrue(companion.getNavigation().isDone(),
-                "stopping an expedition must leave no active navigator path");
-        h.assertTrue(state.knowledge().book(owner.getUUID()).searchLedger().snapshot().stream()
+        h.assertTrue(companion.getNavigation().isDone(), "stopping an expedition must leave no active navigator path");
+        h.assertTrue(
+                state.knowledge().book(owner.getUUID()).searchLedger().snapshot().stream()
                         .allMatch(session -> session.phase() == SearchSession.Phase.INTERRUPTED),
                 "a stopped search must leave its persistent ledger interrupted while preserving spent work");
         config.tasks.resources.allowExpeditions = oldExpeditions;
@@ -162,18 +186,35 @@ public final class ResourceSearchTests {
         companion.inventory().setItem(0, Items.IRON_PICKAXE.getDefaultInstance());
         companion.inventory().setItem(1, Items.TORCH.getDefaultInstance().copyWithCount(16));
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:iron_ore", "mine", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:iron_ore", "mine", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "owner mine search should be accepted when equipped");
-        SearchSession.Snapshot session = FriendaiServerState.get(h.getLevel().getServer()).knowledge().book(owner.getUUID())
-                .searchLedger().snapshot().stream().findFirst().orElse(null);
+        SearchSession.Snapshot session =
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .knowledge()
+                        .book(owner.getUUID())
+                        .searchLedger()
+                        .snapshot()
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
         h.assertTrue(session != null, "mine search should acquire a persistent bounded session");
-        h.assertTrue(session.limits().radius() == 64 && session.limits().travelBlocks() == 256
-                        && session.limits().ticks() == 2_400 && session.limits().excavationBlocks() == 128,
+        h.assertTrue(
+                session.limits().radius() == 64
+                        && session.limits().travelBlocks() == 256
+                        && session.limits().ticks() == 2_400
+                        && session.limits().excavationBlocks() == 128,
                 "local mining strategy must use the bounded default search budget");
-        h.assertTrue(!companion.taskRunner().current().map(task -> task.resultSummary())
-                .orElse("").contains("no observed entrance or safe local route"),
+        h.assertTrue(
+                !companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary())
+                        .orElse("")
+                        .contains("no observed entrance or safe local route"),
                 "permitted MINE strategy must start its guarded mining driver");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
@@ -187,14 +228,27 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.inventory().setItem(0, Items.IRON_PICKAXE.getDefaultInstance());
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:iron_ore", "mine", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:iron_ore", "mine", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "tool call should start a task that can report its readiness reason");
-        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).knowledge().book(owner.getUUID())
-                .searchLedger().snapshot().isEmpty(), "readiness failure must not acquire or consume a session");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.resultSummary().contains("16 torches"))
-                .orElse(false), "mining readiness failure must report its torch requirement");
+        h.assertTrue(
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .knowledge()
+                        .book(owner.getUUID())
+                        .searchLedger()
+                        .snapshot()
+                        .isEmpty(),
+                "readiness failure must not acquire or consume a session");
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary().contains("16 torches"))
+                        .orElse(false),
+                "mining readiness failure must report its torch requirement");
         h.succeed();
     }
 
@@ -206,14 +260,27 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.hunger().load(5, 0.0F, 0.0F);
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:coal_ore", "surface", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "surface", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "tool call should start a task that can report its readiness reason");
-        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).knowledge().book(owner.getUUID())
-                .searchLedger().snapshot().isEmpty(), "readiness failure must not acquire or consume a session");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.resultSummary().contains("need food"))
-                .orElse(false), "low food failure must be reported before departure");
+        h.assertTrue(
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .knowledge()
+                        .book(owner.getUUID())
+                        .searchLedger()
+                        .snapshot()
+                        .isEmpty(),
+                "readiness failure must not acquire or consume a session");
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary().contains("need food"))
+                        .orElse(false),
+                "low food failure must be reported before departure");
         h.succeed();
     }
 
@@ -225,14 +292,26 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         var state = FriendaiServerState.get(h.getLevel().getServer());
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:coal_ore", "cave", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "cave", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "a bounded cave request should report its unavailable entrance as task status");
-        h.assertTrue(state.knowledge().book(owner.getUUID()).searchLedger().snapshot().isEmpty(),
+        h.assertTrue(
+                state.knowledge()
+                        .book(owner.getUUID())
+                        .searchLedger()
+                        .snapshot()
+                        .isEmpty(),
                 "a cave search without observed entrance evidence must not acquire or spend a session");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.resultSummary().contains("no directly observed cave entrance"))
-                .orElse(false), "the task should explain that no directly observed entrance is available");
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary().contains("no directly observed cave entrance"))
+                        .orElse(false),
+                "the task should explain that no directly observed entrance is available");
         h.succeed();
     }
 
@@ -245,18 +324,29 @@ public final class ResourceSearchTests {
         var state = FriendaiServerState.get(h.getLevel().getServer());
         String dimension = h.getLevel().dimension().identifier().toString();
         long now = h.getLevel().getServer().overworld().getGameTime();
-        state.resources().observeCaveEntrance(companion, new CaveEntranceObservation(dimension,
-                new Pos(3, 3, 2), new Pos(4, 2, 2), new Pos(5, 1, 2), now));
+        state.resources()
+                .observeCaveEntrance(
+                        companion,
+                        new CaveEntranceObservation(
+                                dimension, new Pos(3, 3, 2), new Pos(4, 2, 2), new Pos(5, 1, 2), now));
 
-        var result = tools().bind(companion).execute(searchCall("minecraft:coal_ore", "cave", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var result = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:coal_ore", "cave", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "an owner search with observed entrance evidence should start");
-        SearchSession.Snapshot session = state.knowledge().book(owner.getUUID()).searchLedger().snapshot()
-                .stream().findFirst().orElse(null);
+        SearchSession.Snapshot session = state.knowledge().book(owner.getUUID()).searchLedger().snapshot().stream()
+                .findFirst()
+                .orElse(null);
         h.assertTrue(session != null, "a permitted observed cave entrance should acquire a bounded session");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v2:"))
-                .orElse(false), "the active cave search should carry the restart interruption marker");
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.saveData().startsWith("resource_session:v2:"))
+                        .orElse(false),
+                "the active cave search should carry the restart interruption marker");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
     }
@@ -270,8 +360,10 @@ public final class ResourceSearchTests {
         Result result = new Result();
         companion.taskRunner().setListener(result);
 
-        var started = tools().bind(companion).execute(searchCall("minecraft:gravel", "auto", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        searchCall("minecraft:gravel", "auto", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!started.error(), started.content());
         h.succeedWhen(() -> {
@@ -292,26 +384,33 @@ public final class ResourceSearchTests {
         h.setBlock(6, 2, 2, Blocks.ACACIA_LOG);
         BlockPos log = h.absolutePos(new BlockPos(6, 2, 2));
         var state = FriendaiServerState.get(level.getServer());
-        state.resources().observe(companion, new ResourceObservation("minecraft:acacia_log",
-                new ResourceObservation.Location(level.dimension().identifier().toString(),
-                        new Pos(log.getX(), log.getY(), log.getZ())),
-                new Pos(start.getX(), start.getY(), start.getZ()),
-                level.getServer().overworld().getGameTime()));
+        state.resources()
+                .observe(
+                        companion,
+                        new ResourceObservation(
+                                "minecraft:acacia_log",
+                                new ResourceObservation.Location(
+                                        level.dimension().identifier().toString(),
+                                        new Pos(log.getX(), log.getY(), log.getZ())),
+                                new Pos(start.getX(), start.getY(), start.getZ()),
+                                level.getServer().overworld().getGameTime()));
         Result result = new Result();
         companion.taskRunner().setListener(result);
 
-        var started = tools().bind(companion).execute(searchCall("#minecraft:logs", "auto", "local"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        searchCall("#minecraft:logs", "auto", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!started.error(), started.content());
         h.succeedWhen(() -> {
             if (result.status == null) {
-                h.assertTrue(companion.blockPosition().distManhattan(start) < 4,
+                h.assertTrue(
+                        companion.blockPosition().distManhattan(start) < 4,
                         "search should inspect locally before travelling");
                 h.assertTrue(false, "search should finish locally");
             }
-            h.assertTrue(result.status == TaskStatus.SUCCESS,
-                    "status " + result.status + " " + result.summary);
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("found"), result.summary);
             h.assertTrue(companion.blockPosition().distManhattan(start) < 4, "search travelled for a visible log");
         });

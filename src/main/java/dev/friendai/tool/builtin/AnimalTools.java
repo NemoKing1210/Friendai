@@ -28,78 +28,118 @@ final class AnimalTools {
     private AnimalTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(registry, defs, new TaskToolDef("breed_animals",
-                "Feed pairs of adult animals of a type so they breed.",
-                SchemaBuilder.object()
-                        .string("target", "Entity type id like minecraft:cow")
-                        .integer("pairs", "How many pairs to feed", 1, 8)
-                        .required("target", "pairs")
-                        .build(),
-                (c, a) -> breed(c, a.get("target").getAsString(), a.get("pairs").getAsInt()),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("shear",
-                "Shear sheep (or another shearable animal you name) and collect what drops.",
-                SchemaBuilder.object()
-                        .string("target", "Entity type id, sheep by default")
-                        .integer("count", "How many animals to shear", 1, 16)
-                        .required("count")
-                        .build(),
-                (c, a) -> shear(a, a.get("count").getAsInt()),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("milk",
-                "Fill empty buckets with milk from cows or goats.",
-                SchemaBuilder.object()
-                        .integer("count", "How many buckets to fill", 1, 16)
-                        .enumeration("from", "Which animal to milk", "cow", "goat")
-                        .required("count")
-                        .build(),
-                (c, a) -> new MilkTask(a.get("count").getAsInt(), milkFrom(a)),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("tame_animal",
-                "Tame a wolf, cat or parrot for the owner using the right food.",
-                SchemaBuilder.object()
-                        .enumeration("target", "Which animal to tame", "wolf", "cat", "parrot")
-                        .integer("count", "How many to tame", 1, 4)
-                        .required("target")
-                        .build(),
-                (c, a) -> new TameTask(a.get("target").getAsString(),
-                        a.has("count") && !a.get("count").isJsonNull() ? a.get("count").getAsInt() : 1),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("lead_animals",
-                "Put leads on animals, walk them to a place, and tie them to a fence there or take the leads back.",
-                SchemaBuilder.object()
-                        .string("target", "Entity type id like minecraft:pig")
-                        .integer("count", "How many animals to lead", 1, 8)
-                        .integer("x", "Destination X coordinate")
-                        .integer("y", "Destination Y coordinate")
-                        .integer("z", "Destination Z coordinate")
-                        .bool("tie", "Tie the animals to a fence at the destination")
-                        .required("target", "count", "x", "y", "z")
-                        .build(),
-                (c, a) -> new LeadTask(entityType(a.get("target").getAsString()), a.get("count").getAsInt(),
-                        new BlockPos(a.get("x").getAsInt(), a.get("y").getAsInt(), a.get("z").getAsInt()),
-                        a.has("tie") && !a.get("tie").isJsonNull() && a.get("tie").getAsBoolean()),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("harvest_honey",
-                "Collect honey from a full beehive or bee nest with a glass bottle, or honeycomb with shears. The hive must be smoked by a campfire below.",
-                SchemaBuilder.object()
-                        .enumeration("using", "What to collect", "bottle", "shears")
-                        .integer("x", "Hive X coordinate")
-                        .integer("y", "Hive Y coordinate")
-                        .integer("z", "Hive Z coordinate")
-                        .required("using")
-                        .build(),
-                (c, a) -> new HoneyTask(a.get("using").getAsString().equals("bottle"),
-                        ToolKit.optionalPos(a).orElse(null)),
-                true));
-        ToolKit.add(registry, defs, new TaskToolDef("fish",
-                "Fish with a fishing rod at nearby open water.",
-                SchemaBuilder.object()
-                        .integer("count", "How many catches", 1, 16)
-                        .required("count")
-                        .build(),
-                (c, a) -> new FishTask(a.get("count").getAsInt()),
-                true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "breed_animals",
+                        "Feed pairs of adult animals of a type so they breed.",
+                        SchemaBuilder.object()
+                                .string("target", "Entity type id like minecraft:cow")
+                                .integer("pairs", "How many pairs to feed", 1, 8)
+                                .required("target", "pairs")
+                                .build(),
+                        (c, a) -> breed(
+                                c, a.get("target").getAsString(), a.get("pairs").getAsInt()),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "shear",
+                        "Shear sheep (or another shearable animal you name) and collect what drops.",
+                        SchemaBuilder.object()
+                                .string("target", "Entity type id, sheep by default")
+                                .integer("count", "How many animals to shear", 1, 16)
+                                .required("count")
+                                .build(),
+                        (c, a) -> shear(a, a.get("count").getAsInt()),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "milk",
+                        "Fill empty buckets with milk from cows or goats.",
+                        SchemaBuilder.object()
+                                .integer("count", "How many buckets to fill", 1, 16)
+                                .enumeration("from", "Which animal to milk", "cow", "goat")
+                                .required("count")
+                                .build(),
+                        (c, a) -> new MilkTask(a.get("count").getAsInt(), milkFrom(a)),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "tame_animal",
+                        "Tame a wolf, cat or parrot for the owner using the right food.",
+                        SchemaBuilder.object()
+                                .enumeration("target", "Which animal to tame", "wolf", "cat", "parrot")
+                                .integer("count", "How many to tame", 1, 4)
+                                .required("target")
+                                .build(),
+                        (c, a) -> new TameTask(
+                                a.get("target").getAsString(),
+                                a.has("count") && !a.get("count").isJsonNull()
+                                        ? a.get("count").getAsInt()
+                                        : 1),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "lead_animals",
+                        "Put leads on animals, walk them to a place, and tie them to a fence there or take the leads back.",
+                        SchemaBuilder.object()
+                                .string("target", "Entity type id like minecraft:pig")
+                                .integer("count", "How many animals to lead", 1, 8)
+                                .integer("x", "Destination X coordinate")
+                                .integer("y", "Destination Y coordinate")
+                                .integer("z", "Destination Z coordinate")
+                                .bool("tie", "Tie the animals to a fence at the destination")
+                                .required("target", "count", "x", "y", "z")
+                                .build(),
+                        (c, a) -> new LeadTask(
+                                entityType(a.get("target").getAsString()),
+                                a.get("count").getAsInt(),
+                                new BlockPos(
+                                        a.get("x").getAsInt(),
+                                        a.get("y").getAsInt(),
+                                        a.get("z").getAsInt()),
+                                a.has("tie")
+                                        && !a.get("tie").isJsonNull()
+                                        && a.get("tie").getAsBoolean()),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "harvest_honey",
+                        "Collect honey from a full beehive or bee nest with a glass bottle, or honeycomb with shears. The hive must be smoked by a campfire below.",
+                        SchemaBuilder.object()
+                                .enumeration("using", "What to collect", "bottle", "shears")
+                                .integer("x", "Hive X coordinate")
+                                .integer("y", "Hive Y coordinate")
+                                .integer("z", "Hive Z coordinate")
+                                .required("using")
+                                .build(),
+                        (c, a) -> new HoneyTask(
+                                a.get("using").getAsString().equals("bottle"),
+                                ToolKit.optionalPos(a).orElse(null)),
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "fish",
+                        "Fish with a fishing rod at nearby open water.",
+                        SchemaBuilder.object()
+                                .integer("count", "How many catches", 1, 16)
+                                .required("count")
+                                .build(),
+                        (c, a) -> new FishTask(a.get("count").getAsInt()),
+                        true));
     }
 
     private static BreedTask breed(CompanionEntity companion, String text, int pairs) {
@@ -133,7 +173,9 @@ final class AnimalTools {
         return switch (args.get("from").getAsString()) {
             case "cow" -> EntityTypes.COW;
             case "goat" -> EntityTypes.GOAT;
-            default -> throw new IllegalArgumentException("unknown animal: " + args.get("from").getAsString());
+            default ->
+                throw new IllegalArgumentException(
+                        "unknown animal: " + args.get("from").getAsString());
         };
     }
 

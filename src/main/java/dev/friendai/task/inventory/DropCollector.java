@@ -1,7 +1,6 @@
 package dev.friendai.task.inventory;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -14,9 +13,9 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -37,7 +36,10 @@ import org.jetbrains.annotations.Nullable;
  * when it is done, when it runs out of time, or through {@link #stop(TaskContext)}.
  */
 public final class DropCollector {
-    public enum State { COLLECTING, DONE }
+    public enum State {
+        COLLECTING,
+        DONE
+    }
 
     /** How often a new scan for drops runs, in ticks. */
     private static final int SCAN_INTERVAL = 4;
@@ -64,6 +66,7 @@ public final class DropCollector {
     private List<ItemEntity> drops = List.of();
     /** The drops a route may aim at: the ones lying still enough for their position to mean something. */
     private List<ItemEntity> aimed = List.of();
+
     private Set<Pos> goalPositions = Set.of();
     private @Nullable Navigator navigator;
     private int ticks;
@@ -103,7 +106,8 @@ public final class DropCollector {
                 return State.DONE;
             }
         }
-        if (!Threats.hostilesNear(c.level(), companion.position(), THREAT_RADIUS).isEmpty()) {
+        if (!Threats.hostilesNear(c.level(), companion.position(), THREAT_RADIUS)
+                .isEmpty()) {
             resetNavigation(c);
             return State.COLLECTING;
         }
@@ -117,8 +121,7 @@ public final class DropCollector {
         if (!positions.equals(goalPositions)) {
             goalPositions = positions;
             arrivedTicks = 0;
-            navigator(companion).setGoal(new GoalReach(
-                    new ArrayList<>(positions), REACH, companion.getEyeHeight()));
+            navigator(companion).setGoal(new GoalReach(new ArrayList<>(positions), REACH, companion.getEyeHeight()));
         }
         tickNavigator(c);
         return State.COLLECTING;
@@ -130,7 +133,9 @@ public final class DropCollector {
     }
 
     /** Exact stacks successfully moved from this collector's eligible entities into inventory. */
-    public List<ItemStack> collectedStacks() { return receipts.stream().map(ItemStack::copy).toList(); }
+    public List<ItemStack> collectedStacks() {
+        return receipts.stream().map(ItemStack::copy).toList();
+    }
 
     /** Stops the route and the walking. Drops already taken stay taken. */
     public void stop(TaskContext c) {
@@ -150,25 +155,35 @@ public final class DropCollector {
     }
 
     public static int pickupAtFeet(TaskContext c, double radius, @Nullable ItemMatcher filter, Set<UUID> entityFilter) {
-        return c.companion().collectNearbyItems(radius,
-                e -> !e.hasPickUpDelay() && (entityFilter.isEmpty() || entityFilter.contains(e.getUUID()))
-                        && (filter == null || filter.test(e.getItem())) && safe(e));
+        return c.companion()
+                .collectNearbyItems(
+                        radius,
+                        e -> !e.hasPickUpDelay()
+                                && (entityFilter.isEmpty() || entityFilter.contains(e.getUUID()))
+                                && (filter == null || filter.test(e.getItem()))
+                                && safe(e));
     }
 
     private int collectAtFeet(TaskContext c, double radius) {
         CompanionEntity companion = c.companion();
         AABB bounds = companion.getBoundingBox().inflate(radius);
         Map<UUID, ItemStack> before = new java.util.LinkedHashMap<>();
-        for (ItemEntity entity : c.level().getEntitiesOfClass(ItemEntity.class, bounds,
-                item -> companion.canCollect(item) && !item.hasPickUpDelay()
-                        && (entityFilter.isEmpty() || entityFilter.contains(item.getUUID()))
-                        && (filter == null || filter.test(item.getItem())) && safe(item))) {
+        for (ItemEntity entity : c.level()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        bounds,
+                        item -> companion.canCollect(item)
+                                && !item.hasPickUpDelay()
+                                && (entityFilter.isEmpty() || entityFilter.contains(item.getUUID()))
+                                && (filter == null || filter.test(item.getItem()))
+                                && safe(item))) {
             before.put(entity.getUUID(), entity.getItem().copy());
         }
         int moved = pickupAtFeet(c, radius, filter, entityFilter);
         for (var entry : before.entrySet()) {
             ItemEntity entity = c.level().getEntity(entry.getKey()) instanceof ItemEntity found ? found : null;
-            int taken = entity == null ? entry.getValue().getCount()
+            int taken = entity == null
+                    ? entry.getValue().getCount()
                     : Math.max(0, entry.getValue().getCount() - entity.getItem().getCount());
             if (taken > 0) receipts.add(entry.getValue().copyWithCount(taken));
         }
@@ -178,9 +193,10 @@ public final class DropCollector {
     private void scan(TaskContext c) {
         CompanionEntity companion = c.companion();
         rescanNow = false;
-        drops = companion.level()
-                .getEntitiesOfClass(ItemEntity.class, new AABB(origin, origin).inflate(radius),
-                        e -> wanted(e, companion))
+        drops = companion
+                .level()
+                .getEntitiesOfClass(
+                        ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> wanted(e, companion))
                 .stream()
                 .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(companion)))
                 .toList();

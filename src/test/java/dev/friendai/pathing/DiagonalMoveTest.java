@@ -19,7 +19,10 @@ class DiagonalMoveTest {
     }
 
     private static PathStep stepTo(List<PathStep> steps, int x, int y, int z) {
-        return steps.stream().filter(s -> s.to().equals(new Node(x, y, z))).findFirst().orElse(null);
+        return steps.stream()
+                .filter(s -> s.to().equals(new Node(x, y, z)))
+                .findFirst()
+                .orElse(null);
     }
 
     @Test
@@ -30,18 +33,14 @@ class DiagonalMoveTest {
         assertEquals(COSTS.walk() + COSTS.jump(), step.cost(), 1e-9);
 
         GridCellView walled = new GridCellView("###/###/###", ".../..#/..#", ".../.../...", ".../.../...");
-        assertNull(stepTo(stepsFrom(walled, new Node(1, 1, 1)), 2, 2, 2),
+        assertNull(
+                stepTo(stepsFrom(walled, new Node(1, 1, 1)), 2, 2, 2),
                 "a diagonal ascent through a solid corner must not be emitted");
     }
 
     @Test
     void diagonalDescendIsOneMove() {
-        GridCellView view = new GridCellView(
-                "###/###/###",
-                ".../.../...",
-                "###/###/##.",
-                ".../.../...",
-                ".../.../...");
+        GridCellView view = new GridCellView("###/###/###", ".../.../...", "###/###/##.", ".../.../...", ".../.../...");
         PathStep step = stepTo(stepsFrom(view, new Node(1, 3, 1)), 2, 1, 2);
         assertTrue(step != null && step.move() == Move.DESCEND, "no diagonal descend: " + step);
         assertEquals(COSTS.walk() + 2 * COSTS.fall(), step.cost(), 1e-9);

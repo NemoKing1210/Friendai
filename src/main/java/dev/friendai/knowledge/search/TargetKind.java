@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 
@@ -18,8 +17,8 @@ import java.util.Set;
  * code. This layer is pure: the world facts a kind needs arrive as a {@link CandidateFacts} snapshot built by a
  * Minecraft adapter, and every kind answers exactly one question — what counts as found.
  */
-public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.Structure, TargetKind.Biome,
-        TargetKind.Entity, TargetKind.Place {
+public sealed interface TargetKind
+        permits TargetKind.BlockFamily, TargetKind.Structure, TargetKind.Biome, TargetKind.Entity, TargetKind.Place {
 
     String kind();
 
@@ -40,18 +39,31 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
     JsonObject toJson();
 
     /** What an adapter observed at one candidate position. Sets are copied; no Minecraft types cross this boundary. */
-    record CandidateFacts(Pos position, String dimension, String biomeId, Set<String> visibleBlockIds,
-                          Set<String> knownBlockIds, Set<String> visibleEntityIds, Set<String> placeNames,
-                          Map<Pos, String> visibleBlockLocations) {
+    record CandidateFacts(
+            Pos position,
+            String dimension,
+            String biomeId,
+            Set<String> visibleBlockIds,
+            Set<String> knownBlockIds,
+            Set<String> visibleEntityIds,
+            Set<String> placeNames,
+            Map<Pos, String> visibleBlockLocations) {
         /** Facts without per-block positions; a structure then falls back to a marker count. */
-        public CandidateFacts(Pos position, String dimension, String biomeId, Set<String> visibleBlockIds,
-                              Set<String> knownBlockIds, Set<String> visibleEntityIds, Set<String> placeNames) {
+        public CandidateFacts(
+                Pos position,
+                String dimension,
+                String biomeId,
+                Set<String> visibleBlockIds,
+                Set<String> knownBlockIds,
+                Set<String> visibleEntityIds,
+                Set<String> placeNames) {
             this(position, dimension, biomeId, visibleBlockIds, knownBlockIds, visibleEntityIds, placeNames, Map.of());
         }
 
         public CandidateFacts {
             Objects.requireNonNull(position, "position");
-            if (dimension == null || dimension.isBlank()) throw new IllegalArgumentException("dimension must not be blank");
+            if (dimension == null || dimension.isBlank())
+                throw new IllegalArgumentException("dimension must not be blank");
             biomeId = biomeId == null ? "" : biomeId;
             visibleBlockIds = Set.copyOf(visibleBlockIds == null ? Set.of() : visibleBlockIds);
             knownBlockIds = Set.copyOf(knownBlockIds == null ? Set.of() : knownBlockIds);
@@ -72,23 +84,47 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             Objects.requireNonNull(profile, "profile");
         }
 
-        @Override public String kind() { return "resource"; }
-        @Override public String label() { return family; }
-        @Override public int plausibleRadius() { return 64; }
-        @Override public String coverageKey() { return family; }
-        @Override public Set<String> dimensions() { return profile.dimensions(); }
-
-        @Override public boolean matches(CandidateFacts facts) {
-            return blockIds.stream().anyMatch(id -> facts.visibleBlockIds().contains(id) || facts.knownBlockIds().contains(id));
+        @Override
+        public String kind() {
+            return "resource";
         }
 
-        @Override public JsonObject toJson() {
+        @Override
+        public String label() {
+            return family;
+        }
+
+        @Override
+        public int plausibleRadius() {
+            return 64;
+        }
+
+        @Override
+        public String coverageKey() {
+            return family;
+        }
+
+        @Override
+        public Set<String> dimensions() {
+            return profile.dimensions();
+        }
+
+        @Override
+        public boolean matches(CandidateFacts facts) {
+            return blockIds.stream()
+                    .anyMatch(id -> facts.visibleBlockIds().contains(id)
+                            || facts.knownBlockIds().contains(id));
+        }
+
+        @Override
+        public JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("kind", kind());
             json.addProperty("family", family);
             json.add("block_ids", strings(blockIds));
             json.add("dimensions", strings(profile.dimensions()));
-            if (profile.targetY().isPresent()) json.addProperty("target_y", profile.targetY().getAsInt());
+            if (profile.targetY().isPresent())
+                json.addProperty("target_y", profile.targetY().getAsInt());
             JsonArray strategies = new JsonArray();
             profile.strategies().stream().sorted().forEach(strategy -> strategies.add(strategy.name()));
             json.add("strategies", strategies);
@@ -107,13 +143,33 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             if (radius < 1 || radius > 2_048) throw new IllegalArgumentException("radius must be between 1 and 2048");
         }
 
-        @Override public String kind() { return "structure"; }
-        @Override public String label() { return "the " + id + " structure"; }
-        @Override public int plausibleRadius() { return radius; }
-        @Override public String coverageKey() { return "structure:" + id; }
-        @Override public Set<String> dimensions() { return Set.of(); }
+        @Override
+        public String kind() {
+            return "structure";
+        }
 
-        @Override public boolean matches(CandidateFacts facts) {
+        @Override
+        public String label() {
+            return "the " + id + " structure";
+        }
+
+        @Override
+        public int plausibleRadius() {
+            return radius;
+        }
+
+        @Override
+        public String coverageKey() {
+            return "structure:" + id;
+        }
+
+        @Override
+        public Set<String> dimensions() {
+            return Set.of();
+        }
+
+        @Override
+        public boolean matches(CandidateFacts facts) {
             if (!facts.visibleBlockLocations().isEmpty()) {
                 List<Pos> hits = new ArrayList<>();
                 facts.visibleBlockLocations().forEach((pos, id) -> {
@@ -122,19 +178,23 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
                 for (Pos pivot : hits) {
                     int cluster = 0;
                     for (Pos other : hits) {
-                        double dx = (double) pivot.x() - other.x(), dy = (double) pivot.y() - other.y(),
+                        double dx = (double) pivot.x() - other.x(),
+                                dy = (double) pivot.y() - other.y(),
                                 dz = (double) pivot.z() - other.z();
-                        if (dx * dx + dy * dy + dz * dz <= STRUCTURE_CLUSTER_RADIUS * STRUCTURE_CLUSTER_RADIUS) cluster++;
+                        if (dx * dx + dy * dy + dz * dz <= STRUCTURE_CLUSTER_RADIUS * STRUCTURE_CLUSTER_RADIUS)
+                            cluster++;
                     }
                     if (cluster >= minimumMarkers) return true;
                 }
                 return false;
             }
-            long seen = markers.stream().filter(facts.visibleBlockIds()::contains).count();
+            long seen =
+                    markers.stream().filter(facts.visibleBlockIds()::contains).count();
             return seen >= minimumMarkers;
         }
 
-        @Override public JsonObject toJson() {
+        @Override
+        public JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("kind", kind());
             json.addProperty("id", id);
@@ -152,15 +212,38 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             if (radius < 1 || radius > 2_048) throw new IllegalArgumentException("radius must be between 1 and 2048");
         }
 
-        @Override public String kind() { return "biome"; }
-        @Override public String label() { return "the " + id + " biome"; }
-        @Override public int plausibleRadius() { return radius; }
-        @Override public String coverageKey() { return "biome:" + id; }
-        @Override public Set<String> dimensions() { return Set.of(); }
+        @Override
+        public String kind() {
+            return "biome";
+        }
 
-        @Override public boolean matches(CandidateFacts facts) { return id.equals(facts.biomeId()); }
+        @Override
+        public String label() {
+            return "the " + id + " biome";
+        }
 
-        @Override public JsonObject toJson() {
+        @Override
+        public int plausibleRadius() {
+            return radius;
+        }
+
+        @Override
+        public String coverageKey() {
+            return "biome:" + id;
+        }
+
+        @Override
+        public Set<String> dimensions() {
+            return Set.of();
+        }
+
+        @Override
+        public boolean matches(CandidateFacts facts) {
+            return id.equals(facts.biomeId());
+        }
+
+        @Override
+        public JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("kind", kind());
             json.addProperty("id", id);
@@ -176,15 +259,38 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             if (radius < 1 || radius > 2_048) throw new IllegalArgumentException("radius must be between 1 and 2048");
         }
 
-        @Override public String kind() { return "entity"; }
-        @Override public String label() { return "a " + id; }
-        @Override public int plausibleRadius() { return radius; }
-        @Override public String coverageKey() { return "entity:" + id; }
-        @Override public Set<String> dimensions() { return Set.of(); }
+        @Override
+        public String kind() {
+            return "entity";
+        }
 
-        @Override public boolean matches(CandidateFacts facts) { return facts.visibleEntityIds().contains(id); }
+        @Override
+        public String label() {
+            return "a " + id;
+        }
 
-        @Override public JsonObject toJson() {
+        @Override
+        public int plausibleRadius() {
+            return radius;
+        }
+
+        @Override
+        public String coverageKey() {
+            return "entity:" + id;
+        }
+
+        @Override
+        public Set<String> dimensions() {
+            return Set.of();
+        }
+
+        @Override
+        public boolean matches(CandidateFacts facts) {
+            return facts.visibleEntityIds().contains(id);
+        }
+
+        @Override
+        public JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("kind", kind());
             json.addProperty("id", id);
@@ -201,17 +307,38 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             if (radius < 1 || radius > 2_048) throw new IllegalArgumentException("radius must be between 1 and 2048");
         }
 
-        @Override public String kind() { return "place"; }
-        @Override public String label() { return "the place " + name; }
-        @Override public int plausibleRadius() { return radius; }
-        @Override public String coverageKey() { return "place:" + name.toLowerCase(Locale.ROOT); }
-        @Override public Set<String> dimensions() { return dimension == null || dimension.isBlank() ? Set.of() : Set.of(dimension); }
+        @Override
+        public String kind() {
+            return "place";
+        }
 
-        @Override public boolean matches(CandidateFacts facts) {
+        @Override
+        public String label() {
+            return "the place " + name;
+        }
+
+        @Override
+        public int plausibleRadius() {
+            return radius;
+        }
+
+        @Override
+        public String coverageKey() {
+            return "place:" + name.toLowerCase(Locale.ROOT);
+        }
+
+        @Override
+        public Set<String> dimensions() {
+            return dimension == null || dimension.isBlank() ? Set.of() : Set.of(dimension);
+        }
+
+        @Override
+        public boolean matches(CandidateFacts facts) {
             return facts.placeNames().stream().anyMatch(known -> known.equalsIgnoreCase(name));
         }
 
-        @Override public JsonObject toJson() {
+        @Override
+        public JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("kind", kind());
             json.addProperty("name", name);
@@ -224,17 +351,26 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
     /** Rejects an unknown kind with a message instead of silently treating it as "find nothing". */
     static TargetKind parse(JsonObject json) {
         Objects.requireNonNull(json, "json");
-        if (!json.has("kind") || json.get("kind").isJsonNull()) throw new IllegalArgumentException("target has no kind");
+        if (!json.has("kind") || json.get("kind").isJsonNull())
+            throw new IllegalArgumentException("target has no kind");
         String kind = json.get("kind").getAsString();
         return switch (kind) {
             case "resource" -> parseBlockFamily(json);
-            case "structure" -> new Structure(string(json, "id"), strings(json, "markers"),
-                    integer(json, "minimum_markers", 1), integer(json, "radius", 64));
+            case "structure" ->
+                new Structure(
+                        string(json, "id"),
+                        strings(json, "markers"),
+                        integer(json, "minimum_markers", 1),
+                        integer(json, "radius", 64));
             case "biome" -> new Biome(string(json, "id"), integer(json, "radius", 64));
             case "entity" -> new Entity(string(json, "id"), integer(json, "radius", 32));
-            case "place" -> new Place(string(json, "name"),
-                    json.has("dimension") && !json.get("dimension").isJsonNull() ? json.get("dimension").getAsString() : null,
-                    integer(json, "radius", 64));
+            case "place" ->
+                new Place(
+                        string(json, "name"),
+                        json.has("dimension") && !json.get("dimension").isJsonNull()
+                                ? json.get("dimension").getAsString()
+                                : null,
+                        integer(json, "radius", 64));
             default -> throw new IllegalArgumentException("unknown target kind: " + kind);
         };
     }
@@ -244,7 +380,8 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
         Set<String> blockIds = strings(json, "block_ids");
         Set<String> dimensions = strings(json, "dimensions");
         OptionalInt targetY = json.has("target_y") && !json.get("target_y").isJsonNull()
-                ? OptionalInt.of(json.get("target_y").getAsInt()) : OptionalInt.empty();
+                ? OptionalInt.of(json.get("target_y").getAsInt())
+                : OptionalInt.empty();
         Set<ResourceSearchProfile.Strategy> strategies = new LinkedHashSet<>();
         if (json.has("strategies")) {
             for (var value : json.getAsJsonArray("strategies")) {
@@ -255,14 +392,17 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
     }
 
     private static String string(JsonObject json, String field) {
-        if (!json.has(field) || json.get(field).isJsonNull()) throw new IllegalArgumentException("target is missing " + field);
+        if (!json.has(field) || json.get(field).isJsonNull())
+            throw new IllegalArgumentException("target is missing " + field);
         String value = json.get(field).getAsString();
         if (value.isBlank()) throw new IllegalArgumentException("target " + field + " must not be blank");
         return value;
     }
 
     private static int integer(JsonObject json, String field, int fallback) {
-        return json.has(field) && !json.get(field).isJsonNull() ? json.get(field).getAsInt() : fallback;
+        return json.has(field) && !json.get(field).isJsonNull()
+                ? json.get(field).getAsInt()
+                : fallback;
     }
 
     private static Set<String> strings(JsonObject json, String field) {

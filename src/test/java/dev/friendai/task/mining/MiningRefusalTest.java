@@ -56,10 +56,15 @@ class MiningRefusalTest {
 
     @Test
     void theBreakListAndAnUnbreakableBlockNameThemselves() {
-        assertTrue(new MiningRefusal.Blacklisted(POS, "minecraft:bedrock").describe().contains("break list"));
-        assertTrue(new MiningRefusal.Blacklisted(POS, "minecraft:bedrock").describe()
+        assertTrue(new MiningRefusal.Blacklisted(POS, "minecraft:bedrock")
+                .describe()
+                .contains("break list"));
+        assertTrue(new MiningRefusal.Blacklisted(POS, "minecraft:bedrock")
+                .describe()
                 .contains("minecraft:bedrock"));
-        assertTrue(new MiningRefusal.Unbreakable(POS, "minecraft:bedrock").describe().contains("cannot be broken"));
+        assertTrue(new MiningRefusal.Unbreakable(POS, "minecraft:bedrock")
+                .describe()
+                .contains("cannot be broken"));
     }
 
     @Test

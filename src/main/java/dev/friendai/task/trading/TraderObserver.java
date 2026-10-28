@@ -36,7 +36,9 @@ public final class TraderObserver {
     /** Refreshes locations for nearby loaded merchants while retaining previously inspected offer quotes. */
     public List<TraderRecord> observe(CompanionEntity companion) {
         if (!enabled.getAsBoolean()) return List.of();
-        if (companion == null || companion.level().isClientSide() || !(companion.level() instanceof ServerLevel level)) {
+        if (companion == null
+                || companion.level().isClientSide()
+                || !(companion.level() instanceof ServerLevel level)) {
             return List.of();
         }
         UUID owner = companion.ownerUuid();
@@ -44,13 +46,19 @@ public final class TraderObserver {
         TradeBook book = store.book(owner);
         book.activatePricingActor(companion.hands().player().getUUID());
         AABB bounds = companion.getBoundingBox().inflate(Math.max(8, Math.min(64, radius.getAsInt())));
-        List<Entity> local = level.getEntitiesOfClass(Entity.class, bounds, entity -> (entity instanceof Merchant
-                || (entity instanceof Piglin piglin && !piglin.isBaby()))
-                && entity.isAlive() && entity.level() == level);
+        List<Entity> local = level.getEntitiesOfClass(
+                Entity.class,
+                bounds,
+                entity -> (entity instanceof Merchant || (entity instanceof Piglin piglin && !piglin.isBaby()))
+                        && entity.isAlive()
+                        && entity.level() == level);
         var result = new java.util.ArrayList<TraderRecord>(Math.min(local.size(), 32));
-        for (Entity entity : local.stream().sorted(Comparator.comparing(Entity::getUUID))
-                .limit(dev.friendai.trading.TradeFile.MAX_TRADERS).toList()) {
-            TraderRecord fact = TraderAdapters.presence(entity, level.getServer().overworld().getGameTime());
+        for (Entity entity : local.stream()
+                .sorted(Comparator.comparing(Entity::getUUID))
+                .limit(dev.friendai.trading.TradeFile.MAX_TRADERS)
+                .toList()) {
+            TraderRecord fact = TraderAdapters.presence(
+                    entity, level.getServer().overworld().getGameTime());
             book.observe(fact);
             result.add(fact);
         }

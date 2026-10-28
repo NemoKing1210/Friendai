@@ -31,8 +31,7 @@ import net.minecraft.world.level.block.LeavesBlock;
 public class TreeFellingTests {
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
-        h.setBlock(new BlockPos(x, y, z),
-                Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+        h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
     }
 
     private static List<TreeFinder.TreeInfo> ofType(List<TreeFinder.TreeInfo> found, String... types) {
@@ -41,7 +40,11 @@ public class TreeFellingTests {
     }
 
     private static TreeFinder.Kind kindOf(List<TreeFinder.TreeInfo> found, String type) {
-        return found.stream().filter(t -> t.type().equals(type)).findFirst().orElseThrow().kind();
+        return found.stream()
+                .filter(t -> t.type().equals(type))
+                .findFirst()
+                .orElseThrow()
+                .kind();
     }
 
     private static ToolResult run(ToolExecutor tools, Caller caller, String name, String json) {
@@ -115,8 +118,7 @@ public class TreeFellingTests {
             for (int z = 6; z <= 11; z++) {
                 BlockPos p = new BlockPos(x, 22, z);
                 if (h.getBlockState(p).isAir()) {
-                    h.setBlock(p, Blocks.DARK_OAK_LEAVES.defaultBlockState()
-                            .setValue(LeavesBlock.PERSISTENT, true));
+                    h.setBlock(p, Blocks.DARK_OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
                 }
             }
         }
@@ -124,11 +126,15 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 64));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
-        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo("dark_oak_log", absolute, absolute.get(0), 20,
-                TreeFinder.Kind.STANDING_TREE, 8.0, "south-east");
+        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo(
+                "dark_oak_log", absolute, absolute.get(0), 20, TreeFinder.Kind.STANDING_TREE, 8.0, "south-east");
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(tree,
-                BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, true), 300);
+        TaskRunner runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        tree, BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, true),
+                300);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -138,9 +144,11 @@ public class TreeFellingTests {
             h.assertTrue(result.summary.contains("80 of 80"), "summary " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.DARK_OAK_LOG), 80, "drops");
             h.assertValueEqual(dirtLeft(h), 0, "scaffold left in the world");
-            h.assertTrue(c.blockPosition().getY() <= h.absolutePos(new BlockPos(0, 3, 0)).getY(),
-                    "ended on the ground: " + c.blockPosition() + " origin " + h.absolutePos(BlockPos.ZERO)
-                            + " below " + h.getLevel().getBlockState(c.blockPosition().below()));
+            h.assertTrue(
+                    c.blockPosition().getY()
+                            <= h.absolutePos(new BlockPos(0, 3, 0)).getY(),
+                    "ended on the ground: " + c.blockPosition() + " origin " + h.absolutePos(BlockPos.ZERO) + " below "
+                            + h.getLevel().getBlockState(c.blockPosition().below()));
         });
     }
 
@@ -189,13 +197,17 @@ public class TreeFellingTests {
                 for (int y = 2; y <= 12; y++) {
                     for (int z = 8; z <= 15; z++) {
                         if (h.getBlockState(new BlockPos(x, y, z)).is(Blocks.OAK_LOG)) {
-                            left.append(' ').append(x).append(',').append(y).append(',').append(z);
+                            left.append(' ')
+                                    .append(x)
+                                    .append(',')
+                                    .append(y)
+                                    .append(',')
+                                    .append(z);
                         }
                     }
                 }
             }
-            h.assertTrue(left.isEmpty(),
-                    "oak logs left at:" + left + "; summary " + result.summary);
+            h.assertTrue(left.isEmpty(), "oak logs left at:" + left + "; summary " + result.summary);
             h.assertValueEqual(dirtLeft(h), 0, "scaffold left in the world; summary " + result.summary);
         });
     }
@@ -291,22 +303,26 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
         for (int x = 9; x <= 13; x++) {
             for (int y = 2; y <= 4; y++) {
-                h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(x, y, 10))),
+                h.assertTrue(
+                        GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(x, y, 10))),
                         "front face of the log structure should be visible at " + x + " " + y + " 10");
             }
         }
         var tools = FriendaiTools.create(() -> 32).bind(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
-        h.assertTrue(run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6}").error(),
+        h.assertTrue(
+                run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6}")
+                        .error(),
                 "a structure must be refused");
         h.assertTrue(
                 run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6,\"type\":\"#minecraft:logs\"}")
                         .error(),
                 "a tag must not pick a structure");
-        var named = run(tools, anonymous, "fell_tree",
-                "{\"near\":\"self\",\"radius\":6,\"type\":\"minecraft:oak_log\"}");
+        var named =
+                run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6,\"type\":\"minecraft:oak_log\"}");
         h.assertTrue(!named.error() && named.content().startsWith("task #"), named.content());
-        h.assertTrue(c.taskRunner().current().map(t -> t.type().equals("fell_tree")).orElse(false), "task should start");
+        h.assertTrue(
+                c.taskRunner().current().map(t -> t.type().equals("fell_tree")).orElse(false), "task should start");
         h.succeed();
     }
 
@@ -324,20 +340,24 @@ public class TreeFellingTests {
         var owner = GameTestSupport.mockPlayerAt(h, 15.5, 2, 15.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
         c.setOwner(owner.getUUID());
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(16, 2, 16))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(16, 2, 16))),
                 "speaker's tree should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 2))),
                 "nearby tree should be directly visible");
         BlockPos speakers = h.absolutePos(new BlockPos(16, 2, 16));
         BlockPos nearCompanion = h.absolutePos(new BlockPos(2, 2, 2));
-        var result = run(FriendaiTools.create(() -> 32).bind(c),
+        var result = run(
+                FriendaiTools.create(() -> 32).bind(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
-                "fell_tree", "{\"near\":\"me\",\"radius\":6}");
+                "fell_tree",
+                "{\"near\":\"me\",\"radius\":6}");
         h.assertTrue(!result.error(), result.content());
         String task = c.taskRunner().current().orElseThrow().describe();
         h.assertTrue(task.contains(speakers.getX() + " " + speakers.getY() + " " + speakers.getZ()), task);
-        h.assertTrue(!task.contains(nearCompanion.getX() + " " + nearCompanion.getY() + " " + nearCompanion.getZ()),
-                task);
+        h.assertTrue(
+                !task.contains(nearCompanion.getX() + " " + nearCompanion.getY() + " " + nearCompanion.getZ()), task);
         h.succeed();
     }
 
@@ -350,18 +370,22 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(net.minecraft.world.item.Items.IRON_PICKAXE.getDefaultInstance());
         c.setOwner(owner.getUUID());
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "speaker's block should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 2, 5))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 2, 5))),
                 "nearby block should be directly visible");
-        var started = run(FriendaiTools.create(() -> 32).bind(c),
-                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), "mine_blocks",
+        var started = run(
+                FriendaiTools.create(() -> 32).bind(c),
+                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
+                "mine_blocks",
                 "{\"block\":\"minecraft:dark_prismarine\",\"count\":1,\"near\":\"me\"}");
         h.assertTrue(!started.error(), started.content());
         h.succeedWhen(() -> {
             h.assertTrue(h.getBlockState(new BlockPos(10, 2, 10)).isAir(), "the speaker's block must be mined");
-            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.DARK_PRISMARINE),
-                    "the other block must stay");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.DARK_PRISMARINE), "the other block must stay");
         });
     }
 
@@ -377,17 +401,22 @@ public class TreeFellingTests {
         }
         leaf(h, 12, 5, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
                 "nearest tree should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
                 "farther tree should be directly visible");
-        ToolResult result = run(FriendaiTools.create(() -> 32).bind(c), new Caller(null, "", AccessLevel.TRUSTED),
-                "find_trees", "{\"near\":\"self\",\"radius\":16}");
+        ToolResult result = run(
+                FriendaiTools.create(() -> 32).bind(c),
+                new Caller(null, "", AccessLevel.TRUSTED),
+                "find_trees",
+                "{\"near\":\"self\",\"radius\":16}");
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("mangrove_log at "), result.content());
         h.assertTrue(result.content().contains("dark_oak_log at "), result.content());
-        h.assertTrue(result.content().indexOf("mangrove_log") < result.content().indexOf("dark_oak_log"),
-                result.content());
+        h.assertTrue(
+                result.content().indexOf("mangrove_log") < result.content().indexOf("dark_oak_log"), result.content());
         h.succeed();
     }
 
@@ -405,15 +434,20 @@ public class TreeFellingTests {
         var owner = GameTestSupport.mockPlayerAt(h, 12.5, 2, 12.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         c.setOwner(owner.getUUID());
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(13, 2, 13))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(13, 2, 13))),
                 "speaker's tree should be directly visible");
         BlockPos mangrove = h.absolutePos(new BlockPos(13, 2, 13));
-        ToolResult result = run(FriendaiTools.create(() -> 32).bind(c),
+        ToolResult result = run(
+                FriendaiTools.create(() -> 32).bind(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
-                "find_trees", "{\"near\":\"me\",\"radius\":8,\"limit\":1}");
+                "find_trees",
+                "{\"near\":\"me\",\"radius\":8,\"limit\":1}");
         h.assertTrue(!result.error(), result.content());
-        h.assertTrue(result.content().contains("mangrove_log at "
-                + mangrove.getX() + " " + mangrove.getY() + " " + mangrove.getZ()), result.content());
+        h.assertTrue(
+                result.content()
+                        .contains("mangrove_log at " + mangrove.getX() + " " + mangrove.getY() + " " + mangrove.getZ()),
+                result.content());
         h.succeed();
     }
 
@@ -457,7 +491,9 @@ public class TreeFellingTests {
         BlockPos origin = h.absolutePos(new BlockPos(2, 2, 2));
         List<TreeFinder.TreeInfo> found = ofType(
                 TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 20, false),
-                "birch_log", "spruce_log", "pale_oak_log");
+                "birch_log",
+                "spruce_log",
+                "pale_oak_log");
         h.assertValueEqual(found.size(), 3, "trees: " + found);
         h.assertTrue(kindOf(found, "birch_log") == TreeFinder.Kind.STUMP, "kinds: " + found);
         h.assertTrue(kindOf(found, "spruce_log") == TreeFinder.Kind.FLOATING, "kinds: " + found);
@@ -478,8 +514,8 @@ public class TreeFellingTests {
             }
         }
         BlockPos origin = h.absolutePos(new BlockPos(2, 2, 2));
-        List<TreeFinder.TreeInfo> found = ofType(
-                TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 20, false), "jungle_log", "acacia_log");
+        List<TreeFinder.TreeInfo> found =
+                ofType(TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 20, false), "jungle_log", "acacia_log");
         h.assertValueEqual(found.size(), 2, "trees: " + found);
         h.assertTrue(found.get(0).kind() == TreeFinder.Kind.STANDING_TREE, "first: " + found.get(0));
         h.assertTrue(found.get(1).kind() == TreeFinder.Kind.LOG_STRUCTURE, "last: " + found);
@@ -498,13 +534,21 @@ public class TreeFellingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(info(h, cells, "acacia_log", 3),
-                BlockMatcher.parse("minecraft:acacia_log").orElseThrow(), 0, true), 300);
+        TaskRunner runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, cells, "acacia_log", 3),
+                        BlockMatcher.parse("minecraft:acacia_log").orElseThrow(),
+                        0,
+                        true),
+                300);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             for (int[] p : logs) {
-                h.assertTrue(h.getBlockState(new BlockPos(p[0], p[1], p[2])).isAir(),
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(p[0], p[1], p[2])).isAir(),
                         "log left at " + p[0] + "," + p[1] + "," + p[2] + "; " + result.summary);
             }
             h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 6, "acacia drops");
@@ -516,7 +560,8 @@ public class TreeFellingTests {
         GameTestSupport.platform(h, 16);
         for (int y = 2; y <= 4; y++) h.setBlock(new BlockPos(6, y, 6), Blocks.ACACIA_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
                 "acacia base should be directly visible");
         var tools = FriendaiTools.create(() -> 32).bind(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
@@ -529,8 +574,8 @@ public class TreeFellingTests {
 
     private static TreeFinder.TreeInfo info(GameTestHelper h, List<BlockPos> logs, String type, int height) {
         List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
-        return new TreeFinder.TreeInfo(type, absolute, absolute.get(0), height, TreeFinder.Kind.STANDING_TREE,
-                8.0, "south-east");
+        return new TreeFinder.TreeInfo(
+                type, absolute, absolute.get(0), height, TreeFinder.Kind.STANDING_TREE, 8.0, "south-east");
     }
 
     @GameTest(maxTicks = 5000)
@@ -550,8 +595,7 @@ public class TreeFellingTests {
                 for (int y = 15; y <= 18; y++) {
                     BlockPos p = new BlockPos(x, y, z);
                     if (h.getBlockState(p).isAir()) {
-                        h.setBlock(p, Blocks.JUNGLE_LEAVES.defaultBlockState()
-                                .setValue(LeavesBlock.PERSISTENT, true));
+                        h.setBlock(p, Blocks.JUNGLE_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
                     }
                 }
             }
@@ -560,8 +604,15 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 32));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(info(h, logs, "jungle_log", 16),
-                BlockMatcher.parse("minecraft:jungle_log").orElseThrow(), 0, true), 300);
+        TaskRunner runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "jungle_log", 16),
+                        BlockMatcher.parse("minecraft:jungle_log").orElseThrow(),
+                        0,
+                        true),
+                300);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -637,8 +688,15 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 64));
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(info(h, logs, "dark_oak_log", 12),
-                BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, false), 300);
+        TaskRunner runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "dark_oak_log", 12),
+                        BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(),
+                        0,
+                        false),
+                300);
         boolean[] cancelled = {false};
         h.succeedWhen(() -> {
             runner.tick();
@@ -652,5 +710,4 @@ public class TreeFellingTests {
             h.assertValueEqual(dirtLeft(h), 0, "a cancelled felling left its column in the world");
         });
     }
-
 }

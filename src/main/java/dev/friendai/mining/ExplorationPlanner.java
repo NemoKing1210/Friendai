@@ -3,7 +3,6 @@ package dev.friendai.mining;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.Move;
 import dev.friendai.pathing.MoveGenerator;
 import dev.friendai.pathing.Node;
 import dev.friendai.pathing.PathGoal;
@@ -20,13 +19,17 @@ import java.util.function.LongSupplier;
 /** Resumable four-edge lookahead over safe cardinal excavation routes. */
 public final class ExplorationPlanner {
 
-    public enum Status { RUNNING, READY, NO_ROUTE }
+    public enum Status {
+        RUNNING,
+        READY,
+        NO_ROUTE
+    }
 
     private static final int LOOKAHEAD = 4;
     private static final int[][] HEADINGS = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
 
-    private record Branch(Node node, Set<Pos> removed, Set<Long> visited, PathStep first,
-            int firstHeading, int depth, double cost) {}
+    private record Branch(
+            Node node, Set<Pos> removed, Set<Long> visited, PathStep first, int firstHeading, int depth, double cost) {}
 
     private final CellView source;
     private final Node start;
@@ -43,8 +46,15 @@ public final class ExplorationPlanner {
     private double bestScore = Double.POSITIVE_INFINITY;
     private int bestHeadingRank = Integer.MAX_VALUE;
 
-    public ExplorationPlanner(CellView view, Node start, int targetY, int heading, MiningBounds bounds,
-            Set<Pos> supports, CostModel costs, int maxNodes) {
+    public ExplorationPlanner(
+            CellView view,
+            Node start,
+            int targetY,
+            int heading,
+            MiningBounds bounds,
+            Set<Pos> supports,
+            CostModel costs,
+            int maxNodes) {
         if (heading < 0 || heading > 3 || maxNodes < 1) {
             throw new IllegalArgumentException("heading must be 0..3 and maxNodes must be positive");
         }
@@ -142,8 +152,14 @@ public final class ExplorationPlanner {
             removed.addAll(accepted.breaks());
             Set<Long> visited = new HashSet<>(branch.visited());
             visited.add(key);
-            Branch child = new Branch(accepted.to(), Set.copyOf(removed), Set.copyOf(visited), first,
-                    firstHeading, branch.depth() + 1, branch.cost() + accepted.cost());
+            Branch child = new Branch(
+                    accepted.to(),
+                    Set.copyOf(removed),
+                    Set.copyOf(visited),
+                    first,
+                    firstHeading,
+                    branch.depth() + 1,
+                    branch.cost() + accepted.cost());
             consider(child);
             if (child.depth() < LOOKAHEAD) {
                 pending.addLast(child);

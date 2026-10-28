@@ -3,12 +3,12 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
-import dev.friendai.core.FriendaiServerState;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
 import dev.friendai.build.PartKind;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -21,9 +21,9 @@ import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
 import dev.friendai.task.build.Placement;
-import dev.friendai.task.build.Site;
 import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.ScaffoldCleanupTask;
+import dev.friendai.task.build.Site;
 import dev.friendai.task.build.SupportNeeds;
 import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.task.builtin.ObtainTask;
@@ -81,7 +81,8 @@ public class BuildTests {
 
     static BlockState state(String text) {
         try {
-            return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, text, false).blockState();
+            return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, text, false)
+                    .blockState();
         } catch (Exception e) {
             throw new IllegalArgumentException("bad test state " + text, e);
         }
@@ -190,7 +191,10 @@ public class BuildTests {
                 .filter(spec -> state(spec.state()).is(Blocks.CHEST))
                 .toList();
         equal(1, chests.size(), "one chest");
-        equal(Blocks.CHEST.defaultBlockState(), state(chests.get(0).state()), "a plain chest without block-entity data");
+        equal(
+                Blocks.CHEST.defaultBlockState(),
+                state(chests.get(0).state()),
+                "a plain chest without block-entity data");
         equal(83, hut.blocks().size(), "the chest stays one block; its items are dropped");
         h.succeed();
     }
@@ -216,11 +220,14 @@ public class BuildTests {
         ParseResult result = resolveTemplate(h, "minecraft:village/plains/houses/plains_small_house_1");
         check(result.errors().isEmpty(), "unexpected errors: " + result.errors());
         Blueprint house = result.blueprint().orElseThrow();
-        check(house.width() <= Blueprint.MAX_SIZE
+        check(
+                house.width() <= Blueprint.MAX_SIZE
                         && house.height() <= Blueprint.MAX_SIZE
                         && house.depth() <= Blueprint.MAX_SIZE,
                 "size " + house.width() + "×" + house.height() + "×" + house.depth());
-        check(house.blocks().size() <= Blueprint.MAX_BLOCKS, "block count " + house.blocks().size());
+        check(
+                house.blocks().size() <= Blueprint.MAX_BLOCKS,
+                "block count " + house.blocks().size());
         check(!house.blocks().isEmpty(), "the house must have blocks");
         h.succeed();
     }
@@ -256,12 +263,18 @@ public class BuildTests {
         equal(Rotation.CLOCKWISE_90, placed.rotation(), "rotation");
         equal(3, placed.specs().size(), "spec count");
 
-        equal(state("minecraft:oak_log[axis=x]").rotate(Rotation.CLOCKWISE_90),
-                stateAt(placed, origin.offset(1, 0, 0)), "log state at its rotated position");
-        equal(state("minecraft:oak_stairs[facing=north,half=bottom]").rotate(Rotation.CLOCKWISE_90),
-                stateAt(placed, origin.offset(1, 0, 1)), "stairs state at its rotated position");
-        equal(state("minecraft:oak_slab[type=top]").rotate(Rotation.CLOCKWISE_90),
-                stateAt(placed, origin.offset(0, 0, 0)), "slab state at its rotated position");
+        equal(
+                state("minecraft:oak_log[axis=x]").rotate(Rotation.CLOCKWISE_90),
+                stateAt(placed, origin.offset(1, 0, 0)),
+                "log state at its rotated position");
+        equal(
+                state("minecraft:oak_stairs[facing=north,half=bottom]").rotate(Rotation.CLOCKWISE_90),
+                stateAt(placed, origin.offset(1, 0, 1)),
+                "stairs state at its rotated position");
+        equal(
+                state("minecraft:oak_slab[type=top]").rotate(Rotation.CLOCKWISE_90),
+                stateAt(placed, origin.offset(0, 0, 0)),
+                "slab state at its rotated position");
         h.succeed();
     }
 
@@ -290,8 +303,10 @@ public class BuildTests {
         equal(ownerPos.getX(), placed.origin().getX(), "origin x");
         equal(ownerPos.getZ() + 3, placed.origin().getZ(), "origin z, three blocks in front");
         equal(Rotation.CLOCKWISE_180, placed.rotation(), "the front must face the owner");
-        equal(h.getLevel().getHeight(Heightmap.Types.WORLD_SURFACE, ownerPos.getX(), ownerPos.getZ() + 3),
-                placed.origin().getY(), "origin y on the ground");
+        equal(
+                h.getLevel().getHeight(Heightmap.Types.WORLD_SURFACE, ownerPos.getX(), ownerPos.getZ() + 3),
+                placed.origin().getY(),
+                "origin y on the ground");
         h.succeed();
     }
 
@@ -375,7 +390,8 @@ public class BuildTests {
         // A level-free restore cannot rebuild a build task; the in-progress file lives in the world.
         check(TaskFactory.restore(saved).isEmpty(), "a build needs a level");
 
-        BuildTask partial = new BuildTask(generator("""
+        BuildTask partial =
+                new BuildTask(generator("""
                 { "type": "house", "width": 5, "depth": 5, "roof_style": "flat",
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
                 """), origin, Rotation.CLOCKWISE_90, true, false, Set.of(PartKind.FLOOR));
@@ -393,15 +409,13 @@ public class BuildTests {
             runner.tick();
             check(Files.exists(store.inProgressFile(id)), "the in-progress file must exist after the check");
             BlueprintStore.InProgress loaded = store.loadInProgress(id).orElse(null);
-            check(loaded != null, "the in-progress file must load: "
-                    + Files.readString(store.inProgressFile(id)));
+            check(loaded != null, "the in-progress file must load: " + Files.readString(store.inProgressFile(id)));
             equal(Rotation.CLOCKWISE_90, loaded.rotation(), "in-progress rotation");
             Task restored = TaskFactory.restore(partialSaved, h.getLevel()).orElse(null);
             check(restored != null, "the saved build must restore: " + partialSaved);
             equal(partialSaved, restored.saveData(), "save data round trip");
             String corrupt = partialSaved.substring(0, partialSaved.lastIndexOf(',') + 1) + "nonsense";
-            check(TaskFactory.restore(corrupt, h.getLevel()).isEmpty(),
-                    "an unknown part must not restore the build");
+            check(TaskFactory.restore(corrupt, h.getLevel()).isEmpty(), "an unknown part must not restore the build");
         } finally {
             store.deleteInProgress(id);
             runner.stop("test");
@@ -416,16 +430,20 @@ public class BuildTests {
         var server = h.getLevel().getServer();
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
-        companion.taskRunner().start(
-                new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false),
-                "build_structure");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
+        companion
+                .taskRunner()
+                .start(
+                        new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false),
+                        "build_structure");
         h.runAfterDelay(5, () -> {
             h.assertTrue(companion.taskRunner().current().isPresent(), "the build must still be running");
             String saved = companion.taskRunner().current().orElseThrow().saveData();
             FriendaiServerState.get(server).brains().onOwnerLeft(owner.getUUID());
-            h.assertTrue(saved.equals(companion.taskRunner().current().map(Task::saveData).orElse("")),
+            h.assertTrue(
+                    saved.equals(
+                            companion.taskRunner().current().map(Task::saveData).orElse("")),
                     "owner leave cancelled the build");
             h.assertTrue(companion.taskRunner().suspended(), "the runner must pause while the owner is away");
             FriendaiServerState.get(server).brains().onOwnerJoined(owner.getUUID());
@@ -440,8 +458,8 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":4,\"depth\":4,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":4,\"depth\":4,\"block\":\"minecraft:cobblestone\"}");
         BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
         BlueprintStore store = store(h);
         Result first = new Result();
@@ -455,7 +473,8 @@ public class BuildTests {
                 runner.tick();
                 if (companion.inventory().countItem(Items.COBBLESTONE) < 16) {
                     saved[0] = runner.current().orElseThrow().saveData();
-                    BuildTask resumed = (BuildTask) TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                    BuildTask resumed = (BuildTask)
+                            TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
                     equal(saved[0], resumed.saveData(), "the id and fields survive the restore");
                     restoredRunner[0] = runner(companion, restored);
                     restoredRunner[0].start(resumed, "build_structure");
@@ -464,16 +483,17 @@ public class BuildTests {
             }
             restoredRunner[0].tick();
             h.assertTrue(restored.status != null, "still running");
-            h.assertTrue(restored.status == TaskStatus.SUCCESS,
-                    "status " + restored.status + ": " + restored.summary);
+            h.assertTrue(restored.status == TaskStatus.SUCCESS, "status " + restored.status + ": " + restored.summary);
             h.assertTrue(restored.summary.startsWith("built platform at "), "summary was " + restored.summary);
             for (int x = 5; x <= 8; x++) {
                 for (int z = 5; z <= 8; z++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
                             "missing block at " + x + ",2," + z);
                 }
             }
-            h.assertTrue(!Files.exists(store.inProgressFile(buildId(saved[0]))),
+            h.assertTrue(
+                    !Files.exists(store.inProgressFile(buildId(saved[0]))),
                     "the in-progress file must be gone after the build");
             runner.stop("test");
         });
@@ -487,12 +507,13 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         BlueprintStore store = store(h);
         Result first = new Result();
         TaskRunner runner = runner(companion, first);
-        runner.start(new BuildTask(tower, h.absolutePos(new BlockPos(6, 2, 6)), Rotation.NONE, true, false),
+        runner.start(
+                new BuildTask(tower, h.absolutePos(new BlockPos(6, 2, 6)), Rotation.NONE, true, false),
                 "build_structure");
         Result restored = new Result();
         String[] saved = {null};
@@ -509,7 +530,8 @@ public class BuildTests {
                             .orElse(false);
                     if (scaffolded) {
                         saved[0] = current;
-                        BuildTask resumed = (BuildTask) TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                        BuildTask resumed = (BuildTask)
+                                TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
                         restoredRunner[0] = runner(companion, restored);
                         restoredRunner[0].start(resumed, "build_structure");
                     }
@@ -518,16 +540,17 @@ public class BuildTests {
             }
             restoredRunner[0].tick();
             h.assertTrue(restored.status != null, "still running");
-            h.assertTrue(restored.status == TaskStatus.SUCCESS,
-                    "status " + restored.status + ": " + restored.summary);
+            h.assertTrue(restored.status == TaskStatus.SUCCESS, "status " + restored.status + ": " + restored.summary);
             h.assertTrue(restored.summary.contains("scaffold blocks (removed)"), "summary was " + restored.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
                     "the tower top is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
             h.assertTrue(dirt.isEmpty(), "restored scaffold dirt left behind at " + dirt);
             h.assertTrue(cobblestone.isEmpty(), "restored scaffold cobblestone left behind at " + cobblestone);
-            h.assertTrue(!Files.exists(store.inProgressFile(buildId(saved[0]))),
+            h.assertTrue(
+                    !Files.exists(store.inProgressFile(buildId(saved[0]))),
                     "the in-progress file must be gone after the build");
             runner.stop("test");
         });
@@ -538,10 +561,9 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
-        BuildTask task = new BuildTask(
-                platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false);
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
+        BuildTask task = new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(task, "build_structure");
@@ -585,11 +607,13 @@ public class BuildTests {
                 companion,
                 true);
         check(report.problems().isEmpty(), "unexpected problems: " + report.problems());
-        equal(List.of(
+        equal(
+                List.of(
                         h.absolutePos(new BlockPos(5, 2, 5)),
                         h.absolutePos(new BlockPos(6, 2, 6)),
                         h.absolutePos(new BlockPos(7, 2, 7))),
-                report.toClear(), "positions to clear");
+                report.toClear(),
+                "positions to clear");
         h.succeed();
     }
 
@@ -712,7 +736,9 @@ public class BuildTests {
                 h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(6, 2, 6)));
         chest.setItem(0, new ItemStack(Items.BIRCH_PLANKS, 20));
         chest.setChanged();
-        equal(10, Materials.have(companion, h.getLevel()).getOrDefault(Items.BIRCH_PLANKS, 0),
+        equal(
+                10,
+                Materials.have(companion, h.getLevel()).getOrDefault(Items.BIRCH_PLANKS, 0),
                 "closed storage contents are not available through carried materials");
         h.succeed();
     }
@@ -763,9 +789,11 @@ public class BuildTests {
                         companion.blockPosition();
             }
             ticks[0]++;
-            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    status[0] == TaskStatus.SUCCESS,
                     "cleanup did not finish: " + status[0] + " " + cleanup.resultSummary() + " at "
-                            + companion.blockPosition() + " with navigation " + companion.getNavigation().isDone()
+                            + companion.blockPosition() + " with navigation "
+                            + companion.getNavigation().isDone()
                             + " checkpoints=" + java.util.Arrays.toString(checkpoints));
             h.assertTrue(h.getLevel().getBlockState(support).isAir(), "the scaffold support was left behind");
         });
@@ -788,8 +816,7 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 15));
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
@@ -800,7 +827,8 @@ public class BuildTests {
             h.assertTrue(result.summary.startsWith("built wall at "), "summary was " + result.summary);
             for (int x = 4; x <= 8; x++) {
                 for (int y = 2; y <= 4; y++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, y, 6)).is(Blocks.COBBLESTONE),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, y, 6)).is(Blocks.COBBLESTONE),
                             "missing wall block at " + x + "," + y + ",6: " + h.getBlockState(new BlockPos(x, y, 6)));
                 }
             }
@@ -825,7 +853,8 @@ public class BuildTests {
         chest.setItem(4, new ItemStack(Items.OAK_SLAB, 32));
         chest.setItem(5, new ItemStack(Items.OAK_DOOR, 2));
         chest.setChanged();
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(2, 2, 9))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(2, 2, 9))),
                 "materials chest should be directly visible");
         Blueprint house = generator("""
                 { "type": "house", "width": 5, "depth": 5, "roof_style": "flat",
@@ -856,8 +885,8 @@ public class BuildTests {
                 """);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
-        BuildTask task = new BuildTask(house, h.absolutePos(new BlockPos(4, 2, 4)), Rotation.NONE, true, false,
-                Set.of(PartKind.FLOOR));
+        BuildTask task = new BuildTask(
+                house, h.absolutePos(new BlockPos(4, 2, 4)), Rotation.NONE, true, false, Set.of(PartKind.FLOOR));
         runner.start(task, "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
@@ -865,13 +894,15 @@ public class BuildTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             for (int x = 4; x <= 8; x++) {
                 for (int z = 4; z <= 8; z++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
                             "floor at " + x + ",2," + z + ": " + h.getBlockState(new BlockPos(x, 2, z)));
                 }
             }
             for (int x = 4; x <= 8; x++) {
                 for (int z = 4; z <= 8; z++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, 3, z)).isAir(),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 3, z)).isAir(),
                             "walls were not selected: " + h.getBlockState(new BlockPos(x, 3, z)));
                 }
             }
@@ -904,10 +935,11 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.COBBLESTONE), "the wall");
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 5))
-                            .equals(state("minecraft:wall_torch[facing=south]")),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 5)).equals(state("minecraft:wall_torch[facing=south]")),
                     "the torch: " + h.getBlockState(new BlockPos(4, 2, 5)) + "; summary " + result.summary);
-            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+            h.assertTrue(
+                    positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
                     "a planned wall needs no scaffold: " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
         });
     }
@@ -938,18 +970,23 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             for (int x = 4; x <= 6; x++) {
-                h.assertTrue(h.getBlockState(new BlockPos(x, 3, 4))
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 3, 4))
                                 .equals(state("minecraft:oak_stairs[facing=south,half=bottom]")),
                         "south slope at " + x + ": " + h.getBlockState(new BlockPos(x, 3, 4)));
-                h.assertTrue(h.getBlockState(new BlockPos(x, 3, 6))
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 3, 6))
                                 .equals(state("minecraft:oak_stairs[facing=north,half=bottom]")),
                         "north slope at " + x + ": " + h.getBlockState(new BlockPos(x, 3, 6)));
-                h.assertTrue(h.getBlockState(new BlockPos(x, 4, 5)).is(Blocks.OAK_PLANKS),
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 4, 5)).is(Blocks.OAK_PLANKS),
                         "ridge at " + x + ": " + h.getBlockState(new BlockPos(x, 4, 5)));
             }
-            h.assertTrue(result.summary.contains("scaffold blocks (removed)"),
+            h.assertTrue(
+                    result.summary.contains("scaffold blocks (removed)"),
                     "the roof must use a temporary support and clean it: " + result.summary);
-            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+            h.assertTrue(
+                    positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
                     "scaffold dirt left behind at " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
         });
     }
@@ -959,12 +996,13 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 15));
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
-        runner.start(new BuildTask(wall, h.absolutePos(new BlockPos(4, 2, 6)), Rotation.NONE, true, false,
-                Set.of(PartKind.WALLS)), "build_structure");
+        runner.start(
+                new BuildTask(
+                        wall, h.absolutePos(new BlockPos(4, 2, 6)), Rotation.NONE, true, false, Set.of(PartKind.WALLS)),
+                "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
@@ -1002,14 +1040,18 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             Rotation rotation = Rotation.CLOCKWISE_90;
-            h.assertTrue(h.getBlockState(new BlockPos(7, 2, 6)).equals(
-                            state("minecraft:oak_log[axis=x]").rotate(rotation)),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(7, 2, 6))
+                            .equals(state("minecraft:oak_log[axis=x]").rotate(rotation)),
                     "log at 7,2,6 was " + h.getBlockState(new BlockPos(7, 2, 6)));
-            h.assertTrue(h.getBlockState(new BlockPos(7, 2, 7)).equals(
-                            state("minecraft:oak_stairs[facing=north,half=bottom]").rotate(rotation)),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(7, 2, 7))
+                            .equals(state("minecraft:oak_stairs[facing=north,half=bottom]")
+                                    .rotate(rotation)),
                     "stairs at 7,2,7 were " + h.getBlockState(new BlockPos(7, 2, 7)));
-            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).equals(
-                            state("minecraft:oak_slab[type=top]").rotate(rotation)),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 2, 6))
+                            .equals(state("minecraft:oak_slab[type=top]").rotate(rotation)),
                     "slab at 6,2,6 was " + h.getBlockState(new BlockPos(6, 2, 6)));
         });
     }
@@ -1019,8 +1061,7 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
@@ -1039,31 +1080,36 @@ public class BuildTests {
         // needed for planks.
         // Acacia: no other test stores it, so the build cannot satisfy the wall from a neighbour's chest
         // and skip the mining this test is about.
-        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(2, 2, 6),
-                new BlockPos(6, 2, 8), new BlockPos(11, 2, 11)};
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(2, 2, 6), new BlockPos(6, 2, 8), new BlockPos(11, 2, 11)
+        };
         for (BlockPos log : logs) h.setBlock(log, Blocks.ACACIA_LOG);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        for (BlockPos log : logs) h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
-                "acacia log should be directly visible at " + log);
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:acacia_planks\"}");
+        for (BlockPos log : logs)
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
+                    "acacia log should be directly visible at " + log);
+        Blueprint wall =
+                generator("{\"type\":\"wall\",\"length\":12,\"height\":1,\"block\":\"minecraft:acacia_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(3, 2, 6));
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
-        runner.start(new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true),
-                "build_structure");
+        runner.start(
+                new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true), "build_structure");
         h.succeedWhen(() -> {
-            for (BlockPos log : logs) if (h.getBlockState(log).is(Blocks.ACACIA_LOG))
-                GameTestSupport.observeVisible(h, companion, h.absolutePos(log));
+            for (BlockPos log : logs)
+                if (h.getBlockState(log).is(Blocks.ACACIA_LOG))
+                    GameTestSupport.observeVisible(h, companion, h.absolutePos(log));
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.startsWith("built wall at "), "summary was " + result.summary);
             for (int x = 3; x <= 14; x++) {
-                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.ACACIA_PLANKS),
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 2, 6)).is(Blocks.ACACIA_PLANKS),
                         "missing plank at " + x + ",2,6: " + h.getBlockState(new BlockPos(x, 2, 6)));
             }
-            h.assertTrue(positionsOf(h, 16, 2, 6, Blocks.ACACIA_LOG).size() <= 1,
+            h.assertTrue(
+                    positionsOf(h, 16, 2, 6, Blocks.ACACIA_LOG).size() <= 1,
                     "only the logs needed for the wall should be mined");
         });
     }
@@ -1080,24 +1126,27 @@ public class BuildTests {
                 }
                 """);
         // Nothing to gather in a bare band: the tight limits keep the obtain inside the test's tick budget.
-        BuildTask.ObtainFactory tight = (item, count) ->
-                new ObtainTask(item, count, false, false, 1, 200, 16, 32, 200);
+        BuildTask.ObtainFactory tight = (item, count) -> new ObtainTask(item, count, false, false, 1, 200, 16, 32, 200);
         BlockPos origin = h.absolutePos(new BlockPos(5, -39, 5));
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
-        runner.start(new BuildTask(blueprint, origin, Placement.rotationFor(Direction.SOUTH), true, true, tight),
+        runner.start(
+                new BuildTask(blueprint, origin, Placement.rotationFor(Direction.SOUTH), true, true, tight),
                 "build_structure");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
-            h.assertTrue(result.summary.startsWith("couldn't gather 4 × minecraft:gold_block: "),
+            h.assertTrue(
+                    result.summary.startsWith("couldn't gather 4 × minecraft:gold_block: "),
                     "summary was " + result.summary);
-            h.assertTrue(result.summary.contains("can't get 4 minecraft:gold_block here:"),
+            h.assertTrue(
+                    result.summary.contains("can't get 4 minecraft:gold_block here:"),
                     "the obtain summary must be included: " + result.summary);
             for (int x = 5; x <= 6; x++) {
                 for (int z = 5; z <= 6; z++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, -39, z)).isAir(),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, -39, z)).isAir(),
                             "nothing may be placed before gathering succeeds: "
                                     + h.getBlockState(new BlockPos(x, -39, z)));
                 }
@@ -1110,8 +1159,8 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         // Dark oak: no other test stores it, so a neighbour's chest cannot supply these planks.
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:dark_oak_planks\"}");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:dark_oak_planks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
@@ -1122,11 +1171,13 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("missing materials: 9 × minecraft:dark_oak_planks"),
+            h.assertTrue(
+                    result.summary.equals("missing materials: 9 × minecraft:dark_oak_planks"),
                     "summary was " + result.summary);
             for (int x = 5; x <= 7; x++) {
                 for (int z = 5; z <= 7; z++) {
-                    h.assertTrue(h.getBlockState(new BlockPos(x, 2, z)).isAir(),
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).isAir(),
                             "nothing may be placed without gathering: " + h.getBlockState(new BlockPos(x, 2, z)));
                 }
             }
@@ -1139,8 +1190,7 @@ public class BuildTests {
         h.setBlock(6, 2, 6, Blocks.CHEST);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
@@ -1149,7 +1199,8 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("the site isn't clear: minecraft:chest at " + at),
+            h.assertTrue(
+                    result.summary.contains("the site isn't clear: minecraft:chest at " + at),
                     "summary was " + result.summary);
         });
     }
@@ -1209,8 +1260,8 @@ public class BuildTests {
         BlockPos farPos = h.absolutePos(new BlockPos(1, 2, 12));
         h.assertTrue(GameTestSupport.observeVisible(h, companion, nearPos), "near chest should be directly visible");
         h.assertTrue(GameTestSupport.observeVisible(h, companion, farPos), "far chest should be directly visible");
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:jungle_planks\"}");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":5,\"depth\":5,\"block\":\"minecraft:jungle_planks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(platform, h, 5, 2, 5, Direction.SOUTH), "build_structure");
@@ -1232,8 +1283,8 @@ public class BuildTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1241,7 +1292,8 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.endsWith(
+            h.assertTrue(
+                    result.summary.endsWith(
                             "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
                     "summary was " + result.summary);
         });
@@ -1255,8 +1307,8 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         trackDisplacement(h, companion, 0.8);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
@@ -1266,9 +1318,11 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 10, 6)).is(Blocks.STONE_BRICKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 10, 6)).is(Blocks.STONE_BRICKS),
                     "the top crenellation is missing: " + h.getBlockState(new BlockPos(6, 10, 6)));
-            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
                     "the top of the wall is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
@@ -1285,8 +1339,8 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         TaskRunner runner = runner(companion, new Result());
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
         boolean[] cancelled = {false};
@@ -1311,8 +1365,8 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 2));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1320,7 +1374,8 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("I ran out of dirt or cobblestone for scaffolding"),
+            h.assertTrue(
+                    result.summary.equals("I ran out of dirt or cobblestone for scaffolding"),
                     "summary was " + result.summary);
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
@@ -1353,9 +1408,11 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6)).is(Blocks.OAK_PLANKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 6)).is(Blocks.OAK_PLANKS),
                     "the floating block is missing: " + h.getBlockState(new BlockPos(4, 3, 6)));
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
                     "the support must be removed: " + h.getBlockState(new BlockPos(4, 2, 6)));
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             h.assertTrue(dirt.isEmpty(), "scaffold dirt left behind at " + dirt);
@@ -1389,15 +1446,16 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6))
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 6))
                             .equals(state("minecraft:oak_stairs[facing=north,half=bottom]")),
-                    "stair at 4 3 6 = " + h.getBlockState(new BlockPos(4, 3, 6))
-                            + "; summary " + result.summary);
-            h.assertTrue(result.summary.contains("used 1 scaffold blocks (removed)"),
-                    "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
+                    "stair at 4 3 6 = " + h.getBlockState(new BlockPos(4, 3, 6)) + "; summary " + result.summary);
+            h.assertTrue(result.summary.contains("used 1 scaffold blocks (removed)"), "summary was " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 6)).isAir(),
                     "the temporary support must be removed: " + h.getBlockState(new BlockPos(4, 2, 6)));
-            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+            h.assertTrue(
+                    positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
                     "scaffold dirt left behind at " + positionsOf(h, 16, 2, 15, Blocks.DIRT));
         });
     }
@@ -1428,13 +1486,15 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains(
-                            "it needs a block at " + coords(h.absolutePos(new BlockPos(4, 3, 7)))),
+            h.assertTrue(
+                    result.summary.contains("it needs a block at " + coords(h.absolutePos(new BlockPos(4, 3, 7)))),
                     "the missing wall cell must be named: " + result.summary);
             h.assertTrue(result.summary.contains("the blueprint does not provide"), "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 6)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 6)).isAir(),
                     "the torch must not be left behind: " + h.getBlockState(new BlockPos(4, 3, 6)));
-            h.assertTrue(positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
+            h.assertTrue(
+                    positionsOf(h, 16, 2, 15, Blocks.DIRT).isEmpty(),
                     "no scaffold may be placed for a block that needs a permanent one: "
                             + positionsOf(h, 16, 2, 15, Blocks.DIRT));
         });
@@ -1477,16 +1537,18 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 4, 4)).is(Blocks.OAK_PLANKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 4, 4)).is(Blocks.OAK_PLANKS),
                     "the first deferred block is missing: " + h.getBlockState(new BlockPos(4, 4, 4)));
-            h.assertTrue(h.getBlockState(new BlockPos(9, 4, 4)).is(Blocks.OAK_PLANKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(9, 4, 4)).is(Blocks.OAK_PLANKS),
                     "the second deferred block is missing: " + h.getBlockState(new BlockPos(9, 4, 4)));
-            h.assertTrue(h.getBlockState(new BlockPos(4, 5, 4)).is(Blocks.OAK_PLANKS),
-                    "the first block above a deferred one is missing: "
-                            + h.getBlockState(new BlockPos(4, 5, 4)));
-            h.assertTrue(h.getBlockState(new BlockPos(9, 5, 4)).is(Blocks.OAK_PLANKS),
-                    "the second block above a deferred one is missing: "
-                            + h.getBlockState(new BlockPos(9, 5, 4)));
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 5, 4)).is(Blocks.OAK_PLANKS),
+                    "the first block above a deferred one is missing: " + h.getBlockState(new BlockPos(4, 5, 4)));
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(9, 5, 4)).is(Blocks.OAK_PLANKS),
+                    "the second block above a deferred one is missing: " + h.getBlockState(new BlockPos(9, 5, 4)));
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             h.assertTrue(dirt.isEmpty(), "a scaffold block was left in a blueprint cell at " + dirt);
         });
@@ -1508,8 +1570,8 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 5));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1518,9 +1580,11 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.contains("scaffold blocks (removed)"), "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 1, 6)).is(Blocks.DIRT),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 1, 6)).is(Blocks.DIRT),
                     "the foundation is missing: " + h.getBlockState(new BlockPos(6, 1, 6)));
-            h.assertTrue(h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 9, 8)).is(Blocks.STONE_BRICKS),
                     "the top of the wall is missing: " + h.getBlockState(new BlockPos(8, 9, 8)));
         });
     }
@@ -1534,8 +1598,7 @@ public class BuildTests {
         // spent on a pillar, so the build must not start at all.
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 5));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:cobblestone\"}");
+        Blueprint tower = generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1543,7 +1606,8 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.endsWith(
+            h.assertTrue(
+                    result.summary.endsWith(
                             "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
                     "summary was " + result.summary);
         });
@@ -1557,8 +1621,8 @@ public class BuildTests {
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 64));
         companion.inventory().addItem(new ItemStack(Items.STONE_BRICKS, 16));
         companion.inventory().addItem(new ItemStack(Items.DIRT, 20));
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(tower, h, 6, 2, 6, Direction.SOUTH), "build_structure");
@@ -1575,7 +1639,8 @@ public class BuildTests {
             }
             h.assertTrue(guarded[0] != null, "the tower must need a scaffold");
             h.assertTrue(result.status != null, "still running");
-            h.assertTrue(result.status == TaskStatus.FAILED,
+            h.assertTrue(
+                    result.status == TaskStatus.FAILED,
                     "a scaffold that cannot be removed must not report success: " + result.status + " "
                             + result.summary);
             h.assertTrue(result.summary.contains("left 1 scaffold blocks behind"), "summary was " + result.summary);
@@ -1599,8 +1664,7 @@ public class BuildTests {
         return null;
     }
 
-    private static List<String> positionsOf(
-            GameTestHelper h, int size, int fromY, int toY, Block block) {
+    private static List<String> positionsOf(GameTestHelper h, int size, int fromY, int toY, Block block) {
         List<String> positions = new java.util.ArrayList<>();
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
@@ -1666,11 +1730,16 @@ public class BuildTests {
         Scaffold scaffold = new Scaffold(companion);
         trackDisplacement(h, companion, 0.8);
         h.onEachTick(() -> {
-            Scaffold.State state = scaffold.pillarTo(h.absolutePos(new BlockPos(2, floor + 4, 2)).getY());
+            Scaffold.State state = scaffold.pillarTo(
+                    h.absolutePos(new BlockPos(2, floor + 4, 2)).getY());
             h.assertTrue(state != Scaffold.State.FAILED, "scaffold failed: " + scaffold.failure());
         });
         h.succeedWhen(() -> {
-            h.assertTrue(companion.onGround() && companion.getY() >= h.absolutePos(new BlockPos(2, floor + 4, 2)).getY(),
+            h.assertTrue(
+                    companion.onGround()
+                            && companion.getY()
+                                    >= h.absolutePos(new BlockPos(2, floor + 4, 2))
+                                            .getY(),
                     "not standing on the pillar, at " + companion.position());
             h.assertTrue(scaffold.placed().size() == 3, "must place three blocks before reporting arrival");
         });
@@ -1681,8 +1750,8 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 9));
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:oak_planks\"}");
         trackDisplacement(h, companion, 1.5);
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
@@ -1691,7 +1760,8 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.OAK_PLANKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.OAK_PLANKS),
                     "the block under the companion was " + h.getBlockState(new BlockPos(3, 2, 3)));
         });
     }
@@ -1701,8 +1771,8 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 40));
-        Blueprint platform = generator(
-                "{\"type\":\"platform\",\"width\":8,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":8,\"depth\":5,\"block\":\"minecraft:cobblestone\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(platform, h, 4, 2, 4, Direction.SOUTH), "build_structure");
@@ -1714,7 +1784,8 @@ public class BuildTests {
             h.assertTrue(result.notices.get(0).contains("25%"), "first notice: " + result.notices.get(0));
             h.assertTrue(result.notices.get(1).contains("50%"), "second notice: " + result.notices.get(1));
             h.assertTrue(result.notices.get(2).contains("75%"), "third notice: " + result.notices.get(2));
-            h.assertTrue(result.notices.get(0).startsWith("building platform: "), "notice text: " + result.notices.get(0));
+            h.assertTrue(
+                    result.notices.get(0).startsWith("building platform: "), "notice text: " + result.notices.get(0));
         });
     }
 
@@ -1723,8 +1794,7 @@ public class BuildTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 5));
-        Blueprint wall = generator(
-                "{\"type\":\"wall\",\"length\":5,\"height\":1,\"block\":\"minecraft:oak_planks\"}");
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":5,\"height\":1,\"block\":\"minecraft:oak_planks\"}");
         Result result = new Result();
         TaskRunner runner = runner(companion, result);
         runner.start(build(wall, h, 5, 2, 5, Direction.SOUTH), "build_structure");
@@ -1750,21 +1820,25 @@ public class BuildTests {
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_stairs" }
                 """);
         BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
-        List<Placement.PlacedSpec> specs = Placement.at(house, origin, Rotation.NONE).specs();
+        List<Placement.PlacedSpec> specs =
+                Placement.at(house, origin, Rotation.NONE).specs();
         BlockPos outOfReach = dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin);
-        h.assertTrue(outOfReach == null, "the gable roof must be reachable from its own walls, but " + outOfReach
-                + " is not");
+        h.assertTrue(
+                outOfReach == null,
+                "the gable roof must be reachable from its own walls, but " + outOfReach + " is not");
         h.succeed();
     }
 
     @GameTest
     public void tallTowerStaysOutOfReach(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        Blueprint tower = generator(
-                "{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
+        Blueprint tower =
+                generator("{\"type\":\"tower\",\"size\":3,\"height\":8,\"walls\":\"minecraft:stone_bricks\"}");
         BlockPos origin = h.absolutePos(new BlockPos(6, 2, 6));
-        List<Placement.PlacedSpec> specs = Placement.at(tower, origin, Rotation.NONE).specs();
-        h.assertTrue(dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin) != null,
+        List<Placement.PlacedSpec> specs =
+                Placement.at(tower, origin, Rotation.NONE).specs();
+        h.assertTrue(
+                dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin) != null,
                 "a tower without scaffolding is out of reach");
         h.succeed();
     }
@@ -1791,9 +1865,11 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:oak_door[facing=north,half=lower]")),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:oak_door[facing=north,half=lower]")),
                     "the lower half was " + h.getBlockState(new BlockPos(4, 3, 4)));
-            h.assertTrue(h.getBlockState(new BlockPos(4, 4, 4)).equals(state("minecraft:oak_door[facing=north,half=upper]")),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 4, 4)).equals(state("minecraft:oak_door[facing=north,half=upper]")),
                     "the upper half was " + h.getBlockState(new BlockPos(4, 4, 4)));
         });
     }
@@ -1821,9 +1897,11 @@ public class BuildTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:red_bed[facing=south,part=foot]")),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 4)).equals(state("minecraft:red_bed[facing=south,part=foot]")),
                     "the foot was " + h.getBlockState(new BlockPos(4, 3, 4)));
-            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 5)).equals(state("minecraft:red_bed[facing=south,part=head]")),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 3, 5)).equals(state("minecraft:red_bed[facing=south,part=head]")),
                     "the head was " + h.getBlockState(new BlockPos(4, 3, 5)));
             for (Direction direction : Direction.Plane.HORIZONTAL) {
                 BlockPos neighbor = new BlockPos(4, 3, 4).relative(direction);
@@ -1898,18 +1976,45 @@ public class BuildTests {
         ServerLevel level = h.getLevel();
         record Row(String name, BlockState state, int dx, int dy, int dz) {}
         List<Row> rows = List.of(
-                new Row("wall torch", Blocks.WALL_TORCH.defaultBlockState()
-                        .setValue(WallTorchBlock.FACING, Direction.EAST), -1, 0, 0),
-                new Row("ladder", Blocks.LADDER.defaultBlockState()
-                        .setValue(LadderBlock.FACING, Direction.SOUTH), 0, 0, -1),
-                new Row("wall sign", Blocks.OAK_WALL_SIGN.defaultBlockState()
-                        .setValue(WallSignBlock.FACING, Direction.SOUTH), 0, 0, -1),
-                new Row("tripwire hook", Blocks.TRIPWIRE_HOOK.defaultBlockState()
-                        .setValue(TripWireHookBlock.FACING, Direction.SOUTH), 0, 0, -1),
-                new Row("wall banner", Blocks.WALL_BANNER.pick(DyeColor.WHITE).defaultBlockState()
-                        .setValue(WallBannerBlock.FACING, Direction.SOUTH), 0, 0, -1),
-                new Row("hanging lantern", Blocks.LANTERN.defaultBlockState()
-                        .setValue(LanternBlock.HANGING, true), 0, 1, 0),
+                new Row(
+                        "wall torch",
+                        Blocks.WALL_TORCH.defaultBlockState().setValue(WallTorchBlock.FACING, Direction.EAST),
+                        -1,
+                        0,
+                        0),
+                new Row(
+                        "ladder",
+                        Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.SOUTH),
+                        0,
+                        0,
+                        -1),
+                new Row(
+                        "wall sign",
+                        Blocks.OAK_WALL_SIGN.defaultBlockState().setValue(WallSignBlock.FACING, Direction.SOUTH),
+                        0,
+                        0,
+                        -1),
+                new Row(
+                        "tripwire hook",
+                        Blocks.TRIPWIRE_HOOK.defaultBlockState().setValue(TripWireHookBlock.FACING, Direction.SOUTH),
+                        0,
+                        0,
+                        -1),
+                new Row(
+                        "wall banner",
+                        Blocks.WALL_BANNER
+                                .pick(DyeColor.WHITE)
+                                .defaultBlockState()
+                                .setValue(WallBannerBlock.FACING, Direction.SOUTH),
+                        0,
+                        0,
+                        -1),
+                new Row(
+                        "hanging lantern",
+                        Blocks.LANTERN.defaultBlockState().setValue(LanternBlock.HANGING, true),
+                        0,
+                        1,
+                        0),
                 new Row("floor lantern", Blocks.LANTERN.defaultBlockState(), 0, -1, 0),
                 new Row("hanging sign", Blocks.OAK_HANGING_SIGN.defaultBlockState(), 0, 1, 0),
                 new Row("door", Blocks.OAK_DOOR.defaultBlockState(), 0, -1, 0),
@@ -1930,7 +2035,9 @@ public class BuildTests {
             h.assertTrue(c.state().canSurvive(level, pos), c.name() + ": must survive on stone");
             level.setBlockAndUpdate(support, Blocks.AIR.defaultBlockState());
         }
-        for (BlockState free : List.of(Blocks.STONE.defaultBlockState(), Blocks.OAK_STAIRS.defaultBlockState(),
+        for (BlockState free : List.of(
+                Blocks.STONE.defaultBlockState(),
+                Blocks.OAK_STAIRS.defaultBlockState(),
                 Blocks.OAK_PLANKS.defaultBlockState())) {
             BlockPos pos = h.absolutePos(new BlockPos(4, 80, 4));
             h.assertTrue(SupportNeeds.supportOf(free, pos) == null, free + " needs no support");

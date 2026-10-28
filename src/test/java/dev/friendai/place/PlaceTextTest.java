@@ -33,8 +33,21 @@ class PlaceTextTest {
     @Test
     void promptCarriesKindLabelAndVisits() {
         Place wheat = new Place(
-                4, "пшеничная", PlaceKind.FARM, "wheat", OVERWORLD, new Pos(1, 64, 2), 8, Set.of(),
-                PlaceSource.FARM, null, 0, 0, 0, 3, "");
+                4,
+                "пшеничная",
+                PlaceKind.FARM,
+                "wheat",
+                OVERWORLD,
+                new Pos(1, 64, 2),
+                8,
+                Set.of(),
+                PlaceSource.FARM,
+                null,
+                0,
+                0,
+                0,
+                3,
+                "");
         String block = PlaceText.prompt(List.of(new PlaceText.Line(wheat, "12 blocks south")), 10_000);
         assertEquals(HEADER + "\n- [4] пшеничная (farm/wheat), 12 blocks south, visited 3 times", block);
     }
@@ -48,8 +61,21 @@ class PlaceTextTest {
     @Test
     void promptUsesSingularForOneVisit() {
         Place home = new Place(
-                3, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL,
-                null, 0, 0, 0, 1, "");
+                3,
+                "home",
+                PlaceKind.HOUSE,
+                "",
+                OVERWORLD,
+                new Pos(0, 64, 0),
+                8,
+                Set.of(),
+                PlaceSource.MANUAL,
+                null,
+                0,
+                0,
+                0,
+                1,
+                "");
         String block = PlaceText.prompt(List.of(new PlaceText.Line(home, "here")), 10_000);
         assertTrue(block.endsWith(", visited 1 time"));
     }
@@ -64,8 +90,21 @@ class PlaceTextTest {
     void plannerLinesCarryCoordinates() {
         Place home = place(3, "home", PlaceKind.HOUSE, new Pos(120, 64, -30));
         Place wheat = new Place(
-                4, "пшеничная", PlaceKind.FARM, "wheat", OVERWORLD, new Pos(0, 70, 9), 4, Set.of(),
-                PlaceSource.FARM, null, 0, 0, 0, 0, "");
+                4,
+                "пшеничная",
+                PlaceKind.FARM,
+                "wheat",
+                OVERWORLD,
+                new Pos(0, 70, 9),
+                4,
+                Set.of(),
+                PlaceSource.FARM,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "");
         assertEquals(
                 "- home (house, minecraft:overworld) at 120 64 -30, r=8, y-1..+8\n"
                         + "- пшеничная (farm/wheat, minecraft:overworld) at 0 70 9, r=4, y-1..+4",
@@ -86,12 +125,24 @@ class PlaceTextTest {
     @Test
     void summaryShowsCoordinatesDimensionAndDistance() {
         Place home = new Place(
-                3, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL,
-                null, 0, 0, 0, 2, "spare tools");
+                3,
+                "home",
+                PlaceKind.HOUSE,
+                "",
+                OVERWORLD,
+                new Pos(0, 64, 0),
+                8,
+                Set.of(),
+                PlaceSource.MANUAL,
+                null,
+                0,
+                0,
+                0,
+                2,
+                "spare tools");
         Place portal = place(4, "portal", PlaceKind.PORTAL, new Pos(40, 40, 0), NETHER);
-        List<PlaceQuery.Result> results = List.of(
-                new PlaceQuery.Result(home, 12.5, true),
-                new PlaceQuery.Result(portal, 0.0, false));
+        List<PlaceQuery.Result> results =
+                List.of(new PlaceQuery.Result(home, 12.5, true), new PlaceQuery.Result(portal, 0.0, false));
         assertEquals(
                 "- [3] home (house) at 0 64 0, minecraft:overworld, 13 blocks away, visited 2 times,"
                         + " note: spare tools\n"
@@ -109,9 +160,8 @@ class PlaceTextTest {
         Place home = place(3, "home", PlaceKind.HOUSE, new Pos(0, 64, 0));
         Place mine = place(7, "mine", PlaceKind.MINE, new Pos(40, 40, 0));
         List<PlaceQuery.Result> first = List.of(new PlaceQuery.Result(home, 3.0, true));
-        List<PlaceQuery.Result> both = List.of(
-                new PlaceQuery.Result(home, 3.0, true),
-                new PlaceQuery.Result(mine, 40.0, true));
+        List<PlaceQuery.Result> both =
+                List.of(new PlaceQuery.Result(home, 3.0, true), new PlaceQuery.Result(mine, 40.0, true));
         int oneLine = PlaceText.summary(first, 10_000).length();
         assertEquals(PlaceText.summary(first, 10_000), PlaceText.summary(both, oneLine));
     }
@@ -121,7 +171,6 @@ class PlaceTextTest {
     }
 
     private static Place place(long id, String name, PlaceKind kind, Pos pos, String dimension) {
-        return new Place(
-                id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
+        return new Place(id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
     }
 }

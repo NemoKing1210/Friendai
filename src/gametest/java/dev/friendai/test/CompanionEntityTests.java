@@ -12,18 +12,21 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
-import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.entity.EntityTypeTest;
 
 public class CompanionEntityTests {
     private static long companionsOf(ServerLevel level, ServerPlayer owner) {
-        return level.getEntities(EntityTypeTest.forClass(CompanionEntity.class), e -> owner.getUUID().equals(e.ownerUuid()))
+        return level
+                .getEntities(
+                        EntityTypeTest.forClass(CompanionEntity.class),
+                        e -> owner.getUUID().equals(e.ownerUuid()))
                 .stream()
                 .filter(e -> !e.isRemoved())
                 .count();
@@ -57,7 +60,8 @@ public class CompanionEntityTests {
         a.setOwner(player.getUUID());
         a.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
 
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
 
@@ -142,8 +146,8 @@ public class CompanionEntityTests {
                 h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0, "collected too early");
             }
             if (ticks[0] >= 15) {
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 2,
-                        "not collected after the delay");
+                h.assertValueEqual(
+                        companion.inventory().countItem(Items.COBBLESTONE), 2, "not collected after the delay");
             }
         });
     }
@@ -166,20 +170,23 @@ public class CompanionEntityTests {
     public void combatModeSurvivesSave(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         a.setCombatMode(dev.friendai.task.combat.CombatMode.GUARD);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertTrue(b.combatMode() == dev.friendai.task.combat.CombatMode.GUARD,
-                "combat mode was " + b.combatMode());
+        h.assertTrue(b.combatMode() == dev.friendai.task.combat.CombatMode.GUARD, "combat mode was " + b.combatMode());
 
         CompanionEntity fresh = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
-        TagValueOutput plain = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput plain = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         fresh.saveWithoutId(plain);
         CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
-        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), plain.buildResult()));
-        h.assertTrue(loaded.combatMode() == dev.friendai.task.combat.CombatMode.DEFENSIVE,
+        loaded.load(
+                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), plain.buildResult()));
+        h.assertTrue(
+                loaded.combatMode() == dev.friendai.task.combat.CombatMode.DEFENSIVE,
                 "missing mode should default to defensive, was " + loaded.combatMode());
         h.succeed();
     }
@@ -190,9 +197,12 @@ public class CompanionEntityTests {
         dev.friendai.combat.CombatSettings settings = new dev.friendai.combat.CombatSettings(
                 dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
                 dev.friendai.combat.FightingStyle.RANGED,
-                true, 40, dev.friendai.combat.RetreatPreference.CONSERVATIVE);
+                true,
+                40,
+                dev.friendai.combat.RetreatPreference.CONSERVATIVE);
         a.setCombatSettings(settings);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
@@ -213,9 +223,13 @@ public class CompanionEntityTests {
             CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
             loaded.load(TagValueInput.create(
                     ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-            h.assertValueEqual(loaded.combatSettings().protection(), pair.getValue(),
+            h.assertValueEqual(
+                    loaded.combatSettings().protection(),
+                    pair.getValue(),
                     "legacy " + pair.getKey() + " mapped to " + loaded.combatSettings());
-            h.assertValueEqual(loaded.combatSettings().style(), dev.friendai.combat.FightingStyle.BALANCED,
+            h.assertValueEqual(
+                    loaded.combatSettings().style(),
+                    dev.friendai.combat.FightingStyle.BALANCED,
                     "legacy style for " + pair.getKey());
             h.assertFalse(loaded.combatSettings().allowSplashPotions(), "legacy migration enabled potions");
             h.assertValueEqual(loaded.combatSettings().pursuitLimitBlocks(), 24, "legacy pursuit limit");
@@ -226,14 +240,21 @@ public class CompanionEntityTests {
 
     @GameTest
     public void malformedCombatSettingsUseSafeDefaults(GameTestHelper h) {
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
-        out.putString("CombatSettings", "protection=guard;style=balanced;splashPotions=false;pursuit=99;retreat=standard");
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        out.putString(
+                "CombatSettings", "protection=guard;style=balanced;splashPotions=false;pursuit=99;retreat=standard");
         out.putString("CombatMode", "guard");
         CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertValueEqual(loaded.combatSettings(), dev.friendai.combat.CombatSettings.defaults(),
+        loaded.load(
+                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+        h.assertValueEqual(
+                loaded.combatSettings(),
+                dev.friendai.combat.CombatSettings.defaults(),
                 "malformed settings must fall back to the whole safe default");
-        h.assertValueEqual(loaded.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.BODYGUARD,
+        h.assertValueEqual(
+                loaded.combatSettings().protection(),
+                dev.friendai.combat.ProtectionPolicy.BODYGUARD,
                 "malformed data must not silently grant guard behaviour");
         h.succeed();
     }
@@ -242,13 +263,19 @@ public class CompanionEntityTests {
     public void settingsRemainIndependentPerOwner(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
-        a.setCombatSettings(a.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
+        a.setCombatSettings(a.combatSettings()
+                .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)
                 .withPursuitLimit(12));
-        b.setCombatSettings(b.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.GUARD)
+        b.setCombatSettings(b.combatSettings()
+                .withProtection(dev.friendai.combat.ProtectionPolicy.GUARD)
                 .withPursuitLimit(48));
-        h.assertValueEqual(a.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
+        h.assertValueEqual(
+                a.combatSettings().protection(),
+                dev.friendai.combat.ProtectionPolicy.SELF_ONLY,
                 "first owner settings changed");
-        h.assertValueEqual(b.combatSettings().protection(), dev.friendai.combat.ProtectionPolicy.GUARD,
+        h.assertValueEqual(
+                b.combatSettings().protection(),
+                dev.friendai.combat.ProtectionPolicy.GUARD,
                 "second owner settings changed");
         h.assertValueEqual(a.combatSettings().pursuitLimitBlocks(), 12, "first pursuit changed");
         h.assertValueEqual(b.combatSettings().pursuitLimitBlocks(), 48, "second pursuit changed");
@@ -261,7 +288,8 @@ public class CompanionEntityTests {
         c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
         c.hurtServer(h.getLevel(), h.getLevel().damageSources().genericKill(), 1000.0F);
         h.succeedWhen(() -> {
-            boolean found = h.getLevel()
+            boolean found = h
+                    .getLevel()
                     .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(6.0))
                     .stream()
                     .anyMatch(e -> e.getItem().is(Items.IRON_BOOTS));

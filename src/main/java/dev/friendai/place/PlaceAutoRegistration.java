@@ -43,8 +43,7 @@ public final class PlaceAutoRegistration {
      * no automatic name is left. Writes nothing; the caller applies the outcome with {@link PlaceRegistry#remember}
      * and the tick it chooses. {@code tick} stays in the signature for the planned call site.
      */
-    public static Outcome decide(
-            PlaceRegistry registry, PlaceCandidate candidate, int mergeRadius, long tick) {
+    public static Outcome decide(PlaceRegistry registry, PlaceCandidate candidate, int mergeRadius, long tick) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(candidate, "candidate");
 
@@ -62,8 +61,7 @@ public final class PlaceAutoRegistration {
             if (distance > mergeRadius) {
                 continue;
             }
-            if (mergeTarget == null || distance < nearest
-                    || (distance == nearest && place.id() < mergeTarget.id())) {
+            if (mergeTarget == null || distance < nearest || (distance == nearest && place.id() < mergeTarget.id())) {
                 mergeTarget = place;
                 nearest = distance;
             }
@@ -89,12 +87,7 @@ public final class PlaceAutoRegistration {
      * is the job's own search radius, kept within the box a place may cover.
      */
     public static Optional<PlaceCandidate> mineCandidate(
-            int mined,
-            int autoMinBlocks,
-            String dimension,
-            Pos anchor,
-            int radius,
-            String matcherLabel) {
+            int mined, int autoMinBlocks, String dimension, Pos anchor, int radius, String matcherLabel) {
         if (mined < autoMinBlocks || dimension == null || dimension.isBlank() || anchor == null) {
             return Optional.empty();
         }
@@ -136,8 +129,7 @@ public final class PlaceAutoRegistration {
 
     private static String automaticName(PlaceRegistry registry, PlaceCandidate candidate) {
         try {
-            return PlaceNamer.autoName(
-                    registry, candidate.dimension(), candidate.kind(), candidate.label());
+            return PlaceNamer.autoName(registry, candidate.dimension(), candidate.kind(), candidate.label());
         } catch (IllegalArgumentException exhausted) {
             return null;
         }
@@ -146,9 +138,7 @@ public final class PlaceAutoRegistration {
     private static long chebyshev(Pos first, Pos second) {
         return Math.max(
                 Math.abs((long) first.x() - second.x()),
-                Math.max(
-                        Math.abs((long) first.y() - second.y()),
-                        Math.abs((long) first.z() - second.z())));
+                Math.max(Math.abs((long) first.y() - second.y()), Math.abs((long) first.z() - second.z())));
     }
 
     private static String foldLabel(String label) {

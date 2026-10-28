@@ -57,8 +57,8 @@ class PlaceAutoRegistrationTest {
     @Test
     void createUsesTheLabelForTheName() {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
-        PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(
-                registry, candidate("wheat", "", OVERWORLD, new Pos(10, 64, 10)), 16, 100);
+        PlaceAutoRegistration.Outcome outcome =
+                PlaceAutoRegistration.decide(registry, candidate("wheat", "", OVERWORLD, new Pos(10, 64, 10)), 16, 100);
         assertEquals(PlaceAutoRegistration.Decision.CREATE, outcome.decision());
         assertEquals("wheat farm", outcome.name());
         assertEquals(0, outcome.targetId());
@@ -71,8 +71,7 @@ class PlaceAutoRegistrationTest {
         Place first = apply(registry, near, PlaceAutoRegistration.decide(registry, near, 16, 100), 100);
 
         PlaceCandidate edge = candidate("wheat", "", OVERWORLD, new Pos(16, 64, 16));
-        PlaceAutoRegistration.Outcome outcome =
-                PlaceAutoRegistration.decide(registry, edge, 16, 200);
+        PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(registry, edge, 16, 200);
         assertEquals(PlaceAutoRegistration.Decision.UPDATE, outcome.decision());
         assertEquals(first.id(), outcome.targetId());
         assertEquals(new Pos(0, 64, 0), registry.byId(first.id()).orElseThrow().anchor());
@@ -90,8 +89,7 @@ class PlaceAutoRegistrationTest {
         Place first = apply(registry, near, PlaceAutoRegistration.decide(registry, near, 16, 100), 100);
 
         PlaceCandidate far = candidate("wheat", "", OVERWORLD, new Pos(17, 64, 0));
-        PlaceAutoRegistration.Outcome outcome =
-                PlaceAutoRegistration.decide(registry, far, 16, 200);
+        PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(registry, far, 16, 200);
         assertEquals(PlaceAutoRegistration.Decision.CREATE, outcome.decision());
         assertEquals("wheat farm 2", outcome.name());
         assertEquals(1, registry.all().size());
@@ -107,8 +105,7 @@ class PlaceAutoRegistrationTest {
         apply(registry, wheat, PlaceAutoRegistration.decide(registry, wheat, 16, 100), 100);
 
         PlaceCandidate barley = candidate("barley", "", OVERWORLD, new Pos(0, 64, 0));
-        PlaceAutoRegistration.Outcome outcome =
-                PlaceAutoRegistration.decide(registry, barley, 16, 200);
+        PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(registry, barley, 16, 200);
         assertEquals(PlaceAutoRegistration.Decision.CREATE, outcome.decision());
         assertEquals("barley farm", outcome.name());
         apply(registry, barley, outcome, 200);
@@ -121,8 +118,8 @@ class PlaceAutoRegistrationTest {
         PlaceCandidate farm = candidate("wheat", "", OVERWORLD, new Pos(0, 64, 0));
         apply(registry, farm, PlaceAutoRegistration.decide(registry, farm, 16, 100), 100);
 
-        PlaceCandidate mine = new PlaceCandidate(
-                PlaceKind.MINE, "wheat", "", OVERWORLD, new Pos(0, 64, 0), 6, PlaceSource.MINE);
+        PlaceCandidate mine =
+                new PlaceCandidate(PlaceKind.MINE, "wheat", "", OVERWORLD, new Pos(0, 64, 0), 6, PlaceSource.MINE);
         PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(registry, mine, 16, 200);
         assertEquals(PlaceAutoRegistration.Decision.CREATE, outcome.decision());
         assertEquals("mine", outcome.name());
@@ -172,8 +169,8 @@ class PlaceAutoRegistrationTest {
             registry.remember(values("wheat farm " + suffix, PlaceKind.FARM, new Pos(0, 64, 0)), 1);
         }
         int before = registry.all().size();
-        PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(
-                registry, candidate("wheat", "", OVERWORLD, new Pos(0, 64, 0)), 16, 100);
+        PlaceAutoRegistration.Outcome outcome =
+                PlaceAutoRegistration.decide(registry, candidate("wheat", "", OVERWORLD, new Pos(0, 64, 0)), 16, 100);
         assertEquals(PlaceAutoRegistration.Decision.SKIP, outcome.decision());
         assertEquals(0, outcome.targetId());
         assertEquals("", outcome.name());
@@ -192,8 +189,7 @@ class PlaceAutoRegistrationTest {
 
     @Test
     void aDigBelowTheThresholdEarnsNoMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(
-                        8, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(8, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
                 .isEmpty());
     }
 
@@ -210,8 +206,7 @@ class PlaceAutoRegistrationTest {
 
     @Test
     void aDigAboveTheThresholdEarnsAMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(
-                        20, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(20, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
                 .isPresent());
     }
 
@@ -231,8 +226,7 @@ class PlaceAutoRegistrationTest {
 
     @Test
     void aDigWithoutADimensionEarnsNoMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(
-                        16, 16, "  ", new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(16, 16, "  ", new Pos(8, 121, 5), 5, "minecraft:white_wool")
                 .isEmpty());
     }
 
@@ -250,20 +244,24 @@ class PlaceAutoRegistrationTest {
     }
 
     private static Place apply(
-            PlaceRegistry registry,
-            PlaceCandidate candidate,
-            PlaceAutoRegistration.Outcome outcome,
-            long tick) {
+            PlaceRegistry registry, PlaceCandidate candidate, PlaceAutoRegistration.Outcome outcome, long tick) {
         return registry.remember(
                 new PlaceValues(
-                        outcome.name(), candidate.kind(), candidate.label(), candidate.dimension(),
-                        candidate.anchor(), candidate.radius(), Set.of(), candidate.source(), OWNER, ""),
+                        outcome.name(),
+                        candidate.kind(),
+                        candidate.label(),
+                        candidate.dimension(),
+                        candidate.anchor(),
+                        candidate.radius(),
+                        Set.of(),
+                        candidate.source(),
+                        OWNER,
+                        ""),
                 tick);
     }
 
     private static PlaceValues values(String name, PlaceKind kind, Pos pos) {
-        return new PlaceValues(
-                name, kind, "", OVERWORLD, pos, 8, Set.of(), PlaceSource.MANUAL, OWNER, "");
+        return new PlaceValues(name, kind, "", OVERWORLD, pos, 8, Set.of(), PlaceSource.MANUAL, OWNER, "");
     }
 
     private static PlaceCandidate candidate(String label, String preferredName, String dimension, Pos anchor) {

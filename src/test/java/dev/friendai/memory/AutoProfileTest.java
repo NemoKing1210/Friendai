@@ -112,10 +112,10 @@ class AutoProfileTest {
         say(book, "I like redstone.");
         say(book, "I hate spiders.");
         assertEquals(2, facts(book).size());
-        assertTrue(facts(book).stream().anyMatch(f -> f.text().equals("Likes redstone.")
-                && f.category() == Category.PREFERENCE));
-        assertTrue(facts(book).stream().anyMatch(f -> f.text().equals("Dislikes spiders.")
-                && f.category() == Category.PREFERENCE));
+        assertTrue(facts(book).stream()
+                .anyMatch(f -> f.text().equals("Likes redstone.") && f.category() == Category.PREFERENCE));
+        assertTrue(facts(book).stream()
+                .anyMatch(f -> f.text().equals("Dislikes spiders.") && f.category() == Category.PREFERENCE));
     }
 
     @Test

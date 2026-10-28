@@ -5,12 +5,11 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.combat.CombatController;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.zombie.Zombie;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -26,13 +25,17 @@ public class CombatTacticsTests {
         zombie.setNoAi(true);
         zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100.0);
         zombie.setHealth(100.0f);
-        h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                10,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.succeedWhen(() -> {
-            h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.FIGHTING,
                     "the reflexive fight did not start: " + c.combatController().state());
-            h.assertTrue(c.getMainHandItem().is(Items.IRON_AXE),
-                    "the axe was not selected: " + c.getMainHandItem()
-                            + ", inventory " + c.inventory().countItem(Items.IRON_AXE));
+            h.assertTrue(
+                    c.getMainHandItem().is(Items.IRON_AXE),
+                    "the axe was not selected: " + c.getMainHandItem() + ", inventory "
+                            + c.inventory().countItem(Items.IRON_AXE));
             zombie.kill(h.getLevel());
             c.combatController().stopFight();
         });
@@ -49,8 +52,8 @@ public class CombatTacticsTests {
         zombie.setHealth(100.0f);
         c.combatController().fight(zombie);
         h.runAfterDelay(10, () -> {
-            h.assertTrue(c.getMainHandItem().is(Items.IRON_SWORD),
-                    "the sword was not equipped: " + c.getMainHandItem());
+            h.assertTrue(
+                    c.getMainHandItem().is(Items.IRON_SWORD), "the sword was not equipped: " + c.getMainHandItem());
             c.combatController().stopFight();
         });
         h.runAfterDelay(12, () -> {
@@ -94,9 +97,12 @@ public class CombatTacticsTests {
         zombie.setNoAi(true);
         h.runAfterDelay(10, () -> c.combatController().fight(zombie));
         h.runAfterDelay(40, () -> {
-            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
-                    "the companion pursued past the 8-block limit: " + c.combatController().state());
-            h.assertTrue(c.combatController().target().isEmpty(),
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.IDLE,
+                    "the companion pursued past the 8-block limit: "
+                            + c.combatController().state());
+            h.assertTrue(
+                    c.combatController().target().isEmpty(),
                     "target after disengage: " + c.combatController().target());
             zombie.kill(h.getLevel());
             h.succeed();

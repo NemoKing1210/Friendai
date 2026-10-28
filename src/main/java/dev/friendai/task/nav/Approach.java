@@ -2,7 +2,6 @@ package dev.friendai.task.nav;
 
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
@@ -10,8 +9,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -41,10 +40,15 @@ public final class Approach {
      * seconds, and the planner or the caller has a budget of its own.
      */
     private static final int CLOSER_STUCK_TICKS = 20;
+
     private static final double CLOSER_MIN_PROGRESS = 0.5;
 
     /** Walking first, then (if that stalls) planning a route, then walking again to close the last metre. */
-    private enum Phase { WALK, PLAN, LAST_WALK }
+    private enum Phase {
+        WALK,
+        PLAN,
+        LAST_WALK
+    }
 
     private final List<BlockPos> candidates;
     /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
@@ -53,6 +57,7 @@ public final class Approach {
     private final PlacementLedger ledger;
     /** Cells a caller needs to reserve for future work, such as the rest of a blueprint being built. */
     private final Set<BlockPos> excludedFlightCells;
+
     private Navigator navigator;
     private FlightNavigator flightNavigator;
     private Vec3 flightGoal;
@@ -89,8 +94,11 @@ public final class Approach {
         this(candidates, mayPlace, excludedFlightCells, null);
     }
 
-    private Approach(Collection<BlockPos> candidates, boolean mayPlace, Set<BlockPos> excludedFlightCells,
-                     PlacementLedger ledger) {
+    private Approach(
+            Collection<BlockPos> candidates,
+            boolean mayPlace,
+            Set<BlockPos> excludedFlightCells,
+            PlacementLedger ledger) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
@@ -186,7 +194,8 @@ public final class Approach {
         }
         State walked = closer(companion);
         if (walked == State.UNREACHABLE && phase == Phase.WALK) {
-            // The plain walk cannot get closer: there is something in the way. Let the planner dig or bridge through it.
+            // The plain walk cannot get closer: there is something in the way. Let the planner dig or bridge through
+            // it.
             phase = Phase.PLAN;
             resetWalk();
             return State.MOVING;
@@ -290,10 +299,14 @@ public final class Approach {
 
     private static boolean flightCellFree(ServerLevel level, CompanionEntity companion, AABB box) {
         if (box.minY < level.getMinY() || box.maxY > level.getMaxY() + 1.0) return false;
-        for (int x : new int[] {BlockPos.containing(box.minX, box.minY, box.minZ).getX(),
-                BlockPos.containing(box.maxX, box.minY, box.minZ).getX()}) {
-            for (int z : new int[] {BlockPos.containing(box.minX, box.minY, box.minZ).getZ(),
-                    BlockPos.containing(box.minX, box.minY, box.maxZ).getZ()}) {
+        for (int x : new int[] {
+            BlockPos.containing(box.minX, box.minY, box.minZ).getX(),
+            BlockPos.containing(box.maxX, box.minY, box.minZ).getX()
+        }) {
+            for (int z : new int[] {
+                BlockPos.containing(box.minX, box.minY, box.minZ).getZ(),
+                BlockPos.containing(box.minX, box.minY, box.maxZ).getZ()
+            }) {
                 if (!level.hasChunkAt(x, z)) return false;
             }
         }

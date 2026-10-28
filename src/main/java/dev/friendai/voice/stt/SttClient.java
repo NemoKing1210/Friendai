@@ -20,9 +20,11 @@ public final class SttClient {
 
     /** The protocol ids must match {@link SttPresets} exactly, or every cloud call would fail. */
     public static SttClient withBuiltins(VoiceHttp http) {
-        return new SttClient(http, Map.of(
-                OpenAiSttProtocol.ID, new OpenAiSttProtocol(),
-                YandexSttProtocol.ID, new YandexSttProtocol()));
+        return new SttClient(
+                http,
+                Map.of(
+                        OpenAiSttProtocol.ID, new OpenAiSttProtocol(),
+                        YandexSttProtocol.ID, new YandexSttProtocol()));
     }
 
     public CompletableFuture<String> transcribe(ResolvedStt settings, byte[] wav16k, byte[] pcm16k) {
@@ -36,9 +38,10 @@ public final class SttClient {
             request = protocol.prepare(settings, wav16k, pcm16k);
         } catch (RuntimeException e) {
             // A malformed base URL throws here; the player sees one recognition failure.
-            return CompletableFuture.failedFuture(e instanceof UserFacingException userFacing
-                    ? userFacing
-                    : new UserFacingException(UserMessage.of("friendai.voice.error.failed")));
+            return CompletableFuture.failedFuture(
+                    e instanceof UserFacingException userFacing
+                            ? userFacing
+                            : new UserFacingException(UserMessage.of("friendai.voice.error.failed")));
         }
         return http.postJson(request).thenApply(protocol::parse);
     }

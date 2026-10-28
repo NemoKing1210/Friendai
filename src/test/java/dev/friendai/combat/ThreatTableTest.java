@@ -13,8 +13,8 @@ class ThreatTableTest {
 
     @Test
     void theNearReachingMobBeatsTheFarCurrentAttacker() {
-        List<ThreatTable.Candidate> candidates = List.of(
-                farAttacker(), new ThreatTable.Candidate(2.0, true, false, false, 2.0));
+        List<ThreatTable.Candidate> candidates =
+                List.of(farAttacker(), new ThreatTable.Candidate(2.0, true, false, false, 2.0));
         assertEquals(1, ThreatTable.best(candidates, 24));
     }
 

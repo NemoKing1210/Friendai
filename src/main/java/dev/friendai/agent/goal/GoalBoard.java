@@ -50,12 +50,12 @@ public final class GoalBoard {
         }
         if (background) {
             if (background().size() >= maxBackground) {
-                return GoalResult.fail("There are already " + maxBackground
-                        + " background goals; finish one before adding another.");
+                return GoalResult.fail(
+                        "There are already " + maxBackground + " background goals; finish one before adding another.");
             }
         } else if (primary().isPresent()) {
-            return GoalResult.fail("There is already a primary goal (#" + primary().get().id()
-                    + "); finish or update it first, or add this one as a background goal.");
+            return GoalResult.fail("There is already a primary goal (#"
+                    + primary().get().id() + "); finish or update it first, or add this one as a background goal.");
         }
         Goal goal = new Goal(nextId++, cleaned, checked.value(), GoalStatus.ACTIVE, 0, 0, List.of(), tick, background);
         goals.add(goal);

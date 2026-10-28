@@ -7,30 +7,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.queue.PlanNode;
-import dev.friendai.queue.PlanDefinition;
 import dev.friendai.queue.Guard;
+import dev.friendai.queue.PlanDefinition;
+import dev.friendai.queue.PlanNode;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class QueueParserTest {
-    private static final Map<String, JsonObject> SCHEMAS = Map.of("go_to", SchemaBuilder.object().build());
-    @Test void parsesStepsAndRejectsForwardDependenciesAtomically() {
-        JsonArray good = JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
-        assertEquals(1, QueueParser.parse(good, SCHEMAS, Set.of("go_to"), 32, 8192, 49152).steps().size());
-        JsonArray bad = JsonParser.parseString("[{\"tool\":\"go_to\",\"after\":[1]}]").getAsJsonArray();
+    private static final Map<String, JsonObject> SCHEMAS =
+            Map.of("go_to", SchemaBuilder.object().build());
+
+    @Test
+    void parsesStepsAndRejectsForwardDependenciesAtomically() {
+        JsonArray good =
+                JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
+        assertEquals(
+                1,
+                QueueParser.parse(good, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+                        .steps()
+                        .size());
+        JsonArray bad =
+                JsonParser.parseString("[{\"tool\":\"go_to\",\"after\":[1]}]").getAsJsonArray();
         var result = QueueParser.parse(bad, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(result.steps().isEmpty());
         assertTrue(result.errors().getFirst().contains("earlier step"));
     }
-    @Test void rejectsTooManyDependenciesAndBadAttemptCount() {
+
+    @Test
+    void rejectsTooManyDependenciesAndBadAttemptCount() {
         String afters = "[1,1,1,1,1,1,1,1,1]";
-        JsonArray many = JsonParser.parseString("[{\"tool\":\"go_to\"},{\"tool\":\"go_to\",\"after\":" + afters + "}]").getAsJsonArray();
+        JsonArray many = JsonParser.parseString("[{\"tool\":\"go_to\"},{\"tool\":\"go_to\",\"after\":" + afters + "}]")
+                .getAsJsonArray();
         var result = QueueParser.parse(many, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(result.errors().getFirst().contains("at most"));
-        JsonArray attempts = JsonParser.parseString("[{\"tool\":\"go_to\",\"max_attempts\":9}]").getAsJsonArray();
-        assertTrue(!QueueParser.parse(attempts, SCHEMAS, Set.of("go_to"), 32, 8192, 49152).ok());
+        JsonArray attempts = JsonParser.parseString("[{\"tool\":\"go_to\",\"max_attempts\":9}]")
+                .getAsJsonArray();
+        assertTrue(!QueueParser.parse(attempts, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+                .ok());
     }
 
     @Test
@@ -90,25 +104,36 @@ class QueueParserTest {
         }
         JsonArray huge = new JsonArray();
         huge.add(nested);
-        assertFalse(QueueParser.parsePlan(huge, SCHEMAS, Set.of("go_to"), 32, 8192, 49152).ok());
+        assertFalse(QueueParser.parsePlan(huge, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+                .ok());
 
-        JsonArray tooLong = JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
-        assertFalse(QueueParser.parsePlan(tooLong, SCHEMAS, Set.of("go_to"), 32, 8192, 10).ok());
+        JsonArray tooLong =
+                JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
+        assertFalse(QueueParser.parsePlan(tooLong, SCHEMAS, Set.of("go_to"), 32, 8192, 10)
+                .ok());
     }
 
     @Test
     void rejectsAmbiguousShapesUnexpectedFieldsAndEmptyRequiredArrays() {
         for (String json : new String[] {
-                "[{\"tool\":\"go_to\",\"repeat\":{}}]",
-                "[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[]}]",
-                "[{\"tool\":\"go_to\",\"extra\":true}]",
-                "[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[],\"else\":[],\"priority\":1}]",
-                "[{\"repeat\":{\"steps\":[],\"until\":{\"type\":\"fluid_ahead\"},\"max_iterations\":1}}]",
-                "[{\"when\":{\"type\":\"all_of\",\"conditions\":[]},\"then\":[]}]",
-                "[{\"when\":{\"type\":\"fluid_ahead\",\"unexpected\":1},\"then\":[]}]"
+            "[{\"tool\":\"go_to\",\"repeat\":{}}]",
+            "[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[]}]",
+            "[{\"tool\":\"go_to\",\"extra\":true}]",
+            "[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[],\"else\":[],\"priority\":1}]",
+            "[{\"repeat\":{\"steps\":[],\"until\":{\"type\":\"fluid_ahead\"},\"max_iterations\":1}}]",
+            "[{\"when\":{\"type\":\"all_of\",\"conditions\":[]},\"then\":[]}]",
+            "[{\"when\":{\"type\":\"fluid_ahead\",\"unexpected\":1},\"then\":[]}]"
         }) {
-            assertFalse(QueueParser.parsePlan(JsonParser.parseString(json).getAsJsonArray(), SCHEMAS,
-                    Set.of("go_to"), 32, 8192, 49152).ok(), json);
+            assertFalse(
+                    QueueParser.parsePlan(
+                                    JsonParser.parseString(json).getAsJsonArray(),
+                                    SCHEMAS,
+                                    Set.of("go_to"),
+                                    32,
+                                    8192,
+                                    49152)
+                            .ok(),
+                    json);
         }
     }
 
@@ -125,23 +150,34 @@ class QueueParserTest {
         var parsed = QueueParser.parsePlan(input, SCHEMAS, Set.of("go_to"), 11, 8192, 49152);
         assertTrue(parsed.ok(), parsed.errors().toString());
         assertEquals(11, parsed.plan().worstCaseActions());
-        assertFalse(QueueParser.parsePlan(input, SCHEMAS, Set.of("go_to"), 10, 8192, 49152).ok());
+        assertFalse(QueueParser.parsePlan(input, SCHEMAS, Set.of("go_to"), 10, 8192, 49152)
+                .ok());
     }
 
     @Test
     void flatParserKeepsLegacyGuardArraysAndRejectsTreeNodes() {
-        JsonArray flat = JsonParser.parseString("[{\"tool\":\"go_to\",\"when\":[{\"type\":\"fluid_ahead\"}]}]").getAsJsonArray();
+        JsonArray flat = JsonParser.parseString("[{\"tool\":\"go_to\",\"when\":[{\"type\":\"fluid_ahead\"}]}]")
+                .getAsJsonArray();
         var parsed = QueueParser.parse(flat, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(parsed.ok(), parsed.errors().toString());
         assertEquals(1, parsed.steps().getFirst().guards().size());
-        JsonArray tree = JsonParser.parseString("[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[]}]").getAsJsonArray();
-        assertFalse(QueueParser.parse(tree, SCHEMAS, Set.of("go_to"), 32, 8192, 49152).ok());
+        JsonArray tree = JsonParser.parseString("[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[]}]")
+                .getAsJsonArray();
+        assertFalse(QueueParser.parse(tree, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+                .ok());
     }
 
     @Test
     void worstCaseActionCountSaturatesInsteadOfOverflowing() {
-        var child = new PlanNode.Action(new dev.friendai.queue.QueuedStep("go_to", new JsonObject(), null,
-                java.util.List.of(), dev.friendai.queue.GuardAction.WAIT, null, 1, java.util.List.of()));
+        var child = new PlanNode.Action(new dev.friendai.queue.QueuedStep(
+                "go_to",
+                new JsonObject(),
+                null,
+                java.util.List.of(),
+                dev.friendai.queue.GuardAction.WAIT,
+                null,
+                1,
+                java.util.List.of()));
         PlanNode nested = child;
         for (int i = 0; i < 20; i++) {
             nested = new PlanNode.Repeat(java.util.List.of(nested), new Guard.FluidAhead(), 64);

@@ -21,7 +21,8 @@ import net.minecraft.network.chat.Style;
  * mouse (drag, or double-click for a whole entry) and copied with Ctrl+C or the Copy button.
  */
 final class LogTab implements MenuTab {
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter TIME =
+            DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final int CHIP_HEIGHT = 14;
     private static final int GAP = 4;
 
@@ -82,8 +83,14 @@ final class LogTab implements MenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         int copyWidth = 52;
-        host.add(new FlatButton(left + width - copyWidth, top, copyWidth, CHIP_HEIGHT,
-                Component.translatable("friendai.menu.log.copy"), Ui.ACCENT, this::copy));
+        host.add(new FlatButton(
+                left + width - copyWidth,
+                top,
+                copyWidth,
+                CHIP_HEIGHT,
+                Component.translatable("friendai.menu.log.copy"),
+                Ui.ACCENT,
+                this::copy));
         int chipsHeight = layoutChips(host.font(), left, top, width);
         host.add(new HitArea(left, top, width - copyWidth - GAP, chipsHeight, this::clickChip));
         int areaTop = top + chipsHeight + GAP + 2;
@@ -171,7 +178,8 @@ final class LogTab implements MenuTab {
                 int offset = span.start();
                 if (x > textX) {
                     String shown = text.substring(span.start(), span.end());
-                    offset += Math.min(shown.length(),
+                    offset += Math.min(
+                            shown.length(),
                             font.getSplitter().plainIndexAtWidth(shown, (int) (x - textX), Style.EMPTY));
                 }
                 return new Pos(row.entry().id(), offset);
@@ -225,7 +233,8 @@ final class LogTab implements MenuTab {
         }
         List<String> lines = new ArrayList<>();
         for (LogEntry e : visibleEntries()) {
-            lines.add("[" + TIME.format(Instant.ofEpochMilli(e.timeMillis())) + "] " + kindName(e.kind()) + ": " + e.text());
+            lines.add("[" + TIME.format(Instant.ofEpochMilli(e.timeMillis())) + "] " + kindName(e.kind()) + ": "
+                    + e.text());
         }
         Minecraft.getInstance().keyboardHandler.setClipboard(String.join("\n", lines));
     }
@@ -251,16 +260,21 @@ final class LogTab implements MenuTab {
     private void drawChips(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY) {
         for (Chip chip : chips) {
             boolean on = enabled.contains(chip.kind());
-            boolean hot = mouseX >= chip.x() && mouseX < chip.x() + chip.w()
-                    && mouseY >= chip.y() && mouseY < chip.y() + CHIP_HEIGHT;
+            boolean hot = mouseX >= chip.x()
+                    && mouseX < chip.x() + chip.w()
+                    && mouseY >= chip.y()
+                    && mouseY < chip.y() + CHIP_HEIGHT;
             int color = kindColor(chip.kind());
             if (on) {
-                g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT,
+                g.fill(
+                        chip.x(),
+                        chip.y(),
+                        chip.x() + chip.w(),
+                        chip.y() + CHIP_HEIGHT,
                         hot ? Ui.alpha(color, 0xE0) : color);
                 Ui.text(g, font, kindName(chip.kind()), chip.x() + 6, chip.y() + 3, Ui.ON_WELL);
             } else {
-                g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT,
-                        hot ? Ui.CARD_HOVER : Ui.CARD);
+                g.fill(chip.x(), chip.y(), chip.x() + chip.w(), chip.y() + CHIP_HEIGHT, hot ? Ui.CARD_HOVER : Ui.CARD);
                 Ui.border(g, chip.x(), chip.y(), chip.w(), CHIP_HEIGHT, Ui.BORDER);
                 Ui.text(g, font, kindName(chip.kind()), chip.x() + 6, chip.y() + 3, Ui.DIM);
             }
@@ -268,8 +282,9 @@ final class LogTab implements MenuTab {
     }
 
     private void rebuildRows(Font font, List<LogEntry> entries, int width) {
-        String key = entries.size() + ":" + (entries.isEmpty() ? 0 : entries.get(entries.size() - 1).id())
-                + ":" + (entries.isEmpty() ? 0 : entries.get(0).id()) + ":" + width;
+        String key = entries.size() + ":"
+                + (entries.isEmpty() ? 0 : entries.get(entries.size() - 1).id()) + ":"
+                + (entries.isEmpty() ? 0 : entries.get(0).id()) + ":" + width;
         if (key.equals(rowsKey)) {
             return;
         }
@@ -282,8 +297,13 @@ final class LogTab implements MenuTab {
         List<Row> built = new ArrayList<>();
         for (LogEntry e : entries) {
             List<Span> lines = new ArrayList<>();
-            font.getSplitter().splitLines(e.text(), Math.max(30, width - prefix - 12), Style.EMPTY, false,
-                    (style, start, end) -> lines.add(new Span(start, end)));
+            font.getSplitter()
+                    .splitLines(
+                            e.text(),
+                            Math.max(30, width - prefix - 12),
+                            Style.EMPTY,
+                            false,
+                            (style, start, end) -> lines.add(new Span(start, end)));
             if (lines.isEmpty()) {
                 lines.add(new Span(0, 0));
             }
@@ -331,7 +351,10 @@ final class LogTab implements MenuTab {
         }
         Pos from = null;
         Pos to = null;
-        if (anchor != null && caret != null && rowIndex(anchor.id()) >= 0 && rowIndex(caret.id()) >= 0
+        if (anchor != null
+                && caret != null
+                && rowIndex(anchor.id()) >= 0
+                && rowIndex(caret.id()) >= 0
                 && !anchor.equals(caret)) {
             from = compare(anchor, caret) <= 0 ? anchor : caret;
             to = from == anchor ? caret : anchor;
@@ -364,7 +387,13 @@ final class LogTab implements MenuTab {
                             g.fill(x0, lineY - 1, x1, lineY + font.lineHeight, Ui.alpha(Ui.ACCENT, 0x70));
                         }
                     }
-                    Ui.text(g, font, line, textX, lineY, row.entry().kind() == LogKind.ERROR ? Ui.ON_WELL_BAD : Ui.ON_WELL);
+                    Ui.text(
+                            g,
+                            font,
+                            line,
+                            textX,
+                            lineY,
+                            row.entry().kind() == LogKind.ERROR ? Ui.ON_WELL_BAD : Ui.ON_WELL);
                     lineY += font.lineHeight + 1;
                 }
             }

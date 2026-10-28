@@ -29,7 +29,9 @@ public final class MissionText {
                         .append(String.join("; ", unmet.subList(0, Math.min(MAX_UNMET_SHOWN, unmet.size()))));
             }
             if (!view.planStatus().isBlank()) {
-                out.append("\n- Plan: ").append(view.planStatus()).append(" (when/then/else; server selects, repeat cap 64)");
+                out.append("\n- Plan: ")
+                        .append(view.planStatus())
+                        .append(" (when/then/else; server selects, repeat cap 64)");
             }
             if (!view.lastLesson().isBlank()) {
                 out.append("\n- Lesson learned: ").append(view.lastLesson());

@@ -57,7 +57,11 @@ public class MineBlocksTests {
     }
 
     private static final BlockPos[] LOGS = {
-        new BlockPos(6, 2, 2), new BlockPos(6, 3, 2), new BlockPos(6, 2, 4), new BlockPos(8, 2, 2), new BlockPos(8, 2, 5)
+        new BlockPos(6, 2, 2),
+        new BlockPos(6, 3, 2),
+        new BlockPos(6, 2, 4),
+        new BlockPos(8, 2, 2),
+        new BlockPos(8, 2, 5)
     };
 
     private static void placeLogs(GameTestHelper h, int n, Block block) {
@@ -70,14 +74,18 @@ public class MineBlocksTests {
     public void minesRequestedLogs(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos[] targets = {
-            new BlockPos(5, 2, 3), new BlockPos(4, 2, 8), new BlockPos(8, 2, 5),
-            new BlockPos(10, 2, 9), new BlockPos(11, 2, 2)
+            new BlockPos(5, 2, 3),
+            new BlockPos(4, 2, 8),
+            new BlockPos(8, 2, 5),
+            new BlockPos(10, 2, 9),
+            new BlockPos(11, 2, 2)
         };
         for (BlockPos target : targets) h.setBlock(target, Blocks.ACACIA_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(java.util.UUID.randomUUID());
         for (BlockPos relative : new BlockPos[] {targets[0], targets[1], targets[2]}) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(relative)),
                     "requested log should be directly visible at " + relative);
         }
         Result result = new Result();
@@ -86,8 +94,12 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(c.inventory().countItem(Items.ACACIA_LOG) >= 3, "logs collected: " + c.inventory().countItem(Items.ACACIA_LOG));
-            h.assertTrue(countBlocks(h, Blocks.ACACIA_LOG, targets) == 2, "logs left: " + countBlocks(h, Blocks.ACACIA_LOG, targets));
+            h.assertTrue(
+                    c.inventory().countItem(Items.ACACIA_LOG) >= 3,
+                    "logs collected: " + c.inventory().countItem(Items.ACACIA_LOG));
+            h.assertTrue(
+                    countBlocks(h, Blocks.ACACIA_LOG, targets) == 2,
+                    "logs left: " + countBlocks(h, Blocks.ACACIA_LOG, targets));
         });
     }
 
@@ -145,7 +157,9 @@ public class MineBlocksTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(4, 2, 2, Blocks.JUNGLE_LOG);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))), "jungle log should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))),
+                "jungle log should be visible");
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.STONE_AXE));
         Result result = new Result();
@@ -181,8 +195,12 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             var targets = task.debugTargets();
-            h.assertTrue(targets.stream().anyMatch(debug -> debug.action() == DebugAction.BREAK
-                            && debug.x() == target.getX() && debug.y() == target.getY() && debug.z() == target.getZ()),
+            h.assertTrue(
+                    targets.stream()
+                            .anyMatch(debug -> debug.action() == DebugAction.BREAK
+                                    && debug.x() == target.getX()
+                                    && debug.y() == target.getY()
+                                    && debug.z() == target.getZ()),
                     "selected mine candidate missing: " + targets);
         });
     }
@@ -208,9 +226,13 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("mined minecraft:emerald_block at " + coords(target)), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("mined minecraft:emerald_block at " + coords(target)),
+                    "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 4)).is(Blocks.EMERALD_BLOCK), "the other block must stay");
-            h.assertTrue(c.inventory().countItem(Items.EMERALD_BLOCK) == 1, "drops collected: " + c.inventory().countItem(Items.EMERALD_BLOCK));
+            h.assertTrue(
+                    c.inventory().countItem(Items.EMERALD_BLOCK) == 1,
+                    "drops collected: " + c.inventory().countItem(Items.EMERALD_BLOCK));
         });
     }
 
@@ -232,7 +254,9 @@ public class MineBlocksTests {
             }
             h.assertTrue(ticks[0] >= 6, "waiting for the block change");
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith("the block at ") && result.summary.endsWith(" changed before I could mine it"),
+            h.assertTrue(
+                    result.summary.startsWith("the block at ")
+                            && result.summary.endsWith(" changed before I could mine it"),
                     "summary was " + result.summary);
         });
     }
@@ -262,7 +286,9 @@ public class MineBlocksTests {
         runner.start(new MineBlockAtTask(target), "mine_block_at");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
-        h.assertTrue(result.summary.equals("minecraft:bedrock at " + coords(target) + " can't be broken"), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.equals("minecraft:bedrock at " + coords(target) + " can't be broken"),
+                "summary was " + result.summary);
         h.succeed();
     }
 
@@ -279,7 +305,8 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("is protected by the server"),
+            h.assertTrue(
+                    result.summary.contains("is protected by the server"),
                     "summary must name the server: " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.PRISMARINE_BRICKS), "block must stay");
         });
@@ -292,9 +319,11 @@ public class MineBlocksTests {
         h.setBlock(10, 2, 5, Blocks.DARK_PRISMARINE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
                 "near protected block should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 5))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 5))),
                 "farther block should be visible");
         BlockPos nearer = h.absolutePos(new BlockPos(6, 2, 2));
         c.hands().overrideProtection(p -> p.equals(nearer));
@@ -304,7 +333,8 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DARK_PRISMARINE), "the protected block must stay");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DARK_PRISMARINE), "the protected block must stay");
             h.assertTrue(h.getBlockState(new BlockPos(10, 2, 5)).is(Blocks.AIR), "the farther block must be mined");
         });
     }
@@ -328,9 +358,13 @@ public class MineBlocksTests {
         runner.start(mine("minecraft:granite", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.FAILED, "hidden granite must stay unknown: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.status == TaskStatus.FAILED,
+                    "hidden granite must stay unknown: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("no minecraft:granite nearby"), "summary was " + result.summary);
-            h.assertTrue(countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 1, "the hidden granite must stay in place");
+            h.assertTrue(
+                    countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 1,
+                    "the hidden granite must stay in place");
         });
     }
 
@@ -346,9 +380,11 @@ public class MineBlocksTests {
             h.setBlock(new BlockPos(10, y, 3), Blocks.OAK_LOG);
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 2, 7))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 2, 7))),
                 "first tree should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 3))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 3))),
                 "second tree should be directly visible");
         // Dirt to pillar up the trunk: the upper logs are out of reach from the ground.
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
@@ -376,8 +412,7 @@ public class MineBlocksTests {
 
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
-        h.setBlock(new BlockPos(x, y, z),
-                Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+        h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
     }
 
     /** A log with every face but the floor covered: no standing spot can see it. */
@@ -401,9 +436,12 @@ public class MineBlocksTests {
         runner.start(mine("minecraft:oak_log", 1), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.FAILED, "hidden log must stay unknown: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.status == TaskStatus.FAILED,
+                    "hidden log must stay unknown: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("no minecraft:oak_log nearby"), "summary was " + result.summary);
-            h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay in place");
+            h.assertTrue(
+                    countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay in place");
         });
     }
 
@@ -419,7 +457,8 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals(coords(target) + " is hidden behind another block"),
+            h.assertTrue(
+                    result.summary.equals(coords(target) + " is hidden behind another block"),
                     "summary was " + result.summary);
             h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay");
         });
@@ -432,7 +471,8 @@ public class MineBlocksTests {
         h.setBlock(new BlockPos(6, 2, 2), Blocks.OAK_LOG);
         leaf(h, 5, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
                 "log should be visible around the leaf");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -475,8 +515,8 @@ public class MineBlocksTests {
                     sawItem[0] = true;
                 }
                 if (ticks[0] - brokenAt[0] < 8) {
-                    h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 0,
-                            "the drop was taken on the break tick");
+                    h.assertValueEqual(
+                            c.inventory().countItem(Items.ACACIA_LOG), 0, "the drop was taken on the break tick");
                 }
             }
             if (result.status != null) {
@@ -516,7 +556,8 @@ public class MineBlocksTests {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    h.setBlock(new BlockPos(x + dx, y + dy, z + dz),
+                    h.setBlock(
+                            new BlockPos(x + dx, y + dy, z + dz),
                             dx == 0 && dy == 0 && dz == 0 ? Blocks.AIR : Blocks.STONE);
                 }
             }
@@ -524,7 +565,8 @@ public class MineBlocksTests {
     }
 
     private static int sealedItems(GameTestHelper h) {
-        return h.getLevel()
+        return h
+                .getLevel()
                 .getEntitiesOfClass(ItemEntity.class, new AABB(h.absolutePos(new BlockPos(10, 3, 2))))
                 .stream()
                 .filter(e -> e.getItem().is(Items.COBBLESTONE))

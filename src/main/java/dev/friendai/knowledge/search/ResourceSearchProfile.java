@@ -1,12 +1,18 @@
 package dev.friendai.knowledge.search;
 
+import dev.friendai.crafting.obtain.OreDepths;
 import java.util.OptionalInt;
 import java.util.Set;
-import dev.friendai.crafting.obtain.OreDepths;
 
 /** Resource-specific search strategies. This is policy data, not evidence about hidden locations. */
-public record ResourceSearchProfile(String family, Set<String> dimensions, OptionalInt targetY, Set<Strategy> strategies) {
-    public enum Strategy { AUTO, SURFACE, CAVE, MINE }
+public record ResourceSearchProfile(
+        String family, Set<String> dimensions, OptionalInt targetY, Set<Strategy> strategies) {
+    public enum Strategy {
+        AUTO,
+        SURFACE,
+        CAVE,
+        MINE
+    }
 
     public ResourceSearchProfile {
         if (family == null || family.isBlank()) throw new IllegalArgumentException("family must not be blank");

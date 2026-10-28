@@ -5,8 +5,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.pathing.Pos;
 import dev.friendai.perception.resource.ResourceSight;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -97,13 +97,22 @@ final class GameTestSupport {
                     if (outcome != ResourceSight.Outcome.VISIBLE || sight.hitBlock() == null) continue;
                     BlockPos hit = sight.hitBlock();
                     BlockPos viewpoint = companion.blockPosition();
-                    String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(hit).getBlock()).toString();
-                    FriendaiServerState.get(level.getServer()).resources().observe(companion,
-                            new ResourceObservation(id,
-                                    new ResourceObservation.Location(level.dimension().identifier().toString(),
-                                            new Pos(hit.getX(), hit.getY(), hit.getZ())),
-                                    new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
-                                    level.getServer().overworld().getGameTime()));
+                    String id = BuiltInRegistries.BLOCK
+                            .getKey(level.getBlockState(hit).getBlock())
+                            .toString();
+                    FriendaiServerState.get(level.getServer())
+                            .resources()
+                            .observe(
+                                    companion,
+                                    new ResourceObservation(
+                                            id,
+                                            new ResourceObservation.Location(
+                                                    level.dimension()
+                                                            .identifier()
+                                                            .toString(),
+                                                    new Pos(hit.getX(), hit.getY(), hit.getZ())),
+                                            new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                            level.getServer().overworld().getGameTime()));
                     return true;
                 }
             }

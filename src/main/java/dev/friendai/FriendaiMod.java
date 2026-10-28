@@ -12,6 +12,7 @@ import dev.friendai.net.FriendaiNetworking;
 import dev.friendai.net.MemoryViewStream;
 import dev.friendai.net.MovementDebugStream;
 import dev.friendai.net.PlaceViewStream;
+import java.util.UUID;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -19,7 +20,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,7 +97,9 @@ public class FriendaiMod implements ModInitializer {
             MemoryViewStream.onDisconnect(handler.getPlayer());
             dev.friendai.net.SkillsViewStream.onDisconnect(handler.getPlayer());
             PlaceViewStream.onDisconnect(handler.getPlayer());
-            FriendaiServerState.get(server).brains().onOwnerLeft(handler.getPlayer().getUUID());
+            FriendaiServerState.get(server)
+                    .brains()
+                    .onOwnerLeft(handler.getPlayer().getUUID());
         });
         LOGGER.info("Friendai initialized");
     }

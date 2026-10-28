@@ -16,7 +16,9 @@ class CropBookTest {
 
     @Test
     void looksUpBySeedItem() {
-        assertEquals("minecraft:carrots", FarmFixtures.book().bySeed("minecraft:carrot").orElseThrow().crop());
+        assertEquals(
+                "minecraft:carrots",
+                FarmFixtures.book().bySeed("minecraft:carrot").orElseThrow().crop());
     }
 
     @Test
@@ -27,9 +29,16 @@ class CropBookTest {
 
     @Test
     void plantableKeepsInsertionOrder() {
-        List<String> seeds = FarmFixtures.book().plantable().stream().map(CropInfo::seed).toList();
-        assertEquals(List.of("minecraft:wheat_seeds", "minecraft:carrot", "minecraft:potato",
-                "minecraft:beetroot_seeds", "minecraft:nether_wart"), seeds);
+        List<String> seeds =
+                FarmFixtures.book().plantable().stream().map(CropInfo::seed).toList();
+        assertEquals(
+                List.of(
+                        "minecraft:wheat_seeds",
+                        "minecraft:carrot",
+                        "minecraft:potato",
+                        "minecraft:beetroot_seeds",
+                        "minecraft:nether_wart"),
+                seeds);
     }
 
     @Test

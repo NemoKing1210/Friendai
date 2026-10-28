@@ -56,7 +56,8 @@ public final class ObservationWindow {
     }
 
     private void purge(long now) {
-        entries.values().removeIf(observation -> observation.observedTick() > now
-                || now - observation.observedTick() > maxAgeTicks);
+        entries.values()
+                .removeIf(observation ->
+                        observation.observedTick() > now || now - observation.observedTick() > maxAgeTicks);
     }
 }

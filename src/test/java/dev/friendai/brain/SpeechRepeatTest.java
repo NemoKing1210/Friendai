@@ -10,15 +10,12 @@ class SpeechRepeatTest {
 
     @Test
     void theSameStatementInOtherWordsIsARepeat() {
+        assertTrue(
+                SpeechRepeat.repeats("Держи, три котлеты твои.", "Даю тебе три жареные котлеты — три оставлю себе."));
         assertTrue(SpeechRepeat.repeats(
-                "Держи, три котлеты твои.",
-                "Даю тебе три жареные котлеты — три оставлю себе."));
+                "Here, the three cutlets are yours.", "I'm giving you three cutlets, I'll keep three."));
         assertTrue(SpeechRepeat.repeats(
-                "Here, the three cutlets are yours.",
-                "I'm giving you three cutlets, I'll keep three."));
-        assertTrue(SpeechRepeat.repeats(
-                "Камень добыт, печь готова.",
-                "Добываю камень, потом сделаю печь и пожарю свинину."));
+                "Камень добыт, печь готова.", "Добываю камень, потом сделаю печь и пожарю свинину."));
     }
 
     @Test
@@ -30,11 +27,9 @@ class SpeechRepeatTest {
     @Test
     void newInformationIsNotARepeat() {
         assertFalse(SpeechRepeat.repeats(
-                "Топливо закончилось, пять котлет остались в печи.",
-                "Жарю пять котлет на досках."));
+                "Топливо закончилось, пять котлет остались в печи.", "Жарю пять котлет на досках."));
         assertFalse(SpeechRepeat.repeats(
-                "Ran out of fuel, five cutlets are still in the furnace.",
-                "Cooking six cutlets now."));
+                "Ran out of fuel, five cutlets are still in the furnace.", "Cooking six cutlets now."));
         assertFalse(SpeechRepeat.repeats("Добыл камень.", "Иду к печи."));
     }
 

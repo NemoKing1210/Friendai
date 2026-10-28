@@ -60,7 +60,9 @@ public final class Site {
                 }
                 continue;
             }
-            if (current.isAir() || current.canBeReplaced() || !current.getFluidState().isEmpty()) {
+            if (current.isAir()
+                    || current.canBeReplaced()
+                    || !current.getFluidState().isEmpty()) {
                 continue;
             }
             problems.add(siteProblem(current, pos));
@@ -83,7 +85,8 @@ public final class Site {
                 depth++;
             }
             if (depth == MAX_FOUNDATION && !isSolid(level.getBlockState(below))) {
-                problems.add("the ground under " + coords(spec.pos()) + " drops more than " + MAX_FOUNDATION + " blocks");
+                problems.add(
+                        "the ground under " + coords(spec.pos()) + " drops more than " + MAX_FOUNDATION + " blocks");
             }
         }
 
@@ -94,9 +97,7 @@ public final class Site {
     private static BlockState foundationMaterial(CompanionEntity companion) {
         int dirtCount = count(companion, Items.DIRT);
         int cobbleCount = count(companion, Items.COBBLESTONE);
-        return dirtCount > cobbleCount
-                ? Blocks.DIRT.defaultBlockState()
-                : Blocks.COBBLESTONE.defaultBlockState();
+        return dirtCount > cobbleCount ? Blocks.DIRT.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
     }
 
     private static int count(CompanionEntity companion, Item item) {

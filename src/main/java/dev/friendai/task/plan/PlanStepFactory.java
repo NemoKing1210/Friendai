@@ -10,5 +10,7 @@ public interface PlanStepFactory {
     Task create(TaskContext context, QueuedStep step);
 
     /** Re-evaluated immediately before each emitted action, including after reload. */
-    default boolean authorized(TaskContext context, QueuedStep step) { return true; }
+    default boolean authorized(TaskContext context, QueuedStep step) {
+        return true;
+    }
 }

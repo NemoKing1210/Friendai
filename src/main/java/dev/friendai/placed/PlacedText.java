@@ -1,7 +1,6 @@
 package dev.friendai.placed;
 
 import dev.friendai.pathing.Pos;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,8 +20,7 @@ public final class PlacedText {
         }
     }
 
-    private static final String PROMPT_HEADER =
-            "Blocks you placed that are still in the world (nearest first):";
+    private static final String PROMPT_HEADER = "Blocks you placed that are still in the world (nearest first):";
 
     private PlacedText() {}
 
@@ -36,8 +34,9 @@ public final class PlacedText {
             if (existing == null) {
                 groups.put(block.blockId(), new Group(block.blockId(), 1, block, where.apply(block)));
             } else {
-                groups.put(block.blockId(), new Group(
-                        existing.blockId(), existing.count() + 1, existing.nearest(), existing.where()));
+                groups.put(
+                        block.blockId(),
+                        new Group(existing.blockId(), existing.count() + 1, existing.nearest(), existing.where()));
             }
         }
         return List.copyOf(groups.values());
@@ -74,8 +73,14 @@ public final class PlacedText {
             return "no " + what + " you placed within " + radius + " blocks";
         }
         StringBuilder out = new StringBuilder()
-                .append(result.entries().size()).append(" of ").append(result.total()).append(' ')
-                .append(what).append(" you placed within ").append(radius).append(" blocks nearest first");
+                .append(result.entries().size())
+                .append(" of ")
+                .append(result.total())
+                .append(' ')
+                .append(what)
+                .append(" you placed within ")
+                .append(radius)
+                .append(" blocks nearest first");
         if (result.truncated()) {
             out.append(" (truncated)");
         }
@@ -85,11 +90,19 @@ public final class PlacedText {
             if (i > 0) {
                 out.append(", ");
             }
-            out.append(block.pos().x()).append(' ').append(block.pos().y()).append(' ')
-                    .append(block.pos().z()).append(' ').append(block.blockId()).append(" (")
-                    .append(String.format(Locale.ROOT, "%.1f",
-                            Math.sqrt(PlacedQuery.distanceSquared(origin, block.pos()))))
-                    .append(" blocks, ").append(block.source()).append(')');
+            out.append(block.pos().x())
+                    .append(' ')
+                    .append(block.pos().y())
+                    .append(' ')
+                    .append(block.pos().z())
+                    .append(' ')
+                    .append(block.blockId())
+                    .append(" (")
+                    .append(String.format(
+                            Locale.ROOT, "%.1f", Math.sqrt(PlacedQuery.distanceSquared(origin, block.pos()))))
+                    .append(" blocks, ")
+                    .append(block.source())
+                    .append(')');
         }
         return out.toString();
     }

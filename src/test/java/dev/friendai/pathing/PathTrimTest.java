@@ -14,8 +14,14 @@ class PathTrimTest {
         List<PathStep> steps = new ArrayList<>();
         double cost = 0;
         for (int i = 0; i < length; i++) {
-            steps.add(new PathStep(new Node(i, 1, 0), new Node(i + 1, 1, 0), Move.WALK, List.of(),
-                    i == 2 ? List.of(new Pos(3, 0, 0)) : List.of(), 4.6, 0));
+            steps.add(new PathStep(
+                    new Node(i, 1, 0),
+                    new Node(i + 1, 1, 0),
+                    Move.WALK,
+                    List.of(),
+                    i == 2 ? List.of(new Pos(3, 0, 0)) : List.of(),
+                    4.6,
+                    0));
             cost += 4.6;
         }
         return new Path(steps, cost, 0, 1, partial);

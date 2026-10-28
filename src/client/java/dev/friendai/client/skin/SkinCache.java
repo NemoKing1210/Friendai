@@ -53,7 +53,9 @@ public final class SkinCache {
 
     public static void onSkin(SkinS2CPayload payload) {
         String hash = payload.hash();
-        if (PENDING.remove(hash) == null || !SkinHash.isValid(hash) || !SkinHash.of(payload.png()).equals(hash)) {
+        if (PENDING.remove(hash) == null
+                || !SkinHash.isValid(hash)
+                || !SkinHash.of(payload.png()).equals(hash)) {
             return;
         }
         try {

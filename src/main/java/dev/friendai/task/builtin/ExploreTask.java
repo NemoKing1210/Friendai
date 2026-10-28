@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.crafting.obtain.Spiral;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.crafting.obtain.Spiral;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.mining.MiningBounds;
@@ -14,18 +14,15 @@ import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.MiningSession;
 import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.nav.Sight;
 import java.util.List;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -96,9 +93,12 @@ public final class ExploreTask implements Task {
         heading = c.companion().getDirection();
         waypoint = origin;
         // Progress only goes to the task log: a notice would start a model turn in the middle of the task.
-        c.companion().taskRunner().debug(down
-                ? "going down to Y " + depthY + " to look for " + target.label()
-                : "exploring up to " + maxRadius + " blocks around to look for " + target.label());
+        c.companion()
+                .taskRunner()
+                .debug(
+                        down
+                                ? "going down to Y " + depthY + " to look for " + target.label()
+                                : "exploring up to " + maxRadius + " blocks around to look for " + target.label());
         if (found(level, c.companion())) {
             return;
         }
@@ -161,8 +161,7 @@ public final class ExploreTask implements Task {
                 waypoint = null;
                 mover.reset(c);
             }
-            default -> {
-            }
+            default -> {}
         }
         return TaskStatus.RUNNING;
     }
@@ -176,10 +175,13 @@ public final class ExploreTask implements Task {
         CompanionEntity companion = c.companion();
         if (miningSession == null) {
             BlockPos start = companion.blockPosition();
-            miningSession = new MiningSession(companion,
+            miningSession = new MiningSession(
+                    companion,
                     new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), undergroundRadius),
-                    maxBlocks, maxTicks);
-            int legalTargetY = Math.max(c.level().getMinY() + 1, Math.min(depthY, c.level().getMaxY() - 2));
+                    maxBlocks,
+                    maxTicks);
+            int legalTargetY =
+                    Math.max(c.level().getMinY() + 1, Math.min(depthY, c.level().getMaxY() - 2));
             miningSession.explore(legalTargetY, headingIndex(heading));
         }
         MiningSession.State state = miningSession.tick(c);
@@ -189,7 +191,9 @@ public final class ExploreTask implements Task {
             placeTorch(c.level(), companion, companion.blockPosition());
             lastTorchBlockCount = blocksDug;
         }
-        if (branchSteps >= BRANCH || blocksDug >= maxBlocks || state == MiningSession.State.EXHAUSTED
+        if (branchSteps >= BRANCH
+                || blocksDug >= maxBlocks
+                || state == MiningSession.State.EXHAUSTED
                 || state == MiningSession.State.FAILED) {
             return finishFailure(c);
         }
@@ -222,21 +226,29 @@ public final class ExploreTask implements Task {
 
     private boolean found(ServerLevel level, CompanionEntity companion) {
         var evidence = FriendaiServerState.get(level.getServer()).resources();
-        return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream().findFirst()
+        return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream()
+                .findFirst()
                 .map(pos -> {
                     BlockState state = level.getBlockState(pos);
                     if (!target.test(state) || !Sight.canSee(level, companion, pos)) {
                         return false;
                     }
-                    summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at "
-                            + pos.getX() + " " + pos.getY() + " " + pos.getZ();
-                    evidence.observe(companion, new ResourceObservation(
-                            BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),
-                            new ResourceObservation.Location(level.dimension().identifier().toString(),
-                                    new Pos(pos.getX(), pos.getY(), pos.getZ())),
-                            new Pos(companion.blockPosition().getX(), companion.blockPosition().getY(),
-                                    companion.blockPosition().getZ()),
-                            level.getServer().overworld().getGameTime()));
+                    summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at " + pos.getX() + " "
+                            + pos.getY() + " " + pos.getZ();
+                    evidence.observe(
+                            companion,
+                            new ResourceObservation(
+                                    BuiltInRegistries.BLOCK
+                                            .getKey(state.getBlock())
+                                            .toString(),
+                                    new ResourceObservation.Location(
+                                            level.dimension().identifier().toString(),
+                                            new Pos(pos.getX(), pos.getY(), pos.getZ())),
+                                    new Pos(
+                                            companion.blockPosition().getX(),
+                                            companion.blockPosition().getY(),
+                                            companion.blockPosition().getZ()),
+                                    level.getServer().overworld().getGameTime()));
                     return true;
                 })
                 .orElse(false);
@@ -248,8 +260,8 @@ public final class ExploreTask implements Task {
             miningSession.stop(c);
         }
         if (down) {
-            summary = "dug " + blocksDug + " blocks down to Y " + c.companion().blockPosition().getY()
-                    + " without finding " + target.label();
+            summary = "dug " + blocksDug + " blocks down to Y "
+                    + c.companion().blockPosition().getY() + " without finding " + target.label();
         } else {
             summary = "no " + target.label() + " within " + maxRadius + " blocks";
         }

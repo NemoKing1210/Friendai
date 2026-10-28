@@ -4,8 +4,8 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.perception.RelativeDirection;
-import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.ArrayList;
@@ -74,9 +74,10 @@ public final class PlacedService {
         if (owner == null) {
             return;
         }
-        FriendaiServerState.get(level.getServer()).placed().book(owner)
-                .remove(level.dimension().identifier().toString(),
-                        new Pos(pos.getX(), pos.getY(), pos.getZ()));
+        FriendaiServerState.get(level.getServer())
+                .placed()
+                .book(owner)
+                .remove(level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 
     /** Drops entries whose loaded chunk no longer holds the recorded block; unloaded chunks are kept. */
@@ -96,11 +97,14 @@ public final class PlacedService {
             if (checked++ >= budget) {
                 break;
             }
-            BlockPos pos = new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
+            BlockPos pos =
+                    new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
             if (!level.hasChunkAt(pos)) {
                 continue;
             }
-            String current = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+            String current = BuiltInRegistries.BLOCK
+                    .getKey(level.getBlockState(pos).getBlock())
+                    .toString();
             if (!current.equals(entry.blockId())) {
                 remove.add(entry);
             }
@@ -113,7 +117,8 @@ public final class PlacedService {
 
     /** The prompt block for this caller; empty for guests, an empty ledger or a companion without a level. */
     public static String promptBlock(CompanionEntity companion, Caller caller) {
-        if (caller == null || !caller.access().allows(AccessLevel.TRUSTED)
+        if (caller == null
+                || !caller.access().allows(AccessLevel.TRUSTED)
                 || !(companion.level() instanceof ServerLevel level)) {
             return "";
         }
@@ -125,8 +130,9 @@ public final class PlacedService {
         }
         List<PlacedText.Group> groups = PlacedText.group(result.entries(), entry -> {
             int distance = (int) Math.round(Math.sqrt(PlacedQuery.distanceSquared(here, entry.pos())));
-            return distance + " blocks " + RelativeDirection.compass(
-                    entry.pos().x() - origin.getX(), entry.pos().z() - origin.getZ());
+            return distance + " blocks "
+                    + RelativeDirection.compass(
+                            entry.pos().x() - origin.getX(), entry.pos().z() - origin.getZ());
         });
         if (groups.size() > PROMPT_GROUPS) {
             groups = groups.subList(0, PROMPT_GROUPS);
@@ -135,8 +141,7 @@ public final class PlacedService {
     }
 
     /** The recorded blocks matching {@code matcher} (or every block when null) within radius, nearest first. */
-    public static PlacedQuery.Result find(
-            CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+    public static PlacedQuery.Result find(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
         BlockPos origin = companion.blockPosition();
         return findAt(companion, matcher, new Pos(origin.getX(), origin.getY(), origin.getZ()), radius, limit);
     }
@@ -167,8 +172,8 @@ public final class PlacedService {
             return List.of();
         }
         BlockPos center = origin != null ? origin : companion.blockPosition();
-        PlacedQuery.Result result = findAt(
-                companion, matcher, new Pos(center.getX(), center.getY(), center.getZ()), radius, limit);
+        PlacedQuery.Result result =
+                findAt(companion, matcher, new Pos(center.getX(), center.getY(), center.getZ()), radius, limit);
         List<BlockPos> cells = new ArrayList<>(result.entries().size());
         for (PlacedBlock entry : result.entries()) {
             BlockPos pos = toBlockPos(entry);
@@ -182,7 +187,9 @@ public final class PlacedService {
     /** The nearest recorded block within {@code radius}, if any, for a pickup centred on it. */
     public static Optional<BlockPos> nearestCenter(CompanionEntity companion, int radius) {
         PlacedQuery.Result result = find(companion, null, radius, 1);
-        return result.entries().isEmpty() ? Optional.empty() : Optional.of(toBlockPos(result.entries().getFirst()));
+        return result.entries().isEmpty()
+                ? Optional.empty()
+                : Optional.of(toBlockPos(result.entries().getFirst()));
     }
 
     /** The nearest recorded block that is still a storage container, for {@code store_items(placed=true)}. */
@@ -206,17 +213,21 @@ public final class PlacedService {
 
     static boolean matches(BlockMatcher matcher, String blockId) {
         Identifier id = Identifier.tryParse(blockId);
-        return id != null && BuiltInRegistries.BLOCK.containsKey(id)
+        return id != null
+                && BuiltInRegistries.BLOCK.containsKey(id)
                 && matcher.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
     }
 
     /** True when the recorded block still stands at its cell; an unloaded chunk counts as unknown, not gone. */
     public static boolean stillThere(ServerLevel level, PlacedBlock entry) {
-        BlockPos pos = new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
+        BlockPos pos =
+                new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
         if (!level.hasChunkAt(pos)) {
             return true;
         }
-        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString()
+        return BuiltInRegistries.BLOCK
+                .getKey(level.getBlockState(pos).getBlock())
+                .toString()
                 .equals(entry.blockId());
     }
 }

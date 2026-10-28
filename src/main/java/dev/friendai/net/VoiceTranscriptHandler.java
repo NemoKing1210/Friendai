@@ -37,11 +37,10 @@ public final class VoiceTranscriptHandler {
         }
         Optional<UUID> owner = CompanionRouting.route(player);
         if (owner.isEmpty()) {
-            player.sendSystemMessage(Component.translatable(CompanionManager.get(server)
-                            .find(player.getUUID())
-                            .isPresent()
-                    ? "friendai.companion.too_far"
-                    : "friendai.voice.need_companion"));
+            player.sendSystemMessage(Component.translatable(
+                    CompanionManager.get(server).find(player.getUUID()).isPresent()
+                            ? "friendai.companion.too_far"
+                            : "friendai.voice.need_companion"));
             return;
         }
         String name = player.getName().getString();

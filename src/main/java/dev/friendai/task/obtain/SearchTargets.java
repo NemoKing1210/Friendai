@@ -24,7 +24,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
@@ -39,11 +38,17 @@ public final class SearchTargets {
 
     /** A resolved kind, or a sentence the model can act on. */
     public record Resolution(TargetKind kind, String error) {
-        public boolean ok() { return kind != null; }
+        public boolean ok() {
+            return kind != null;
+        }
 
-        static Resolution ok(TargetKind kind) { return new Resolution(kind, ""); }
+        static Resolution ok(TargetKind kind) {
+            return new Resolution(kind, "");
+        }
 
-        static Resolution fail(String error) { return new Resolution(null, error); }
+        static Resolution fail(String error) {
+            return new Resolution(null, error);
+        }
     }
 
     private SearchTargets() {}
@@ -60,8 +65,8 @@ public final class SearchTargets {
             case "biome" -> resolveBiome(level, requested);
             case "entity" -> resolveEntity(requested);
             case "place" -> resolvePlace(companion, dimension, requested);
-            default -> Resolution.fail("unknown target kind: " + kind
-                    + " (use resource, structure, biome, entity or place)");
+            default ->
+                Resolution.fail("unknown target kind: " + kind + " (use resource, structure, biome, entity or place)");
         };
     }
 
@@ -78,11 +83,12 @@ public final class SearchTargets {
     private static Resolution resolveStructure(String target) {
         Optional<StructureMarkers.Entry> entry = StructureMarkers.get(target);
         if (entry.isEmpty()) {
-            return Resolution.fail("unknown structure: " + target + " (known: "
-                    + String.join(", ", StructureMarkers.ids()) + ")");
+            return Resolution.fail(
+                    "unknown structure: " + target + " (known: " + String.join(", ", StructureMarkers.ids()) + ")");
         }
         String id = target.contains(":") ? target : "minecraft:" + target;
-        return Resolution.ok(new TargetKind.Structure(id, entry.get().markers(), entry.get().minimum(), 64));
+        return Resolution.ok(
+                new TargetKind.Structure(id, entry.get().markers(), entry.get().minimum(), 64));
     }
 
     private static Resolution resolveBiome(ServerLevel level, String target) {
@@ -123,27 +129,53 @@ public final class SearchTargets {
             for (var observation : resources.confirmedRecent(companion, radius)) {
                 locations.put(observation.location().pos(), observation.blockId());
             }
-            return kind.matches(new TargetKind.CandidateFacts(position, dimension, "",
-                    new LinkedHashSet<>(locations.values()), Set.of(), Set.of(), Set.of(), locations));
+            return kind.matches(new TargetKind.CandidateFacts(
+                    position,
+                    dimension,
+                    "",
+                    new LinkedHashSet<>(locations.values()),
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    locations));
         }
         TargetKind.CandidateFacts facts = switch (kind) {
-            case TargetKind.BlockFamily ignored -> new TargetKind.CandidateFacts(position, dimension, "",
-                    new LinkedHashSet<>(resources.confirmedRecentBlockIds(companion, radius).values()),
-                    Set.of(), Set.of(), Set.of());
-            case TargetKind.Biome ignored -> new TargetKind.CandidateFacts(position, dimension,
-                    biomeAt(level, position), Set.of(), Set.of(), Set.of(), Set.of());
-            case TargetKind.Entity entity -> new TargetKind.CandidateFacts(position, dimension, "",
-                    Set.of(), Set.of(), visibleEntityIds(level, companion, entity.radius()), Set.of());
-            case TargetKind.Place ignored -> new TargetKind.CandidateFacts(position, dimension, "",
-                    Set.of(), Set.of(), Set.of(), placeNamesAt(companion, position));
+            case TargetKind.BlockFamily ignored ->
+                new TargetKind.CandidateFacts(
+                        position,
+                        dimension,
+                        "",
+                        new LinkedHashSet<>(resources
+                                .confirmedRecentBlockIds(companion, radius)
+                                .values()),
+                        Set.of(),
+                        Set.of(),
+                        Set.of());
+            case TargetKind.Biome ignored ->
+                new TargetKind.CandidateFacts(
+                        position, dimension, biomeAt(level, position), Set.of(), Set.of(), Set.of(), Set.of());
+            case TargetKind.Entity entity ->
+                new TargetKind.CandidateFacts(
+                        position,
+                        dimension,
+                        "",
+                        Set.of(),
+                        Set.of(),
+                        visibleEntityIds(level, companion, entity.radius()),
+                        Set.of());
+            case TargetKind.Place ignored ->
+                new TargetKind.CandidateFacts(
+                        position, dimension, "", Set.of(), Set.of(), Set.of(), placeNamesAt(companion, position));
             case TargetKind.Structure ignored -> throw new IllegalStateException("handled above");
         };
         return kind.matches(facts);
     }
 
     public static String biomeAt(ServerLevel level, Pos pos) {
-        return level.getBiome(new BlockPos(pos.x(), pos.y(), pos.z())).unwrapKey()
-                .map(key -> key.identifier().toString()).orElse("");
+        return level.getBiome(new BlockPos(pos.x(), pos.y(), pos.z()))
+                .unwrapKey()
+                .map(key -> key.identifier().toString())
+                .orElse("");
     }
 
     public static boolean landAt(ServerLevel level, Pos pos) {
@@ -151,7 +183,8 @@ public final class SearchTargets {
         BlockState below = level.getBlockState(feetPos.below());
         BlockState feet = level.getBlockState(feetPos);
         BlockState head = level.getBlockState(feetPos.above());
-        if (!below.isSolid() || !feet.getCollisionShape(level, feetPos).isEmpty()
+        if (!below.isSolid()
+                || !feet.getCollisionShape(level, feetPos).isEmpty()
                 || !head.getCollisionShape(level, feetPos.above()).isEmpty()) return false;
         return !liquid(feet) && !liquid(head) && !liquid(below) && !hazard(feet);
     }
@@ -181,11 +214,11 @@ public final class SearchTargets {
 
     private static Set<String> visibleEntityIds(ServerLevel level, CompanionEntity companion, int radius) {
         Pos at = blockPosition(companion);
-        AABB box = new AABB(at.x() - radius, at.y() - 8, at.z() - radius,
-                at.x() + radius, at.y() + 16, at.z() + radius);
+        AABB box =
+                new AABB(at.x() - radius, at.y() - 8, at.z() - radius, at.x() + radius, at.y() + 16, at.z() + radius);
         Set<String> ids = new LinkedHashSet<>();
-        List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, box,
-                entity -> entity != companion && entity.isAlive());
+        List<LivingEntity> entities =
+                level.getEntitiesOfClass(LivingEntity.class, box, entity -> entity != companion && entity.isAlive());
         for (LivingEntity entity : entities) {
             if (Sight.canSee(level, companion, entity.blockPosition())) {
                 ids.add(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
@@ -195,7 +228,8 @@ public final class SearchTargets {
     }
 
     private static boolean liquid(BlockState state) {
-        return state.getFluidState().getType() == Fluids.WATER || state.getFluidState().getType() == Fluids.LAVA;
+        return state.getFluidState().getType() == Fluids.WATER
+                || state.getFluidState().getType() == Fluids.LAVA;
     }
 
     private static boolean hazard(BlockState state) {
@@ -206,5 +240,4 @@ public final class SearchTargets {
         BlockPos pos = entity.blockPosition();
         return new Pos(pos.getX(), pos.getY(), pos.getZ());
     }
-
 }

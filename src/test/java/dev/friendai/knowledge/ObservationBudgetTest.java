@@ -50,7 +50,8 @@ class ObservationBudgetTest {
                 for (int offset = 0; offset < count; offset++) {
                     int index = (start + offset) % count;
                     UUID companion = companions.get(index);
-                    while (budget.availableCells() > 0 && budget.availableRays(companion) > 0
+                    while (budget.availableCells() > 0
+                            && budget.availableRays(companion) > 0
                             && budget.tryRay(companion)) {
                         assertTrue(budget.tryCell());
                         progress[index]++;
@@ -59,11 +60,13 @@ class ObservationBudgetTest {
                 }
                 assertTrue(budget.raysUsed() <= 256, "global ray cap exceeded with " + count + " companions");
                 assertTrue(budget.cellsUsed() <= 128, "global cell cap exceeded with " + count + " companions");
-                for (int rays : tickRays) assertTrue(rays <= 32,
-                        "per-companion ray cap exceeded with " + count + " companions");
+                for (int rays : tickRays)
+                    assertTrue(rays <= 32, "per-companion ray cap exceeded with " + count + " companions");
             }
-            for (int companionProgress : progress) assertTrue(companionProgress > 0,
-                    "a continuously active companion received no work with " + count + " companions");
+            for (int companionProgress : progress)
+                assertTrue(
+                        companionProgress > 0,
+                        "a continuously active companion received no work with " + count + " companions");
         }
     }
 

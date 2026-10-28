@@ -35,9 +35,11 @@ public enum CombatMode {
     public CombatSettings toSettings() {
         CombatSettings defaults = CombatSettings.defaults();
         return switch (this) {
-            case DEFENSIVE -> defaults.withProtection(ProtectionPolicy.BODYGUARD).withStyle(FightingStyle.BALANCED);
+            case DEFENSIVE ->
+                defaults.withProtection(ProtectionPolicy.BODYGUARD).withStyle(FightingStyle.BALANCED);
             case GUARD -> defaults.withProtection(ProtectionPolicy.GUARD).withStyle(FightingStyle.BALANCED);
-            case PASSIVE -> defaults.withProtection(ProtectionPolicy.AVOID_COMBAT).withStyle(FightingStyle.BALANCED);
+            case PASSIVE ->
+                defaults.withProtection(ProtectionPolicy.AVOID_COMBAT).withStyle(FightingStyle.BALANCED);
         };
     }
 

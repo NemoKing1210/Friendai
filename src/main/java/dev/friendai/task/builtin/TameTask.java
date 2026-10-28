@@ -165,8 +165,8 @@ public final class TameTask implements Task {
 
     private Animal nextUntamed(TaskContext c) {
         ServerLevel level = c.level();
-        for (Animal candidate : Animals.nearby(level, c.companion(), origin, RADIUS,
-                candidateType -> candidateType == typeOf(target))) {
+        for (Animal candidate : Animals.nearby(
+                level, c.companion(), origin, RADIUS, candidateType -> candidateType == typeOf(target))) {
             if (unreachable.contains(candidate.getUUID()) || candidate.isBaby() || isTame(candidate)) {
                 continue;
             }
@@ -215,8 +215,12 @@ public final class TameTask implements Task {
     }
 
     private static String ownerName(TaskContext c) {
-        return c.companion().owner().map(owner -> owner.getName().getString())
-                .orElseGet(() -> c.companion().ownerUuid() == null ? "nobody" : c.companion().ownerUuid().toString());
+        return c.companion()
+                .owner()
+                .map(owner -> owner.getName().getString())
+                .orElseGet(() -> c.companion().ownerUuid() == null
+                        ? "nobody"
+                        : c.companion().ownerUuid().toString());
     }
 
     private Item findFood(CompanionEntity companion) {

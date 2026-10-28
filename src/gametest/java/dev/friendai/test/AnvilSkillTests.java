@@ -50,7 +50,9 @@ public class AnvilSkillTests {
     }
 
     private static ItemMatcher match(Item item) {
-        return ItemMatcher.parse(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString())
+        return ItemMatcher.parse(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(item)
+                        .toString())
                 .orElseThrow();
     }
 
@@ -74,7 +76,9 @@ public class AnvilSkillTests {
     }
 
     private static ItemStack sharpnessBook(GameTestHelper h, int level) {
-        var holder = h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
+        var holder = h.getLevel()
+                .registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT)
                 .getOrThrow(Enchantments.SHARPNESS);
         ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
         EnchantmentHelper.updateEnchantments(book, mutable -> mutable.set(holder, level));
@@ -93,8 +97,8 @@ public class AnvilSkillTests {
         });
     }
 
-    private static void fails(GameTestHelper h, CompanionEntity c, AnvilItemTask task, String expected,
-            Runnable check) {
+    private static void fails(
+            GameTestHelper h, CompanionEntity c, AnvilItemTask task, String expected, Runnable check) {
         Result result = new Result();
         TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
         runner.setListener(result);
@@ -117,7 +121,9 @@ public class AnvilSkillTests {
         levels(c, 30);
         succeeds(h, c, new AnvilItemTask(match(Items.IRON_PICKAXE), match(Items.IRON_INGOT), null, null), () -> {
             h.assertTrue(find(c, Items.IRON_PICKAXE).getDamageValue() < 100, "the pickaxe was not repaired");
-            h.assertTrue(c.experience().level() < 30, "levels were not spent: " + c.experience().level());
+            h.assertTrue(
+                    c.experience().level() < 30,
+                    "levels were not spent: " + c.experience().level());
             h.assertTrue(count(c, Items.IRON_INGOT) < 2, "no ingot was used");
         });
     }
@@ -142,7 +148,8 @@ public class AnvilSkillTests {
         succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Excalibur", null), () -> {
             var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
             h.assertTrue(name != null && name.getString().equals("Excalibur"), "name was " + name);
-            h.assertTrue(c.experience().level() == 29, "level was " + c.experience().level());
+            h.assertTrue(
+                    c.experience().level() == 29, "level was " + c.experience().level());
         });
     }
 

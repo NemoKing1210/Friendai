@@ -28,14 +28,26 @@ public record PlannerInput(
         String failure,
         Map<String, JsonObject> schemas,
         Set<String> allTools,
-        List<dev.friendai.agent.prompt.PromptSection> instructions, int promptBudget) {
-    public PlannerInput(Goal goal,String world,String toolDigest,String knowledge,Optional<String> queueState,
-            List<String> lessons,String failure,Map<String,JsonObject> schemas,Set<String> allTools) {
-        this(goal,world,toolDigest,knowledge,queueState,lessons,failure,schemas,allTools,List.of(),0);
+        List<dev.friendai.agent.prompt.PromptSection> instructions,
+        int promptBudget) {
+    public PlannerInput(
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools) {
+        this(goal, world, toolDigest, knowledge, queueState, lessons, failure, schemas, allTools, List.of(), 0);
     }
-    public PlannerInput withInstructions(List<dev.friendai.agent.prompt.PromptSection> sections,int budget) {
-        return new PlannerInput(goal,world,toolDigest,knowledge,queueState,lessons,failure,schemas,allTools,sections,budget);
+
+    public PlannerInput withInstructions(List<dev.friendai.agent.prompt.PromptSection> sections, int budget) {
+        return new PlannerInput(
+                goal, world, toolDigest, knowledge, queueState, lessons, failure, schemas, allTools, sections, budget);
     }
+
     public PlannerInput {
         instructions = instructions == null ? List.of() : List.copyOf(instructions);
         world = world == null ? "" : world;
@@ -50,8 +62,13 @@ public record PlannerInput(
 
     /** A prompt-only input, for tests and callers that never parse a reply. */
     public static PlannerInput promptOnly(
-            Goal goal, String world, String toolDigest, String knowledge, Optional<String> queueState,
-            List<String> lessons, String failure) {
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure) {
         return new PlannerInput(goal, world, toolDigest, knowledge, queueState, lessons, failure, Map.of(), Set.of());
     }
 }

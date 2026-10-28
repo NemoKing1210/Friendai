@@ -1,7 +1,6 @@
 package dev.friendai.task.trading;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.trading.TradeAuthority;
 import dev.friendai.trading.TradeItem;
@@ -9,7 +8,6 @@ import dev.friendai.trading.TradeOffer;
 import dev.friendai.trading.TradeOrder;
 import dev.friendai.trading.TradePolicy;
 import dev.friendai.trading.TradeProgress;
-import dev.friendai.trading.TradeStore;
 import dev.friendai.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,13 +41,16 @@ public final class MerchantSession implements AutoCloseable {
     }
 
     private record Piece(int inventorySlot, int count, ItemStack identity) {}
+
     private record Payment(ItemStack escrow, List<Piece> pieces) {
         private Payment {
             escrow = escrow.copy();
             pieces = List.copyOf(pieces);
         }
     }
+
     private record PaymentPlan(Payment first, Payment second, Map<String, Integer> totals) {}
+
     private record Selected(int slot, ItemStack stack) {}
 
     private final CompanionEntity companion;
@@ -66,9 +67,18 @@ public final class MerchantSession implements AutoCloseable {
     private boolean attempted;
     private boolean closed;
 
-    MerchantSession(CompanionEntity companion, Entity target, Merchant merchant, MerchantMenu menu,
-                    TradeOrder order, TradeAuthority authority, dev.friendai.trading.TradeBook book,
-                    MerchantLeases leases, TradeSessionGuard guard, long openedTick, UUID pricingActor) {
+    MerchantSession(
+            CompanionEntity companion,
+            Entity target,
+            Merchant merchant,
+            MerchantMenu menu,
+            TradeOrder order,
+            TradeAuthority authority,
+            dev.friendai.trading.TradeBook book,
+            MerchantLeases leases,
+            TradeSessionGuard guard,
+            long openedTick,
+            UUID pricingActor) {
         this.companion = java.util.Objects.requireNonNull(companion);
         this.target = java.util.Objects.requireNonNull(target);
         this.merchant = java.util.Objects.requireNonNull(merchant);
@@ -91,14 +101,15 @@ public final class MerchantSession implements AutoCloseable {
         try {
             if (attempted) return new Outcome(false, "session already attempted a transaction", current);
             attempted = true;
-            if (requested == null || !order.equals(requested)) return new Outcome(false, "session order changed", current);
+            if (requested == null || !order.equals(requested))
+                return new Outcome(false, "session order changed", current);
             String invalid = invalidReason(currentTick());
             if (invalid != null) return new Outcome(false, invalid, current);
 
             ServerLevel level = (ServerLevel) companion.level();
             MerchantOffers offers = merchant.getOffers();
-            List<TradeOffer> live = TraderAdapters.offers(offers, companion.hands().player().getUUID(),
-                    level.getGameTime(), level.registryAccess());
+            List<TradeOffer> live = TraderAdapters.offers(
+                    offers, companion.hands().player().getUUID(), level.getGameTime(), level.registryAccess());
             if (!pricingActor.equals(companion.hands().player().getUUID())) {
                 return new Outcome(false, "companion pricing actor changed", current);
             }
@@ -110,8 +121,10 @@ public final class MerchantSession implements AutoCloseable {
 
             int selectedIndex = indices.getFirst();
             TradeOffer currentQuote = live.get(selectedIndex);
-            long semanticMatches = live.stream().filter(offer -> offer.baseInputs().equals(currentQuote.baseInputs())
-                    && offer.output().equals(currentQuote.output())).count();
+            long semanticMatches = live.stream()
+                    .filter(offer -> offer.baseInputs().equals(currentQuote.baseInputs())
+                            && offer.output().equals(currentQuote.output()))
+                    .count();
             if (semanticMatches != 1) {
                 return new Outcome(false, "selected live offer is ambiguous after merchant reordering", current);
             }
@@ -122,11 +135,12 @@ public final class MerchantSession implements AutoCloseable {
             if (offer.isOutOfStock()) return new Outcome(false, "selected offer is exhausted", current);
 
             PaymentPlan payment = planPayment(companion.inventory(), offer, order, level.registryAccess());
-            if (payment == null) return new Outcome(false, "required vanilla inputs are unavailable or protected", current);
+            if (payment == null)
+                return new Outcome(false, "required vanilla inputs are unavailable or protected", current);
             Map<String, Integer> available = inventoryTotals(companion.inventory());
             boolean outputFits = outputFits(companion.inventory(), payment, offer.getResult());
-            TradePolicy.Decision decision = TradePolicy.check(order, currentQuote, available, current,
-                    outputFits, level.getGameTime());
+            TradePolicy.Decision decision =
+                    TradePolicy.check(order, currentQuote, available, current, outputFits, level.getGameTime());
             if (!decision.allowed()) return new Outcome(false, decision.reason(), current);
             if (!authority.reserve(order, payment.totals())) {
                 return new Outcome(false, "trade authority denied the next payment reservation", current);
@@ -146,8 +160,12 @@ public final class MerchantSession implements AutoCloseable {
         }
     }
 
-    private Outcome execute(MerchantOffer offer, int selectedIndex, PaymentPlan plan,
-                            TradeProgress previous, HolderLookup.Provider registries) {
+    private Outcome execute(
+            MerchantOffer offer,
+            int selectedIndex,
+            PaymentPlan plan,
+            TradeProgress previous,
+            HolderLookup.Provider registries) {
         List<ItemStack> removed = new ArrayList<>(2);
         int usesBefore = offer.getUses();
         ItemStack taken = ItemStack.EMPTY;
@@ -164,7 +182,8 @@ public final class MerchantSession implements AutoCloseable {
                 menu.getSlot(1).set(second.copy());
             }
 
-            if (merchant.getTradingPlayer() != companion.hands().player() || !menu.stillValid(companion.hands().player())) {
+            if (merchant.getTradingPlayer() != companion.hands().player()
+                    || !menu.stillValid(companion.hands().player())) {
                 throw new IllegalStateException("merchant session was lost before result pickup");
             }
             ItemStack expected = offer.getResult().copy();
@@ -174,32 +193,43 @@ public final class MerchantSession implements AutoCloseable {
             }
             taken = menu.quickMoveStack(companion.hands().player(), 2);
             int usesAfter = offer.getUses();
-            boolean completed = usesAfter == usesBefore + 1 && ItemStack.matches(taken, expected)
-                    && menu.getSlot(0).getItem().isEmpty() && menu.getSlot(1).getItem().isEmpty();
+            boolean completed = usesAfter == usesBefore + 1
+                    && ItemStack.matches(taken, expected)
+                    && menu.getSlot(0).getItem().isEmpty()
+                    && menu.getSlot(1).getItem().isEmpty();
             if (!completed) {
                 if (usesAfter > usesBefore) {
-                    TradeProgress uncertain = reconciled(previous, plan, observedOutput(taken, handsInventory,
-                            matchingOutputBefore, expected, registries), TradeProgress.State.UNCERTAIN,
-                            "vanilla use advanced but result reconciliation was incomplete", registries);
+                    TradeProgress uncertain = reconciled(
+                            previous,
+                            plan,
+                            observedOutput(taken, handsInventory, matchingOutputBefore, expected, registries),
+                            TradeProgress.State.UNCERTAIN,
+                            "vanilla use advanced but result reconciliation was incomplete",
+                            registries);
                     return new Outcome(false, uncertain.reason(), uncertain);
                 }
                 authority.releaseReservation(order, plan.totals());
                 return new Outcome(false, "vanilla did not complete exactly one transaction", previous);
             }
             TradeItem receipt = TradeItemCodec.encode(taken, registries);
-            TradeProgress next = reconciled(previous, plan, receipt, nextState(order, previous, receipt), "", registries);
+            TradeProgress next =
+                    reconciled(previous, plan, receipt, nextState(order, previous, receipt), "", registries);
             return new Outcome(true, next.reason(), next);
         } catch (RuntimeException failure) {
             if (offer.getUses() > usesBefore) {
                 TradeItem receipt;
                 try {
-                    receipt = observedOutput(taken, handsInventory, matchingOutputBefore,
-                            offer.getResult(), registries);
+                    receipt =
+                            observedOutput(taken, handsInventory, matchingOutputBefore, offer.getResult(), registries);
                 } catch (RuntimeException undecodableOutput) {
                     receipt = null;
                 }
-                TradeProgress uncertain = reconciled(previous, plan, receipt,
-                        TradeProgress.State.UNCERTAIN, "vanilla use advanced before result retrieval was verified",
+                TradeProgress uncertain = reconciled(
+                        previous,
+                        plan,
+                        receipt,
+                        TradeProgress.State.UNCERTAIN,
+                        "vanilla use advanced before result retrieval was verified",
                         registries);
                 return new Outcome(false, uncertain.reason(), uncertain);
             }
@@ -208,9 +238,11 @@ public final class MerchantSession implements AutoCloseable {
         } finally {
             // Return only any escrow that was never placed in the menu; closeMenu returns the rest.
             boolean tradeAdvanced = offer.getUses() > usesBefore;
-            ItemStack firstNotPlaced = tradeAdvanced || removed.isEmpty() ? ItemStack.EMPTY
+            ItemStack firstNotPlaced = tradeAdvanced || removed.isEmpty()
+                    ? ItemStack.EMPTY
                     : unplaced(removed.getFirst(), menu.getSlot(0).getItem());
-            ItemStack secondNotPlaced = tradeAdvanced || removed.size() < 2 ? ItemStack.EMPTY
+            ItemStack secondNotPlaced = tradeAdvanced || removed.size() < 2
+                    ? ItemStack.EMPTY
                     : unplaced(removed.get(1), menu.getSlot(1).getItem());
             try {
                 close();
@@ -221,8 +253,12 @@ public final class MerchantSession implements AutoCloseable {
         }
     }
 
-    private TradeItem observedOutput(ItemStack taken, Inventory handsInventory, int before,
-                                     ItemStack expected, HolderLookup.Provider registries) {
+    private TradeItem observedOutput(
+            ItemStack taken,
+            Inventory handsInventory,
+            int before,
+            ItemStack expected,
+            HolderLookup.Provider registries) {
         if (taken != null && !taken.isEmpty() && ItemStack.isSameItemSameComponents(taken, expected)) {
             return TradeItemCodec.encode(taken, registries);
         }
@@ -230,8 +266,13 @@ public final class MerchantSession implements AutoCloseable {
         return after > before ? TradeItemCodec.encode(expected.copyWithCount(after - before), registries) : null;
     }
 
-    private TradeProgress reconciled(TradeProgress previous, PaymentPlan plan, TradeItem receipt,
-                                     TradeProgress.State state, String reason, HolderLookup.Provider registries) {
+    private TradeProgress reconciled(
+            TradeProgress previous,
+            PaymentPlan plan,
+            TradeItem receipt,
+            TradeProgress.State state,
+            String reason,
+            HolderLookup.Provider registries) {
         Map<String, Integer> spent = new HashMap<>(previous.spent());
         plan.totals().forEach((item, count) -> spent.merge(item, count, Math::addExact));
         List<TradeItem> received;
@@ -242,8 +283,8 @@ public final class MerchantSession implements AutoCloseable {
             reason = "trade completed but its receipt exceeded the bounded progress record";
             received = previous.received();
         }
-        TradeProgress next = new TradeProgress(order.orderId(), state, spent, received,
-                Math.incrementExact(previous.completedTrades()), reason);
+        TradeProgress next = new TradeProgress(
+                order.orderId(), state, spent, received, Math.incrementExact(previous.completedTrades()), reason);
         authority.record(next);
         try {
             book.record(next);
@@ -288,18 +329,21 @@ public final class MerchantSession implements AutoCloseable {
     private static ItemStack unplaced(ItemStack escrow, ItemStack menuSlot) {
         if (escrow.isEmpty()) return ItemStack.EMPTY;
         int placed = !menuSlot.isEmpty() && ItemStack.isSameItemSameComponents(menuSlot, escrow)
-                ? Math.min(escrow.getCount(), menuSlot.getCount()) : 0;
+                ? Math.min(escrow.getCount(), menuSlot.getCount())
+                : 0;
         int missing = escrow.getCount() - placed;
         return missing == 0 ? ItemStack.EMPTY : escrow.copyWithCount(missing);
     }
 
     private TradeProgress currentProgress() {
-        return authority.progress(order.orderId()).orElseGet(() -> new TradeProgress(order.orderId(),
-                TradeProgress.State.AUTHORIZED, Map.of(), List.of(), 0, ""));
+        return authority
+                .progress(order.orderId())
+                .orElseGet(() ->
+                        new TradeProgress(order.orderId(), TradeProgress.State.AUTHORIZED, Map.of(), List.of(), 0, ""));
     }
 
-    private static PaymentPlan planPayment(Container inventory, MerchantOffer offer, TradeOrder order,
-                                           HolderLookup.Provider registries) {
+    private static PaymentPlan planPayment(
+            Container inventory, MerchantOffer offer, TradeOrder order, HolderLookup.Provider registries) {
         var pool = new ArrayList<Selected>(inventory.getContainerSize());
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
@@ -309,7 +353,8 @@ public final class MerchantSession implements AutoCloseable {
         if (first == null) return null;
         Payment second = null;
         if (offer.getItemCostB().isPresent()) {
-            second = select(pool, offer.getItemCostB().orElseThrow(), offer.getCostB().getCount(), order, registries);
+            second = select(
+                    pool, offer.getItemCostB().orElseThrow(), offer.getCostB().getCount(), order, registries);
             if (second == null) return null;
         }
         Map<String, Integer> totals = new HashMap<>();
@@ -319,15 +364,17 @@ public final class MerchantSession implements AutoCloseable {
     }
 
     /** Chooses one exact component identity that can fill the vanilla input slot. */
-    private static Payment select(List<Selected> pool, ItemCost cost, int required, TradeOrder order,
-                                  HolderLookup.Provider registries) {
+    private static Payment select(
+            List<Selected> pool, ItemCost cost, int required, TradeOrder order, HolderLookup.Provider registries) {
         var groups = new ArrayList<List<Selected>>();
         for (Selected candidate : pool) {
             ItemStack stack = candidate.stack();
             if (stack.isEmpty() || !cost.test(stack) || !TradeItemCodec.mayPay(stack, order, registries)) continue;
             List<Selected> group = groups.stream()
-                    .filter(existing -> ItemStack.isSameItemSameComponents(existing.getFirst().stack(), stack))
-                    .findFirst().orElse(null);
+                    .filter(existing -> ItemStack.isSameItemSameComponents(
+                            existing.getFirst().stack(), stack))
+                    .findFirst()
+                    .orElse(null);
             if (group == null) {
                 group = new ArrayList<>();
                 groups.add(group);
@@ -335,7 +382,9 @@ public final class MerchantSession implements AutoCloseable {
             group.add(candidate);
         }
         for (List<Selected> group : groups) {
-            int total = group.stream().mapToInt(selected -> selected.stack().getCount()).sum();
+            int total = group.stream()
+                    .mapToInt(selected -> selected.stack().getCount())
+                    .sum();
             if (total < required) continue;
             ItemStack escrow = group.getFirst().stack().copyWithCount(required);
             int remaining = required;
@@ -356,7 +405,9 @@ public final class MerchantSession implements AutoCloseable {
         if (payment == null) return ItemStack.EMPTY;
         for (Piece piece : payment.pieces()) {
             ItemStack live = companion.inventory().getItem(piece.inventorySlot());
-            if (piece.count() < 1 || piece.identity().isEmpty() || live.getCount() < piece.count()
+            if (piece.count() < 1
+                    || piece.identity().isEmpty()
+                    || live.getCount() < piece.count()
                     || !ItemStack.isSameItemSameComponents(live, piece.identity())) {
                 throw new IllegalStateException("companion inventory changed after payment preflight");
             }
@@ -365,7 +416,8 @@ public final class MerchantSession implements AutoCloseable {
         try {
             for (Piece piece : payment.pieces()) {
                 ItemStack stack = companion.inventory().removeItem(piece.inventorySlot(), piece.count());
-                if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, piece.identity())
+                if (stack.isEmpty()
+                        || !ItemStack.isSameItemSameComponents(stack, piece.identity())
                         || stack.getCount() != piece.count()) {
                     if (!stack.isEmpty()) InventoryOps.insertOrDrop(companion, stack);
                     throw new IllegalStateException("companion inventory changed while taking payment");
@@ -382,8 +434,10 @@ public final class MerchantSession implements AutoCloseable {
 
     private static boolean outputFits(Container original, PaymentPlan payment, ItemStack result) {
         SimpleContainer simulation = new SimpleContainer(original.getContainerSize());
-        for (int i = 0; i < original.getContainerSize(); i++) simulation.setItem(i, original.getItem(i).copy());
-        if (!consume(simulation, payment.first()) || (payment.second() != null && !consume(simulation, payment.second()))) {
+        for (int i = 0; i < original.getContainerSize(); i++)
+            simulation.setItem(i, original.getItem(i).copy());
+        if (!consume(simulation, payment.first())
+                || (payment.second() != null && !consume(simulation, payment.second()))) {
             return false;
         }
         return simulation.addItem(result.copy()).isEmpty();
@@ -393,7 +447,8 @@ public final class MerchantSession implements AutoCloseable {
         if (payment == null) return true;
         for (Piece piece : payment.pieces()) {
             ItemStack slot = inventory.getItem(piece.inventorySlot());
-            if (slot.getCount() < piece.count() || !ItemStack.isSameItemSameComponents(slot, piece.identity())) return false;
+            if (slot.getCount() < piece.count() || !ItemStack.isSameItemSameComponents(slot, piece.identity()))
+                return false;
             slot.shrink(piece.count());
             if (slot.isEmpty()) inventory.setItem(piece.inventorySlot(), ItemStack.EMPTY);
         }
@@ -454,7 +509,8 @@ public final class MerchantSession implements AutoCloseable {
 
     private long currentTick() {
         return companion.level() instanceof ServerLevel level
-                ? level.getServer().overworld().getGameTime() : -1;
+                ? level.getServer().overworld().getGameTime()
+                : -1;
     }
 
     @Override
@@ -486,8 +542,13 @@ public final class MerchantSession implements AutoCloseable {
 
     /** Keeps offer observations and transaction history in the owner book without exposing registry objects. */
     private static final class TraderRecordRefresh {
-        private static void refresh(dev.friendai.trading.TradeBook book, Entity target, Merchant merchant,
-                                    UUID actor, long tick, HolderLookup.Provider registries) {
+        private static void refresh(
+                dev.friendai.trading.TradeBook book,
+                Entity target,
+                Merchant merchant,
+                UUID actor,
+                long tick,
+                HolderLookup.Provider registries) {
             TraderRecord record = TraderAdapters.verified(target, merchant.getOffers(), actor, tick, registries);
             book.observe(record);
         }

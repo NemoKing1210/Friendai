@@ -22,6 +22,7 @@ final class MenuTheme {
 
     /** Vanilla container labels are dark grey; secondary text is its grey, darkened to stay above 4.5:1. */
     static final int TEXT = 0xFF404040;
+
     static final int DIM = 0xFF4E4E4E;
 
     /* Status hues: vanilla's accent colours, darkened until each one is readable on the face. */
@@ -33,12 +34,14 @@ final class MenuTheme {
 
     /** A dark list surface, like the vanilla server list, for long running text. */
     static final int WELL = 0xFF1A1A1A;
+
     static final int ON_WELL = 0xFFFFFFFF;
     static final int ON_WELL_DIM = 0xFFA0A0A0;
     static final int ON_WELL_BAD = 0xFFFF8A80;
 
     /** Rows sit on the face; the hover wash is the vanilla white overlay. */
     static final int CARD = WINDOW_FACE;
+
     static final int CARD_HOVER = 0x66FFFFFF;
 
     static final int BORDER = WINDOW_SHADOW;

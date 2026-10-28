@@ -9,25 +9,33 @@ import java.util.Map;
 public final class PlanInterpreter {
     private static final int MAX_CONTROL_TRANSITIONS_PER_ADVANCE = 256;
 
-    private PlanInterpreter() { }
+    private PlanInterpreter() {}
 
     public sealed interface ActionResult permits ActionResult.None, ActionResult.Succeeded, ActionResult.Failed {
-        record None() implements ActionResult { }
-        record Succeeded() implements ActionResult { }
+        record None() implements ActionResult {}
+
+        record Succeeded() implements ActionResult {}
+
         record Failed(String summary) implements ActionResult {
-            public Failed { summary = summary == null || summary.isBlank() ? "action failed" : summary; }
+            public Failed {
+                summary = summary == null || summary.isBlank() ? "action failed" : summary;
+            }
         }
     }
 
     public sealed interface Event permits Event.EmitAction, Event.Complete, Event.Failed {
-        record EmitAction(QueuedStep step, String path) implements Event { }
-        record Complete() implements Event { }
-        record Failed(String path, String reason) implements Event { }
+        record EmitAction(QueuedStep step, String path) implements Event {}
+
+        record Complete() implements Event {}
+
+        record Failed(String path, String reason) implements Event {}
     }
-    public record Transition(PlanCursor cursor, Event event) { }
+
+    public record Transition(PlanCursor cursor, Event event) {}
 
     public static Transition advance(PlanDefinition plan, PlanCursor cursor, GuardFacts facts, ActionResult result) {
-        if (plan == null || cursor == null || facts == null || result == null) throw new IllegalArgumentException("interpreter input");
+        if (plan == null || cursor == null || facts == null || result == null)
+            throw new IllegalArgumentException("interpreter input");
         Mutable state = new Mutable(cursor);
         if (!cursor.pendingActionPath().isEmpty()) {
             if (result instanceof ActionResult.Failed failed) {
@@ -57,7 +65,10 @@ public final class PlanInterpreter {
                     int iteration = state.repeatIterations.getOrDefault(frame.ownerPath(), 1);
                     if (repeat.until().holds(facts)) continue;
                     if (iteration >= repeat.maxIterations()) {
-                        return failed(state, frame.ownerPath() + " → repeat → until", "repeat limit reached at " + iteration + "/" + repeat.maxIterations());
+                        return failed(
+                                state,
+                                frame.ownerPath() + " → repeat → until",
+                                "repeat limit reached at " + iteration + "/" + repeat.maxIterations());
                     }
                     state.repeatIterations.put(frame.ownerPath(), iteration + 1);
                     state.stack.add(repeatFrame(frame.route(), frame.ownerPath(), repeat));
@@ -81,8 +92,12 @@ public final class PlanInterpreter {
                 List<PlanNode> selected = selectedThen ? conditional.thenNodes() : conditional.elseNodes();
                 if (!selected.isEmpty()) {
                     int kind = selectedThen ? 1 : 2;
-                    state.stack.add(new PlanCursor.Frame(appendRoute(frame.route(), index, kind), 0,
-                            nodePath + (selectedThen ? " → then" : " → else"), nodePath, false));
+                    state.stack.add(new PlanCursor.Frame(
+                            appendRoute(frame.route(), index, kind),
+                            0,
+                            nodePath + (selectedThen ? " → then" : " → else"),
+                            nodePath,
+                            false));
                 }
                 continue;
             }
@@ -113,7 +128,8 @@ public final class PlanInterpreter {
             PlanNode parent = sequence.get(route.get(offset));
             int kind = route.get(offset + 1);
             if (parent instanceof PlanNode.Conditional conditional && kind == 1) sequence = conditional.thenNodes();
-            else if (parent instanceof PlanNode.Conditional conditional && kind == 2) sequence = conditional.elseNodes();
+            else if (parent instanceof PlanNode.Conditional conditional && kind == 2)
+                sequence = conditional.elseNodes();
             else if (parent instanceof PlanNode.Repeat repeat && kind == 3) sequence = repeat.body();
             else throw new IllegalStateException("invalid cursor route");
         }
@@ -161,7 +177,20 @@ public final class PlanInterpreter {
             pendingJobId = cursor.pendingJobId();
         }
 
-        private void replaceLast(PlanCursor.Frame frame) { stack.set(stack.size() - 1, frame); }
-        private PlanCursor freeze() { return new PlanCursor(stack, selectedBranches, repeatIterations, startTick, startDistance, pendingPath, pendingAction, pendingJobId); }
+        private void replaceLast(PlanCursor.Frame frame) {
+            stack.set(stack.size() - 1, frame);
+        }
+
+        private PlanCursor freeze() {
+            return new PlanCursor(
+                    stack,
+                    selectedBranches,
+                    repeatIterations,
+                    startTick,
+                    startDistance,
+                    pendingPath,
+                    pendingAction,
+                    pendingJobId);
+        }
     }
 }

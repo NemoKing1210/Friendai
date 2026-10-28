@@ -91,15 +91,15 @@ class ExplorationPlannerTest {
         assertEquals(ExplorationPlanner.Status.NO_ROUTE, blocked.step(Long.MAX_VALUE, System::nanoTime));
     }
 
-    private static ExplorationPlanner planner(CellView view, Node start, int targetY, int heading,
-            int radius, int maxNodes) {
-        return new ExplorationPlanner(view, start, targetY, heading, new MiningBounds(start, radius), Set.of(),
-                COSTS, maxNodes);
+    private static ExplorationPlanner planner(
+            CellView view, Node start, int targetY, int heading, int radius, int maxNodes) {
+        return new ExplorationPlanner(
+                view, start, targetY, heading, new MiningBounds(start, radius), Set.of(), COSTS, maxNodes);
     }
 
     private static GridCellView openWorld() {
-        return new GridCellView(layer(15, 15, '#'), layer(15, 15, '.'), layer(15, 15, '.'), layer(15, 15, '.'),
-                layer(15, 15, '.'));
+        return new GridCellView(
+                layer(15, 15, '#'), layer(15, 15, '.'), layer(15, 15, '.'), layer(15, 15, '.'), layer(15, 15, '.'));
     }
 
     private static GridCellView worldWithNorthWall() {
@@ -107,15 +107,19 @@ class ExplorationPlannerTest {
         String[] head = rows(15, 15, '.');
         foot[6] = replace(foot[6], 7, 'p');
         head[6] = replace(head[6], 7, 'p');
-        return new GridCellView(layer(15, 15, '#'), String.join("/", foot), String.join("/", head),
-                layer(15, 15, '.'), layer(15, 15, '.'));
+        return new GridCellView(
+                layer(15, 15, '#'),
+                String.join("/", foot),
+                String.join("/", head),
+                layer(15, 15, '.'),
+                layer(15, 15, '.'));
     }
 
     private static GridCellView stairWorld() {
         String[] mid = rows(15, 15, '.');
         mid[7] = replace(mid[7], 7, '#');
-        return new GridCellView(layer(15, 15, '#'), String.join("/", mid), layer(15, 15, '.'),
-                layer(15, 15, '.'), layer(15, 15, '.'));
+        return new GridCellView(
+                layer(15, 15, '#'), String.join("/", mid), layer(15, 15, '.'), layer(15, 15, '.'), layer(15, 15, '.'));
     }
 
     private static GridCellView walledIn() {
@@ -125,8 +129,12 @@ class ExplorationPlannerTest {
             feet[START.z() + d[1]] = replace(feet[START.z() + d[1]], START.x() + d[0], 'p');
             head[START.z() + d[1]] = replace(head[START.z() + d[1]], START.x() + d[0], 'p');
         }
-        return new GridCellView(layer(15, 15, '#'), String.join("/", feet), String.join("/", head),
-                layer(15, 15, '.'), layer(15, 15, '.'));
+        return new GridCellView(
+                layer(15, 15, '#'),
+                String.join("/", feet),
+                String.join("/", head),
+                layer(15, 15, '.'),
+                layer(15, 15, '.'));
     }
 
     private static String layer(int width, int depth, char fill) {

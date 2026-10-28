@@ -67,6 +67,7 @@ public final class PathSmoother {
 
     private static boolean sameDirection(PathStep first, PathStep next) {
         return next.to().x() - next.from().x() == first.to().x() - first.from().x()
-                && next.to().z() - next.from().z() == first.to().z() - first.from().z();
+                && next.to().z() - next.from().z()
+                        == first.to().z() - first.from().z();
     }
 }

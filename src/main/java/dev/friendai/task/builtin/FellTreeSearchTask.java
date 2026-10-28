@@ -67,7 +67,8 @@ public final class FellTreeSearchTask implements Task {
         var state = FriendaiServerState.get(c.level().getServer());
         int evidenceRadius = Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
         Map<BlockPos, String> observed = new LinkedHashMap<>();
-        state.resources().recentOrRememberedBlockIds(c.companion(), evidenceRadius, MAX_OBSERVATIONS)
+        state.resources()
+                .recentOrRememberedBlockIds(c.companion(), evidenceRadius, MAX_OBSERVATIONS)
                 .forEach((pos, id) -> {
                     if (pos.distSqr(origin) > (double) radius * radius) return;
                     Identifier parsed = Identifier.tryParse(id);
@@ -76,17 +77,18 @@ public final class FellTreeSearchTask implements Task {
                     if (logs.test(block)) observed.put(pos, id);
                 });
         BlockMatcher leaves = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
-        Set<BlockPos> observedLeaves = state.resources()
-                .recentOrRemembered(c.companion(), leaves, evidenceRadius, MAX_OBSERVATIONS).stream()
-                .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        Set<BlockPos> observedLeaves =
+                state.resources().recentOrRemembered(c.companion(), leaves, evidenceRadius, MAX_OBSERVATIONS).stream()
+                        .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
         int searchLimit = limit > 0 ? Math.min(256, limit + 8) : 16;
-        List<TreeFinder.TreeInfo> found = TreeFinder.findObserved((ServerLevel) c.level(), origin, observed,
-                        observedLeaves, searchLimit).stream()
-                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
-                .toList();
+        List<TreeFinder.TreeInfo> found =
+                TreeFinder.findObserved((ServerLevel) c.level(), origin, observed, observedLeaves, searchLimit).stream()
+                        .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
+                        .toList();
         if (found.isEmpty()) {
-            state.observations().observer(c.companion())
+            state.observations()
+                    .observer(c.companion())
                     .scheduleSweep(c.level().getServer().overworld().getGameTime());
             summary = "looking for a " + logs.label() + " tree within " + radius + " blocks";
             return TaskStatus.RUNNING;
@@ -108,7 +110,9 @@ public final class FellTreeSearchTask implements Task {
 
     @Override
     public String describe() {
-        return delegate != null ? delegate.describe() : "looking for a " + logs.label() + " tree within " + radius + " blocks";
+        return delegate != null
+                ? delegate.describe()
+                : "looking for a " + logs.label() + " tree within " + radius + " blocks";
     }
 
     @Override

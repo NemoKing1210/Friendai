@@ -24,8 +24,8 @@ public final class MultipartBody {
 
     public MultipartBody file(String name, String filename, String contentType, byte[] data) {
         ByteArrayOutputStream part = new ByteArrayOutputStream();
-        part.writeBytes(header("Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + filename + "\"",
-                contentType));
+        part.writeBytes(header(
+                "Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + filename + "\"", contentType));
         part.writeBytes(data);
         parts.add(part.toByteArray());
         return this;

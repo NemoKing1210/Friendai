@@ -88,8 +88,13 @@ public final class PlaceText {
     private static String promptLine(Line line) {
         Place place = line.place();
         StringBuilder out = new StringBuilder();
-        out.append("- [").append(place.id()).append("] ").append(place.name())
-                .append(" (").append(kindText(place)).append(')');
+        out.append("- [")
+                .append(place.id())
+                .append("] ")
+                .append(place.name())
+                .append(" (")
+                .append(kindText(place))
+                .append(')');
         if (!line.where().isEmpty()) {
             out.append(", ").append(line.where());
         }
@@ -99,17 +104,28 @@ public final class PlaceText {
 
     private static String plannerLine(Place place) {
         return "- " + place.name() + " (" + kindText(place) + ", " + place.dimension() + ") at "
-                + place.anchor().x() + ' ' + place.anchor().y() + ' ' + place.anchor().z()
+                + place.anchor().x() + ' ' + place.anchor().y() + ' '
+                + place.anchor().z()
                 + ", r=" + place.radius() + ", y-" + place.below() + "..+" + place.above();
     }
 
     private static String summaryLine(PlaceQuery.Result result) {
         Place place = result.place();
         StringBuilder out = new StringBuilder();
-        out.append("- [").append(place.id()).append("] ").append(place.name())
-                .append(" (").append(kindText(place)).append(") at ")
-                .append(place.anchor().x()).append(' ').append(place.anchor().y()).append(' ')
-                .append(place.anchor().z()).append(", ").append(place.dimension());
+        out.append("- [")
+                .append(place.id())
+                .append("] ")
+                .append(place.name())
+                .append(" (")
+                .append(kindText(place))
+                .append(") at ")
+                .append(place.anchor().x())
+                .append(' ')
+                .append(place.anchor().y())
+                .append(' ')
+                .append(place.anchor().z())
+                .append(", ")
+                .append(place.dimension());
         if (result.sameDimension()) {
             out.append(", ").append(Math.round(result.distance())).append(" blocks away");
         } else {
@@ -129,8 +145,7 @@ public final class PlaceText {
 
     private static void appendVisits(StringBuilder out, Place place) {
         if (place.visits() > 0) {
-            out.append(", visited ").append(place.visits())
-                    .append(place.visits() == 1 ? " time" : " times");
+            out.append(", visited ").append(place.visits()).append(place.visits() == 1 ? " time" : " times");
         }
     }
 

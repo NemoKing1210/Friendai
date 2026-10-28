@@ -76,9 +76,7 @@ class MemoryReportTest {
 
     @Test
     void clearUnknownPlayer() {
-        assertEquals(
-                UserMessage.of("friendai.command.memory.unknown_player", "Zed"),
-                MemoryReport.clear(book, "Zed"));
+        assertEquals(UserMessage.of("friendai.command.memory.unknown_player", "Zed"), MemoryReport.clear(book, "Zed"));
     }
 
     @Test

@@ -1,8 +1,8 @@
 package dev.friendai.net;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 public final class FriendaiNetworking {
     private FriendaiNetworking() {}
@@ -11,11 +11,15 @@ public final class FriendaiNetworking {
     public static void register() {
         PayloadTypeRegistry.serverboundPlay().register(SkillsRequestC2SPayload.TYPE, SkillsRequestC2SPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(SkillsViewS2CPayload.TYPE, SkillsViewS2CPayload.CODEC);
-        ServerPlayNetworking.registerGlobalReceiver(SkillsRequestC2SPayload.TYPE,
-                (payload,context) -> context.server().execute(() -> SkillRequestHandler.handle(context.player(),payload)));
+        ServerPlayNetworking.registerGlobalReceiver(
+                SkillsRequestC2SPayload.TYPE,
+                (payload, context) ->
+                        context.server().execute(() -> SkillRequestHandler.handle(context.player(), payload)));
         PayloadTypeRegistry.serverboundPlay().register(VoiceTranscriptC2SPayload.TYPE, VoiceTranscriptC2SPayload.CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(CompanionRequestC2SPayload.TYPE, CompanionRequestC2SPayload.CODEC);
-        PayloadTypeRegistry.clientboundPlay().register(CompanionSnapshotS2CPayload.TYPE, CompanionSnapshotS2CPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay()
+                .register(CompanionRequestC2SPayload.TYPE, CompanionRequestC2SPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay()
+                .register(CompanionSnapshotS2CPayload.TYPE, CompanionSnapshotS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(PromptS2CPayload.TYPE, PromptS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MemoryViewS2CPayload.TYPE, MemoryViewS2CPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(PlacesViewS2CPayload.TYPE, PlacesViewS2CPayload.CODEC);
@@ -28,13 +32,16 @@ public final class FriendaiNetworking {
         PayloadTypeRegistry.clientboundPlay().register(TradeViewS2CPayload.TYPE, TradeViewS2CPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(
                 VoiceTranscriptC2SPayload.TYPE,
-                (payload, context) -> context.server().execute(
-                        () -> VoiceTranscriptHandler.handle(context.player(), payload.text())));
+                (payload, context) -> context.server()
+                        .execute(() -> VoiceTranscriptHandler.handle(context.player(), payload.text())));
         ServerPlayNetworking.registerGlobalReceiver(
                 CompanionRequestC2SPayload.TYPE,
-                (payload, context) -> context.server().execute(() -> CompanionRequestHandler.handle(context.player(), payload)));
-        ServerPlayNetworking.registerGlobalReceiver(TradeRequestC2SPayload.TYPE,
-                (payload, context) -> context.server().execute(() -> TradeRequestHandler.handle(context.player(), payload)));
+                (payload, context) ->
+                        context.server().execute(() -> CompanionRequestHandler.handle(context.player(), payload)));
+        ServerPlayNetworking.registerGlobalReceiver(
+                TradeRequestC2SPayload.TYPE,
+                (payload, context) ->
+                        context.server().execute(() -> TradeRequestHandler.handle(context.player(), payload)));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 TradeRequestHandler.disconnect(handler.getPlayer().getUUID()));
         ServerPlayNetworking.registerGlobalReceiver(

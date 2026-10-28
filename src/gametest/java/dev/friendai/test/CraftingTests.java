@@ -143,7 +143,10 @@ public class CraftingTests {
         for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
             ItemStack stack = c.inventory().getItem(slot);
             if (!stack.isEmpty()) {
-                text.append(stack.getCount()).append('x').append(stack.getItem()).append(';');
+                text.append(stack.getCount())
+                        .append('x')
+                        .append(stack.getItem())
+                        .append(';');
             }
         }
         return text.toString();
@@ -159,7 +162,8 @@ public class CraftingTests {
 
     private static ToolResult tool(CompanionEntity c, String name, String json) {
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
-        return tools.execute(new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null));
+        return tools.execute(
+                new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null));
     }
 
     @GameTest
@@ -195,9 +199,10 @@ public class CraftingTests {
         h.assertTrue(!r.error(), "error: " + r.content());
         h.assertTrue(
                 r.content()
-                        .equals("minecraft:netherite_scrap ×1 in a furnace (10 s) from 1 × minecraft:ancient_debris\n"
-                                + "minecraft:netherite_scrap ×1 in a blast furnace (10 s) from 1 × minecraft:ancient_debris\n"
-                                + "can't craft 1 minecraft:netherite_scrap yet; missing: 1 × minecraft:netherite_scrap"),
+                        .equals(
+                                "minecraft:netherite_scrap ×1 in a furnace (10 s) from 1 × minecraft:ancient_debris\n"
+                                        + "minecraft:netherite_scrap ×1 in a blast furnace (10 s) from 1 × minecraft:ancient_debris\n"
+                                        + "can't craft 1 minecraft:netherite_scrap yet; missing: 1 × minecraft:netherite_scrap"),
                 "content was " + r.content());
         h.succeed();
     }
@@ -230,7 +235,8 @@ public class CraftingTests {
 
     @GameTest
     public void indexLabelsTags(GameTestHelper h) {
-        List<Ingredient> ingredients = firstAt(h, "minecraft:stick", Station.INVENTORY).ingredients();
+        List<Ingredient> ingredients =
+                firstAt(h, "minecraft:stick", Station.INVENTORY).ingredients();
         h.assertTrue(
                 ingredients.stream().anyMatch(ingredient -> "#minecraft:planks".equals(ingredient.label())),
                 "stick recipe should be labelled with #minecraft:planks: " + ingredients);
@@ -241,10 +247,16 @@ public class CraftingTests {
     public void indexHasStonecutterAndSmithing(GameTestHelper h) {
         List<Recipe> stairs = producing(h, "minecraft:andesite_stairs");
         h.assertTrue(
-                stairs.stream().filter(recipe -> recipe.station() == Station.CRAFTING_TABLE).count() == 1,
+                stairs.stream()
+                                .filter(recipe -> recipe.station() == Station.CRAFTING_TABLE)
+                                .count()
+                        == 1,
                 "andesite stairs crafting recipes: " + stairs);
         h.assertTrue(
-                stairs.stream().filter(recipe -> recipe.station() == Station.STONECUTTER).count() == 1,
+                stairs.stream()
+                                .filter(recipe -> recipe.station() == Station.STONECUTTER)
+                                .count()
+                        == 1,
                 "andesite stairs stonecutter recipes: " + stairs);
 
         Recipe sword = firstAt(h, "minecraft:netherite_sword", Station.SMITHING_TABLE);
@@ -297,15 +309,14 @@ public class CraftingTests {
                 Optional.of(table),
                 Stations.nearby(h.getLevel(), origin, Station.CRAFTING_TABLE),
                 "the crafting table 6 blocks away");
-        h.assertTrue(
-                Stations.nearby(h.getLevel(), origin, Station.STONECUTTER).isEmpty(),
-                "no stonecutter is nearby");
+        h.assertTrue(Stations.nearby(h.getLevel(), origin, Station.STONECUTTER).isEmpty(), "no stonecutter is nearby");
 
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, c, table), "crafting table should be directly visible");
         Set<Station> available = Stations.available(h.getLevel(), c);
         h.assertTrue(available.contains(Station.INVENTORY), "the inventory is always available: " + available);
-        h.assertTrue(available.contains(Station.CRAFTING_TABLE), "available should find the crafting table: " + available);
+        h.assertTrue(
+                available.contains(Station.CRAFTING_TABLE), "available should find the crafting table: " + available);
         h.assertTrue(!available.contains(Station.STONECUTTER), "no stonecutter is available: " + available);
         h.succeed();
     }
@@ -361,9 +372,7 @@ public class CraftingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(
-                    "crafted 4 minecraft:stick (also crafted 4 minecraft:mangrove_planks)",
-                    result.summary,
-                    "summary");
+                    "crafted 4 minecraft:stick (also crafted 4 minecraft:mangrove_planks)", result.summary, "summary");
             h.assertValueEqual(0, c.inventory().countItem(Items.MANGROVE_LOG), "logs left");
             h.assertValueEqual(4, c.inventory().countItem(Items.STICK), "sticks");
             h.assertValueEqual(2, c.inventory().countItem(Items.MANGROVE_PLANKS), "planks left over");
@@ -433,7 +442,8 @@ public class CraftingTests {
         c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
         ToolResult r = tool(c, "get_recipe", "{\"item\":\"minecraft:crafting_table\"}");
         h.assertTrue(!r.error(), "error: " + r.content());
-        h.assertTrue(r.content().contains("already carries 1 × minecraft:crafting_table"), "content was " + r.content());
+        h.assertTrue(
+                r.content().contains("already carries 1 × minecraft:crafting_table"), "content was " + r.content());
         h.succeed();
     }
 
@@ -444,8 +454,7 @@ public class CraftingTests {
         TaskRunner runner = craft(c, result, "minecraft:stick", 1);
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-        h.assertValueEqual(
-                "can't craft 1 minecraft:stick; missing: 2 × #minecraft:planks", result.summary, "summary");
+        h.assertValueEqual("can't craft 1 minecraft:stick; missing: 2 × #minecraft:planks", result.summary, "summary");
         h.succeed();
     }
 
@@ -458,9 +467,7 @@ public class CraftingTests {
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
         h.assertValueEqual(
-                "minecraft:netherite_scrap has no crafting, stonecutter or smithing recipe",
-                result.summary,
-                "summary");
+                "minecraft:netherite_scrap has no crafting, stonecutter or smithing recipe", result.summary, "summary");
         h.succeed();
     }
 
@@ -538,8 +545,10 @@ public class CraftingTests {
         h.succeedWhen(() -> {
             ticks[0]++;
             boolean running = task.tick(ctx) == TaskStatus.RUNNING;
-            h.assertTrue(!running, "still running after " + ticks[0] + " ticks; summary=" + task.resultSummary()
-                    + " at=" + c.blockPosition() + " slots=" + inventoryText(c));
+            h.assertTrue(
+                    !running,
+                    "still running after " + ticks[0] + " ticks; summary=" + task.resultSummary() + " at="
+                            + c.blockPosition() + " slots=" + inventoryText(c));
             h.assertValueEqual(c.inventory().countItem(Items.CRAFTING_TABLE), 1, "tables back");
             h.assertBlockNotPresent(Blocks.CRAFTING_TABLE, h.relativePos(table));
             h.assertValueEqual(task.resultSummary(), "put the crafting table back", "summary");
@@ -585,9 +594,11 @@ public class CraftingTests {
         h.setBlock(6, BASE_DECK + 1, 2, Blocks.CHEST);
         h.setBlock(2, BASE_DECK + 1, 6, Blocks.BED.white());
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BASE_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, BASE_DECK + 1, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, BASE_DECK + 1, 2))),
                 "base chest should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, BASE_DECK + 1, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, BASE_DECK + 1, 6))),
                 "base bed should be directly visible");
         addLogs(c, Items.OAK_LOG, 3);
         Result result = new Result();
@@ -676,14 +687,18 @@ public class CraftingTests {
         h.setBlock(8, STONECUTTER_DECK + 1, 2, Blocks.STONECUTTER);
         h.setBlock(8, STONECUTTER_DECK + 1, 6, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, STONECUTTER_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))), "stonecutter should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))), "crafting table should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))), "stonecutter should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))), "crafting table should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))),
+                "stonecutter should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))),
+                "crafting table should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 2))),
+                "stonecutter should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, STONECUTTER_DECK + 1, 6))),
+                "crafting table should be visible");
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 4));
         Result result = new Result();
         TaskRunner runner = craft(c, result, "minecraft:andesite_stairs", 4);
@@ -701,12 +716,16 @@ public class CraftingTests {
         deck(h, 16, SMITHING_DECK);
         h.setBlock(8, SMITHING_DECK + 1, 2, Blocks.SMITHING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, SMITHING_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))), "smithing table should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))), "smithing table should be visible");
-        Holder<Enchantment> sharpness =
-                h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.SHARPNESS);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))),
+                "smithing table should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, SMITHING_DECK + 1, 2))),
+                "smithing table should be visible");
+        Holder<Enchantment> sharpness = h.getLevel()
+                .registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT)
+                .getOrThrow(Enchantments.SHARPNESS);
         ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
         sword.enchant(sharpness, 3);
         c.inventory().addItem(sword);
@@ -719,13 +738,11 @@ public class CraftingTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(1, c.inventory().countItem(Items.NETHERITE_SWORD), "netherite swords");
             h.assertValueEqual(0, c.inventory().countItem(Items.DIAMOND_SWORD), "diamond swords left");
-            h.assertValueEqual(
-                    0, c.inventory().countItem(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE), "templates left");
+            h.assertValueEqual(0, c.inventory().countItem(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE), "templates left");
             h.assertValueEqual(0, c.inventory().countItem(Items.NETHERITE_INGOT), "netherite ingots left");
             ItemStack upgraded = find(c, Items.NETHERITE_SWORD);
             h.assertValueEqual(3, upgraded.getEnchantments().getLevel(sharpness), "sharpness on the upgraded sword");
-            h.assertTrue(
-                    result.summary.contains("used the smithing table at "), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("used the smithing table at "), "summary was " + result.summary);
         });
     }
 
@@ -734,10 +751,12 @@ public class CraftingTests {
         deck(h, 16, CAKE_DECK);
         h.setBlock(8, CAKE_DECK + 1, 2, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, CAKE_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))), "crafting table should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c,
-                h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))), "crafting table should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))),
+                "crafting table should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, CAKE_DECK + 1, 2))),
+                "crafting table should be visible");
         for (int i = 0; i < 3; i++) {
             c.inventory().addItem(new ItemStack(Items.MILK_BUCKET));
         }
@@ -771,8 +790,7 @@ public class CraftingTests {
             }
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(protectedOnce[0], "the table was never placed");
-            h.assertTrue(
-                    result.summary.contains("but couldn't take it back: "), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("but couldn't take it back: "), "summary was " + result.summary);
             h.assertTrue(hasBlock(h, Blocks.CRAFTING_TABLE, 16, TAKE_FAIL_DECK), "the protected table should remain");
         });
     }

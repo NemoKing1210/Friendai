@@ -1,27 +1,33 @@
 package dev.friendai.trading;
 
 import com.google.gson.Gson;
-import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /** Bounded JSON codec for private owner views. */
 public final class TradeViewCodec {
     private static final Gson GSON = new Gson();
+
     private TradeViewCodec() {}
 
     public static byte[] encode(TradeView view) {
         byte[] data = GSON.toJson(view).getBytes(StandardCharsets.UTF_8);
-        if (data.length > TradeView.MAX_PACKET_BYTES) throw new IllegalArgumentException("trade view exceeds packet bound");
+        if (data.length > TradeView.MAX_PACKET_BYTES)
+            throw new IllegalArgumentException("trade view exceeds packet bound");
         return data;
     }
 
     public static Optional<TradeView> decode(byte[] data) {
         if (data == null || data.length == 0 || data.length > TradeView.MAX_PACKET_BYTES) return Optional.empty();
         try {
-            String json = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(data)).toString();
+            String json = StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(data))
+                    .toString();
             if (!boundedNesting(json)) return Optional.empty();
             TradeView view = GSON.fromJson(json, TradeView.class);
             if (view == null) return Optional.empty();

@@ -35,9 +35,8 @@ public final class TemplateConverter {
         }
         CompoundTag tag;
         try {
-            Optional<StructureTemplate> template = level.getServer()
-                    .getStructureTemplateManager()
-                    .get(identifier);
+            Optional<StructureTemplate> template =
+                    level.getServer().getStructureTemplateManager().get(identifier);
             if (template.isEmpty()) {
                 return ParseResult.failed(List.of("no structure template " + id));
             }
@@ -70,8 +69,8 @@ public final class TemplateConverter {
             return malformed(identifier);
         }
         if (width > Blueprint.MAX_SIZE || height > Blueprint.MAX_SIZE || depth > Blueprint.MAX_SIZE) {
-            return ParseResult.failed(List.of(
-                    "size " + width + "×" + height + "×" + depth + " exceeds " + Blueprint.MAX_SIZE));
+            return ParseResult.failed(
+                    List.of("size " + width + "×" + height + "×" + depth + " exceeds " + Blueprint.MAX_SIZE));
         }
 
         BlockState[] palette = readPalette(tag, level);
@@ -101,18 +100,14 @@ public final class TemplateConverter {
                 continue;
             }
             specs.add(new BlockSpec(
-                    pos.getIntOr(0, 0) - min[0],
-                    pos.getIntOr(1, 0) - min[1],
-                    pos.getIntOr(2, 0) - min[2],
-                    text));
+                    pos.getIntOr(0, 0) - min[0], pos.getIntOr(1, 0) - min[1], pos.getIntOr(2, 0) - min[2], text));
         }
 
         if (specs.isEmpty()) {
             return ParseResult.failed(List.of("the blueprint has no blocks"));
         }
         if (specs.size() > Blueprint.MAX_BLOCKS) {
-            return ParseResult.failed(List.of(
-                    "block count " + specs.size() + " exceeds " + Blueprint.MAX_BLOCKS));
+            return ParseResult.failed(List.of("block count " + specs.size() + " exceeds " + Blueprint.MAX_BLOCKS));
         }
         specs.sort((a, b) -> {
             if (a.y() != b.y()) {
@@ -180,9 +175,8 @@ public final class TemplateConverter {
             return null;
         }
         try {
-            return BlockStateParser.serialize(
-                    BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, text.get(), false)
-                            .blockState());
+            return BlockStateParser.serialize(BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, text.get(), false)
+                    .blockState());
         } catch (Exception e) {
             return null;
         }

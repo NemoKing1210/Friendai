@@ -33,26 +33,35 @@ final class FarmingTools {
     private FarmingTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(registry, defs, new TaskToolDef("farm",
-                "Harvest ripe crops around the companion, a point or a remembered place, replant them and sow "
-                        + "empty farmland. With till=true also tills soil next to water.",
-                SchemaBuilder.object()
-                        .integer("radius", "Farm radius in blocks", 1, 16)
-                        .integer("x", "Farm X coordinate")
-                        .integer("y", "Farm Y coordinate")
-                        .integer("z", "Farm Z coordinate")
-                        .string("place", "Remembered place to farm around; used only when x, y and z are absent")
-                        .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
-                        .bool("till", "Also till soil next to water")
-                        .bool("bonemeal", "Use bone meal from the inventory on growing crops after the pass's other work")
-                        .build(),
-                (c, a) -> {
-                    Optional<Place> place = place(c, a);
-                    return new FarmTask(center(c, a, place), radius(a, place, 8), crop(a), till(a),
-                            flag(a, "bonemeal"));
-                },
-                true));
-        registry.register(ToolKit.instantTool("plan_farm",
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "farm",
+                        "Harvest ripe crops around the companion, a point or a remembered place, replant them and sow "
+                                + "empty farmland. With till=true also tills soil next to water.",
+                        SchemaBuilder.object()
+                                .integer("radius", "Farm radius in blocks", 1, 16)
+                                .integer("x", "Farm X coordinate")
+                                .integer("y", "Farm Y coordinate")
+                                .integer("z", "Farm Z coordinate")
+                                .string(
+                                        "place",
+                                        "Remembered place to farm around; used only when x, y and z are absent")
+                                .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
+                                .bool("till", "Also till soil next to water")
+                                .bool(
+                                        "bonemeal",
+                                        "Use bone meal from the inventory on growing crops after the pass's other work")
+                                .build(),
+                        (c, a) -> {
+                            Optional<Place> place = place(c, a);
+                            return new FarmTask(
+                                    center(c, a, place), radius(a, place, 8), crop(a), till(a), flag(a, "bonemeal"));
+                        },
+                        true));
+        registry.register(ToolKit.instantTool(
+                "plan_farm",
                 "Show what a farm pass would do here (harvest, replant, sow, till, bone meal, missing seeds) without doing it.",
                 SchemaBuilder.object()
                         .integer("radius", "Farm radius in blocks", 1, 16)
@@ -64,32 +73,40 @@ final class FarmingTools {
                         .bool("bonemeal", "Also plan bone meal on growing crops")
                         .build(),
                 FarmingTools::planFarm));
-        ToolKit.add(registry, defs, new TaskToolDef("tend_farm",
-                "Stay at a farm, or at a remembered place, and keep it: harvest and replant every minute and put "
-                        + "the harvest into a nearby chest, until told otherwise.",
-                SchemaBuilder.object()
-                        .integer("radius", "Farm radius in blocks", 1, 16)
-                        .integer("x", "Farm X coordinate")
-                        .integer("y", "Farm Y coordinate")
-                        .integer("z", "Farm Z coordinate")
-                        .string("place", "Remembered place to tend; used only when x, y and z are absent")
-                        .build(),
-                (c, a) -> {
-                    Optional<Place> place = place(c, a);
-                    return new TendFarmTask(center(c, a, place), radius(a, place, 8));
-                },
-                false));
-        ToolKit.add(registry, defs, new TaskToolDef("use_bonemeal",
-                "Use bone meal from the inventory on growing crops at a point or around the companion.",
-                SchemaBuilder.object()
-                        .integer("x", "Crop X coordinate")
-                        .integer("y", "Crop Y coordinate")
-                        .integer("z", "Crop Z coordinate")
-                        .integer("radius", "Search radius in blocks", 1, 8)
-                        .integer("count", "How many bone meal to use", 1, 64)
-                        .build(),
-                FarmingTools::bonemeal,
-                true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "tend_farm",
+                        "Stay at a farm, or at a remembered place, and keep it: harvest and replant every minute and put "
+                                + "the harvest into a nearby chest, until told otherwise.",
+                        SchemaBuilder.object()
+                                .integer("radius", "Farm radius in blocks", 1, 16)
+                                .integer("x", "Farm X coordinate")
+                                .integer("y", "Farm Y coordinate")
+                                .integer("z", "Farm Z coordinate")
+                                .string("place", "Remembered place to tend; used only when x, y and z are absent")
+                                .build(),
+                        (c, a) -> {
+                            Optional<Place> place = place(c, a);
+                            return new TendFarmTask(center(c, a, place), radius(a, place, 8));
+                        },
+                        false));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "use_bonemeal",
+                        "Use bone meal from the inventory on growing crops at a point or around the companion.",
+                        SchemaBuilder.object()
+                                .integer("x", "Crop X coordinate")
+                                .integer("y", "Crop Y coordinate")
+                                .integer("z", "Crop Z coordinate")
+                                .integer("radius", "Search radius in blocks", 1, 8)
+                                .integer("count", "How many bone meal to use", 1, 64)
+                                .build(),
+                        FarmingTools::bonemeal,
+                        true));
     }
 
     private static BlockPos center(CompanionEntity c, JsonObject args) {
@@ -99,7 +116,8 @@ final class FarmingTools {
     /** The place a farm call names, or empty; a place is ignored when x, y and z are given. */
     private static Optional<Place> place(CompanionEntity c, JsonObject args) {
         if (ToolKit.optionalPos(args).isPresent()
-                || !args.has("place") || args.get("place").isJsonNull()) {
+                || !args.has("place")
+                || args.get("place").isJsonNull()) {
             return Optional.empty();
         }
         String name = args.get("place").getAsString();
@@ -127,7 +145,9 @@ final class FarmingTools {
     }
 
     private static int radius(JsonObject args, int fallback) {
-        return args.has("radius") && !args.get("radius").isJsonNull() ? args.get("radius").getAsInt() : fallback;
+        return args.has("radius") && !args.get("radius").isJsonNull()
+                ? args.get("radius").getAsInt()
+                : fallback;
     }
 
     private static boolean till(JsonObject args) {
@@ -145,8 +165,14 @@ final class FarmingTools {
         TaskContext context = new TaskContext(c, (ServerLevel) c.level());
         FarmPlan plan = FarmPlanner.plan(
                 FarmSnapshotBuilder.build(context, center(c, args), radius, Set.of()),
-                new FarmGoal(crop == null ? null : BuiltInRegistries.ITEM.getKey(crop).toString(),
-                        till(args), flag(args, "bonemeal"), 0, FarmGoal.DEFAULT_MAX_STEPS),
+                new FarmGoal(
+                        crop == null
+                                ? null
+                                : BuiltInRegistries.ITEM.getKey(crop).toString(),
+                        till(args),
+                        flag(args, "bonemeal"),
+                        0,
+                        FarmGoal.DEFAULT_MAX_STEPS),
                 CropIndex.of(context.level()));
         return ToolResult.ok(plan.describe());
     }

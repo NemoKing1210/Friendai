@@ -34,19 +34,31 @@ class ObtainPlannerTest {
         Ingredient ironIngot = Ingredient.of(IRON_INGOT);
         Ingredient rawIron = Ingredient.of(RAW_IRON);
         return FakeRecipeBook.vanillaLike()
-                .add(new Recipe("test:stone_pickaxe", STONE_PICKAXE, 1,
-                        List.of(cobblestone, cobblestone, cobblestone, stick, stick), Station.CRAFTING_TABLE))
-                .add(new Recipe("test:furnace", "minecraft:furnace", 1,
-                        java.util.Collections.nCopies(8, cobblestone), Station.CRAFTING_TABLE))
+                .add(new Recipe(
+                        "test:stone_pickaxe",
+                        STONE_PICKAXE,
+                        1,
+                        List.of(cobblestone, cobblestone, cobblestone, stick, stick),
+                        Station.CRAFTING_TABLE))
+                .add(new Recipe(
+                        "test:furnace",
+                        "minecraft:furnace",
+                        1,
+                        java.util.Collections.nCopies(8, cobblestone),
+                        Station.CRAFTING_TABLE))
                 .add(new Recipe("test:iron_ingot", IRON_INGOT, 1, List.of(rawIron), Station.FURNACE, 200))
-                .add(new Recipe("test:gold_ingot", "minecraft:gold_ingot", 1,
-                        List.of(Ingredient.of("minecraft:raw_gold")), Station.FURNACE, 200));
+                .add(new Recipe(
+                        "test:gold_ingot",
+                        "minecraft:gold_ingot",
+                        1,
+                        List.of(Ingredient.of("minecraft:raw_gold")),
+                        Station.FURNACE,
+                        200));
     }
 
-    private static WorldFacts world(Map<String, Integer> blocks, Map<String, Integer> mobs,
-            Map<String, Integer> containers, boolean explore) {
-        return new WorldFacts(blocks, mobs, containers, Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), explore, true);
+    private static WorldFacts world(
+            Map<String, Integer> blocks, Map<String, Integer> mobs, Map<String, Integer> containers, boolean explore) {
+        return new WorldFacts(blocks, mobs, containers, Map.of(), Set.of(Station.CRAFTING_TABLE.noun()), explore, true);
     }
 
     private static WorldFacts world(Map<String, Integer> blocks, boolean explore) {
@@ -67,7 +79,11 @@ class ObtainPlannerTest {
     }
 
     private static boolean hasCraft(ObtainPlan plan, String item) {
-        return indexOf(plan, step -> step instanceof ObtainStep.Craft craft && craft.item().equals(item)) >= 0;
+        return indexOf(
+                        plan,
+                        step -> step instanceof ObtainStep.Craft craft
+                                && craft.item().equals(item))
+                >= 0;
     }
 
     @Test
@@ -84,7 +100,8 @@ class ObtainPlannerTest {
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(ACACIA_LOG, 6), true));
 
         assertTrue(plan.ok(), plan.missing().toString());
-        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore),
+        assertFalse(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore),
                 plan.steps().toString());
         assertEquals(ACACIA_LOG, ((ObtainStep.Mine) plan.steps().get(0)).block());
     }
@@ -94,12 +111,18 @@ class ObtainPlannerTest {
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(STONE, 8), true));
 
         assertTrue(plan.ok(), plan.missing().toString());
-        assertEquals(ObtainStep.Explore.class, plan.steps().get(0).getClass(), plan.steps().toString());
+        assertEquals(
+                ObtainStep.Explore.class,
+                plan.steps().get(0).getClass(),
+                plan.steps().toString());
         ObtainStep.Explore explore = (ObtainStep.Explore) plan.steps().get(0);
         assertEquals("#minecraft:logs", explore.block());
         assertFalse(explore.down());
-        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore other
-                && !other.block().startsWith("#")), plan.steps().toString());
+        assertFalse(
+                plan.steps().stream()
+                        .anyMatch(step -> step instanceof ObtainStep.Explore other
+                                && !other.block().startsWith("#")),
+                plan.steps().toString());
     }
 
     @Test
@@ -131,8 +154,11 @@ class ObtainPlannerTest {
                 .filter(mine -> mine.block().equals(ACACIA_LOG))
                 .toList();
         assertEquals(1, mines.size(), plan.steps().toString());
-        assertTrue(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore
-                || step instanceof ObtainStep.VisitResource), plan.steps().toString());
+        assertTrue(
+                plan.steps().stream()
+                        .anyMatch(
+                                step -> step instanceof ObtainStep.Explore || step instanceof ObtainStep.VisitResource),
+                plan.steps().toString());
     }
 
     @Test
@@ -150,27 +176,69 @@ class ObtainPlannerTest {
 
     @Test
     void conditionalSiteIsUsedOnlyWhenNoLocalPlanExists() {
-        ResourceCandidate remembered = new ResourceCandidate(41, ACACIA_LOG, "minecraft:overworld",
-                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
-        WorldFacts facts = new WorldFacts(Map.of(ACACIA_LOG, 6), Map.of(), Map.of(), Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(remembered));
+        ResourceCandidate remembered = new ResourceCandidate(
+                41,
+                ACACIA_LOG,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        WorldFacts facts = new WorldFacts(
+                Map.of(ACACIA_LOG, 6),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                true,
+                true,
+                List.of(remembered));
 
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
 
         assertTrue(plan.ok(), plan.missing().toString());
-        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.VisitResource),
+        assertFalse(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.VisitResource),
                 plan.steps().toString());
         assertEquals(ACACIA_LOG, ((ObtainStep.Mine) plan.steps().get(0)).block());
     }
 
     @Test
     void rememberedResourceProducesConditionalVisitPrefix() {
-        ResourceCandidate candidate = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
-                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
-        ResourceCandidate tied = new ResourceCandidate(42, OAK_LOG, "minecraft:overworld",
-                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
-        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(tied, candidate));
+        ResourceCandidate candidate = new ResourceCandidate(
+                41,
+                OAK_LOG,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        ResourceCandidate tied = new ResourceCandidate(
+                42,
+                OAK_LOG,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        WorldFacts facts = new WorldFacts(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                true,
+                true,
+                List.of(tied, candidate));
 
         ObtainPlan plan = plan("minecraft:oak_planks", 1, Map.of(), facts);
 
@@ -183,10 +251,26 @@ class ObtainPlannerTest {
 
     @Test
     void rememberedResourceIsIgnoredWhenExplorationIsDisabled() {
-        ResourceCandidate candidate = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
-                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
-        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), false, true, List.of(candidate));
+        ResourceCandidate candidate = new ResourceCandidate(
+                41,
+                OAK_LOG,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        WorldFacts facts = new WorldFacts(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                false,
+                true,
+                List.of(candidate));
 
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), facts);
 
@@ -197,37 +281,85 @@ class ObtainPlannerTest {
 
     @Test
     void excludedSiteFallsBackToNextRememberedSite() {
-        ResourceCandidate first = new ResourceCandidate(41, OAK_LOG, "minecraft:overworld",
-                new Pos(40, 64, 0), new Pos(39, 64, 0), 5, 1_200, false, false, 184.0);
-        ResourceCandidate second = new ResourceCandidate(42, OAK_LOG, "minecraft:overworld",
-                new Pos(50, 64, 0), new Pos(49, 64, 0), 5, 1_200, false, false, 220.0);
-        WorldFacts facts = new WorldFacts(Map.of(), Map.of(), Map.of(), Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), true, true, List.of(first, second), Set.of(), Set.of(41L));
+        ResourceCandidate first = new ResourceCandidate(
+                41,
+                OAK_LOG,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        ResourceCandidate second = new ResourceCandidate(
+                42,
+                OAK_LOG,
+                "minecraft:overworld",
+                new Pos(50, 64, 0),
+                new Pos(49, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                220.0);
+        WorldFacts facts = new WorldFacts(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                true,
+                true,
+                List.of(first, second),
+                Set.of(),
+                Set.of(41L));
 
         ObtainPlan plan = plan("minecraft:oak_planks", 1, Map.of(), facts);
 
-        assertEquals(new ObtainStep.VisitResource(42, "minecraft:overworld", OAK_LOG), plan.steps().get(0));
+        assertEquals(
+                new ObtainStep.VisitResource(42, "minecraft:overworld", OAK_LOG),
+                plan.steps().get(0));
     }
 
     @Test
     void ironPickaxeChain() {
-        ObtainPlan plan = plan(IRON_PICKAXE, 1, Map.of(),
-                world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), false));
+        ObtainPlan plan =
+                plan(IRON_PICKAXE, 1, Map.of(), world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), false));
         assertTrue(plan.ok(), plan.missing().toString());
-        int wooden = indexOf(plan, step -> step instanceof ObtainStep.Craft craft && craft.item().equals(WOODEN_PICKAXE));
-        int mineStone = indexOf(plan, step -> step instanceof ObtainStep.Mine mine && mine.block().equals(STONE));
-        int stone = indexOf(plan, step -> step instanceof ObtainStep.Craft craft && craft.item().equals(STONE_PICKAXE));
-        int mineIron = indexOf(plan, step -> step instanceof ObtainStep.Mine mine && mine.block().equals(IRON_ORE));
+        int wooden = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft craft && craft.item().equals(WOODEN_PICKAXE));
+        int mineStone = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Mine mine && mine.block().equals(STONE));
+        int stone = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft craft && craft.item().equals(STONE_PICKAXE));
+        int mineIron = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Mine mine && mine.block().equals(IRON_ORE));
         int smelt = indexOf(plan, step -> step instanceof ObtainStep.Smelt);
-        int iron = indexOf(plan, step -> step instanceof ObtainStep.Craft craft && craft.item().equals(IRON_PICKAXE));
-        assertTrue(wooden >= 0 && mineStone > wooden && stone > mineStone && mineIron > stone && smelt > mineIron
-                && iron > smelt, plan.steps().toString());
+        int iron = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft craft && craft.item().equals(IRON_PICKAXE));
+        assertTrue(
+                wooden >= 0
+                        && mineStone > wooden
+                        && stone > mineStone
+                        && mineIron > stone
+                        && smelt > mineIron
+                        && iron > smelt,
+                plan.steps().toString());
         assertTrue(hasCraft(plan, "minecraft:furnace"), plan.steps().toString());
     }
 
     @Test
     void carriedStonePickaxeSkipsToolChain() {
-        ObtainPlan plan = plan(IRON_PICKAXE, 1, Map.of(STONE_PICKAXE, 1, STICK, 2),
+        ObtainPlan plan = plan(
+                IRON_PICKAXE,
+                1,
+                Map.of(STONE_PICKAXE, 1, STICK, 2),
                 world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), false));
         assertTrue(plan.ok(), plan.missing().toString());
         assertFalse(hasCraft(plan, WOODEN_PICKAXE), plan.steps().toString());
@@ -236,8 +368,8 @@ class ObtainPlannerTest {
 
     @Test
     void containersCheaperThanMining() {
-        ObtainPlan plan = plan(IRON_PICKAXE, 1, Map.of(STICK, 2),
-                world(Map.of(IRON_ORE, 4), Map.of(), Map.of(IRON_INGOT, 3), false));
+        ObtainPlan plan = plan(
+                IRON_PICKAXE, 1, Map.of(STICK, 2), world(Map.of(IRON_ORE, 4), Map.of(), Map.of(IRON_INGOT, 3), false));
         assertTrue(plan.ok(), plan.missing().toString());
         assertEquals(2, plan.steps().size(), plan.steps().toString());
         ObtainStep.Take take = (ObtainStep.Take) plan.steps().get(0);
@@ -248,35 +380,47 @@ class ObtainPlannerTest {
 
     @Test
     void containersOff() {
-        ObtainPlan plan = plan(IRON_PICKAXE, 1, Map.of(STICK, 2),
+        ObtainPlan plan = plan(
+                IRON_PICKAXE,
+                1,
+                Map.of(STICK, 2),
                 world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), false));
         assertTrue(plan.ok(), plan.missing().toString());
-        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Take), plan.steps().toString());
-        assertTrue(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Smelt), plan.steps().toString());
+        assertFalse(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Take),
+                plan.steps().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Smelt),
+                plan.steps().toString());
     }
 
     @Test
     void partialFromContainers() {
-        ObtainPlan plan = plan(IRON_INGOT, 3, Map.of(STICK, 2),
+        ObtainPlan plan = plan(
+                IRON_INGOT,
+                3,
+                Map.of(STICK, 2),
                 world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, COAL_ORE, 4), Map.of(), Map.of(IRON_INGOT, 2), false));
         assertTrue(plan.ok(), plan.missing().toString());
         ObtainStep.Take take = plan.steps().stream()
                 .filter(step -> step instanceof ObtainStep.Take)
                 .map(step -> (ObtainStep.Take) step)
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertEquals(2, take.count());
         ObtainStep.Smelt smelt = plan.steps().stream()
                 .filter(step -> step instanceof ObtainStep.Smelt)
                 .map(step -> (ObtainStep.Smelt) step)
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertEquals(1, smelt.count());
         assertEquals(RAW_IRON, smelt.input());
     }
 
     @Test
     void huntForLeather() {
-        ObtainPlan plan = plan("minecraft:leather", 1, Map.of(),
-                world(Map.of(), Map.of("minecraft:cow", 2), Map.of(), false));
+        ObtainPlan plan =
+                plan("minecraft:leather", 1, Map.of(), world(Map.of(), Map.of("minecraft:cow", 2), Map.of(), false));
         assertTrue(plan.ok(), plan.missing().toString());
         assertEquals(1, plan.steps().size());
         assertEquals(1, ((ObtainStep.Hunt) plan.steps().get(0)).count());
@@ -288,8 +432,7 @@ class ObtainPlannerTest {
 
     @Test
     void exploreDownForIron() {
-        ObtainPlan plan = plan(RAW_IRON, 1, Map.of(STONE_PICKAXE, 1),
-                world(Map.of(STONE, 8), true));
+        ObtainPlan plan = plan(RAW_IRON, 1, Map.of(STONE_PICKAXE, 1), world(Map.of(STONE, 8), true));
         assertTrue(plan.ok(), plan.missing().toString());
         int explore = indexOf(plan, step -> step instanceof ObtainStep.Explore);
         int mine = indexOf(plan, step -> step instanceof ObtainStep.Mine);
@@ -310,12 +453,14 @@ class ObtainPlannerTest {
 
     @Test
     void otherDimensionMeansMissing() {
-        WorldFacts world = new WorldFacts(Map.of(STONE, 8), Map.of(), Map.of(), Map.of(),
-                Set.of(Station.CRAFTING_TABLE.noun()), true, false);
+        WorldFacts world = new WorldFacts(
+                Map.of(STONE, 8), Map.of(), Map.of(), Map.of(), Set.of(Station.CRAFTING_TABLE.noun()), true, false);
         ObtainPlan plan = plan(RAW_IRON, 1, Map.of(STONE_PICKAXE, 1), world);
         assertFalse(plan.ok());
         assertEquals(Map.of(RAW_IRON, 1), plan.missing());
-        assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore), plan.steps().toString());
+        assertFalse(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Explore),
+                plan.steps().toString());
     }
 
     @Test
@@ -333,8 +478,12 @@ class ObtainPlannerTest {
         WorldFacts world = world(Map.of(OAK_LOG, 8, STONE, 8, IRON_ORE, 4), false);
         ObtainPlan plan = plan(RAW_IRON, 3, Map.of(RAW_IRON, 2), world);
         assertTrue(plan.ok(), plan.missing().toString());
-        int stonePickaxe = indexOf(plan, step -> step instanceof ObtainStep.Craft craft && craft.item().equals(STONE_PICKAXE));
-        int mineIron = indexOf(plan, step -> step instanceof ObtainStep.Mine mine && mine.block().equals(IRON_ORE));
+        int stonePickaxe = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft craft && craft.item().equals(STONE_PICKAXE));
+        int mineIron = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Mine mine && mine.block().equals(IRON_ORE));
         assertTrue(stonePickaxe >= 0 && mineIron > stonePickaxe, plan.steps().toString());
         assertEquals(1, ((ObtainStep.Mine) plan.steps().get(mineIron)).count());
 
@@ -345,13 +494,18 @@ class ObtainPlannerTest {
 
     @Test
     void goldIngotFromScratchNeedsAnIronPickaxe() {
-        ObtainPlan plan = plan("minecraft:gold_ingot", 1, Map.of(),
+        ObtainPlan plan = plan(
+                "minecraft:gold_ingot",
+                1,
+                Map.of(),
                 world(Map.of(OAK_LOG, 8, STONE, 16, IRON_ORE, 4, "minecraft:gold_ore", 4, COAL_ORE, 4), false));
         assertTrue(plan.ok(), plan.missing().toString());
-        int ironPickaxe = indexOf(plan, step -> step instanceof ObtainStep.Craft craft
-                && craft.item().equals(IRON_PICKAXE));
-        int gold = indexOf(plan, step -> step instanceof ObtainStep.Mine mine
-                && mine.block().equals("minecraft:gold_ore"));
+        int ironPickaxe = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft craft && craft.item().equals(IRON_PICKAXE));
+        int gold = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Mine mine && mine.block().equals("minecraft:gold_ore"));
         assertTrue(ironPickaxe >= 0 && gold > ironPickaxe, plan.steps().toString());
     }
 
@@ -360,14 +514,17 @@ class ObtainPlannerTest {
         ObtainPlan plan = plan(STICK, 4, Map.of(), world(Map.of(OAK_LOG, 8), false));
         assertTrue(plan.ok(), plan.missing().toString());
         assertTrue(plan.steps().size() <= ObtainPlanner.MAX_DEPTH, plan.steps().toString());
-        assertTrue(plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Mine), plan.steps().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Mine),
+                plan.steps().toString());
     }
 
     @Test
     void mergesConsecutiveSteps() {
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(OAK_LOG, 8), false));
         List<ObtainStep> mines = plan.steps().stream()
-                .filter(step -> step instanceof ObtainStep.Mine mine && mine.block().equals(OAK_LOG))
+                .filter(step ->
+                        step instanceof ObtainStep.Mine mine && mine.block().equals(OAK_LOG))
                 .toList();
         assertEquals(1, mines.size(), plan.steps().toString());
         assertTrue(((ObtainStep.Mine) mines.get(0)).count() >= 2, plan.steps().toString());

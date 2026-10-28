@@ -70,10 +70,10 @@ public class ProtectionTests {
         Result result = new Result();
         TaskRunner runner = companion.taskRunner();
         runner.setListener(result);
-        QueuedStep step = new QueuedStep(task.type(), new JsonObject(), null, List.of(), GuardAction.WAIT,
-                FailurePolicy.ASK, 1, List.of());
-        long plan = runner.enqueuePlan("protection", List.of(step), List.of(context -> task),
-                new PlanOptions(-10, FailurePolicy.ASK, 0));
+        QueuedStep step = new QueuedStep(
+                task.type(), new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long plan = runner.enqueuePlan(
+                "protection", List.of(step), List.of(context -> task), new PlanOptions(-10, FailurePolicy.ASK, 0));
         runner.markAutonomousPlan(plan);
         return new Run(runner, result);
     }
@@ -93,10 +93,20 @@ public class ProtectionTests {
 
     private static void rememberHome(GameTestHelper h, CompanionEntity companion) {
         BlockPos anchor = companion.blockPosition();
-        PlaceService.remember(companion, new Caller(companion.ownerUuid(), "owner", AccessLevel.OWNER),
-                new PlaceValues("home", PlaceKind.HOUSE, "", companion.level().dimension().identifier().toString(),
-                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()), 4, Set.of(), PlaceSource.MANUAL,
-                        companion.ownerUuid(), ""),
+        PlaceService.remember(
+                companion,
+                new Caller(companion.ownerUuid(), "owner", AccessLevel.OWNER),
+                new PlaceValues(
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        companion.level().dimension().identifier().toString(),
+                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                        4,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        companion.ownerUuid(),
+                        ""),
                 companion.level().getGameTime());
     }
 
@@ -113,15 +123,17 @@ public class ProtectionTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, inside), "the place block should be visible");
         h.assertTrue(GameTestSupport.observeVisible(h, c, outside), "the legal block should be visible");
 
-        Run legal = autonomous(c, new MineBlocksTask(BlockMatcher.parse("minecraft:diorite").orElseThrow(), 1, 32));
+        Run legal = autonomous(
+                c, new MineBlocksTask(BlockMatcher.parse("minecraft:diorite").orElseThrow(), 1, 32));
         h.succeedWhen(() -> {
-            h.assertTrue(legal.result().status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    legal.result().status == TaskStatus.SUCCESS,
                     "a legal block outside the place must be mined: " + legal.result().status + " "
                             + legal.result().summary);
-            h.assertTrue(h.getBlockState(new BlockPos(5, 291, 3)).is(Blocks.DIORITE),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(5, 291, 3)).is(Blocks.DIORITE),
                     "the block inside the place must stay");
-            h.assertTrue(h.getBlockState(new BlockPos(12, 291, 2)).isAir(),
-                    "the block outside the place must be gone");
+            h.assertTrue(h.getBlockState(new BlockPos(12, 291, 2)).isAir(), "the block outside the place must be gone");
         });
     }
 
@@ -136,14 +148,16 @@ public class ProtectionTests {
 
         Run refused = autonomous(c, new MineBlockAtTask(inside));
         h.succeedWhen(() -> {
-            h.assertTrue(refused.result().status == TaskStatus.FAILED,
+            h.assertTrue(
+                    refused.result().status == TaskStatus.FAILED,
                     "a place target must fail: " + refused.result().status);
-            h.assertTrue(refused.result().summary.contains("place \"home\""),
+            h.assertTrue(
+                    refused.result().summary.contains("place \"home\""),
                     "the summary must name the place: " + refused.result().summary);
-            h.assertTrue(refused.result().summary.contains("mine outside home"),
+            h.assertTrue(
+                    refused.result().summary.contains("mine outside home"),
                     "the summary must say the way out: " + refused.result().summary);
-            h.assertTrue(h.getBlockState(new BlockPos(5, 291, 3)).is(Blocks.DIORITE),
-                    "the protected block must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 291, 3)).is(Blocks.DIORITE), "the protected block must stay");
         });
     }
 
@@ -159,11 +173,14 @@ public class ProtectionTests {
         h.succeedWhen(() -> {
             run.runner().tick();
             h.assertTrue(run.result().status == TaskStatus.FAILED, "not failed: " + run.result().status);
-            h.assertTrue(run.result().summary.contains("protected by the server"),
+            h.assertTrue(
+                    run.result().summary.contains("protected by the server"),
                     "the summary must name the server: " + run.result().summary);
-            h.assertTrue(!run.result().summary.contains("place"),
+            h.assertTrue(
+                    !run.result().summary.contains("place"),
                     "the server refusal must not blame a place: " + run.result().summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.PRISMARINE_BRICKS),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.PRISMARINE_BRICKS),
                     "the protected block must stay");
         });
     }
@@ -179,12 +196,14 @@ public class ProtectionTests {
         run.runner().start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             run.runner().tick();
-            h.assertTrue(run.result().status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    run.result().status == TaskStatus.SUCCESS,
                     "the stone under the feet must be mined safely: " + run.result().status + " "
                             + run.result().summary);
             h.assertTrue(h.getBlockState(new BlockPos(2, 310, 2)).isAir(), "the target must be gone");
             h.assertTrue(c.inventory().countItem(Items.COBBLESTONE) >= 1, "the drop must be collected");
-            h.assertTrue(h.getBlockState(new BlockPos(2, 309, 2)).is(Blocks.STONE),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(2, 309, 2)).is(Blocks.STONE),
                     "the footing under the target must stay");
             h.assertTrue(c.getY() >= 310.0, "the companion must not fall into the hole: " + c.getY());
         });
@@ -201,14 +220,15 @@ public class ProtectionTests {
         run.runner().start(new MineBlockAtTask(target), "mine_block_at");
         h.succeedWhen(() -> {
             run.runner().tick();
-            h.assertTrue(run.result().status == TaskStatus.FAILED,
+            h.assertTrue(
+                    run.result().status == TaskStatus.FAILED,
                     "an unsafe drop must be refused: " + run.result().status + " " + run.result().summary);
-            h.assertTrue(run.result().summary.contains("standing on"),
+            h.assertTrue(
+                    run.result().summary.contains("standing on"),
                     "the summary must say what the block is: " + run.result().summary);
-            h.assertTrue(run.result().summary.contains("not safe"),
-                    "the summary must say why: " + run.result().summary);
-            h.assertTrue(h.getBlockState(new BlockPos(2, 310, 2)).is(Blocks.STONE),
-                    "the block over lava must stay");
+            h.assertTrue(
+                    run.result().summary.contains("not safe"), "the summary must say why: " + run.result().summary);
+            h.assertTrue(h.getBlockState(new BlockPos(2, 310, 2)).is(Blocks.STONE), "the block over lava must stay");
         });
     }
 }

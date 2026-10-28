@@ -60,7 +60,8 @@ public final class MovementDebugStream {
         }
         byte[] data = new byte[0];
         if (on) {
-            Optional<CompanionEntity> companion = CompanionManager.get(player.level().getServer()).find(player.getUUID());
+            Optional<CompanionEntity> companion =
+                    CompanionManager.get(player.level().getServer()).find(player.getUUID());
             if (companion.isPresent()) {
                 data = build(companion.get()).encode();
             }
@@ -94,8 +95,14 @@ public final class MovementDebugStream {
                         + (plan.partial() ? ", partial" : ""));
                 for (int i = 0; i < total && route.size() < MovementDebug.MAX_SEGMENTS; i++) {
                     PathStep step = plan.steps().get(i);
-                    route.add(new MovementDebug.Segment(step.from().x(), step.from().y(), step.from().z(),
-                            step.to().x(), step.to().y(), step.to().z(), step.move().ordinal()));
+                    route.add(new MovementDebug.Segment(
+                            step.from().x(),
+                            step.from().y(),
+                            step.from().z(),
+                            step.to().x(),
+                            step.to().y(),
+                            step.to().z(),
+                            step.move().ordinal()));
                     if (i >= Math.max(0, stepIndex)) {
                         for (Pos p : step.breaks()) {
                             breaks.add(new MovementDebug.Cell(p.x(), p.y(), p.z()));
@@ -121,11 +128,17 @@ public final class MovementDebugStream {
         lines.add(String.format(Locale.ROOT, "vel %.3f %.3f %.3f (%.3f b/t)", v.x, v.y, v.z, Math.hypot(v.x, v.z)));
         lines.add("ground " + c.onGround() + ", water " + c.isInWater() + ", head in water "
                 + c.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) + ", pathing " + c.pathing());
-        lines.add(String.format(Locale.ROOT, "yaw %.1f, pitch %.1f, speed %.2f, sprint %b",
-                c.getYRot(), c.getXRot(), c.getSpeed(), c.isSprinting()));
+        lines.add(String.format(
+                Locale.ROOT,
+                "yaw %.1f, pitch %.1f, speed %.2f, sprint %b",
+                c.getYRot(),
+                c.getXRot(),
+                c.getSpeed(),
+                c.isSprinting()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
-        List<String> upcoming = MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
+        List<String> upcoming =
+                MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
         return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming);
     }
 }

@@ -29,9 +29,12 @@ import net.minecraft.world.phys.Vec3;
  * {@code CompanionHands}, this class calls it instead of aiming a bucket itself.
  */
 public final class FireHands {
-    private static final ItemMatcher WATER_BUCKET = ItemMatcher.parse("minecraft:water_bucket").orElseThrow();
-    private static final ItemMatcher EMPTY_BUCKET = ItemMatcher.parse("minecraft:bucket").orElseThrow();
-    private static final ItemMatcher POWDER_SNOW = ItemMatcher.parse("minecraft:powder_snow_bucket").orElseThrow();
+    private static final ItemMatcher WATER_BUCKET =
+            ItemMatcher.parse("minecraft:water_bucket").orElseThrow();
+    private static final ItemMatcher EMPTY_BUCKET =
+            ItemMatcher.parse("minecraft:bucket").orElseThrow();
+    private static final ItemMatcher POWDER_SNOW =
+            ItemMatcher.parse("minecraft:powder_snow_bucket").orElseThrow();
 
     private final CompanionEntity companion;
     private final ServerLevel level;
@@ -133,8 +136,9 @@ public final class FireHands {
 
     /** Faces to click, in the order that most often leaves the placed water where it is wanted. */
     private static Direction[] clickOrder() {
-        return new Direction[] {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST,
-                Direction.EAST, Direction.UP};
+        return new Direction[] {
+            Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP
+        };
     }
 
     private boolean clickable(BlockPos pos) {
@@ -172,7 +176,8 @@ public final class FireHands {
         if (level.getBlockState(pos).getBlock() instanceof SimpleWaterloggedBlock) {
             return false;
         }
-        return level.getFluidState(pos).getType().isSame(Fluids.WATER) && level.getFluidState(pos).isSource();
+        return level.getFluidState(pos).getType().isSame(Fluids.WATER)
+                && level.getFluidState(pos).isSource();
     }
 
     private boolean lit(BlockPos cell) {

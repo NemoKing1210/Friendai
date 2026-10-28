@@ -38,7 +38,9 @@ class RecoveryAdvisorTest {
     void noOreInRadiusIsResourceNotFoundWithSearchRemedy() {
         Diagnosis d = advisor.diagnose("fish", "no open water nearby", Set.of());
         assertEquals(FailureKind.RESOURCE_NOT_FOUND, d.kind());
-        assertTrue(d.remedies().stream().anyMatch(r -> r.startsWith("search_resource")), d.remedies().toString());
+        assertTrue(
+                d.remedies().stream().anyMatch(r -> r.startsWith("search_resource")),
+                d.remedies().toString());
     }
 
     @Test
@@ -51,7 +53,9 @@ class RecoveryAdvisorTest {
 
     @Test
     void remedyAlreadyTriedIsNotSuggestedAgainAndEscalates() {
-        Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot",
+        Diagnosis d = advisor.diagnose(
+                "build_structure",
+                "missing materials: 3 × minecraft:iron_ingot",
                 Set.of("obtain_item minecraft:iron_ingot"));
         assertTrue(d.remedies().isEmpty());
         assertTrue(d.needsPlayer(), "with every remedy tried only the player can help");
@@ -66,8 +70,7 @@ class RecoveryAdvisorTest {
 
     @Test
     void aPlaceRefusalTellsTheModelWhereToMineInstead() {
-        Diagnosis d = advisor.diagnose("mine_blocks",
-                "24 68 17 is inside the house place \"home\" (r=32)", Set.of());
+        Diagnosis d = advisor.diagnose("mine_blocks", "24 68 17 is inside the house place \"home\" (r=32)", Set.of());
         assertEquals(FailureKind.RESOURCE_NOT_FOUND, d.kind());
         assertEquals(List.of("mine outside home"), d.remedies());
         assertFalse(d.needsPlayer(), "a place it can leave is not an owner decision");
@@ -75,8 +78,8 @@ class RecoveryAdvisorTest {
 
     @Test
     void serverProtectionComesWithAWayOut() {
-        Diagnosis d = advisor.diagnose("mine_block_at",
-                "24 68 17 is protected by the server (spawn protection or a world rule)", Set.of());
+        Diagnosis d = advisor.diagnose(
+                "mine_block_at", "24 68 17 is protected by the server (spawn protection or a world rule)", Set.of());
         assertEquals(FailureKind.FORBIDDEN, d.kind());
         assertFalse(d.remedies().isEmpty());
         assertFalse(d.needsPlayer(), "the model must try the nearest legal block first");
@@ -84,24 +87,28 @@ class RecoveryAdvisorTest {
 
     @Test
     void theBlockUnderTheFeetSuggestsANeighbour() {
-        Diagnosis d = advisor.diagnose("mine_block_at",
-                "24 68 17 is the block I am standing on", Set.of());
+        Diagnosis d = advisor.diagnose("mine_block_at", "24 68 17 is the block I am standing on", Set.of());
         assertEquals(FailureKind.UNREACHABLE, d.kind());
-        assertTrue(d.remedies().contains("mine a neighbouring block instead"), d.remedies().toString());
+        assertTrue(
+                d.remedies().contains("mine a neighbouring block instead"),
+                d.remedies().toString());
         assertFalse(d.needsPlayer());
     }
 
     @Test
     void theBreakListAndAnUnbreakableBlockHaveTheirOwnAdvice() {
-        Diagnosis listed = advisor.diagnose("mine_blocks", "24 68 17 is on the break list (minecraft:stone)",
-                Set.of());
+        Diagnosis listed = advisor.diagnose("mine_blocks", "24 68 17 is on the break list (minecraft:stone)", Set.of());
         assertEquals(FailureKind.FORBIDDEN, listed.kind());
-        assertTrue(listed.remedies().getFirst().contains("not on the break list"), listed.remedies().toString());
+        assertTrue(
+                listed.remedies().getFirst().contains("not on the break list"),
+                listed.remedies().toString());
         assertFalse(listed.needsPlayer());
 
-        Diagnosis bedrock = advisor.diagnose("mine_block_at",
-                "minecraft:bedrock at 24 68 17 cannot be broken (minecraft:bedrock)", Set.of());
-        assertTrue(bedrock.remedies().contains("choose another block"), bedrock.remedies().toString());
+        Diagnosis bedrock = advisor.diagnose(
+                "mine_block_at", "minecraft:bedrock at 24 68 17 cannot be broken (minecraft:bedrock)", Set.of());
+        assertTrue(
+                bedrock.remedies().contains("choose another block"),
+                bedrock.remedies().toString());
         assertFalse(bedrock.needsPlayer());
     }
 
@@ -114,6 +121,8 @@ class RecoveryAdvisorTest {
     @Test
     void diagnosisLineIsReadable() {
         Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
-        assertEquals("diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot", d.line());
+        assertEquals(
+                "diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot",
+                d.line());
     }
 }

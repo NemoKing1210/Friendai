@@ -19,13 +19,13 @@ class MenuThemeTest {
     @Test
     void textStaysReadableOnTheWindowFace() {
         for (int color : new int[] {
-                MenuTheme.TEXT,
-                MenuTheme.DIM,
-                MenuTheme.ACCENT,
-                MenuTheme.GOOD,
-                MenuTheme.WARN,
-                MenuTheme.BAD,
-                MenuTheme.PURPLE
+            MenuTheme.TEXT,
+            MenuTheme.DIM,
+            MenuTheme.ACCENT,
+            MenuTheme.GOOD,
+            MenuTheme.WARN,
+            MenuTheme.BAD,
+            MenuTheme.PURPLE
         }) {
             assertTrue(MenuTheme.readable(color, MenuTheme.WINDOW_FACE, BODY), hex(color) + " on the face");
         }
@@ -34,12 +34,7 @@ class MenuThemeTest {
     @Test
     void statusChipsCarryWhiteText() {
         for (int color : new int[] {
-                MenuTheme.ACCENT,
-                MenuTheme.GOOD,
-                MenuTheme.WARN,
-                MenuTheme.BAD,
-                MenuTheme.PURPLE,
-                MenuTheme.DIM
+            MenuTheme.ACCENT, MenuTheme.GOOD, MenuTheme.WARN, MenuTheme.BAD, MenuTheme.PURPLE, MenuTheme.DIM
         }) {
             assertTrue(MenuTheme.readable(MenuTheme.ON_WELL, color, BODY), "white on " + hex(color));
         }
@@ -80,13 +75,8 @@ class MenuThemeTest {
 
     @Test
     void everyBarFillStandsOffItsTrack() {
-        for (int color : new int[] {
-                MenuTheme.ACCENT,
-                MenuTheme.GOOD,
-                MenuTheme.WARN,
-                MenuTheme.BAD,
-                MenuTheme.PURPLE
-        }) {
+        for (int color :
+                new int[] {MenuTheme.ACCENT, MenuTheme.GOOD, MenuTheme.WARN, MenuTheme.BAD, MenuTheme.PURPLE}) {
             assertTrue(MenuTheme.readable(color, MenuTheme.TRACK, 3.0), hex(color) + " on the track");
         }
     }

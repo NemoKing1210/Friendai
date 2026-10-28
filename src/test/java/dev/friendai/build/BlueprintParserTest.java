@@ -268,10 +268,18 @@ class BlueprintParserTest {
                   "ops": [ { "op": "roof", "from": [0,0,0], "to": [4,0,4], "style": "gable", "block": "S", "axis": "z" } ]
                 }
                 """);
-        assertEquals("minecraft:oak_stairs[facing=east,half=bottom]", at(blueprint, 0, 0, 0).state());
-        assertEquals("minecraft:oak_stairs[facing=west,half=bottom]", at(blueprint, 4, 0, 0).state());
-        assertEquals("minecraft:oak_stairs[facing=east,half=bottom]", at(blueprint, 1, 1, 2).state());
-        assertEquals("minecraft:oak_stairs[facing=west,half=bottom]", at(blueprint, 3, 1, 2).state());
+        assertEquals(
+                "minecraft:oak_stairs[facing=east,half=bottom]",
+                at(blueprint, 0, 0, 0).state());
+        assertEquals(
+                "minecraft:oak_stairs[facing=west,half=bottom]",
+                at(blueprint, 4, 0, 0).state());
+        assertEquals(
+                "minecraft:oak_stairs[facing=east,half=bottom]",
+                at(blueprint, 1, 1, 2).state());
+        assertEquals(
+                "minecraft:oak_stairs[facing=west,half=bottom]",
+                at(blueprint, 3, 1, 2).state());
         assertTrue(has(blueprint, 2, 2, 0), "ridge row must be present");
         assertEquals("minecraft:oak_planks", at(blueprint, 2, 2, 0).state());
         assertEquals(3, blueprint.height());
@@ -285,15 +293,21 @@ class BlueprintParserTest {
                   "ops": [ { "op": "roof", "from": [0,0,0], "to": [4,0,4], "style": "pyramid", "block": "S" } ]
                 }
                 """);
-        assertEquals("minecraft:oak_stairs[facing=south,half=bottom,shape=outer_left]",
+        assertEquals(
+                "minecraft:oak_stairs[facing=south,half=bottom,shape=outer_left]",
                 at(blueprint, 0, 0, 0).state());
-        assertEquals("minecraft:oak_stairs[facing=south,half=bottom,shape=outer_right]",
+        assertEquals(
+                "minecraft:oak_stairs[facing=south,half=bottom,shape=outer_right]",
                 at(blueprint, 4, 0, 0).state());
-        assertEquals("minecraft:oak_stairs[facing=north,half=bottom,shape=outer_right]",
+        assertEquals(
+                "minecraft:oak_stairs[facing=north,half=bottom,shape=outer_right]",
                 at(blueprint, 0, 0, 4).state());
-        assertEquals("minecraft:oak_stairs[facing=north,half=bottom,shape=outer_left]",
+        assertEquals(
+                "minecraft:oak_stairs[facing=north,half=bottom,shape=outer_left]",
                 at(blueprint, 4, 0, 4).state());
-        assertEquals("minecraft:oak_stairs[facing=south,half=bottom]", at(blueprint, 1, 0, 0).state());
+        assertEquals(
+                "minecraft:oak_stairs[facing=south,half=bottom]",
+                at(blueprint, 1, 0, 0).state());
     }
 
     @Test
@@ -314,7 +328,8 @@ class BlueprintParserTest {
                   "ops": [ { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "S" } ]
                 }
                 """);
-        assertEquals("minecraft:oak_stairs[facing=east,half=bottom,shape=inner_left]",
+        assertEquals(
+                "minecraft:oak_stairs[facing=east,half=bottom,shape=inner_left]",
                 at(blueprint, 0, 0, 0).state());
     }
 
@@ -329,7 +344,11 @@ class BlueprintParserTest {
                   ]
                 }
                 """);
-        assertEquals("minecraft:oak_door[facing=south,half=lower]", at(blueprint, 2, 1, 2).state());
-        assertEquals("minecraft:oak_door[facing=south,half=upper]", at(blueprint, 2, 2, 2).state());
+        assertEquals(
+                "minecraft:oak_door[facing=south,half=lower]",
+                at(blueprint, 2, 1, 2).state());
+        assertEquals(
+                "minecraft:oak_door[facing=south,half=upper]",
+                at(blueprint, 2, 2, 2).state());
     }
 }

@@ -23,8 +23,10 @@ public final class SupportSafety {
         AABB bounds = companion.getBoundingBox();
         double top = pos.getY() + 1.0;
         return Math.abs(bounds.minY - top) < 0.2
-                && bounds.maxX > pos.getX() && bounds.minX < pos.getX() + 1.0
-                && bounds.maxZ > pos.getZ() && bounds.minZ < pos.getZ() + 1.0;
+                && bounds.maxX > pos.getX()
+                && bounds.minX < pos.getX() + 1.0
+                && bounds.maxZ > pos.getZ()
+                && bounds.minZ < pos.getZ() + 1.0;
     }
 
     /**

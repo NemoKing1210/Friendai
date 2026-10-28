@@ -4,8 +4,8 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.nav.Approach;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -36,8 +36,7 @@ public final class UseBlockTask implements Task {
 
     @Override
     public List<DebugTarget> debugTargets() {
-        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.USE,
-                want == null ? "" : want));
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.USE, want == null ? "" : want));
     }
 
     @Override
@@ -73,8 +72,7 @@ public final class UseBlockTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         if (!c.companion().hands().canInteract(pos)) {
             summary = coords() + " is " + ProtectionText.describe(c, pos);

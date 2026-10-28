@@ -13,7 +13,8 @@ import java.util.function.LongSupplier;
 public final class KnowledgeStore implements AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = OwnerFileStore.FLUSH_INTERVAL_MS;
     public static final long MAX_FILE_BYTES = 8L * 1024 * 1024;
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
     private final OwnerFileStore<ResourceKnowledge> store;
 
@@ -26,26 +27,40 @@ public final class KnowledgeStore implements AutoCloseable {
     }
 
     /** Loads lazily; a missing file creates an empty in-memory book without touching disk. */
-    public ResourceKnowledge book(UUID owner) { return store.book(owner); }
+    public ResourceKnowledge book(UUID owner) {
+        return store.book(owner);
+    }
 
     /** Flushes dirty books after the debounce interval; only one immutable snapshot per owner may be queued. */
-    public void flushIfDue(long nowMillis) { store.flushIfDue(nowMillis); }
+    public void flushIfDue(long nowMillis) {
+        store.flushIfDue(nowMillis);
+    }
 
-    public void flushIfDue() { store.flushIfDue(); }
+    public void flushIfDue() {
+        store.flushIfDue();
+    }
 
     /** Schedules the latest snapshot of every dirty owner. Production stores wait through pending revisions. */
-    public void flushAll() { store.flushAll(); }
+    public void flushAll() {
+        store.flushAll();
+    }
 
-    synchronized boolean dirty(UUID owner) { return store.dirty(owner); }
+    synchronized boolean dirty(UUID owner) {
+        return store.dirty(owner);
+    }
 
     @Override
-    public void close() { store.close(); }
+    public void close() {
+        store.close();
+    }
 
     /** Bounded GSON format for one owner's atlas; a null file yields an empty book. */
     private static final class KnowledgeCodec implements StoreCodec<ResourceKnowledge> {
         private final KnowledgeLimits limits;
 
-        KnowledgeCodec(KnowledgeLimits limits) { this.limits = limits; }
+        KnowledgeCodec(KnowledgeLimits limits) {
+            this.limits = limits;
+        }
 
         @Override
         public ResourceKnowledge load(String json) {
@@ -57,12 +72,18 @@ public final class KnowledgeStore implements AutoCloseable {
         }
 
         @Override
-        public String save(ResourceKnowledge book) { return GSON.toJson(book.snapshot()); }
+        public String save(ResourceKnowledge book) {
+            return GSON.toJson(book.snapshot());
+        }
 
         @Override
-        public long revision(ResourceKnowledge book) { return book.revision(); }
+        public long revision(ResourceKnowledge book) {
+            return book.revision();
+        }
 
         @Override
-        public long maxBytes() { return MAX_FILE_BYTES; }
+        public long maxBytes() {
+            return MAX_FILE_BYTES;
+        }
     }
 }

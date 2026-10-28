@@ -1,10 +1,11 @@
 package dev.friendai.test;
 
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.debug.MovementDebug;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.MovementDebug;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
@@ -15,17 +16,16 @@ import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
 import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.StayTask;
-import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.builtin.UseBlockTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.ProblemReporter;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -64,8 +64,9 @@ public class TaskTests {
         runner.queue().addDirect(new QueuedStep("first_tool", null, null, List.of(), null, null, 1, List.of()));
         runner.queue().addDirect(new QueuedStep("second_tool", null, null, List.of(), null, null, 1, List.of()));
         runner.queue().addDirect(new QueuedStep("third_tool", null, null, List.of(), null, null, 1, List.of()));
-        h.assertTrue(MovementDebug.upcomingSteps(runner.queue().jobs())
-                .equals(List.of("first_tool", "second_tool")), "debug preview should show the next two queued steps");
+        h.assertTrue(
+                MovementDebug.upcomingSteps(runner.queue().jobs()).equals(List.of("first_tool", "second_tool")),
+                "debug preview should show the next two queued steps");
         h.succeed();
     }
 
@@ -126,15 +127,25 @@ public class TaskTests {
     public void fixedBlockTasksExposeDebugTargets(GameTestHelper h) {
         BlockPos target = new BlockPos(4, 5, 6);
         h.assertTrue(new StayTask().debugTargets().isEmpty(), "tasks without a block action have no debug targets");
-        h.assertTrue(new MineBlockAtTask(target).debugTargets().equals(
-                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))), "mine target should be exposed");
-        h.assertTrue(new PlaceBlockTask((net.minecraft.world.item.BlockItem) Blocks.DIRT.asItem(), target)
-                .debugTargets().equals(List.of(new DebugTarget(4, 5, 6, DebugAction.PLACE, "minecraft:dirt"))),
+        h.assertTrue(
+                new MineBlockAtTask(target)
+                        .debugTargets()
+                        .equals(List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))),
+                "mine target should be exposed");
+        h.assertTrue(
+                new PlaceBlockTask((net.minecraft.world.item.BlockItem) Blocks.DIRT.asItem(), target)
+                        .debugTargets()
+                        .equals(List.of(new DebugTarget(4, 5, 6, DebugAction.PLACE, "minecraft:dirt"))),
                 "explicit placement position should be exposed before walking");
-        h.assertTrue(new UseBlockTask(target, null).debugTargets().equals(
-                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, ""))), "use target should be exposed");
-        h.assertTrue(new CheckContainerTask(target).debugTargets().equals(
-                List.of(new DebugTarget(4, 5, 6, DebugAction.USE, "container"))),
+        h.assertTrue(
+                new UseBlockTask(target, null)
+                        .debugTargets()
+                        .equals(List.of(new DebugTarget(4, 5, 6, DebugAction.USE, ""))),
+                "use target should be exposed");
+        h.assertTrue(
+                new CheckContainerTask(target)
+                        .debugTargets()
+                        .equals(List.of(new DebugTarget(4, 5, 6, DebugAction.USE, "container"))),
                 "container target should be exposed by the base task");
         h.succeed();
     }
@@ -185,11 +196,15 @@ public class TaskTests {
         TaskRunner runner = runner(c, events, 300, true);
         runner.start(new StayTask(), "mine_blocks");
         h.assertTrue(runner.stopNamed("go_to", "x").isEmpty(), "a different name must not stop the task");
-        h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("stay"), "the task should still run");
+        h.assertTrue(
+                runner.current().isPresent() && runner.current().get().type().equals("stay"),
+                "the task should still run");
         h.assertTrue(events.log.isEmpty(), "nothing was cancelled, events were " + events.log);
         var stopped = runner.stopNamed("mine_blocks", "x");
         h.assertTrue(stopped.isPresent() && stopped.get().equals("staying in place"), "stopped was " + stopped);
-        h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity");
+        h.assertTrue(
+                runner.current().isPresent() && runner.current().get().type().equals("follow"),
+                "should be back on the default activity");
         h.assertTrue(events.log.equals(List.of("cancelled:mine_blocks:x")), "events were " + events.log);
         h.assertTrue(runner.stopNamed("mine_blocks", "x").isEmpty(), "nothing named mine_blocks is running any more");
         h.succeed();
@@ -201,14 +216,25 @@ public class TaskTests {
         Events events = new Events();
         TaskRunner runner = runner(c, events, 300, true);
         for (String name : List.of("mine_blocks", "run_plan")) {
-            runner.start(new SequenceTask(null, List.of(
-                    new PlanEntry("mine_blocks", ctx -> new StayTask()),
-                    new PlanEntry("craft_item", ctx -> new StayTask())), () -> 300), "run_plan");
+            runner.start(
+                    new SequenceTask(
+                            null,
+                            List.of(
+                                    new PlanEntry("mine_blocks", ctx -> new StayTask()),
+                                    new PlanEntry("craft_item", ctx -> new StayTask())),
+                            () -> 300),
+                    "run_plan");
             runner.tick();
             h.assertTrue(runner.stopNamed("craft_item", "x").isEmpty(), "a queued step must not match");
-            h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("run_plan"), "the plan should still run");
+            h.assertTrue(
+                    runner.current().isPresent()
+                            && runner.current().get().type().equals("run_plan"),
+                    "the plan should still run");
             h.assertTrue(runner.stopNamed(name, "x").isPresent(), name + " should stop the plan");
-            h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be back on the default activity after " + name);
+            h.assertTrue(
+                    runner.current().isPresent()
+                            && runner.current().get().type().equals("follow"),
+                    "should be back on the default activity after " + name);
         }
         h.succeed();
     }
@@ -218,21 +244,44 @@ public class TaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         TaskRunner runner = runner(c, new Events(), 300, false);
         Task step = new Task() {
-            @Override public String type() { return "debug_step"; }
-            @Override public void start(TaskContext context) {}
-            @Override public TaskStatus tick(TaskContext context) { return TaskStatus.RUNNING; }
-            @Override public void stop(TaskContext context) {}
-            @Override public String describe() { return "debug step"; }
-            @Override public String resultSummary() { return ""; }
-            @Override public List<DebugTarget> debugTargets() {
+            @Override
+            public String type() {
+                return "debug_step";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "debug step";
+            }
+
+            @Override
+            public String resultSummary() {
+                return "";
+            }
+
+            @Override
+            public List<DebugTarget> debugTargets() {
                 return List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""));
             }
         };
-        runner.start(new SequenceTask(null, List.of(
-                new PlanEntry("debug_step", ctx -> step)), () -> 300), "run_plan");
+        runner.start(new SequenceTask(null, List.of(new PlanEntry("debug_step", ctx -> step)), () -> 300), "run_plan");
         runner.tick();
-        h.assertTrue(runner.current().orElseThrow().debugTargets().equals(
-                List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))),
+        h.assertTrue(
+                runner.current()
+                        .orElseThrow()
+                        .debugTargets()
+                        .equals(List.of(new DebugTarget(4, 5, 6, DebugAction.BREAK, ""))),
                 "the sequence should expose its active step's current block target");
         h.succeed();
     }
@@ -243,11 +292,14 @@ public class TaskTests {
         Events events = new Events();
         TaskRunner runner = runner(c, events, 300, false);
         Task cleanup = new StayTask();
-        runner.start(new SequenceTask(null, List.of(
-                new PlanEntry("cleanup_step", ctx -> new CleanupStep(cleanup))), () -> 300), "run_plan");
+        runner.start(
+                new SequenceTask(
+                        null, List.of(new PlanEntry("cleanup_step", ctx -> new CleanupStep(cleanup))), () -> 300),
+                "run_plan");
         runner.tick();
         runner.stop("x");
-        h.assertTrue(runner.current().isPresent() && runner.current().get() == cleanup,
+        h.assertTrue(
+                runner.current().isPresent() && runner.current().get() == cleanup,
                 "the plan must hand the runner its step's cleanup, current: "
                         + runner.current().map(Task::type).orElse("none"));
         h.succeed();
@@ -260,7 +312,8 @@ public class TaskTests {
         TaskRunner runner = runner(c, events, 300, true);
         runner.start(new StayTask(), "stay");
         runner.stop("x");
-        h.assertTrue(runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be following");
+        h.assertTrue(
+                runner.current().isPresent() && runner.current().get().type().equals("follow"), "should be following");
         h.assertTrue(events.log.equals(List.of("cancelled:stay:x")), "events were " + events.log);
         h.succeed();
     }
@@ -288,33 +341,35 @@ public class TaskTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
         TaskRunner runner = runner(c, events, 300, false);
-        runner.start(new Task() {
-            @Override
-            public String type() {
-                return "boom";
-            }
+        runner.start(
+                new Task() {
+                    @Override
+                    public String type() {
+                        return "boom";
+                    }
 
-            @Override
-            public void start(TaskContext ctx) {}
+                    @Override
+                    public void start(TaskContext ctx) {}
 
-            @Override
-            public TaskStatus tick(TaskContext ctx) {
-                throw new IllegalStateException("boom");
-            }
+                    @Override
+                    public TaskStatus tick(TaskContext ctx) {
+                        throw new IllegalStateException("boom");
+                    }
 
-            @Override
-            public void stop(TaskContext ctx) {}
+                    @Override
+                    public void stop(TaskContext ctx) {}
 
-            @Override
-            public String describe() {
-                return "boom";
-            }
+                    @Override
+                    public String describe() {
+                        return "boom";
+                    }
 
-            @Override
-            public String resultSummary() {
-                return "";
-            }
-        }, "boom");
+                    @Override
+                    public String resultSummary() {
+                        return "";
+                    }
+                },
+                "boom");
         runner.tick();
         h.assertTrue(events.finalStatus == TaskStatus.FAILED, "should have failed");
         h.assertTrue(events.finalSummary.startsWith("task crashed"), "summary was " + events.finalSummary);
@@ -326,13 +381,16 @@ public class TaskTests {
     public void stayTaskRestoredAfterReload(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         a.taskRunner().start(new StayTask(), "stay");
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
-        h.assertTrue(b.taskRunner().current().isPresent() && b.taskRunner().current().get().type().equals("stay"),
+        h.assertTrue(
+                b.taskRunner().current().isPresent()
+                        && b.taskRunner().current().get().type().equals("stay"),
                 "stay task not restored");
         h.succeed();
     }

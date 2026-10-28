@@ -9,8 +9,24 @@ import org.junit.jupiter.api.Test;
 
 class PlaceGeometryTest {
     private static Place home(int radius, int below, int above) {
-        return new Place(1, "home", PlaceKind.HOUSE, "", "minecraft:overworld", new Pos(0, 64, 0), radius,
-                Set.of(), PlaceSource.MANUAL, null, 1, 1, 0, 0, "", below, above);
+        return new Place(
+                1,
+                "home",
+                PlaceKind.HOUSE,
+                "",
+                "minecraft:overworld",
+                new Pos(0, 64, 0),
+                radius,
+                Set.of(),
+                PlaceSource.MANUAL,
+                null,
+                1,
+                1,
+                0,
+                0,
+                "",
+                below,
+                above);
     }
 
     @Test

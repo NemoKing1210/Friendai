@@ -62,7 +62,8 @@ public final class Parts {
         BlockState atPartner = level.getBlockState(partnerPos);
         if (!atPartner.equals(partner)) {
             if (!atPartner.isAir() && !atPartner.canBeReplaced() && atPartner.getBlock() != wanted.getBlock()) {
-                // Someone else's block sits where the other half belongs; leave the bed alone rather than half-place it.
+                // Someone else's block sits where the other half belongs; leave the bed alone rather than half-place
+                // it.
                 return;
             }
             level.setBlock(partnerPos, partner, Block.UPDATE_CLIENTS);
@@ -74,8 +75,7 @@ public final class Parts {
     }
 
     /** The other half where the placement left it, when that is not where the blueprint wants it. */
-    private static BlockPos stray(
-            ServerLevel level, BlockPos pos, Block block, BedPart part, BlockPos partnerPos) {
+    private static BlockPos stray(ServerLevel level, BlockPos pos, Block block, BedPart part, BlockPos partnerPos) {
         for (Direction direction : Direction.Plane.HORIZONTAL) {
             BlockPos neighbor = pos.relative(direction);
             if (neighbor.equals(partnerPos)) {

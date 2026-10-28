@@ -120,7 +120,8 @@ public class ItemTaskTests {
             // Magma hurts a companion standing on it but leaves an item alone: the drop is taken from a safe spot.
             h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 3, "the drop above the magma was not taken");
             h.assertTrue(result.summary.equals("picked up 3 items"), "summary was " + result.summary);
-            h.assertTrue(!c.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
+            h.assertTrue(
+                    !c.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
                     "the companion stood in the magma to reach the drop");
         });
     }
@@ -132,8 +133,7 @@ public class ItemTaskTests {
         for (int x = 4; x <= 6; x++) {
             for (int y = 2; y <= 4; y++) {
                 for (int z = 4; z <= 6; z++) {
-                    h.setBlock(new BlockPos(x, y, z),
-                            x == 5 && y == 3 && z == 5 ? Blocks.AIR : Blocks.STONE);
+                    h.setBlock(new BlockPos(x, y, z), x == 5 && y == 3 && z == 5 ? Blocks.AIR : Blocks.STONE);
                 }
             }
         }
@@ -175,9 +175,13 @@ public class ItemTaskTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
-            int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8)).stream()
+            int dropped = h
+                    .getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                    .stream()
                     .filter(e -> e.getItem().is(Items.OAK_LOG))
-                    .mapToInt(e -> e.getItem().getCount()).sum();
+                    .mapToInt(e -> e.getItem().getCount())
+                    .sum();
             h.assertTrue(dropped == 4, "dropped " + dropped);
             h.assertTrue(c.inventory().countItem(Items.OAK_LOG) == 6, "should have 6 left");
             h.assertTrue(result.summary.equals("gave 4 minecraft:oak_log"), "summary was " + result.summary);
@@ -213,7 +217,8 @@ public class ItemTaskTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
             h.assertTrue(result.summary.equals("gave 4 #minecraft:planks"), "summary was " + result.summary);
-            int left = c.inventory().countItem(Items.BIRCH_PLANKS) + c.inventory().countItem(Items.SPRUCE_PLANKS);
+            int left =
+                    c.inventory().countItem(Items.BIRCH_PLANKS) + c.inventory().countItem(Items.SPRUCE_PLANKS);
             h.assertTrue(left == 1, "should have 1 plank left, had " + left);
         });
     }
@@ -221,9 +226,13 @@ public class ItemTaskTests {
     @GameTest
     public void itemMatcherParsing(GameTestHelper h) {
         h.assertTrue(ItemMatcher.parse("nonsense:item").isEmpty(), "unknown id must not parse");
-        h.assertTrue(ItemMatcher.parse(" oak_log ").orElseThrow().label().equals("minecraft:oak_log"), "label normalized");
-        h.assertTrue(ItemMatcher.parse("#minecraft:wool").orElseThrow().test(new ItemStack(Items.WOOL.red())), "tag matches");
-        h.assertTrue(!ItemMatcher.parse("minecraft:oak_log").orElseThrow().test(ItemStack.EMPTY), "empty never matches");
+        h.assertTrue(
+                ItemMatcher.parse(" oak_log ").orElseThrow().label().equals("minecraft:oak_log"), "label normalized");
+        h.assertTrue(
+                ItemMatcher.parse("#minecraft:wool").orElseThrow().test(new ItemStack(Items.WOOL.red())),
+                "tag matches");
+        h.assertTrue(
+                !ItemMatcher.parse("minecraft:oak_log").orElseThrow().test(ItemStack.EMPTY), "empty never matches");
         h.succeed();
     }
 
@@ -236,7 +245,8 @@ public class ItemTaskTests {
         List<ItemStack> removed = InventoryOps.remove(c.inventory(), matcher, 50);
         int total = removed.stream().mapToInt(ItemStack::getCount).sum();
         h.assertTrue(total == 50, "removed " + total);
-        h.assertTrue(removed.stream().allMatch(s -> s.getCount() <= s.getMaxStackSize()), "a stack went over its limit");
+        h.assertTrue(
+                removed.stream().allMatch(s -> s.getCount() <= s.getMaxStackSize()), "a stack went over its limit");
         h.assertTrue(InventoryOps.count(c.inventory(), matcher) == 20, "should have 20 left");
         h.succeed();
     }
@@ -252,7 +262,8 @@ public class ItemTaskTests {
         h.assertTrue(c.inventory().countItem(Items.PRISMARINE) == 0, "a full inventory must take nothing");
         int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(2)).stream()
                 .filter(e -> e.getItem().is(Items.PRISMARINE))
-                .mapToInt(e -> e.getItem().getCount()).sum();
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
         h.assertTrue(dropped == 5, "dropped " + dropped);
         h.succeed();
     }
@@ -271,7 +282,8 @@ public class ItemTaskTests {
         h.assertTrue(c.inventory().countItem(Items.GRANITE) == 3, "should have 3 left");
         int dropped = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(2)).stream()
                 .filter(e -> e.getItem().is(Items.GRANITE))
-                .mapToInt(e -> e.getItem().getCount()).sum();
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
         h.assertTrue(dropped == 7, "dropped " + dropped);
         h.succeed();
     }
@@ -323,10 +335,14 @@ public class ItemTaskTests {
             h.assertTrue(ticks[0] >= 121, "waiting for the pickup delay to expire");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
-            h.assertTrue(c.inventory().countItem(Items.TERRACOTTA) == 0, "picked its own drop back up after the pickup delay expired");
-            int onGround = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(6)).stream()
-                    .filter(e -> e.getItem().is(Items.TERRACOTTA))
-                    .mapToInt(e -> e.getItem().getCount()).sum();
+            h.assertTrue(
+                    c.inventory().countItem(Items.TERRACOTTA) == 0,
+                    "picked its own drop back up after the pickup delay expired");
+            int onGround =
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(6)).stream()
+                            .filter(e -> e.getItem().is(Items.TERRACOTTA))
+                            .mapToInt(e -> e.getItem().getCount())
+                            .sum();
             h.assertTrue(onGround == 5, "on the ground " + onGround);
         });
     }
@@ -338,7 +354,10 @@ public class ItemTaskTests {
         c.inventory().addItem(new ItemStack(Items.POLISHED_DIORITE, 5));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:polished_diorite").orElseThrow(), 5), "drop_items");
+        runner.start(
+                new DropItemsTask(
+                        ItemMatcher.parse("minecraft:polished_diorite").orElseThrow(), 5),
+                "drop_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "drop should succeed");
         runner.start(new PickupItemsTask(6), "pickup_items");
@@ -347,9 +366,11 @@ public class ItemTaskTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished yet");
             h.assertTrue(result.summary.equals("picked up 0 items"), "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.POLISHED_DIORITE) == 0, "must not pick its own drop back up");
-            int onGround = h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(4)).stream()
-                    .filter(e -> e.getItem().is(Items.POLISHED_DIORITE))
-                    .mapToInt(e -> e.getItem().getCount()).sum();
+            int onGround =
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(4)).stream()
+                            .filter(e -> e.getItem().is(Items.POLISHED_DIORITE))
+                            .mapToInt(e -> e.getItem().getCount())
+                            .sum();
             h.assertTrue(onGround == 5, "on the ground " + onGround);
         });
     }

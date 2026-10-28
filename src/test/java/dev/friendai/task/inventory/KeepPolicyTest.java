@@ -31,10 +31,12 @@ class KeepPolicyTest {
 
     @Test
     void keepsBestPickaxeOnly() {
-        Map<Integer, Integer> keep = KeepPolicy.keep(List.of(
-                tool(0, "minecraft:wooden_pickaxe", "minecraft:pickaxes", "PICKAXE", 1),
-                tool(1, "minecraft:iron_pickaxe", "minecraft:pickaxes", "PICKAXE", 3),
-                tool(2, "minecraft:stone_axe", "minecraft:axes", "AXE", 2)), KEEP);
+        Map<Integer, Integer> keep = KeepPolicy.keep(
+                List.of(
+                        tool(0, "minecraft:wooden_pickaxe", "minecraft:pickaxes", "PICKAXE", 1),
+                        tool(1, "minecraft:iron_pickaxe", "minecraft:pickaxes", "PICKAXE", 3),
+                        tool(2, "minecraft:stone_axe", "minecraft:axes", "AXE", 2)),
+                KEEP);
         assertNull(keep.get(0));
         assertEquals(1, keep.get(1));
         assertEquals(1, keep.get(2));
@@ -42,17 +44,20 @@ class KeepPolicyTest {
 
     @Test
     void keepsShieldAndTorchesFromKeepItems() {
-        Map<Integer, Integer> keep = KeepPolicy.keep(List.of(
-                item(0, "minecraft:shield", 1), item(1, "minecraft:torch", 40)), KEEP);
+        Map<Integer, Integer> keep =
+                KeepPolicy.keep(List.of(item(0, "minecraft:shield", 1), item(1, "minecraft:torch", 40)), KEEP);
         assertEquals(1, keep.get(0));
         assertEquals(40, keep.get(1));
     }
 
     @Test
     void keepsFoodUpToTwentyPoints() {
-        Map<Integer, Integer> keep = KeepPolicy.keep(List.of(
-                food(0, "minecraft:bread", 10, 5), food(1, "minecraft:bread", 10, 5),
-                food(2, "minecraft:cooked_beef", 2, 8)), KEEP);
+        Map<Integer, Integer> keep = KeepPolicy.keep(
+                List.of(
+                        food(0, "minecraft:bread", 10, 5),
+                        food(1, "minecraft:bread", 10, 5),
+                        food(2, "minecraft:cooked_beef", 2, 8)),
+                KEEP);
         assertEquals(2, keep.get(2), "the best food first: two steaks are 16 points");
         assertEquals(1, keep.get(0), "one bread tops it up to 20");
         assertNull(keep.get(1));
@@ -60,16 +65,16 @@ class KeepPolicyTest {
 
     @Test
     void keepsCheapestBlocksUpToThirtyTwo() {
-        Map<Integer, Integer> keep = KeepPolicy.keep(List.of(
-                block(0, "minecraft:oak_log", 10, 5.0), block(1, "minecraft:cobblestone", 52, 1.0)), KEEP);
+        Map<Integer, Integer> keep = KeepPolicy.keep(
+                List.of(block(0, "minecraft:oak_log", 10, 5.0), block(1, "minecraft:cobblestone", 52, 1.0)), KEEP);
         assertEquals(32, keep.get(1));
         assertNull(keep.get(0));
     }
 
     @Test
     void keepItemsTagsMatch() {
-        Map<Integer, Integer> keep = KeepPolicy.keep(List.of(
-                new KeepPolicy.Slot(0, "minecraft:emerald", Set.of("c:gems"), 3, "", 0, 0, -1)),
+        Map<Integer, Integer> keep = KeepPolicy.keep(
+                List.of(new KeepPolicy.Slot(0, "minecraft:emerald", Set.of("c:gems"), 3, "", 0, 0, -1)),
                 List.of("#c:gems"));
         assertEquals(3, keep.get(0));
     }

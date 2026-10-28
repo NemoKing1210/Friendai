@@ -83,7 +83,6 @@ class MemoryPromptRendererTest {
 
     @Test
     void emptyBook() {
-        assertEquals("Memory: nothing remembered yet.",
-                MemoryPromptRenderer.render(new MemoryBook(), O, ownerCaller));
+        assertEquals("Memory: nothing remembered yet.", MemoryPromptRenderer.render(new MemoryBook(), O, ownerCaller));
     }
 }

@@ -21,7 +21,11 @@ public final class PromptAssembler {
     }
 
     public record Assembly(String text, List<String> keptSectionIds, boolean mandatoryOverrun) {}
-    public String assemble(TurnContext ctx) { return assembleDetailed(ctx).text(); }
+
+    public String assemble(TurnContext ctx) {
+        return assembleDetailed(ctx).text();
+    }
+
     public Assembly assembleDetailed(TurnContext ctx) {
         List<PromptSection> kept = new ArrayList<>();
         List<String> texts = new ArrayList<>();
@@ -45,7 +49,8 @@ public final class PromptAssembler {
             }
         }
         String text = String.join("\n", texts);
-        return new Assembly(text, kept.stream().map(PromptSection::id).toList(), maxChars > 0 && text.length() > maxChars);
+        return new Assembly(
+                text, kept.stream().map(PromptSection::id).toList(), maxChars > 0 && text.length() > maxChars);
     }
 
     private static int length(List<String> texts) {

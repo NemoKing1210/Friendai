@@ -20,8 +20,8 @@ public final class ProtectionText {
         }
         Place place = PlaceGuard.protecting(c, pos);
         if (place != null) {
-            return "inside the " + place.kind().name().toLowerCase(Locale.ROOT) + " place \"" + place.name()
-                    + "\" (r=" + place.radius() + ")";
+            return "inside the " + place.kind().name().toLowerCase(Locale.ROOT) + " place \"" + place.name() + "\" (r="
+                    + place.radius() + ")";
         }
         return "protected";
     }

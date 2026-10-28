@@ -9,7 +9,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.inventory.ItemMatcher;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +26,7 @@ public final class CookFoodTask implements Task {
 
     @Nullable
     private SmeltTask current;
+
     private String failure;
     private String summary = "";
 

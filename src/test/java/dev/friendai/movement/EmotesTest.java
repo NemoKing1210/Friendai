@@ -49,7 +49,8 @@ class EmotesTest {
 
     @Test
     void spinTurnsAlmostAFullCircle() {
-        float last = Emotes.at(Emotes.Kind.SPIN, Emotes.Kind.SPIN.duration() - 1).yawOffset();
+        float last =
+                Emotes.at(Emotes.Kind.SPIN, Emotes.Kind.SPIN.duration() - 1).yawOffset();
         assertTrue(last > 300.0f && last < 360.0f);
     }
 

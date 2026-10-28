@@ -66,10 +66,10 @@ public final class Equipment {
      * modifier replaces the bare-hand one, so the base value is the right starting point.
      */
     public static double meleeDps(CompanionEntity companion, ItemStack stack) {
-        double damage = companion.getAttributeBaseValue(Attributes.ATTACK_DAMAGE)
-                + modifier(stack, Attributes.ATTACK_DAMAGE);
-        double speed = companion.getAttributeBaseValue(Attributes.ATTACK_SPEED)
-                + modifier(stack, Attributes.ATTACK_SPEED);
+        double damage =
+                companion.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) + modifier(stack, Attributes.ATTACK_DAMAGE);
+        double speed =
+                companion.getAttributeBaseValue(Attributes.ATTACK_SPEED) + modifier(stack, Attributes.ATTACK_SPEED);
         return Math.max(0.0, damage) * Math.max(0.0, speed);
     }
 
@@ -138,8 +138,7 @@ public final class Equipment {
                 }
                 double candidateArmor = armor(stack, slot);
                 double candidateToughness = toughness(stack, slot);
-                if (candidateArmor > bestArmor
-                        || (candidateArmor == bestArmor && candidateToughness > bestToughness)) {
+                if (candidateArmor > bestArmor || (candidateArmor == bestArmor && candidateToughness > bestToughness)) {
                     bestArmor = candidateArmor;
                     bestToughness = candidateToughness;
                     bestSlot = i;
@@ -163,7 +162,9 @@ public final class Equipment {
             return false;
         }
         return EnchantmentHelper.getItemEnchantmentLevel(
-                        level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.BINDING_CURSE),
+                        level.registryAccess()
+                                .lookupOrThrow(Registries.ENCHANTMENT)
+                                .getOrThrow(Enchantments.BINDING_CURSE),
                         stack)
                 > 0;
     }

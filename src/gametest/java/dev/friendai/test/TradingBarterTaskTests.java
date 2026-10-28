@@ -32,20 +32,32 @@ public final class TradingBarterTaskTests {
         Piglin piglin = h.spawn(EntityTypes.PIGLIN, 3, 2, 2);
         piglin.setNoAi(true);
         var state = FriendaiServerState.get(h.getLevel().getServer());
-        Caller caller = state.brains().tradeAuthorityFor(ownerId)
-                .begin(new Caller(ownerId, "owner", AccessLevel.OWNER), true);
-        BarterOrder order = state.brains().tradeAuthorityFor(ownerId).authorizeBarter(caller,
-                new BarterOrder(UUID.randomUUID(), ownerId, caller.tradingScope(), piglin.getUUID(),
-                        1, Optional.empty(), 0, h.getLevel().getGameTime() + 30));
+        Caller caller =
+                state.brains().tradeAuthorityFor(ownerId).begin(new Caller(ownerId, "owner", AccessLevel.OWNER), true);
+        BarterOrder order = state.brains()
+                .tradeAuthorityFor(ownerId)
+                .authorizeBarter(
+                        caller,
+                        new BarterOrder(
+                                UUID.randomUUID(),
+                                ownerId,
+                                caller.tradingScope(),
+                                piglin.getUUID(),
+                                1,
+                                Optional.empty(),
+                                0,
+                                h.getLevel().getGameTime() + 30));
         var context = new TaskContext(companion, h.getLevel());
         BarterTask task = new BarterTask(order);
         task.start(context);
         TaskStatus first = task.tick(context);
         h.assertTrue(first == TaskStatus.RUNNING, "first authorized payment should enter pending-output wait");
-        h.assertTrue(companion.inventory().countItem(Items.GOLD_INGOT) == 1, "exactly one gold ingot should be accepted");
+        h.assertTrue(
+                companion.inventory().countItem(Items.GOLD_INGOT) == 1, "exactly one gold ingot should be accepted");
         for (int i = 0; i < 5; i++) {
             task.tick(context);
-            h.assertTrue(companion.inventory().countItem(Items.GOLD_INGOT) == 1,
+            h.assertTrue(
+                    companion.inventory().countItem(Items.GOLD_INGOT) == 1,
                     "no second payment is allowed while the first output is pending");
         }
         task.stop(context);

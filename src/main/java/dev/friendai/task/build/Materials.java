@@ -1,14 +1,12 @@
 package dev.friendai.task.build;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.interact.ContainerAccess;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -28,8 +26,7 @@ public final class Materials {
      * The items needed to build: one per placed block, plus the foundation. Double blocks count once (the upper half
      * appears when the lower one is placed), and air specs need nothing.
      */
-    public static Map<Item, Integer> needed(
-            List<Placement.PlacedSpec> specs, List<Placement.PlacedSpec> foundation) {
+    public static Map<Item, Integer> needed(List<Placement.PlacedSpec> specs, List<Placement.PlacedSpec> foundation) {
         Map<Item, Integer> needed = new LinkedHashMap<>();
         for (Placement.PlacedSpec spec : specs) {
             add(needed, spec.wanted());
@@ -70,8 +67,9 @@ public final class Materials {
         return switch (path) {
             case "wall_torch" -> Items.TORCH;
             case "redstone_wire" -> Items.REDSTONE;
-            default -> throw new IllegalArgumentException(
-                    BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " can't be placed by hand");
+            default ->
+                throw new IllegalArgumentException(
+                        BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " can't be placed by hand");
         };
     }
 
@@ -98,7 +96,9 @@ public final class Materials {
             return false;
         }
         BlockPos other = ChestBlock.getConnectedBlockPos(pos, state);
-        return !other.equals(pos) && level.getBlockState(other).getBlock() instanceof ChestBlock && other.compareTo(pos) < 0;
+        return !other.equals(pos)
+                && level.getBlockState(other).getBlock() instanceof ChestBlock
+                && other.compareTo(pos) < 0;
     }
 
     private static void count(Map<Item, Integer> have, ItemStack stack) {

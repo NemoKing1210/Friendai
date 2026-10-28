@@ -4,8 +4,13 @@ import java.util.List;
 import java.util.Map;
 
 /** Everything the planner knows: the classified cells, what the companion carries and how it feels. */
-public record FarmSnapshot(List<FieldCell> cells, Map<String, Integer> inventory, boolean hasHoe, int boneMeal,
-        boolean chestSpace, FoodNeed foodNeed) {
+public record FarmSnapshot(
+        List<FieldCell> cells,
+        Map<String, Integer> inventory,
+        boolean hasHoe,
+        int boneMeal,
+        boolean chestSpace,
+        FoodNeed foodNeed) {
     public FarmSnapshot {
         cells = List.copyOf(cells);
         inventory = Map.copyOf(inventory);

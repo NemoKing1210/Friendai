@@ -12,7 +12,9 @@ public final class TurnTask implements Task {
     private static final float STEP_DEGREES = 30.0f;
     private static final float DONE_TOLERANCE = 1.0f;
 
-    @Nullable private final Float absoluteYaw;
+    @Nullable
+    private final Float absoluteYaw;
+
     private final float relativeDegrees;
     private final String description;
     private float target;

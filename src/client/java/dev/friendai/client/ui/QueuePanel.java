@@ -26,17 +26,44 @@ final class QueuePanel {
         QueueSummary q = parsed.get();
         int cursor = y;
         int chipX = x;
-        chipX += chip(g, font, Component.translatable("friendai.menu.queue.running", q.running()).getString(),
-                chipX, cursor, q.running() > 0 ? Ui.GOOD : Ui.DIM) + CHIP_GAP;
-        chipX += chip(g, font, Component.translatable("friendai.menu.queue.pending", q.pending()).getString(),
-                chipX, cursor, q.pending() > 0 ? Ui.ACCENT : Ui.DIM) + CHIP_GAP;
+        chipX += chip(
+                        g,
+                        font,
+                        Component.translatable("friendai.menu.queue.running", q.running())
+                                .getString(),
+                        chipX,
+                        cursor,
+                        q.running() > 0 ? Ui.GOOD : Ui.DIM)
+                + CHIP_GAP;
+        chipX += chip(
+                        g,
+                        font,
+                        Component.translatable("friendai.menu.queue.pending", q.pending())
+                                .getString(),
+                        chipX,
+                        cursor,
+                        q.pending() > 0 ? Ui.ACCENT : Ui.DIM)
+                + CHIP_GAP;
         if (q.blocked() > 0) {
-            chipX += chip(g, font, Component.translatable("friendai.menu.queue.blocked", q.blocked()).getString(),
-                    chipX, cursor, Ui.WARN) + CHIP_GAP;
+            chipX += chip(
+                            g,
+                            font,
+                            Component.translatable("friendai.menu.queue.blocked", q.blocked())
+                                    .getString(),
+                            chipX,
+                            cursor,
+                            Ui.WARN)
+                    + CHIP_GAP;
         }
         if (q.plans() > 0) {
-            chip(g, font, Component.translatable("friendai.menu.queue.plans", q.plans()).getString(),
-                    chipX, cursor, Ui.PURPLE);
+            chip(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.queue.plans", q.plans())
+                            .getString(),
+                    chipX,
+                    cursor,
+                    Ui.PURPLE);
         }
         cursor += Ui.BADGE_HEIGHT + 6;
         cursor += job(g, font, "friendai.menu.activity.running", Ui.GOOD, q.runningLine(), x, cursor, width);

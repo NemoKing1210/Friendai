@@ -27,7 +27,8 @@ public final class MemoryReport {
         List<PlayerRecord> others = book.players().stream()
                 .filter(record -> !record.uuid().equals(owner))
                 .filter(record -> !book.facts(Subject.player(record.uuid())).isEmpty())
-                .sorted(Comparator.comparing(PlayerRecord::lastName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .sorted(Comparator.comparing(
+                        PlayerRecord::lastName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .toList();
         for (PlayerRecord record : others) {
             messages.addAll(playerSection(book, record.uuid(), record.lastName()));
@@ -48,8 +49,8 @@ public final class MemoryReport {
         return book.findByName(target)
                 .map(record -> UserMessage.of(
                         "friendai.command.memory.cleared", book.clearFacts(Subject.player(record.uuid()))))
-                .orElseGet(() -> UserMessage.of(
-                        "friendai.command.memory.unknown_player", target == null ? "" : target));
+                .orElseGet(
+                        () -> UserMessage.of("friendai.command.memory.unknown_player", target == null ? "" : target));
     }
 
     public static UserMessage forget(MemoryBook book, int id) {

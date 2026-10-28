@@ -65,8 +65,8 @@ class MemoryStoreTest {
     @Test
     void factsPersistAcrossStores() {
         MemoryStore store = new MemoryStore(dir, () -> 0);
-        store.book(A).addFact(Subject.player(B), Category.PROFILE, "Builds farms", A, "Steve", 0,
-                MemoryLimits.DEFAULTS);
+        store.book(A)
+                .addFact(Subject.player(B), Category.PROFILE, "Builds farms", A, "Steve", 0, MemoryLimits.DEFAULTS);
         store.flushAll();
         MemoryStore reopened = new MemoryStore(dir, () -> 0);
         assertEquals(1, reopened.book(A).allFacts().size());
@@ -78,9 +78,11 @@ class MemoryStoreTest {
         Files.writeString(dir.resolve(A + ".json"), "{\"version\":1,\"players\":[]}");
         MemoryStore store = new MemoryStore(dir, () -> 0);
         assertTrue(store.book(A).allFacts().isEmpty());
-        assertEquals(1, store.book(A)
-                .addFact(Subject.WORLD, Category.NOTE, "first", A, "Steve", 0, MemoryLimits.DEFAULTS)
-                .id());
+        assertEquals(
+                1,
+                store.book(A)
+                        .addFact(Subject.WORLD, Category.NOTE, "first", A, "Steve", 0, MemoryLimits.DEFAULTS)
+                        .id());
     }
 
     @Test
@@ -118,14 +120,14 @@ class MemoryStoreTest {
         MemoryStore store = new MemoryStore(dir, () -> 0);
         store.book(A).setPersona("Calm guide");
         store.flushAll();
-        assertEquals(Optional.of("Calm guide"), new MemoryStore(dir, () -> 0).book(A).persona());
+        assertEquals(
+                Optional.of("Calm guide"), new MemoryStore(dir, () -> 0).book(A).persona());
     }
 
     @Test
     void unparsablePersonaInFileIsDropped() throws IOException {
         Files.writeString(
-                dir.resolve(A + ".json"),
-                "{\"version\":3,\"persona\":\"" + "x".repeat(400) + "\",\"players\":[]}");
+                dir.resolve(A + ".json"), "{\"version\":3,\"persona\":\"" + "x".repeat(400) + "\",\"players\":[]}");
         assertTrue(new MemoryStore(dir, () -> 0).book(A).persona().isEmpty());
     }
 

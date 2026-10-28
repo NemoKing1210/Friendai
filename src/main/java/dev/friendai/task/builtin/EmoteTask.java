@@ -56,10 +56,12 @@ public final class EmoteTask implements Task {
             double yawRad = Math.toRadians(yaw);
             double pitchRad = Math.toRadians(pose.pitch());
             Vec3 eye = companion.getEyePosition();
-            companion.getLookControl().setLookAt(
-                    eye.x - Math.sin(yawRad) * Math.cos(pitchRad) * 4.0,
-                    eye.y - Math.sin(pitchRad) * 4.0,
-                    eye.z + Math.cos(yawRad) * Math.cos(pitchRad) * 4.0);
+            companion
+                    .getLookControl()
+                    .setLookAt(
+                            eye.x - Math.sin(yawRad) * Math.cos(pitchRad) * 4.0,
+                            eye.y - Math.sin(pitchRad) * 4.0,
+                            eye.z + Math.cos(yawRad) * Math.cos(pitchRad) * 4.0);
         }
         if (pose.sneak() != companion.body().sneaking() && (pose.sneak() || touchedSneak)) {
             touchedSneak = true;

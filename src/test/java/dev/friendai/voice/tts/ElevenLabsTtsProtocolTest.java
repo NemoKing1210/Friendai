@@ -15,13 +15,14 @@ import org.junit.jupiter.api.Test;
 class ElevenLabsTtsProtocolTest {
     @Test
     void elevenLabsUsesPcmQueryAndCarriesTheKeyInAHeader() {
-        PreparedRequest r = new ElevenLabsTtsProtocol()
-                .prepare(tts("el-secret", "eleven_multilingual_v2", "voice-1", 1.1), "Hi");
+        PreparedRequest r =
+                new ElevenLabsTtsProtocol().prepare(tts("el-secret", "eleven_multilingual_v2", "voice-1", 1.1), "Hi");
 
         assertEquals("/v1/text-to-speech/voice-1", r.uri().getPath());
         assertTrue(r.uri().getQuery().contains("output_format=pcm_24000"));
         assertEquals("el-secret", r.headers().get("xi-api-key"));
-        var body = JsonParser.parseString(new String(r.body(), StandardCharsets.UTF_8)).getAsJsonObject();
+        var body = JsonParser.parseString(new String(r.body(), StandardCharsets.UTF_8))
+                .getAsJsonObject();
         assertEquals("eleven_multilingual_v2", body.get("model_id").getAsString());
         assertEquals("Hi", body.get("text").getAsString());
         assertEquals(1.1, body.getAsJsonObject("voice_settings").get("speed").getAsDouble(), 0.0001);
@@ -39,15 +40,15 @@ class ElevenLabsTtsProtocolTest {
 
     @Test
     void blankVoiceIsReported() {
-        UserFacingException e = assertThrows(UserFacingException.class,
+        UserFacingException e = assertThrows(
+                UserFacingException.class,
                 () -> new ElevenLabsTtsProtocol().prepare(tts("key", "model", "  ", 1.0), "Hi"));
         assertEquals("friendai.voice.tts.error.no_voice", e.userMessage().key());
     }
 
     @Test
     void theVoiceIdIsUrlEncodedAsOnePathSegment() {
-        PreparedRequest r = new ElevenLabsTtsProtocol()
-                .prepare(tts("key", "model", "voice/with space?", 1.0), "Hi");
+        PreparedRequest r = new ElevenLabsTtsProtocol().prepare(tts("key", "model", "voice/with space?", 1.0), "Hi");
 
         assertEquals("/v1/text-to-speech/voice%2Fwith%20space%3F", r.uri().getRawPath());
     }
@@ -64,13 +65,14 @@ class ElevenLabsTtsProtocolTest {
 
     @Test
     void anEmptyBodyIsReported() {
-        UserFacingException e = assertThrows(UserFacingException.class,
+        UserFacingException e = assertThrows(
+                UserFacingException.class,
                 () -> new ElevenLabsTtsProtocol().parse(new byte[0], tts("key", "model", "voice-1", 1.0)));
         assertEquals("friendai.voice.tts.error.failed", e.userMessage().key());
     }
 
     private static ResolvedTts tts(String key, String model, String voice, double speed) {
-        return new ResolvedTts("elevenlabs", "elevenlabs_tts", "https://api.elevenlabs.io",
-                key, model, voice, "", null, speed);
+        return new ResolvedTts(
+                "elevenlabs", "elevenlabs_tts", "https://api.elevenlabs.io", key, model, voice, "", null, speed);
     }
 }

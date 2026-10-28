@@ -25,8 +25,7 @@ class PlaceKindTest {
 
     @Test
     void parseRejectsUnknownKindsAndListsTheChoices() {
-        IllegalArgumentException error =
-                assertThrows(IllegalArgumentException.class, () -> PlaceKind.parse("castle"));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> PlaceKind.parse("castle"));
         assertTrue(error.getMessage().startsWith("unknown place kind; use "));
         assertTrue(error.getMessage().contains("house"));
         assertThrows(IllegalArgumentException.class, () -> PlaceKind.parse(" "));

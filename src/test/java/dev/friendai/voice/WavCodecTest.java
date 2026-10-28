@@ -43,7 +43,8 @@ class WavCodecTest {
         assertThrows(IllegalArgumentException.class, () -> WavCodec.decodeClip(new byte[] {1, 2, 3}));
         assertThrows(IllegalArgumentException.class, () -> WavCodec.decode(wav(1, 2, 16, 8000, new byte[4], false)));
         assertThrows(IllegalArgumentException.class, () -> WavCodec.decode(wav(1, 1, 8, 8000, new byte[4], false)));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(
+                IllegalArgumentException.class,
                 () -> WavCodec.decode(wav(1, 1, 16, 8000, new byte[] {1, 2, 3}, false)));
         assertThrows(IllegalArgumentException.class, () -> WavCodec.decode(truncated()));
     }
@@ -75,10 +76,14 @@ class WavCodecTest {
         int listSize = listChunk ? 16 : 0;
         ByteBuffer b = ByteBuffer.allocate(12 + 8 + fmtSize + listSize + 8 + data.length)
                 .order(ByteOrder.LITTLE_ENDIAN);
-        b.put("RIFF".getBytes()).putInt(4 + (8 + fmtSize) + listSize + (8 + data.length)).put("WAVE".getBytes());
+        b.put("RIFF".getBytes())
+                .putInt(4 + (8 + fmtSize) + listSize + (8 + data.length))
+                .put("WAVE".getBytes());
         b.put("fmt ".getBytes()).putInt(fmtSize);
         b.putShort((short) format).putShort((short) channels).putInt(rate);
-        b.putInt(rate * channels * bits / 8).putShort((short) (channels * bits / 8)).putShort((short) bits);
+        b.putInt(rate * channels * bits / 8)
+                .putShort((short) (channels * bits / 8))
+                .putShort((short) bits);
         if (listChunk) {
             b.put("LIST".getBytes()).putInt(8).put("INFOjunk".getBytes());
         }

@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 class StructurePartsTest {
     private static Blueprint parse(String json) {
         ParseResult result = BlueprintParser.parse(json, state -> true);
-        return result.blueprint().orElseThrow(() -> new AssertionError(result.errors().toString()));
+        return result.blueprint()
+                .orElseThrow(() -> new AssertionError(result.errors().toString()));
     }
 
     private static Blueprint house() {

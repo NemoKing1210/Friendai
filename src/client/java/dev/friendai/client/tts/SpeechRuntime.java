@@ -62,7 +62,12 @@ public final class SpeechRuntime {
     private static final TtsClient TTS = TtsClient.withBuiltins(new VoiceHttp(HTTP, Duration.ofSeconds(20)));
     private static final SpeechPlayback PLAYBACK = new SpeechPlayback();
     private static final VoiceModelManager MODELS = new VoiceModelManager(
-            FabricLoader.getInstance().getGameDir().resolve("friendai").resolve("models").resolve("tts"), HTTP);
+            FabricLoader.getInstance()
+                    .getGameDir()
+                    .resolve("friendai")
+                    .resolve("models")
+                    .resolve("tts"),
+            HTTP);
 
     private static final SpeechQueue<Chunk> QUEUE = new SpeechQueue<>();
     private static boolean draining;
@@ -117,15 +122,17 @@ public final class SpeechRuntime {
         WORKER.execute(() -> {
             try {
                 playOne(sample, plan, gen);
-                Minecraft.getInstance().execute(
-                        () -> ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result")));
+                Minecraft.getInstance()
+                        .execute(() ->
+                                ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result")));
             } catch (UserFacingException e) {
                 UserMessage message = e.userMessage();
                 Minecraft.getInstance().execute(() -> ClientToasts.show(Components.of(message)));
             } catch (RuntimeException e) {
                 LOGGER.warn("Speech test failed: {}", e.toString());
-                Minecraft.getInstance().execute(
-                        () -> ClientToasts.show(Components.of(UserMessage.of("friendai.voice.tts.error.failed"))));
+                Minecraft.getInstance()
+                        .execute(() ->
+                                ClientToasts.show(Components.of(UserMessage.of("friendai.voice.tts.error.failed"))));
             }
         });
     }
@@ -173,7 +180,10 @@ public final class SpeechRuntime {
             return;
         }
         boolean speak = SpeechGate.shouldSpeak(
-                payload.addressee(), minecraft.player.getUUID(), cfg.speakGuests, VoiceRuntime.mic().isRecording());
+                payload.addressee(),
+                minecraft.player.getUUID(),
+                cfg.speakGuests,
+                VoiceRuntime.mic().isRecording());
         if (!speak) {
             return;
         }
@@ -313,8 +323,7 @@ public final class SpeechRuntime {
         }
         playingPlan = plan;
         try {
-            PLAYBACK.play(
-                    clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null);
+            PLAYBACK.play(clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null);
         } finally {
             playingPlan = null;
         }
@@ -328,8 +337,7 @@ public final class SpeechRuntime {
     private static SpatialAudio.Mix mixFor(Player player, Entity source, int range) {
         Vec3 ears = player.getEyePosition();
         Vec3 mouth = source.getEyePosition();
-        return SpatialAudio.mix(
-                ears.x, ears.y, ears.z, player.getYRot(), mouth.x, mouth.y, mouth.z, range);
+        return SpatialAudio.mix(ears.x, ears.y, ears.z, player.getYRot(), mouth.x, mouth.y, mouth.z, range);
     }
 
     private static SpeechEngine engine(ResolvedTts settings) {
@@ -342,7 +350,8 @@ public final class SpeechRuntime {
             SpeechEngine built;
             if (settings.local()) {
                 VoiceModel model = VoiceModels.byId(settings.voice())
-                        .orElseThrow(() -> new UserFacingException(UserMessage.of("friendai.voice.tts.error.no_voice")));
+                        .orElseThrow(
+                                () -> new UserFacingException(UserMessage.of("friendai.voice.tts.error.no_voice")));
                 if (!MODELS.isInstalled(model)) {
                     throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.no_voice"));
                 }

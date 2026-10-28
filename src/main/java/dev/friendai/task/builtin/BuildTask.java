@@ -1,13 +1,13 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.build.BlockSpec;
-import dev.friendai.debug.DebugAction;
-import dev.friendai.debug.DebugTarget;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
 import dev.friendai.build.PartKind;
 import dev.friendai.build.StructureParts;
 import dev.friendai.creative.CreativeAction;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
@@ -17,8 +17,8 @@ import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
@@ -30,8 +30,8 @@ import dev.friendai.task.build.Site;
 import dev.friendai.task.build.SupportNeeds;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.PlaceSpot;
-import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.CreativeItemLease;
+import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
@@ -72,16 +72,13 @@ public final class BuildTask implements Task {
     /** How far a block may be horizontally from the companion for a pillar to bring it into reach. */
     private static final double SCAFFOLD_RANGE = 3.8;
     /** The sides of a target a pillar may be built on, in a fixed order so the column is reproducible. */
-    private static final Direction[] PILLAR_SIDES = {
-        Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST
-    };
+    private static final Direction[] PILLAR_SIDES = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
     /** The sides a temporary support is tried on, below first so a block with no support need keeps today's shape. */
     private static final Direction[] SUPPORT_SIDES = {
         Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.UP
     };
     /** The production way to obtain a missing material; tests replace it to tighten the obtain limits. */
-    private static final ObtainFactory DEFAULT_OBTAIN =
-            (item, count) -> new ObtainTask(item, count, true, true);
+    private static final ObtainFactory DEFAULT_OBTAIN = (item, count) -> new ObtainTask(item, count, true, true);
 
     /** Creates the task that obtains one missing material for a build. */
     @FunctionalInterface
@@ -89,7 +86,14 @@ public final class BuildTask implements Task {
         Task create(String item, int count);
     }
 
-    private enum Phase { CHECK, TAKE, CLEAR, FOUNDATION, PLACE, CLEANUP }
+    private enum Phase {
+        CHECK,
+        TAKE,
+        CLEAR,
+        FOUNDATION,
+        PLACE,
+        CLEANUP
+    }
 
     private final Blueprint blueprint;
     /** The selected parts; an empty set means the whole blueprint. */
@@ -98,11 +102,13 @@ public final class BuildTask implements Task {
     private Blueprint buildPlan;
     /** The part analysis of the full blueprint, filled at CHECK for progress and the result line. */
     private StructureParts structure;
+
     private final BlockPos origin;
     private final Rotation rotation;
     private final boolean clearSite;
     /** Whether missing materials may be harvested or crafted with {@code obtain_item} instead of failing. */
     private final boolean gather;
+
     private final ObtainFactory obtainFactory;
     private final int tickLimit;
     /** The file id of this build: kept across a reload so the same in-progress file is resumed. */
@@ -114,6 +120,7 @@ public final class BuildTask implements Task {
 
     /** Whether the in-progress file has been written, so later ticks may update it. */
     private boolean inProgressStarted;
+
     private int writtenScaffoldCount;
 
     private Phase phase = Phase.CHECK;
@@ -125,6 +132,7 @@ public final class BuildTask implements Task {
     private Site.SiteReport site;
     /** Blueprint cells that hold a block when the build is done; the scaffold never fills one of them. */
     private Set<BlockPos> plannedCells = Set.of();
+
     private List<BlockSpec> order = List.of();
     private int total;
     private int done;
@@ -139,6 +147,7 @@ public final class BuildTask implements Task {
 
     /** The obtain task working on one missing material; null when none is running. */
     private Task gatherTask;
+
     private Item gatherItem;
     private int gatherCount;
     /** Materials already asked an obtain task for, so a short result cannot start the same request again. */
@@ -161,7 +170,12 @@ public final class BuildTask implements Task {
     /** Whether the current pass placed at least one block; a pass that places nothing is the last. */
     private boolean passProgress;
 
-    private enum Column { ALIGNED, WALKING, NONE }
+    private enum Column {
+        ALIGNED,
+        WALKING,
+        NONE
+    }
+
     private final MoveHelper pillarMover = new MoveHelper(1.0, 0.3, false);
     private final MoveHelper asideMover = new MoveHelper(1.0, 0.3, false);
     private BlockPos asideTarget;
@@ -180,19 +194,37 @@ public final class BuildTask implements Task {
     }
 
     /** Builds only the selected parts; an empty set builds the whole blueprint. */
-    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+    public BuildTask(
+            Blueprint blueprint,
+            BlockPos origin,
+            Rotation rotation,
+            boolean clearSite,
+            boolean gather,
             Set<PartKind> parts) {
         this(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, newId(), List.of(), parts);
     }
 
     /** The full constructor, for tests that need tighter obtain limits through their own factory. */
-    public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
+    public BuildTask(
+            Blueprint blueprint,
+            BlockPos origin,
+            Rotation rotation,
+            boolean clearSite,
+            boolean gather,
             ObtainFactory obtainFactory) {
         this(blueprint, origin, rotation, clearSite, gather, obtainFactory, newId(), List.of(), Set.of());
     }
 
-    private BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite, boolean gather,
-            ObtainFactory obtainFactory, String id, List<BlockPos> adoptedScaffold, Set<PartKind> parts) {
+    private BuildTask(
+            Blueprint blueprint,
+            BlockPos origin,
+            Rotation rotation,
+            boolean clearSite,
+            boolean gather,
+            ObtainFactory obtainFactory,
+            String id,
+            List<BlockPos> adoptedScaffold,
+            Set<PartKind> parts) {
         this.blueprint = blueprint;
         this.buildPlan = blueprint;
         this.parts = parts == null ? Set.of() : Set.copyOf(parts);
@@ -207,8 +239,15 @@ public final class BuildTask implements Task {
     }
 
     /** Resumes a partial build, keeping the parts it was asked for. */
-    public static BuildTask resume(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite,
-            boolean gather, List<BlockPos> scaffold, String id, Set<PartKind> parts) {
+    public static BuildTask resume(
+            Blueprint blueprint,
+            BlockPos origin,
+            Rotation rotation,
+            boolean clearSite,
+            boolean gather,
+            List<BlockPos> scaffold,
+            String id,
+            Set<PartKind> parts) {
         return new BuildTask(blueprint, origin, rotation, clearSite, gather, DEFAULT_OBTAIN, id, scaffold, parts);
     }
 
@@ -279,8 +318,8 @@ public final class BuildTask implements Task {
             return false;
         }
         int side = Math.max(blueprint.width(), blueprint.depth());
-        return dev.friendai.task.autonomy.PlaceGuard.overlapsAnyPlace(c.companion(),
-                origin.offset(-side, 0, -side), origin.offset(side, blueprint.height(), side));
+        return dev.friendai.task.autonomy.PlaceGuard.overlapsAnyPlace(
+                c.companion(), origin.offset(-side, 0, -side), origin.offset(side, blueprint.height(), side));
     }
 
     @Override
@@ -316,7 +355,11 @@ public final class BuildTask implements Task {
         structure = StructureParts.analyse(blueprint);
         buildPlan = parts.isEmpty()
                 ? blueprint
-                : new Blueprint(blueprint.name(), blueprint.width(), blueprint.height(), blueprint.depth(),
+                : new Blueprint(
+                        blueprint.name(),
+                        blueprint.width(),
+                        blueprint.height(),
+                        blueprint.depth(),
                         structure.cells(parts));
         if (!parts.isEmpty() && buildPlan.blocks().isEmpty()) {
             return fail(c, "the blueprint has no " + partNames(parts) + "; omit parts to build all of it");
@@ -389,9 +432,11 @@ public final class BuildTask implements Task {
                 continue;
             }
             BlockSpec cell = byWorld.get(support);
-            lookup.put(spec, cell == null || Placement.parseState(cell.state()).isAir()
-                    ? BuildOrder.Support.needed()
-                    : BuildOrder.Support.on(cell));
+            lookup.put(
+                    spec,
+                    cell == null || Placement.parseState(cell.state()).isAir()
+                            ? BuildOrder.Support.needed()
+                            : BuildOrder.Support.on(cell));
         }
         return lookup;
     }
@@ -429,8 +474,8 @@ public final class BuildTask implements Task {
         if (pos == null) {
             return null;
         }
-        return coords(pos) + " is out of reach (build height limit without scaffolding is "
-                + Reach.HEIGHT + " above standing ground)";
+        return coords(pos) + " is out of reach (build height limit without scaffolding is " + Reach.HEIGHT
+                + " above standing ground)";
     }
 
     /**
@@ -596,13 +641,14 @@ public final class BuildTask implements Task {
                 case UNREACHABLE -> {
                     return fail(c, "can't reach " + coords(spec.pos()));
                 }
-                case IN_REACH -> {
-                }
+                case IN_REACH -> {}
             }
             Optional<PlaceSpot.Spot> spot = spot(c.level(), spec.pos(), spec.wanted());
             if (spot.isEmpty()) {
-                return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
-                        + ": nothing to place it against");
+                return fail(
+                        c,
+                        "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
+                                + ": nothing to place it against");
             }
             CreativeItemLease lease = takeOne(c, spec.wanted());
             if (lease == null) {
@@ -628,7 +674,9 @@ public final class BuildTask implements Task {
         // Finish jump/place before reevaluating reach or moving to another column.
         if (pillarTargetY != null) {
             switch (scaffold.pillarTo(c, pillarTargetY)) {
-                case CLIMBING -> { return TaskStatus.RUNNING; }
+                case CLIMBING -> {
+                    return TaskStatus.RUNNING;
+                }
                 case FAILED -> {
                     pillarTargetY = null;
                     return fail(c, scaffold.failure());
@@ -768,11 +816,13 @@ public final class BuildTask implements Task {
         BlockPos pos = spec.pos();
         BlockPos needed = SupportNeeds.supportOf(spec.wanted(), pos);
         if (needed != null) {
-            return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                    + ": it needs a block at " + coords(needed)
-                    + (plannedCells.contains(needed)
-                    ? " that the build has not placed"
-                    : " that the blueprint does not provide"));
+            return fail(
+                    c,
+                    "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                            + ": it needs a block at " + coords(needed)
+                            + (plannedCells.contains(needed)
+                                    ? " that the build has not placed"
+                                    : " that the blueprint does not provide"));
         }
         String refused = "";
         for (BlockPos cell : supportCells(c.level(), pos)) {
@@ -799,10 +849,12 @@ public final class BuildTask implements Task {
             passProgress = false;
             return TaskStatus.RUNNING;
         }
-        return fail(c, "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                + (refused.isEmpty()
-                ? ": nothing to place it against"
-                : ": nothing to place it against, a temporary support at " + refused + " was refused"));
+        return fail(
+                c,
+                "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
+                        + (refused.isEmpty()
+                                ? ": nothing to place it against"
+                                : ": nothing to place it against, a temporary support at " + refused + " was refused"));
     }
 
     /**
@@ -877,8 +929,8 @@ public final class BuildTask implements Task {
             return Column.ALIGNED;
         }
         for (Direction side : PILLAR_SIDES) {
-            BlockPos column = new BlockPos(target.getX() + side.getStepX(), base.getY(),
-                    target.getZ() + side.getStepZ());
+            BlockPos column =
+                    new BlockPos(target.getX() + side.getStepX(), base.getY(), target.getZ() + side.getStepZ());
             if (!freeStanding(c.level(), column) || !columnFree(c.level(), column, feetY)) {
                 continue;
             }
@@ -932,9 +984,7 @@ public final class BuildTask implements Task {
                 return Optional.empty();
             }
             Direction face = faceBetween(support, pos);
-            return face == null
-                    ? Optional.empty()
-                    : Optional.of(new PlaceSpot.Spot(pos, support, face));
+            return face == null ? Optional.empty() : Optional.of(new PlaceSpot.Spot(pos, support, face));
         }
         Optional<PlaceSpot.Spot> strict = PlaceSpot.spotAt(level, pos);
         return strict.isPresent() ? strict : PlaceSpot.standingSpotAt(level, pos);
@@ -1031,7 +1081,8 @@ public final class BuildTask implements Task {
                         continue;
                     }
                     AABB box = companion.getBoundingBox().move(feet.subtract(companion.position()));
-                    if (box.minY < level.getMinY() || box.maxY > level.getMaxY() + 1.0
+                    if (box.minY < level.getMinY()
+                            || box.maxY > level.getMaxY() + 1.0
                             || !flightCellLoaded(level, box)
                             || !level.noCollision(companion, box)) {
                         continue;
@@ -1052,8 +1103,10 @@ public final class BuildTask implements Task {
         int maxX = BlockPos.containing(box.maxX, box.minY, box.maxZ).getX();
         int minZ = BlockPos.containing(box.minX, box.minY, box.minZ).getZ();
         int maxZ = BlockPos.containing(box.maxX, box.minY, box.maxZ).getZ();
-        return level.hasChunkAt(minX, minZ) && level.hasChunkAt(minX, maxZ)
-                && level.hasChunkAt(maxX, minZ) && level.hasChunkAt(maxX, maxZ);
+        return level.hasChunkAt(minX, minZ)
+                && level.hasChunkAt(minX, maxZ)
+                && level.hasChunkAt(maxX, minZ)
+                && level.hasChunkAt(maxX, maxZ);
     }
 
     /**
@@ -1104,8 +1157,9 @@ public final class BuildTask implements Task {
         done++;
         int percent = total == 0 ? 100 : done * 100 / total;
         while (nextNotice <= PROGRESS_STEP * 3 && percent >= nextNotice) {
-            c.runner().notice(
-                    "building " + blueprint.name() + ": " + nextNotice + "% (" + done + "/" + total + " blocks)");
+            c.runner()
+                    .notice("building " + blueprint.name() + ": " + nextNotice + "% (" + done + "/" + total
+                            + " blocks)");
             nextNotice += PROGRESS_STEP;
         }
     }
@@ -1171,7 +1225,8 @@ public final class BuildTask implements Task {
             }
         }
         return c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)
-                ? CreativeItemLease.synthetic(new ItemStack(item)) : null;
+                ? CreativeItemLease.synthetic(new ItemStack(item))
+                : null;
     }
 
     private TaskStatus fail(TaskContext c, String text) {
@@ -1182,9 +1237,7 @@ public final class BuildTask implements Task {
     /** Leftover scaffold is the one thing a cancelled build leaves in the world: the runner takes it down next. */
     @Override
     public Task cleanupAfterCancel(TaskContext c) {
-        return scaffold == null || scaffold.placed().isEmpty()
-                ? null
-                : new ScaffoldCleanupTask(scaffold.placed());
+        return scaffold == null || scaffold.placed().isEmpty() ? null : new ScaffoldCleanupTask(scaffold.placed());
     }
 
     @Override
@@ -1272,7 +1325,10 @@ public final class BuildTask implements Task {
         if (pos == null) {
             return List.of();
         }
-        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
+        return List.of(new DebugTarget(
+                pos.getX(),
+                pos.getY(),
+                pos.getZ(),
                 phase == Phase.CLEAR ? DebugAction.BREAK : phase == Phase.TAKE ? DebugAction.USE : DebugAction.PLACE,
                 detail));
     }
@@ -1290,9 +1346,14 @@ public final class BuildTask implements Task {
         }
         String label = PlaceNames.humanize(blueprint.name());
         int span = Math.max(blueprint.width(), blueprint.depth()) / 2 + 2;
-        return new PlaceCandidate(PlaceKind.inferFromName(blueprint.name()), label, label, dimension,
+        return new PlaceCandidate(
+                PlaceKind.inferFromName(blueprint.name()),
+                label,
+                label,
+                dimension,
                 new Pos(origin.getX(), origin.getY(), origin.getZ()),
-                Math.clamp(span, 1, Place.RADIUS_MAX), PlaceSource.BUILD);
+                Math.clamp(span, 1, Place.RADIUS_MAX),
+                PlaceSource.BUILD);
     }
 
     private static String itemId(Item item) {

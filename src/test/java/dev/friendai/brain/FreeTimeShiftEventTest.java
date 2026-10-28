@@ -36,18 +36,22 @@ class FreeTimeShiftEventTest {
         assertTrue(line.contains("Recent shifts:\n- chop wood: ok, 16 logs"), line);
         assertTrue(line.contains("Lessons:\n- mine_blocks failed: no pickaxe"), line);
         assertTrue(line.contains("Owner wish: focus on food"), line);
-        assertTrue(line.contains("Call choose_activity exactly once with one concrete activity and the agenda need it "
-                + "serves, or reply exactly [silent] if nothing is worth doing."), line);
-        assertTrue(line.endsWith("Free time happens on its own: the owner is not a destination. Never walk to them, "
-                + "and do not put approaching or following the owner into the plan."), line);
+        assertTrue(
+                line.contains("Call choose_activity exactly once with one concrete activity and the agenda need it "
+                        + "serves, or reply exactly [silent] if nothing is worth doing."),
+                line);
+        assertTrue(
+                line.endsWith("Free time happens on its own: the owner is not a destination. Never walk to them, "
+                        + "and do not put approaching or following the owner into the plan."),
+                line);
     }
 
     @Test
     void emptySectionsAreLeftOut() {
         String line = new BrainEvent.FreeTimeShift(List.of(), "Development: stage WOOD", List.of(), List.of(), "")
                 .toPromptLine();
-        assertTrue(!line.contains("Recent shifts:") && !line.contains("Lessons:") && !line.contains("Owner wish:"),
-                line);
+        assertTrue(
+                !line.contains("Recent shifts:") && !line.contains("Lessons:") && !line.contains("Owner wish:"), line);
     }
 
     @Test

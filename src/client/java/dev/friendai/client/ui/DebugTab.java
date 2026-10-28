@@ -41,41 +41,76 @@ final class DebugTab implements MenuTab {
         int messageY = toolY - HEADING - FIELD - GAP;
         bodyBottomOffset = bottom - (messageY - HEADING - GAP);
 
-        message = host.add(new EditBox(host.font(), left, messageY, width - sendWidth - GAP, FIELD,
+        message = host.add(new EditBox(
+                host.font(),
+                left,
+                messageY,
+                width - sendWidth - GAP,
+                FIELD,
                 Component.translatable("friendai.menu.debug.message_hint")));
         message.setMaxLength(500);
         message.setHint(Component.translatable("friendai.menu.debug.message_hint"));
         message.setValue(messageText);
         message.setResponder(s -> messageText = s);
-        host.add(new FlatButton(left + width - sendWidth, messageY, sendWidth, FIELD,
-                Component.translatable("friendai.menu.debug.send"), Ui.GOOD, () -> {
+        host.add(new FlatButton(
+                left + width - sendWidth,
+                messageY,
+                sendWidth,
+                FIELD,
+                Component.translatable("friendai.menu.debug.send"),
+                Ui.GOOD,
+                () -> {
                     CompanionRequests.send(RequestType.SEND_MESSAGE, message.getValue(), "");
                     message.setValue("");
                 }));
 
         int toolWidth = Math.min(140, width / 3);
         int runWidth = 60;
-        toolNames = CompanionClientState.snapshot().map(CompanionSnapshot::toolNames).orElse(List.of());
+        toolNames = CompanionClientState.snapshot()
+                .map(CompanionSnapshot::toolNames)
+                .orElse(List.of());
         if (!toolNames.contains(selectedTool)) {
             selectedTool = toolNames.isEmpty() ? "" : toolNames.get(0);
         }
         toolButton = host.add(new FlatButton(left, toolY, toolWidth, FIELD, toolLabel(), Ui.PURPLE, this::nextTool));
         toolButton.active = !toolNames.isEmpty();
-        args = host.add(new EditBox(host.font(), left + toolWidth + GAP, toolY,
-                width - toolWidth - runWidth - 2 * GAP, FIELD, Component.translatable("friendai.menu.debug.args_hint")));
+        args = host.add(new EditBox(
+                host.font(),
+                left + toolWidth + GAP,
+                toolY,
+                width - toolWidth - runWidth - 2 * GAP,
+                FIELD,
+                Component.translatable("friendai.menu.debug.args_hint")));
         args.setMaxLength(2000);
         args.setHint(Component.translatable("friendai.menu.debug.args_hint"));
         args.setValue(argsText);
         args.setResponder(s -> argsText = s);
-        host.add(new FlatButton(left + width - runWidth, toolY, runWidth, FIELD,
-                Component.translatable("friendai.menu.debug.run"), Ui.WARN,
+        host.add(new FlatButton(
+                left + width - runWidth,
+                toolY,
+                runWidth,
+                FIELD,
+                Component.translatable("friendai.menu.debug.run"),
+                Ui.WARN,
                 () -> CompanionRequests.send(RequestType.RUN_TOOL, selectedTool, args.getValue())));
 
         int segment = Math.min(120, (width - GAP) / 2);
-        perceptionButton = host.add(new FlatButton(left, top, segment, 16,
-                Component.translatable("friendai.menu.debug.perception"), Ui.ACCENT, () -> showPrompt = false));
-        promptButton = host.add(new FlatButton(left + segment + GAP, top, segment, 16,
-                Component.translatable("friendai.menu.debug.show_prompt"), Ui.ACCENT, () -> {
+        perceptionButton = host.add(new FlatButton(
+                left,
+                top,
+                segment,
+                16,
+                Component.translatable("friendai.menu.debug.perception"),
+                Ui.ACCENT,
+                () -> showPrompt = false));
+        promptButton = host.add(new FlatButton(
+                left + segment + GAP,
+                top,
+                segment,
+                16,
+                Component.translatable("friendai.menu.debug.show_prompt"),
+                Ui.ACCENT,
+                () -> {
                     showPrompt = true;
                     CompanionRequests.send(RequestType.REQUEST_PROMPT);
                 }));
@@ -100,7 +135,13 @@ final class DebugTab implements MenuTab {
         int toolY = bottom - FIELD;
         int messageY = toolY - HEADING - FIELD - GAP;
         Ui.text(g, font, Component.translatable("friendai.menu.debug.tool_section"), left, toolY - HEADING + 2, Ui.DIM);
-        Ui.text(g, font, Component.translatable("friendai.menu.debug.message_hint"), left, messageY - HEADING + 2, Ui.DIM);
+        Ui.text(
+                g,
+                font,
+                Component.translatable("friendai.menu.debug.message_hint"),
+                left,
+                messageY - HEADING + 2,
+                Ui.DIM);
         perceptionButton.setStatus(showPrompt ? Ui.DIM : Ui.ACCENT);
         promptButton.setStatus(showPrompt ? Ui.ACCENT : Ui.DIM);
 
@@ -109,7 +150,9 @@ final class DebugTab implements MenuTab {
         Ui.well(g, left, bodyTop, width, bodyHeight);
         String body = showPrompt && !CompanionClientState.prompt().isEmpty()
                 ? CompanionClientState.prompt()
-                : CompanionClientState.snapshot().map(CompanionSnapshot::perception).orElse("");
+                : CompanionClientState.snapshot()
+                        .map(CompanionSnapshot::perception)
+                        .orElse("");
         int textWidth = width - 16;
         if (wrappedWidth != textWidth || !body.equals(wrappedFor)) {
             List<FormattedCharSequence> out = new ArrayList<>();

@@ -56,7 +56,9 @@ class TurnRouterTest {
 
     @Test
     void buildAndPlaceAreOneKindOfWork() {
-        assertEquals(TurnMode.ACTION, player("build a house and place a torch", false).mode());
+        assertEquals(
+                TurnMode.ACTION,
+                player("build a house and place a torch", false).mode());
     }
 
     @Test
@@ -96,8 +98,11 @@ class TurnRouterTest {
 
     @Test
     void explicitBuyingAndSellingRequestsRouteToTrading() {
-        for (String text : List.of("Buy a map from the villager", "Sell my wheat to the farmer",
-                "Купи карту у жителя", "Продай пшеницу фермеру")) {
+        for (String text : List.of(
+                "Buy a map from the villager",
+                "Sell my wheat to the farmer",
+                "Купи карту у жителя",
+                "Продай пшеницу фермеру")) {
             RouteDecision d = player(text, false);
             assertEquals(TurnMode.ACTION, d.mode(), text);
             assertTrue(d.groups().contains(ToolGroup.TRADING), text);
@@ -107,7 +112,8 @@ class TurnRouterTest {
     @Test
     void onlyTradingActionVerbsCreateSpendingIntent() {
         TurnRouter router = new TurnRouter(IntentVocabulary.load());
-        for (String text : List.of("Buy a map", "Продай пшеницу", "barter with the piglin", "пополнить запасы жителя")) {
+        for (String text :
+                List.of("Buy a map", "Продай пшеницу", "barter with the piglin", "пополнить запасы жителя")) {
             assertTrue(router.explicitlyRequestsTrading(text), text);
         }
         for (String text : List.of("get emeralds", "What offers does the villager have?", "hmm okay then")) {

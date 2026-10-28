@@ -33,8 +33,8 @@ public final class PlaceSpot {
         if (!state.canBeReplaced()) {
             return Optional.of(coords(pos) + " is occupied by " + BuiltInRegistries.BLOCK.getKey(state.getBlock()));
         }
-        List<Entity> standing = level.getEntities(
-                (Entity) null, new AABB(pos), e -> !(e instanceof ItemEntity) && e.isAlive());
+        List<Entity> standing =
+                level.getEntities((Entity) null, new AABB(pos), e -> !(e instanceof ItemEntity) && e.isAlive());
         if (!standing.isEmpty()) {
             return Optional.of("something is standing at " + coords(pos));
         }
@@ -74,7 +74,8 @@ public final class PlaceSpot {
     /** An automatic spot near the companion, for blocks like a crafting table. */
     public static Optional<Spot> near(ServerLevel level, CompanionEntity companion, int radius) {
         BlockPos origin = companion.blockPosition();
-        BlockPos ownerCell = companion.owner()
+        BlockPos ownerCell = companion
+                .owner()
                 .filter(owner -> owner.level() == level)
                 .map(Entity::blockPosition)
                 .orElse(null);
@@ -91,7 +92,9 @@ public final class PlaceSpot {
                     if (pos.equals(origin) || pos.equals(ownerCell) || pos.equals(ownerAbove)) {
                         continue;
                     }
-                    if (!level.hasChunkAt(pos) || !level.getBlockState(pos).isAir() || !level.getBlockState(pos.above()).isAir()) {
+                    if (!level.hasChunkAt(pos)
+                            || !level.getBlockState(pos).isAir()
+                            || !level.getBlockState(pos.above()).isAir()) {
                         continue;
                     }
                     if (!level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {

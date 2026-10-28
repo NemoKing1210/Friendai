@@ -17,7 +17,10 @@ public final class ToolRegistry<C> {
 
     /** Every registered tool that is enabled, regardless of who is asking. */
     public List<ToolSpec> specs() {
-        return tools.values().stream().filter(Tool::enabled).map(ToolRegistry::spec).toList();
+        return tools.values().stream()
+                .filter(Tool::enabled)
+                .map(ToolRegistry::spec)
+                .toList();
     }
 
     /** Only the enabled tools a caller at {@code access} may use, in registration order. */

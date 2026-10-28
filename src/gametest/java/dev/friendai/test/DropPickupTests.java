@@ -33,7 +33,8 @@ public class DropPickupTests {
     }
 
     private static List<ItemEntity> drops(GameTestHelper h, CompanionEntity c) {
-        return h.getLevel().getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(8.0));
+        return h.getLevel()
+                .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(8.0));
     }
 
     private static boolean stoneAt(GameTestHelper h, int x, int y, int z) {
@@ -49,8 +50,7 @@ public class DropPickupTests {
         TaskContext ctx = ctx(h, companion);
         h.succeedWhen(() -> {
             collector.tick(ctx);
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3,
-                    "cobblestone not collected");
+            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3, "cobblestone not collected");
         });
     }
 
@@ -67,15 +67,18 @@ public class DropPickupTests {
             ticks[0]++;
             DropCollector.State state = collector.tick(ctx);
             if (ticks[0] < 10) {
-                h.assertTrue(state == DropCollector.State.COLLECTING,
+                h.assertTrue(
+                        state == DropCollector.State.COLLECTING,
                         "a round must wait for a drop inside its pickup delay, not end");
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
+                h.assertValueEqual(
+                        companion.inventory().countItem(Items.COBBLESTONE),
+                        0,
                         "collected before the pickup delay ran out");
                 return;
             }
             if (ticks[0] >= 15) {
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3,
-                        "not collected after the pickup delay");
+                h.assertValueEqual(
+                        companion.inventory().countItem(Items.COBBLESTONE), 3, "not collected after the pickup delay");
             }
         });
     }
@@ -90,14 +93,15 @@ public class DropPickupTests {
         TaskContext ctx = ctx(h, companion);
         h.succeedWhen(() -> {
             boolean done = collector.tick(ctx) == DropCollector.State.DONE;
-            h.assertTrue(!companion.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
+            h.assertTrue(
+                    !companion.blockPosition().equals(h.absolutePos(new BlockPos(5, 2, 5))),
                     "the companion stood in the magma to reach the drop");
             if (!done) {
                 return;
             }
             // Magma hurts a companion standing on it but leaves an item alone: the drop is taken from a safe spot.
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3,
-                    "the drop above the magma was not taken");
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.COBBLESTONE), 3, "the drop above the magma was not taken");
             h.assertTrue(item.isRemoved(), "the taken drop should be gone");
         });
     }
@@ -107,9 +111,11 @@ public class DropPickupTests {
         h.assertTrue(LevelCellView.destroysItems(Blocks.FIRE.defaultBlockState()), "fire destroys items");
         h.assertTrue(LevelCellView.destroysItems(Blocks.CACTUS.defaultBlockState()), "a cactus destroys items");
         h.assertTrue(LevelCellView.destroysItems(Blocks.LAVA.defaultBlockState()), "lava destroys items");
-        h.assertFalse(LevelCellView.destroysItems(Blocks.MAGMA_BLOCK.defaultBlockState()),
+        h.assertFalse(
+                LevelCellView.destroysItems(Blocks.MAGMA_BLOCK.defaultBlockState()),
                 "magma only hurts a mob, an item is safe on it");
-        h.assertFalse(LevelCellView.destroysItems(Blocks.SWEET_BERRY_BUSH.defaultBlockState()),
+        h.assertFalse(
+                LevelCellView.destroysItems(Blocks.SWEET_BERRY_BUSH.defaultBlockState()),
                 "a berry bush only hurts a mob, a berry resting in it is safe");
         h.succeed();
     }
@@ -137,15 +143,17 @@ public class DropPickupTests {
             ticks[0]++;
             collector.tick(ctx);
             if (ticks[0] < 130) {
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                        "collected a sealed drop");
+                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0, "collected a sealed drop");
                 return;
             }
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                    "collected a sealed drop");
+            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0, "collected a sealed drop");
             h.assertValueEqual(drops(h, companion).size(), 1, "the sealed drop should still be on the ground");
-            h.assertTrue(stoneAt(h, 4, 3, 5) && stoneAt(h, 6, 3, 5)
-                    && stoneAt(h, 5, 3, 4) && stoneAt(h, 5, 3, 6) && stoneAt(h, 5, 4, 5),
+            h.assertTrue(
+                    stoneAt(h, 4, 3, 5)
+                            && stoneAt(h, 6, 3, 5)
+                            && stoneAt(h, 5, 3, 4)
+                            && stoneAt(h, 5, 3, 6)
+                            && stoneAt(h, 5, 4, 5),
                     "the collector broke the chamber open");
         });
     }
@@ -167,12 +175,12 @@ public class DropPickupTests {
         h.succeedWhen(() -> {
             if (++ticks[0] < 21) {
                 collector.tick(ctx);
-                h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                        "collected while a hostile was near");
+                h.assertValueEqual(
+                        companion.inventory().countItem(Items.COBBLESTONE), 0, "collected while a hostile was near");
                 return;
             }
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 0,
-                    "collected while a hostile was near");
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.COBBLESTONE), 0, "collected while a hostile was near");
         });
     }
 
@@ -191,8 +199,8 @@ public class DropPickupTests {
                 return;
             }
             h.assertValueEqual(settle.collected(), 3, "the settle did not collect the drop at its feet");
-            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 3,
-                    "the settled drop is not in the inventory");
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.COBBLESTONE), 3, "the settled drop is not in the inventory");
         });
     }
 }

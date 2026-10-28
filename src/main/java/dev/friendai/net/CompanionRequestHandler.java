@@ -102,13 +102,17 @@ public final class CompanionRequestHandler {
                 brains.freeTime().stop(owner, "dismissed");
                 companions.dismiss(player);
             }
-            case RENAME -> companions.find(owner).ifPresentOrElse(
-                    c -> {
-                        if (CompanionRenamer.rename(c, a).outcome() != CompanionRenamer.Outcome.RENAMED) {
-                            player.sendSystemMessage(Component.translatable("friendai.menu.rename.invalid"));
-                        }
-                    },
-                    () -> player.sendSystemMessage(Component.translatable("friendai.menu.no_companion")));
+            case RENAME ->
+                companions
+                        .find(owner)
+                        .ifPresentOrElse(
+                                c -> {
+                                    if (CompanionRenamer.rename(c, a).outcome() != CompanionRenamer.Outcome.RENAMED) {
+                                        player.sendSystemMessage(
+                                                Component.translatable("friendai.menu.rename.invalid"));
+                                    }
+                                },
+                                () -> player.sendSystemMessage(Component.translatable("friendai.menu.no_companion")));
             case SET_AUTO_RESPAWN -> {
                 if (!a.equals("true") && !a.equals("false")) {
                     return;
@@ -131,8 +135,8 @@ public final class CompanionRequestHandler {
                     player.sendSystemMessage(Component.translatable("friendai.menu.no_companion"));
                     return;
                 }
-                CreativeModeService.Result result = CreativeModeService.requestMode(companion.get(), player,
-                        a.equals("true"));
+                CreativeModeService.Result result =
+                        CreativeModeService.requestMode(companion.get(), player, a.equals("true"));
                 if (result == CreativeModeService.Result.DENIED) {
                     player.sendSystemMessage(Component.translatable("friendai.menu.creative.denied"));
                     DebugStream.sendNow(player);
@@ -156,23 +160,24 @@ public final class CompanionRequestHandler {
                 if (brains.freeTime().state(owner).on()) {
                     brains.freeTime().stop(owner, "owner ended free time");
                 } else {
-                    brains.freeTime().start(companion.get(),
-                            dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+                    brains.freeTime().start(companion.get(), dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
                 }
             }
-            case STOP -> companions.find(owner).ifPresent(c -> {
-                brains.freeTime().stop(owner, "stopped from menu");
-                c.taskRunner().stop("stopped from menu");
-                brains.cancel(owner);
-            });
-            case REQUEST_PROMPT -> brains.currentPrompt(owner).ifPresent(prompt -> {
-                if (ServerPlayNetworking.canSend(player, PromptS2CPayload.TYPE)) {
-                    String clipped = prompt.length() > PromptS2CPayload.MAX_CHARS
-                            ? prompt.substring(0, PromptS2CPayload.MAX_CHARS)
-                            : prompt;
-                    ServerPlayNetworking.send(player, new PromptS2CPayload(clipped));
-                }
-            });
+            case STOP ->
+                companions.find(owner).ifPresent(c -> {
+                    brains.freeTime().stop(owner, "stopped from menu");
+                    c.taskRunner().stop("stopped from menu");
+                    brains.cancel(owner);
+                });
+            case REQUEST_PROMPT ->
+                brains.currentPrompt(owner).ifPresent(prompt -> {
+                    if (ServerPlayNetworking.canSend(player, PromptS2CPayload.TYPE)) {
+                        String clipped = prompt.length() > PromptS2CPayload.MAX_CHARS
+                                ? prompt.substring(0, PromptS2CPayload.MAX_CHARS)
+                                : prompt;
+                        ServerPlayNetworking.send(player, new PromptS2CPayload(clipped));
+                    }
+                });
             case SEND_MESSAGE -> {
                 String text = a.strip();
                 if (!text.isEmpty()) {
@@ -200,10 +205,10 @@ public final class CompanionRequestHandler {
                     default -> null;
                 };
             }
-            case PLACES_RENAME -> placeStatus =
-                    renamePlace(state.places().book(owner), a, b, player.level().getGameTime());
-            case PLACES_FORGET -> placeStatus =
-                    forgetPlace(state.places().book(owner), a);
+            case PLACES_RENAME ->
+                placeStatus = renamePlace(
+                        state.places().book(owner), a, b, player.level().getGameTime());
+            case PLACES_FORGET -> placeStatus = forgetPlace(state.places().book(owner), a);
             default -> {}
         }
         if (memoryStatus != null) {
@@ -222,8 +227,7 @@ public final class CompanionRequestHandler {
             return MenuStatus.error("friendai.menu.places.error.not_found", oldName);
         }
         if (matches.size() > 1) {
-            return MenuStatus.error(
-                    "friendai.menu.places.error.ambiguous", oldName, describe(matches));
+            return MenuStatus.error("friendai.menu.places.error.ambiguous", oldName, describe(matches));
         }
         Place place = matches.get(0);
         String name = newName == null ? "" : newName.strip();

@@ -30,7 +30,9 @@ public final class PlaceFile {
 
     /** The oldest file version this build still reads. */
     public static final int MIN_VERSION = 1;
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
     private int version;
     private long nextId;
@@ -116,8 +118,10 @@ public final class PlaceFile {
                 throw new IllegalArgumentException("Duplicate place id [" + place.id() + "].");
             }
             checkLimits(place, limits);
-            if (place.createdTick() < 0 || place.updatedTick() < place.createdTick()
-                    || place.lastVisitTick() < 0 || place.visits() < 0) {
+            if (place.createdTick() < 0
+                    || place.updatedTick() < place.createdTick()
+                    || place.lastVisitTick() < 0
+                    || place.visits() < 0) {
                 throw new IllegalArgumentException("Place #" + place.id() + " has invalid ticks or visits.");
             }
             claim(keys, place.name(), place);
@@ -145,26 +149,26 @@ public final class PlaceFile {
 
     private static void checkLimits(Place place, PlaceLimits limits) {
         if (place.name().length() > limits.maxNameChars()) {
-            throw new IllegalArgumentException("Place #" + place.id() + " has a name longer than "
-                    + limits.maxNameChars() + " chars.");
+            throw new IllegalArgumentException(
+                    "Place #" + place.id() + " has a name longer than " + limits.maxNameChars() + " chars.");
         }
         if (place.label().length() > PlaceLimits.LABEL_MAX) {
-            throw new IllegalArgumentException("Place #" + place.id() + " has a label longer than "
-                    + PlaceLimits.LABEL_MAX + " chars.");
+            throw new IllegalArgumentException(
+                    "Place #" + place.id() + " has a label longer than " + PlaceLimits.LABEL_MAX + " chars.");
         }
         if (place.aliases().size() > limits.maxAliases()) {
-            throw new IllegalArgumentException("Place #" + place.id() + " has more than " + limits.maxAliases()
-                    + " aliases.");
+            throw new IllegalArgumentException(
+                    "Place #" + place.id() + " has more than " + limits.maxAliases() + " aliases.");
         }
         for (String alias : place.aliases()) {
             if (alias.length() > limits.maxNameChars()) {
-                throw new IllegalArgumentException("Place #" + place.id() + " has an alias longer than "
-                        + limits.maxNameChars() + " chars.");
+                throw new IllegalArgumentException(
+                        "Place #" + place.id() + " has an alias longer than " + limits.maxNameChars() + " chars.");
             }
         }
         if (place.note().length() > limits.maxNoteChars()) {
-            throw new IllegalArgumentException("Place #" + place.id() + " has a note longer than "
-                    + limits.maxNoteChars() + " chars.");
+            throw new IllegalArgumentException(
+                    "Place #" + place.id() + " has a note longer than " + limits.maxNoteChars() + " chars.");
         }
     }
 
@@ -221,9 +225,24 @@ public final class PlaceFile {
         Place toPlace(int version) {
             int bandBelow = version >= 2 && below != null ? below : Place.defaultBelow(radius);
             int bandAbove = version >= 2 && above != null ? above : Place.defaultAbove(radius);
-            return new Place(id, name, kind(), label, dimension, new Pos(x, y, z), radius,
-                    aliases == null ? Set.of() : new LinkedHashSet<>(aliases), source(), author(), created,
-                    updated, lastVisit, visits, note, bandBelow, bandAbove);
+            return new Place(
+                    id,
+                    name,
+                    kind(),
+                    label,
+                    dimension,
+                    new Pos(x, y, z),
+                    radius,
+                    aliases == null ? Set.of() : new LinkedHashSet<>(aliases),
+                    source(),
+                    author(),
+                    created,
+                    updated,
+                    lastVisit,
+                    visits,
+                    note,
+                    bandBelow,
+                    bandAbove);
         }
 
         private PlaceKind kind() {

@@ -68,7 +68,8 @@ public final class CheckContainerTask extends ContainerTaskBase {
             summary = containerId + " at " + coords() + " is empty";
             return TaskStatus.SUCCESS;
         }
-        StringBuilder text = new StringBuilder(containerId).append(" at ").append(coords()).append(" holds: ");
+        StringBuilder text =
+                new StringBuilder(containerId).append(" at ").append(coords()).append(" holds: ");
         int shown = 0;
         for (Map.Entry<String, Integer> entry : counts.entrySet()) {
             if (shown == MAX_KINDS) {
@@ -81,7 +82,11 @@ public final class CheckContainerTask extends ContainerTaskBase {
             text.append(entry.getKey()).append('×').append(entry.getValue());
             shown++;
         }
-        text.append(" (").append(used).append(" of ").append(container.getContainerSize()).append(" slots used)");
+        text.append(" (")
+                .append(used)
+                .append(" of ")
+                .append(container.getContainerSize())
+                .append(" slots used)");
         summary = text.toString();
         return TaskStatus.SUCCESS;
     }

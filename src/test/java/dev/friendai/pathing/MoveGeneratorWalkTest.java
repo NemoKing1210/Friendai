@@ -16,8 +16,7 @@ class MoveGeneratorWalkTest {
 
     private static List<PathStep> stepsFrom(GridCellView view, Node from) {
         List<PathStep> steps = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
-                .neighbours(from, 0, 0, 0, steps::add);
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 0, steps::add);
         return steps;
     }
 
@@ -75,7 +74,9 @@ class MoveGeneratorWalkTest {
     @Test
     void fallsThreeNotFour() {
         GridCellView three = new GridCellView("##", "#.", "#.", "#.", "..", "..");
-        assertEquals(Move.DESCEND, stepTo(stepsFrom(three, new Node(0, 4, 0)), 1, 1, 0).move());
+        assertEquals(
+                Move.DESCEND,
+                stepTo(stepsFrom(three, new Node(0, 4, 0)), 1, 1, 0).move());
 
         GridCellView four = new GridCellView("##", "#.", "#.", "#.", "#.", "..", "..");
         assertTrue(stepTo(stepsFrom(four, new Node(0, 5, 0)), 1, 1, 0) == null);
@@ -115,16 +116,14 @@ class MoveGeneratorWalkTest {
         Node from = new Node(1, 1, 0);
 
         List<PathStep> fresh = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
-                .neighbours(from, 0, 0, 0, fresh::add);
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 0, fresh::add);
         PathStep swim = stepTo(fresh, 2, 1, 0);
         assertEquals(Move.SWIM, swim.move());
         assertEquals(COSTS.swim() * MoveGenerator.SUBMERGED_FACTOR, swim.cost(), 1e-9);
         assertEquals(1, swim.headUnderwater());
 
         List<PathStep> tired = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
-                .neighbours(from, 0, 0, 8, tired::add);
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 8, tired::add);
         assertTrue(tired.stream().noneMatch(step -> step.headUnderwater() > 0));
     }
 

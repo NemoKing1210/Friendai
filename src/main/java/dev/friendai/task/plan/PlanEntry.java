@@ -1,7 +1,6 @@
 package dev.friendai.task.plan;
 
 import com.google.gson.JsonObject;
-import dev.friendai.task.Task;
 
 /**
  * One step of a plan: the tool it came from (for messages), the arguments it was called with (so a reload can

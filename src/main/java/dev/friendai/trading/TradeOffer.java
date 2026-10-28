@@ -12,8 +12,16 @@ import java.util.UUID;
 
 /** Immutable observed offer. A quote is for one pricing actor and always needs live validation. */
 public record TradeOffer(
-        String ref, String fingerprint, List<TradeCost> baseInputs, List<TradeCost> effectiveInputs,
-        TradeItem output, int uses, int maxUses, int merchantXp, UUID pricingActor, long observedTick) {
+        String ref,
+        String fingerprint,
+        List<TradeCost> baseInputs,
+        List<TradeCost> effectiveInputs,
+        TradeItem output,
+        int uses,
+        int maxUses,
+        int merchantXp,
+        UUID pricingActor,
+        long observedTick) {
     public TradeOffer {
         TradeItem.requireText(ref, 160);
         if (ref.isBlank() || fingerprint == null || !fingerprint.matches("[0-9a-f]{64}")) {
@@ -25,12 +33,18 @@ public record TradeOffer(
         for (int i = 0; i < baseInputs.size(); i++) {
             var base = baseInputs.get(i);
             var effective = effectiveInputs.get(i);
-            if (!base.itemId().equals(effective.itemId()) || !base.predicateJson().equals(effective.predicateJson())) {
+            if (!base.itemId().equals(effective.itemId())
+                    || !base.predicateJson().equals(effective.predicateJson())) {
                 throw new IllegalArgumentException("effective price changed input identity");
             }
         }
-        if (output == null || pricingActor == null || observedTick < 0 || uses < 0
-                || maxUses < 0 || uses > maxUses || merchantXp < 0) {
+        if (output == null
+                || pricingActor == null
+                || observedTick < 0
+                || uses < 0
+                || maxUses < 0
+                || uses > maxUses
+                || merchantXp < 0) {
             throw new IllegalArgumentException("invalid observed trade offer");
         }
     }
@@ -64,8 +78,9 @@ public record TradeOffer(
         root.add("components", JsonParser.parseString(output.componentsJson()));
         root.addProperty("duplicate", duplicateDiscriminator);
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(root.toString().getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256")
+                            .digest(root.toString().getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
@@ -77,8 +92,17 @@ public record TradeOffer(
     }
 
     TradeOffer withStableRef() {
-        return new TradeOffer(stableRef(), fingerprint, baseInputs, effectiveInputs, output,
-                uses, maxUses, merchantXp, pricingActor, observedTick);
+        return new TradeOffer(
+                stableRef(),
+                fingerprint,
+                baseInputs,
+                effectiveInputs,
+                output,
+                uses,
+                maxUses,
+                merchantXp,
+                pricingActor,
+                observedTick);
     }
 
     String semanticIdentity() {

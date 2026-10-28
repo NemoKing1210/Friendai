@@ -32,7 +32,8 @@ public final class OllamaProtocol implements LlmProtocol {
     @Override
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         return transport
-                .postJson(ProtocolSupport.uri(endpoint, "/api/chat"), ProtocolSupport.headers(endpoint), toWire(request))
+                .postJson(
+                        ProtocolSupport.uri(endpoint, "/api/chat"), ProtocolSupport.headers(endpoint), toWire(request))
                 .thenApply(this::fromWire);
     }
 
@@ -122,7 +123,11 @@ public final class OllamaProtocol implements LlmProtocol {
                 JsonObject args = ProtocolSupport.obj(fn, "arguments");
                 JsonObject safeArgs = args == null ? new JsonObject() : args;
                 calls.add(new ToolCall(
-                        ProtocolSupport.callId(index), ProtocolSupport.str(fn, "name"), safeArgs, safeArgs.toString(), null));
+                        ProtocolSupport.callId(index),
+                        ProtocolSupport.str(fn, "name"),
+                        safeArgs,
+                        safeArgs.toString(),
+                        null));
                 index++;
             }
         }

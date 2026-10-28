@@ -3,7 +3,6 @@ package dev.friendai.perception.resource;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.KnowledgeLimits;
 import dev.friendai.knowledge.ResourceObservation;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -22,23 +21,36 @@ public final class ObservationScheduler {
     private final IntSupplier observationRadius;
     private TickMetrics lastMetrics = new TickMetrics(0, 0, 0, 0, 0, 0, 0, Map.of());
 
-    public record TickMetrics(long tick, int companions, int scheduledRays, int completedRays, int visitedCells,
-                              long elapsedNanos, int queuedJobs, Map<UUID, Integer> completedByCompanion) {
-        public TickMetrics { completedByCompanion = Map.copyOf(completedByCompanion); }
+    public record TickMetrics(
+            long tick,
+            int companions,
+            int scheduledRays,
+            int completedRays,
+            int visitedCells,
+            long elapsedNanos,
+            int queuedJobs,
+            Map<UUID, Integer> completedByCompanion) {
+        public TickMetrics {
+            completedByCompanion = Map.copyOf(completedByCompanion);
+        }
     }
 
-    public ObservationScheduler() { this((companion, observation) -> {}, (companion, entrance) -> {}); }
+    public ObservationScheduler() {
+        this((companion, observation) -> {}, (companion, entrance) -> {});
+    }
 
     public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink) {
         this(observationSink, (companion, entrance) -> {});
     }
 
-    public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink,
+    public ObservationScheduler(
+            BiConsumer<CompanionEntity, ResourceObservation> observationSink,
             BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink) {
         this(observationSink, caveEntranceSink, () -> 16);
     }
 
-    public ObservationScheduler(BiConsumer<CompanionEntity, ResourceObservation> observationSink,
+    public ObservationScheduler(
+            BiConsumer<CompanionEntity, ResourceObservation> observationSink,
             BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink,
             IntSupplier observationRadius) {
         this.observationSink = observationSink;
@@ -58,10 +70,13 @@ public final class ObservationScheduler {
 
     public ResourceObserver observer(CompanionEntity companion) {
         companions.put(companion.getUUID(), companion);
-        return observers.computeIfAbsent(companion.getUUID(), ignored -> new ResourceObserver(companion, observationRadius));
+        return observers.computeIfAbsent(
+                companion.getUUID(), ignored -> new ResourceObserver(companion, observationRadius));
     }
 
-    public TickMetrics lastMetrics() { return lastMetrics; }
+    public TickMetrics lastMetrics() {
+        return lastMetrics;
+    }
 
     public void tick(MinecraftServer server, long tick) {
         long startedNanos = System.nanoTime();
@@ -69,17 +84,23 @@ public final class ObservationScheduler {
                 .filter(companion -> !companion.isRemoved() && companion.level().getServer() == server)
                 .sorted(Comparator.comparing(companion -> companion.getUUID().toString()))
                 .toList();
-        companions.keySet().removeIf(id -> loaded.stream().noneMatch(companion -> companion.getUUID().equals(id)));
-        observers.keySet().removeIf(id -> loaded.stream().noneMatch(companion -> companion.getUUID().equals(id)));
+        companions
+                .keySet()
+                .removeIf(id -> loaded.stream()
+                        .noneMatch(companion -> companion.getUUID().equals(id)));
+        observers
+                .keySet()
+                .removeIf(id -> loaded.stream()
+                        .noneMatch(companion -> companion.getUUID().equals(id)));
         if (loaded.isEmpty()) {
-            lastMetrics = new TickMetrics(tick, 0, 0, 0, 0,
-                    Math.max(0, System.nanoTime() - startedNanos), 0, Map.of());
+            lastMetrics = new TickMetrics(tick, 0, 0, 0, 0, Math.max(0, System.nanoTime() - startedNanos), 0, Map.of());
             return;
         }
 
         int start = (int) Math.floorMod(tick, loaded.size());
         int scheduledRays = 0;
-        for (CompanionEntity companion : loaded) scheduledRays += observer(companion).scheduleSweep(tick);
+        for (CompanionEntity companion : loaded)
+            scheduledRays += observer(companion).scheduleSweep(tick);
         // Enqueuing a deterministic 128-ray sweep is setup work, not sight work. Start the
         // soft processing deadline only after every companion has had its sweep scheduled.
         long deadline = System.nanoTime() + 1_000_000L;
@@ -95,8 +116,7 @@ public final class ObservationScheduler {
             UUID id = companion.getUUID();
             int rayAllowance = firstObserver ? budget.availableRaysIgnoringDeadline(id) : budget.availableRays(id);
             if (rayAllowance == 0) continue;
-            ResourceObserver.ObservationBatch batch = observer(companion).tick(rayAllowance,
-                    cellAllowance, deadline);
+            ResourceObserver.ObservationBatch batch = observer(companion).tick(rayAllowance, cellAllowance, deadline);
             if (!budget.consume(id, batch.raysCompleted(), batch.cellsVisited())) {
                 throw new IllegalStateException("observer exceeded its shared work allowance");
             }
@@ -107,8 +127,17 @@ public final class ObservationScheduler {
             batch.caveEntrances().forEach(entrance -> caveEntranceSink.accept(companion, entrance));
             firstObserver = false;
         }
-        int queuedJobs = loaded.stream().mapToInt(companion -> observer(companion).queuedJobs()).sum();
-        lastMetrics = new TickMetrics(tick, loaded.size(), scheduledRays, completedRays, visitedCells,
-                Math.max(0, System.nanoTime() - startedNanos), queuedJobs, completedByCompanion);
+        int queuedJobs = loaded.stream()
+                .mapToInt(companion -> observer(companion).queuedJobs())
+                .sum();
+        lastMetrics = new TickMetrics(
+                tick,
+                loaded.size(),
+                scheduledRays,
+                completedRays,
+                visitedCells,
+                Math.max(0, System.nanoTime() - startedNanos),
+                queuedJobs,
+                completedByCompanion);
     }
 }

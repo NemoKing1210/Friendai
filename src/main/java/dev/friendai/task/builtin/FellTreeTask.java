@@ -46,7 +46,14 @@ public final class FellTreeTask implements Task {
     /** How many times the companion tries to stand at the chosen column before another side is tried. */
     private static final int MAX_WALK_ATTEMPTS = 2;
 
-    private enum Phase { WALK, CLIMB, CUT, CLEANUP, SWEEP, DONE }
+    private enum Phase {
+        WALK,
+        CLIMB,
+        CUT,
+        CLEANUP,
+        SWEEP,
+        DONE
+    }
 
     private final TreeFinder.TreeInfo tree;
     private final BlockMatcher matcher;
@@ -59,6 +66,7 @@ public final class FellTreeTask implements Task {
     private final Set<BlockPos> known;
     /** Logs that will not be cut, and why. */
     private final Map<BlockPos, String> blacklist = new LinkedHashMap<>();
+
     private int total;
 
     private FellPlan plan;
@@ -94,7 +102,9 @@ public final class FellTreeTask implements Task {
         this.remaining = new LinkedHashSet<>(tree.logs());
         this.known = new HashSet<>(tree.logs());
         this.total = tree.logs().size();
-        this.label = tree.type().endsWith("_log") ? tree.type().substring(0, tree.type().length() - 4) : tree.type();
+        this.label = tree.type().endsWith("_log")
+                ? tree.type().substring(0, tree.type().length() - 4)
+                : tree.type();
     }
 
     @Override
@@ -154,7 +164,8 @@ public final class FellTreeTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
-        remaining.removeIf(pos -> !c.level().hasChunkAt(pos) || !matcher.test(c.level().getBlockState(pos)));
+        remaining.removeIf(
+                pos -> !c.level().hasChunkAt(pos) || !matcher.test(c.level().getBlockState(pos)));
         if (!refusal.isEmpty() && !finished) {
             return finish(c, TaskStatus.FAILED, refusal);
         }
@@ -248,7 +259,8 @@ public final class FellTreeTask implements Task {
             return "the ground at " + coords(base) + " is not loaded";
         }
         BlockState floorState = level.getBlockState(floor);
-        if (floorState.getCollisionShape(level, floor).isEmpty() || !floorState.getFluidState().isEmpty()) {
+        if (floorState.getCollisionShape(level, floor).isEmpty()
+                || !floorState.getFluidState().isEmpty()) {
             return "there is no solid ground at " + coords(base);
         }
         if (!c.companion().hands().canInteract(base) || PlaceGuard.protects(c, base)) {
@@ -330,7 +342,9 @@ public final class FellTreeTask implements Task {
                 return TaskStatus.RUNNING;
             }
             default -> {
-                BlockPos cell = breaker.target() != null ? breaker.target() : breaker.candidates().get(0);
+                BlockPos cell = breaker.target() != null
+                        ? breaker.target()
+                        : breaker.candidates().get(0);
                 breaker = null;
                 refusal = "I can't clear " + coords(cell) + " on the way up the " + label + " tree";
                 return TaskStatus.RUNNING;
@@ -454,7 +468,9 @@ public final class FellTreeTask implements Task {
             }
         }
         if (limit > 0 && cutCount >= limit) {
-            return finish(c, blacklist.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
+            return finish(
+                    c,
+                    blacklist.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
                     "felled " + cutCount + " of " + total + " " + label + " logs (limit)");
         }
         for (BlockPos pos : remaining) {
@@ -521,14 +537,18 @@ public final class FellTreeTask implements Task {
             text.append("; ").append(scaffold.used()).append(" scaffold blocks placed");
         }
         if (!blacklist.isEmpty()) {
-            text.append("; ").append(blacklist.size()).append(blacklist.size() == 1 ? " log" : " logs")
+            text.append("; ")
+                    .append(blacklist.size())
+                    .append(blacklist.size() == 1 ? " log" : " logs")
                     .append(" could not be cut");
             int shown = 0;
             for (Map.Entry<BlockPos, String> entry : blacklist.entrySet()) {
                 if (shown++ == 3) {
                     break;
                 }
-                text.append(shown == 1 ? " (" : "; ").append(entry.getValue()).append(" at ")
+                text.append(shown == 1 ? " (" : "; ")
+                        .append(entry.getValue())
+                        .append(" at ")
                         .append(coords(entry.getKey()));
             }
             text.append(')');
@@ -543,8 +563,8 @@ public final class FellTreeTask implements Task {
         }
         // The drops of a high log land at the foot of the tree, so the sweep is centred on the ground there.
         BlockPos from = lastBroken != null ? lastBroken : tree.base();
-        sweep = new DropCollector(Vec3.atCenterOf(new BlockPos(from.getX(), tree.base().getY(), from.getZ())),
-                SWEEP_RADIUS);
+        sweep = new DropCollector(
+                Vec3.atCenterOf(new BlockPos(from.getX(), tree.base().getY(), from.getZ())), SWEEP_RADIUS);
         phase = Phase.SWEEP;
         return TaskStatus.RUNNING;
     }
@@ -556,8 +576,8 @@ public final class FellTreeTask implements Task {
         }
         var place = PlaceGuard.protecting(c, pos);
         if (place != null) {
-            return "inside the " + place.kind().name().toLowerCase(java.util.Locale.ROOT) + " place \""
-                    + place.name() + "\" (r=" + place.radius() + ")";
+            return "inside the " + place.kind().name().toLowerCase(java.util.Locale.ROOT) + " place \"" + place.name()
+                    + "\" (r=" + place.radius() + ")";
         }
         return "";
     }
@@ -613,9 +633,7 @@ public final class FellTreeTask implements Task {
     /** A cancelled felling takes its column down like a cancelled build. */
     @Override
     public Task cleanupAfterCancel(TaskContext c) {
-        return scaffold == null || scaffold.placed().isEmpty()
-                ? null
-                : new ScaffoldCleanupTask(scaffold.placed());
+        return scaffold == null || scaffold.placed().isEmpty() ? null : new ScaffoldCleanupTask(scaffold.placed());
     }
 
     @Override
@@ -630,7 +648,8 @@ public final class FellTreeTask implements Task {
     }
 
     private static boolean passable(ServerLevel level, BlockPos pos, BlockState state) {
-        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty()
+        return state.getCollisionShape(level, pos).isEmpty()
+                && state.getFluidState().isEmpty()
                 && state.canBeReplaced();
     }
 
@@ -640,7 +659,8 @@ public final class FellTreeTask implements Task {
 
     private static String blockId(ServerLevel level, BlockPos pos) {
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK
-                .getKey(level.getBlockState(pos).getBlock()).toString();
+                .getKey(level.getBlockState(pos).getBlock())
+                .toString();
     }
 
     private static TreeCell cell(BlockPos pos) {

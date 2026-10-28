@@ -67,8 +67,7 @@ public final class FellPlanner {
      * Builds one climb, or returns null when the column cannot be used: a log stands in the band the companion would
      * climb through, so the scaffold would have to grow through the trunk or a branch.
      */
-    private static Built build(List<TreeCell> logs, TreeCell column, int groundFeetY, int topY, int baseY,
-            int limit) {
+    private static Built build(List<TreeCell> logs, TreeCell column, int groundFeetY, int topY, int baseY, int limit) {
         Set<TreeCell> unreachable = new LinkedHashSet<>();
         int climbFeet = groundFeetY;
         for (TreeCell log : logs) {
@@ -80,8 +79,7 @@ public final class FellPlanner {
             }
         }
         for (TreeCell log : logs) {
-            if (log.x() == column.x() && log.z() == column.z()
-                    && log.y() >= groundFeetY && log.y() <= climbFeet + 2) {
+            if (log.x() == column.x() && log.z() == column.z() && log.y() >= groundFeetY && log.y() <= climbFeet + 2) {
                 return null;
             }
         }
@@ -191,8 +189,7 @@ public final class FellPlanner {
                 }
             }
         }
-        columns.sort(Comparator
-                .comparingInt(Column::ring)
+        columns.sort(Comparator.comparingInt(Column::ring)
                 .thenComparingDouble(column -> horizontalDistanceSqr(column.cell(), stand))
                 .thenComparingInt(column -> column.cell().x())
                 .thenComparingInt(column -> column.cell().z()));

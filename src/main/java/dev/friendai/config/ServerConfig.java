@@ -3,8 +3,8 @@ package dev.friendai.config;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.llm.provider.LlmProfile;
-import dev.friendai.memory.MemoryLimits;
 import dev.friendai.llm.provider.RoutingRule;
+import dev.friendai.memory.MemoryLimits;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
@@ -86,6 +86,7 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
+
         public int plannerTimeoutSec = 60;
     }
 
@@ -219,8 +220,19 @@ public class ServerConfig {
         public List<String> keepItems = new ArrayList<>(AutonomySettings.DEFAULT_KEEP);
 
         public AutonomySettings toSettings() {
-            return new AutonomySettings(enabled, idleStart, idleMinutes, resumeAfterSec, whileOffline, shiftMinutes,
-                    maxShiftsPerHour, offlineShiftsPerHour, failCooldownMin, protectPlaces, allowBuilding, keepItems);
+            return new AutonomySettings(
+                    enabled,
+                    idleStart,
+                    idleMinutes,
+                    resumeAfterSec,
+                    whileOffline,
+                    shiftMinutes,
+                    maxShiftsPerHour,
+                    offlineShiftsPerHour,
+                    failCooldownMin,
+                    protectPlaces,
+                    allowBuilding,
+                    keepItems);
         }
     }
 
@@ -251,9 +263,10 @@ public class ServerConfig {
             JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
                     ? json.getAsJsonObject("tasks")
                     : new JsonObject();
-            JsonObject resources = tasks.has("resources") && tasks.get("resources").isJsonObject()
-                    ? tasks.getAsJsonObject("resources")
-                    : new JsonObject();
+            JsonObject resources =
+                    tasks.has("resources") && tasks.get("resources").isJsonObject()
+                            ? tasks.getAsJsonObject("resources")
+                            : new JsonObject();
             resources.addProperty("allowExpeditions", true);
             tasks.add("resources", resources);
             json.add("tasks", tasks);
@@ -262,9 +275,10 @@ public class ServerConfig {
             JsonObject tasks = json.has("tasks") && json.get("tasks").isJsonObject()
                     ? json.getAsJsonObject("tasks")
                     : new JsonObject();
-            JsonObject resources = tasks.has("resources") && tasks.get("resources").isJsonObject()
-                    ? tasks.getAsJsonObject("resources")
-                    : new JsonObject();
+            JsonObject resources =
+                    tasks.has("resources") && tasks.get("resources").isJsonObject()
+                            ? tasks.getAsJsonObject("resources")
+                            : new JsonObject();
             resources.addProperty("observationRadius", 64);
             tasks.add("resources", resources);
             json.add("tasks", tasks);
@@ -295,8 +309,8 @@ public class ServerConfig {
             companion.chunkLoading = new ChunkLoadingSection();
             problems.add("companion.chunkLoading was missing");
         }
-        companion.chunkLoading.radius = clamp(
-                problems, "companion.chunkLoading.radius", companion.chunkLoading.radius, 0, 4);
+        companion.chunkLoading.radius =
+                clamp(problems, "companion.chunkLoading.radius", companion.chunkLoading.radius, 0, 4);
         if (chat == null) {
             chat = new ChatSection();
             problems.add("chat was missing");
@@ -313,40 +327,66 @@ public class ServerConfig {
             tasks.resources = new ResourceSection();
             problems.add("tasks.resources was missing");
         }
-        tasks.resources.localRadius = clamp(problems, "tasks.resources.localRadius", tasks.resources.localRadius, 16, 128);
-        tasks.resources.expeditionRadius = clamp(problems, "tasks.resources.expeditionRadius",
-                tasks.resources.expeditionRadius, tasks.resources.localRadius, 2_048);
-        tasks.resources.localTicks = clamp(problems, "tasks.resources.localTicks", tasks.resources.localTicks, 200, 12_000);
-        tasks.resources.expeditionTicks = clamp(problems, "tasks.resources.expeditionTicks",
-                tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
-        tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
-                tasks.resources.observationRadius, 4, 64);
-        tasks.resources.ownerSightRadius = clamp(problems, "tasks.resources.ownerSightRadius",
-                tasks.resources.ownerSightRadius, 8, 128);
-        tasks.resources.ownerHoldDistance = clamp(problems, "tasks.resources.ownerHoldDistance",
-                tasks.resources.ownerHoldDistance, tasks.resources.ownerSightRadius + 1, 512);
-        tasks.resources.ownerResumeDistance = clamp(problems, "tasks.resources.ownerResumeDistance",
-                tasks.resources.ownerResumeDistance, 1, tasks.resources.ownerHoldDistance - 1);
+        tasks.resources.localRadius =
+                clamp(problems, "tasks.resources.localRadius", tasks.resources.localRadius, 16, 128);
+        tasks.resources.expeditionRadius = clamp(
+                problems,
+                "tasks.resources.expeditionRadius",
+                tasks.resources.expeditionRadius,
+                tasks.resources.localRadius,
+                2_048);
+        tasks.resources.localTicks =
+                clamp(problems, "tasks.resources.localTicks", tasks.resources.localTicks, 200, 12_000);
+        tasks.resources.expeditionTicks = clamp(
+                problems,
+                "tasks.resources.expeditionTicks",
+                tasks.resources.expeditionTicks,
+                tasks.resources.localTicks,
+                48_000);
+        tasks.resources.observationRadius =
+                clamp(problems, "tasks.resources.observationRadius", tasks.resources.observationRadius, 4, 64);
+        tasks.resources.ownerSightRadius =
+                clamp(problems, "tasks.resources.ownerSightRadius", tasks.resources.ownerSightRadius, 8, 128);
+        tasks.resources.ownerHoldDistance = clamp(
+                problems,
+                "tasks.resources.ownerHoldDistance",
+                tasks.resources.ownerHoldDistance,
+                tasks.resources.ownerSightRadius + 1,
+                512);
+        tasks.resources.ownerResumeDistance = clamp(
+                problems,
+                "tasks.resources.ownerResumeDistance",
+                tasks.resources.ownerResumeDistance,
+                1,
+                tasks.resources.ownerHoldDistance - 1);
         if (tasks.trading == null) {
             tasks.trading = new TradingSection();
             problems.add("tasks.trading was missing");
         }
-        tasks.trading.observationRadius = clamp(problems, "tasks.trading.observationRadius",
-                tasks.trading.observationRadius, 8, 64);
-        tasks.trading.quoteFreshTicks = clamp(problems, "tasks.trading.quoteFreshTicks",
-                tasks.trading.quoteFreshTicks, 20, 72_000);
-        tasks.trading.locationFreshTicks = clamp(problems, "tasks.trading.locationFreshTicks",
-                tasks.trading.locationFreshTicks, 20, 72_000);
-        tasks.trading.idleRefreshIntervalTicks = clamp(problems, "tasks.trading.idleRefreshIntervalTicks",
-                tasks.trading.idleRefreshIntervalTicks, 200, 12_000);
-        tasks.trading.maxWaitTicks = clamp(problems, "tasks.trading.maxWaitTicks",
-                tasks.trading.maxWaitTicks, 20, 12_000);
-        tasks.trading.waitTicks = clamp(problems, "tasks.trading.waitTicks",
-                tasks.trading.waitTicks, 20, tasks.trading.maxWaitTicks);
-        tasks.trading.maxBarterIngots = clamp(problems, "tasks.trading.maxBarterIngots",
-                tasks.trading.maxBarterIngots, 1, 64);
-        tasks.trading.barterDefaultIngots = clamp(problems, "tasks.trading.barterDefaultIngots",
-                tasks.trading.barterDefaultIngots, 1, tasks.trading.maxBarterIngots);
+        tasks.trading.observationRadius =
+                clamp(problems, "tasks.trading.observationRadius", tasks.trading.observationRadius, 8, 64);
+        tasks.trading.quoteFreshTicks =
+                clamp(problems, "tasks.trading.quoteFreshTicks", tasks.trading.quoteFreshTicks, 20, 72_000);
+        tasks.trading.locationFreshTicks =
+                clamp(problems, "tasks.trading.locationFreshTicks", tasks.trading.locationFreshTicks, 20, 72_000);
+        tasks.trading.idleRefreshIntervalTicks = clamp(
+                problems,
+                "tasks.trading.idleRefreshIntervalTicks",
+                tasks.trading.idleRefreshIntervalTicks,
+                200,
+                12_000);
+        tasks.trading.maxWaitTicks =
+                clamp(problems, "tasks.trading.maxWaitTicks", tasks.trading.maxWaitTicks, 20, 12_000);
+        tasks.trading.waitTicks =
+                clamp(problems, "tasks.trading.waitTicks", tasks.trading.waitTicks, 20, tasks.trading.maxWaitTicks);
+        tasks.trading.maxBarterIngots =
+                clamp(problems, "tasks.trading.maxBarterIngots", tasks.trading.maxBarterIngots, 1, 64);
+        tasks.trading.barterDefaultIngots = clamp(
+                problems,
+                "tasks.trading.barterDefaultIngots",
+                tasks.trading.barterDefaultIngots,
+                1,
+                tasks.trading.maxBarterIngots);
         if (memory == null) {
             memory = new MemorySection();
             problems.add("memory was missing");
@@ -380,8 +420,10 @@ public class ServerConfig {
             agent.promptBudget = clamp(problems, "agent.promptBudget", agent.promptBudget, 2_000, 60_000);
         }
         if (agent.autonomy == null
-                || !List.of("passive", "assistive", "autonomous").contains(agent.autonomy.toLowerCase(java.util.Locale.ROOT))) {
-            problems.add("agent.autonomy " + agent.autonomy + " is not passive, assistive or autonomous, using assistive");
+                || !List.of("passive", "assistive", "autonomous")
+                        .contains(agent.autonomy.toLowerCase(java.util.Locale.ROOT))) {
+            problems.add(
+                    "agent.autonomy " + agent.autonomy + " is not passive, assistive or autonomous, using assistive");
             agent.autonomy = "assistive";
         } else {
             agent.autonomy = agent.autonomy.toLowerCase(java.util.Locale.ROOT);
@@ -398,7 +440,8 @@ public class ServerConfig {
                 clamp(problems, "autonomy.offlineShiftsPerHour", autonomy.offlineShiftsPerHour, 0, 60);
         autonomy.failCooldownMin = clamp(problems, "autonomy.failCooldownMin", autonomy.failCooldownMin, 1, 240);
         autonomy.keepItems = keepItems(problems, autonomy.keepItems);
-        structures.maxNearbySpawned = clamp(problems, "structures.maxNearbySpawned", structures.maxNearbySpawned, 1, 16);
+        structures.maxNearbySpawned =
+                clamp(problems, "structures.maxNearbySpawned", structures.maxNearbySpawned, 1, 16);
         if (pathing.breakBlacklist == null) {
             pathing.breakBlacklist = new ArrayList<>(PathingConfig.DEFAULTS.breakBlacklist());
             problems.add("pathing.breakBlacklist was missing");
@@ -421,11 +464,11 @@ public class ServerConfig {
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
         tasks.queueMaxJobs = clamp(problems, "tasks.queueMaxJobs", tasks.queueMaxJobs, 1, 128);
         tasks.queueMaxPlans = clamp(problems, "tasks.queueMaxPlans", tasks.queueMaxPlans, 1, 16);
-        tasks.queueBlockedNoticeSec = clamp(problems, "tasks.queueBlockedNoticeSec", tasks.queueBlockedNoticeSec, 5, 600);
+        tasks.queueBlockedNoticeSec =
+                clamp(problems, "tasks.queueBlockedNoticeSec", tasks.queueBlockedNoticeSec, 5, 600);
         tasks.queueMaxStepsPerAdd = clamp(problems, "tasks.queueMaxStepsPerAdd", tasks.queueMaxStepsPerAdd, 1, 64);
         tasks.treeSearchRadius = clamp(problems, "tasks.treeSearchRadius", tasks.treeSearchRadius, 4, 64);
-        tasks.treePerceptionRadius =
-                clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);
+        tasks.treePerceptionRadius = clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);
         memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 500);
         memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 100);
         memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);

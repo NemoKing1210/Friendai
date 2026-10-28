@@ -10,9 +10,11 @@ import org.junit.jupiter.api.Test;
 
 class ObservationWindowTest {
     private static ResourceObservation observation(String block, int x, long tick) {
-        return new ResourceObservation(block,
+        return new ResourceObservation(
+                block,
                 new ResourceObservation.Location("minecraft:overworld", new Pos(x, 64, 0)),
-                new Pos(0, 64, 0), tick);
+                new Pos(0, 64, 0),
+                tick);
     }
 
     private static List<String> ids(List<ResourceObservation> observations) {

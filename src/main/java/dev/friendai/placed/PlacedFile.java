@@ -19,8 +19,10 @@ public final class PlacedFile {
     public static final int CURRENT_VERSION = 1;
     /** Longest tool or task name a record may carry. */
     public static final int SOURCE_MAX = 64;
+
     private static final Pattern ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
     private int version;
     private List<Record> entries;
@@ -36,8 +38,14 @@ public final class PlacedFile {
     public static PlacedFile encode(PlacedBook book) {
         List<Record> records = new ArrayList<>();
         for (PlacedBlock block : book.all()) {
-            records.add(new Record(block.dimension(), block.pos().x(), block.pos().y(), block.pos().z(),
-                    block.blockId(), block.tick(), block.source()));
+            records.add(new Record(
+                    block.dimension(),
+                    block.pos().x(),
+                    block.pos().y(),
+                    block.pos().z(),
+                    block.blockId(),
+                    block.tick(),
+                    block.source()));
         }
         return new PlacedFile(CURRENT_VERSION, records);
     }
@@ -64,8 +72,7 @@ public final class PlacedFile {
         }
         if (file.entries.size() > limits.maxEntries()) {
             throw new IllegalArgumentException(
-                    "the placement file holds " + file.entries.size() + " entries, more than "
-                            + limits.maxEntries());
+                    "the placement file holds " + file.entries.size() + " entries, more than " + limits.maxEntries());
         }
         PlacedBook book = new PlacedBook(limits);
         Set<String> seen = new HashSet<>();
@@ -86,8 +93,7 @@ public final class PlacedFile {
             if (!seen.add(key)) {
                 throw new IllegalArgumentException("two placement entries share " + key);
             }
-            book.record(new PlacedBlock(dimension, new Pos(record.x, record.y, record.z), block,
-                    record.tick, source));
+            book.record(new PlacedBlock(dimension, new Pos(record.x, record.y, record.z), block, record.tick, source));
         }
         book.markClean();
         return book;

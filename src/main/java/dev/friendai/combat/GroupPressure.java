@@ -15,9 +15,7 @@ public final class GroupPressure {
      * breaks the second attacker's line.
      */
     public static Step sidestep(
-            double selfX, double selfZ,
-            double targetX, double targetZ,
-            double otherX, double otherZ) {
+            double selfX, double selfZ, double targetX, double targetZ, double otherX, double otherZ) {
         double dx = targetX - selfX;
         double dz = targetZ - selfZ;
         double length = Math.sqrt(dx * dx + dz * dz);

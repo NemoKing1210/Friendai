@@ -95,7 +95,8 @@ public final class VoiceRuntime {
     public static synchronized SttStatus sttStatus() {
         ResolvedStt resolved = resolveStt();
         boolean installed = resolved.local()
-                && MANAGER.isInstalled(WhisperModel.byId(FriendaiClient.clientConfig().voice.stt.local.model).spec());
+                && MANAGER.isInstalled(WhisperModel.byId(FriendaiClient.clientConfig().voice.stt.local.model)
+                        .spec());
         UserMessage problem = VoiceReadiness.stt(resolved, installed);
         if (problem != null) {
             return new SttStatus(false, problem);
@@ -156,7 +157,9 @@ public final class VoiceRuntime {
     }
 
     private static ResolvedStt resolveStt() {
-        return VoiceConfig.resolveStt(FriendaiClient.clientConfig().voice.stt,
-                Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv);
+        return VoiceConfig.resolveStt(
+                FriendaiClient.clientConfig().voice.stt,
+                Minecraft.getInstance().getLanguageManager().getSelected(),
+                System::getenv);
     }
 }

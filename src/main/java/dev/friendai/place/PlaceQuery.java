@@ -39,9 +39,7 @@ public final class PlaceQuery {
             boolean otherDimensions) {
 
         public Request {
-            text = text == null
-                    ? Optional.empty()
-                    : text.map(String::strip).filter(value -> !value.isEmpty());
+            text = text == null ? Optional.empty() : text.map(String::strip).filter(value -> !value.isEmpty());
             kinds = kinds == null ? Set.of() : Set.copyOf(kinds);
             dimension = dimension == null
                     ? Optional.empty()
@@ -61,8 +59,7 @@ public final class PlaceQuery {
      * id; other-dimension places follow, most recently updated first, ties by id. A place in another dimension
      * reports distance {@code 0} with {@code sameDimension == false}. The limit is clamped to 1..20.
      */
-    public static List<Result> find(
-            PlaceRegistry registry, Request request, Pos self, String selfDimension) {
+    public static List<Result> find(PlaceRegistry registry, Request request, Pos self, String selfDimension) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(self, "self");

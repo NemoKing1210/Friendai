@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
-import dev.friendai.llm.model.LlmException;
 import dev.friendai.llm.model.LlmErrorKind;
+import dev.friendai.llm.model.LlmException;
 import dev.friendai.llm.model.LlmResponse;
 import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.Role;
@@ -20,8 +20,8 @@ import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
 import dev.friendai.text.UserMessage;
 import dev.friendai.tool.AccessLevel;
-import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -70,8 +70,8 @@ class CompanionBrainTest {
 
     @Test
     void systemPromptCarriesTheMissionForTheOwner() {
-        brain.setGoalSource(caller -> new dev.friendai.agent.goal.GoalView(
-                "gather 12 logs", List.of("12 logs"), "plan 4 running", ""));
+        brain.setGoalSource(caller ->
+                new dev.friendai.agent.goal.GoalView("gather 12 logs", List.of("12 logs"), "plan 4 running", ""));
         gateway.enqueue(text("ok"));
         brain.post(said("hi"));
         String system = gateway.requests.get(0).system();
@@ -108,8 +108,7 @@ class CompanionBrainTest {
     private void routedToolbox(boolean routing) {
         tools.available.clear();
         tools.available.addAll(List.of(spec("stop"), spec("stay"), spec("mine_blocks"), spec("request_tools")));
-        brain.setAgentSettings(() -> new AgentSettings(
-                routing, AgentSettings.Autonomy.ASSISTIVE, 3, 30, 0, 60));
+        brain.setAgentSettings(() -> new AgentSettings(routing, AgentSettings.Autonomy.ASSISTIVE, 3, 30, 0, 60));
     }
 
     @Test
@@ -148,7 +147,9 @@ class CompanionBrainTest {
         assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
         assertFalse(tools.executed.contains("request_tools"), "the brain answers request_tools itself");
         Message result = gateway.requests.get(1).messages().stream()
-                .filter(m -> m.role() == Role.TOOL).findFirst().orElseThrow();
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
         assertTrue(result.text().contains("tools unlocked: gathering"), result.text());
         assertTrue(result.text().contains("mine_blocks"), result.text());
     }
@@ -171,7 +172,9 @@ class CompanionBrainTest {
         gateway.enqueue(text("Hm."));
         brain.post(said("where are you?"));
         Message result = gateway.requests.get(1).messages().stream()
-                .filter(m -> m.role() == Role.TOOL).findFirst().orElseThrow();
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
         assertTrue(result.text().contains("Unknown tool group"), result.text());
         assertTrue(result.text().contains("gathering"), result.text());
         assertFalse(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
@@ -242,7 +245,9 @@ class CompanionBrainTest {
         assertEquals(List.of("stay"), tools.executed);
         assertEquals(2, gateway.requests.size());
         Message toolMsg = gateway.requests.get(1).messages().stream()
-                .filter(m -> m.role() == Role.TOOL).findFirst().orElseThrow();
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
         assertEquals("c1", toolMsg.toolCallId());
         assertEquals(List.of("Staying"), speaker.said);
     }
@@ -254,7 +259,10 @@ class CompanionBrainTest {
         brain.post(said("go"));
         assertEquals(List.of("first", "second"), tools.executed);
         List<Message> second = gateway.requests.get(1).messages();
-        List<String> toolIds = second.stream().filter(m -> m.role() == Role.TOOL).map(Message::toolCallId).toList();
+        List<String> toolIds = second.stream()
+                .filter(m -> m.role() == Role.TOOL)
+                .map(Message::toolCallId)
+                .toList();
         assertEquals(List.of("a", "b"), toolIds);
     }
 
@@ -326,7 +334,8 @@ class CompanionBrainTest {
         gateway.enqueue(text("noted"));
         brain.post(new BrainEvent.WorldNotice("the furnace is done"));
         assertEquals(1, gateway.requests.size());
-        assertEquals("[event] the furnace is done", lastUser(gateway.requests.get(0)).text());
+        assertEquals(
+                "[event] the furnace is done", lastUser(gateway.requests.get(0)).text());
         assertEquals(AccessLevel.OWNER, tools.specAccess.get(0));
     }
 
@@ -385,8 +394,8 @@ class CompanionBrainTest {
 
         brain.post(said("What trades does the villager have?"));
 
-        assertEquals(List.of(false), initiated,
-                "a chat response must not have an owner scope that queue_add could capture");
+        assertEquals(
+                List.of(false), initiated, "a chat response must not have an owner scope that queue_add could capture");
     }
 
     @Test
@@ -400,14 +409,14 @@ class CompanionBrainTest {
 
         brain.post(said("hmm okay then"));
 
-        assertEquals(List.of(false), initiated,
-                "fallback routing exposes every schema but must not mint trade authority");
+        assertEquals(
+                List.of(false), initiated, "fallback routing exposes every schema but must not mint trade authority");
     }
 
     @Test
     void toolsKeepTheScopeCreatedForTheirOwnOwnerTurn() {
-        brain.setTradingTurnPort((caller, playerInitiated) ->
-                caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null));
+        brain.setTradingTurnPort(
+                (caller, playerInitiated) -> caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null));
         gateway.enqueue(calls("", call("a", "first")));
         gateway.enqueue(text("first done"));
         gateway.enqueue(calls("", call("b", "second")));
@@ -444,7 +453,8 @@ class CompanionBrainTest {
         brain.post(guest("g3"));
         first.complete(text("done"));
         assertEquals(
-                "[Bob (guest)]: g1\n[Bob (guest)]: g2", lastUser(gateway.requests.get(1)).text());
+                "[Bob (guest)]: g1\n[Bob (guest)]: g2",
+                lastUser(gateway.requests.get(1)).text());
     }
 
     @Test

@@ -17,8 +17,8 @@ class PlacedTextTest {
 
     @Test
     void rendersOneLinePerMaterialNearestFirst() {
-        List<PlacedBlock> entries = List.of(
-                block(1, "minecraft:chest"), block(2, "minecraft:oak_log"), block(3, "minecraft:oak_log"));
+        List<PlacedBlock> entries =
+                List.of(block(1, "minecraft:chest"), block(2, "minecraft:oak_log"), block(3, "minecraft:oak_log"));
         List<PlacedText.Group> groups = PlacedText.group(entries, entry -> "nearby");
         String text = PlacedText.prompt(groups, 400);
         assertTrue(text.startsWith("Blocks you placed that are still in the world"), text);
@@ -46,8 +46,7 @@ class PlacedTextTest {
 
     @Test
     void listingNamesTruncationAndDistance() {
-        PlacedQuery.Result result = new PlacedQuery.Result(
-                List.of(block(3, "minecraft:oak_log")), 14, true);
+        PlacedQuery.Result result = new PlacedQuery.Result(List.of(block(3, "minecraft:oak_log")), 14, true);
         String text = PlacedText.listing(result, "minecraft:oak_log", 32, new Pos(0, 64, 0));
         assertTrue(text.startsWith("1 of 14 minecraft:oak_log you placed within 32 blocks"), text);
         assertTrue(text.contains("truncated"), text);

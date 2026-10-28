@@ -45,6 +45,7 @@ public final class ShearTask implements Task {
     private int sheared;
     /** The wait for a fleece to land, and what the companion carried when the shears were used. */
     private DropSettle settle;
+
     private Map<Item, Integer> settleBefore;
 
     public ShearTask(EntityType<?> type, int count) {
@@ -169,7 +170,8 @@ public final class ShearTask implements Task {
             summary = "no " + id + " ready to shear nearby";
             return TaskStatus.FAILED;
         }
-        StringBuilder text = new StringBuilder("sheared ").append(sheared).append(' ').append(id);
+        StringBuilder text =
+                new StringBuilder("sheared ").append(sheared).append(' ').append(id);
         if (!gained.isEmpty()) {
             text.append(" (got ");
             boolean first = true;

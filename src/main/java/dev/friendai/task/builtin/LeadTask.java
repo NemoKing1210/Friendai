@@ -35,7 +35,12 @@ public final class LeadTask implements Task {
     /** How long a released leash gets to land and leave its pickup delay before the task reports. */
     private static final int SETTLE_TICKS = 12;
 
-    private enum Stage { ATTACH, WALK, COLLECT, DONE }
+    private enum Stage {
+        ATTACH,
+        WALK,
+        COLLECT,
+        DONE
+    }
 
     private final EntityType<?> type;
     private final int count;
@@ -59,6 +64,7 @@ public final class LeadTask implements Task {
     private int lost;
     /** The wait for the freed leashes to land, and the summary to report when it is over. */
     private DropSettle settle;
+
     private String pendingSummary = "";
 
     public LeadTask(EntityType<?> type, int count, BlockPos destination, boolean tie) {
@@ -95,7 +101,8 @@ public final class LeadTask implements Task {
                 failed = true;
                 return TaskStatus.FAILED;
             }
-            List<Animal> nearby = Animals.nearby(c.level(), c.companion(), origin, RADIUS, candidate -> candidate == type);
+            List<Animal> nearby =
+                    Animals.nearby(c.level(), c.companion(), origin, RADIUS, candidate -> candidate == type);
             nearby.stream()
                     .filter(animal -> ((Leashable) animal).canBeLeashed() && !((Leashable) animal).isLeashed())
                     .limit(Math.min(count, leads))
@@ -187,8 +194,8 @@ public final class LeadTask implements Task {
             return finishTying(c, Optional.empty());
         }
         boolean behind = leashed.stream()
-                .anyMatch(animal -> animal.position().distanceToSqr(c.companion().position())
-                        > BEHIND_DISTANCE * BEHIND_DISTANCE);
+                .anyMatch(animal ->
+                        animal.position().distanceToSqr(c.companion().position()) > BEHIND_DISTANCE * BEHIND_DISTANCE);
         if (behind) {
             waitTicks++;
             if (waitTicks <= WAIT_LIMIT) {
@@ -219,8 +226,12 @@ public final class LeadTask implements Task {
                 ((Leashable) animal).dropLeash();
             }
         }
-        StringBuilder text = new StringBuilder("led ").append(led).append(' ').append(id)
-                .append(" to ").append(coords(destination));
+        StringBuilder text = new StringBuilder("led ")
+                .append(led)
+                .append(' ')
+                .append(id)
+                .append(" to ")
+                .append(coords(destination));
         if (tied) {
             text.append(" and tied them to the fence at ").append(coords(fencePos));
         } else {

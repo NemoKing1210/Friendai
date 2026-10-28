@@ -13,10 +13,12 @@ public final class CompanionInventoryLayout {
 
     /** The panel size, its outline included. */
     public static final int WIDTH = 184;
+
     public static final int HEIGHT = 254;
 
     /** Slot pitch and slot box, the armor column and both 9-wide grids share it. */
     public static final int PITCH = 18;
+
     public static final int SLOT = 18;
 
     /** The first column of every 9-wide grid, content origin; its frame starts one pixel left of it. */
@@ -35,12 +37,14 @@ public final class CompanionInventoryLayout {
 
     /** The companion's model, in the free space right of the armor column and left of the hands. */
     public static final int PORTRAIT_X = 30;
+
     public static final int PORTRAIT_Y = 18;
     public static final int PORTRAIT_WIDTH = 50;
     public static final int PORTRAIT_HEIGHT = 66;
 
     /** Ten hearts on the left and ten food icons on the right, one group per side of the panel's axis. */
     public static final int VITALS_Y = 91;
+
     public static final int VITALS_X = 8;
     public static final int ICONS = 10;
     public static final int ICON = 9;
@@ -50,6 +54,7 @@ public final class CompanionInventoryLayout {
 
     /** A bar under the vitals; the level sits in the free space above the hands. */
     public static final int XP_Y = 102;
+
     public static final int XP_HEIGHT = 3;
     public static final int LEVEL_X = 86;
     public static final int LEVEL_Y = 28;

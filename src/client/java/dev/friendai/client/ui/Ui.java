@@ -28,6 +28,7 @@ final class Ui {
 
     /** The dark list surface and its text, for running logs and long bodies. */
     static final int WELL = MenuTheme.WELL;
+
     static final int ON_WELL = MenuTheme.ON_WELL;
     static final int ON_WELL_DIM = MenuTheme.ON_WELL_DIM;
     static final int ON_WELL_BAD = MenuTheme.ON_WELL_BAD;

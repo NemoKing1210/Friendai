@@ -19,6 +19,7 @@ public final class AttackPlayerTask implements Task {
     private final String name;
     /** The owner asked for this fight themselves, so the self-protection and PvP checks do not apply to them. */
     private final boolean ownerConsent;
+
     private int ticks;
     private String summary = "";
 
@@ -61,9 +62,7 @@ public final class AttackPlayerTask implements Task {
         boolean consensual = ownerConsent && isOwner(c.companion(), player);
         if (!consensual && !Threats.mayFightPlayer(c.companion(), player)) {
             return finish(
-                    c,
-                    level.isPvpAllowed() ? "I can't hurt " + name + " here" : "PvP is off here",
-                    TaskStatus.FAILED);
+                    c, level.isPvpAllowed() ? "I can't hurt " + name + " here" : "PvP is off here", TaskStatus.FAILED);
         }
         CombatController controller = c.companion().combatController();
         if (controller.state() != CombatController.State.FIGHTING) {
@@ -73,7 +72,10 @@ public final class AttackPlayerTask implements Task {
     }
 
     private static boolean isOwner(CompanionEntity companion, ServerPlayer player) {
-        return companion.owner().map(owner -> owner.getUUID().equals(player.getUUID())).orElse(false);
+        return companion
+                .owner()
+                .map(owner -> owner.getUUID().equals(player.getUUID()))
+                .orElse(false);
     }
 
     private TaskStatus finish(TaskContext c, String text, TaskStatus status) {

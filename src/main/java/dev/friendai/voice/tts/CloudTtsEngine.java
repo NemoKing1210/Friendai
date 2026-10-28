@@ -28,13 +28,12 @@ public final class CloudTtsEngine implements SpeechEngine {
             return CompletableFuture.failedFuture(
                     new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
         }
-        return client.synthesize(settings, text)
-                .handle((audio, error) -> {
-                    if (error != null) {
-                        throw synthesisFailure(error);
-                    }
-                    return new TtsClip(audio.data(), audio.sampleRateHz());
-                });
+        return client.synthesize(settings, text).handle((audio, error) -> {
+            if (error != null) {
+                throw synthesisFailure(error);
+            }
+            return new TtsClip(audio.data(), audio.sampleRateHz());
+        });
     }
 
     /**

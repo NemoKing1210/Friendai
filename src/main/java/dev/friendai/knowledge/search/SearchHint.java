@@ -8,8 +8,15 @@ import java.util.Objects;
  * reason, and the engine decides whether to honour it: the hint only adds a bounded bonus to matching frontier
  * scores and expires by tick. A bad hint therefore costs one leg, not a lost expedition.
  */
-public record SearchHint(SearchPlanner.Heading direction, String landmark, String biome, Pos area, int areaRadius,
-                         String reason, long createdTick, long expiresTick) {
+public record SearchHint(
+        SearchPlanner.Heading direction,
+        String landmark,
+        String biome,
+        Pos area,
+        int areaRadius,
+        String reason,
+        long createdTick,
+        long expiresTick) {
     public static final double BONUS = 6.0;
     public static final long TTL_TICKS = 2_400;
     public static final int REASON_MAX = 160;
@@ -27,12 +34,20 @@ public record SearchHint(SearchPlanner.Heading direction, String landmark, Strin
         if (biome != null && biome.contains(" ")) throw new IllegalArgumentException("biome must be one id or word");
     }
 
-    public static SearchHint create(SearchPlanner.Heading direction, String landmark, String biome, Pos area,
-            int areaRadius, String reason, long now) {
+    public static SearchHint create(
+            SearchPlanner.Heading direction,
+            String landmark,
+            String biome,
+            Pos area,
+            int areaRadius,
+            String reason,
+            long now) {
         return new SearchHint(direction, landmark, biome, area, areaRadius, reason, now, now + TTL_TICKS);
     }
 
-    public boolean expired(long now) { return now >= expiresTick; }
+    public boolean expired(long now) {
+        return now >= expiresTick;
+    }
 
     /** The bonus this hint adds to a frontier, or zero when it does not match or has expired. */
     public double bonusFor(SearchPlanner.Frontier frontier, Pos origin, long now) {
@@ -61,12 +76,20 @@ public record SearchHint(SearchPlanner.Heading direction, String landmark, Strin
     }
 
     /** World checks the adapter performs once, before a hint is stored. */
-    public record ValidationFacts(boolean destinationLoaded, boolean destinationLand, boolean destinationAllowed,
-                                  boolean destinationInWorld) {}
+    public record ValidationFacts(
+            boolean destinationLoaded,
+            boolean destinationLand,
+            boolean destinationAllowed,
+            boolean destinationInWorld) {}
 
     public record Validation(boolean accepted, String reason) {
-        public static Validation ok() { return new Validation(true, ""); }
-        public static Validation reject(String reason) { return new Validation(false, reason); }
+        public static Validation ok() {
+            return new Validation(true, "");
+        }
+
+        public static Validation reject(String reason) {
+            return new Validation(false, reason);
+        }
     }
 
     public Validation validate(ValidationFacts facts, long now) {
@@ -82,8 +105,9 @@ public record SearchHint(SearchPlanner.Heading direction, String landmark, Strin
     private boolean headingMatches(Pos approach, Pos origin) {
         int dx = approach.x() - origin.x(), dz = approach.z() - origin.z();
         if (dx == 0 && dz == 0) return false;
-        SearchPlanner.Heading actual = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? SearchPlanner.Heading.EAST
-                : SearchPlanner.Heading.WEST) : (dz < 0 ? SearchPlanner.Heading.NORTH : SearchPlanner.Heading.SOUTH);
+        SearchPlanner.Heading actual = Math.abs(dx) > Math.abs(dz)
+                ? (dx > 0 ? SearchPlanner.Heading.EAST : SearchPlanner.Heading.WEST)
+                : (dz < 0 ? SearchPlanner.Heading.NORTH : SearchPlanner.Heading.SOUTH);
         return actual == direction;
     }
 
@@ -94,7 +118,9 @@ public record SearchHint(SearchPlanner.Heading direction, String landmark, Strin
         return value.isEmpty() ? null : value;
     }
 
-    private static boolean isBlank(String text) { return text == null || text.isBlank(); }
+    private static boolean isBlank(String text) {
+        return text == null || text.isBlank();
+    }
 
     private static void append(StringBuilder text, String part) {
         if (!text.isEmpty()) text.append("; ");
@@ -105,5 +131,4 @@ public record SearchHint(SearchPlanner.Heading direction, String landmark, Strin
         double dx = (double) a.x() - b.x(), dz = (double) a.z() - b.z();
         return Math.hypot(dx, dz);
     }
-
 }

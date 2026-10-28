@@ -31,7 +31,18 @@ public record PlaceValues(
             PlaceSource source,
             UUID author,
             String note) {
-        this(name, kind, label, dimension, anchor, radius, aliases, source, author, note,
-                Place.defaultBelow(radius), Place.defaultAbove(radius));
+        this(
+                name,
+                kind,
+                label,
+                dimension,
+                anchor,
+                radius,
+                aliases,
+                source,
+                author,
+                note,
+                Place.defaultBelow(radius),
+                Place.defaultAbove(radius));
     }
 }

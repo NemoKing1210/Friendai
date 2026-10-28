@@ -24,7 +24,8 @@ public class ExperienceTests {
     }
 
     private static boolean noOrbsNear(GameTestHelper h, CompanionEntity c, double radius) {
-        List<ExperienceOrb> orbs = h.getLevel().getEntitiesOfClass(ExperienceOrb.class, c.getBoundingBox().inflate(radius));
+        List<ExperienceOrb> orbs = h.getLevel()
+                .getEntitiesOfClass(ExperienceOrb.class, c.getBoundingBox().inflate(radius));
         return orbs.isEmpty();
     }
 
@@ -35,7 +36,9 @@ public class ExperienceTests {
         spawnOrb(h, 4, 2, 7);
         h.succeedWhen(() -> {
             h.assertTrue(noOrbsNear(h, c, 6), "the orb was not absorbed");
-            h.assertTrue(c.experience().points() == 7, "points were " + c.experience().points());
+            h.assertTrue(
+                    c.experience().points() == 7,
+                    "points were " + c.experience().points());
             h.assertTrue(c.syncedXpLevel() == 1, "synced level was " + c.syncedXpLevel());
         });
     }
@@ -48,7 +51,9 @@ public class ExperienceTests {
         spawnOrb(h, 3, 2, 4);
         h.succeedWhen(() -> {
             h.assertTrue(noOrbsNear(h, c, 6), "an orb was left behind");
-            h.assertTrue(c.experience().points() == 7, "points were " + c.experience().points());
+            h.assertTrue(
+                    c.experience().points() == 7,
+                    "points were " + c.experience().points());
         });
     }
 
@@ -61,7 +66,9 @@ public class ExperienceTests {
         h.getLevel().addFreshEntity(orb);
         h.runAfterDelay(40, () -> {
             h.assertTrue(!orb.isRemoved(), "a far orb was absorbed");
-            h.assertTrue(c.experience().points() == 0, "points were " + c.experience().points());
+            h.assertTrue(
+                    c.experience().points() == 0,
+                    "points were " + c.experience().points());
             h.succeed();
         });
     }
@@ -70,12 +77,14 @@ public class ExperienceTests {
     public void savesAndLoadsExperience(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         a.addExperience(100);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertTrue(b.experience().points() == 100, "points were " + b.experience().points());
+        h.assertTrue(
+                b.experience().points() == 100, "points were " + b.experience().points());
         h.assertTrue(b.syncedXpLevel() == b.experience().level(), "the synced level did not follow the load");
         h.succeed();
     }
@@ -84,28 +93,32 @@ public class ExperienceTests {
     public void oldSaveLoadsAsZero(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         a.addExperience(100);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
         tag.remove("XpPoints");
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
-        h.assertTrue(b.experience().points() == 0, "points were " + b.experience().points());
+        h.assertTrue(
+                b.experience().points() == 0, "points were " + b.experience().points());
         h.succeed();
     }
 
     @GameTest
     public void corruptNegativeSaveClamps(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
         tag.putInt("XpPoints", -5);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
-        h.assertTrue(b.experience().points() == 0, "points were " + b.experience().points());
+        h.assertTrue(
+                b.experience().points() == 0, "points were " + b.experience().points());
         h.succeed();
     }
 }

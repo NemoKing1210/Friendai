@@ -21,10 +21,27 @@ public record Goal(
         lessons = List.copyOf(lessons);
     }
 
-    Goal withText(String t) { return new Goal(id, t, criteria, status, planId, replans, lessons, createdTick, background); }
-    Goal withCriteria(List<Criterion> c) { return new Goal(id, text, c, status, planId, replans, lessons, createdTick, background); }
-    Goal withStatus(GoalStatus s) { return new Goal(id, text, criteria, s, planId, replans, lessons, createdTick, background); }
-    Goal withPlan(long p) { return new Goal(id, text, criteria, status, p, replans, lessons, createdTick, background); }
-    Goal withReplans(int r) { return new Goal(id, text, criteria, status, planId, r, lessons, createdTick, background); }
-    Goal withLessons(List<String> l) { return new Goal(id, text, criteria, status, planId, replans, l, createdTick, background); }
+    Goal withText(String t) {
+        return new Goal(id, t, criteria, status, planId, replans, lessons, createdTick, background);
+    }
+
+    Goal withCriteria(List<Criterion> c) {
+        return new Goal(id, text, c, status, planId, replans, lessons, createdTick, background);
+    }
+
+    Goal withStatus(GoalStatus s) {
+        return new Goal(id, text, criteria, s, planId, replans, lessons, createdTick, background);
+    }
+
+    Goal withPlan(long p) {
+        return new Goal(id, text, criteria, status, p, replans, lessons, createdTick, background);
+    }
+
+    Goal withReplans(int r) {
+        return new Goal(id, text, criteria, status, planId, r, lessons, createdTick, background);
+    }
+
+    Goal withLessons(List<String> l) {
+        return new Goal(id, text, criteria, status, planId, replans, l, createdTick, background);
+    }
 }

@@ -1,11 +1,9 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.task.Task;
-import dev.friendai.queue.GuardAction;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueueTradeScope;
@@ -45,46 +43,14 @@ final class ToolKit {
         validateRegistration(def, true);
         defs.add(def);
         CallerAction routed = (c, caller, args) -> {
-            if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
-                    caller == null ? null : caller.uuid())) {
+            if (def.creativeSensitive()
+                    && !CreativeModeService.mayStartWorldChangingTask(c, caller == null ? null : caller.uuid())) {
                 return creativeAuthorizationError();
             }
             if (def.callerFactory() == null) return action.run(c, caller, args);
             Task task;
-            try { task = def.callerFactory().create(c, caller, args.deepCopy()); }
-            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
-            if (def.queueTraits().interrupts()) {
-                c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
-                return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
-            }
             try {
-                QueueTradeScope.EnqueueCapture capture = QueueTradeScope.captureEnqueue(args,
-                        caller == null ? null : caller.tradingScope(), def.queueTraits().requiresTradingScope(), 1);
-                JsonObject queuedArgs = capture.args();
-                Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
-                long id = c.taskRunner().enqueue(new QueuedStep(def.name(), queuedArgs, null, List.of(), GuardAction.WAIT,
-                                FailurePolicy.STOP_PLAN, capture.maxAttempts(), List.of(), caller == null ? null : caller.uuid(),
-                                def.creativeSensitive()),
-                        ctx -> def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), queuedCaller),
-                                queuedArgs.deepCopy()));
-                boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
-                return ToolResult.ok(active ? "task #" + id + " started: " + task.describe()
-                        : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
-            } catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
-        };
-        registry.register(callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, routed));
-    }
-
-    static Tool<CompanionEntity> taskTool(TaskToolDef def) {
-        validateRegistration(def, false);
-        return callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, (c, caller, args) -> {
-            if (def.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c,
-                    caller == null ? null : caller.uuid())) {
-                return creativeAuthorizationError();
-            }            Task task;
-            try {
-                task = def.callerFactory() == null ? def.factory().create(c, args)
-                        : def.callerFactory().create(c, caller, args.deepCopy());
+                task = def.callerFactory().create(c, caller, args.deepCopy());
             } catch (IllegalArgumentException e) {
                 return ToolResult.error(e.getMessage());
             }
@@ -92,24 +58,119 @@ final class ToolKit {
                 c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
                 return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
             }
-            Task preview = task;
-            QueueTradeScope.EnqueueCapture capture;
-            try { capture = QueueTradeScope.captureEnqueue(args, caller == null ? null : caller.tradingScope(),
-                    def.queueTraits().requiresTradingScope(), 1); }
-            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
-            JsonObject queuedArgs = capture.args();
-            Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
-            long id;
-            try { id = c.taskRunner().enqueue(new QueuedStep(def.name(), queuedArgs, null, List.of(), GuardAction.WAIT,
-                            FailurePolicy.STOP_PLAN, capture.maxAttempts(), List.of(), caller == null ? null : caller.uuid(),
-                            def.creativeSensitive()),
-                    ctx -> def.callerFactory() == null ? def.factory().create(ctx.companion(), queuedArgs.deepCopy())
-                            : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion(), queuedCaller),
-                                    queuedArgs.deepCopy())); }
-            catch (IllegalArgumentException e) { return ToolResult.error(e.getMessage()); }
-            boolean active = c.taskRunner().queue().active().map(job -> job.id() == id).orElse(false);
-            return ToolResult.ok(active ? "task #" + id + " started: " + preview.describe() : "job #" + id + " queued behind " + c.taskRunner().pendingJobs() + " jobs");
-        });
+            try {
+                QueueTradeScope.EnqueueCapture capture = QueueTradeScope.captureEnqueue(
+                        args,
+                        caller == null ? null : caller.tradingScope(),
+                        def.queueTraits().requiresTradingScope(),
+                        1);
+                JsonObject queuedArgs = capture.args();
+                Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
+                long id = c.taskRunner()
+                        .enqueue(
+                                new QueuedStep(
+                                        def.name(),
+                                        queuedArgs,
+                                        null,
+                                        List.of(),
+                                        GuardAction.WAIT,
+                                        FailurePolicy.STOP_PLAN,
+                                        capture.maxAttempts(),
+                                        List.of(),
+                                        caller == null ? null : caller.uuid(),
+                                        def.creativeSensitive()),
+                                ctx -> def.callerFactory()
+                                        .create(
+                                                ctx.companion(),
+                                                currentCaller(ctx.companion(), queuedCaller),
+                                                queuedArgs.deepCopy()));
+                boolean active = c.taskRunner()
+                        .queue()
+                        .active()
+                        .map(job -> job.id() == id)
+                        .orElse(false);
+                return ToolResult.ok(
+                        active
+                                ? "task #" + id + " started: " + task.describe()
+                                : "job #" + id + " queued behind "
+                                        + c.taskRunner().pendingJobs() + " jobs");
+            } catch (IllegalArgumentException e) {
+                return ToolResult.error(e.getMessage());
+            }
+        };
+        registry.register(callerTool(def.name(), def.description(), def.schema(), def.minAccess(), () -> true, routed));
+    }
+
+    static Tool<CompanionEntity> taskTool(TaskToolDef def) {
+        validateRegistration(def, false);
+        return callerTool(
+                def.name(), def.description(), def.schema(), def.minAccess(), () -> true, (c, caller, args) -> {
+                    if (def.creativeSensitive()
+                            && !CreativeModeService.mayStartWorldChangingTask(
+                                    c, caller == null ? null : caller.uuid())) {
+                        return creativeAuthorizationError();
+                    }
+                    Task task;
+                    try {
+                        task = def.callerFactory() == null
+                                ? def.factory().create(c, args)
+                                : def.callerFactory().create(c, caller, args.deepCopy());
+                    } catch (IllegalArgumentException e) {
+                        return ToolResult.error(e.getMessage());
+                    }
+                    if (def.queueTraits().interrupts()) {
+                        c.taskRunner().interrupt(task, def.name(), caller, def.creativeSensitive());
+                        return ToolResult.ok("task #" + c.taskRunner().currentId() + " started: " + task.describe());
+                    }
+                    Task preview = task;
+                    QueueTradeScope.EnqueueCapture capture;
+                    try {
+                        capture = QueueTradeScope.captureEnqueue(
+                                args,
+                                caller == null ? null : caller.tradingScope(),
+                                def.queueTraits().requiresTradingScope(),
+                                1);
+                    } catch (IllegalArgumentException e) {
+                        return ToolResult.error(e.getMessage());
+                    }
+                    JsonObject queuedArgs = capture.args();
+                    Caller queuedCaller = caller == null ? null : caller.withTradingScope(capture.tradingScope());
+                    long id;
+                    try {
+                        id = c.taskRunner()
+                                .enqueue(
+                                        new QueuedStep(
+                                                def.name(),
+                                                queuedArgs,
+                                                null,
+                                                List.of(),
+                                                GuardAction.WAIT,
+                                                FailurePolicy.STOP_PLAN,
+                                                capture.maxAttempts(),
+                                                List.of(),
+                                                caller == null ? null : caller.uuid(),
+                                                def.creativeSensitive()),
+                                        ctx -> def.callerFactory() == null
+                                                ? def.factory().create(ctx.companion(), queuedArgs.deepCopy())
+                                                : def.callerFactory()
+                                                        .create(
+                                                                ctx.companion(),
+                                                                currentCaller(ctx.companion(), queuedCaller),
+                                                                queuedArgs.deepCopy()));
+                    } catch (IllegalArgumentException e) {
+                        return ToolResult.error(e.getMessage());
+                    }
+                    boolean active = c.taskRunner()
+                            .queue()
+                            .active()
+                            .map(job -> job.id() == id)
+                            .orElse(false);
+                    return ToolResult.ok(
+                            active
+                                    ? "task #" + id + " started: " + preview.describe()
+                                    : "job #" + id + " queued behind "
+                                            + c.taskRunner().pendingJobs() + " jobs");
+                });
     }
 
     static boolean requiresFreshAuthority(JsonObject args, TaskToolDef def) {
@@ -143,7 +204,8 @@ final class ToolKit {
     }
 
     private static ToolResult creativeAuthorizationError() {
-        return ToolResult.error("Creative mode is active; only its online operator owner can request world-changing tasks.");
+        return ToolResult.error(
+                "Creative mode is active; only its online operator owner can request world-changing tasks.");
     }
 
     private static Caller currentCaller(CompanionEntity companion, Caller submitted) {
@@ -152,11 +214,17 @@ final class ToolKit {
 
     private static Caller currentCaller(CompanionEntity companion, UUID principal) {
         if (principal == null) return new Caller(null, "", AccessLevel.GUEST);
-        AccessLevel access = companion.ownerUuid() != null && companion.ownerUuid().equals(principal)
-                ? AccessLevel.OWNER : AccessLevel.GUEST;
+        AccessLevel access =
+                companion.ownerUuid() != null && companion.ownerUuid().equals(principal)
+                        ? AccessLevel.OWNER
+                        : AccessLevel.GUEST;
         if (companion.level() instanceof ServerLevel level) {
-            if (access != AccessLevel.OWNER && companion.ownerUuid() != null
-                    && FriendaiServerState.get(level.getServer()).memory().book(companion.ownerUuid()).isTrusted(principal)) {
+            if (access != AccessLevel.OWNER
+                    && companion.ownerUuid() != null
+                    && FriendaiServerState.get(level.getServer())
+                            .memory()
+                            .book(companion.ownerUuid())
+                            .isTrusted(principal)) {
                 access = AccessLevel.TRUSTED;
             }
         }
@@ -171,8 +239,7 @@ final class ToolKit {
         return tool(name, description, SchemaBuilder.object().build(), AccessLevel.TRUSTED, action);
     }
 
-    static Tool<CompanionEntity> instantTool(
-            String name, String description, AccessLevel minAccess, Action action) {
+    static Tool<CompanionEntity> instantTool(String name, String description, AccessLevel minAccess, Action action) {
         return tool(name, description, SchemaBuilder.object().build(), minAccess, action);
     }
 
@@ -253,7 +320,9 @@ final class ToolKit {
             throw new IllegalArgumentException("give all of x, y, z or none");
         }
         return Optional.of(new BlockPos(
-                args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt()));
+                args.get("x").getAsInt(),
+                args.get("y").getAsInt(),
+                args.get("z").getAsInt()));
     }
 
     private static Tool<CompanionEntity> tool(

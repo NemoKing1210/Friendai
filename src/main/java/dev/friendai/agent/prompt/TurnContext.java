@@ -16,25 +16,66 @@ public record TurnContext(
         List<String> toolHints,
         String places,
         String placedBlock,
-        String tradingSummary, List<PromptSection> instructionSections) {
-    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
-            String mission, List<String> toolHints, String places, String tradingSummary) {
+        String tradingSummary,
+        List<PromptSection> instructionSections) {
+    public TurnContext(
+            Persona persona,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            String mission,
+            List<String> toolHints,
+            String places,
+            String tradingSummary) {
         this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, "", tradingSummary, List.of());
     }
 
-    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
-            String mission, List<String> toolHints, String places, String placedBlock, String tradingSummary) {
-        this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, placedBlock,
-                tradingSummary, List.of());
+    public TurnContext(
+            Persona persona,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            String mission,
+            List<String> toolHints,
+            String places,
+            String placedBlock,
+            String tradingSummary) {
+        this(
+                persona,
+                perception,
+                caller,
+                memoryBlock,
+                turn,
+                mission,
+                toolHints,
+                places,
+                placedBlock,
+                tradingSummary,
+                List.of());
     }
 
-    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
-                       String mission, List<String> toolHints) {
+    public TurnContext(
+            Persona persona,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            String mission,
+            List<String> toolHints) {
         this(persona, perception, caller, memoryBlock, turn, mission, toolHints, "", "", "");
     }
 
-    public TurnContext(Persona persona, String perception, Caller caller, String memoryBlock, TurnKind turn,
-                       String mission, List<String> toolHints, String places) {
+    public TurnContext(
+            Persona persona,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            String mission,
+            List<String> toolHints,
+            String places) {
         this(persona, perception, caller, memoryBlock, turn, mission, toolHints, places, "", "");
     }
 

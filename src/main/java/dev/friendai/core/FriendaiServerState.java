@@ -8,27 +8,27 @@ import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.memory.MemoryStore;
-import dev.friendai.skin.SkinStore;
-import dev.friendai.memory.MemoryViewers;
 import dev.friendai.knowledge.KnowledgeLimits;
 import dev.friendai.knowledge.KnowledgeStore;
+import dev.friendai.memory.MemoryStore;
+import dev.friendai.memory.MemoryViewers;
+import dev.friendai.pathing.BlockList;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.pathing.BlockList;
 import dev.friendai.place.PlaceLimits;
 import dev.friendai.place.PlaceStore;
 import dev.friendai.placed.PlacedLimits;
 import dev.friendai.placed.PlacedStore;
+import dev.friendai.skin.SkinStore;
 import dev.friendai.task.TaskSettings;
-import dev.friendai.trading.TradeStore;
+import dev.friendai.task.builtin.RefreshTradesTask;
+import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.MerchantAdapter;
 import dev.friendai.task.trading.MerchantLeases;
+import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
-import dev.friendai.task.trading.BarterDropTracker;
-import dev.friendai.task.trading.PiglinBarterAdapter;
-import dev.friendai.task.builtin.RefreshTradesTask;
+import dev.friendai.trading.TradeStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -86,27 +86,32 @@ public final class FriendaiServerState {
         this.memory = new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
                 System::currentTimeMillis);
-        this.skills = new SkillService(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
-                () -> this.config, memory);
+        this.skills = new SkillService(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
+                () -> this.config,
+                memory);
         this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
-        this.skins = new SkinStore(server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
-        this.knowledge = new KnowledgeStore(server.getWorldPath(LevelResource.ROOT)
-                .resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS);
-        this.places = new PlaceStore(server.getWorldPath(LevelResource.ROOT)
-                .resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS);
-        this.placed = new PlacedStore(server.getWorldPath(LevelResource.ROOT)
-                .resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS);
-        this.trading = new TradeStore(server.getWorldPath(LevelResource.ROOT)
-                .resolve("friendai").resolve("trading"));
+        this.skins = new SkinStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
+        this.knowledge = new KnowledgeStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("knowledge"),
+                KnowledgeLimits.DEFAULTS);
+        this.places = new PlaceStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS);
+        this.placed = new PlacedStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS);
+        this.trading = new TradeStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"));
         this.merchantLeases = new MerchantLeases();
         this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
-        this.traderObserver = new TraderObserver(trading,
-                () -> this.config.tasks.trading.observationRadius,
-                () -> this.config.tasks.trading.enabled);
+        this.traderObserver = new TraderObserver(
+                trading, () -> this.config.tasks.trading.observationRadius, () -> this.config.tasks.trading.enabled);
         this.merchantAdapter = new MerchantAdapter(trading, merchantLeases, tradeSessionGuard);
         this.resources = new ResourceCandidates(knowledge);
-        this.observations = new ObservationScheduler(resources::observe, resources::observeCaveEntrance,
+        this.observations = new ObservationScheduler(
+                resources::observe,
+                resources::observeCaveEntrance,
                 () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
         this.brains = new BrainService(server, config, memory);
@@ -158,7 +163,9 @@ public final class FriendaiServerState {
     }
 
     /** Per-owner memory books: trust, player records, food rules and the companion's name. */
-    public SkillService skills() { return skills; }
+    public SkillService skills() {
+        return skills;
+    }
 
     public MemoryStore memory() {
         return memory;
@@ -169,7 +176,9 @@ public final class FriendaiServerState {
         return skins;
     }
 
-    public KnowledgeStore knowledge() { return knowledge; }
+    public KnowledgeStore knowledge() {
+        return knowledge;
+    }
 
     /** Per-owner places the companion knows. */
     public PlaceStore places() {
@@ -181,23 +190,41 @@ public final class FriendaiServerState {
         return placed;
     }
     /** Per-owner trader observations and informational order history. */
-    public TradeStore trading() { return trading; }
+    public TradeStore trading() {
+        return trading;
+    }
 
-    public MerchantLeases merchantLeases() { return merchantLeases; }
+    public MerchantLeases merchantLeases() {
+        return merchantLeases;
+    }
 
-    public TradeSessionGuard tradeSessionGuard() { return tradeSessionGuard; }
+    public TradeSessionGuard tradeSessionGuard() {
+        return tradeSessionGuard;
+    }
 
-    public TraderObserver traderObserver() { return traderObserver; }
+    public TraderObserver traderObserver() {
+        return traderObserver;
+    }
 
-    public BarterDropTracker barterDropTracker() { return barterDropTracker; }
+    public BarterDropTracker barterDropTracker() {
+        return barterDropTracker;
+    }
 
-    public PiglinBarterAdapter piglinBarterAdapter() { return piglinBarterAdapter; }
+    public PiglinBarterAdapter piglinBarterAdapter() {
+        return piglinBarterAdapter;
+    }
 
-    public MerchantAdapter merchantAdapter() { return merchantAdapter; }
+    public MerchantAdapter merchantAdapter() {
+        return merchantAdapter;
+    }
 
-    public ObservationScheduler observations() { return observations; }
+    public ObservationScheduler observations() {
+        return observations;
+    }
 
-    public ResourceCandidates resources() { return resources; }
+    public ResourceCandidates resources() {
+        return resources;
+    }
 
     private void shutdown() {
         tradeSessionGuard.closeAll("server stopped");
@@ -224,7 +251,9 @@ public final class FriendaiServerState {
     }
 
     /** Per-owner search hints: short-lived model steering, never a waypoint. */
-    public dev.friendai.knowledge.search.SearchHintStore searchHints() { return searchHints; }
+    public dev.friendai.knowledge.search.SearchHintStore searchHints() {
+        return searchHints;
+    }
 
     /** Trust changes waiting for the owner's confirmation. */
     public TrustConfirmations trust() {
@@ -256,21 +285,24 @@ public final class FriendaiServerState {
             dev.friendai.trading.TraderRecord candidate = nearby.stream()
                     .filter(record -> !"minecraft:piglin".equals(record.entityType()))
                     .map(record -> ownerBook.trader(record.id()).orElse(record))
-                    .sorted(java.util.Comparator
-                            .comparing((dev.friendai.trading.TraderRecord record) ->
+                    .sorted(java.util.Comparator.comparing((dev.friendai.trading.TraderRecord record) ->
                                     record.status() == dev.friendai.trading.TraderRecord.Status.VERIFIED)
                             .thenComparingLong(record -> record.offersSeen() < 0 ? -1 : record.offersSeen())
                             .thenComparing(dev.friendai.trading.TraderRecord::id))
-                    .findFirst().orElse(null);
+                    .findFirst()
+                    .orElse(null);
             nextTradingRefresh.put(owner, now + config.tasks.trading.idleRefreshIntervalTicks);
             if (candidate != null) {
-                runner.start(new RefreshTradesTask(List.of(candidate.id()), now + config.tasks.trading.maxWaitTicks),
+                runner.start(
+                        new RefreshTradesTask(List.of(candidate.id()), now + config.tasks.trading.maxWaitTicks),
                         "refresh_trades");
                 break;
             }
         }
-        nextTradingRefresh.keySet().removeIf(owner -> CompanionManager.get(server).all().stream()
-                .noneMatch(companion -> owner.equals(companion.ownerUuid())));
+        nextTradingRefresh
+                .keySet()
+                .removeIf(owner -> CompanionManager.get(server).all().stream()
+                        .noneMatch(companion -> owner.equals(companion.ownerUuid())));
     }
 
     /** Applies a config live: the next brain request goes through the new client. Returns the fixes made. */

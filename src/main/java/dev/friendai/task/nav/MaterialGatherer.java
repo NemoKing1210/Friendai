@@ -1,14 +1,12 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalReach;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.BreakAction;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -32,25 +30,35 @@ import net.minecraft.world.phys.Vec3;
  * does not end the gathering.
  */
 public final class MaterialGatherer {
-    public enum State { WORKING, DONE }
+    public enum State {
+        WORKING,
+        DONE
+    }
 
     /** How far from the companion candidates are looked for. */
     private static final int RADIUS = 16;
     /** How many candidates one walk approaches; more than can be needed in one round. */
     private static final int CANDIDATES = 8;
+
     private static final double REACH = Approach.REACH;
     /** How long one gathered block's drop gets to land and leave its pickup delay. */
     private static final int SETTLE_TICKS = 12;
 
-    private static final BlockMatcher DIRT = BlockMatcher.parse("#minecraft:dirt").orElseThrow();
-    private static final BlockMatcher GRASS = BlockMatcher.parse("minecraft:grass_block").orElseThrow();
-    private static final BlockMatcher NETHERRACK = BlockMatcher.parse("minecraft:netherrack").orElseThrow();
-    private static final BlockMatcher STONE = BlockMatcher.parse("#minecraft:base_stone_overworld").orElseThrow();
-    private static final BlockMatcher NETHER_STONE = BlockMatcher.parse("#minecraft:base_stone_nether").orElseThrow();
+    private static final BlockMatcher DIRT =
+            BlockMatcher.parse("#minecraft:dirt").orElseThrow();
+    private static final BlockMatcher GRASS =
+            BlockMatcher.parse("minecraft:grass_block").orElseThrow();
+    private static final BlockMatcher NETHERRACK =
+            BlockMatcher.parse("minecraft:netherrack").orElseThrow();
+    private static final BlockMatcher STONE =
+            BlockMatcher.parse("#minecraft:base_stone_overworld").orElseThrow();
+    private static final BlockMatcher NETHER_STONE =
+            BlockMatcher.parse("#minecraft:base_stone_nether").orElseThrow();
 
     private final int needed;
     /** Cells the planned route walks or builds through, which must not be taken away from it. */
     private final Set<BlockPos> avoid;
+
     private final MaterialPicker picker = new MaterialPicker(TaskSettings.pathing);
     private final Set<BlockPos> blacklist = new HashSet<>();
 
@@ -109,8 +117,7 @@ public final class MaterialGatherer {
             candidates = findCandidates(c, companion);
             if (!candidates.isEmpty() && !noticed) {
                 noticed = true;
-                companion.taskRunner().debug("gathering " + label(c, candidates.get(0))
-                        + " to build a bridge");
+                companion.taskRunner().debug("gathering " + label(c, candidates.get(0)) + " to build a bridge");
             }
         }
         if (candidates.isEmpty()) {
@@ -215,7 +222,8 @@ public final class MaterialGatherer {
                 return "path material";
             }
         };
-        List<BlockPos> found = new ArrayList<>(dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
+        List<BlockPos> found = new ArrayList<>(dev.friendai.core.FriendaiServerState.get(level.getServer())
+                .resources()
                 .knownOrVisible(companion, matcher, RADIUS, CANDIDATES));
         found.removeIf(blacklist::contains);
         AABB bounds = companion.pathBounds();
@@ -312,7 +320,8 @@ public final class MaterialGatherer {
     }
 
     private static String label(TaskContext c, BlockPos pos) {
-        return BuiltInRegistries.BLOCK.getKey(c.level().getBlockState(pos).getBlock()).getPath();
+        return BuiltInRegistries.BLOCK
+                .getKey(c.level().getBlockState(pos).getBlock())
+                .getPath();
     }
-
 }

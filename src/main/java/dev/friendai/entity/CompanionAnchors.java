@@ -24,16 +24,18 @@ public final class CompanionAnchors extends SavedData {
     /** One companion's dimension and chunk. */
     public record Anchor(ResourceKey<Level> dimension, ChunkPos chunk) {
         static final Codec<Anchor> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                ResourceKey.codec(Registries.DIMENSION).fieldOf("dimension").forGetter(Anchor::dimension),
-                ChunkPos.CODEC.fieldOf("chunk").forGetter(Anchor::chunk)).apply(instance, Anchor::new));
+                        ResourceKey.codec(Registries.DIMENSION)
+                                .fieldOf("dimension")
+                                .forGetter(Anchor::dimension),
+                        ChunkPos.CODEC.fieldOf("chunk").forGetter(Anchor::chunk))
+                .apply(instance, Anchor::new));
     }
 
-    private static final Codec<CompanionAnchors> CODEC = Codec
-            .unboundedMap(UUIDUtil.STRING_CODEC, Anchor.CODEC)
-            .xmap(CompanionAnchors::new, CompanionAnchors::all);
+    private static final Codec<CompanionAnchors> CODEC =
+            Codec.unboundedMap(UUIDUtil.STRING_CODEC, Anchor.CODEC).xmap(CompanionAnchors::new, CompanionAnchors::all);
 
-    public static final SavedDataType<CompanionAnchors> TYPE = new SavedDataType<>(
-            FriendaiMod.id("companion_anchors"), CompanionAnchors::new, CODEC, DataFixTypes.LEVEL);
+    public static final SavedDataType<CompanionAnchors> TYPE =
+            new SavedDataType<>(FriendaiMod.id("companion_anchors"), CompanionAnchors::new, CODEC, DataFixTypes.LEVEL);
 
     private final Map<UUID, Anchor> anchors = new HashMap<>();
 

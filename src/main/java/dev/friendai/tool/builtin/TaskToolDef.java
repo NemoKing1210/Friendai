@@ -24,31 +24,63 @@ public record TaskToolDef(
         CallerFactory callerFactory,
         boolean creativeSensitive) {
     public record QueueTraits(boolean interrupts, String mergeableCountArg, boolean requiresTradingScope) {
-        public QueueTraits(boolean interrupts, String mergeableCountArg) { this(interrupts, mergeableCountArg, false); }
+        public QueueTraits(boolean interrupts, String mergeableCountArg) {
+            this(interrupts, mergeableCountArg, false);
+        }
+
         public static final QueueTraits DEFAULT = new QueueTraits(false, null, false);
     }
-    public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
-                       AccessLevel minAccess, QueueTraits queueTraits) {
+
+    public TaskToolDef(
+            String name,
+            String description,
+            JsonObject schema,
+            Factory factory,
+            boolean plannable,
+            AccessLevel minAccess,
+            QueueTraits queueTraits) {
         this(name, description, schema, factory, plannable, minAccess, queueTraits, null, true);
     }
-    public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable,
-                       AccessLevel minAccess, QueueTraits queueTraits, CallerFactory callerFactory) {
+
+    public TaskToolDef(
+            String name,
+            String description,
+            JsonObject schema,
+            Factory factory,
+            boolean plannable,
+            AccessLevel minAccess,
+            QueueTraits queueTraits,
+            CallerFactory callerFactory) {
         this(name, description, schema, factory, plannable, minAccess, queueTraits, callerFactory, true);
     }
-    public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable, AccessLevel minAccess) {
+
+    public TaskToolDef(
+            String name,
+            String description,
+            JsonObject schema,
+            Factory factory,
+            boolean plannable,
+            AccessLevel minAccess) {
         this(name, description, schema, factory, plannable, minAccess, QueueTraits.DEFAULT, null);
     }
     /** A task tool available to trusted speakers. */
     public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable) {
         this(name, description, schema, factory, plannable, AccessLevel.TRUSTED, QueueTraits.DEFAULT, null);
     }
-    public TaskToolDef(String name, String description, JsonObject schema, Factory factory, boolean plannable, QueueTraits queueTraits) {
+
+    public TaskToolDef(
+            String name,
+            String description,
+            JsonObject schema,
+            Factory factory,
+            boolean plannable,
+            QueueTraits queueTraits) {
         this(name, description, schema, factory, plannable, AccessLevel.TRUSTED, queueTraits, null);
     }
 
     public TaskToolDef asCreativeSafe() {
-        return new TaskToolDef(name, description, schema, factory, plannable, minAccess, queueTraits,
-                callerFactory, false);
+        return new TaskToolDef(
+                name, description, schema, factory, plannable, minAccess, queueTraits, callerFactory, false);
     }
 
     @FunctionalInterface

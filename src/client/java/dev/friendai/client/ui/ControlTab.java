@@ -156,6 +156,12 @@ final class ControlTab implements MenuTab {
         Ui.heading(g, font, Component.translatable("friendai.menu.activity"), left + PAD, top + 6, width - 2 * PAD);
         g.enableScissor(left + 1, top + 18, left + width - 1, top + height - 1);
         String text = s.present() ? s.currentTask() : "";
+        if (s.freeTimeOn()) {
+            String free = freeTimeLines(s);
+            if (!free.isEmpty()) {
+                text = free + (text.isEmpty() ? "" : "\n" + text);
+            }
+        }
         CompanionVitals v = s.vitals();
         if (s.present() && v.action() != null && !v.action().isEmpty() && !"none".equals(v.action())) {
             String active = Component.translatable("friendai.menu.combat.active",
@@ -164,6 +170,28 @@ final class ControlTab implements MenuTab {
         }
         QueuePanel.draw(g, font, text, left + PAD, top + 20, width - 2 * PAD);
         g.disableScissor();
+    }
+
+    /** The free-time lines the activity card shows before the current task. */
+    static String freeTimeLines(CompanionSnapshot s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(s.freeTimeActivity().isBlank()
+                ? Component.translatable(s.freeTimeWaiting()
+                        ? "friendai.menu.free_time.waiting"
+                        : "friendai.menu.free_time.on").getString()
+                : Component.translatable("friendai.menu.free_time.activity",
+                        s.freeTimeActivity()).getString());
+        if (!s.freeTimeNext().isBlank()) {
+            sb.append('\n').append(Component.translatable("friendai.menu.free_time.next",
+                    s.freeTimeNext(), s.freeTimeBudget()).getString());
+        } else if (!s.freeTimeBudget().isBlank()) {
+            sb.append('\n').append(Component.translatable("friendai.menu.free_time.budget",
+                    s.freeTimeBudget()).getString());
+        }
+        if (!s.freeTimeLast().isBlank()) {
+            sb.append('\n').append(Component.translatable("friendai.menu.free_time.last", s.freeTimeLast()).getString());
+        }
+        return sb.toString();
     }
 
     static Component combatName(String protection, String style) {

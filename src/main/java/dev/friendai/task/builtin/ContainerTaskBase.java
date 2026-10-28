@@ -4,10 +4,9 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.nav.Approach;
 import java.util.List;
 import java.util.Optional;
@@ -39,9 +38,10 @@ abstract class ContainerTaskBase implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         BlockPos destination = containerPos != null ? containerPos : target;
-        return destination == null ? List.of()
-                : List.of(new DebugTarget(destination.getX(), destination.getY(), destination.getZ(),
-                        DebugAction.USE, "container"));
+        return destination == null
+                ? List.of()
+                : List.of(new DebugTarget(
+                        destination.getX(), destination.getY(), destination.getZ(), DebugAction.USE, "container"));
     }
 
     /** Called on the first tick before anything else; a summary means the task fails with it. */
@@ -89,7 +89,8 @@ abstract class ContainerTaskBase implements Task {
                 }
                 containerPos = found.get();
             }
-            if (onlyInsidePlacesInFreeTime() && c.autonomous()
+            if (onlyInsidePlacesInFreeTime()
+                    && c.autonomous()
                     && dev.friendai.task.autonomy.PlaceGuard.enabled(c.companion())
                     && !dev.friendai.task.autonomy.PlaceGuard.insideAnyPlace(c.companion(), containerPos)) {
                 summary = "container is outside known places";

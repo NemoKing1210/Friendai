@@ -32,7 +32,8 @@ public final class OpenAiResponsesProtocol implements LlmProtocol {
     @Override
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         return transport
-                .postJson(ProtocolSupport.uri(endpoint, "/responses"), ProtocolSupport.headers(endpoint), toWire(request))
+                .postJson(
+                        ProtocolSupport.uri(endpoint, "/responses"), ProtocolSupport.headers(endpoint), toWire(request))
                 .thenApply(this::fromWire);
     }
 
@@ -146,6 +147,8 @@ public final class OpenAiResponsesProtocol implements LlmProtocol {
                 text.toString(),
                 calls,
                 stop,
-                new Usage(ProtocolSupport.intOr(usage, "input_tokens", 0), ProtocolSupport.intOr(usage, "output_tokens", 0)));
+                new Usage(
+                        ProtocolSupport.intOr(usage, "input_tokens", 0),
+                        ProtocolSupport.intOr(usage, "output_tokens", 0)));
     }
 }

@@ -1,9 +1,9 @@
 package dev.friendai.knowledge;
 
-import java.util.UUID;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 public record KnowledgeLimits(int memberObservations, int sites, int coverageEntries, int trailNodes, int aliases) {
@@ -42,7 +42,8 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
 
         public boolean tryRay(UUID companion) {
             Objects.requireNonNull(companion, "companion");
-            if (deadlineReached() || raysUsed >= MAX_RAYS_PER_TICK
+            if (deadlineReached()
+                    || raysUsed >= MAX_RAYS_PER_TICK
                     || raysByCompanion.getOrDefault(companion, 0) >= MAX_RAYS_PER_COMPANION) return false;
             raysUsed++;
             raysByCompanion.merge(companion, 1, Integer::sum);
@@ -60,7 +61,9 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
         }
 
         /** Hard-cap allowance for the round-robin first observer when the soft deadline just expired. */
-        public int availableCellsIgnoringDeadline() { return MAX_CELLS_PER_TICK - cellsUsed; }
+        public int availableCellsIgnoringDeadline() {
+            return MAX_CELLS_PER_TICK - cellsUsed;
+        }
 
         public int availableRays(UUID companion) {
             Objects.requireNonNull(companion, "companion");
@@ -71,14 +74,19 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
         /** Hard-cap allowance for one first-observer progress step after the soft deadline. */
         public int availableRaysIgnoringDeadline(UUID companion) {
             Objects.requireNonNull(companion, "companion");
-            return Math.max(0, Math.min(MAX_RAYS_PER_COMPANION - raysByCompanion.getOrDefault(companion, 0),
-                    MAX_RAYS_PER_TICK - raysUsed));
+            return Math.max(
+                    0,
+                    Math.min(
+                            MAX_RAYS_PER_COMPANION - raysByCompanion.getOrDefault(companion, 0),
+                            MAX_RAYS_PER_TICK - raysUsed));
         }
 
         /** Charges a completed observer batch against the same caps used by focused and passive work. */
         public boolean consume(UUID companion, int rays, int cells) {
             Objects.requireNonNull(companion, "companion");
-            if (rays < 0 || cells < 0 || rays > availableRaysIgnoringDeadline(companion)
+            if (rays < 0
+                    || cells < 0
+                    || rays > availableRaysIgnoringDeadline(companion)
                     || cells > MAX_CELLS_PER_TICK - cellsUsed) return false;
             raysUsed += rays;
             cellsUsed += cells;
@@ -86,10 +94,16 @@ public record KnowledgeLimits(int memberObservations, int sites, int coverageEnt
             return true;
         }
 
-        public int raysUsed() { return raysUsed; }
-        public int cellsUsed() { return cellsUsed; }
+        public int raysUsed() {
+            return raysUsed;
+        }
 
-        private boolean deadlineReached() { return nanoClock.getAsLong() >= deadlineNanos; }
+        public int cellsUsed() {
+            return cellsUsed;
+        }
 
+        private boolean deadlineReached() {
+            return nanoClock.getAsLong() >= deadlineNanos;
+        }
     }
 }

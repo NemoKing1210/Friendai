@@ -17,8 +17,11 @@ class ResourceSearchProfileTest {
 
     @Test
     void strategyAndDimensionMustBePermitted() {
-        var profile = new ResourceSearchProfile("minecraft:diamond", Set.of("minecraft:overworld"),
-                OptionalInt.of(-58), Set.of(ResourceSearchProfile.Strategy.CAVE));
+        var profile = new ResourceSearchProfile(
+                "minecraft:diamond",
+                Set.of("minecraft:overworld"),
+                OptionalInt.of(-58),
+                Set.of(ResourceSearchProfile.Strategy.CAVE));
         assertTrue(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.CAVE));
         assertFalse(profile.allows("minecraft:the_nether", ResourceSearchProfile.Strategy.CAVE));
         assertFalse(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.SURFACE));
@@ -33,9 +36,9 @@ class ResourceSearchProfileTest {
 
     @Test
     void woodFamilyIsSurface() {
-        for (String family : new String[]{
-                "#minecraft:logs", "#minecraft:leaves", "#minecraft:crops",
-                "minecraft:oak_wood", "minecraft:oak_planks"}) {
+        for (String family : new String[] {
+            "#minecraft:logs", "#minecraft:leaves", "#minecraft:crops", "minecraft:oak_wood", "minecraft:oak_planks"
+        }) {
             var profile = ResourceSearchProfile.builtin(family, "minecraft:overworld");
             assertTrue(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.SURFACE), family);
         }

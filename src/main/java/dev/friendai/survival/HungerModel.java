@@ -61,8 +61,7 @@ public final class HungerModel {
      * Advances the model by one tick and returns what the entity must do now.
      * The caller applies the heal and damage; the model only computes them.
      */
-    public TickResult tick(Difficulty difficulty, boolean naturalRegeneration,
-            float health, float maxHealth) {
+    public TickResult tick(Difficulty difficulty, boolean naturalRegeneration, float health, float maxHealth) {
         float heal = 0.0f;
         float damage = 0.0f;
 

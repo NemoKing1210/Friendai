@@ -49,16 +49,15 @@ public final class MemoryActions {
         UUID authorUuid = caller.access() == AccessLevel.OWNER ? owner : caller.uuid();
         String authorName = caller.access() == AccessLevel.OWNER ? ownerName() : caller.name();
         Fact fact = book.addFact(resolved.subject(), category, text, authorUuid, authorName, now, limits);
-        return "Remembered [" + fact.id() + "] about " + label(fact.subject()) + ": " + fact.category().name()
-                + ": " + fact.text();
+        return "Remembered [" + fact.id() + "] about " + label(fact.subject()) + ": "
+                + fact.category().name() + ": " + fact.text();
     }
 
     public String forget(int id) {
-        Fact fact = book.fact(id)
-                .orElseThrow(() -> new IllegalArgumentException("There is no fact [" + id + "]."));
+        Fact fact = book.fact(id).orElseThrow(() -> new IllegalArgumentException("There is no fact [" + id + "]."));
         if (!MemoryPolicy.canForget(owner, caller, fact)) {
-            throw new IllegalArgumentException(
-                    "You cannot forget fact [" + id + "] for this speaker (" + caller.access().label() + ").");
+            throw new IllegalArgumentException("You cannot forget fact [" + id + "] for this speaker ("
+                    + caller.access().label() + ").");
         }
         book.removeFact(id);
         return "Forgot [" + id + "].";
@@ -152,8 +151,10 @@ public final class MemoryActions {
 
     private String deniedWrite() {
         return switch (caller.access()) {
-            case GUEST -> "You cannot remember that for this speaker (guest): guests may only remember facts about themselves.";
-            case TRUSTED -> "You cannot remember that for this speaker (trusted): trusted players may remember facts about themselves and the world.";
+            case GUEST ->
+                "You cannot remember that for this speaker (guest): guests may only remember facts about themselves.";
+            case TRUSTED ->
+                "You cannot remember that for this speaker (trusted): trusted players may remember facts about themselves and the world.";
             case OWNER -> "You cannot remember that for this speaker (owner).";
         };
     }

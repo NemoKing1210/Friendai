@@ -41,25 +41,57 @@ class PromptGoldenTest {
             cases.put(who + "_player", PromptBuilder.system(PERSONA, PERCEPTION, caller, "", TurnKind.PLAYER));
             cases.put(who + "_event", PromptBuilder.system(PERSONA, PERCEPTION, caller, "", TurnKind.EVENT));
         }
-        cases.put("owner_memory", PromptBuilder.system(
-                PERSONA, PERCEPTION, new Caller(ID, "Steve", AccessLevel.OWNER), MEMORY, TurnKind.PLAYER));
-        cases.put("guest_russian", PromptBuilder.system(
-                new Persona("Frida", "Cheerful helper", "Russian"), PERCEPTION,
-                new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER));
-        cases.put("owner_places", PromptBuilder.system(
-                PERSONA, PERCEPTION, new Caller(ID, "Steve", AccessLevel.OWNER), MEMORY, TurnKind.PLAYER,
-                GoalView.EMPTY, 0, List.of(), PLACES));
-        cases.put("guest_places", PromptBuilder.system(
-                PERSONA, PERCEPTION, new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER,
-                GoalView.EMPTY, 0, List.of(), PLACES));
+        cases.put(
+                "owner_memory",
+                PromptBuilder.system(
+                        PERSONA, PERCEPTION, new Caller(ID, "Steve", AccessLevel.OWNER), MEMORY, TurnKind.PLAYER));
+        cases.put(
+                "guest_russian",
+                PromptBuilder.system(
+                        new Persona("Frida", "Cheerful helper", "Russian"),
+                        PERCEPTION,
+                        new Caller(ID, "Gus", AccessLevel.GUEST),
+                        "",
+                        TurnKind.PLAYER));
+        cases.put(
+                "owner_places",
+                PromptBuilder.system(
+                        PERSONA,
+                        PERCEPTION,
+                        new Caller(ID, "Steve", AccessLevel.OWNER),
+                        MEMORY,
+                        TurnKind.PLAYER,
+                        GoalView.EMPTY,
+                        0,
+                        List.of(),
+                        PLACES));
+        cases.put(
+                "guest_places",
+                PromptBuilder.system(
+                        PERSONA,
+                        PERCEPTION,
+                        new Caller(ID, "Gus", AccessLevel.GUEST),
+                        "",
+                        TurnKind.PLAYER,
+                        GoalView.EMPTY,
+                        0,
+                        List.of(),
+                        PLACES));
         return cases;
     }
 
     @Test
     void guestPromptOmitsThePlacesBlock() {
         String prompt = PromptBuilder.system(
-                PERSONA, PERCEPTION, new Caller(ID, "Gus", AccessLevel.GUEST), "", TurnKind.PLAYER,
-                GoalView.EMPTY, 0, List.of(), PLACES);
+                PERSONA,
+                PERCEPTION,
+                new Caller(ID, "Gus", AccessLevel.GUEST),
+                "",
+                TurnKind.PLAYER,
+                GoalView.EMPTY,
+                0,
+                List.of(),
+                PLACES);
         assertFalse(prompt.contains(PLACES), prompt);
         assertFalse(prompt.contains("Known places"), prompt);
     }

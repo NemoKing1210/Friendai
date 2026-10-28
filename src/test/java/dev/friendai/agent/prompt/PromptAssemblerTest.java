@@ -15,14 +15,29 @@ import org.junit.jupiter.api.Test;
 
 class PromptAssemblerTest {
     private static final TurnContext CTX = new TurnContext(
-            new Persona("F", "d", "auto"), "p", new Caller(UUID.randomUUID(), "S", AccessLevel.OWNER),
-            "", TurnKind.PLAYER, "", List.of(), "");
+            new Persona("F", "d", "auto"),
+            "p",
+            new Caller(UUID.randomUUID(), "S", AccessLevel.OWNER),
+            "",
+            TurnKind.PLAYER,
+            "",
+            List.of(),
+            "");
 
     private static PromptSection section(String id, int priority, String text) {
         return new PromptSection() {
-            @Override public String id() { return id; }
-            @Override public int priority() { return priority; }
-            @Override public Optional<String> render(TurnContext ctx) {
+            @Override
+            public String id() {
+                return id;
+            }
+
+            @Override
+            public int priority() {
+                return priority;
+            }
+
+            @Override
+            public Optional<String> render(TurnContext ctx) {
                 return text == null ? Optional.empty() : Optional.of(text);
             }
         };
@@ -43,10 +58,12 @@ class PromptAssemblerTest {
 
     @Test
     void cutsLowestPriorityFirstWhenOverBudget() {
-        PromptAssembler a = new PromptAssembler(List.of(
-                section("keep", 90, "important text"),
-                section("low", 10, "droppable filler"),
-                section("mid", 50, "medium text")), 30);
+        PromptAssembler a = new PromptAssembler(
+                List.of(
+                        section("keep", 90, "important text"),
+                        section("low", 10, "droppable filler"),
+                        section("mid", 50, "medium text")),
+                30);
         String out = a.assemble(CTX);
         assertFalse(out.contains("droppable"), out);
         assertTrue(out.contains("important text"), out);
@@ -54,9 +71,8 @@ class PromptAssemblerTest {
 
     @Test
     void neverCutSectionsSurviveAnyBudget() {
-        PromptAssembler a = new PromptAssembler(List.of(
-                section("core", PromptSection.NEVER_CUT, "core"),
-                section("extra", 5, "extra")), 1);
+        PromptAssembler a = new PromptAssembler(
+                List.of(section("core", PromptSection.NEVER_CUT, "core"), section("extra", 5, "extra")), 1);
         assertEquals("core", a.assemble(CTX));
     }
 

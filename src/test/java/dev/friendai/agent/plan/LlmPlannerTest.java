@@ -18,7 +18,8 @@ import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
 class LlmPlannerTest {
-    private static final JsonObject SCHEMA = JsonParser.parseString("{\"type\":\"object\",\"properties\":{}}").getAsJsonObject();
+    private static final JsonObject SCHEMA =
+            JsonParser.parseString("{\"type\":\"object\",\"properties\":{}}").getAsJsonObject();
     private static final String GOOD = "{\"rationale\":\"r\",\"steps\":[{\"tool\":\"jump\"}]}";
 
     private final FakeGateway gateway = new FakeGateway();
@@ -26,7 +27,8 @@ class LlmPlannerTest {
 
     private static PlannerInput input() {
         Goal goal = new Goal(1, "hop", List.of(), GoalStatus.ACTIVE, 0, 0, List.of(), 0, false);
-        return new PlannerInput(goal, "w", "t", "", Optional.empty(), List.of(), "", Map.of("jump", SCHEMA), Set.of("jump"));
+        return new PlannerInput(
+                goal, "w", "t", "", Optional.empty(), List.of(), "", Map.of("jump", SCHEMA), Set.of("jump"));
     }
 
     @Test
@@ -59,7 +61,8 @@ class LlmPlannerTest {
     void twoInvalidRepliesFail() {
         gateway.enqueue(FakeGateway.text("nope"));
         gateway.enqueue(FakeGateway.text("still nope"));
-        ExecutionException e = assertThrows(ExecutionException.class, () -> planner.propose(input()).get());
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> planner.propose(input()).get());
         assertTrue(e.getCause() instanceof PlannerException, String.valueOf(e.getCause()));
         assertEquals(2, gateway.requests.size());
     }
@@ -67,17 +70,25 @@ class LlmPlannerTest {
     @Test
     void gatewayFailurePropagatesWithoutDetails() {
         gateway.enqueueFailure(new IllegalStateException("401 key sk-secret-1"));
-        ExecutionException e = assertThrows(ExecutionException.class, () -> planner.propose(input()).get());
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> planner.propose(input()).get());
         assertTrue(e.getCause() instanceof PlannerException);
         assertTrue(!e.getCause().getMessage().contains("sk-secret-1"), "the message must not echo gateway details");
     }
 
     @Test
     void aThrowingGatewayIsAFailureNotACrash() {
-        LlmPlanner broken = new LlmPlanner(() -> {
-            throw new IllegalStateException("no gateway");
-        }, text -> text, 30, 12, 8192, 49152);
-        ExecutionException e = assertThrows(ExecutionException.class, () -> broken.propose(input()).get());
+        LlmPlanner broken = new LlmPlanner(
+                () -> {
+                    throw new IllegalStateException("no gateway");
+                },
+                text -> text,
+                30,
+                12,
+                8192,
+                49152);
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> broken.propose(input()).get());
         assertTrue(e.getCause() instanceof PlannerException);
     }
 
@@ -85,7 +96,8 @@ class LlmPlannerTest {
     void aReplyThatNeverArrivesTimesOut() {
         CompletableFuture<?> pending = gateway.enqueuePending();
         LlmPlanner quick = new LlmPlanner(() -> gateway, text -> text, 1, 12, 8192, 49152);
-        ExecutionException e = assertThrows(ExecutionException.class, () -> quick.propose(input()).get());
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> quick.propose(input()).get());
         assertTrue(e.getCause() instanceof PlannerException, String.valueOf(e.getCause()));
         pending.cancel(true);
     }

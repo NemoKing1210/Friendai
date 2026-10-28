@@ -17,11 +17,16 @@ class ArgValidatorTest {
             .build();
 
     private static final JsonObject PLAN = SchemaBuilder.object()
-            .array("steps", "The actions to run, in order", SchemaBuilder.object()
-                    .enumeration("tool", "Tool to run", "go_to", "drop_items")
-                    .string("args", "JSON object with the tool's arguments")
-                    .required("tool")
-                    .build(), 1, 3)
+            .array(
+                    "steps",
+                    "The actions to run, in order",
+                    SchemaBuilder.object()
+                            .enumeration("tool", "Tool to run", "go_to", "drop_items")
+                            .string("args", "JSON object with the tool's arguments")
+                            .required("tool")
+                            .build(),
+                    1,
+                    3)
             .build();
 
     private static final JsonObject UUIDS = SchemaBuilder.object()
@@ -47,25 +52,40 @@ class ArgValidatorTest {
     @Test
     void wrongType() {
         assertEquals(1, ArgValidator.validate(SCHEMA, args("{\"block\":5}")).size());
-        assertEquals(1, ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":1.5}")).size());
+        assertEquals(
+                1,
+                ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":1.5}"))
+                        .size());
     }
 
     @Test
     void enumViolation() {
-        assertEquals(1, ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"target\":\"moon\"}")).size());
-        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"target\":\"owner\"}")).isEmpty());
+        assertEquals(
+                1,
+                ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"target\":\"moon\"}"))
+                        .size());
+        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"target\":\"owner\"}"))
+                .isEmpty());
     }
 
     @Test
     void minMax() {
-        assertEquals(1, ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":0}")).size());
-        assertEquals(1, ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":65}")).size());
-        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":64}")).isEmpty());
+        assertEquals(
+                1,
+                ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":0}"))
+                        .size());
+        assertEquals(
+                1,
+                ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":65}"))
+                        .size());
+        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"count\":64}"))
+                .isEmpty());
     }
 
     @Test
     void extraFieldsAreAllowed() {
-        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"unknown\":true}")).isEmpty());
+        assertTrue(ArgValidator.validate(SCHEMA, args("{\"block\":\"x\",\"unknown\":true}"))
+                .isEmpty());
     }
 
     @Test
@@ -75,15 +95,25 @@ class ArgValidatorTest {
 
     @Test
     void arraySizeLimits() {
-        assertEquals(List.of("'steps' must have at least 1 items"), ArgValidator.validate(PLAN, args("{\"steps\":[]}")));
-        assertEquals(List.of("'steps' must have at most 3 items"),
-                ArgValidator.validate(PLAN, args("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"go_to\"},{\"tool\":\"go_to\"},{\"tool\":\"go_to\"}]}")));
+        assertEquals(
+                List.of("'steps' must have at least 1 items"), ArgValidator.validate(PLAN, args("{\"steps\":[]}")));
+        assertEquals(
+                List.of("'steps' must have at most 3 items"),
+                ArgValidator.validate(
+                        PLAN,
+                        args(
+                                "{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"go_to\"},{\"tool\":\"go_to\"},{\"tool\":\"go_to\"}]}")));
     }
 
     @Test
     void nestedItemErrorsCarryPath() {
-        List<String> errors = ArgValidator.validate(PLAN, args("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"fly\"},{\"args\":\"{}\"}]}"));
-        assertEquals(List.of("'steps[2].tool' must be one of [go_to, drop_items]", "missing required argument 'steps[3].tool'"), errors);
+        List<String> errors = ArgValidator.validate(
+                PLAN, args("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"fly\"},{\"args\":\"{}\"}]}"));
+        assertEquals(
+                List.of(
+                        "'steps[2].tool' must be one of [go_to, drop_items]",
+                        "missing required argument 'steps[3].tool'"),
+                errors);
     }
 
     @Test
@@ -93,13 +123,14 @@ class ArgValidatorTest {
 
     @Test
     void primitiveArrayItemsAreValidatedByTheirDeclaredSchema() {
-        assertTrue(ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",\"two\"]}")).isEmpty());
-        assertEquals(List.of("'ids[2]' must be a string"),
-                ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",2]}")));
+        assertTrue(ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",\"two\"]}"))
+                .isEmpty());
+        assertEquals(List.of("'ids[2]' must be a string"), ArgValidator.validate(UUIDS, args("{\"ids\":[\"one\",2]}")));
     }
 
     @Test
     void validPlanPasses() {
-        assertTrue(ArgValidator.validate(PLAN, args("{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{}\"}]}")).isEmpty());
+        assertTrue(ArgValidator.validate(PLAN, args("{\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{}\"}]}"))
+                .isEmpty());
     }
 }

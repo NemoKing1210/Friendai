@@ -45,7 +45,10 @@ class OpenAiResponsesProtocolTest {
     void toWireMapsToolCallsAndOutputs() {
         ToolCall call = new ToolCall("c1", "stay", json("{}"), "{}", null);
         JsonObject w = protocol.toWire(request(
-                List.of(Message.user("go"), Message.assistant("On it", List.of(call)), Message.toolResult("c1", "stay", "ok")),
+                List.of(
+                        Message.user("go"),
+                        Message.assistant("On it", List.of(call)),
+                        Message.toolResult("c1", "stay", "ok")),
                 List.of()));
         var input = w.getAsJsonArray("input");
         assertEquals("assistant", input.get(1).getAsJsonObject().get("role").getAsString());

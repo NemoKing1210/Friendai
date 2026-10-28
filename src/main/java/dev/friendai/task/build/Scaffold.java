@@ -1,11 +1,11 @@
 package dev.friendai.task.build;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.creative.CreativeAction;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.PlaceSpot;
-import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.CreativeItemLease;
+import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockBreaker;
 import java.util.ArrayList;
@@ -34,14 +34,23 @@ import net.minecraft.world.phys.AABB;
  * blueprint does not need may be spent: the scaffold never takes the material of a wall or a foundation.
  */
 public final class Scaffold {
-    public enum State { CLIMBING, READY, FAILED }
+    public enum State {
+        CLIMBING,
+        READY,
+        FAILED
+    }
 
     /** The failure text when the companion carries nothing left to scaffold with. */
     public static final String OUT_OF_MATERIAL = "I ran out of dirt or cobblestone for scaffolding";
     /** How many blocks one pillar may climb above where it started. */
     public static final int MAX_PILLAR = 16;
 
-    private enum Pillar { IDLE, JUMPING, PLACING }
+    private enum Pillar {
+        IDLE,
+        JUMPING,
+        PLACING
+    }
+
     private static final int JUMP_TIMEOUT = 40;
     private Pillar pillarPhase = Pillar.IDLE;
     private BlockPos pillarFeet;
@@ -168,7 +177,9 @@ public final class Scaffold {
         if (isScaffold(there)) {
             return true;
         }
-        if (cell.getY() < level.getMinY() || !there.canBeReplaced() || !there.getFluidState().isEmpty()) {
+        if (cell.getY() < level.getMinY()
+                || !there.canBeReplaced()
+                || !there.getFluidState().isEmpty()) {
             return false;
         }
         if (!level.getBlockState(target).canBeReplaced()) {
@@ -269,7 +280,8 @@ public final class Scaffold {
             return State.FAILED;
         }
         BlockPos up = feet.above();
-        if (!level.getBlockState(up).canBeReplaced() || !level.getBlockState(up.above()).canBeReplaced()) {
+        if (!level.getBlockState(up).canBeReplaced()
+                || !level.getBlockState(up.above()).canBeReplaced()) {
             failure = "can't scaffold up through " + coords(up);
             return State.FAILED;
         }
@@ -344,7 +356,9 @@ public final class Scaffold {
         }
         BlockPos landing = support.below();
         boolean grounded = level.hasChunkAt(landing)
-                && (!level.getBlockState(landing).getCollisionShape(level, landing).isEmpty()
+                && (!level.getBlockState(landing)
+                                .getCollisionShape(level, landing)
+                                .isEmpty()
                         || stillScaffold(level, landing));
         if (!grounded) {
             failure = "there is nothing to land on under the scaffold at " + coords(support);
@@ -481,7 +495,9 @@ public final class Scaffold {
         if (item == null) {
             return null;
         }
-        ItemMatcher matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString()).orElse(null);
+        ItemMatcher matcher = ItemMatcher.parse(
+                        BuiltInRegistries.ITEM.getKey(item).toString())
+                .orElse(null);
         if (matcher == null) {
             return null;
         }

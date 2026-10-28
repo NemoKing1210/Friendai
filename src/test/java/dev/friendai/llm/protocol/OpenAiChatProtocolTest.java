@@ -54,9 +54,27 @@ class OpenAiChatProtocolTest {
     @Test
     void toWirePutsSystemFirst() {
         JsonObject w = protocol.toWire(request(List.of(Message.user("hi")), List.of(), null));
-        assertEquals("system", w.getAsJsonArray("messages").get(0).getAsJsonObject().get("role").getAsString());
-        assertEquals("SYS", w.getAsJsonArray("messages").get(0).getAsJsonObject().get("content").getAsString());
-        assertEquals("user", w.getAsJsonArray("messages").get(1).getAsJsonObject().get("role").getAsString());
+        assertEquals(
+                "system",
+                w.getAsJsonArray("messages")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("role")
+                        .getAsString());
+        assertEquals(
+                "SYS",
+                w.getAsJsonArray("messages")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("content")
+                        .getAsString());
+        assertEquals(
+                "user",
+                w.getAsJsonArray("messages")
+                        .get(1)
+                        .getAsJsonObject()
+                        .get("role")
+                        .getAsString());
     }
 
     @Test
@@ -74,11 +92,15 @@ class OpenAiChatProtocolTest {
     void toWireMapsAssistantToolCallsAndToolResults() {
         ToolCall call = new ToolCall("c1", "mine_blocks", json("{\"count\":3}"), "{\"count\":3}", null);
         JsonObject w = protocol.toWire(request(
-                List.of(Message.user("go"), Message.assistant("", List.of(call)), Message.toolResult("c1", "mine_blocks", "ok")),
+                List.of(
+                        Message.user("go"),
+                        Message.assistant("", List.of(call)),
+                        Message.toolResult("c1", "mine_blocks", "ok")),
                 List.of(),
                 null));
         JsonObject assistant = w.getAsJsonArray("messages").get(2).getAsJsonObject();
-        JsonObject fn = assistant.getAsJsonArray("tool_calls").get(0).getAsJsonObject().getAsJsonObject("function");
+        JsonObject fn =
+                assistant.getAsJsonArray("tool_calls").get(0).getAsJsonObject().getAsJsonObject("function");
         assertEquals("{\"count\":3}", fn.get("arguments").getAsString());
         JsonObject tool = w.getAsJsonArray("messages").get(3).getAsJsonObject();
         assertEquals("tool", tool.get("role").getAsString());
@@ -122,7 +144,8 @@ class OpenAiChatProtocolTest {
         try (MockHttpServer server = new MockHttpServer()) {
             server.enqueue(200, TEXT_RESPONSE);
             Endpoint endpoint = new Endpoint(server.baseUrl(), "k", AuthStyle.BEARER);
-            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of(), 0.5)).get();
+            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of(), 0.5))
+                    .get();
             MockHttpServer.RecordedRequest r = server.requests().get(0);
             assertEquals("/chat/completions", r.path());
             assertEquals("Bearer k", r.header("Authorization"));

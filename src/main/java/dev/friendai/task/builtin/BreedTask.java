@@ -25,7 +25,12 @@ public final class BreedTask implements Task {
     private static final int RADIUS = 16;
     private static final int BREED_WAIT = 200;
 
-    private enum Feed { MOVING, FED, GONE, NO_FOOD }
+    private enum Feed {
+        MOVING,
+        FED,
+        GONE,
+        NO_FOOD
+    }
 
     private final EntityType<?> type;
     private final int pairs;
@@ -192,8 +197,7 @@ public final class BreedTask implements Task {
             if (animal.isBaby() || animal.getAge() != 0 || !animal.canFallInLove()) {
                 continue;
             }
-            if (unreachable.contains(animal.getUUID())
-                    || (exclude != null && exclude.equals(animal.getUUID()))) {
+            if (unreachable.contains(animal.getUUID()) || (exclude != null && exclude.equals(animal.getUUID()))) {
                 continue;
             }
             return animal;
@@ -205,8 +209,9 @@ public final class BreedTask implements Task {
         if (!animal.isAlive() || animal.isRemoved()) {
             return Feed.GONE;
         }
-        if (approach == null || (!animal.blockPosition().equals(approachPos)
-                && c.companion().distanceToSqr(animal) > Approach.REACH * Approach.REACH)) {
+        if (approach == null
+                || (!animal.blockPosition().equals(approachPos)
+                        && c.companion().distanceToSqr(animal) > Approach.REACH * Approach.REACH)) {
             approachPos = animal.blockPosition().immutable();
             approach = new Approach(approachPos);
         }
@@ -217,8 +222,7 @@ public final class BreedTask implements Task {
             case UNREACHABLE -> {
                 return Feed.GONE;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         Item food = findFood(c.companion(), animal);
         if (food == null) {
@@ -263,13 +267,15 @@ public final class BreedTask implements Task {
     }
 
     private int babies(TaskContext c) {
-        return (int) Animals.nearby(c.level(), c.companion(), origin, RADIUS, candidate -> candidate == type)
-                .stream().filter(Animal::isBaby).count();
+        return (int) Animals.nearby(c.level(), c.companion(), origin, RADIUS, candidate -> candidate == type).stream()
+                .filter(Animal::isBaby)
+                .count();
     }
 
     private TaskStatus finish(TaskContext c) {
         finished = true;
-        summary = "fed " + fedPairs + " pairs of " + id + "; " + Math.max(0, babies(c) - initialBabies) + " babies so far";
+        summary = "fed " + fedPairs + " pairs of " + id + "; " + Math.max(0, babies(c) - initialBabies)
+                + " babies so far";
         return TaskStatus.SUCCESS;
     }
 

@@ -6,8 +6,7 @@ import java.util.Optional;
 
 /** The local voices the mod offers. Adding a voice is adding an entry here. */
 public final class VoiceModels {
-    private static final String BASE =
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-";
+    private static final String BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-";
 
     private static final List<VoiceModel> ALL = List.of(
             model(
@@ -63,10 +62,17 @@ public final class VoiceModels {
         return byId(id).orElseThrow();
     }
 
-    private static VoiceModel model(
-            String id, String name, String language, long size, String sha256, String license) {
+    private static VoiceModel model(String id, String name, String language, long size, String sha256, String license) {
         return new VoiceModel(
-                id, name, language, BASE + id + ".tar.bz2", size, sha256, license,
-                id + ".onnx", "tokens.txt", "espeak-ng-data");
+                id,
+                name,
+                language,
+                BASE + id + ".tar.bz2",
+                size,
+                sha256,
+                license,
+                id + ".onnx",
+                "tokens.txt",
+                "espeak-ng-data");
     }
 }

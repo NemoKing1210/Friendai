@@ -20,8 +20,7 @@ public final class MemoryPolicy {
             return caller.access() == AccessLevel.TRUSTED;
         }
         // An anonymous caller has no self: a null uuid must never match a null subject uuid.
-        return caller.uuid() != null
-                && Objects.equals(((Subject.Player) subject).uuid(), caller.uuid());
+        return caller.uuid() != null && Objects.equals(((Subject.Player) subject).uuid(), caller.uuid());
     }
 
     public static boolean canForget(UUID owner, Caller caller, Fact fact) {
@@ -38,8 +37,7 @@ public final class MemoryPolicy {
         if (fact.subject() instanceof Subject.Player player && Objects.equals(player.uuid(), self)) {
             return true;
         }
-        return caller.access() == AccessLevel.TRUSTED
-                && Objects.equals(fact.authorUuid(), self);
+        return caller.access() == AccessLevel.TRUSTED && Objects.equals(fact.authorUuid(), self);
     }
 
     public static boolean canRecall(UUID owner, Caller caller, UUID player) {

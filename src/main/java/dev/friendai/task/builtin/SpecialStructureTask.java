@@ -1,8 +1,9 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.entity.CompanionEntity;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
@@ -18,10 +19,9 @@ import dev.friendai.structure.StructureStep;
 import dev.friendai.structure.Trigger;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.interact.PlaceSpot;
-import dev.friendai.creative.CreativeAction;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -134,8 +134,8 @@ public final class SpecialStructureTask implements Task {
 
     /** Snapshots the world and loads the planner's steps; returns null when there are steps to run. */
     private TaskStatus plan(TaskContext c) {
-        StructureSnapshot snapshot = StructureSnapshotBuilder.build(
-                c.level(), c.companion(), structure, site, maxNearbySpawned);
+        StructureSnapshot snapshot =
+                StructureSnapshotBuilder.build(c.level(), c.companion(), structure, site, maxNearbySpawned);
         if (baselineNearby < 0) {
             baselineNearby = snapshot.nearbySpawned();
         }
@@ -202,7 +202,9 @@ public final class SpecialStructureTask implements Task {
                     steps.poll();
                     return TaskStatus.RUNNING;
                 }
-                matcher = matcherFor(BuiltInRegistries.ITEM.getKey(wanted.getBlock().asItem()).toString());
+                matcher = matcherFor(BuiltInRegistries.ITEM
+                        .getKey(wanted.getBlock().asItem())
+                        .toString());
                 against = null;
                 face = null;
             }
@@ -229,8 +231,7 @@ public final class SpecialStructureTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         if (companion.getBoundingBox().intersects(site.box(structure))) {
             return stepOut(c, pos);
@@ -272,8 +273,8 @@ public final class SpecialStructureTask implements Task {
     }
 
     private TaskStatus verify(TaskContext c, Outcome outcome) {
-        StructureSnapshot snapshot = StructureSnapshotBuilder.build(
-                c.level(), c.companion(), structure, site, maxNearbySpawned);
+        StructureSnapshot snapshot =
+                StructureSnapshotBuilder.build(c.level(), c.companion(), structure, site, maxNearbySpawned);
         boolean fired = switch (outcome) {
             case Outcome.EntitySpawned spawned -> snapshot.nearbySpawned() > baselineNearby;
             case Outcome.BlocksPresent present -> snapshot.outcomeAlreadyPresent();
@@ -331,7 +332,9 @@ public final class SpecialStructureTask implements Task {
                     if (new AABB(candidate).intersects(box) || !freeStanding(level, candidate)) {
                         continue;
                     }
-                    if (Vec3.atCenterOf(near).distanceTo(Vec3.atCenterOf(candidate).add(0, 1, 0)) > Approach.REACH) {
+                    if (Vec3.atCenterOf(near)
+                                    .distanceTo(Vec3.atCenterOf(candidate).add(0, 1, 0))
+                            > Approach.REACH) {
                         continue;
                     }
                     double distance = companion.position().distanceTo(Vec3.atBottomCenterOf(candidate));
@@ -414,9 +417,14 @@ public final class SpecialStructureTask implements Task {
         Footprint footprint = structure.footprint();
         int span = Math.max(footprint.width(), footprint.depth()) / 2 + 2;
         BlockPos anchor = site.origin();
-        return new PlaceCandidate(kind, label, "", dimension,
+        return new PlaceCandidate(
+                kind,
+                label,
+                "",
+                dimension,
                 new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
-                Math.clamp(span, 1, Place.RADIUS_MAX), PlaceSource.STRUCTURE);
+                Math.clamp(span, 1, Place.RADIUS_MAX),
+                PlaceSource.STRUCTURE);
     }
 
     private static String coords(BlockPos pos) {

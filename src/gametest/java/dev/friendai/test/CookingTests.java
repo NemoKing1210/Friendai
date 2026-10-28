@@ -5,17 +5,17 @@ import dev.friendai.crafting.Station;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.task.cooking.FuelPolicy;
-import dev.friendai.task.cooking.FurnaceJob;
-import dev.friendai.task.cooking.FurnaceSlots;
-import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.CollectSmeltedTask;
 import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.CookFoodTask;
 import dev.friendai.task.builtin.CraftTask;
 import dev.friendai.task.builtin.SmeltTask;
+import dev.friendai.task.cooking.FuelPolicy;
+import dev.friendai.task.cooking.FurnaceJob;
+import dev.friendai.task.cooking.FurnaceSlots;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -61,12 +61,19 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         c.inventory().addItem(new ItemStack(Items.FURNACE, 1));
-        SmeltTask task = new SmeltTask(ItemMatcher.parse("minecraft:raw_gold").orElseThrow(), 1,
-                Station.FURNACE, null, false, CraftTask.StationPolicy.AUTO, 20);
+        SmeltTask task = new SmeltTask(
+                ItemMatcher.parse("minecraft:raw_gold").orElseThrow(),
+                1,
+                Station.FURNACE,
+                null,
+                false,
+                CraftTask.StationPolicy.AUTO,
+                20);
         TaskContext context = new TaskContext(c, h.getLevel());
         task.start(context);
         task.tick(context);
-        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.PLACE),
+        h.assertTrue(
+                task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.PLACE),
                 "the selected furnace placement spot should be shown while the companion approaches");
         h.succeed();
     }
@@ -80,10 +87,12 @@ public class CookingTests {
         CollectStationTask task = new CollectStationTask(Station.FURNACE, station);
         TaskContext context = new TaskContext(c, h.getLevel());
         task.start(context);
-        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.COLLECT),
+        h.assertTrue(
+                task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.COLLECT),
                 "the station should begin as a collect target");
         task.tick(context);
-        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.BREAK),
+        h.assertTrue(
+                task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.BREAK),
                 "taking the station back should change its target action to break");
         h.succeed();
     }
@@ -120,8 +129,7 @@ public class CookingTests {
     public void resultSlotAlmostFull(GameTestHelper h) {
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace = furnaceAt(h, 2, 2, 2);
         furnace.setItem(2, new ItemStack(Items.COPPER_INGOT, 62));
-        int loaded = FurnaceSlots.load(
-                furnace, new ItemStack(Items.RAW_COPPER, 5), new ItemStack(Items.COAL));
+        int loaded = FurnaceSlots.load(furnace, new ItemStack(Items.RAW_COPPER, 5), new ItemStack(Items.COAL));
         h.assertValueEqual(loaded, 2, "only the room left in the result slot");
         h.assertValueEqual(furnace.getItem(0).getCount(), 2, "input loaded");
         h.assertTrue(furnace.getItem(1).is(Items.COAL), "fuel loaded");
@@ -133,8 +141,7 @@ public class CookingTests {
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace = furnaceAt(h, 2, 2, 2);
         furnace.setItem(2, new ItemStack(Items.COPPER_INGOT, 60));
         furnace.setItem(0, new ItemStack(Items.RAW_COPPER, 3));
-        int loaded = FurnaceSlots.load(
-                furnace, new ItemStack(Items.RAW_COPPER, 5), new ItemStack(Items.COAL));
+        int loaded = FurnaceSlots.load(furnace, new ItemStack(Items.RAW_COPPER, 5), new ItemStack(Items.COAL));
         h.assertValueEqual(loaded, 1, "only the one free result slot");
         h.assertValueEqual(furnace.getItem(0).getCount(), 4, "queued input plus the one loaded");
         h.succeed();
@@ -149,8 +156,10 @@ public class CookingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
         c.taskRunner().setListener(result);
-        c.furnaceJobs().add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
-        String expected = "the furnace at " + coords(pos) + " finished: 1 minecraft:gold_ingot ready (use collect_smelted)";
+        c.furnaceJobs()
+                .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        String expected =
+                "the furnace at " + coords(pos) + " finished: 1 minecraft:gold_ingot ready (use collect_smelted)";
         h.succeedWhen(() -> h.assertTrue(result.notices.contains(expected), "notices: " + result.notices));
     }
 
@@ -175,12 +184,15 @@ public class CookingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
         c.taskRunner().setListener(result);
-        c.furnaceJobs().add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        c.furnaceJobs()
+                .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
         h.setBlock(2, 2, 2, Blocks.AIR);
         String expected = "the furnace at " + coords(pos) + " is gone; the job for minecraft:gold_ingot was dropped";
         h.succeedWhen(() -> {
             h.assertTrue(result.notices.contains(expected), "notices: " + result.notices);
-            h.assertTrue(c.furnaceJobs().all().isEmpty(), "the job should be dropped: " + c.furnaceJobs().all());
+            h.assertTrue(
+                    c.furnaceJobs().all().isEmpty(),
+                    "the job should be dropped: " + c.furnaceJobs().all());
         });
     }
 
@@ -198,7 +210,7 @@ public class CookingTests {
 
     private static boolean resultReady(GameTestHelper h, BlockPos pos, net.minecraft.world.item.Item item) {
         return h.getLevel().getBlockEntity(pos)
-                instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
+                        instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
                 && furnace.getItem(2).is(item);
     }
 
@@ -208,8 +220,12 @@ public class CookingTests {
         h.setBlock(4, COLLECT_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, COLLECT_DECK + 1, 2, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, COLLECT_DECK + 1, 4);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, COLLECT_DECK + 1, 2)), "first furnace should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, COLLECT_DECK + 1, 2)), "second furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 4, COLLECT_DECK + 1, 2)),
+                "first furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 8, COLLECT_DECK + 1, 2)),
+                "second furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
         Result loaded = new Result();
@@ -219,16 +235,21 @@ public class CookingTests {
         BlockPos first = pos(h, 4, COLLECT_DECK + 1, 2);
         BlockPos second = pos(h, 8, COLLECT_DECK + 1, 2);
         h.succeedWhen(() -> {
-            if (collector[0] == null && loaded.status == TaskStatus.SUCCESS
-                    && resultReady(h, first, Items.GOLD_INGOT) && resultReady(h, second, Items.GOLD_INGOT)) {
+            if (collector[0] == null
+                    && loaded.status == TaskStatus.SUCCESS
+                    && resultReady(h, first, Items.GOLD_INGOT)
+                    && resultReady(h, second, Items.GOLD_INGOT)) {
                 collector[0] = collect(c, collected, null);
             }
             if (collector[0] != null) {
                 collector[0].tick();
-                h.assertTrue(collected.status == TaskStatus.SUCCESS,
+                h.assertTrue(
+                        collected.status == TaskStatus.SUCCESS,
                         "collect not finished: " + collected.status + " " + collected.summary);
                 h.assertValueEqual(collected.summary, "collected 2 minecraft:gold_ingot from 2 furnaces", "summary");
-                h.assertTrue(c.furnaceJobs().all().isEmpty(), "jobs left: " + c.furnaceJobs().all());
+                h.assertTrue(
+                        c.furnaceJobs().all().isEmpty(),
+                        "jobs left: " + c.furnaceJobs().all());
             } else {
                 smelt.tick();
                 h.assertTrue(loaded.status == TaskStatus.SUCCESS, "load not finished: " + loaded.summary);
@@ -239,8 +260,8 @@ public class CookingTests {
     @GameTest(maxTicks = 400)
     public void collectFromGivenFurnace(GameTestHelper h) {
         deck(h, 16, GIVEN_DECK);
-        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
-                furnaceAt(h, 4, GIVEN_DECK + 1, 2);
+        var furnace =
+                (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, GIVEN_DECK + 1, 2);
         BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
         furnace.setItem(2, new ItemStack(Items.COOKED_SALMON, 3));
         furnace.setItem(1, new ItemStack(Items.COAL));
@@ -294,7 +315,8 @@ public class CookingTests {
             }
             if (collector[0] != null) {
                 collector[0].tick();
-                h.assertTrue(collected.status == TaskStatus.SUCCESS,
+                h.assertTrue(
+                        collected.status == TaskStatus.SUCCESS,
                         "collect not finished: " + collected.status + " " + collected.summary);
                 h.assertValueEqual(c.inventory().countItem(Items.FURNACE), 1, "furnace item back");
                 h.assertFalse(hasBlock(h, Blocks.FURNACE, 16, TAKEOVER_DECK), "the placed furnace should be gone");
@@ -340,7 +362,8 @@ public class CookingTests {
             h.assertTrue(result.summary.contains("and took it back"), "summary was " + result.summary);
             h.assertFalse(hasBlock(h, Blocks.FURNACE, 16, NOPICK_DECK), "the furnace should be taken back");
             h.assertValueEqual(c.inventory().countItem(Items.FURNACE), 1, "furnace item back");
-            h.assertTrue(result.notices.stream().noneMatch(text -> text.contains("is gone")),
+            h.assertTrue(
+                    result.notices.stream().noneMatch(text -> text.contains("is gone")),
                     "no gone notice: " + result.notices);
         });
     }
@@ -354,7 +377,8 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.LAVA_BUCKET, 1));
         Result result = new Result();
-        TaskRunner runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, "minecraft:lava_bucket", false, 60 * 20);
+        TaskRunner runner =
+                smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, "minecraft:lava_bucket", false, 60 * 20);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -419,7 +443,8 @@ public class CookingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith(
+            h.assertTrue(
+                    result.summary.startsWith(
                             "smelted 1 minecraft:raw_copper into 1 minecraft:copper_ingot in 1 furnace"),
                     "summary was " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 1, "copper ingots");
@@ -440,8 +465,11 @@ public class CookingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.COOKED_MUTTON), 2, "cooked mutton");
-            h.assertTrue(c.furnaceJobs().all().isEmpty(), "a campfire needs no furnace job: " + c.furnaceJobs().all());
-            h.assertTrue(result.notices.stream().noneMatch(text -> text.contains("is gone")),
+            h.assertTrue(
+                    c.furnaceJobs().all().isEmpty(),
+                    "a campfire needs no furnace job: " + c.furnaceJobs().all());
+            h.assertTrue(
+                    result.notices.stream().noneMatch(text -> text.contains("is gone")),
                     "no gone notice: " + result.notices);
         });
     }
@@ -481,16 +509,19 @@ public class CookingTests {
         boolean[] broken = {false};
         h.succeedWhen(() -> {
             runner.tick();
-            if (!broken[0] && h.getLevel().getBlockEntity(pos)
-                    instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
+            if (!broken[0]
+                    && h.getLevel().getBlockEntity(pos)
+                            instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace
                     && !furnace.getItem(0).isEmpty()) {
                 h.setBlock(4, BROKEN_DECK + 1, 2, Blocks.AIR);
                 broken[0] = true;
             }
             h.assertTrue(broken[0], "waiting for the furnace to be loaded");
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertValueEqual(result.summary,
-                    "the furnace at " + coords(pos) + " is gone; 0 minecraft:copper_ingot collected so far", "summary");
+            h.assertValueEqual(
+                    result.summary,
+                    "the furnace at " + coords(pos) + " is gone; 0 minecraft:copper_ingot collected so far",
+                    "summary");
         });
     }
 
@@ -499,7 +530,8 @@ public class CookingTests {
         deck(h, 16, TAG_DECK);
         h.setBlock(4, TAG_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAG_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, TAG_DECK + 1, 2)), "blast furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 4, TAG_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.IRON_ORE, 1));
         c.inventory().addItem(new ItemStack(Items.DEEPSLATE_IRON_ORE, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
@@ -509,8 +541,8 @@ public class CookingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 2, "iron ingots");
-            h.assertTrue(result.summary.startsWith(
-                            "smelted 2 #minecraft:iron_ores into 2 minecraft:iron_ingot"),
+            h.assertTrue(
+                    result.summary.startsWith("smelted 2 #minecraft:iron_ores into 2 minecraft:iron_ingot"),
                     "summary was " + result.summary);
         });
     }
@@ -543,7 +575,9 @@ public class CookingTests {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
                 for (int scan = y; scan <= y + 3; scan++) {
-                    if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, scan, z))).is(block)) {
+                    if (h.getLevel()
+                            .getBlockState(h.absolutePos(new BlockPos(x, scan, z)))
+                            .is(block)) {
                         return true;
                     }
                 }
@@ -566,7 +600,8 @@ public class CookingTests {
         ItemMatcher input = ItemMatcher.parse(item).orElseThrow();
         ItemMatcher fuelMatcher = fuel == null ? null : ItemMatcher.parse(fuel).orElseThrow();
         runner.start(
-                new SmeltTask(input, count, forced, fuelMatcher, forceWait, CraftTask.StationPolicy.AUTO, waitLimitTicks),
+                new SmeltTask(
+                        input, count, forced, fuelMatcher, forceWait, CraftTask.StationPolicy.AUTO, waitLimitTicks),
                 "smelt_items");
         return runner;
     }
@@ -577,8 +612,10 @@ public class CookingTests {
         h.setBlock(4, LOAD_DECK + 1, 2, Blocks.FURNACE);
         h.setBlock(8, LOAD_DECK + 1, 2, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, LOAD_DECK + 1, 4);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, LOAD_DECK + 1, 2)), "first furnace should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, LOAD_DECK + 1, 2)), "second furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 4, LOAD_DECK + 1, 2)), "first furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 8, LOAD_DECK + 1, 2)), "second furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
         c.inventory().addItem(new ItemStack(Items.COAL, 2));
         Result result = new Result();
@@ -586,7 +623,8 @@ public class CookingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith("loaded 2 furnaces with 2 minecraft:raw_gold, ready in about 10 s"),
+            h.assertTrue(
+                    result.summary.startsWith("loaded 2 furnaces with 2 minecraft:raw_gold, ready in about 10 s"),
                     "summary was " + result.summary);
             int loaded = 0;
             for (int x = 0; x < 16; x++) {
@@ -610,7 +648,8 @@ public class CookingTests {
         h.setBlock(8, BLAST_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BLAST_DECK + 1, 4);
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, BLAST_DECK + 1, 2)), "furnace should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, BLAST_DECK + 1, 2)), "blast furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 8, BLAST_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -650,8 +689,10 @@ public class CookingTests {
                 h.getLevel().getBlockEntity(pos(h, 4, BUSY_DECK + 1, 2));
         busy.setItem(0, new ItemStack(Items.RAW_IRON));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, BUSY_DECK + 1, 4);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, BUSY_DECK + 1, 2)), "busy furnace should be visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 8, BUSY_DECK + 1, 2)), "free furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 4, BUSY_DECK + 1, 2)), "busy furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 8, BUSY_DECK + 1, 2)), "free furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
@@ -692,7 +733,8 @@ public class CookingTests {
         deck(h, 16, NOFUEL_DECK);
         h.setBlock(4, NOFUEL_DECK + 1, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, NOFUEL_DECK + 1, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, pos(h, 4, NOFUEL_DECK + 1, 2)), "blast furnace should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, pos(h, 4, NOFUEL_DECK + 1, 2)), "blast furnace should be visible");
         c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
         c.inventory().addItem(new ItemStack(Items.OAK_BOAT));
         Result result = new Result();
@@ -741,8 +783,10 @@ public class CookingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertValueEqual(result.summary,
-                    "that would take too long on a campfire; ask me to wait or give me a furnace", "summary");
+            h.assertValueEqual(
+                    result.summary,
+                    "that would take too long on a campfire; ask me to wait or give me a furnace",
+                    "summary");
         });
     }
 
@@ -754,8 +798,8 @@ public class CookingTests {
         return cookingFrom(h, input).stream()
                 .filter(recipe -> recipe.station() == station)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("no " + station + " recipe for " + input + ": "
-                        + cookingFrom(h, input)));
+                .orElseThrow(() ->
+                        new AssertionError("no " + station + " recipe for " + input + ": " + cookingFrom(h, input)));
     }
 
     private static BlockPos pos(GameTestHelper h, int x, int y, int z) {
@@ -811,7 +855,8 @@ public class CookingTests {
         h.assertValueEqual(sticks.stacks().size(), 1, "one pick");
         h.assertTrue(sticks.stacks().get(0).is(Items.STICK), "sticks: " + sticks.stacks());
         h.assertValueEqual(sticks.stacks().get(0).getCount(), 4, "four sticks");
-        h.assertTrue(sticks.stacks().stream().noneMatch(stack -> stack.is(Items.IRON_PICKAXE)),
+        h.assertTrue(
+                sticks.stacks().stream().noneMatch(stack -> stack.is(Items.IRON_PICKAXE)),
                 "a tool is never picked: " + sticks.stacks());
         h.succeed();
     }
@@ -856,14 +901,18 @@ public class CookingTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, companion, campfire), "lit campfire should be visible");
         h.assertValueEqual(
-                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE),
-                Optional.of(campfire),
-                "the lit campfire");
-        h.setBlock(6, 2, 2, Blocks.CAMPFIRE.defaultBlockState().setValue(net.minecraft.world.level.block.CampfireBlock.LIT, false));
+                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE), Optional.of(campfire), "the lit campfire");
+        h.setBlock(
+                6,
+                2,
+                2,
+                Blocks.CAMPFIRE.defaultBlockState().setValue(net.minecraft.world.level.block.CampfireBlock.LIT, false));
         // Batches share one structure position, so a campfire another test left behind can sit within the search
         // radius: assert that this campfire is not found, not that no campfire is found anywhere.
         h.assertTrue(
-                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE).filter(campfire::equals).isEmpty(),
+                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE)
+                        .filter(campfire::equals)
+                        .isEmpty(),
                 "an unlit campfire is not usable");
         h.succeed();
     }

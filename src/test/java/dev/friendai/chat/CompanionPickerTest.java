@@ -28,7 +28,9 @@ class CompanionPickerTest {
 
     @Test
     void nearestForeignWhenOwnIsFar() {
-        assertEquals(Optional.of(X), pick(S, List.of(c(S, true, 40, true), c(X, true, 5, true), c(Y, true, 9, true)), 16, true));
+        assertEquals(
+                Optional.of(X),
+                pick(S, List.of(c(S, true, 40, true), c(X, true, 5, true), c(Y, true, 9, true)), 16, true));
     }
 
     @Test

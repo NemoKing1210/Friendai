@@ -20,6 +20,7 @@ public final class CompanionPerception implements PerceptionSource {
 
     @Override
     public String describe(Caller caller) {
-        return PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid()).toPromptText();
+        return PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid())
+                .toPromptText();
     }
 }

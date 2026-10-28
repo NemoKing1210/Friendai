@@ -5,7 +5,6 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.combat.CombatController;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -43,7 +42,8 @@ public class CombatCoordinationTests {
         zombie.setNoAi(true);
         zombie.setTarget(c);
         h.runAfterDelay(200, () -> {
-            long retreats = texts.stream().filter(text -> text.startsWith("retreating")).count();
+            long retreats =
+                    texts.stream().filter(text -> text.startsWith("retreating")).count();
             h.assertValueEqual(retreats, 1L, "retreat notices: " + texts);
             zombie.kill(h.getLevel());
             h.succeed();
@@ -56,13 +56,19 @@ public class CombatCoordinationTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 3);
         zombie.setNoAi(true);
-        h.runAfterDelay(10, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
-        h.runAfterDelay(40, () -> c.setCombatSettings(c.combatSettings()
-                .withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)));
+        h.runAfterDelay(
+                10,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                40,
+                () -> c.setCombatSettings(
+                        c.combatSettings().withProtection(dev.friendai.combat.ProtectionPolicy.SELF_ONLY)));
         h.runAfterDelay(120, () -> {
             // SELF_ONLY still permits self-defence, so the fight may continue; the invariant is one coherent state.
-            h.assertTrue(!c.taskRunner().paused() || c.combatController().state() == CombatController.State.FIGHTING,
-                    "a paused task was left without a fight: " + c.combatController().state());
+            h.assertTrue(
+                    !c.taskRunner().paused() || c.combatController().state() == CombatController.State.FIGHTING,
+                    "a paused task was left without a fight: "
+                            + c.combatController().state());
             h.assertTrue(c.combatController().decision().action() != null, "no decision recorded");
             zombie.kill(h.getLevel());
             c.combatController().stopFight();
@@ -83,7 +89,8 @@ public class CombatCoordinationTests {
         for (int i = 0; i < 16; i++) {
             Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 2 + (i % 8) * 2, 2, 6);
             zombie.setNoAi(true);
-            zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(100.0);
+            zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                    .setBaseValue(100.0);
             zombie.setHealth(100.0f);
         }
         long[] started = {0L};

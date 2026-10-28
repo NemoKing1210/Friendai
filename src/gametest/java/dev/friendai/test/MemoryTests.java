@@ -56,10 +56,7 @@ public class MemoryTests {
         Script call(String name, String json) {
             JsonObject args = JsonParser.parseString(json).getAsJsonObject();
             responses.add(new LlmResponse(
-                    "",
-                    List.of(new ToolCall("call_1", name, args, json, null)),
-                    StopReason.TOOL_USE,
-                    new Usage(0, 0)));
+                    "", List.of(new ToolCall("call_1", name, args, json, null)), StopReason.TOOL_USE, new Usage(0, 0)));
             return this;
         }
     }
@@ -158,8 +155,7 @@ public class MemoryTests {
             h.assertTrue(
                     script.requests.get(1).messages().stream()
                             .anyMatch(m -> m.role() == Role.TOOL
-                                    && m.text().startsWith(
-                                            "You cannot remember that for this speaker (guest)")),
+                                    && m.text().startsWith("You cannot remember that for this speaker (guest)")),
                     "messages were " + script.requests.get(1).messages());
             h.assertTrue(
                     state.memory().book(owner.getUUID()).allFacts().stream()

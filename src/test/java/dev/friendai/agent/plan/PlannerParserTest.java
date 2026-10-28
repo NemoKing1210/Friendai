@@ -13,7 +13,8 @@ import org.junit.jupiter.api.Test;
 
 class PlannerParserTest {
     private static final JsonObject JUMP_SCHEMA = JsonParser.parseString(
-            "{\"type\":\"object\",\"properties\":{\"count\":{\"type\":\"integer\"}}}").getAsJsonObject();
+                    "{\"type\":\"object\",\"properties\":{\"count\":{\"type\":\"integer\"}}}")
+            .getAsJsonObject();
     private static final Map<String, JsonObject> SCHEMAS = Map.of("jump", JUMP_SCHEMA, "go_to", JUMP_SCHEMA);
     private static final Set<String> ALL = Set.of("jump", "go_to", "trust_player");
 
@@ -37,8 +38,16 @@ class PlannerParserTest {
     void objectArgsAreAcceptedAndNormalizedToAString() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"jump\",\"args\":{\"count\":3}}]}");
         assertTrue(p.ok(), p.errors().toString());
-        assertTrue(p.proposal().orElseThrow().stepsJson().get(0).getAsJsonObject().get("args").getAsJsonPrimitive().isString());
-        assertEquals(3, p.proposal().orElseThrow().steps().get(0).args().get("count").getAsInt());
+        assertTrue(p.proposal()
+                .orElseThrow()
+                .stepsJson()
+                .get(0)
+                .getAsJsonObject()
+                .get("args")
+                .getAsJsonPrimitive()
+                .isString());
+        assertEquals(
+                3, p.proposal().orElseThrow().steps().get(0).args().get("count").getAsInt());
     }
 
     @Test
@@ -56,8 +65,7 @@ class PlannerParserTest {
 
     @Test
     void anExampleBeforeThePlanDoesNotHideIt() {
-        PlannerParser.Parsed p = parse(
-                "Args look like {\"count\": 2}; the plan is {\"steps\":[{\"tool\":\"jump\"}]}");
+        PlannerParser.Parsed p = parse("Args look like {\"count\": 2}; the plan is {\"steps\":[{\"tool\":\"jump\"}]}");
         assertTrue(p.ok(), p.errors().toString());
         assertEquals(1, p.proposal().orElseThrow().steps().size());
     }
@@ -81,14 +89,18 @@ class PlannerParserTest {
     void unknownToolIsAnError() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"teleport\"}]}");
         assertFalse(p.ok());
-        assertTrue(p.errors().get(0).contains("unknown tool 'teleport'"), p.errors().toString());
+        assertTrue(
+                p.errors().get(0).contains("unknown tool 'teleport'"),
+                p.errors().toString());
     }
 
     @Test
     void toolOutsideTheRequestersAllowedSetIsAnError() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"trust_player\"}]}");
         assertFalse(p.ok());
-        assertTrue(p.errors().get(0).contains("cannot be used in a plan"), p.errors().toString());
+        assertTrue(
+                p.errors().get(0).contains("cannot be used in a plan"),
+                p.errors().toString());
     }
 
     @Test
@@ -99,7 +111,9 @@ class PlannerParserTest {
         }
         PlannerParser.Parsed p = parse(steps.append("]}").toString());
         assertFalse(p.ok());
-        assertTrue(p.errors().get(0).contains("worst-case action count exceeds 12"), p.errors().toString());
+        assertTrue(
+                p.errors().get(0).contains("worst-case action count exceeds 12"),
+                p.errors().toString());
     }
 
     @Test
@@ -110,13 +124,16 @@ class PlannerParserTest {
     @Test
     void longRationaleIsCut() {
         PlannerParser.Parsed p = parse("{\"rationale\":\"" + "x".repeat(1000) + "\",\"steps\":[{\"tool\":\"jump\"}]}");
-        assertEquals(PlannerParser.MAX_NOTE, p.proposal().orElseThrow().rationale().length());
+        assertEquals(
+                PlannerParser.MAX_NOTE, p.proposal().orElseThrow().rationale().length());
     }
 
     @Test
     void parsedStepsCarryTheListOrder() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"jump\"}]}");
-        assertEquals(List.of("go_to", "jump"), p.proposal().orElseThrow().steps().stream().map(s -> s.tool()).toList());
+        assertEquals(
+                List.of("go_to", "jump"),
+                p.proposal().orElseThrow().steps().stream().map(s -> s.tool()).toList());
     }
 
     @Test
@@ -131,8 +148,15 @@ class PlannerParserTest {
         assertTrue(parsed.ok(), parsed.errors().toString());
         var proposal = parsed.proposal().orElseThrow();
         assertEquals(2, proposal.steps().size());
-        assertTrue(proposal.stepsJson().get(0).getAsJsonObject().getAsJsonArray("then").get(0)
-                .getAsJsonObject().get("args").getAsJsonPrimitive().isString());
+        assertTrue(proposal.stepsJson()
+                .get(0)
+                .getAsJsonObject()
+                .getAsJsonArray("then")
+                .get(0)
+                .getAsJsonObject()
+                .get("args")
+                .getAsJsonPrimitive()
+                .isString());
         assertTrue(proposal.plan().nodes().getFirst() instanceof dev.friendai.queue.PlanNode.Conditional);
     }
 
@@ -142,7 +166,10 @@ class PlannerParserTest {
                 {"steps":[{"when":{"type":"fluid_ahead"},"then":[{"tool":"trust_player"}]}]}
                 """);
         assertFalse(parsed.ok());
-        assertTrue(parsed.errors().stream().anyMatch(error -> error.contains("step 1 → then #1")
-                && error.contains("cannot be used in a plan")), parsed.errors().toString());
+        assertTrue(
+                parsed.errors().stream()
+                        .anyMatch(error ->
+                                error.contains("step 1 → then #1") && error.contains("cannot be used in a plan")),
+                parsed.errors().toString());
     }
 }

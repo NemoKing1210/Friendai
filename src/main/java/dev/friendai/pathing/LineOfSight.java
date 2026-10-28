@@ -35,8 +35,8 @@ public final class LineOfSight {
                 || clearTo(view, ex, ey, ez, target, cx, cy, cz - near);
     }
 
-    private static boolean clearTo(CellView view, double ex, double ey, double ez, Pos target,
-            double px, double py, double pz) {
+    private static boolean clearTo(
+            CellView view, double ex, double ey, double ez, Pos target, double px, double py, double pz) {
         int tx = target.x();
         int ty = target.y();
         int tz = target.z();
@@ -78,7 +78,10 @@ public final class LineOfSight {
                 return true;
             }
             Cell.Kind kind = view.at(cx, cy, cz).kind();
-            if (kind == Cell.Kind.SOLID || kind == Cell.Kind.PARTIAL || kind == Cell.Kind.TALL || kind == Cell.Kind.DOOR) {
+            if (kind == Cell.Kind.SOLID
+                    || kind == Cell.Kind.PARTIAL
+                    || kind == Cell.Kind.TALL
+                    || kind == Cell.Kind.DOOR) {
                 return false;
             }
             if (tMaxX > 1.0 + EPSILON && tMaxY > 1.0 + EPSILON && tMaxZ > 1.0 + EPSILON) {

@@ -1,5 +1,8 @@
 package dev.friendai.perception;
 
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,10 +11,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.knowledge.ResourceObservation;
-import net.minecraft.resources.Identifier;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -63,7 +62,8 @@ public final class LandmarkScanner {
             }
             landmarks.add(new Landmark(
                     kind,
-                    shortName(BuiltInRegistries.BLOCK.getKey(level.getBlockState(at).getBlock())),
+                    shortName(BuiltInRegistries.BLOCK.getKey(
+                            level.getBlockState(at).getBlock())),
                     at.getX() + " " + at.getY() + " " + at.getZ(),
                     Math.sqrt(at.distSqr(center)),
                     RelativeDirection.compass(at.getX() - center.getX(), at.getZ() - center.getZ())));
@@ -82,8 +82,13 @@ public final class LandmarkScanner {
             if (kind == null) continue;
             ResourceObservation old = nearest.get(kind);
             var p = observation.location().pos();
-            if (old == null || distanceSqr(center, p.x(), p.y(), p.z())
-                    < distanceSqr(center, old.location().pos().x(), old.location().pos().y(), old.location().pos().z())) {
+            if (old == null
+                    || distanceSqr(center, p.x(), p.y(), p.z())
+                            < distanceSqr(
+                                    center,
+                                    old.location().pos().x(),
+                                    old.location().pos().y(),
+                                    old.location().pos().z())) {
                 nearest.put(kind, observation);
             }
         }
@@ -93,8 +98,11 @@ public final class LandmarkScanner {
             ResourceObservation observation = nearest.get(kind);
             if (observation == null) continue;
             var p = observation.location().pos();
-            result.add(new Landmark(kind, shortName(Identifier.parse(observation.blockId())),
-                    p.x() + " " + p.y() + " " + p.z(), Math.sqrt(distanceSqr(center, p.x(), p.y(), p.z())),
+            result.add(new Landmark(
+                    kind,
+                    shortName(Identifier.parse(observation.blockId())),
+                    p.x() + " " + p.y() + " " + p.z(),
+                    Math.sqrt(distanceSqr(center, p.x(), p.y(), p.z())),
                     RelativeDirection.compass(p.x() - center.getX(), p.z() - center.getZ())));
         }
         return List.copyOf(result);
@@ -123,7 +131,9 @@ public final class LandmarkScanner {
         if (state.is(BlockTags.ANVIL)) {
             return "anvil";
         }
-        if (state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST) || state.is(Blocks.ENDER_CHEST)
+        if (state.is(Blocks.CHEST)
+                || state.is(Blocks.TRAPPED_CHEST)
+                || state.is(Blocks.ENDER_CHEST)
                 || state.is(Blocks.BARREL)) {
             return "chest";
         }

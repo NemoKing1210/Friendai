@@ -32,61 +32,151 @@ public record PerceptionSnapshot(
 
     /** Constructor retained for snapshots created before the mode field was added. */
     public PerceptionSnapshot(
-            String position, String dimension, float health, float maxHealth, int food, String timeOfDay,
-            String biome, String weather, Double ownerDistance, Map<String, Integer> nearbyBlocks,
-            Map<String, Integer> nearbyEntities, Map<String, Integer> inventory, String equipment,
-            String currentTask, OwnerFocus ownerFocus, SelfStatus self, List<Threat> threats,
-            List<Landmark> landmarks, List<TreeSummary> trees, int experienceLevel) {
-        this(position, dimension, health, maxHealth, food, timeOfDay, biome, weather, ownerDistance, nearbyBlocks,
-                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees,
-                experienceLevel, false);
+            String position,
+            String dimension,
+            float health,
+            float maxHealth,
+            int food,
+            String timeOfDay,
+            String biome,
+            String weather,
+            Double ownerDistance,
+            Map<String, Integer> nearbyBlocks,
+            Map<String, Integer> nearbyEntities,
+            Map<String, Integer> inventory,
+            String equipment,
+            String currentTask,
+            OwnerFocus ownerFocus,
+            SelfStatus self,
+            List<Threat> threats,
+            List<Landmark> landmarks,
+            List<TreeSummary> trees,
+            int experienceLevel) {
+        this(
+                position,
+                dimension,
+                health,
+                maxHealth,
+                food,
+                timeOfDay,
+                biome,
+                weather,
+                ownerDistance,
+                nearbyBlocks,
+                nearbyEntities,
+                inventory,
+                equipment,
+                currentTask,
+                ownerFocus,
+                self,
+                threats,
+                landmarks,
+                trees,
+                experienceLevel,
+                false);
     }
 
     /** A snapshot of a companion with no experience levels. */
     public PerceptionSnapshot(
-            String position, String dimension, float health, float maxHealth, int food, String timeOfDay,
-            String biome, String weather, Double ownerDistance, Map<String, Integer> nearbyBlocks,
-            Map<String, Integer> nearbyEntities, Map<String, Integer> inventory, String equipment,
-            String currentTask, OwnerFocus ownerFocus, SelfStatus self, List<Threat> threats,
-            List<Landmark> landmarks, List<TreeSummary> trees) {
-        this(position, dimension, health, maxHealth, food, timeOfDay, biome, weather, ownerDistance, nearbyBlocks,
-                nearbyEntities, inventory, equipment, currentTask, ownerFocus, self, threats, landmarks, trees, 0, false);
+            String position,
+            String dimension,
+            float health,
+            float maxHealth,
+            int food,
+            String timeOfDay,
+            String biome,
+            String weather,
+            Double ownerDistance,
+            Map<String, Integer> nearbyBlocks,
+            Map<String, Integer> nearbyEntities,
+            Map<String, Integer> inventory,
+            String equipment,
+            String currentTask,
+            OwnerFocus ownerFocus,
+            SelfStatus self,
+            List<Threat> threats,
+            List<Landmark> landmarks,
+            List<TreeSummary> trees) {
+        this(
+                position,
+                dimension,
+                health,
+                maxHealth,
+                food,
+                timeOfDay,
+                biome,
+                weather,
+                ownerDistance,
+                nearbyBlocks,
+                nearbyEntities,
+                inventory,
+                equipment,
+                currentTask,
+                ownerFocus,
+                self,
+                threats,
+                landmarks,
+                trees,
+                0,
+                false);
     }
 
     public String toPromptText() {
         StringBuilder sb = new StringBuilder();
         sb.append("Position: ").append(position).append(" (").append(dimension).append(")\n");
         if (creativeMode) {
-            sb.append("Mode: creative. Ordinary damage and hunger are disabled; flight, free materials, item creation and command execution require the online owner's live permissions.\n");
+            sb.append(
+                    "Mode: creative. Ordinary damage and hunger are disabled; flight, free materials, item creation and command execution require the online owner's live permissions.\n");
         } else {
             sb.append("Mode: survival. Normal damage, hunger, material use and ground movement apply.\n");
         }
         if (self != null) {
             sb.append(self.toPromptText()).append('\n');
         }
-        sb.append("Health: ").append(number(health)).append('/').append(number(maxHealth)).append('\n');
-        sb.append("Hunger: ").append(food).append('/').append(HungerModel.MAX_FOOD).append('\n');
+        sb.append("Health: ")
+                .append(number(health))
+                .append('/')
+                .append(number(maxHealth))
+                .append('\n');
+        sb.append("Hunger: ")
+                .append(food)
+                .append('/')
+                .append(HungerModel.MAX_FOOD)
+                .append('\n');
         sb.append("Experience level: ").append(experienceLevel).append('\n');
-        sb.append("Time: ").append(timeOfDay).append(", weather: ").append(weather).append(", biome: ").append(biome).append('\n');
+        sb.append("Time: ")
+                .append(timeOfDay)
+                .append(", weather: ")
+                .append(weather)
+                .append(", biome: ")
+                .append(biome)
+                .append('\n');
         if (ownerFocus != null) {
             sb.append(ownerFocus.toPromptText()).append('\n');
         } else {
             sb.append("Owner: ")
-                    .append(ownerDistance == null ? "not nearby" : String.format(Locale.ROOT, "%.1f blocks away", ownerDistance))
+                    .append(
+                            ownerDistance == null
+                                    ? "not nearby"
+                                    : String.format(Locale.ROOT, "%.1f blocks away", ownerDistance))
                     .append('\n');
         }
         if (threats != null) {
             sb.append("Threats: ")
-                    .append(threats.isEmpty()
-                            ? "none"
-                            : threats.stream().map(Threat::toPromptText).collect(Collectors.joining("; ")))
+                    .append(
+                            threats.isEmpty()
+                                    ? "none"
+                                    : threats.stream().map(Threat::toPromptText).collect(Collectors.joining("; ")))
                     .append('\n');
         }
         if (landmarks != null) {
             sb.append("Landmarks: ")
-                    .append(landmarks.isEmpty()
-                            ? "none nearby"
-                            : landmarks.stream().map(Landmark::toPromptText).collect(Collectors.joining("; ")))
+                    .append(
+                            landmarks.isEmpty()
+                                    ? "none nearby"
+                                    : landmarks.stream()
+                                            .map(Landmark::toPromptText)
+                                            .collect(Collectors.joining("; ")))
                     .append('\n');
         }
         if (trees != null && !trees.isEmpty()) {

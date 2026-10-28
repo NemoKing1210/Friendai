@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -14,7 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -214,10 +213,17 @@ public final class TendFarmTask implements Task {
         boolean outOfSeeds = lastReport != null && lastReport.noSeeds() > 0;
         if (outOfSeeds) {
             StringBuilder need = new StringBuilder();
-            lastReport.seedShortfall().forEach((item, count) -> need.append(need.isEmpty() ? "" : ", ")
-                    .append("need ").append(count).append(' ').append(item));
-            notice(c, seedsNotified, "I'm out of seeds for the farm at " + coords()
-                    + (need.isEmpty() ? "" : " (" + need + ")"));
+            lastReport
+                    .seedShortfall()
+                    .forEach((item, count) -> need.append(need.isEmpty() ? "" : ", ")
+                            .append("need ")
+                            .append(count)
+                            .append(' ')
+                            .append(item));
+            notice(
+                    c,
+                    seedsNotified,
+                    "I'm out of seeds for the farm at " + coords() + (need.isEmpty() ? "" : " (" + need + ")"));
             seedsNotified = true;
         } else {
             seedsNotified = false;

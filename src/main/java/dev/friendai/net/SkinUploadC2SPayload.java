@@ -12,8 +12,10 @@ public record SkinUploadC2SPayload(boolean slim, byte[] png) implements CustomPa
     public static final CustomPacketPayload.Type<SkinUploadC2SPayload> TYPE =
             new CustomPacketPayload.Type<>(FriendaiMod.id("skin_upload"));
     public static final StreamCodec<RegistryFriendlyByteBuf, SkinUploadC2SPayload> CODEC = StreamCodec.composite(
-            ByteBufCodecs.BOOL, SkinUploadC2SPayload::slim,
-            ByteBufCodecs.byteArray(SkinImage.MAX_CANONICAL), SkinUploadC2SPayload::png,
+            ByteBufCodecs.BOOL,
+            SkinUploadC2SPayload::slim,
+            ByteBufCodecs.byteArray(SkinImage.MAX_CANONICAL),
+            SkinUploadC2SPayload::png,
             SkinUploadC2SPayload::new);
 
     @Override

@@ -23,8 +23,8 @@ class ToolHintsSectionTest {
     private final ToolCatalog catalog = ToolCatalog.defaults();
 
     private String prompt(Set<ToolGroup> visible, int budget) {
-        return PromptBuilder.system(PERSONA, "Position: 1 2 3", OWNER, "", TurnKind.PLAYER, GoalView.EMPTY, budget,
-                catalog.hints(visible));
+        return PromptBuilder.system(
+                PERSONA, "Position: 1 2 3", OWNER, "", TurnKind.PLAYER, GoalView.EMPTY, budget, catalog.hints(visible));
     }
 
     @Test

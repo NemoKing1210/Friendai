@@ -5,8 +5,7 @@ package dev.friendai.place;
  * config and is enforced before a place is created; the registry and the file accept anything up to these
  * bounds so lowering the config can never make an existing file unreadable.
  */
-public record PlaceLimits(
-        int maxPlaces, int maxNameChars, int maxAliases, int maxNoteChars, long maxFileBytes) {
+public record PlaceLimits(int maxPlaces, int maxNameChars, int maxAliases, int maxNoteChars, long maxFileBytes) {
 
     /** Longest name or alias the model itself stores. */
     public static final int NAME_MAX = 32;
@@ -20,6 +19,5 @@ public record PlaceLimits(
     /** Longest note the model itself stores. */
     public static final int NOTE_MAX = 160;
 
-    public static final PlaceLimits DEFAULTS =
-            new PlaceLimits(1024, NAME_MAX, ALIASES_MAX, NOTE_MAX, 2L * 1024 * 1024);
+    public static final PlaceLimits DEFAULTS = new PlaceLimits(1024, NAME_MAX, ALIASES_MAX, NOTE_MAX, 2L * 1024 * 1024);
 }

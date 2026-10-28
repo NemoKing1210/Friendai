@@ -18,8 +18,13 @@ public final class DefaultActivityPolicy {
      * @param ownerWorkQueued the owner's own jobs wait to run, so free time is not what the companion is doing
      * @param inCombat the companion is fighting, sleeping or in a retreat
      */
-    public static boolean shouldFollow(FreeTime state, AutonomySettings s, Autonomy ceiling, boolean followModeOn,
-                                       boolean ownerWorkQueued, boolean inCombat) {
+    public static boolean shouldFollow(
+            FreeTime state,
+            AutonomySettings s,
+            Autonomy ceiling,
+            boolean followModeOn,
+            boolean ownerWorkQueued,
+            boolean inCombat) {
         if (!followModeOn) {
             return false;
         }

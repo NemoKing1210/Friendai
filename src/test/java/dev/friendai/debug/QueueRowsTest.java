@@ -17,12 +17,35 @@ import org.junit.jupiter.api.Test;
 
 class QueueRowsTest {
     private static final GuardFacts FACTS = new GuardFacts() {
-        @Override public int countItems(String idOrTag) { return 0; }
-        @Override public int emptySlots() { return 10; }
-        @Override public float healthFraction() { return 1; }
-        @Override public int ownerDistance() { return 0; }
-        @Override public int countBlocks(String idOrTag, int radius) { return 0; }
-        @Override public String dimension() { return "minecraft:overworld"; }
+        @Override
+        public int countItems(String idOrTag) {
+            return 0;
+        }
+
+        @Override
+        public int emptySlots() {
+            return 10;
+        }
+
+        @Override
+        public float healthFraction() {
+            return 1;
+        }
+
+        @Override
+        public int ownerDistance() {
+            return 0;
+        }
+
+        @Override
+        public int countBlocks(String idOrTag, int radius) {
+            return 0;
+        }
+
+        @Override
+        public String dimension() {
+            return "minecraft:overworld";
+        }
     };
 
     private static QueuedStep step(String tool, List<Guard> guards, List<Integer> after) {
@@ -31,20 +54,28 @@ class QueueRowsTest {
 
     @Test
     void emptyQueueHasNoRows() {
-        assertTrue(QueueRows.build(new JobQueue(QueueLimits.DEFAULTS), FACTS, null).isEmpty());
+        assertTrue(
+                QueueRows.build(new JobQueue(QueueLimits.DEFAULTS), FACTS, null).isEmpty());
     }
 
     @Test
     void directJobsComeBeforePlansAndPlanStepsKeepTheirOrder() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
-        List<Long> ids = q.addPlan("build", List.of(step("mine_blocks", List.of(), List.of()),
-                step("place_block", List.of(new Guard.HasItem("minecraft:stone", 3)), List.of(1))), PlanOptions.DEFAULT).jobIds();
+        List<Long> ids = q.addPlan(
+                        "build",
+                        List.of(
+                                step("mine_blocks", List.of(), List.of()),
+                                step("place_block", List.of(new Guard.HasItem("minecraft:stone", 3)), List.of(1))),
+                        PlanOptions.DEFAULT)
+                .jobIds();
         long direct = q.addDirect(step("go_to", List.of(), List.of())).id();
         q.markRunning(ids.getFirst());
 
         List<QueueRow> rows = QueueRows.build(q, FACTS, "mining stone");
 
-        assertEquals(List.of(direct, ids.get(0), ids.get(1)), rows.stream().map(QueueRow::id).toList());
+        assertEquals(
+                List.of(direct, ids.get(0), ids.get(1)),
+                rows.stream().map(QueueRow::id).toList());
         assertEquals("ready", rows.get(0).state());
         assertEquals("", rows.get(0).planGoal());
         assertEquals("running", rows.get(1).state());

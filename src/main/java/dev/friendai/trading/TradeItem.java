@@ -45,7 +45,8 @@ public record TradeItem(String itemId, String componentsJson, int count) {
 
     /** Bounds are checked before parsing; recursion stops before allocating an over-depth subtree. */
     static String canonicalJson(String json) {
-        if (json == null || json.length() > MAX_JSON_BYTES
+        if (json == null
+                || json.length() > MAX_JSON_BYTES
                 || json.getBytes(StandardCharsets.UTF_8).length > MAX_JSON_BYTES) {
             throw new IllegalArgumentException("trade JSON exceeds field limit");
         }

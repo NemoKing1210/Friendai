@@ -28,6 +28,7 @@ public class CompanionRenderer
     private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
     /** How long one dot of the thinking animation stays on screen. */
     private static final float TICKS_PER_DOT = 8.0F;
+
     private static final int DOTS = 3;
     /** Where the dots float above the hitbox. High enough to leave the name tag clear underneath them. */
     private static final double THOUGHT_HEIGHT = 0.6;
@@ -79,10 +80,7 @@ public class CompanionRenderer
 
     @Override
     public void submit(
-            CompanionRenderState state,
-            PoseStack poseStack,
-            SubmitNodeCollector collector,
-            CameraRenderState camera) {
+            CompanionRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera) {
         super.submit(state, poseStack, collector, camera);
         if (!state.thinking) {
             return;

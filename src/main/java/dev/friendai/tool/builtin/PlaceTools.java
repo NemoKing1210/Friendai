@@ -53,17 +53,20 @@ final class PlaceTools {
                 AccessLevel.TRUSTED,
                 PlaceTools::find));
 
-        ToolKit.add(registry, defs, new TaskToolDef(
-                "go_to_place",
-                "Walk to a remembered place by name or alias. Use find_place first when the name is unclear.",
-                SchemaBuilder.object()
-                        .string("name", "Exact place name or alias")
-                        .required("name")
-                        .build(),
-                PlaceTools::goTo,
-                true,
-                AccessLevel.TRUSTED,
-                new TaskToolDef.QueueTraits(true, null)));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "go_to_place",
+                        "Walk to a remembered place by name or alias. Use find_place first when the name is unclear.",
+                        SchemaBuilder.object()
+                                .string("name", "Exact place name or alias")
+                                .required("name")
+                                .build(),
+                        PlaceTools::goTo,
+                        true,
+                        AccessLevel.TRUSTED,
+                        new TaskToolDef.QueueTraits(true, null)));
 
         registry.register(ToolKit.callerTool(
                 "rename_place",
@@ -97,9 +100,15 @@ final class PlaceTools {
                 .string("note", "Optional one-line remark")
                 .string("aliases", "Optional other names, separated by commas")
                 .integer("radius", "How many blocks around the anchor the place covers", 1, Place.RADIUS_MAX)
-                .integer("below", "How far below the anchor the place reaches; default 1 (its floor, not the "
-                        + "rock under it)", 0, Place.RADIUS_MAX)
-                .integer("above", "How far above the anchor the place reaches; default 8, at most the radius", 0,
+                .integer(
+                        "below",
+                        "How far below the anchor the place reaches; default 1 (its floor, not the " + "rock under it)",
+                        0,
+                        Place.RADIUS_MAX)
+                .integer(
+                        "above",
+                        "How far above the anchor the place reaches; default 8, at most the radius",
+                        0,
                         Place.RADIUS_MAX)
                 .integer("x", "Anchor x; give all of x, y and z or none")
                 .integer("y", "Anchor y; give all of x, y and z or none")
@@ -130,9 +139,11 @@ final class PlaceTools {
     private static ToolResult remember(CompanionEntity companion, Caller caller, JsonObject args) {
         try {
             PlaceValues values = values(companion, caller, args);
-            Place place = PlaceService.remember(companion, caller, values, companion.level().getGameTime());
+            Place place = PlaceService.remember(
+                    companion, caller, values, companion.level().getGameTime());
             return ToolResult.ok("remembered " + place.name() + " as place #" + place.id() + " at "
-                    + place.anchor().x() + " " + place.anchor().y() + " " + place.anchor().z()
+                    + place.anchor().x() + " " + place.anchor().y() + " "
+                    + place.anchor().z()
                     + "; find_place lists it and go_to_place walks there");
         } catch (IllegalArgumentException rejected) {
             return ToolResult.error(rejected.getMessage());
@@ -174,7 +185,9 @@ final class PlaceTools {
         if (coordinates.isPresent()) {
             return coordinates.get();
         }
-        if (args.has("here") && !args.get("here").isJsonNull() && !args.get("here").getAsBoolean()) {
+        if (args.has("here")
+                && !args.get("here").isJsonNull()
+                && !args.get("here").getAsBoolean()) {
             return companion.blockPosition();
         }
         ServerPlayer speaker = speaker(companion, caller);
@@ -182,12 +195,10 @@ final class PlaceTools {
             return companion.blockPosition();
         }
         if (speaker.level() != companion.level()) {
-            throw new IllegalArgumentException(
-                    "the player is in another dimension; give x, y and z or here:false");
+            throw new IllegalArgumentException("the player is in another dimension; give x, y and z or here:false");
         }
         if (speaker.distanceTo(companion) > MAX_SPEAKER_DISTANCE) {
-            throw new IllegalArgumentException(
-                    "the player is more than 64 blocks away; give x, y and z or here:false");
+            throw new IllegalArgumentException("the player is more than 64 blocks away; give x, y and z or here:false");
         }
         return speaker.blockPosition();
     }
@@ -222,15 +233,18 @@ final class PlaceTools {
     }
 
     private static Task goTo(CompanionEntity companion, JsonObject args) {
-        return new GoToPlaceTask(PlaceService.requireReachable(
-                companion, args.get("name").getAsString(), "go_to_place"));
+        return new GoToPlaceTask(
+                PlaceService.requireReachable(companion, args.get("name").getAsString(), "go_to_place"));
     }
 
     private static ToolResult rename(CompanionEntity companion, Caller caller, JsonObject args) {
         String name = args.get("name").getAsString();
         try {
             Place renamed = PlaceService.rename(
-                    companion, caller, name, args.get("new_name").getAsString(),
+                    companion,
+                    caller,
+                    name,
+                    args.get("new_name").getAsString(),
                     companion.level().getGameTime());
             return ToolResult.ok("renamed " + name + " to " + renamed.name());
         } catch (IllegalArgumentException rejected) {

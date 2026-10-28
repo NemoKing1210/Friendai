@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,16 +24,13 @@ import java.util.Set;
  */
 public final class StructureParts {
     private static final String AIR = "minecraft:air";
-    private static final int[][] SIDES = {
-        {-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}
-    };
+    private static final int[][] SIDES = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
 
     private final Map<BlockSpec, PartKind> roles;
     private final EnumMap<PartKind, Integer> counts;
     private final int interiorVolume;
 
-    private StructureParts(
-            Map<BlockSpec, PartKind> roles, EnumMap<PartKind, Integer> counts, int interiorVolume) {
+    private StructureParts(Map<BlockSpec, PartKind> roles, EnumMap<PartKind, Integer> counts, int interiorVolume) {
         this.roles = Map.copyOf(roles);
         this.counts = new EnumMap<>(counts);
         this.interiorVolume = interiorVolume;
@@ -80,8 +76,7 @@ public final class StructureParts {
         EnumMap<PartKind, Integer> counts = new EnumMap<>(PartKind.class);
         for (BlockSpec spec : blueprint.blocks()) {
             if (isAir(spec.state())) {
-                PartKind role = inside(spec, width, height, depth)
-                                && interior[spec.x()][spec.y()][spec.z()]
+                PartKind role = inside(spec, width, height, depth) && interior[spec.x()][spec.y()][spec.z()]
                         ? PartKind.INTERIOR
                         : PartKind.OTHER;
                 roles.put(spec, role);
@@ -243,8 +238,8 @@ public final class StructureParts {
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 for (int z = 0; z < depth; z++) {
-                    boolean boundary = x == 0 || x == width - 1 || y == 0 || y == height - 1 || z == 0
-                            || z == depth - 1;
+                    boolean boundary =
+                            x == 0 || x == width - 1 || y == 0 || y == height - 1 || z == 0 || z == depth - 1;
                     if (boundary && isAir(grid[x][y][z]) && !outside[x][y][z]) {
                         outside[x][y][z] = true;
                         queue.add(new int[] {x, y, z});
@@ -271,7 +266,11 @@ public final class StructureParts {
     }
 
     private static boolean inside(BlockSpec spec, int width, int height, int depth) {
-        return spec.x() >= 0 && spec.x() < width && spec.y() >= 0 && spec.y() < height && spec.z() >= 0
+        return spec.x() >= 0
+                && spec.x() < width
+                && spec.y() >= 0
+                && spec.y() < height
+                && spec.z() >= 0
                 && spec.z() < depth;
     }
 

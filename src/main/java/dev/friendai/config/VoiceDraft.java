@@ -10,12 +10,10 @@ import java.util.Map;
  * stops one provider's key from moving to another.
  */
 public record VoiceDraft(
-        String sttProvider, Cloud stt, boolean sttReveal,
-        String ttsProvider, Cloud tts, boolean ttsReveal) {
+        String sttProvider, Cloud stt, boolean sttReveal, String ttsProvider, Cloud tts, boolean ttsReveal) {
 
     /** One provider's cloud values. Only the selected provider's entry is written back. */
-    public record Cloud(
-            String apiKey, String model, String voice, String folderId, String baseUrl, String language) {
+    public record Cloud(String apiKey, String model, String voice, String folderId, String baseUrl, String language) {
 
         /** Never prints the key (rule 7). */
         @Override
@@ -37,8 +35,12 @@ public record VoiceDraft(
      */
     public static VoiceDraft from(ClientConfig config, String sttProvider, String ttsProvider) {
         return new VoiceDraft(
-                sttProvider, cloud(config.voice.stt.cloud, sttProvider), false,
-                ttsProvider, cloud(config.voice.tts.cloud, ttsProvider), false);
+                sttProvider,
+                cloud(config.voice.stt.cloud, sttProvider),
+                false,
+                ttsProvider,
+                cloud(config.voice.tts.cloud, ttsProvider),
+                false);
     }
 
     public VoiceDraft withSttReveal(boolean reveal) {
@@ -52,8 +54,8 @@ public record VoiceDraft(
     /** Never prints a key (rule 7); {@link Cloud#toString()} redacts it. */
     @Override
     public String toString() {
-        return "VoiceDraft[sttProvider=" + sttProvider + ", stt=" + stt + ", sttReveal=" + sttReveal
-                + ", ttsProvider=" + ttsProvider + ", tts=" + tts + ", ttsReveal=" + ttsReveal + "]";
+        return "VoiceDraft[sttProvider=" + sttProvider + ", stt=" + stt + ", sttReveal=" + sttReveal + ", ttsProvider="
+                + ttsProvider + ", tts=" + tts + ", ttsReveal=" + ttsReveal + "]";
     }
 
     /** Writes the draft into the live config; the save button persists it. */
@@ -72,22 +74,24 @@ public record VoiceDraft(
     }
 
     private static Cloud cloud(Map<String, ClientConfig.CloudSettings> cloud, String provider) {
-        ClientConfig.CloudSettings settings =
-                cloud == null || provider == null ? null : cloud.get(provider);
+        ClientConfig.CloudSettings settings = cloud == null || provider == null ? null : cloud.get(provider);
         if (settings == null) {
             return new Cloud(null, null, null, null, null, null);
         }
-        return new Cloud(settings.apiKey, settings.model, settings.voice,
-                settings.folderId, settings.baseUrl, settings.language);
+        return new Cloud(
+                settings.apiKey,
+                settings.model,
+                settings.voice,
+                settings.folderId,
+                settings.baseUrl,
+                settings.language);
     }
 
-    private static void write(
-            Map<String, ClientConfig.CloudSettings> cloud, String provider, Cloud values) {
+    private static void write(Map<String, ClientConfig.CloudSettings> cloud, String provider, Cloud values) {
         if (values == null) {
             return;
         }
-        ClientConfig.CloudSettings settings =
-                cloud.computeIfAbsent(provider, id -> new ClientConfig.CloudSettings());
+        ClientConfig.CloudSettings settings = cloud.computeIfAbsent(provider, id -> new ClientConfig.CloudSettings());
         settings.apiKey = blankToNull(values.apiKey());
         settings.model = blankToNull(values.model());
         settings.voice = blankToNull(values.voice());

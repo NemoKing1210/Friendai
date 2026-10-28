@@ -10,6 +10,7 @@ import dev.friendai.crafting.StationLease;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
+import dev.friendai.queue.QueueSave;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.survival.HungerModel;
@@ -22,16 +23,15 @@ import dev.friendai.task.builtin.CollectStationTask;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.combat.CombatController;
-import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.combat.CombatMode;
 import dev.friendai.task.cooking.FurnaceJobs;
 import dev.friendai.task.crafting.Stations;
+import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.tool.InventoryAccess;
-import dev.friendai.queue.QueueSave;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,26 +47,25 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.DamageTypeTags;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity.RemovalReason;
-import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -91,11 +90,13 @@ public class CompanionEntity extends PathfinderMob {
     /** Synced so the inventory window and the HUD can show the level and the progress bar. */
     private static final EntityDataAccessor<Integer> DATA_XP_LEVEL =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
+
     private static final EntityDataAccessor<Float> DATA_XP_PROGRESS =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.FLOAT);
     /** Synced hash of the custom skin; empty means the default look. Clients fetch the image by this hash. */
     private static final EntityDataAccessor<String> DATA_SKIN =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.STRING);
+
     private static final EntityDataAccessor<Boolean> DATA_SLIM =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_CREATIVE_MODE =
@@ -107,19 +108,23 @@ public class CompanionEntity extends PathfinderMob {
     private static final float STARTING_SATURATION = 5.0f;
     /** Vanilla exhaustion per block broken, per attack, per hit taken and per jump. */
     public static final float EXHAUSTION_BLOCK = 0.005f;
+
     public static final float EXHAUSTION_ATTACK = 0.1f;
     private static final float EXHAUSTION_DAMAGE = 0.1f;
     private static final float EXHAUSTION_JUMP = 0.05f;
     private static final float EXHAUSTION_SWIM_PER_METER = 0.01f;
     /** How often, and how far, the companion takes items the owner threw: "here, take this". */
     private static final int OWNER_PICKUP_INTERVAL = 10;
+
     private static final double OWNER_PICKUP_RADIUS = 3.0;
     /** Experience orbs inside the pull radius drift toward the companion; inside the pickup radius they are absorbed. */
     public static final double XP_PULL_RADIUS = 8.0;
+
     public static final double XP_PICKUP_RADIUS = 1.0;
 
     /** How often the companion looks for stations it left out, and how far it will walk back for one. */
     private static final int STATION_WATCH_INTERVAL = 20;
+
     private static final double STATION_RECOVERY_RADIUS = 32.0;
 
     private UUID ownerUuid;
@@ -127,14 +132,13 @@ public class CompanionEntity extends PathfinderMob {
     private final SimpleContainer inventory = new SimpleContainer(27);
     private final HungerModel hunger = new HungerModel();
     private final ExperienceModel experience = new ExperienceModel();
-    private final TaskRunner taskRunner =
-            new TaskRunner(this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow,
-                    this::mayFollowOwner);
+    private final TaskRunner taskRunner = new TaskRunner(
+            this, () -> TaskSettings.taskTimeoutSec, () -> TaskSettings.defaultFollow, this::mayFollowOwner);
     private final CombatController combatController = new CombatController(this);
     private final FireReflex fireReflex = new FireReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
-    private final HungerWatcher hungerWatcher = new HungerWatcher(
-            this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
+    private final HungerWatcher hungerWatcher =
+            new HungerWatcher(this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
     private final StationLease stationLease = new StationLease();
     private transient CompanionHands hands;
     private transient Blueprint lastPreview;
@@ -144,9 +148,11 @@ public class CompanionEntity extends PathfinderMob {
     private transient int pathingTicks;
     /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
     private transient dev.friendai.task.nav.Navigator lastNavigator;
+
     private transient long lastNavigatorTick;
     /** Flight and landing are runtime-only; the mode preference itself is persisted separately. */
     private transient boolean creativeFlightActive;
+
     private transient boolean creativeLanding;
     private transient int creativeLandingTicks;
     private int furnaceWatchTicks;
@@ -158,6 +164,7 @@ public class CompanionEntity extends PathfinderMob {
     private int inventoryViewers;
     /** Whether the companion menu is open for this companion: the world keeps running, the companion's work pauses. */
     private boolean menuViewerOpen;
+
     private CombatSettings combatSettings = CombatSettings.defaults();
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
@@ -208,7 +215,8 @@ public class CompanionEntity extends PathfinderMob {
 
     /** Pulls orbs in the pull radius toward the chest, like vanilla does for a player, and absorbs those in reach. */
     private void collectExperienceOrbs() {
-        List<ExperienceOrb> orbs = level().getEntitiesOfClass(ExperienceOrb.class, getBoundingBox().inflate(XP_PULL_RADIUS));
+        List<ExperienceOrb> orbs =
+                level().getEntitiesOfClass(ExperienceOrb.class, getBoundingBox().inflate(XP_PULL_RADIUS));
         if (orbs.isEmpty()) {
             return;
         }
@@ -228,7 +236,8 @@ public class CompanionEntity extends PathfinderMob {
             }
             double pull = 1.0 - distance / XP_PULL_RADIUS;
             if (pull > 0.0) {
-                orb.setDeltaMovement(orb.getDeltaMovement().add(toward.normalize().scale(pull * pull * 0.1)));
+                orb.setDeltaMovement(
+                        orb.getDeltaMovement().add(toward.normalize().scale(pull * pull * 0.1)));
             }
         }
         if (absorbed) {
@@ -280,13 +289,15 @@ public class CompanionEntity extends PathfinderMob {
         }
         var state = FriendaiServerState.get(server);
         var cfg = state.config();
-        boolean inCombat = getTarget() != null || isSleeping()
-                || combatController.state() != CombatController.State.IDLE;
+        boolean inCombat =
+                getTarget() != null || isSleeping() || combatController.state() != CombatController.State.IDLE;
         return dev.friendai.agent.autonomy.DefaultActivityPolicy.shouldFollow(
-                state.freeTime().state(ownerUuid), cfg.autonomy.toSettings(),
+                state.freeTime().state(ownerUuid),
+                cfg.autonomy.toSettings(),
                 dev.friendai.brain.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
                 followMode(),
-                taskRunner.busyWithOther() || taskRunner.ownerWorkQueued(), inCombat);
+                taskRunner.busyWithOther() || taskRunner.ownerWorkQueued(),
+                inCombat);
     }
 
     /**
@@ -430,8 +441,12 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     private void tickAutomaticBedRest(ServerLevel level) {
-        if (!SleepTask.isNight(level) || !idle() || taskRunner.hasWork() || taskRunner.paused()
-                || getTarget() != null || isSleeping()) {
+        if (!SleepTask.isNight(level)
+                || !idle()
+                || taskRunner.hasWork()
+                || taskRunner.paused()
+                || getTarget() != null
+                || isSleeping()) {
             automaticBedSearchTicks = 0;
             return;
         }
@@ -642,9 +657,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Compatibility adapter: the old preset changes protection and style only, preserving other settings. */
     public void setCombatMode(CombatMode mode) {
         CombatSettings mapped = (mode == null ? CombatMode.DEFENSIVE : mode).toSettings();
-        this.combatSettings = combatSettings
-                .withProtection(mapped.protection())
-                .withStyle(mapped.style());
+        this.combatSettings = combatSettings.withProtection(mapped.protection()).withStyle(mapped.style());
     }
 
     public PaceMode paceMode() {
@@ -787,7 +800,9 @@ public class CompanionEntity extends PathfinderMob {
     /** Refreshes the runtime mirror from the single per-owner saved preference. */
     public void syncCreativeModePreference() {
         if (ownerUuid != null && level() instanceof ServerLevel serverLevel) {
-            setCreativeMode(FriendaiServerState.get(serverLevel.getServer()).companionLife().creativeMode(ownerUuid));
+            setCreativeMode(FriendaiServerState.get(serverLevel.getServer())
+                    .companionLife()
+                    .creativeMode(ownerUuid));
         }
     }
 
@@ -838,7 +853,8 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return Optional.empty();
         }
-        return Optional.of(FriendaiServerState.get(serverLevel.getServer()).memory().book(ownerUuid));
+        return Optional.of(
+                FriendaiServerState.get(serverLevel.getServer()).memory().book(ownerUuid));
     }
 
     public SimpleContainer inventory() {
@@ -924,7 +940,8 @@ public class CompanionEntity extends PathfinderMob {
     /** Moves dropped stacks within {@code radius} that pass {@code filter}; returns the number of items moved. */
     public int collectNearbyItems(double radius, Predicate<ItemEntity> filter) {
         int moved = 0;
-        List<ItemEntity> items = level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(radius));
+        List<ItemEntity> items =
+                level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(radius));
         for (ItemEntity entity : items) {
             if (canCollect(entity) && filter.test(entity)) {
                 moved += storeItem(entity);
@@ -941,13 +958,14 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid == null) {
             return;
         }
-        List<ItemEntity> items = level().getEntitiesOfClass(
-                ItemEntity.class, getBoundingBox().inflate(OWNER_PICKUP_RADIUS));
+        List<ItemEntity> items =
+                level().getEntitiesOfClass(ItemEntity.class, getBoundingBox().inflate(OWNER_PICKUP_RADIUS));
         for (ItemEntity entity : items) {
             if (entity.isRemoved()) {
                 continue;
             }
-            if (entity.getOwner() instanceof ServerPlayer player && player.getUUID().equals(ownerUuid)) {
+            if (entity.getOwner() instanceof ServerPlayer player
+                    && player.getUUID().equals(ownerUuid)) {
                 storeItem(entity);
             }
         }
@@ -998,7 +1016,9 @@ public class CompanionEntity extends PathfinderMob {
     /** Killing or dismissing the companion drops its anchor; unloading the chunk or changing dimension keeps it. */
     @Override
     public void remove(RemovalReason reason) {
-        if (reason.shouldDestroy() && ownerUuid != null && !level().isClientSide()
+        if (reason.shouldDestroy()
+                && ownerUuid != null
+                && !level().isClientSide()
                 && level() instanceof ServerLevel serverLevel) {
             FriendaiServerState.get(serverLevel.getServer()).chunkLoader().forget(ownerUuid);
         }
@@ -1038,8 +1058,11 @@ public class CompanionEntity extends PathfinderMob {
             for (int i = 0; i < parts.size(); i++) output.putString("SavedQueue" + i, parts.get(i));
         });
         if (savedQueue.isEmpty()) {
-            taskRunner.current().filter(task -> !task.type().equals("follow"))
-                    .map(Task::saveData).ifPresent(saved -> output.putString("SavedTask", saved));
+            taskRunner
+                    .current()
+                    .filter(task -> !task.type().equals("follow"))
+                    .map(Task::saveData)
+                    .ifPresent(saved -> output.putString("SavedTask", saved));
         }
     }
 

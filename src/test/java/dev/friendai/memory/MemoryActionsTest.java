@@ -98,14 +98,18 @@ class MemoryActionsTest {
     void forgetUnknownIdIsError() {
         assertEquals(
                 "There is no fact [9].",
-                assertThrows(IllegalArgumentException.class, () -> actions(ownerCaller).forget(9))
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> actions(ownerCaller).forget(9))
                         .getMessage());
     }
 
     @Test
     void guestForgetsOnlyOwnFacts() {
-        int own = book.addFact(Subject.player(G), Category.NOTE, "mine", G, "Gus", 0, L).id();
-        int other = book.addFact(Subject.WORLD, Category.NOTE, "base", O, "Steve", 0, L).id();
+        int own = book.addFact(Subject.player(G), Category.NOTE, "mine", G, "Gus", 0, L)
+                .id();
+        int other = book.addFact(Subject.WORLD, Category.NOTE, "base", O, "Steve", 0, L)
+                .id();
         assertEquals("Forgot [" + own + "].", actions(guest).forget(own));
         assertThrows(IllegalArgumentException.class, () -> actions(guest).forget(other));
     }
@@ -124,14 +128,17 @@ class MemoryActionsTest {
         book.ensurePlayer(B, "Bob");
         assertEquals(
                 "You can only recall facts about the current speaker.",
-                assertThrows(IllegalArgumentException.class, () -> actions(guest).recall("Bob"))
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> actions(guest).recall("Bob"))
                         .getMessage());
     }
 
     @Test
     void anonymousGuestCannotWriteInsteadOfCrashing() {
         var anonymous = new Caller(null, "", AccessLevel.GUEST);
-        var e = assertThrows(IllegalArgumentException.class, () -> actions(anonymous).remember("me", "NOTE", "x"));
+        var e = assertThrows(
+                IllegalArgumentException.class, () -> actions(anonymous).remember("me", "NOTE", "x"));
         assertTrue(e.getMessage().startsWith("You cannot remember that for this speaker (guest)"));
         assertTrue(book.allFacts().isEmpty());
     }

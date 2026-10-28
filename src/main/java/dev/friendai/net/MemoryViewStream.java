@@ -109,8 +109,9 @@ public final class MemoryViewStream {
                 status,
                 state.config().companion.description);
         if (ServerPlayNetworking.canSend(player, MemoryViewS2CPayload.TYPE)) {
-            ServerPlayNetworking.send(player, new MemoryViewS2CPayload(
-                    MemoryViewCodec.encodeFitting(view, MemoryViewS2CPayload.MAX_BYTES)));
+            ServerPlayNetworking.send(
+                    player,
+                    new MemoryViewS2CPayload(MemoryViewCodec.encodeFitting(view, MemoryViewS2CPayload.MAX_BYTES)));
         }
         state.memoryViewers().markSent(uuid, book.revision(), viewEpoch);
     }

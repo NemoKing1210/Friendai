@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.pathing.Pos;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
@@ -60,7 +60,9 @@ public final class FarmTask implements Task {
         FarmReport report = pass.report();
         summary = report.text(radius);
         boolean nothing = report.harvested().isEmpty()
-                && report.replanted() == 0 && report.planted() == 0 && report.tilled() == 0;
+                && report.replanted() == 0
+                && report.planted() == 0
+                && report.tilled() == 0;
         return nothing ? TaskStatus.FAILED : TaskStatus.SUCCESS;
     }
 
@@ -92,9 +94,16 @@ public final class FarmTask implements Task {
         if (dimension.isBlank()) {
             return null;
         }
-        String label = crop == null ? "mixed" : PlaceNames.shortItem(BuiltInRegistries.ITEM.getKey(crop).getPath());
-        return new PlaceCandidate(PlaceKind.FARM, label, "", dimension,
+        String label = crop == null
+                ? "mixed"
+                : PlaceNames.shortItem(BuiltInRegistries.ITEM.getKey(crop).getPath());
+        return new PlaceCandidate(
+                PlaceKind.FARM,
+                label,
+                "",
+                dimension,
                 new Pos(center.getX(), center.getY(), center.getZ()),
-                Math.clamp(radius, 1, Place.RADIUS_MAX), PlaceSource.FARM);
+                Math.clamp(radius, 1, Place.RADIUS_MAX),
+                PlaceSource.FARM);
     }
 }

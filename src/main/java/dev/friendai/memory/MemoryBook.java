@@ -23,11 +23,13 @@ public final class MemoryBook {
     private String companionName;
     /** The personality the owner gave the companion; null means the configured default applies. */
     private CompanionDescription description = CompanionDescription.EMPTY;
+
     private OwnerProfile ownerProfile = OwnerProfile.EMPTY;
     /** The encoded goal board; null when there are no goals. */
     private String goals;
     /** The encoded free-time state; null when free time was never used. */
     private String freeTime;
+
     private int nextId = 1;
     private long revision;
     private boolean dirty;
@@ -60,8 +62,8 @@ public final class MemoryBook {
         if (java.util.Objects.equals(existing.language(), normalized)) {
             return false;
         }
-        players.put(uuid, new PlayerRecord(uuid, existing.lastName(), existing.trusted(), existing.lastSeen(),
-                normalized));
+        players.put(
+                uuid, new PlayerRecord(uuid, existing.lastName(), existing.trusted(), existing.lastSeen(), normalized));
         dirty = true;
         revision++;
         return true;
@@ -74,7 +76,8 @@ public final class MemoryBook {
         }
         String needle = name.toLowerCase(Locale.ROOT);
         return players.values().stream()
-                .filter(p -> p.lastName() != null && p.lastName().toLowerCase(Locale.ROOT).equals(needle))
+                .filter(p -> p.lastName() != null
+                        && p.lastName().toLowerCase(Locale.ROOT).equals(needle))
                 .max(Comparator.comparingLong(PlayerRecord::lastSeen));
     }
 
@@ -93,7 +96,8 @@ public final class MemoryBook {
             return;
         }
         if (name != null && !name.equals(existing.lastName())) {
-            players.put(uuid, new PlayerRecord(uuid, name, existing.trusted(), existing.lastSeen(), existing.language()));
+            players.put(
+                    uuid, new PlayerRecord(uuid, name, existing.trusted(), existing.lastSeen(), existing.language()));
             dirty = true;
             revision++;
         }
@@ -120,7 +124,8 @@ public final class MemoryBook {
             return false;
         }
         long lastSeen = existing == null ? now : existing.lastSeen();
-        players.put(uuid, new PlayerRecord(uuid, name, trusted, lastSeen, existing == null ? null : existing.language()));
+        players.put(
+                uuid, new PlayerRecord(uuid, name, trusted, lastSeen, existing == null ? null : existing.language()));
         dirty = true;
         revision++;
         return true;
@@ -172,8 +177,7 @@ public final class MemoryBook {
     public boolean setPersona(String text) {
         String normalized = PersonaText.parse(text)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Invalid persona. Use 1-" + PersonaText.MAX_LENGTH
-                                + " characters, without formatting codes."));
+                        "Invalid persona. Use 1-" + PersonaText.MAX_LENGTH + " characters, without formatting codes."));
         if (normalized.equals(description.summary())) {
             return false;
         }
@@ -325,13 +329,7 @@ public final class MemoryBook {
      * own current text is allowed; another fact of the same subject with that text is a duplicate.
      */
     public Fact editFact(
-            int id,
-            Category category,
-            String text,
-            UUID authorUuid,
-            String authorName,
-            long now,
-            MemoryLimits limits) {
+            int id, Category category, String text, UUID authorUuid, String authorName, long now, MemoryLimits limits) {
         Fact existing = facts.get(id);
         if (existing == null) {
             throw new MemoryLimitException(
@@ -351,8 +349,7 @@ public final class MemoryBook {
                     "This is already remembered as [" + otherId + "].",
                     List.of(otherId));
         }
-        Fact updated =
-                new Fact(id, existing.subject(), category, normalized, authorUuid, authorName, now);
+        Fact updated = new Fact(id, existing.subject(), category, normalized, authorUuid, authorName, now);
         facts.put(id, updated);
         dirty = true;
         revision++;
@@ -391,8 +388,7 @@ public final class MemoryBook {
     public int clearFacts(Subject subject) {
         List<Fact> matching = facts(subject);
         matching.forEach(f -> facts.remove(f.id()));
-        boolean languageCleared =
-                subject instanceof Subject.Player player && forgetLanguage(player.uuid());
+        boolean languageCleared = subject instanceof Subject.Player player && forgetLanguage(player.uuid());
         if (!matching.isEmpty() || languageCleared) {
             dirty = true;
             revision++;
@@ -436,8 +432,7 @@ public final class MemoryBook {
         if (existing == null || existing.language() == null) {
             return false;
         }
-        players.put(uuid, new PlayerRecord(
-                uuid, existing.lastName(), existing.trusted(), existing.lastSeen(), null));
+        players.put(uuid, new PlayerRecord(uuid, existing.lastName(), existing.trusted(), existing.lastSeen(), null));
         return true;
     }
 
@@ -460,8 +455,13 @@ public final class MemoryBook {
         dirty = false;
     }
 
-    public CompanionDescription description() { return description; }
-    public OwnerProfile ownerProfile() { return ownerProfile; }
+    public CompanionDescription description() {
+        return description;
+    }
+
+    public OwnerProfile ownerProfile() {
+        return ownerProfile;
+    }
 
     public boolean setDescription(CompanionDescription value) {
         java.util.Objects.requireNonNull(value);
@@ -485,8 +485,8 @@ public final class MemoryBook {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
         file.companionName = companionName;
-        file.description = new MemoryFile.DescriptionEntry(description.summary(),description.details());
-        file.ownerProfile = new MemoryFile.OwnerProfileEntry(ownerProfile.language(),ownerProfile.address());
+        file.description = new MemoryFile.DescriptionEntry(description.summary(), description.details());
+        file.ownerProfile = new MemoryFile.OwnerProfileEntry(ownerProfile.language(), ownerProfile.address());
         file.goals = goals;
         file.freeTime = freeTime;
         for (Fact fact : facts.values()) {
@@ -495,7 +495,8 @@ public final class MemoryBook {
             entry.subject = fact.subject().key();
             entry.category = fact.category().name();
             entry.text = fact.text();
-            entry.authorUuid = fact.authorUuid() == null ? null : fact.authorUuid().toString();
+            entry.authorUuid =
+                    fact.authorUuid() == null ? null : fact.authorUuid().toString();
             entry.authorName = fact.authorName();
             entry.createdAt = fact.createdAt();
             file.facts.add(entry);
@@ -524,14 +525,21 @@ public final class MemoryBook {
         if (file != null) {
             CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
             if (file.description != null) {
-                try { book.description = new CompanionDescription(file.description.summary(), file.description.details()); }
-                catch (IllegalArgumentException ignored) { /* Keep other memory when description is malformed. */ }
+                try {
+                    book.description = new CompanionDescription(file.description.summary(), file.description.details());
+                } catch (IllegalArgumentException ignored) {
+                    /* Keep other memory when description is malformed. */
+                }
             } else {
-                PersonaText.parse(file.persona).ifPresent(text -> book.description = new CompanionDescription(text, ""));
+                PersonaText.parse(file.persona)
+                        .ifPresent(text -> book.description = new CompanionDescription(text, ""));
             }
             if (file.ownerProfile != null) {
-                try { book.ownerProfile = new OwnerProfile(file.ownerProfile.language(), file.ownerProfile.address()); }
-                catch (IllegalArgumentException ignored) { /* Keep unrelated memory. */ }
+                try {
+                    book.ownerProfile = new OwnerProfile(file.ownerProfile.language(), file.ownerProfile.address());
+                } catch (IllegalArgumentException ignored) {
+                    /* Keep unrelated memory. */
+                }
             }
             if (file.goals != null && !file.goals.isBlank()) {
                 book.goals = file.goals;
@@ -551,8 +559,8 @@ public final class MemoryBook {
                 } catch (IllegalArgumentException e) {
                     continue;
                 }
-                book.players.put(uuid, new PlayerRecord(uuid, entry.lastName, entry.trusted, entry.lastSeen,
-                        entry.language));
+                book.players.put(
+                        uuid, new PlayerRecord(uuid, entry.lastName, entry.trusted, entry.lastSeen, entry.language));
             }
         }
         if (file != null && file.facts != null) {

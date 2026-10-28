@@ -1,7 +1,7 @@
 package dev.friendai.task.mining;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -18,7 +18,12 @@ import net.minecraft.world.phys.Vec3;
  * returned state means for its own task.
  */
 public final class BreakAction {
-    public enum State { WORKING, BROKEN, GONE, BLOCKED }
+    public enum State {
+        WORKING,
+        BROKEN,
+        GONE,
+        BLOCKED
+    }
 
     private static final int SWING_INTERVAL = 5;
 
@@ -27,6 +32,7 @@ public final class BreakAction {
     private final boolean allowBreakingSupport;
     /** Whether the block is already broken: the action then keeps reporting it, however often it is ticked. */
     private boolean broken;
+
     private int breakTicks;
     private int breakNeeded;
     /** Why the last attempt refused, or null when it never did; the caller renders it. */
@@ -84,7 +90,8 @@ public final class BreakAction {
             ToolSelector.equipBest(companion, state);
             var tool = companion.getMainHandItem();
             boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
-            breakNeeded = BreakProgress.ticksToBreak(state.getDestroySpeed(level, pos), tool.getDestroySpeed(state), correct);
+            breakNeeded =
+                    BreakProgress.ticksToBreak(state.getDestroySpeed(level, pos), tool.getDestroySpeed(state), correct);
         }
         Vec3 center = Vec3.atCenterOf(pos);
         companion.getLookControl().setLookAt(center.x, center.y, center.z);

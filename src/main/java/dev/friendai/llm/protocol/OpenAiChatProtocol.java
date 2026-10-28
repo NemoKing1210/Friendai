@@ -32,7 +32,10 @@ public final class OpenAiChatProtocol implements LlmProtocol {
     @Override
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         return transport
-                .postJson(ProtocolSupport.uri(endpoint, "/chat/completions"), ProtocolSupport.headers(endpoint), toWire(request))
+                .postJson(
+                        ProtocolSupport.uri(endpoint, "/chat/completions"),
+                        ProtocolSupport.headers(endpoint),
+                        toWire(request))
                 .thenApply(this::fromWire);
     }
 
@@ -116,7 +119,8 @@ public final class OpenAiChatProtocol implements LlmProtocol {
 
     public LlmResponse fromWire(JsonObject o) {
         JsonArray choices = ProtocolSupport.arr(o, "choices");
-        JsonObject choice = choices.isEmpty() ? new JsonObject() : choices.get(0).getAsJsonObject();
+        JsonObject choice =
+                choices.isEmpty() ? new JsonObject() : choices.get(0).getAsJsonObject();
         JsonObject message = ProtocolSupport.obj(choice, "message");
         String text = "";
         List<ToolCall> calls = new ArrayList<>();
@@ -150,6 +154,8 @@ public final class OpenAiChatProtocol implements LlmProtocol {
                 text,
                 calls,
                 stop,
-                new Usage(ProtocolSupport.intOr(usage, "prompt_tokens", 0), ProtocolSupport.intOr(usage, "completion_tokens", 0)));
+                new Usage(
+                        ProtocolSupport.intOr(usage, "prompt_tokens", 0),
+                        ProtocolSupport.intOr(usage, "completion_tokens", 0)));
     }
 }

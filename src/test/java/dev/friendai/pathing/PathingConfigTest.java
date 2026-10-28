@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 class PathingConfigTest {
     @Test
     void withActionsKeepsTheOtherSettings() {
-        PathingConfig base = new PathingConfig(true, true, List.of("minecraft:obsidian"),
-                List.of("minecraft:planks"), 7, 123, 9);
+        PathingConfig base =
+                new PathingConfig(true, true, List.of("minecraft:obsidian"), List.of("minecraft:planks"), 7, 123, 9);
 
         PathingConfig quiet = base.withActions(false, false);
 

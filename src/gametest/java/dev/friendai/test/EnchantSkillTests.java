@@ -64,8 +64,8 @@ public class EnchantSkillTests {
         Result result = new Result();
         TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
         runner.setListener(result);
-        runner.start(new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, null),
-                "enchant_item");
+        runner.start(
+                new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, null), "enchant_item");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -76,13 +76,14 @@ public class EnchantSkillTests {
                 }
             }
             h.assertTrue(EnchantmentHelper.hasAnyEnchantments(sword), "the sword was not enchanted");
-            h.assertTrue(c.experience().level() == 29, "level was " + c.experience().level());
+            h.assertTrue(
+                    c.experience().level() == 29, "level was " + c.experience().level());
             h.assertTrue(count(c, Items.LAPIS_LAZULI) == 2, "lapis left " + count(c, Items.LAPIS_LAZULI));
         });
     }
 
-    private static void failing(GameTestHelper h, CompanionEntity c, EnchantItemTask task, String expected,
-            Runnable extra) {
+    private static void failing(
+            GameTestHelper h, CompanionEntity c, EnchantItemTask task, String expected, Runnable extra) {
         Result result = new Result();
         TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
         runner.setListener(result);
@@ -106,7 +107,9 @@ public class EnchantSkillTests {
         levels(c, 30);
         failing(h, c, swordTask(1), "lapis", () -> {
             h.assertTrue(count(c, Items.IRON_SWORD) == 1, "the sword must stay");
-            h.assertTrue(c.experience().level() == 30, "levels must be untouched: " + c.experience().level());
+            h.assertTrue(
+                    c.experience().level() == 30,
+                    "levels must be untouched: " + c.experience().level());
         });
     }
 
@@ -139,10 +142,14 @@ public class EnchantSkillTests {
         c.inventory().addItem(new ItemStack(Items.LAPIS_LAZULI, 3));
         levels(c, 30);
         BlockPos nowhere = h.absolutePos(new BlockPos(6, 85, 6));
-        failing(h, c, new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, nowhere),
-                "enchanting table", () -> {
-            h.assertTrue(count(c, Items.LAPIS_LAZULI) == 3, "lapis must stay");
-        });
+        failing(
+                h,
+                c,
+                new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, nowhere),
+                "enchanting table",
+                () -> {
+                    h.assertTrue(count(c, Items.LAPIS_LAZULI) == 3, "lapis must stay");
+                });
     }
 
     @GameTest
@@ -153,8 +160,12 @@ public class EnchantSkillTests {
         levels(c, 30);
         BlockPos table = h.absolutePos(new BlockPos(3, 89, 2));
         c.hands().overrideProtection(p -> p.equals(table));
-        failing(h, c, new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, table),
-                "protected", () -> {
+        failing(
+                h,
+                c,
+                new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, table),
+                "protected",
+                () -> {
                     h.assertTrue(count(c, Items.LAPIS_LAZULI) == 3, "lapis must stay");
                 });
     }

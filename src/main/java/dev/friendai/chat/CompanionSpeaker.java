@@ -24,6 +24,7 @@ public final class CompanionSpeaker implements Speaker {
     private final Consumer<Boolean> thinkingSink;
     /** The speaking entity and how far its voice carries, so clients can place it in the world. */
     private final Supplier<UUID> companionId;
+
     private final IntSupplier audibleRange;
 
     public CompanionSpeaker(
@@ -52,9 +53,7 @@ public final class CompanionSpeaker implements Speaker {
 
     /** The public chat line: only the name carries the derived colour, the reply keeps the default chat colour. */
     public static Component chatLine(String name, String text) {
-        return Component.literal("<")
-                .append(CompanionNames.styled(name))
-                .append(Component.literal("> " + text));
+        return Component.literal("<").append(CompanionNames.styled(name)).append(Component.literal("> " + text));
     }
 
     /**
@@ -93,8 +92,9 @@ public final class CompanionSpeaker implements Speaker {
     public void error(UserMessage message) {
         ServerPlayer player = server.getPlayerList().getPlayer(owner);
         if (player != null) {
-            player.sendSystemMessage(
-                    Component.literal("[" + name.get() + "] ").append(Components.of(message)).withStyle(ChatFormatting.RED));
+            player.sendSystemMessage(Component.literal("[" + name.get() + "] ")
+                    .append(Components.of(message))
+                    .withStyle(ChatFormatting.RED));
         }
     }
 }

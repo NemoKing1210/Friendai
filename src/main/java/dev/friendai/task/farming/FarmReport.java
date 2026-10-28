@@ -8,10 +8,17 @@ import java.util.Map;
  * @param seedShortfall seeds the last plan was missing, by item id
  * @param unsown empty cells the last plan could not sow
  */
-public record FarmReport(Map<String, Integer> harvested, int replanted, int planted, int tilled, int noSeeds,
-        boolean noHoe, Map<String, Integer> seedShortfall, int unsown) {
-    public FarmReport(Map<String, Integer> harvested, int replanted, int planted, int tilled, int noSeeds,
-            boolean noHoe) {
+public record FarmReport(
+        Map<String, Integer> harvested,
+        int replanted,
+        int planted,
+        int tilled,
+        int noSeeds,
+        boolean noHoe,
+        Map<String, Integer> seedShortfall,
+        int unsown) {
+    public FarmReport(
+            Map<String, Integer> harvested, int replanted, int planted, int tilled, int noSeeds, boolean noHoe) {
         this(harvested, replanted, planted, tilled, noSeeds, noHoe, Map.of(), 0);
     }
 

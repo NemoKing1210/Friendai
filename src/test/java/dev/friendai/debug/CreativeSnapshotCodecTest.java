@@ -8,10 +8,10 @@ import org.junit.jupiter.api.Test;
 
 class CreativeSnapshotCodecTest {
     /**
-     * The optional fields written after the creative ones: the free-time flag, an empty activity string (length prefix
-     * only) and the two mode flags.
+     * The optional fields written after the creative ones: the free-time flag, an empty activity string (length
+     * prefix only), the two mode flags, and the versioned status tail (version byte plus three empty strings).
      */
-    private static final int FREE_TIME_TAIL = 1 + 4 + 2;
+    private static final int FREE_TIME_TAIL = 1 + 4 + 2 + 1 + 3 * 4;
 
     @Test
     void roundTripsModeAndAvailability() {

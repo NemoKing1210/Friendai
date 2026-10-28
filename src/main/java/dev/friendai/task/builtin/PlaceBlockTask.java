@@ -1,12 +1,16 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.pathing.Pos;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.creative.CreativeAction;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
@@ -19,6 +23,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Blocks;
 
 /** Places one block from the inventory at the given coordinates, or at a free spot nearby. */
 public final class PlaceBlockTask implements Task {
@@ -34,17 +39,40 @@ public final class PlaceBlockTask implements Task {
     private Direction face;
     private boolean prepared;
     private BlockPos placedAt;
+    private String dimension = "";
     private String summary = "";
 
     public PlaceBlockTask(BlockItem item, BlockPos target) {
         this.item = item;
         this.target = target;
-        this.matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString()).orElseThrow();
+        this.matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString())
+                .orElseThrow();
     }
 
     /** Where the block ended up after a success, or null. */
     public BlockPos placedAt() {
         return placedAt;
+    }
+
+    /**
+     * A chest the companion placed deliberately is a storage place, so free time can find it and unload into it
+     * next time instead of asking the director for the same chest forever.
+     */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (placedAt == null
+                || dimension.isBlank()
+                || item != Blocks.CHEST.asItem() && item != Blocks.TRAPPED_CHEST.asItem()) {
+            return null;
+        }
+        return new PlaceCandidate(
+                PlaceKind.STORAGE,
+                "storage",
+                "storage",
+                dimension,
+                new Pos(placedAt.getX(), placedAt.getY(), placedAt.getZ()),
+                2,
+                PlaceSource.BUILD);
     }
 
     private String itemId() {
@@ -59,13 +87,16 @@ public final class PlaceBlockTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         BlockPos destination = spot != null ? spot : target;
-        return destination == null ? List.of()
-                : List.of(new DebugTarget(destination.getX(), destination.getY(), destination.getZ(),
-                        DebugAction.PLACE, itemId()));
+        return destination == null
+                ? List.of()
+                : List.of(new DebugTarget(
+                        destination.getX(), destination.getY(), destination.getZ(), DebugAction.PLACE, itemId()));
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {
@@ -111,8 +142,7 @@ public final class PlaceBlockTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
 
         Optional<String> problem = PlaceSpot.problem(c.level(), spot, companion);

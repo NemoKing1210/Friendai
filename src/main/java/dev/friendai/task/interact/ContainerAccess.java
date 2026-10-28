@@ -1,8 +1,16 @@
 package dev.friendai.task.interact;
 
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.knowledge.ResourceKnowledge;
+import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.pathing.Pos;
+import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -14,14 +22,6 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.core.FriendaiServerState;
-import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.knowledge.ResourceKnowledge;
-import dev.friendai.knowledge.ResourceObservation;
-import dev.friendai.pathing.Pos;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /** Storage containers the companion may use: chests (double chests merged), barrels, shulker boxes. */
 public final class ContainerAccess {
@@ -50,13 +50,18 @@ public final class ContainerAccess {
         if (!(companion.level() instanceof ServerLevel level)) return List.of();
         BlockMatcher matcher = BlockMatcher.parse("#minecraft:shulker_boxes").orElse(null);
         BlockMatcher containers = new BlockMatcher() {
-            @Override public boolean test(net.minecraft.world.level.block.state.BlockState state) {
+            @Override
+            public boolean test(net.minecraft.world.level.block.state.BlockState state) {
                 return state.is(net.minecraft.world.level.block.Blocks.CHEST)
                         || state.is(net.minecraft.world.level.block.Blocks.TRAPPED_CHEST)
                         || state.is(net.minecraft.world.level.block.Blocks.BARREL)
                         || matcher != null && matcher.test(state);
             }
-            @Override public String label() { return "storage containers"; }
+
+            @Override
+            public String label() {
+                return "storage containers";
+            }
         };
         return FriendaiServerState.get(level.getServer()).resources().knownOrVisible(companion, containers, radius, 32);
     }
@@ -79,8 +84,7 @@ public final class ContainerAccess {
     }
 
     /** Every storage container within radius whose contents pass the filter, nearest first. */
-    public static List<BlockPos> all(
-            ServerLevel level, BlockPos origin, int radius, Predicate<Container> filter) {
+    public static List<BlockPos> all(ServerLevel level, BlockPos origin, int radius, Predicate<Container> filter) {
         List<BlockPos> found = new ArrayList<>();
         int minChunkX = (origin.getX() - radius) >> 4;
         int maxChunkX = (origin.getX() + radius) >> 4;
@@ -112,12 +116,16 @@ public final class ContainerAccess {
 
     /** "minecraft:chest" for summaries. */
     public static String label(ServerLevel level, BlockPos pos) {
-        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+        return BuiltInRegistries.BLOCK
+                .getKey(level.getBlockState(pos).getBlock())
+                .toString();
     }
 
     /** The block id's path ("chest", "barrel"), for prose in summaries. */
     public static String shortLabel(ServerLevel level, BlockPos pos) {
-        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).getPath();
+        return BuiltInRegistries.BLOCK
+                .getKey(level.getBlockState(pos).getBlock())
+                .getPath();
     }
 
     /** Saves contents observed by an authorized interaction, never by candidate discovery. */
@@ -126,10 +134,11 @@ public final class ContainerAccess {
         Map<String, Integer> items = new LinkedHashMap<>();
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot);
-            if (!stack.isEmpty()) items.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
+            if (!stack.isEmpty())
+                items.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
         }
-        var location = new ResourceObservation.Location(level.dimension().identifier().toString(),
-                new Pos(pos.getX(), pos.getY(), pos.getZ()));
+        var location = new ResourceObservation.Location(
+                level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
         long tick = level.getServer().overworld().getGameTime();
         var book = FriendaiServerState.get(level.getServer()).knowledge().book(companion.ownerUuid());
         book.invalidateContainer(location);

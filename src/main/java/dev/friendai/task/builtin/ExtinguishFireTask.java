@@ -1,6 +1,5 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.fire.BurningCell;
 import dev.friendai.fire.ExtinguishPlan;
 import dev.friendai.fire.ExtinguishStep;
@@ -38,6 +37,7 @@ import net.minecraft.world.phys.Vec3;
 public final class ExtinguishFireTask implements Task {
     /** A single fire is a short job; past this something is wrong with the plan. */
     public static final int TIMEOUT_TICKS = 600;
+
     private static final int REPLANS = 1;
 
     private final FireTarget target;
@@ -57,6 +57,7 @@ public final class ExtinguishFireTask implements Task {
     private boolean recovered = true;
     /** A source this task poured and has not taken back yet; the cleanup task owns it if the task is cancelled. */
     private BlockPos pendingSource;
+
     private String summary = "";
 
     /** Every fire within {@code radius} of where the task started. */
@@ -184,8 +185,9 @@ public final class ExtinguishFireTask implements Task {
             case FireTarget.Self self -> "my own fire";
             case FireTarget.Owner owner -> "the fire on its owner";
             case FireTarget.BurningEntity entity -> "the fire on a " + entity.kind();
-            case FireTarget.Block block -> "the fire at " + block.pos().x() + " " + block.pos().y() + " "
-                    + block.pos().z();
+            case FireTarget.Block block ->
+                "the fire at " + block.pos().x() + " " + block.pos().y() + " "
+                        + block.pos().z();
             case FireTarget.Area area -> area.cells().size() + " fires";
         };
     }
@@ -199,7 +201,8 @@ public final class ExtinguishFireTask implements Task {
         if (nearby || live instanceof FireTarget.Area) {
             // A reserved fire (the cooking campfire, a hive smoker) is not ours to put out, so it must not keep the
             // area unresolved either.
-            List<BurningCell> ours = cells.stream().filter(cell -> !cell.rails().reserved()).toList();
+            List<BurningCell> ours =
+                    cells.stream().filter(cell -> !cell.rails().reserved()).toList();
             live = new FireTarget.Area(ours.stream().map(BurningCell::pos).toList());
             cells = ours;
         }
@@ -325,12 +328,15 @@ public final class ExtinguishFireTask implements Task {
         ServerLevel level = c.level();
         return switch (live) {
             case FireTarget.Self self -> !c.companion().isOnFire();
-            case FireTarget.Owner owner -> c.owner().map(ownerPlayer -> !ownerPlayer.isOnFire()).orElse(true);
-            case FireTarget.BurningEntity entity -> burningEntity(level, blockPos(entity.pos()))
-                    .map(target -> !target.isOnFire()).orElse(true);
+            case FireTarget.Owner owner ->
+                c.owner().map(ownerPlayer -> !ownerPlayer.isOnFire()).orElse(true);
+            case FireTarget.BurningEntity entity ->
+                burningEntity(level, blockPos(entity.pos()))
+                        .map(target -> !target.isOnFire())
+                        .orElse(true);
             case FireTarget.Block block -> !isBurning(level.getBlockState(blockPos(block.pos())));
-            case FireTarget.Area area -> area.cells().stream()
-                    .noneMatch(pos -> isBurning(level.getBlockState(blockPos(pos))));
+            case FireTarget.Area area ->
+                area.cells().stream().noneMatch(pos -> isBurning(level.getBlockState(blockPos(pos))));
         };
     }
 
@@ -371,7 +377,8 @@ public final class ExtinguishFireTask implements Task {
     }
 
     private static Optional<LivingEntity> burningEntity(ServerLevel level, BlockPos pos) {
-        return level.getEntitiesOfClass(LivingEntity.class, new AABB(pos).inflate(1.5)).stream().findFirst();
+        return level.getEntitiesOfClass(LivingEntity.class, new AABB(pos).inflate(1.5)).stream()
+                .findFirst();
     }
 
     private static BlockPos blockPos(Pos pos) {

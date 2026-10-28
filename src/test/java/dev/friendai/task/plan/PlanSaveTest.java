@@ -36,8 +36,8 @@ class PlanSaveTest {
 
     @Test
     void nullGoalAndActiveAreOmitted() {
-        String saved = PlanSave.encode(null, 0, List.of(), null,
-                List.of(new PlanSave.Step("drop_items", new JsonObject())));
+        String saved =
+                PlanSave.encode(null, 0, List.of(), null, List.of(new PlanSave.Step("drop_items", new JsonObject())));
         PlanSave.Saved decoded = PlanSave.decode(saved).orElseThrow();
         assertEquals(null, decoded.goal());
         assertEquals(null, decoded.active());
@@ -46,9 +46,15 @@ class PlanSaveTest {
 
     @Test
     void activeTaskIsKept() {
-        String saved = PlanSave.encode("g", 0, List.of(), "build:id,1,2,3,north,true,false",
+        String saved = PlanSave.encode(
+                "g",
+                0,
+                List.of(),
+                "build:id,1,2,3,north,true,false",
                 List.of(new PlanSave.Step("build_structure", new JsonObject())));
-        assertEquals("build:id,1,2,3,north,true,false", PlanSave.decode(saved).orElseThrow().active());
+        assertEquals(
+                "build:id,1,2,3,north,true,false",
+                PlanSave.decode(saved).orElseThrow().active());
     }
 
     @Test
@@ -62,8 +68,8 @@ class PlanSaveTest {
         String noSteps = PlanSave.encode("g", 0, List.of(), null, List.of());
         assertTrue(PlanSave.decode(noSteps).isEmpty());
 
-        String tooFar = PlanSave.encode("g", 2, List.of(), null,
-                List.of(new PlanSave.Step("drop_items", new JsonObject())));
+        String tooFar =
+                PlanSave.encode("g", 2, List.of(), null, List.of(new PlanSave.Step("drop_items", new JsonObject())));
         assertTrue(PlanSave.decode(tooFar).isEmpty());
 
         String blankTool = "plan:{\"index\":0,\"done\":[],\"steps\":[{\"tool\":\"\",\"args\":{}}]}";

@@ -12,7 +12,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 
 /** Resolves a player resource name to the block ids whose remembered sites can supply it. */
@@ -28,7 +27,8 @@ public final class ResourceResolver {
     }
 
     public static Resolution resolve(ServerLevel level, String resource) {
-        if (resource == null || resource.isBlank()) return new Resolution(Set.of(), "unknown", false, "resource is blank");
+        if (resource == null || resource.isBlank())
+            return new Resolution(Set.of(), "unknown", false, "resource is blank");
         String text = resource.strip();
         if (text.startsWith("#")) return resolveBlockTag(text);
         Identifier id = Identifier.tryParse(text);
@@ -38,8 +38,8 @@ public final class ResourceResolver {
             if (crafted(level, blockId)) {
                 return resolveItem(level, blockId);
             }
-            return new Resolution(Set.of(blockId),
-                    ResourceFamily.ofBlocks(Set.of(blockId)).orElse(blockId), true, "block id");
+            return new Resolution(
+                    Set.of(blockId), ResourceFamily.ofBlocks(Set.of(blockId)).orElse(blockId), true, "block id");
         }
         if (!BuiltInRegistries.ITEM.containsKey(id)) {
             return new Resolution(Set.of(), id.toString(), false, "unknown block tag, block id or item id");
@@ -53,10 +53,14 @@ public final class ResourceResolver {
         TagKey<Block> tag = TagKey.create(Registries.BLOCK, id);
         Set<String> blocks = new LinkedHashSet<>();
         for (Block block : BuiltInRegistries.BLOCK) {
-            if (block.builtInRegistryHolder().is(tag)) blocks.add(BuiltInRegistries.BLOCK.getKey(block).toString());
+            if (block.builtInRegistryHolder().is(tag))
+                blocks.add(BuiltInRegistries.BLOCK.getKey(block).toString());
         }
         String family = ResourceFamily.ofBlocks(blocks).orElse("#" + id);
-        return new Resolution(blocks, family, !blocks.isEmpty(),
+        return new Resolution(
+                blocks,
+                family,
+                !blocks.isEmpty(),
                 blocks.isEmpty() ? "block tag has no registered members" : "block tag");
     }
 
@@ -80,22 +84,28 @@ public final class ResourceResolver {
                 if (source instanceof Source.Harvest harvest) blocks.add(harvest.crop());
             }
             for (var recipe : recipes.producing(current.id())) {
-                if (recipe.station() == Station.FURNACE || recipe.station() == Station.SMOKER
-                        || recipe.station() == Station.BLAST_FURNACE || recipe.station() == Station.CAMPFIRE) smelting = true;
+                if (recipe.station() == Station.FURNACE
+                        || recipe.station() == Station.SMOKER
+                        || recipe.station() == Station.BLAST_FURNACE
+                        || recipe.station() == Station.CAMPFIRE) smelting = true;
                 if (current.depth() < 5) {
-                    recipe.ingredients().forEach(ingredient -> ingredient.items().forEach(id ->
-                            pending.addLast(new ItemDepth(id, current.depth() + 1))));
+                    recipe.ingredients()
+                            .forEach(ingredient -> ingredient
+                                    .items()
+                                    .forEach(id -> pending.addLast(new ItemDepth(id, current.depth() + 1))));
                 }
             }
         }
-        String reason = blocks.isEmpty() ? "no block source is indexed for this item"
+        String reason = blocks.isEmpty()
+                ? "no block source is indexed for this item"
                 : smelting ? "source chain includes smelting" : "source chain resolved";
         String family = ResourceFamily.ofBlocks(blocks).orElse(itemId);
         return new Resolution(blocks, family, !blocks.isEmpty(), reason);
     }
 
     private static boolean crafted(ServerLevel level, String itemId) {
-        return RecipeIndex.of(level).producing(itemId).stream().anyMatch(recipe -> !recipe.station().isCooking());
+        return RecipeIndex.of(level).producing(itemId).stream()
+                .anyMatch(recipe -> !recipe.station().isCooking());
     }
 
     private record ItemDepth(String id, int depth) {}

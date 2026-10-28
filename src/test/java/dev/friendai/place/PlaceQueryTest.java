@@ -48,21 +48,48 @@ class PlaceQueryTest {
     @Test
     void otherDimensionsSortByRecency() {
         PlaceRegistry registry = registryWith(
-                placeAt(1, "older", NETHER, new Pos(0, 64, 0), 5),
-                placeAt(2, "newer", NETHER, new Pos(30, 64, 0), 9));
+                placeAt(1, "older", NETHER, new Pos(0, 64, 0), 5), placeAt(2, "newer", NETHER, new Pos(30, 64, 0), 9));
         List<PlaceQuery.Result> results = find(registry, request(5, true), SELF);
         assertEquals(List.of(2L, 1L), ids(results));
-        assertEquals(List.of(false, false), results.stream().map(PlaceQuery.Result::sameDimension).toList());
+        assertEquals(
+                List.of(false, false),
+                results.stream().map(PlaceQuery.Result::sameDimension).toList());
     }
 
     @Test
     void textMatchesNameAliasAndLabel() {
         Place home = new Place(
-                1, "дом", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("home"),
-                PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
+                1,
+                "дом",
+                PlaceKind.HOUSE,
+                "",
+                OVERWORLD,
+                new Pos(0, 64, 0),
+                8,
+                Set.of("home"),
+                PlaceSource.MANUAL,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "");
         Place field = new Place(
-                2, "north field", PlaceKind.FARM, "wheat", OVERWORLD, new Pos(30, 64, 0), 8, Set.of(),
-                PlaceSource.FARM, null, 0, 0, 0, 0, "");
+                2,
+                "north field",
+                PlaceKind.FARM,
+                "wheat",
+                OVERWORLD,
+                new Pos(30, 64, 0),
+                8,
+                Set.of(),
+                PlaceSource.FARM,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "");
         PlaceRegistry registry = registryWith(home, field);
         assertEquals(List.of(1L), ids(find(registry, textRequest("home"), SELF)));
         assertEquals(List.of(1L), ids(find(registry, textRequest("дом"), SELF)));
@@ -88,8 +115,8 @@ class PlaceQueryTest {
         PlaceRegistry registry = registryWith(
                 place(1, "home", PlaceKind.HOUSE, new Pos(0, 64, 0)),
                 place(2, "mine", PlaceKind.MINE, new Pos(30, 40, 0)));
-        PlaceQuery.Request request = new PlaceQuery.Request(
-                Optional.empty(), Set.of(PlaceKind.MINE), Optional.empty(), 5, false);
+        PlaceQuery.Request request =
+                new PlaceQuery.Request(Optional.empty(), Set.of(PlaceKind.MINE), Optional.empty(), 5, false);
         assertEquals(List.of(2L), ids(find(registry, request, SELF)));
     }
 
@@ -98,8 +125,7 @@ class PlaceQueryTest {
         PlaceRegistry registry = registryWith(
                 place(1, "home", PlaceKind.HOUSE, new Pos(0, 64, 0)),
                 place(2, "portal", PlaceKind.PORTAL, new Pos(30, 64, 0), NETHER));
-        PlaceQuery.Request request = new PlaceQuery.Request(
-                Optional.empty(), Set.of(), Optional.of(NETHER), 5, true);
+        PlaceQuery.Request request = new PlaceQuery.Request(Optional.empty(), Set.of(), Optional.of(NETHER), 5, true);
         assertEquals(List.of(2L), ids(find(registry, request, SELF)));
     }
 
@@ -177,13 +203,25 @@ class PlaceQueryTest {
     }
 
     private static Place place(long id, String name, PlaceKind kind, Pos pos, String dimension) {
-        return new Place(
-                id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
+        return new Place(id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
     }
 
     private static Place placeAt(long id, String name, String dimension, Pos pos, long updatedTick) {
         return new Place(
-                id, name, PlaceKind.PORTAL, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL,
-                null, 0, updatedTick, 0, 0, "");
+                id,
+                name,
+                PlaceKind.PORTAL,
+                "",
+                dimension,
+                pos,
+                8,
+                Set.of(),
+                PlaceSource.MANUAL,
+                null,
+                0,
+                updatedTick,
+                0,
+                0,
+                "");
     }
 }

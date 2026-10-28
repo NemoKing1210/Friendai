@@ -14,8 +14,15 @@ import org.junit.jupiter.api.Test;
 
 class ProtocolSectionTest {
     private static String prompt(AccessLevel level, int budget) {
-        return PromptBuilder.system(new Persona("F", "d", "auto"), "Position: 1 2 3",
-                new Caller(UUID.randomUUID(), "S", level), "", TurnKind.PLAYER, GoalView.EMPTY, budget, List.of());
+        return PromptBuilder.system(
+                new Persona("F", "d", "auto"),
+                "Position: 1 2 3",
+                new Caller(UUID.randomUUID(), "S", level),
+                "",
+                TurnKind.PLAYER,
+                GoalView.EMPTY,
+                budget,
+                List.of());
     }
 
     @Test

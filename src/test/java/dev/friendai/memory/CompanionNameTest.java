@@ -28,7 +28,9 @@ class CompanionNameTest {
     void rejectsNamesOverTheLimit() {
         assertEquals(
                 CompanionName.MAX_LENGTH,
-                CompanionName.parse("x".repeat(CompanionName.MAX_LENGTH)).orElseThrow().length());
+                CompanionName.parse("x".repeat(CompanionName.MAX_LENGTH))
+                        .orElseThrow()
+                        .length());
         assertTrue(CompanionName.parse("x".repeat(CompanionName.MAX_LENGTH + 1)).isEmpty());
     }
 

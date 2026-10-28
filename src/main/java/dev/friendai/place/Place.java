@@ -72,8 +72,24 @@ public record Place(
             long lastVisitTick,
             int visits,
             String note) {
-        this(id, name, kind, label, dimension, anchor, radius, aliases, source, author, createdTick, updatedTick,
-                lastVisitTick, visits, note, defaultBelow(radius), defaultAbove(radius));
+        this(
+                id,
+                name,
+                kind,
+                label,
+                dimension,
+                anchor,
+                radius,
+                aliases,
+                source,
+                author,
+                createdTick,
+                updatedTick,
+                lastVisitTick,
+                visits,
+                note,
+                defaultBelow(radius),
+                defaultAbove(radius));
     }
 
     public Place {
@@ -105,13 +121,11 @@ public record Place(
         checkCoordinate(anchor.y());
         checkCoordinate(anchor.z());
         if (radius < 1 || radius > RADIUS_MAX) {
-            throw new IllegalArgumentException(
-                    "A place radius must be 1-" + RADIUS_MAX + ", not " + radius + ".");
+            throw new IllegalArgumentException("A place radius must be 1-" + RADIUS_MAX + ", not " + radius + ".");
         }
         if (below < 0 || below > RADIUS_MAX || above < 0 || above > RADIUS_MAX) {
-            throw new IllegalArgumentException(
-                    "A place band must be 0-" + RADIUS_MAX + " blocks below and above the anchor, not "
-                            + below + " and " + above + ".");
+            throw new IllegalArgumentException("A place band must be 0-" + RADIUS_MAX
+                    + " blocks below and above the anchor, not " + below + " and " + above + ".");
         }
         aliases = typedAliases(aliases);
         if (source == null) {
@@ -129,8 +143,7 @@ public record Place(
             return Set.of();
         }
         if (aliases.size() > PlaceLimits.ALIASES_MAX) {
-            throw new IllegalArgumentException(
-                    "A place can have at most " + PlaceLimits.ALIASES_MAX + " aliases.");
+            throw new IllegalArgumentException("A place can have at most " + PlaceLimits.ALIASES_MAX + " aliases.");
         }
         Map<String, String> byKey = new LinkedHashMap<>();
         for (String alias : aliases) {
@@ -166,7 +179,8 @@ public record Place(
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             int type = Character.getType(c);
-            if (Character.isISOControl(c) || type == Character.LINE_SEPARATOR
+            if (Character.isISOControl(c)
+                    || type == Character.LINE_SEPARATOR
                     || type == Character.PARAGRAPH_SEPARATOR) {
                 throw new IllegalArgumentException("A place " + what + " cannot contain control characters.");
             }

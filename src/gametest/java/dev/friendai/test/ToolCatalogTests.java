@@ -15,7 +15,8 @@ public class ToolCatalogTests {
                 .map(ToolSpec::name)
                 .filter(name -> catalog.meta(name).isEmpty())
                 .toList();
-        h.assertTrue(missing.isEmpty(), "tools without a ToolCatalog entry (add them to ToolCatalog.defaults): " + missing);
+        h.assertTrue(
+                missing.isEmpty(), "tools without a ToolCatalog entry (add them to ToolCatalog.defaults): " + missing);
         h.succeed();
     }
 }

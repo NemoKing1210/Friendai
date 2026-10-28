@@ -1,8 +1,8 @@
 package dev.friendai.task.farming;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.farming.CropBook;
 import dev.friendai.farming.FarmGoal;
 import dev.friendai.farming.FarmPlan;
@@ -46,14 +46,20 @@ import org.jetbrains.annotations.Nullable;
  * and the open-ended {@code tend_farm}.
  */
 public final class FarmPass {
-    private enum Step { BUSY, IDLE }
+    private enum Step {
+        BUSY,
+        IDLE
+    }
 
     /** Fresh plans allowed after the first one, whether the world disagreed or the queue ran dry. */
     private static final int MAX_REPLANS = 3;
+
     private static final int BONEMEAL_CAP = 8;
     /** How long a harvest's drops get to land and leave their pickup delay before the pass moves on. */
     private static final int SETTLE_TICKS = 12;
-    private static final ItemMatcher BERRIES = ItemMatcher.parse("minecraft:sweet_berries").orElseThrow();
+
+    private static final ItemMatcher BERRIES =
+            ItemMatcher.parse("minecraft:sweet_berries").orElseThrow();
 
     private final BlockPos center;
     private final int radius;
@@ -67,6 +73,7 @@ public final class FarmPass {
     private final Set<BlockPos> skippedHarvest = new HashSet<>();
     /** Cells that could not be tilled, so the sow planned after the till is skipped. */
     private final Set<BlockPos> failedTill = new HashSet<>();
+
     private final Deque<FarmStep> queue = new ArrayDeque<>();
 
     private CropBook book;
@@ -87,6 +94,7 @@ public final class FarmPass {
     private DropSettle settle;
     /** What the companion carried before picking berries, and where, to count the gain when the berries land. */
     private int berryBefore;
+
     private BlockPos berrySettling;
 
     private Approach approach;
@@ -192,7 +200,8 @@ public final class FarmPass {
 
     /** Takes the next step off the queue, planning first when there is no plan or the world disagreed. */
     private boolean nextStep(TaskContext c) {
-        boolean wanted = !planned || (replanRequested && replans < MAX_REPLANS)
+        boolean wanted = !planned
+                || (replanRequested && replans < MAX_REPLANS)
                 || (queue.isEmpty() && workedSincePlan && replans < MAX_REPLANS);
         if (wanted) {
             if (planned) {
@@ -320,7 +329,8 @@ public final class FarmPass {
         }
         BlockState state = c.level().getBlockState(pos);
         breakerDrops = countDrops(c.level(), pos, state, c.companion());
-        breaker = new BlockBreaker(pos, current -> Crops.harvestable(c.level(), pos).isPresent());
+        breaker = new BlockBreaker(
+                pos, current -> Crops.harvestable(c.level(), pos).isPresent());
         breakerPos = pos;
         return Step.BUSY;
     }
@@ -516,7 +526,8 @@ public final class FarmPass {
         return ItemStack.EMPTY;
     }
 
-    private static Map<String, Integer> countDrops(ServerLevel level, BlockPos pos, BlockState state, CompanionEntity companion) {
+    private static Map<String, Integer> countDrops(
+            ServerLevel level, BlockPos pos, BlockState state, CompanionEntity companion) {
         Map<String, Integer> drops = new LinkedHashMap<>();
         for (ItemStack stack : net.minecraft.world.level.block.Block.getDrops(
                 state, level, pos, level.getBlockEntity(pos), companion, ItemStack.EMPTY)) {
@@ -543,8 +554,15 @@ public final class FarmPass {
             for (FarmStep.NeedSeeds need : shortfall) {
                 missing.merge(need.item(), need.count(), Integer::sum);
             }
-            report = new FarmReport(new LinkedHashMap<>(harvested), replanted, planted, tilled,
-                    noSeeds + lastUnsown, noHoe, missing, lastUnsown);
+            report = new FarmReport(
+                    new LinkedHashMap<>(harvested),
+                    replanted,
+                    planted,
+                    tilled,
+                    noSeeds + lastUnsown,
+                    noHoe,
+                    missing,
+                    lastUnsown);
         }
     }
 }

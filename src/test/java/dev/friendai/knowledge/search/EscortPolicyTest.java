@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 class EscortPolicyTest {
     private final EscortPolicy policy = new EscortPolicy(EscortPolicy.Config.DEFAULTS);
 
-    private static EscortPolicy.Input input(boolean online, boolean autonomous, double distance,
-            boolean wasNear, int wanted, boolean asked) {
+    private static EscortPolicy.Input input(
+            boolean online, boolean autonomous, double distance, boolean wasNear, int wanted, boolean asked) {
         return new EscortPolicy.Input(online, autonomous, true, distance, wasNear, false, wanted, asked);
     }
 
@@ -70,7 +70,9 @@ class EscortPolicyTest {
 
     @Test
     void offlineOrOtherDimensionOwnerLeavesTheSearchAlone() {
-        assertEquals(EscortPolicy.Action.NONE, policy.decide(input(false, false, 0, false, 64, false)).action());
+        assertEquals(
+                EscortPolicy.Action.NONE,
+                policy.decide(input(false, false, 0, false, 64, false)).action());
         var otherDimension = new EscortPolicy.Input(true, false, false, 0, false, false, 64, false);
         assertEquals(EscortPolicy.Action.NONE, policy.decide(otherDimension).action());
     }

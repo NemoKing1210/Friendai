@@ -20,7 +20,8 @@ class SpeechTextTest {
 
     @Test
     void splitsAtSentencesAndSpaces() {
-        assertEquals(List.of("First sentence.", "Second sentence!"),
+        assertEquals(
+                List.of("First sentence.", "Second sentence!"),
                 SpeechText.cleanAndSplit("First sentence. Second sentence!", 20));
         assertEquals(List.of("aaaa bbbb", "cccc dddd"), SpeechText.cleanAndSplit("aaaa bbbb cccc dddd", 9));
     }

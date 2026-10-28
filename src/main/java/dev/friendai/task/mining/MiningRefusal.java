@@ -71,8 +71,13 @@ public sealed interface MiningRefusal {
         }
         Place place = PlaceGuard.protecting(c, pos);
         if (place != null) {
-            return new PlaceProtected(pos, place.name(), place.kind(), place.radius(),
-                    place.anchor().x(), place.anchor().z());
+            return new PlaceProtected(
+                    pos,
+                    place.name(),
+                    place.kind(),
+                    place.radius(),
+                    place.anchor().x(),
+                    place.anchor().z());
         }
         return null;
     }
@@ -91,8 +96,8 @@ public sealed interface MiningRefusal {
     }
 
     /** A place the owner cares about; the sentence names it, and the remedy says which way the edge is. */
-    record PlaceProtected(
-            BlockPos pos, String name, PlaceKind kind, int radius, int anchorX, int anchorZ) implements MiningRefusal {
+    record PlaceProtected(BlockPos pos, String name, PlaceKind kind, int radius, int anchorX, int anchorZ)
+            implements MiningRefusal {
         @Override
         public String describe() {
             return coords(pos) + " is inside the " + kind.name().toLowerCase(Locale.ROOT) + " place \"" + name

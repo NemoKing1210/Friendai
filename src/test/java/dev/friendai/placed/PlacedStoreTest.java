@@ -18,7 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 class PlacedStoreTest {
     private static final String OVERWORLD = "minecraft:overworld";
 
-    @TempDir Path temp;
+    @TempDir
+    Path temp;
 
     private static PlacedBlock block(int x, String id) {
         return new PlacedBlock(OVERWORLD, new Pos(x, 64, 0), id, 1, "place_block");

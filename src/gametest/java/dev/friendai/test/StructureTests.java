@@ -2,13 +2,8 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolResult;
-import dev.friendai.tool.builtin.FriendaiTools;
-import java.util.UUID;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.llm.model.ToolCall;
 import dev.friendai.structure.Offset;
 import dev.friendai.structure.SpecialStructure;
 import dev.friendai.structure.StructureBook;
@@ -20,6 +15,11 @@ import dev.friendai.task.builtin.SpecialStructureTask;
 import dev.friendai.task.structure.StructureIndex;
 import dev.friendai.task.structure.StructureSite;
 import dev.friendai.task.structure.StructureSnapshotBuilder;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.FriendaiTools;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -88,7 +88,8 @@ public class StructureTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
         h.setBlock(3, 2, 2, net.minecraft.world.level.block.Blocks.IRON_BLOCK);
         StructureSnapshot snap = snapshot(h, c, "iron_golem", 4);
-        h.assertTrue(snap.correctBodyBlocks().contains(new dev.friendai.structure.Offset(1, 0, 0)),
+        h.assertTrue(
+                snap.correctBodyBlocks().contains(new dev.friendai.structure.Offset(1, 0, 0)),
                 "the iron block at offset 1,0,0 should count as built");
         h.assertTrue(snap.footprintFree(), "a correct body block does not block the footprint");
         h.succeed();
@@ -122,11 +123,13 @@ public class StructureTests {
     }
 
     private static int count(GameTestHelper h, net.minecraft.world.entity.EntityType<?> type) {
-        return h.getLevel().getEntities(type, h.getBounds().inflate(4), e -> true).size();
+        return h.getLevel()
+                .getEntities(type, h.getBounds().inflate(4), e -> true)
+                .size();
     }
 
-    private static ToolResult callTool(GameTestHelper h, CompanionEntity c, AccessLevel access, String name,
-            String json) {
+    private static ToolResult callTool(
+            GameTestHelper h, CompanionEntity c, AccessLevel access, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
         return FriendaiTools.create(() -> 32).bind(c).execute(call, new Caller(UUID.randomUUID(), "tester", access));
     }
@@ -165,7 +168,9 @@ public class StructureTests {
         ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "plan_special", siteArgs(h, "nether_portal", 3, 2, 3));
         h.assertFalse(r.error(), "error: " + r.content());
         h.assertTrue(r.content().contains("minecraft:flint_and_steel"), "result was " + r.content());
-        h.assertTrue(c.taskRunner().current().isEmpty() || !c.taskRunner().current().get().type().startsWith("special:"),
+        h.assertTrue(
+                c.taskRunner().current().isEmpty()
+                        || !c.taskRunner().current().get().type().startsWith("special:"),
                 "planning must not start a task");
         h.succeed();
     }
@@ -297,8 +302,11 @@ public class StructureTests {
         StructureSite site = new StructureSite(h.absolutePos(new BlockPos(3, 2, 3)), Rotation.NONE);
         SpecialStructure portal = structure("nether_portal");
         for (var block : portal.body().blocks()) {
-            h.getLevel().setBlock(site.pos(portal, new Offset(block.x(), block.y(), block.z())),
-                    Blocks.OBSIDIAN.defaultBlockState(), 3);
+            h.getLevel()
+                    .setBlock(
+                            site.pos(portal, new Offset(block.x(), block.y(), block.z())),
+                            Blocks.OBSIDIAN.defaultBlockState(),
+                            3);
         }
         Result result = new Result();
         TaskRunner runner = runner(c, result);

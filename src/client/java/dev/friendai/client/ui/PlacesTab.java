@@ -56,15 +56,32 @@ final class PlacesTab implements MenuTab {
         int fieldWidth = Math.max(40, renameX - GAP - left);
 
         placesHit = host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickRow));
-        renameField = host.add(new EditBox(host.font(), left, actionY, fieldWidth, ROW,
+        renameField = host.add(new EditBox(
+                host.font(),
+                left,
+                actionY,
+                fieldWidth,
+                ROW,
                 Component.translatable("friendai.menu.places.rename_hint")));
         renameField.setHint(Component.translatable("friendai.menu.places.rename_hint"));
         renameField.setMaxLength(PlaceLimits.NAME_MAX);
         renameField.setResponder(model::setRenameDraft);
-        rename = host.add(new FlatButton(renameX, actionY, renameWidth, ROW,
-                Component.translatable("friendai.menu.places.rename"), Ui.ACCENT, this::clickRename));
-        delete = host.add(new FlatButton(deleteX, actionY, deleteWidth, ROW,
-                Component.translatable("friendai.menu.places.delete"), Ui.WARN, this::clickDelete));
+        rename = host.add(new FlatButton(
+                renameX,
+                actionY,
+                renameWidth,
+                ROW,
+                Component.translatable("friendai.menu.places.rename"),
+                Ui.ACCENT,
+                this::clickRename));
+        delete = host.add(new FlatButton(
+                deleteX,
+                actionY,
+                deleteWidth,
+                ROW,
+                Component.translatable("friendai.menu.places.delete"),
+                Ui.WARN,
+                this::clickDelete));
         sync();
     }
 
@@ -94,8 +111,8 @@ final class PlacesTab implements MenuTab {
         rename.active = enabled && hasSelection;
         delete.visible = enabled;
         delete.active = enabled && hasSelection;
-        delete.setMessage(Component.translatable(
-                armed ? "friendai.menu.places.delete_confirm" : "friendai.menu.places.delete"));
+        delete.setMessage(
+                Component.translatable(armed ? "friendai.menu.places.delete_confirm" : "friendai.menu.places.delete"));
         delete.setStatus(armed ? Ui.BAD : Ui.WARN);
 
         if (!renameField.isFocused() && !renameField.getValue().equals(model.renameDraft())) {
@@ -111,7 +128,13 @@ final class PlacesTab implements MenuTab {
         }
         drawHeader(g, font);
         if (!model.view().get().enabled()) {
-            Ui.text(g, font, Component.translatable("friendai.menu.places.disabled"), listLeft + 2, listTop + 4, Ui.DIM);
+            Ui.text(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.places.disabled"),
+                    listLeft + 2,
+                    listTop + 4,
+                    Ui.DIM);
         } else {
             drawPlaces(g, font);
         }
@@ -143,24 +166,46 @@ final class PlacesTab implements MenuTab {
         for (PlaceView.Row place : places) {
             if (placesView.visible(y, PLACE_ROW)) {
                 boolean current = place.id() == selected;
-                Ui.card(g, listLeft, y, cardWidth, PLACE_ROW,
-                        current ? Ui.CARD_HOVER : Ui.CARD, current ? Ui.ACCENT : Ui.BORDER);
+                Ui.card(
+                        g,
+                        listLeft,
+                        y,
+                        cardWidth,
+                        PLACE_ROW,
+                        current ? Ui.CARD_HOVER : Ui.CARD,
+                        current ? Ui.ACCENT : Ui.BORDER);
                 g.fill(listLeft, y, listLeft + 3, y + PLACE_ROW, current ? Ui.ACCENT : Ui.GOOD);
 
                 int x = listLeft + PAD;
-                int badgeWidth = Ui.badge(g, font,
-                        Component.translatable(place.kindKey()).getString(), x, y + 3, Ui.ACCENT);
+                int badgeWidth = Ui.badge(
+                        g, font, Component.translatable(place.kindKey()).getString(), x, y + 3, Ui.ACCENT);
                 String title = place.name();
                 if (!place.label().isBlank()) {
                     title += " — " + place.label();
                 }
-                Ui.text(g, font, Ui.clip(font, title, Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
-                        x + badgeWidth + 5, y + 5, Ui.TEXT);
-                String meta = Component.translatable("friendai.menu.places.meta",
-                        place.dimension(), place.x(), place.y(), place.z(), place.visits()).getString();
+                Ui.text(
+                        g,
+                        font,
+                        Ui.clip(font, title, Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
+                        x + badgeWidth + 5,
+                        y + 5,
+                        Ui.TEXT);
+                String meta = Component.translatable(
+                                "friendai.menu.places.meta",
+                                place.dimension(),
+                                place.x(),
+                                place.y(),
+                                place.z(),
+                                place.visits())
+                        .getString();
                 meta += distanceLabel(place);
-                Ui.text(g, font, Ui.clip(font, meta, Math.max(20, cardWidth - 2 * PAD)),
-                        listLeft + PAD, y + 5 + font.lineHeight + 1, Ui.DIM);
+                Ui.text(
+                        g,
+                        font,
+                        Ui.clip(font, meta, Math.max(20, cardWidth - 2 * PAD)),
+                        listLeft + PAD,
+                        y + 5 + font.lineHeight + 1,
+                        Ui.DIM);
             }
             y += PLACE_ROW + GAP;
         }
@@ -174,9 +219,10 @@ final class PlacesTab implements MenuTab {
                 || !minecraft.player.level().dimension().identifier().toString().equals(place.dimension())) {
             return "";
         }
-        double distance = Math.sqrt(
-                minecraft.player.distanceToSqr(place.x() + 0.5, place.y() + 0.5, place.z() + 0.5));
-        return " · " + Component.translatable("friendai.menu.places.distance", Math.round(distance)).getString();
+        double distance = Math.sqrt(minecraft.player.distanceToSqr(place.x() + 0.5, place.y() + 0.5, place.z() + 0.5));
+        return " · "
+                + Component.translatable("friendai.menu.places.distance", Math.round(distance))
+                        .getString();
     }
 
     private void drawStatus(GuiGraphicsExtractor g, Font font, int top, int height) {

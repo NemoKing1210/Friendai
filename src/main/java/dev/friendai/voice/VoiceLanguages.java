@@ -6,12 +6,12 @@ import java.util.Set;
 
 /** Maps the game's language to what a speech provider expects. */
 public final class VoiceLanguages {
-    private static final Set<String> YANDEX_TAGS = Set.of(
-            "ru-RU", "en-US", "tr-TR", "de-DE", "es-ES", "fr-FR", "it-IT", "uz-UZ", "kk-KK");
+    private static final Set<String> YANDEX_TAGS =
+            Set.of("ru-RU", "en-US", "tr-TR", "de-DE", "es-ES", "fr-FR", "it-IT", "uz-UZ", "kk-KK");
 
     private static final Map<String, String> YANDEX_ISO = Map.of(
-            "ru", "ru-RU", "en", "en-US", "tr", "tr-TR", "de", "de-DE", "es", "es-ES",
-            "fr", "fr-FR", "it", "it-IT", "uz", "uz-UZ", "kk", "kk-KK");
+            "ru", "ru-RU", "en", "en-US", "tr", "tr-TR", "de", "de-DE", "es", "es-ES", "fr", "fr-FR", "it", "it-IT",
+            "uz", "uz-UZ", "kk", "kk-KK");
 
     private VoiceLanguages() {}
 

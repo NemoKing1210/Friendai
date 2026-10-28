@@ -29,11 +29,14 @@ final class NearResolver {
         if (coordinates.isPresent()) {
             return coordinates.get();
         }
-        String raw = args.has("near") && !args.get("near").isJsonNull() ? args.get("near").getAsString() : null;
+        String raw = args.has("near") && !args.get("near").isJsonNull()
+                ? args.get("near").getAsString()
+                : null;
         Optional<String> placeName = PlaceNames.fromNear(raw);
         if (placeName.isPresent()) {
             Place place = PlaceService.requireReachable(c, placeName.get(), "a search");
-            return new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
+            return new BlockPos(
+                    place.anchor().x(), place.anchor().y(), place.anchor().z());
         }
         if (NearTarget.parse(raw) == NearTarget.SELF) {
             return c.blockPosition();
@@ -43,7 +46,8 @@ final class NearResolver {
             throw new IllegalArgumentException("the player is not online; use near \"self\" or give x, y and z");
         }
         if (speaker.level() != c.level()) {
-            throw new IllegalArgumentException("the player is in another dimension; use near \"self\" or give x, y and z");
+            throw new IllegalArgumentException(
+                    "the player is in another dimension; use near \"self\" or give x, y and z");
         }
         if (speaker.distanceTo(c) > MAX_SPEAKER_DISTANCE) {
             throw new IllegalArgumentException(

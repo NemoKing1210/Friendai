@@ -46,9 +46,12 @@ class FellPlannerTest {
         assertEquals(48, plan.cutOrder().size(), "every log is cut");
         assertEquals(48, plan.cutOrder().stream().distinct().count(), "no log twice");
         assertTrue(logs.containsAll(plan.cutOrder()), "only the tree's logs");
-        assertTrue(plan.cutOrder().get(0).y() == 13, "the crown goes first: " + plan.cutOrder().get(0));
+        assertTrue(
+                plan.cutOrder().get(0).y() == 13,
+                "the crown goes first: " + plan.cutOrder().get(0));
         for (int i = 1; i < plan.cutOrder().size(); i++) {
-            assertTrue(plan.cutOrder().get(i).y() <= plan.cutOrder().get(i - 1).y(),
+            assertTrue(
+                    plan.cutOrder().get(i).y() <= plan.cutOrder().get(i - 1).y(),
                     "order must not climb: " + plan.cutOrder());
         }
         assertFalse(plan.truncated());
@@ -65,7 +68,8 @@ class FellPlannerTest {
                 double dx = (climb.column().x() + 0.5) - (log.x() + 0.5);
                 double dz = (climb.column().z() + 0.5) - (log.z() + 0.5);
                 double dy = stage.feetY() + FellPlanner.EYE_HEIGHT - (log.y() + 0.5);
-                assertTrue(dx * dx + dy * dy + dz * dz <= FellPlanner.REACH * FellPlanner.REACH + 1.0e-9,
+                assertTrue(
+                        dx * dx + dy * dy + dz * dz <= FellPlanner.REACH * FellPlanner.REACH + 1.0e-9,
                         "unreachable " + log + " from feet " + stage.feetY() + " at " + climb.column());
             }
         }
@@ -90,7 +94,8 @@ class FellPlannerTest {
     void limitTakesTheHighestLogs() {
         FellPlan plan = FellPlanner.plan(trunk(0, 0, 2, 20), STAND, 3);
         assertEquals(3, plan.cutOrder().size());
-        assertEquals(List.of(21, 20, 19), plan.cutOrder().stream().map(TreeCell::y).toList());
+        assertEquals(
+                List.of(21, 20, 19), plan.cutOrder().stream().map(TreeCell::y).toList());
         assertTrue(plan.truncated());
         assertEquals(20, plan.totalLogs());
     }
@@ -115,7 +120,9 @@ class FellPlannerTest {
         List<TreeCell> logs = square(0, 0, 2, 10);
         FellPlan plan = FellPlanner.plan(logs, new TreeCell(10, 2, 0), 0);
         FellPlan.Climb climb = plan.climbs().get(0);
-        assertEquals(new TreeCell(2, 2, 0), climb.column(),
+        assertEquals(
+                new TreeCell(2, 2, 0),
+                climb.column(),
                 plan.climbs().stream().map(FellPlan.Climb::column).toList().toString());
         for (TreeCell log : logs) {
             assertNotEquals(climb.column().columnKey(), log.columnKey(), "a climb inside a log column");
@@ -125,8 +132,8 @@ class FellPlannerTest {
     @Test
     void branchLogsWithinReachAreIncluded() {
         List<TreeCell> logs = new ArrayList<>(trunk(0, 0, 2, 16));
-        logs.add(new TreeCell(3, 14, 0));   // reachable from the ring-1 column
-        logs.add(new TreeCell(6, 14, 0));   // no stance gets within four blocks
+        logs.add(new TreeCell(3, 14, 0)); // reachable from the ring-1 column
+        logs.add(new TreeCell(6, 14, 0)); // no stance gets within four blocks
         FellPlan plan = FellPlanner.plan(logs, new TreeCell(0, 2, -8), 0);
         assertTrue(plan.cutOrder().contains(new TreeCell(3, 14, 0)), "a reachable branch is cut");
         assertFalse(plan.cutOrder().contains(new TreeCell(6, 14, 0)), "an out-of-reach branch is not");

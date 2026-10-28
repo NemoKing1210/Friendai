@@ -34,7 +34,8 @@ class PcmConverterTest {
 
     @Test
     void floatToPcm16ClampsAndIsLittleEndian() {
-        assertArrayEquals(new byte[] {0, 0, 0x00, 0x40, 0x00, (byte) 0xC0, (byte) 0xFF, 0x7F, 0x00, (byte) 0x80},
+        assertArrayEquals(
+                new byte[] {0, 0, 0x00, 0x40, 0x00, (byte) 0xC0, (byte) 0xFF, 0x7F, 0x00, (byte) 0x80},
                 PcmConverter.fromFloat(new float[] {0f, 0.5f, -0.5f, 1.5f, -1.5f}));
     }
 
@@ -48,8 +49,7 @@ class PcmConverterTest {
     @Test
     void stereoInterleavesWithPerChannelGains() {
         assertArrayEquals(
-                new byte[] {0x00, 0x20, 0x00, 0x40},
-                PcmConverter.toStereo(new byte[] {0x00, 0x40}, 0, 2, 0.5, 1.0));
+                new byte[] {0x00, 0x20, 0x00, 0x40}, PcmConverter.toStereo(new byte[] {0x00, 0x40}, 0, 2, 0.5, 1.0));
     }
 
     @Test
@@ -62,9 +62,7 @@ class PcmConverterTest {
     @Test
     void stereoHonoursOffsetAndLength() {
         byte[] pcm = new byte[] {(byte) 0xAA, (byte) 0xBB, 0x00, 0x40, 0x00, (byte) 0xC0, (byte) 0xCC};
-        assertArrayEquals(
-                new byte[] {0x00, 0x20, 0x00, 0x30},
-                PcmConverter.toStereo(pcm, 2, 3, 0.5, 0.75));
+        assertArrayEquals(new byte[] {0x00, 0x20, 0x00, 0x30}, PcmConverter.toStereo(pcm, 2, 3, 0.5, 0.75));
     }
 
     @Test
@@ -75,16 +73,12 @@ class PcmConverterTest {
     @Test
     void rangedGainScalesOnlyTheSlice() {
         byte[] pcm = new byte[] {0x00, 0x40, 0x00, 0x40, 0x00, 0x40};
-        assertArrayEquals(
-                new byte[] {0x00, 0x20, 0x00, 0x20},
-                PcmConverter.withGain(pcm, 2, 4, 0.5));
+        assertArrayEquals(new byte[] {0x00, 0x20, 0x00, 0x20}, PcmConverter.withGain(pcm, 2, 4, 0.5));
     }
 
     @Test
     void rangedGainClamps() {
-        assertArrayEquals(
-                new byte[] {(byte) 0xFF, 0x7F},
-                PcmConverter.withGain(new byte[] {0x00, 0x40}, 0, 2, 4.0));
+        assertArrayEquals(new byte[] {(byte) 0xFF, 0x7F}, PcmConverter.withGain(new byte[] {0x00, 0x40}, 0, 2, 4.0));
     }
 
     @Test
@@ -92,7 +86,9 @@ class PcmConverterTest {
         // Four samples of 0x4000: left runs 0 -> 1, right runs 1 -> 0 across the block.
         byte[] pcm = new byte[] {0x00, 0x40, 0x00, 0x40, 0x00, 0x40, 0x00, 0x40};
         assertArrayEquals(
-                new byte[] {0x00, 0x00, 0x00, 0x40, 0x00, 0x10, 0x00, 0x30, 0x00, 0x20, 0x00, 0x20, 0x00, 0x30, 0x00, 0x10},
+                new byte[] {
+                    0x00, 0x00, 0x00, 0x40, 0x00, 0x10, 0x00, 0x30, 0x00, 0x20, 0x00, 0x20, 0x00, 0x30, 0x00, 0x10
+                },
                 PcmConverter.toStereoRamped(pcm, 0, 8, 0.0, 1.0, 1.0, 0.0));
     }
 

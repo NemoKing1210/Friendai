@@ -6,25 +6,25 @@ import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.BreedTask;
-import dev.friendai.task.builtin.MilkTask;
-import dev.friendai.task.builtin.ShearTask;
 import dev.friendai.task.builtin.FishTask;
 import dev.friendai.task.builtin.HoneyTask;
 import dev.friendai.task.builtin.LeadTask;
+import dev.friendai.task.builtin.MilkTask;
+import dev.friendai.task.builtin.ShearTask;
 import dev.friendai.task.builtin.TameTask;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Leashable;
-import net.minecraft.world.entity.decoration.LeashFenceKnotEntity;
 import net.minecraft.world.entity.animal.cow.Cow;
-import net.minecraft.world.entity.animal.cow.MushroomCow;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.decoration.LeashFenceKnotEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -32,7 +32,6 @@ import net.minecraft.world.level.block.BeehiveBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -93,9 +92,8 @@ public class AnimalTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("fed 1 pairs of minecraft:cow"), "summary was " + result.summary);
             Vec3 at = h.absoluteVec(new Vec3(5, 2, 4));
-            boolean baby = h.getLevel()
-                    .getEntitiesOfClass(Cow.class, new AABB(at, at).inflate(16))
-                    .stream().anyMatch(Cow::isBaby);
+            boolean baby = h.getLevel().getEntitiesOfClass(Cow.class, new AABB(at, at).inflate(16)).stream()
+                    .anyMatch(Cow::isBaby);
             h.assertTrue(baby, "no baby cow");
         });
     }
@@ -290,7 +288,9 @@ public class AnimalTests {
         wolf.setTame(true, true);
         wolf.setOwner(other);
         h.assertTrue(wolf.isTame(), "setup: wolf must be tamed");
-        h.assertTrue(wolf.getOwnerReference() != null && wolf.getOwnerReference().getUUID().equals(other.getUUID()),
+        h.assertTrue(
+                wolf.getOwnerReference() != null
+                        && wolf.getOwnerReference().getUUID().equals(other.getUUID()),
                 "setup: wolf owner");
         c.inventory().addItem(new ItemStack(Items.BONE, 4));
         Result result = new Result();
@@ -337,7 +337,8 @@ public class AnimalTests {
             for (Pig pig : List.of(first, second)) {
                 Leashable leashable = (Leashable) pig;
                 h.assertTrue(leashable.isLeashed(), "pig not leashed");
-                h.assertTrue(leashable.getLeashHolder() instanceof LeashFenceKnotEntity,
+                h.assertTrue(
+                        leashable.getLeashHolder() instanceof LeashFenceKnotEntity,
                         "holder was " + leashable.getLeashHolder());
             }
             h.assertValueEqual(((Leashable) first).getLeashHolder().blockPosition(), destination, "knot position");
@@ -393,8 +394,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos hive = new BlockPos(5, 3, 5);
         h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 5));
-        BeehiveBlockEntity blockEntity =
-                (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
+        BeehiveBlockEntity blockEntity = (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
         blockEntity.addOccupant(h.spawn(EntityTypes.BEE, 5, 4, 5));
         c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
         Result result = new Result();
@@ -403,8 +403,11 @@ public class AnimalTests {
         runner.tick();
         BlockPos at = h.absolutePos(hive);
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
-        h.assertValueEqual(result.summary, "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ()
-                + " isn't smoked; place a campfire under it", "summary");
+        h.assertValueEqual(
+                result.summary,
+                "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ()
+                        + " isn't smoked; place a campfire under it",
+                "summary");
         h.succeed();
     }
 
@@ -414,8 +417,7 @@ public class AnimalTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos hive = new BlockPos(5, 3, 5);
         h.setBlock(hive, Blocks.BEEHIVE.defaultBlockState().setValue(BeehiveBlock.HONEY_LEVEL, 5));
-        BeehiveBlockEntity blockEntity =
-                (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
+        BeehiveBlockEntity blockEntity = (BeehiveBlockEntity) h.getLevel().getBlockEntity(h.absolutePos(hive));
         blockEntity.addOccupant(h.spawn(EntityTypes.BEE, 5, 4, 5));
         h.setBlock(5, 1, 5, Blocks.CAMPFIRE.defaultBlockState().setValue(CampfireBlock.LIT, true));
         c.inventory().addItem(new ItemStack(Items.GLASS_BOTTLE));
@@ -425,7 +427,8 @@ public class AnimalTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith("got 1 minecraft:honey_bottle from the hive at "),
+            h.assertTrue(
+                    result.summary.startsWith("got 1 minecraft:honey_bottle from the hive at "),
                     "summary was " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.HONEY_BOTTLE), 1, "honey bottle");
             h.assertValueEqual(h.getBlockState(hive).getValue(BeehiveBlock.HONEY_LEVEL), 0, "hive level");
@@ -445,8 +448,10 @@ public class AnimalTests {
         runner.tick();
         BlockPos at = h.absolutePos(hive);
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
-        h.assertValueEqual(result.summary,
-                "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ() + " isn't full yet", "summary");
+        h.assertValueEqual(
+                result.summary,
+                "the hive at " + at.getX() + " " + at.getY() + " " + at.getZ() + " isn't full yet",
+                "summary");
         h.succeed();
     }
 

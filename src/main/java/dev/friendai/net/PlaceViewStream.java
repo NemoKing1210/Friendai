@@ -67,9 +67,7 @@ public final class PlaceViewStream {
      */
     private static int currentEpoch(FriendaiServerState state) {
         int config = Objects.hash(
-                state.config().places.enabled,
-                state.config().places.maxPlaces,
-                state.config().places.mergeRadius);
+                state.config().places.enabled, state.config().places.maxPlaces, state.config().places.mergeRadius);
         if (config != lastConfig) {
             lastConfig = config;
             viewEpoch++;
@@ -86,8 +84,9 @@ public final class PlaceViewStream {
         PlaceRegistry book = state.places().book(uuid);
         PlaceView view = PlaceViewBuilder.build(book, state.config().places, status);
         if (ServerPlayNetworking.canSend(player, PlacesViewS2CPayload.TYPE)) {
-            ServerPlayNetworking.send(player, new PlacesViewS2CPayload(
-                    PlaceViewCodec.encodeFitting(view, PlacesViewS2CPayload.MAX_BYTES)));
+            ServerPlayNetworking.send(
+                    player,
+                    new PlacesViewS2CPayload(PlaceViewCodec.encodeFitting(view, PlacesViewS2CPayload.MAX_BYTES)));
         }
         state.placeViewers().markSent(uuid, book.revision(), viewEpoch);
     }

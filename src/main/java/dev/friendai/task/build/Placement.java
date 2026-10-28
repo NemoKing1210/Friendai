@@ -74,15 +74,15 @@ public final class Placement {
                 }
             }
             corner = new BlockPos(
-                    x,
-                    level(companion).getHeight(Heightmap.Types.WORLD_SURFACE, x + width / 2, z + depth / 2),
-                    z);
+                    x, level(companion).getHeight(Heightmap.Types.WORLD_SURFACE, x + width / 2, z + depth / 2), z);
         }
 
         List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());
         for (BlockSpec spec : blueprint.blocks()) {
-            BlockPos local = rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
-            specs.add(new PlacedSpec(corner.offset(local), parseState(spec.state()).rotate(rotation)));
+            BlockPos local =
+                    rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
+            specs.add(new PlacedSpec(
+                    corner.offset(local), parseState(spec.state()).rotate(rotation)));
         }
         return new PlacedBlueprint(specs, corner, rotation);
     }
@@ -91,15 +91,20 @@ public final class Placement {
     public static PlacedBlueprint at(Blueprint blueprint, BlockPos origin, Rotation rotation) {
         List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());
         for (BlockSpec spec : blueprint.blocks()) {
-            BlockPos local = rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
-            specs.add(new PlacedSpec(origin.offset(local), parseState(spec.state()).rotate(rotation)));
+            BlockPos local =
+                    rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
+            specs.add(new PlacedSpec(
+                    origin.offset(local), parseState(spec.state()).rotate(rotation)));
         }
         return new PlacedBlueprint(specs, origin, rotation);
     }
 
     /** The owner when online, otherwise the companion itself. */
     private static Entity anchor(CompanionEntity companion) {
-        return companion.owner().filter(owner -> owner.level() == companion.level()).map(Entity.class::cast)
+        return companion
+                .owner()
+                .filter(owner -> owner.level() == companion.level())
+                .map(Entity.class::cast)
                 .orElse(companion);
     }
 
@@ -155,7 +160,8 @@ public final class Placement {
 
     public static BlockState parseState(String state) {
         try {
-            return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, state, false).blockState();
+            return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, state, false)
+                    .blockState();
         } catch (Exception e) {
             throw new IllegalArgumentException("unknown block " + state);
         }

@@ -3,7 +3,6 @@ package dev.friendai.test;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.BuildTask;
 import dev.friendai.task.builtin.ObtainTask;
@@ -16,18 +15,22 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.AABB;
 
 public final class CreativeMaterialTests {
     private static CompanionEntity creativeCompanion(GameTestHelper h, ServerPlayer owner) {
-        owner.level().getServer().getPlayerList().op(owner.nameAndId(),
-                Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        h.assertTrue(CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+        owner.level()
+                .getServer()
+                .getPlayerList()
+                .op(owner.nameAndId(), Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        h.assertTrue(
+                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
         return companion;
     }
@@ -46,9 +49,11 @@ public final class CreativeMaterialTests {
         companion.taskRunner().start(task, "place_block", caller(owner), true);
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
-            h.assertTrue(h.getLevel().getBlockState(target).is(Blocks.MUD_BRICKS),
+            h.assertTrue(
+                    h.getLevel().getBlockState(target).is(Blocks.MUD_BRICKS),
                     "creative placement did not create the requested block");
-            h.assertTrue(companion.inventory().countItem(Items.MUD_BRICKS) == 0,
+            h.assertTrue(
+                    companion.inventory().countItem(Items.MUD_BRICKS) == 0,
                     "temporary placement material was inserted in the companion inventory");
             h.assertTrue(task.resultSummary().startsWith("placed "), "unexpected result: " + task.resultSummary());
         });
@@ -68,9 +73,11 @@ public final class CreativeMaterialTests {
         companion.taskRunner().start(task, "build_structure", caller(owner), true);
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
-            h.assertTrue(h.getLevel().getBlockState(origin).is(Blocks.COBBLESTONE),
+            h.assertTrue(
+                    h.getLevel().getBlockState(origin).is(Blocks.COBBLESTONE),
                     "blueprint did not place its free creative material");
-            h.assertTrue(companion.inventory().countItem(Items.COBBLESTONE) == 0,
+            h.assertTrue(
+                    companion.inventory().countItem(Items.COBBLESTONE) == 0,
                     "creative build consumed or retained synthetic inventory material");
             h.assertTrue(task.resultSummary().contains("built"), "unexpected result: " + task.resultSummary());
         });
@@ -91,18 +98,23 @@ public final class CreativeMaterialTests {
                   {"op":"box","from":[0,5,0],"to":[4,5,4],"block":"P"}
                 ]}
                 """);
-        h.assertTrue(blueprint.blocks().size() > 64,
-                "the house should require more than one stack; blocks=" + blueprint.blocks().size());
+        h.assertTrue(
+                blueprint.blocks().size() > 64,
+                "the house should require more than one stack; blocks="
+                        + blueprint.blocks().size());
         BlockPos origin = h.absolutePos(new BlockPos(1, 2, 1));
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
         companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
-            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
                 summary[0] = result;
             }
-            @Override public void onCancelled(int id, String toolName, String reason) {}
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {}
         });
         companion.taskRunner().start(task, "build_structure", caller(owner), true);
 
@@ -111,15 +123,18 @@ public final class CreativeMaterialTests {
                 for (int y = 2; y <= 11; y++) {
                     for (int z = 0; z < 9; z++) {
                         var state = h.getBlockState(new BlockPos(x, y, z));
-                        h.assertFalse(state.is(Blocks.DIRT) || state.is(Blocks.COBBLESTONE),
+                        h.assertFalse(
+                                state.is(Blocks.DIRT) || state.is(Blocks.COBBLESTONE),
                                 "creative building placed a scaffold block at " + x + " " + y + " " + z);
                     }
                 }
             }
-            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    status[0] == TaskStatus.SUCCESS,
                     "creative house did not finish; status=" + status[0] + ", result=" + summary[0]);
             h.assertTrue(summary[0].startsWith("built creative_house"), "unexpected result: " + summary[0]);
-            h.assertTrue(companion.inventory().countItem(Items.OAK_PLANKS) == 0,
+            h.assertTrue(
+                    companion.inventory().countItem(Items.OAK_PLANKS) == 0,
                     "creative materials must not be inserted into inventory");
             h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.OAK_PLANKS), "house floor was not built");
             h.assertTrue(h.getBlockState(new BlockPos(3, 7, 1)).is(Blocks.OAK_PLANKS), "upper wall was not built");
@@ -152,11 +167,14 @@ public final class CreativeMaterialTests {
         final TaskStatus[] status = {null};
         final String[] summary = {""};
         companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
-            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
                 summary[0] = result;
             }
-            @Override public void onCancelled(int id, String toolName, String reason) {}
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {}
         });
         companion.taskRunner().start(task, "build_structure", caller(owner), true);
         final double[] highestY = {companion.getY()};
@@ -165,17 +183,19 @@ public final class CreativeMaterialTests {
             companion.taskRunner().tick();
             highestY[0] = Math.max(highestY[0], companion.getY());
             h.assertTrue(status[0] != null, "creative shaft build did not finish");
-            h.assertTrue(status[0] == TaskStatus.SUCCESS,
-                    "creative shaft build failed; result=" + summary[0]);
+            h.assertTrue(status[0] == TaskStatus.SUCCESS, "creative shaft build failed; result=" + summary[0]);
             h.assertTrue(summary[0].startsWith("built shaft_exit"), "unexpected result: " + summary[0]);
-            h.assertTrue(highestY[0] >= target.getY() + 1.0,
-                    "companion did not use the vertical opening to leave the placement cell; highest Y="
-                            + highestY[0]);
-            h.assertFalse(companion.getBoundingBox().intersects(new AABB(target)),
+            h.assertTrue(
+                    highestY[0] >= target.getY() + 1.0,
+                    "companion did not use the vertical opening to leave the placement cell; highest Y=" + highestY[0]);
+            h.assertFalse(
+                    companion.getBoundingBox().intersects(new AABB(target)),
                     "companion still overlaps the block it built in the shaft");
-            h.assertTrue(h.getLevel().getBlockState(target).is(Blocks.COBBLESTONE),
+            h.assertTrue(
+                    h.getLevel().getBlockState(target).is(Blocks.COBBLESTONE),
                     "shaft block was not placed; task=" + task.resultSummary() + ", status=" + status[0]);
-            h.assertFalse(summary[0].contains("scaffold blocks"),
+            h.assertFalse(
+                    summary[0].contains("scaffold blocks"),
                     "creative shaft build should not use scaffolding: " + summary[0]);
         });
     }
@@ -199,11 +219,14 @@ public final class CreativeMaterialTests {
         final TaskStatus[] status = {null};
         final String[] summary = {""};
         companion.taskRunner().setListener(new dev.friendai.task.TaskListener() {
-            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
                 summary[0] = result;
             }
-            @Override public void onCancelled(int id, String toolName, String reason) {}
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {}
         });
         companion.taskRunner().start(task, "build_structure", caller(owner), true);
 
@@ -211,19 +234,22 @@ public final class CreativeMaterialTests {
             for (int x = 0; x < 9; x++) {
                 for (int y = 2; y <= 10; y++) {
                     for (int z = 0; z < 9; z++) {
-                        h.assertFalse(h.getBlockState(new BlockPos(x, y, z)).is(Blocks.DIRT),
+                        h.assertFalse(
+                                h.getBlockState(new BlockPos(x, y, z)).is(Blocks.DIRT),
                                 "creative tower used a dirt access pillar at " + x + " " + y + " " + z);
                     }
                 }
             }
-            h.assertTrue(status[0] == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    status[0] == TaskStatus.SUCCESS,
                     "creative tower did not finish; status=" + status[0] + ", result=" + summary[0]);
             h.assertTrue(summary[0].startsWith("built creative_tower"), "unexpected result: " + summary[0]);
-            h.assertFalse(summary[0].contains("scaffold blocks"),
+            h.assertFalse(
+                    summary[0].contains("scaffold blocks"),
                     "creative tower should not need construction scaffolding: " + summary[0]);
             for (int y = 2; y <= 10; y++) {
-                h.assertTrue(h.getBlockState(new BlockPos(4, y, 4)).is(Blocks.COBBLESTONE),
-                        "tower block missing at y=" + y);
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(4, y, 4)).is(Blocks.COBBLESTONE), "tower block missing at y=" + y);
             }
         });
     }
@@ -252,7 +278,8 @@ public final class CreativeMaterialTests {
         companion.taskRunner().start(task, "obtain_item", caller(owner), true);
         h.succeedWhen(() -> {
             companion.taskRunner().tick();
-            h.assertTrue(companion.inventory().countItem(Items.DIAMOND) == 130,
+            h.assertTrue(
+                    companion.inventory().countItem(Items.DIAMOND) == 130,
                     "obtain delivered " + companion.inventory().countItem(Items.DIAMOND));
             h.assertTrue(task.resultSummary().contains("got 130"), "unexpected result: " + task.resultSummary());
         });

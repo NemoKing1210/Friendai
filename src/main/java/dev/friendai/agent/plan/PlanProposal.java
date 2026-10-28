@@ -23,7 +23,10 @@ public record PlanProposal(PlanDefinition plan, JsonArray stepsJson, String rati
         return List.copyOf(result);
     }
 
-    @Override public JsonArray stepsJson() { return stepsJson.deepCopy(); }
+    @Override
+    public JsonArray stepsJson() {
+        return stepsJson.deepCopy();
+    }
 
     private static void collect(List<PlanNode> nodes, List<QueuedStep> result) {
         for (PlanNode node : nodes) {

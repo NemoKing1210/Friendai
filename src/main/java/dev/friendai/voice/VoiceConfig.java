@@ -17,8 +17,14 @@ public final class VoiceConfig {
             ClientConfig.SttSection section, String gameLanguage, Function<String, String> env) {
         VoicePreset preset = SttPresets.require(section.provider);
         if (preset.local()) {
-            return new ResolvedStt(preset.id(), preset.protocol(), null, "",
-                    section.local == null ? null : section.local.model, "", null);
+            return new ResolvedStt(
+                    preset.id(),
+                    preset.protocol(),
+                    null,
+                    "",
+                    section.local == null ? null : section.local.model,
+                    "",
+                    null);
         }
         ClientConfig.CloudSettings cloud = cloud(section.cloud, preset);
         return new ResolvedStt(
@@ -40,8 +46,7 @@ public final class VoiceConfig {
                     ? VoiceModels.defaultFor(gameLanguage).id()
                     : VoiceModels.byId(configured).map(VoiceModel::id).orElse(null);
             double speed = section.local == null ? 1.0 : section.local.speed;
-            return new ResolvedTts(preset.id(), preset.protocol(), null, "",
-                    null, voice, "", null, speed);
+            return new ResolvedTts(preset.id(), preset.protocol(), null, "", null, voice, "", null, speed);
         }
         ClientConfig.CloudSettings cloud = cloud(section.cloud, preset);
         String configuredLanguage = cloud != null && cloud.language != null && !cloud.language.isBlank()
@@ -72,8 +77,7 @@ public final class VoiceConfig {
                 + (settings.hasKey() ? Integer.toHexString(settings.apiKey().hashCode()) : "");
     }
 
-    private static ClientConfig.CloudSettings cloud(
-            Map<String, ClientConfig.CloudSettings> cloud, VoicePreset preset) {
+    private static ClientConfig.CloudSettings cloud(Map<String, ClientConfig.CloudSettings> cloud, VoicePreset preset) {
         return cloud == null ? null : cloud.get(preset.id());
     }
 

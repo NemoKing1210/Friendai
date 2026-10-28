@@ -31,7 +31,8 @@ public final class VoiceHttp {
     public CompletableFuture<JsonObject> postJson(PreparedRequest request) {
         return send(request).thenApply(body -> {
             try {
-                return JsonParser.parseString(new String(body, StandardCharsets.UTF_8)).getAsJsonObject();
+                return JsonParser.parseString(new String(body, StandardCharsets.UTF_8))
+                        .getAsJsonObject();
             } catch (RuntimeException e) {
                 throw failed();
             }

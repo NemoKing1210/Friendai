@@ -51,13 +51,22 @@ public final class PlaceService {
         if (book.find(values.name(), values.dimension()).isEmpty()) {
             int maxPlaces = config(companion).places.maxPlaces;
             if (book.all().size() >= maxPlaces) {
-                throw new IllegalArgumentException(
-                        "no room for more places (" + maxPlaces + "); forget one first");
+                throw new IllegalArgumentException("no room for more places (" + maxPlaces + "); forget one first");
             }
         }
         PlaceValues stored = new PlaceValues(
-                values.name(), values.kind(), values.label(), values.dimension(), values.anchor(), values.radius(),
-                values.aliases(), values.source(), author, values.note(), values.below(), values.above());
+                values.name(),
+                values.kind(),
+                values.label(),
+                values.dimension(),
+                values.anchor(),
+                values.radius(),
+                values.aliases(),
+                values.source(),
+                author,
+                values.note(),
+                values.below(),
+                values.above());
         return book.remember(stored, tick);
     }
 
@@ -68,8 +77,7 @@ public final class PlaceService {
     }
 
     /** Renames the one place {@code name} (or an alias) points at, keeping its id and aliases. */
-    public static Place rename(
-            CompanionEntity companion, Caller caller, String name, String newName, long tick) {
+    public static Place rename(CompanionEntity companion, Caller caller, String name, String newName, long tick) {
         Place place = unique(companion, name);
         return book(companion).rename(place.id(), newName, tick);
     }
@@ -94,8 +102,7 @@ public final class PlaceService {
         String dimension = dimension(companion);
         List<PlaceQuery.Result> results = PlaceQuery.find(
                 book(companion),
-                new PlaceQuery.Request(
-                        Optional.empty(), Set.of(), Optional.empty(), config.places.promptLimit, false),
+                new PlaceQuery.Request(Optional.empty(), Set.of(), Optional.empty(), config.places.promptLimit, false),
                 new Pos(origin.getX(), origin.getY(), origin.getZ()),
                 dimension);
         if (results.isEmpty()) {
@@ -105,8 +112,10 @@ public final class PlaceService {
         for (PlaceQuery.Result result : results) {
             Place place = result.place();
             String where = result.sameDimension()
-                    ? Math.round(result.distance()) + " blocks " + RelativeDirection.compass(
-                            place.anchor().x() - origin.getX(), place.anchor().z() - origin.getZ())
+                    ? Math.round(result.distance()) + " blocks "
+                            + RelativeDirection.compass(
+                                    place.anchor().x() - origin.getX(),
+                                    place.anchor().z() - origin.getZ())
                     : place.dimension();
             lines.add(new PlaceText.Line(place, where));
         }
@@ -126,8 +135,8 @@ public final class PlaceService {
         }
         long tick = companion.level().getGameTime();
         try {
-            PlaceAutoRegistration.Outcome outcome = PlaceAutoRegistration.decide(
-                    book(companion), candidate, config.places.mergeRadius, tick);
+            PlaceAutoRegistration.Outcome outcome =
+                    PlaceAutoRegistration.decide(book(companion), candidate, config.places.mergeRadius, tick);
             if (outcome.decision() == PlaceAutoRegistration.Decision.SKIP) {
                 return;
             }
@@ -137,9 +146,18 @@ public final class PlaceService {
             int below = existing == null ? Place.defaultBelow(candidate.radius()) : existing.below();
             int above = existing == null ? Place.defaultAbove(candidate.radius()) : existing.above();
             PlaceValues values = new PlaceValues(
-                    outcome.name(), candidate.kind(), candidate.label(), candidate.dimension(),
-                    candidate.anchor(), candidate.radius(), Set.of(), candidate.source(), owner(companion), "",
-                    below, above);
+                    outcome.name(),
+                    candidate.kind(),
+                    candidate.label(),
+                    candidate.dimension(),
+                    candidate.anchor(),
+                    candidate.radius(),
+                    Set.of(),
+                    candidate.source(),
+                    owner(companion),
+                    "",
+                    below,
+                    above);
             // The owner is the author of a place no player typed in.
             remember(companion, new Caller(owner(companion), "", AccessLevel.OWNER), values, tick);
         } catch (IllegalArgumentException rejected) {
@@ -234,8 +252,8 @@ public final class PlaceService {
             for (Place place : hits) {
                 names.add(place.name());
             }
-            throw new IllegalArgumentException("several places match " + name + ": "
-                    + String.join(", ", names) + "; give the exact name");
+            throw new IllegalArgumentException(
+                    "several places match " + name + ": " + String.join(", ", names) + "; give the exact name");
         }
         return hits.get(0);
     }

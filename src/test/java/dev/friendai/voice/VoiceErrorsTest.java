@@ -24,7 +24,8 @@ class VoiceErrorsTest {
 
     @Test
     void anythingElseBecomesTheGenericFailure() {
-        assertEquals(UserMessage.of("friendai.voice.error.failed"),
+        assertEquals(
+                UserMessage.of("friendai.voice.error.failed"),
                 VoiceErrors.userMessage(new IllegalStateException("boom")));
         assertEquals(UserMessage.of("friendai.voice.error.failed"), VoiceErrors.userMessage(null));
     }

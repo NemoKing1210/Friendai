@@ -38,12 +38,26 @@ public final class CropIndex {
             }
             BlockState ripe = crop.getStateForAge(crop.getMaxAge());
             Item produce = produce(level, ripe, seed);
-            infos.add(new CropInfo(blockId(block), id(seed), id(produce), crop.getMaxAge(), Soil.FARMLAND,
-                    foodValue(produce), 1.0, 1.0));
+            infos.add(new CropInfo(
+                    blockId(block),
+                    id(seed),
+                    id(produce),
+                    crop.getMaxAge(),
+                    Soil.FARMLAND,
+                    foodValue(produce),
+                    1.0,
+                    1.0));
         }
         if (seen.add(id(Items.NETHER_WART))) {
-            infos.add(new CropInfo(blockId(Blocks.NETHER_WART), id(Items.NETHER_WART), id(Items.NETHER_WART), 3,
-                    Soil.SOUL_SAND, 0, 1.0, 1.0));
+            infos.add(new CropInfo(
+                    blockId(Blocks.NETHER_WART),
+                    id(Items.NETHER_WART),
+                    id(Items.NETHER_WART),
+                    3,
+                    Soil.SOUL_SAND,
+                    0,
+                    1.0,
+                    1.0));
         }
         return CropBook.of(infos);
     }

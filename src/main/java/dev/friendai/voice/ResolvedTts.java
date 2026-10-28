@@ -2,8 +2,15 @@ package dev.friendai.voice;
 
 /** The synthesis settings a protocol adapter needs, with the key already resolved. */
 public record ResolvedTts(
-        String providerId, String protocol, String baseUrl, String apiKey,
-        String model, String voice, String language, String folderId, double speed) {
+        String providerId,
+        String protocol,
+        String baseUrl,
+        String apiKey,
+        String model,
+        String voice,
+        String language,
+        String folderId,
+        double speed) {
 
     public boolean local() {
         return "local".equals(protocol);

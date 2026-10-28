@@ -20,12 +20,35 @@ class OutcomeCheckerTest {
 
     private static GuardFacts facts(WorldSnapshot s) {
         return new GuardFacts() {
-            @Override public int countItems(String id) { return s.items().getOrDefault(id, 0); }
-            @Override public int emptySlots() { return s.emptySlots(); }
-            @Override public float healthFraction() { return 1f; }
-            @Override public int ownerDistance() { return s.ownerDistance(); }
-            @Override public int countBlocks(String id, int radius) { return 0; }
-            @Override public String dimension() { return s.dimension(); }
+            @Override
+            public int countItems(String id) {
+                return s.items().getOrDefault(id, 0);
+            }
+
+            @Override
+            public int emptySlots() {
+                return s.emptySlots();
+            }
+
+            @Override
+            public float healthFraction() {
+                return 1f;
+            }
+
+            @Override
+            public int ownerDistance() {
+                return s.ownerDistance();
+            }
+
+            @Override
+            public int countBlocks(String id, int radius) {
+                return 0;
+            }
+
+            @Override
+            public String dimension() {
+                return s.dimension();
+            }
         };
     }
 
@@ -34,7 +57,8 @@ class OutcomeCheckerTest {
         WorldSnapshot before = snap(Map.of("minecraft:cobblestone", 5), 10, 3);
         WorldSnapshot after = snap(Map.of("minecraft:cobblestone", 2, "minecraft:oak_log", 12), 8, 3);
         Outcome o = OutcomeChecker.check(before, after, true, List.of(), facts(after));
-        assertEquals(List.of("+12 minecraft:oak_log", "-3 minecraft:cobblestone", "empty slots 8 (was 10)"),
+        assertEquals(
+                List.of("+12 minecraft:oak_log", "-3 minecraft:cobblestone", "empty slots 8 (was 10)"),
                 o.facts().stream().map(Fact::text).toList());
         assertTrue(o.success());
         assertEquals("facts: +12 minecraft:oak_log, -3 minecraft:cobblestone, empty slots 8 (was 10)", o.factsLine());
@@ -57,7 +81,8 @@ class OutcomeCheckerTest {
     @Test
     void textOnlyCriterionIsListedButDoesNotFailASuccessfulTask() {
         WorldSnapshot s = snap(Map.of(), 10, 3);
-        Outcome o = OutcomeChecker.check(s, s, true, List.of(new Criterion("tell the owner", Optional.empty())), facts(s));
+        Outcome o =
+                OutcomeChecker.check(s, s, true, List.of(new Criterion("tell the owner", Optional.empty())), facts(s));
         assertTrue(o.success());
         assertEquals(List.of("tell the owner"), o.unmetCriteria());
         assertEquals("unmet: tell the owner", o.unmetLine());
@@ -72,7 +97,8 @@ class OutcomeCheckerTest {
         assertFalse(missed.success());
         assertEquals(List.of("12 logs"), missed.unmetCriteria());
         WorldSnapshot enough = snap(Map.of("minecraft:oak_log", 12), 10, 3);
-        assertTrue(OutcomeChecker.check(before, enough, true, List.of(logs), facts(enough)).success());
+        assertTrue(OutcomeChecker.check(before, enough, true, List.of(logs), facts(enough))
+                .success());
     }
 
     @Test
@@ -95,6 +121,8 @@ class OutcomeCheckerTest {
         WorldSnapshot before = snap(Map.of(), 10, 3);
         WorldSnapshot after = snap(Map.of(), 10, 40);
         Outcome o = OutcomeChecker.check(before, after, true, List.of(), facts(after));
-        assertEquals(List.of("owner 40 blocks away"), o.facts().stream().map(Fact::text).toList());
+        assertEquals(
+                List.of("owner 40 blocks away"),
+                o.facts().stream().map(Fact::text).toList());
     }
 }

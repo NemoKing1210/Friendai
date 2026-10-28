@@ -40,16 +40,15 @@ class PlaceViewBuilderTest {
     private static PlaceRegistry registryWithPlaces(int count) {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
         for (int i = 0; i < count; i++) {
-            registry.remember(
-                    values("place" + i, PlaceKind.MINE, new Pos(i, 40, -i), OVERWORLD), 100 + i);
+            registry.remember(values("place" + i, PlaceKind.MINE, new Pos(i, 40, -i), OVERWORLD), 100 + i);
         }
         return registry;
     }
 
     @Test
     void mapsEveryStoredFieldIntoARow() {
-        PlaceView view = PlaceViewBuilder.build(
-                registryWithOnePlace(), ServerConfig.defaults().places, Optional.empty());
+        PlaceView view =
+                PlaceViewBuilder.build(registryWithOnePlace(), ServerConfig.defaults().places, Optional.empty());
         assertTrue(view.enabled());
         assertEquals(1, view.places().size());
         PlaceView.Row row = view.places().get(0);
@@ -75,9 +74,9 @@ class PlaceViewBuilderTest {
         registry.remember(values("alpha", PlaceKind.FARM, new Pos(4, 64, 4), OVERWORLD), 30);
         registry.remember(values("gamma", PlaceKind.MINE, new Pos(8, 40, 8), OVERWORLD), 30);
         PlaceView view = PlaceViewBuilder.build(registry, ServerConfig.defaults().places, Optional.empty());
-        assertEquals(List.of("alpha", "gamma", "beta"), view.places().stream()
-                .map(PlaceView.Row::name)
-                .toList());
+        assertEquals(
+                List.of("alpha", "gamma", "beta"),
+                view.places().stream().map(PlaceView.Row::name).toList());
     }
 
     @Test
@@ -140,8 +139,8 @@ class PlaceViewBuilderTest {
         registry.remember(values("portal", PlaceKind.PORTAL, new Pos(0, 64, 0), OVERWORLD), 1);
         registry.remember(values("portal", PlaceKind.PORTAL, new Pos(0, 64, 0), NETHER), 2);
         PlaceView view = PlaceViewBuilder.build(registry, ServerConfig.defaults().places, Optional.empty());
-        assertEquals(List.of(NETHER, OVERWORLD), view.places().stream()
-                .map(PlaceView.Row::dimension)
-                .toList());
+        assertEquals(
+                List.of(NETHER, OVERWORLD),
+                view.places().stream().map(PlaceView.Row::dimension).toList());
     }
 }

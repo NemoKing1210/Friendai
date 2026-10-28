@@ -12,8 +12,8 @@ class SearchHintTest {
     private static final Pos ORIGIN = new Pos(0, 64, 0);
 
     private static SearchPlanner.Frontier frontier(int x, SearchPlanner.Terrain terrain) {
-        return new SearchPlanner.Frontier(new Pos(x, 64, 0), new Pos(x, 64, 0),
-                ResourceSearchProfile.Strategy.SURFACE, 1, 32, terrain);
+        return new SearchPlanner.Frontier(
+                new Pos(x, 64, 0), new Pos(x, 64, 0), ResourceSearchProfile.Strategy.SURFACE, 1, 32, terrain);
     }
 
     @Test
@@ -26,14 +26,18 @@ class SearchHintTest {
     @Test
     void biomeAndAreaAlsoMatch() {
         SearchHint biome = SearchHint.create(null, null, "minecraft:forest", null, 0, "", 100);
-        assertEquals(SearchHint.BONUS, biome.bonusFor(frontier(16, new SearchPlanner.Terrain(false, 0, 0, false,
-                "minecraft:forest")), ORIGIN, 100));
-        assertEquals(0, biome.bonusFor(frontier(16, new SearchPlanner.Terrain(false, 0, 0, false,
-                "minecraft:ocean")), ORIGIN, 100));
+        assertEquals(
+                SearchHint.BONUS,
+                biome.bonusFor(
+                        frontier(16, new SearchPlanner.Terrain(false, 0, 0, false, "minecraft:forest")), ORIGIN, 100));
+        assertEquals(
+                0,
+                biome.bonusFor(
+                        frontier(16, new SearchPlanner.Terrain(false, 0, 0, false, "minecraft:ocean")), ORIGIN, 100));
 
         SearchHint area = SearchHint.create(null, "village", null, new Pos(100, 64, 100), 16, "", 100);
-        var near = new SearchPlanner.Frontier(new Pos(110, 64, 100), new Pos(110, 64, 100),
-                ResourceSearchProfile.Strategy.SURFACE, 1, 32);
+        var near = new SearchPlanner.Frontier(
+                new Pos(110, 64, 100), new Pos(110, 64, 100), ResourceSearchProfile.Strategy.SURFACE, 1, 32);
         assertEquals(SearchHint.BONUS, area.bonusFor(near, ORIGIN, 100));
     }
 
@@ -49,14 +53,19 @@ class SearchHintTest {
     @Test
     void validationNamesTheWorldReason() {
         SearchHint hint = SearchHint.create(SearchPlanner.Heading.NORTH, null, null, null, 0, "", 100);
-        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, true, true), 100).accepted());
-        assertTrue(hint.validate(new SearchHint.ValidationFacts(false, true, true, true), 100).reason()
+        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, true, true), 100)
+                .accepted());
+        assertTrue(hint.validate(new SearchHint.ValidationFacts(false, true, true, true), 100)
+                .reason()
                 .contains("not loaded"));
-        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, false, true, true), 100).reason()
+        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, false, true, true), 100)
+                .reason()
                 .contains("water or lava"));
-        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, false, true), 100).reason()
+        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, false, true), 100)
+                .reason()
                 .contains("protected"));
-        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, true, false), 100).reason()
+        assertTrue(hint.validate(new SearchHint.ValidationFacts(true, true, true, false), 100)
+                .reason()
                 .contains("world border"));
     }
 

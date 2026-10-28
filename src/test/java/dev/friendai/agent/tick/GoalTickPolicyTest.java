@@ -24,46 +24,60 @@ class GoalTickPolicyTest {
     @Test
     void autonomousAlsoTicks() {
         TickFacts f = ready();
-        assertTrue(GoalTickPolicy.shouldTick(new TickFacts(f.activeGoal(), f.queueIdleOrBlocked(), f.ownerOnline(),
-                f.inCombatOrPaused(), f.turnInFlight(), f.nowMillis(), f.lastTickMillis(), Autonomy.AUTONOMOUS, 30)));
+        assertTrue(GoalTickPolicy.shouldTick(new TickFacts(
+                f.activeGoal(),
+                f.queueIdleOrBlocked(),
+                f.ownerOnline(),
+                f.inCombatOrPaused(),
+                f.turnInFlight(),
+                f.nowMillis(),
+                f.lastTickMillis(),
+                Autonomy.AUTONOMOUS,
+                30)));
     }
 
     @Test
     void noTickWithoutAGoal() {
         TickFacts f = ready();
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(false, true, true, false, false, NOW, NOW - 31_000,
-                Autonomy.ASSISTIVE, 30)));
+        assertFalse(GoalTickPolicy.shouldTick(
+                new TickFacts(false, true, true, false, false, NOW, NOW - 31_000, Autonomy.ASSISTIVE, 30)));
         assertTrue(GoalTickPolicy.shouldTick(f));
     }
 
     @Test
     void noTickWhilePassive() {
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, true, true, false, false, NOW, NOW - 31_000,
-                Autonomy.PASSIVE, 30)));
+        assertFalse(GoalTickPolicy.shouldTick(
+                new TickFacts(true, true, true, false, false, NOW, NOW - 31_000, Autonomy.PASSIVE, 30)));
     }
 
     @Test
     void noTickWhileBusyOrInCombatOrTalking() {
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, false, true, false, false, NOW, NOW - 31_000,
-                Autonomy.ASSISTIVE, 30)), "queue busy");
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, true, true, true, false, NOW, NOW - 31_000,
-                Autonomy.ASSISTIVE, 30)), "combat, paused, asleep or on an expedition");
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, true, true, false, true, NOW, NOW - 31_000,
-                Autonomy.ASSISTIVE, 30)), "turn in flight");
+        assertFalse(
+                GoalTickPolicy.shouldTick(
+                        new TickFacts(true, false, true, false, false, NOW, NOW - 31_000, Autonomy.ASSISTIVE, 30)),
+                "queue busy");
+        assertFalse(
+                GoalTickPolicy.shouldTick(
+                        new TickFacts(true, true, true, true, false, NOW, NOW - 31_000, Autonomy.ASSISTIVE, 30)),
+                "combat, paused, asleep or on an expedition");
+        assertFalse(
+                GoalTickPolicy.shouldTick(
+                        new TickFacts(true, true, true, false, true, NOW, NOW - 31_000, Autonomy.ASSISTIVE, 30)),
+                "turn in flight");
     }
 
     @Test
     void noTickWhenTheOwnerIsAway() {
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, true, false, false, false, NOW, NOW - 31_000,
-                Autonomy.ASSISTIVE, 30)));
+        assertFalse(GoalTickPolicy.shouldTick(
+                new TickFacts(true, true, false, false, false, NOW, NOW - 31_000, Autonomy.ASSISTIVE, 30)));
     }
 
     @Test
     void noTickBeforeTheInterval() {
-        assertFalse(GoalTickPolicy.shouldTick(new TickFacts(true, true, true, false, false, NOW, NOW - 29_999,
-                Autonomy.ASSISTIVE, 30)));
-        assertTrue(GoalTickPolicy.shouldTick(new TickFacts(true, true, true, false, false, NOW, NOW - 30_000,
-                Autonomy.ASSISTIVE, 30)));
+        assertFalse(GoalTickPolicy.shouldTick(
+                new TickFacts(true, true, true, false, false, NOW, NOW - 29_999, Autonomy.ASSISTIVE, 30)));
+        assertTrue(GoalTickPolicy.shouldTick(
+                new TickFacts(true, true, true, false, false, NOW, NOW - 30_000, Autonomy.ASSISTIVE, 30)));
     }
 
     private static TickFacts noGoal(Autonomy autonomy, long idleMillis) {
@@ -87,16 +101,26 @@ class GoalTickPolicyTest {
 
     @Test
     void askingNeedsAFreeIdleOwnerPresentCompanion() {
-        assertFalse(GoalTickPolicy.shouldAskWhatNext(
-                new TickFacts(true, true, true, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)), "a goal exists");
-        assertFalse(GoalTickPolicy.shouldAskWhatNext(
-                new TickFacts(false, false, true, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)), "queue busy");
-        assertFalse(GoalTickPolicy.shouldAskWhatNext(
-                new TickFacts(false, true, false, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)), "owner away");
-        assertFalse(GoalTickPolicy.shouldAskWhatNext(
-                new TickFacts(false, true, true, true, false, NOW, 0, Autonomy.AUTONOMOUS, 30)), "in combat");
-        assertFalse(GoalTickPolicy.shouldAskWhatNext(
-                new TickFacts(false, true, true, false, true, NOW, 0, Autonomy.AUTONOMOUS, 30)), "already talking");
+        assertFalse(
+                GoalTickPolicy.shouldAskWhatNext(
+                        new TickFacts(true, true, true, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)),
+                "a goal exists");
+        assertFalse(
+                GoalTickPolicy.shouldAskWhatNext(
+                        new TickFacts(false, false, true, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)),
+                "queue busy");
+        assertFalse(
+                GoalTickPolicy.shouldAskWhatNext(
+                        new TickFacts(false, true, false, false, false, NOW, 0, Autonomy.AUTONOMOUS, 30)),
+                "owner away");
+        assertFalse(
+                GoalTickPolicy.shouldAskWhatNext(
+                        new TickFacts(false, true, true, true, false, NOW, 0, Autonomy.AUTONOMOUS, 30)),
+                "in combat");
+        assertFalse(
+                GoalTickPolicy.shouldAskWhatNext(
+                        new TickFacts(false, true, true, false, true, NOW, 0, Autonomy.AUTONOMOUS, 30)),
+                "already talking");
     }
 
     @Test
@@ -108,10 +132,12 @@ class GoalTickPolicyTest {
 
     @Test
     void eventLineHasGoalAndUnmetCriteria() {
-        assertEquals("[event] goal \"iron armor\" is not finished; unmet: 12 ingots; full set worn; the queue is idle. "
+        assertEquals(
+                "[event] goal \"iron armor\" is not finished; unmet: 12 ingots; full set worn; the queue is idle. "
                         + "Continue it or say what blocks you.",
                 new BrainEvent.GoalTick("iron armor", List.of("12 ingots", "full set worn")).toPromptLine());
-        assertEquals("[event] goal \"iron armor\" is not finished; nothing is confirmed missing, check whether it is "
+        assertEquals(
+                "[event] goal \"iron armor\" is not finished; nothing is confirmed missing, check whether it is "
                         + "done; the queue is idle. Continue it or say what blocks you.",
                 new BrainEvent.GoalTick("iron armor", List.of()).toPromptLine());
     }

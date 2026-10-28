@@ -11,8 +11,10 @@ import java.util.function.IntSupplier;
 /** The companion's skills as tools the LLM can call, grouped by domain. */
 public final class FriendaiTools {
     /** A built registry plus task definitions used to restore saved queue jobs. */
-    public record Builtins(ToolRegistry<CompanionEntity> registry, Map<String, TaskToolDef> plannable,
-                           Map<String, TaskToolDef> taskTools) {}
+    public record Builtins(
+            ToolRegistry<CompanionEntity> registry,
+            Map<String, TaskToolDef> plannable,
+            Map<String, TaskToolDef> taskTools) {}
 
     private FriendaiTools() {}
 
@@ -21,8 +23,12 @@ public final class FriendaiTools {
      * not linked to the owner's goal when {@code linkGoal} is false, and any nested action using a {@code denied} tool
      * refuses the whole plan. Never throws for a bad plan.
      */
-    public static dev.friendai.tool.ToolResult addPlan(CompanionEntity companion, dev.friendai.tool.Caller caller,
-            com.google.gson.JsonObject args, Map<String, TaskToolDef> plannable, boolean linkGoal,
+    public static dev.friendai.tool.ToolResult addPlan(
+            CompanionEntity companion,
+            dev.friendai.tool.Caller caller,
+            com.google.gson.JsonObject args,
+            Map<String, TaskToolDef> plannable,
+            boolean linkGoal,
             java.util.Set<String> denied) {
         return QueueTools.addPlan(companion, caller, args, plannable, linkGoal, denied);
     }

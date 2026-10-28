@@ -57,8 +57,8 @@ public final class PlaceRegistry {
             Long ownerId = keys.get(PlaceNames.key(alias, dimension));
             if (ownerId != null && !ownerId.equals(matchedId)) {
                 Place owner = byId.get(ownerId);
-                throw new IllegalArgumentException("The alias '" + alias + "' already names place #" + ownerId
-                        + " '" + owner.name() + "'.");
+                throw new IllegalArgumentException(
+                        "The alias '" + alias + "' already names place #" + ownerId + " '" + owner.name() + "'.");
             }
         }
 
@@ -68,9 +68,23 @@ public final class PlaceRegistry {
                         "no room for more places (" + limits.maxPlaces() + "); forget one first");
             }
             Place place = new Place(
-                    nextId, name, values.kind(), values.label(), dimension, values.anchor(), values.radius(),
-                    aliases, values.source(), values.author(), tick, tick, 0, 0, values.note(),
-                    values.below(), values.above());
+                    nextId,
+                    name,
+                    values.kind(),
+                    values.label(),
+                    dimension,
+                    values.anchor(),
+                    values.radius(),
+                    aliases,
+                    values.source(),
+                    values.author(),
+                    tick,
+                    tick,
+                    0,
+                    0,
+                    values.note(),
+                    values.below(),
+                    values.above());
             checkLimits(place);
             nextId++;
             byId.put(place.id(), place);
@@ -88,10 +102,23 @@ public final class PlaceRegistry {
             merged.putIfAbsent(PlaceNames.normalize(alias), alias);
         }
         Place updated = new Place(
-                existing.id(), existing.name(), values.kind(), values.label(), existing.dimension(),
-                values.anchor(), values.radius(), new LinkedHashSet<>(merged.values()), existing.source(),
-                existing.author(), existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(),
-                values.note(), values.below(), values.above());
+                existing.id(),
+                existing.name(),
+                values.kind(),
+                values.label(),
+                existing.dimension(),
+                values.anchor(),
+                values.radius(),
+                new LinkedHashSet<>(merged.values()),
+                existing.source(),
+                existing.author(),
+                existing.createdTick(),
+                tick,
+                existing.lastVisitTick(),
+                existing.visits(),
+                values.note(),
+                values.below(),
+                values.above());
         checkLimits(updated);
         if (updated.equals(existing)) {
             return existing;
@@ -129,10 +156,23 @@ public final class PlaceRegistry {
     public Place visit(long id, long tick) {
         Place existing = require(id);
         Place updated = new Place(
-                existing.id(), existing.name(), existing.kind(), existing.label(), existing.dimension(),
-                existing.anchor(), existing.radius(), existing.aliases(), existing.source(), existing.author(),
-                existing.createdTick(), existing.updatedTick(), tick, existing.visits() + 1, existing.note(),
-                existing.below(), existing.above());
+                existing.id(),
+                existing.name(),
+                existing.kind(),
+                existing.label(),
+                existing.dimension(),
+                existing.anchor(),
+                existing.radius(),
+                existing.aliases(),
+                existing.source(),
+                existing.author(),
+                existing.createdTick(),
+                existing.updatedTick(),
+                tick,
+                existing.visits() + 1,
+                existing.note(),
+                existing.below(),
+                existing.above());
         byId.put(updated.id(), updated);
         dirty = true;
         revision++;
@@ -146,17 +186,30 @@ public final class PlaceRegistry {
         Long ownerId = keys.get(PlaceNames.key(name, existing.dimension()));
         if (ownerId != null && ownerId.longValue() != id) {
             Place owner = byId.get(ownerId);
-            throw new IllegalArgumentException("'" + name + "' already names place #" + ownerId + " '"
-                    + owner.name() + "'.");
+            throw new IllegalArgumentException(
+                    "'" + name + "' already names place #" + ownerId + " '" + owner.name() + "'.");
         }
         if (name.equals(existing.name())) {
             return existing;
         }
         Place updated = new Place(
-                existing.id(), name, existing.kind(), existing.label(), existing.dimension(), existing.anchor(),
-                existing.radius(), existing.aliases(), existing.source(), existing.author(),
-                existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(), existing.note(),
-                existing.below(), existing.above());
+                existing.id(),
+                name,
+                existing.kind(),
+                existing.label(),
+                existing.dimension(),
+                existing.anchor(),
+                existing.radius(),
+                existing.aliases(),
+                existing.source(),
+                existing.author(),
+                existing.createdTick(),
+                tick,
+                existing.lastVisitTick(),
+                existing.visits(),
+                existing.note(),
+                existing.below(),
+                existing.above());
         checkLimits(updated);
         keys.entrySet().removeIf(entry -> entry.getValue().longValue() == id);
         byId.put(updated.id(), updated);
@@ -233,12 +286,11 @@ public final class PlaceRegistry {
 
     private void checkLimits(Place place) {
         if (place.name().length() > limits.maxNameChars()) {
-            throw new IllegalArgumentException("A place name is too long (" + place.name().length()
-                    + " chars, max " + limits.maxNameChars() + "). Shorten it.");
+            throw new IllegalArgumentException("A place name is too long ("
+                    + place.name().length() + " chars, max " + limits.maxNameChars() + "). Shorten it.");
         }
         if (place.aliases().size() > limits.maxAliases()) {
-            throw new IllegalArgumentException(
-                    "A place can have at most " + limits.maxAliases() + " aliases.");
+            throw new IllegalArgumentException("A place can have at most " + limits.maxAliases() + " aliases.");
         }
         for (String alias : place.aliases()) {
             if (alias.length() > limits.maxNameChars()) {
@@ -247,8 +299,8 @@ public final class PlaceRegistry {
             }
         }
         if (place.note().length() > limits.maxNoteChars()) {
-            throw new IllegalArgumentException("A place note is too long (" + place.note().length()
-                    + " chars, max " + limits.maxNoteChars() + "). Shorten it.");
+            throw new IllegalArgumentException("A place note is too long ("
+                    + place.note().length() + " chars, max " + limits.maxNoteChars() + "). Shorten it.");
         }
     }
 

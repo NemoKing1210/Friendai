@@ -41,8 +41,21 @@ class PlaceFileTest {
     @Test
     void anExplicitBandRoundTrips() {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
-        registry.remember(new PlaceValues("mine", PlaceKind.MINE, "", OVERWORLD, new Pos(4, 40, 4), 6, Set.of(),
-                PlaceSource.MANUAL, null, "", 16, 2), 3);
+        registry.remember(
+                new PlaceValues(
+                        "mine",
+                        PlaceKind.MINE,
+                        "",
+                        OVERWORLD,
+                        new Pos(4, 40, 4),
+                        6,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        "",
+                        16,
+                        2),
+                3);
         String json = PlaceFile.encode(registry).toJson();
         assertTrue(json.contains("\"below\": 16"), json);
         assertTrue(json.contains("\"above\": 2"), json);
@@ -53,8 +66,8 @@ class PlaceFileTest {
 
     @Test
     void duplicateNamePerDimensionIsRejected() {
-        String json = "{\"version\":1,\"nextId\":3,\"places\":["
-                + placeJson(1, "home", "minecraft:overworld") + "," + placeJson(2, "HOME", "minecraft:overworld") + "]}";
+        String json = "{\"version\":1,\"nextId\":3,\"places\":[" + placeJson(1, "home", "minecraft:overworld") + ","
+                + placeJson(2, "HOME", "minecraft:overworld") + "]}";
         assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, PlaceLimits.DEFAULTS));
     }
 
@@ -68,8 +81,8 @@ class PlaceFileTest {
 
     @Test
     void theSameNameInAnotherDimensionIsKept() {
-        String json = "{\"version\":1,\"nextId\":3,\"places\":["
-                + placeJson(1, "home", OVERWORLD) + "," + placeJson(2, "home", NETHER) + "]}";
+        String json = "{\"version\":1,\"nextId\":3,\"places\":[" + placeJson(1, "home", OVERWORLD) + ","
+                + placeJson(2, "home", NETHER) + "]}";
         PlaceRegistry restored = PlaceFile.decode(json, PlaceLimits.DEFAULTS);
         assertEquals(2, restored.all().size());
         assertTrue(restored.find("home", OVERWORLD).isPresent());
@@ -84,8 +97,8 @@ class PlaceFileTest {
 
     @Test
     void duplicateIdsAreRejected() {
-        String json = "{\"version\":1,\"nextId\":3,\"places\":["
-                + placeJson(1, "home", OVERWORLD) + "," + placeJson(1, "mine", OVERWORLD) + "]}";
+        String json = "{\"version\":1,\"nextId\":3,\"places\":[" + placeJson(1, "home", OVERWORLD) + ","
+                + placeJson(1, "mine", OVERWORLD) + "]}";
         assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, PlaceLimits.DEFAULTS));
     }
 
@@ -94,7 +107,10 @@ class PlaceFileTest {
         String json = "{\"version\":1,\"nextId\":9,\"places\":[" + placeJson(2, "home", OVERWORLD) + "]}";
         PlaceRegistry restored = PlaceFile.decode(json, PlaceLimits.DEFAULTS);
         assertEquals(2, restored.all().getFirst().id());
-        assertEquals(9, restored.remember(values("mine", PlaceKind.MINE, new Pos(5, 40, 5)), 9).id());
+        assertEquals(
+                9,
+                restored.remember(values("mine", PlaceKind.MINE, new Pos(5, 40, 5)), 9)
+                        .id());
     }
 
     @Test
@@ -142,9 +158,19 @@ class PlaceFileTest {
     void everyStoredFieldSurvivesTheRoundTrip() {
         UUID author = UUID.randomUUID();
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
-        Place place = registry.remember(new PlaceValues(
-                "Wheat Farm", PlaceKind.FARM, "wheat", OVERWORLD, new Pos(120, 64, -30), 12,
-                Set.of("farm", "пшеница"), PlaceSource.BUILD, author, "two chests inside"), 12_000);
+        Place place = registry.remember(
+                new PlaceValues(
+                        "Wheat Farm",
+                        PlaceKind.FARM,
+                        "wheat",
+                        OVERWORLD,
+                        new Pos(120, 64, -30),
+                        12,
+                        Set.of("farm", "пшеница"),
+                        PlaceSource.BUILD,
+                        author,
+                        "two chests inside"),
+                12_000);
         registry.visit(place.id(), 13_800);
         PlaceRegistry restored = PlaceFile.decode(PlaceFile.encode(registry), PlaceLimits.DEFAULTS);
         assertEquals(registry.all(), restored.all());
@@ -152,10 +178,8 @@ class PlaceFileTest {
 
     @Test
     void malformedJsonIsRejected() {
-        assertThrows(IllegalArgumentException.class,
-                () -> PlaceFile.decode("{not json}", PlaceLimits.DEFAULTS));
-        assertThrows(IllegalArgumentException.class,
-                () -> PlaceFile.decode("[1,2,3]", PlaceLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode("{not json}", PlaceLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode("[1,2,3]", PlaceLimits.DEFAULTS));
     }
 
     @Test
@@ -177,8 +201,8 @@ class PlaceFileTest {
 
     @Test
     void morePlacesThanTheLimitAreRejected() {
-        String json = "{\"version\":1,\"nextId\":3,\"places\":["
-                + placeJson(1, "home", OVERWORLD) + "," + placeJson(2, "mine", OVERWORLD) + "]}";
+        String json = "{\"version\":1,\"nextId\":3,\"places\":[" + placeJson(1, "home", OVERWORLD) + ","
+                + placeJson(2, "mine", OVERWORLD) + "]}";
         PlaceLimits one = new PlaceLimits(1, 32, 4, 160, 1 << 20);
         assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, one));
     }
@@ -197,8 +221,7 @@ class PlaceFileTest {
     }
 
     private static PlaceValues values(String name, PlaceKind kind, Pos pos, Set<String> aliases) {
-        return new PlaceValues(
-                name, kind, "", OVERWORLD, pos, 8, aliases, PlaceSource.MANUAL, null, "");
+        return new PlaceValues(name, kind, "", OVERWORLD, pos, 8, aliases, PlaceSource.MANUAL, null, "");
     }
 
     private static String placeJson(long id, String name, String dimension) {

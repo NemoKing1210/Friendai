@@ -1,5 +1,6 @@
 package dev.friendai.perception.resource;
 
+import dev.friendai.crafting.obtain.ResourceCandidate;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.KnowledgeStore;
 import dev.friendai.knowledge.ObservationWindow;
@@ -7,7 +8,6 @@ import dev.friendai.knowledge.ResourceKnowledge;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.ResourceQuery;
 import dev.friendai.knowledge.ResourceSite;
-import dev.friendai.crafting.obtain.ResourceCandidate;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
@@ -30,39 +30,59 @@ public final class ResourceCandidates {
     private static final int MAX_CAVE_ENTRANCES = 32;
     /** How long a direct sighting stays usable as recent evidence. */
     public static final long RECENT_EVIDENCE_TICKS = 200;
+
     private static final int MAX_RECENT_OBSERVATIONS = 2_048;
 
-    public enum Verification { PENDING, PRESENT, ABSENT, OCCLUDED, UNLOADED }
+    public enum Verification {
+        PENDING,
+        PRESENT,
+        ABSENT,
+        OCCLUDED,
+        UNLOADED
+    }
 
     private final KnowledgeStore knowledge;
     /** Recent sight is attached to the observing entity; only durable history is owner scoped. */
     private final Map<UUID, ObservationWindow> recent = new HashMap<>();
+
     private final Map<UUID, List<ScopedCaveEntrance>> observedCaveEntrances = new HashMap<>();
     private ObservationScheduler observations;
 
-    public ResourceCandidates(KnowledgeStore knowledge) { this.knowledge = knowledge; }
+    public ResourceCandidates(KnowledgeStore knowledge) {
+        this.knowledge = knowledge;
+    }
 
-    public void attach(ObservationScheduler observations) { this.observations = observations; }
+    public void attach(ObservationScheduler observations) {
+        this.observations = observations;
+    }
 
     public void observe(CompanionEntity companion, ResourceObservation observation) {
         UUID owner = companion.ownerUuid();
         if (owner != null) knowledge.book(owner).observe(observation, observation.blockId());
-        recent.computeIfAbsent(companion.getUUID(),
-                ignored -> new ObservationWindow(MAX_RECENT_OBSERVATIONS, RECENT_EVIDENCE_TICKS)).record(observation);
+        recent.computeIfAbsent(
+                        companion.getUUID(),
+                        ignored -> new ObservationWindow(MAX_RECENT_OBSERVATIONS, RECENT_EVIDENCE_TICKS))
+                .record(observation);
     }
 
     /** Retains a short-lived owner-scoped entrance sighting without reading the world. */
     public void observeCaveEntrance(CompanionEntity companion, CaveEntranceObservation entrance) {
         UUID owner = companion.ownerUuid();
-        if (owner == null || !(companion.level() instanceof ServerLevel level)
+        if (owner == null
+                || !(companion.level() instanceof ServerLevel level)
                 || !entrance.dimension().equals(level.dimension().identifier().toString())) return;
         long now = logicalTick(level);
-        List<ScopedCaveEntrance> entries = observedCaveEntrances.computeIfAbsent(companion.getUUID(), ignored -> new ArrayList<>());
-        entries.removeIf(entry -> !entry.owner().equals(owner) || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL
+        List<ScopedCaveEntrance> entries =
+                observedCaveEntrances.computeIfAbsent(companion.getUUID(), ignored -> new ArrayList<>());
+        entries.removeIf(entry -> !entry.owner().equals(owner)
+                || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL
                 || sameOpening(entry.entrance(), entrance));
         entries.add(new ScopedCaveEntrance(owner, entrance));
-        entries.sort(Comparator.comparingLong((ScopedCaveEntrance entry) -> entry.entrance().observedTick()).reversed());
-        if (entries.size() > MAX_CAVE_ENTRANCES) entries.subList(MAX_CAVE_ENTRANCES, entries.size()).clear();
+        entries.sort(Comparator.comparingLong(
+                        (ScopedCaveEntrance entry) -> entry.entrance().observedTick())
+                .reversed());
+        if (entries.size() > MAX_CAVE_ENTRANCES)
+            entries.subList(MAX_CAVE_ENTRANCES, entries.size()).clear();
     }
 
     /** Recently observed openings in this owner's current dimension, nearest first. */
@@ -73,14 +93,16 @@ public final class ResourceCandidates {
         String dimension = level.dimension().identifier().toString();
         List<ScopedCaveEntrance> entries = observedCaveEntrances.get(companion.getUUID());
         if (entries == null) return List.of();
-        entries.removeIf(entry -> now < entry.entrance().observedTick()
-                || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL);
+        entries.removeIf(entry ->
+                now < entry.entrance().observedTick() || now - entry.entrance().observedTick() > CAVE_ENTRANCE_TTL);
         return entries.stream()
                 .filter(entry -> entry.owner().equals(owner))
                 .map(ScopedCaveEntrance::entrance)
                 .filter(entrance -> entrance.dimension().equals(dimension))
-                .sorted(Comparator.comparingDouble((CaveEntranceObservation entrance) -> distanceSquared(companion, entrance.approach()))
-                        .thenComparing(Comparator.comparingLong(CaveEntranceObservation::observedTick).reversed()))
+                .sorted(Comparator.comparingDouble(
+                                (CaveEntranceObservation entrance) -> distanceSquared(companion, entrance.approach()))
+                        .thenComparing(Comparator.comparingLong(CaveEntranceObservation::observedTick)
+                                .reversed()))
                 .limit(MAX_CAVE_ENTRANCES)
                 .toList();
     }
@@ -100,7 +122,9 @@ public final class ResourceCandidates {
         if (matcher == null || limit < 1) return List.of();
         return confirmedRecent(companion, radius).stream()
                 .filter(observation -> matches(matcher, observation.blockId()))
-                .map(observation -> new BlockPos(observation.location().pos().x(), observation.location().pos().y(),
+                .map(observation -> new BlockPos(
+                        observation.location().pos().x(),
+                        observation.location().pos().y(),
                         observation.location().pos().z()))
                 .limit(limit)
                 .toList();
@@ -165,12 +189,14 @@ public final class ResourceCandidates {
 
     /** Confirmed recent positions first, then remembered positions whose block is still present. */
     public Map<BlockPos, String> recentOrRememberedBlockIds(CompanionEntity companion, int radius, int limit) {
-        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)
-                || radius < 0 || limit < 1) return Map.of();
+        if (companion.ownerUuid() == null
+                || !(companion.level() instanceof ServerLevel level)
+                || radius < 0
+                || limit < 1) return Map.of();
         Map<BlockPos, String> result = new java.util.LinkedHashMap<>();
         confirmedRecentBlockIds(companion, radius).entrySet().stream()
-                .sorted(Comparator.comparingDouble(entry ->
-                        companion.position().distanceToSqr(Vec3.atCenterOf(entry.getKey()))))
+                .sorted(Comparator.comparingDouble(
+                        entry -> companion.position().distanceToSqr(Vec3.atCenterOf(entry.getKey()))))
                 .forEach(entry -> result.putIfAbsent(entry.getKey(), entry.getValue()));
         if (result.size() >= limit) return Map.copyOf(result);
         String dimension = level.dimension().identifier().toString();
@@ -197,7 +223,10 @@ public final class ResourceCandidates {
     private static boolean stillPresent(ServerLevel level, ResourceObservation observation) {
         var pos = observation.location().pos();
         BlockPos block = new BlockPos(pos.x(), pos.y(), pos.z());
-        if (!observation.location().dimension().equals(level.dimension().identifier().toString())
+        if (!observation
+                        .location()
+                        .dimension()
+                        .equals(level.dimension().identifier().toString())
                 || !level.hasChunkAt(block)) return false;
         BlockState state = level.getBlockState(block);
         return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString().equals(observation.blockId());
@@ -210,7 +239,8 @@ public final class ResourceCandidates {
         ResourceKnowledge book = knowledge.book(companion.ownerUuid());
         double radiusSquared = (double) radius * radius;
         return book.snapshot().records().stream()
-                .filter(record -> record.dimension().equals(level.dimension().identifier().toString()))
+                .filter(record ->
+                        record.dimension().equals(level.dimension().identifier().toString()))
                 .filter(record -> matches(matcher, record.blockId()))
                 .map(record -> new BlockPos(record.x(), record.y(), record.z()))
                 .filter(pos -> companion.position().distanceToSqr(Vec3.atCenterOf(pos)) <= radiusSquared)
@@ -224,7 +254,8 @@ public final class ResourceCandidates {
         if (limit < 1) return List.of();
         java.util.LinkedHashSet<BlockPos> positions = new java.util.LinkedHashSet<>();
         positions.addAll(visible(companion, matcher, radius, limit));
-        if (positions.size() < limit) positions.addAll(remembered(companion, matcher, radius, limit - positions.size()));
+        if (positions.size() < limit)
+            positions.addAll(remembered(companion, matcher, radius, limit - positions.size()));
         return positions.stream()
                 .sorted(Comparator.comparingDouble(pos -> companion.position().distanceToSqr(Vec3.atCenterOf(pos))))
                 .limit(limit)
@@ -237,17 +268,20 @@ public final class ResourceCandidates {
         if (window == null) return false;
         String dimension = level.dimension().identifier().toString();
         long tick = logicalTick(level);
-        return window.recent(tick).stream().anyMatch(observation ->
-                observation.observedTick() == tick && observation.location().dimension().equals(dimension)
+        return window.recent(tick).stream()
+                .anyMatch(observation -> observation.observedTick() == tick
+                        && observation.location().dimension().equals(dimension)
                         && observation.location().pos().x() == pos.getX()
                         && observation.location().pos().y() == pos.getY()
                         && observation.location().pos().z() == pos.getZ());
     }
 
     public java.util.Optional<String> rememberedBlockId(CompanionEntity companion, BlockPos pos) {
-        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return java.util.Optional.empty();
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
+            return java.util.Optional.empty();
         return knowledge.book(companion.ownerUuid()).snapshot().records().stream()
-                .filter(record -> record.dimension().equals(level.dimension().identifier().toString()))
+                .filter(record ->
+                        record.dimension().equals(level.dimension().identifier().toString()))
                 .filter(record -> record.x() == pos.getX() && record.y() == pos.getY() && record.z() == pos.getZ())
                 .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
                 .findFirst();
@@ -283,8 +317,13 @@ public final class ResourceCandidates {
         Map<String, ResourceCandidate> result = new java.util.LinkedHashMap<>();
         long now = logicalTick(level);
         for (String blockId : blockIds) {
-            ResourceQuery.Request request = new ResourceQuery.Request(Set.of(blockId), dimension,
-                    new Pos(origin.getX(), origin.getY(), origin.getZ()), 30_000_000, limitPerBlock, true);
+            ResourceQuery.Request request = new ResourceQuery.Request(
+                    Set.of(blockId),
+                    dimension,
+                    new Pos(origin.getX(), origin.getY(), origin.getZ()),
+                    30_000_000,
+                    limitPerBlock,
+                    true);
             for (ResourceQuery.Result found : ResourceQuery.find(book, request, now)) {
                 ResourceSite site = found.site();
                 Pos approach = site.approach();
@@ -293,21 +332,31 @@ public final class ResourceCandidates {
                 double dy = Math.abs(approach.y() - companion.getY());
                 boolean fresh = site.availability() == ResourceSite.Availability.OBSERVED;
                 double cost = 4.6 * Math.hypot(dx, dz) + 10 * dy + (fresh ? 0 : 200);
-                boolean visible = site.members().stream().anyMatch(pos ->
-                        currentlyVisible(companion, new BlockPos(pos.x(), pos.y(), pos.z())));
-                ResourceCandidate candidate = new ResourceCandidate(site.id(), blockId, site.dimension(),
-                        site.representative(), approach, found.lastObservedBlocks(), found.ageTicks(), visible,
-                        site.approximate(), cost);
+                boolean visible = site.members().stream()
+                        .anyMatch(pos -> currentlyVisible(companion, new BlockPos(pos.x(), pos.y(), pos.z())));
+                ResourceCandidate candidate = new ResourceCandidate(
+                        site.id(),
+                        blockId,
+                        site.dimension(),
+                        site.representative(),
+                        approach,
+                        found.lastObservedBlocks(),
+                        found.ageTicks(),
+                        visible,
+                        site.approximate(),
+                        cost);
                 result.putIfAbsent(site.id() + ":" + blockId, candidate);
             }
         }
-        return result.values().stream().sorted(Comparator.comparingLong(ResourceCandidate::siteId)
-                .thenComparing(ResourceCandidate::blockId)).toList();
+        return result.values().stream()
+                .sorted(Comparator.comparingLong(ResourceCandidate::siteId).thenComparing(ResourceCandidate::blockId))
+                .toList();
     }
 
     /** Queues fresh bounded sight checks for remembered exact members of the requested site. */
     public Verification verify(CompanionEntity companion, long siteId) {
-        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return Verification.UNLOADED;
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
+            return Verification.UNLOADED;
         ResourceKnowledge book = knowledge.book(companion.ownerUuid());
         ResourceSite site = book.site(siteId, logicalTick(level)).orElse(null);
         if (site == null) return Verification.ABSENT;
@@ -318,12 +367,17 @@ public final class ResourceCandidates {
     }
 
     public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {
-        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return java.util.Optional.empty();
-        return java.util.Optional.ofNullable(knowledge.book(companion.ownerUuid()).site(siteId, logicalTick(level)).orElse(null));
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
+            return java.util.Optional.empty();
+        return java.util.Optional.ofNullable(knowledge
+                .book(companion.ownerUuid())
+                .site(siteId, logicalTick(level))
+                .orElse(null));
     }
 
     public dev.friendai.knowledge.travel.TrailGraph trails(CompanionEntity companion) {
-        return companion.ownerUuid() == null ? new dev.friendai.knowledge.travel.TrailGraph()
+        return companion.ownerUuid() == null
+                ? new dev.friendai.knowledge.travel.TrailGraph()
                 : knowledge.book(companion.ownerUuid()).trails();
     }
 
@@ -334,8 +388,9 @@ public final class ResourceCandidates {
         if (window == null) return false;
         String dimension = level.dimension().identifier().toString();
         long tick = logicalTick(level);
-        return window.recent(tick).stream().anyMatch(observation ->
-                observation.observedTick() == tick && observation.location().dimension().equals(dimension)
+        return window.recent(tick).stream()
+                .anyMatch(observation -> observation.observedTick() == tick
+                        && observation.location().dimension().equals(dimension)
                         && site.members().contains(observation.location().pos())
                         && site.family().equals(observation.blockId()));
     }

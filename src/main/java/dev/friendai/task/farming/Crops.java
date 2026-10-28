@@ -23,7 +23,8 @@ public final class Crops {
     public static Optional<Harvestable> harvestable(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state)) {
-            return Optional.of(new Harvestable(pos.immutable(), Harvestable.Kind.CROP, seedFor(state).orElse(null)));
+            return Optional.of(new Harvestable(
+                    pos.immutable(), Harvestable.Kind.CROP, seedFor(state).orElse(null)));
         }
         if (state.getBlock() instanceof NetherWartBlock && state.getValue(NetherWartBlock.AGE) >= 3) {
             return Optional.of(new Harvestable(pos.immutable(), Harvestable.Kind.NETHER_WART, Items.NETHER_WART));
@@ -31,7 +32,8 @@ public final class Crops {
         if ((state.is(Blocks.MELON) || state.is(Blocks.PUMPKIN)) && hasAttachedStem(level, pos)) {
             return Optional.of(new Harvestable(pos.immutable(), Harvestable.Kind.FRUIT, null));
         }
-        if (state.getBlock() instanceof SugarCaneBlock && level.getBlockState(pos.below()).getBlock() instanceof SugarCaneBlock) {
+        if (state.getBlock() instanceof SugarCaneBlock
+                && level.getBlockState(pos.below()).getBlock() instanceof SugarCaneBlock) {
             return Optional.of(new Harvestable(pos.immutable(), Harvestable.Kind.CANE, null));
         }
         if (state.getBlock() instanceof SweetBerryBushBlock && state.getValue(SweetBerryBushBlock.AGE) >= 2) {
@@ -59,7 +61,10 @@ public final class Crops {
 
     /** Whether the item can be planted on farmland. */
     public static boolean isPlantableSeed(Item item) {
-        if (item == Items.WHEAT_SEEDS || item == Items.CARROT || item == Items.POTATO || item == Items.BEETROOT_SEEDS
+        if (item == Items.WHEAT_SEEDS
+                || item == Items.CARROT
+                || item == Items.POTATO
+                || item == Items.BEETROOT_SEEDS
                 || item == Items.NETHER_WART) {
             return true;
         }

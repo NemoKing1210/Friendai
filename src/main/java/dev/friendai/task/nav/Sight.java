@@ -19,6 +19,7 @@ import net.minecraft.world.phys.Vec3;
 public final class Sight {
     /** How far around a block the companion looks for a free cell with a view of it. */
     private static final int VIEW_RANGE = 3;
+
     private static final double EPSILON = 1.0E-4;
     /** How far from the centre toward a face the extra aim points lie; just inside the block. */
     private static final double FACE_AIM = 0.45;
@@ -46,7 +47,8 @@ public final class Sight {
         }
         double targetDistance = viewer.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos));
         return hit.getLocation().distanceToSqr(viewer.getEyePosition()) <= targetDistance + EPSILON
-                ? hit.getBlockPos() : null;
+                ? hit.getBlockPos()
+                : null;
     }
 
     /** Whether a ray from {@code eye} meets pos before any other block. */
@@ -100,8 +102,8 @@ public final class Sight {
                     if (candidate.equals(pos) || !freeStanding(level, candidate)) {
                         continue;
                     }
-                    Vec3 candidateEye = new Vec3(
-                            candidate.getX() + 0.5, candidate.getY() + eyeHeight, candidate.getZ() + 0.5);
+                    Vec3 candidateEye =
+                            new Vec3(candidate.getX() + 0.5, candidate.getY() + eyeHeight, candidate.getZ() + 0.5);
                     double distance = candidateEye.distanceToSqr(eye);
                     if (distance >= bestDistance || candidateEye.distanceTo(target) > Approach.REACH) {
                         continue;

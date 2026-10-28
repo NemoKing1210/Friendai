@@ -8,8 +8,7 @@ public final class ReplySplitter {
     private ReplySplitter() {}
 
     public static List<String> split(String text, int maxChars) {
-        String clean = text
-                .replace("*", "")
+        String clean = text.replace("*", "")
                 .replace("`", "")
                 .replaceAll("(?m)^\\s*#+\\s*", "")
                 .replaceAll("\\s*\\R\\s*", " ")

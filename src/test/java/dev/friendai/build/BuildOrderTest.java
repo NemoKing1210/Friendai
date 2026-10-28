@@ -100,8 +100,7 @@ class BuildOrderTest {
         BlockSpec b = new BlockSpec(1, 1, 0, "minecraft:stone");
         Blueprint bp = blueprint(a, b);
         Map<BlockSpec, BlockSpec> deps = Map.of(a, b, b, a);
-        List<BlockSpec> ordered = BuildOrder.order(
-                bp, spec -> BuildOrder.Support.on(deps.get(spec)), 0, 0);
+        List<BlockSpec> ordered = BuildOrder.order(bp, spec -> BuildOrder.Support.on(deps.get(spec)), 0, 0);
         assertEquals(2, ordered.size());
         assertTrue(ordered.contains(a) && ordered.contains(b));
     }
@@ -119,15 +118,11 @@ class BuildOrderTest {
                 new BlockSpec(1, 0, 2, "minecraft:stone"),
                 new BlockSpec(2, 0, 2, "minecraft:stone"));
         List<String> fromWest = states(BuildOrder.order(bp, INDEPENDENT, 0, 0));
-        assertEquals(List.of(
-                "0,0,0", "1,0,0", "2,0,0",
-                "2,0,1", "1,0,1", "0,0,1",
-                "0,0,2", "1,0,2", "2,0,2"), fromWest);
+        assertEquals(
+                List.of("0,0,0", "1,0,0", "2,0,0", "2,0,1", "1,0,1", "0,0,1", "0,0,2", "1,0,2", "2,0,2"), fromWest);
         List<String> fromEast = states(BuildOrder.order(bp, INDEPENDENT, 2, 2));
-        assertEquals(List.of(
-                "2,0,2", "1,0,2", "0,0,2",
-                "0,0,1", "1,0,1", "2,0,1",
-                "2,0,0", "1,0,0", "0,0,0"), fromEast);
+        assertEquals(
+                List.of("2,0,2", "1,0,2", "0,0,2", "0,0,1", "1,0,1", "2,0,1", "2,0,0", "1,0,0", "0,0,0"), fromEast);
     }
 
     @Test

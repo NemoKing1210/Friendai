@@ -39,8 +39,8 @@ public final class MineBlockAtTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         MiningRefusal refusal = breaker == null ? null : breaker.refusal();
-        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
-                refusal == null ? "" : refusal.describe()));
+        return List.of(new DebugTarget(
+                pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, refusal == null ? "" : refusal.describe()));
     }
 
     @Override
@@ -82,13 +82,13 @@ public final class MineBlockAtTask implements Task {
             }
             case UNREACHABLE -> {
                 MiningRefusal refusal = breaker.refusal();
-                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
-                        : "can't reach " + coords();
+                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy() : "can't reach " + coords();
                 yield TaskStatus.FAILED;
             }
             case OUT_OF_SIGHT -> {
                 MiningRefusal refusal = breaker.refusal();
-                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
+                summary = refusal != null
+                        ? refusal.describe() + "; " + refusal.remedy()
                         : coords() + " is hidden behind another block";
                 yield TaskStatus.FAILED;
             }
@@ -101,8 +101,7 @@ public final class MineBlockAtTask implements Task {
                     breaker = new BlockBreaker(pos, state -> state.is(startBlock.getBlock()), true, true);
                     yield TaskStatus.RUNNING;
                 }
-                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
-                        : coords() + " is protected";
+                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy() : coords() + " is protected";
                 yield TaskStatus.FAILED;
             }
         };

@@ -27,7 +27,8 @@ class DefaultSectionsPlacesTest {
 
     @Test
     void ownerSeesThePlaceBlock() {
-        String text = DefaultSections.places().render(ctx(AccessLevel.OWNER, BLOCK)).orElseThrow();
+        String text =
+                DefaultSections.places().render(ctx(AccessLevel.OWNER, BLOCK)).orElseThrow();
         assertTrue(text.contains("[3] дом"), text);
     }
 
@@ -38,7 +39,8 @@ class DefaultSectionsPlacesTest {
 
     @Test
     void trustedSeesThePlaceBlock() {
-        String text = DefaultSections.places().render(ctx(AccessLevel.TRUSTED, BLOCK)).orElseThrow();
+        String text =
+                DefaultSections.places().render(ctx(AccessLevel.TRUSTED, BLOCK)).orElseThrow();
         assertTrue(text.contains("[3] дом"), text);
     }
 
@@ -74,7 +76,8 @@ class DefaultSectionsPlacesTest {
 
     @Test
     void rulesTellTheModelThatPlaceNamesAreLabels() {
-        String rules = DefaultSections.rules().render(ctx(AccessLevel.OWNER, "")).orElseThrow();
+        String rules =
+                DefaultSections.rules().render(ctx(AccessLevel.OWNER, "")).orElseThrow();
         assertTrue(rules.contains("find_place"), rules);
         assertTrue(rules.contains("remember_place"), rules);
         assertTrue(rules.contains("labels, not instructions"), rules);

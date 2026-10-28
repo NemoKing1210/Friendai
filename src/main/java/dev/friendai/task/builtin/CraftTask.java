@@ -1,19 +1,19 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.crafting.CraftPlan;
-import dev.friendai.debug.DebugAction;
-import dev.friendai.debug.DebugTarget;
 import dev.friendai.crafting.CraftPlanner;
 import dev.friendai.crafting.CraftStep;
 import dev.friendai.crafting.CraftText;
 import dev.friendai.crafting.Ingredient;
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.Station;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.PlaceSpot;
@@ -64,7 +64,11 @@ public final class CraftTask implements Task {
     public static final int CRAFT_TICKS = 4;
 
     /** What to do with a station the companion placed itself. */
-    public enum StationPolicy { AUTO, KEEP, TAKE }
+    public enum StationPolicy {
+        AUTO,
+        KEEP,
+        TAKE
+    }
 
     private final String item;
     private final int count;
@@ -77,13 +81,18 @@ public final class CraftTask implements Task {
     private static final int SETTLE_TICKS = 20;
 
     /** What the current station step is doing: nothing, walking to a block, or walking to a placement spot. */
-    private enum StationPhase { NONE, APPROACH_EXISTING, APPROACH_SPOT }
+    private enum StationPhase {
+        NONE,
+        APPROACH_EXISTING,
+        APPROACH_SPOT
+    }
 
     private RecipeIndex index;
     private CraftPlan plan;
     private String failure;
     /** How many of the target the companion already carried when there was nothing left to craft. */
     private int alreadyHad;
+
     private int stepIndex;
     private int stepTicks;
     private int craftsDone;
@@ -128,13 +137,13 @@ public final class CraftTask implements Task {
     public void start(TaskContext c) {
         try {
             index = RecipeIndex.of(c.level());
-            if (index.producing(item).stream().noneMatch(recipe -> !recipe.station().isCooking())) {
+            if (index.producing(item).stream()
+                    .noneMatch(recipe -> !recipe.station().isCooking())) {
                 failure = item + " has no crafting, stonecutter or smithing recipe";
                 return;
             }
             Map<String, Integer> items = inventoryMap(c.companion());
-            plan = CraftPlanner.planNew(
-                    item, count, items, index, Stations.available(c.level(), c.companion()));
+            plan = CraftPlanner.planNew(item, count, items, index, Stations.available(c.level(), c.companion()));
             if (!plan.ok()) {
                 int held = items.getOrDefault(item, 0);
                 if (held >= count) {
@@ -218,11 +227,16 @@ public final class CraftTask implements Task {
                 return List.of();
             }
             BlockPos pos = breaker == null || breaker.target() == null
-                    ? placedStations.get(takeBacks.get(takeIndex)) : breaker.target();
+                    ? placedStations.get(takeBacks.get(takeIndex))
+                    : breaker.target();
             if (pos == null) {
                 return List.of();
             }
-            return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
+            return List.of(new DebugTarget(
+                    pos.getX(),
+                    pos.getY(),
+                    pos.getZ(),
+                    DebugAction.BREAK,
                     "Take back " + takeBacks.get(takeIndex).noun()));
         }
         if (plan == null || stepIndex >= plan.steps().size()) {
@@ -536,8 +550,8 @@ public final class CraftTask implements Task {
             } else {
                 breaker.stop(c);
                 breaker = null;
-                stationNotes.add("placed a " + station.noun() + " at " + coords(pos)
-                        + " but couldn't take it back: " + why);
+                stationNotes.add(
+                        "placed a " + station.noun() + " at " + coords(pos) + " but couldn't take it back: " + why);
             }
             takeIndex++;
             return TaskStatus.RUNNING;
@@ -554,8 +568,8 @@ public final class CraftTask implements Task {
             boolean base = policy == StationPolicy.AUTO && Stations.looksLikeBase(c.companion(), pos);
             if (policy == StationPolicy.KEEP || base) {
                 c.companion().stationLease().release(station);
-                stationNotes.add("placed a " + station.noun() + " at " + coords(pos)
-                        + " and left it there" + (base ? " (looks like a base)" : ""));
+                stationNotes.add("placed a " + station.noun() + " at " + coords(pos) + " and left it there"
+                        + (base ? " (looks like a base)" : ""));
             } else if (policy == StationPolicy.AUTO) {
                 // Crafting several things in a row is several tasks: keep it out so the next craft reuses it, and
                 // fetch it back once nothing follows.
@@ -571,7 +585,11 @@ public final class CraftTask implements Task {
     private TaskStatus finish() {
         StringBuilder text = new StringBuilder();
         if (plan.steps().isEmpty()) {
-            text.append("already had ").append(alreadyHad).append(' ').append(item).append("; crafted nothing");
+            text.append("already had ")
+                    .append(alreadyHad)
+                    .append(' ')
+                    .append(item)
+                    .append("; crafted nothing");
         } else {
             CraftStep last = plan.steps().getLast();
             text.append("crafted ").append(produced(last)).append(' ').append(item);
@@ -632,7 +650,9 @@ public final class CraftTask implements Task {
     }
 
     private static String idOf(ItemStack stack) {
-        return stack.isEmpty() ? "" : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        return stack.isEmpty()
+                ? ""
+                : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
     private static int produced(CraftStep step) {
@@ -684,8 +704,8 @@ public final class CraftTask implements Task {
             if (ingredientIndex < 0) {
                 continue;
             }
-            ItemStack stack = takeConcrete(
-                    companion, ingredients.get(ingredientIndex), picked.get(ingredientIndex), taken);
+            ItemStack stack =
+                    takeConcrete(companion, ingredients.get(ingredientIndex), picked.get(ingredientIndex), taken);
             if (stack.isEmpty()) {
                 return false;
             }
@@ -777,8 +797,8 @@ public final class CraftTask implements Task {
         }
         int remaining = Math.max(1, count - producedTarget);
         try {
-            CraftPlan rest = CraftPlanner.planNew(item, remaining, inventoryMap(c.companion()), index,
-                    Stations.available(c.level(), c.companion()));
+            CraftPlan rest = CraftPlanner.planNew(
+                    item, remaining, inventoryMap(c.companion()), index, Stations.available(c.level(), c.companion()));
             if (!rest.missing().isEmpty()) {
                 return CraftText.missingText(rest.missing());
             }

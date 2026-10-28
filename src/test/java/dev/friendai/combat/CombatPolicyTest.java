@@ -32,14 +32,46 @@ class CombatPolicyTest {
             boolean lane,
             boolean ally) {
         return new CombatSnapshot.Self(
-                base.healthFraction(), danger, canEat, retreatPossible, shield, false, frontal, projectile, dodge,
-                cover, bow, lane, ally, false, false, false, 0, false);
+                base.healthFraction(),
+                danger,
+                canEat,
+                retreatPossible,
+                shield,
+                false,
+                frontal,
+                projectile,
+                dodge,
+                cover,
+                bow,
+                lane,
+                ally,
+                false,
+                false,
+                false,
+                0,
+                false);
     }
 
     private static CombatSnapshot.Self windingUp(CombatSnapshot.Self base) {
         return new CombatSnapshot.Self(
-                base.healthFraction(), false, false, false, true, false, true, false, false, false,
-                false, false, false, false, false, false, 0, true);
+                base.healthFraction(),
+                false,
+                false,
+                false,
+                true,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                0,
+                true);
     }
 
     private static CombatSnapshot.Target target(
@@ -81,26 +113,31 @@ class CombatPolicyTest {
 
     @Test
     void avoidCombatNeverChoosesAttack() {
-        CombatSnapshot aggressive = snapshot(
-                calm(), target(true, true, true, 2.0, 2.0), new CombatSnapshot.Options(true, 9.0, true));
+        CombatSnapshot aggressive =
+                snapshot(calm(), target(true, true, true, 2.0, 2.0), new CombatSnapshot.Options(true, 9.0, true));
         for (CombatSnapshot snapshot : new CombatSnapshot[] {
             aggressive,
-            snapshot(with(calm(), false, false, true, false, false, false, false, false, true, true, false),
-                    target(true, true, true, 6.0, 6.0), new CombatSnapshot.Options(true, 9.0, true))
+            snapshot(
+                    with(calm(), false, false, true, false, false, false, false, false, true, true, false),
+                    target(true, true, true, 6.0, 6.0),
+                    new CombatSnapshot.Options(true, 9.0, true))
         }) {
-            CombatDecision decision = CombatPolicy.decide(
-                    snapshot, settings(ProtectionPolicy.AVOID_COMBAT, FightingStyle.BALANCED));
+            CombatDecision decision =
+                    CombatPolicy.decide(snapshot, settings(ProtectionPolicy.AVOID_COMBAT, FightingStyle.BALANCED));
             assertFalse(decision.attacks(), "avoid combat chose " + decision);
         }
-        assertEquals(CombatDecision.Action.AVOID, CombatPolicy.decide(
-                        snapshot(calm(), CombatSnapshot.Target.none(), CombatSnapshot.Options.none()),
-                        settings(ProtectionPolicy.AVOID_COMBAT, FightingStyle.BALANCED))
-                .action());
+        assertEquals(
+                CombatDecision.Action.AVOID,
+                CombatPolicy.decide(
+                                snapshot(calm(), CombatSnapshot.Target.none(), CombatSnapshot.Options.none()),
+                                settings(ProtectionPolicy.AVOID_COMBAT, FightingStyle.BALANCED))
+                        .action());
     }
 
     @Test
     void physicalProjectileThreatStillAllowsEvasionInSelfOnly() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, true, true, true, false, false, false, false, false);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, true, true, true, false, false, false, false, false);
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(self, target(false, true, true, 10.0, 3.0), CombatSnapshot.Options.none()),
                 settings(ProtectionPolicy.SELF_ONLY, FightingStyle.BALANCED));
@@ -110,7 +147,8 @@ class CombatPolicyTest {
 
     @Test
     void projectileFromBehindIsNotAFrontalBlock() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, true, false, true, true, false, false, false, false);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, true, false, true, true, false, false, false, false);
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(self, target(true, false, true, 4.0, 4.0), new CombatSnapshot.Options(true, 8.0, true)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
@@ -120,7 +158,8 @@ class CombatPolicyTest {
 
     @Test
     void emergencyDefensePrecedesAttack() {
-        CombatSnapshot.Self self = with(calm(), true, false, true, false, false, false, false, false, false, false, false);
+        CombatSnapshot.Self self =
+                with(calm(), true, false, true, false, false, false, false, false, false, false, false);
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(self, target(true, false, true, 2.0, 2.0), new CombatSnapshot.Options(true, 20.0, true)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
@@ -132,16 +171,18 @@ class CombatPolicyTest {
     @Test
     void conservativeRetreatIncreasesDisengagePriority() {
         CombatSnapshot.Self self = new CombatSnapshot.Self(
-                0.45, false, false, true, false, false, false, false, false, false, true, true, false,
-                false, false, false, 0, false);
-        CombatSnapshot snapshot = snapshot(
-                self, target(true, false, true, 4.0, 4.0), new CombatSnapshot.Options(true, 8.0, true));
+                0.45, false, false, true, false, false, false, false, false, false, true, true, false, false, false,
+                false, 0, false);
+        CombatSnapshot snapshot =
+                snapshot(self, target(true, false, true, 4.0, 4.0), new CombatSnapshot.Options(true, 8.0, true));
         CombatDecision standard = CombatPolicy.decide(
-                snapshot, new CombatSettings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24,
-                        RetreatPreference.STANDARD));
+                snapshot,
+                new CombatSettings(
+                        ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24, RetreatPreference.STANDARD));
         CombatDecision conservative = CombatPolicy.decide(
-                snapshot, new CombatSettings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24,
-                        RetreatPreference.CONSERVATIVE));
+                snapshot,
+                new CombatSettings(
+                        ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24, RetreatPreference.CONSERVATIVE));
         assertEquals(CombatDecision.Action.ATTACK, standard.action());
         assertEquals(CombatDecision.Action.RETREAT, conservative.action());
         assertEquals(CombatDecision.Reason.SURVIVE, conservative.reason());
@@ -151,17 +192,18 @@ class CombatPolicyTest {
     void pursuitStopsAtConfiguredAnchorLimit() {
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(calm(), target(true, false, true, 26.0, 26.0), new CombatSnapshot.Options(true, 8.0, true)),
-                new CombatSettings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24,
-                        RetreatPreference.STANDARD));
+                new CombatSettings(
+                        ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, 24, RetreatPreference.STANDARD));
         assertEquals(CombatDecision.Action.DISENGAGE, decision.action());
         assertEquals(CombatDecision.Reason.OUT_OF_PURSUIT, decision.reason());
     }
 
     @Test
     void rangedBandRetreatsFromClosingMelee() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, false, false, false, false, false, true, true, false);
-        CombatSnapshot.Target closing = new CombatSnapshot.Target(
-                true, true, true, true, false, true, 2.5, 2.5, false, true);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, false, false, false, false, false, true, true, false);
+        CombatSnapshot.Target closing =
+                new CombatSnapshot.Target(true, true, true, true, false, true, 2.5, 2.5, false, true);
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(self, closing, new CombatSnapshot.Options(false, 0.0, false)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.RANGED));
@@ -171,23 +213,30 @@ class CombatPolicyTest {
 
     @Test
     void blockedFiringLaneRejectsRelease() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, false, false, false, false, false, true, false, false);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, false, false, false, false, false, true, false, false);
         CombatSnapshot snapshot = snapshot(self, target(true, false, true, 8.0, 8.0), CombatSnapshot.Options.none());
         assertFalse(CombatPolicy.releaseAllowed(snapshot));
-        CombatDecision decision = CombatPolicy.decide(
-                snapshot, settings(ProtectionPolicy.BODYGUARD, FightingStyle.RANGED));
+        CombatDecision decision =
+                CombatPolicy.decide(snapshot, settings(ProtectionPolicy.BODYGUARD, FightingStyle.RANGED));
         assertNotEquals(CombatDecision.Action.FIRE_BOW, decision.action());
     }
 
     @Test
     void allyInLaneRejectsRelease() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, false, false, false, false, false, true, true, true);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, false, false, false, false, false, true, true, true);
         assertFalse(CombatPolicy.releaseAllowed(
                 snapshot(self, target(true, false, true, 8.0, 8.0), CombatSnapshot.Options.none())));
-        assertEquals(CombatDecision.Action.ATTACK, CombatPolicy.decide(
-                        snapshot(self, target(true, false, true, 8.0, 8.0), new CombatSnapshot.Options(true, 8.0, true)),
-                        settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED))
-                .action());
+        assertEquals(
+                CombatDecision.Action.ATTACK,
+                CombatPolicy.decide(
+                                snapshot(
+                                        self,
+                                        target(true, false, true, 8.0, 8.0),
+                                        new CombatSnapshot.Options(true, 8.0, true)),
+                                settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED))
+                        .action());
     }
 
     @Test
@@ -207,7 +256,8 @@ class CombatPolicyTest {
 
     @Test
     void simultaneousProjectileAndMeleeChooseOneAction() {
-        CombatSnapshot.Self self = with(calm(), false, false, false, true, true, true, false, false, false, false, false);
+        CombatSnapshot.Self self =
+                with(calm(), false, false, false, true, true, true, false, false, false, false, false);
         CombatDecision decision = CombatPolicy.decide(
                 snapshot(self, target(true, false, true, 2.0, 2.0), new CombatSnapshot.Options(true, 9.0, true)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
@@ -217,10 +267,14 @@ class CombatPolicyTest {
     @Test
     void activeReasonMatchesSelectedAction() {
         for (CombatDecision decision : new CombatDecision[] {
-            CombatPolicy.decide(snapshot(calm(), target(true, false, true, 2.0, 2.0),
-                    new CombatSnapshot.Options(true, 8.0, true)), settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED)),
-            CombatPolicy.decide(snapshot(CombatSnapshot.Self.bare(0.1),
-                    target(true, false, true, 2.0, 2.0), new CombatSnapshot.Options(true, 8.0, true)),
+            CombatPolicy.decide(
+                    snapshot(calm(), target(true, false, true, 2.0, 2.0), new CombatSnapshot.Options(true, 8.0, true)),
+                    settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED)),
+            CombatPolicy.decide(
+                    snapshot(
+                            CombatSnapshot.Self.bare(0.1),
+                            target(true, false, true, 2.0, 2.0),
+                            new CombatSnapshot.Options(true, 8.0, true)),
                     settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED)),
             CombatDecision.none()
         }) {
@@ -238,8 +292,7 @@ class CombatPolicyTest {
                 > CombatPolicy.ThreatKind.ABOUT_TO_HIT_PROTECTED.priority());
         assertTrue(CombatPolicy.ThreatKind.ABOUT_TO_HIT_PROTECTED.priority()
                 > CombatPolicy.ThreatKind.RANGED_CLEAR_LANE.priority());
-        assertTrue(CombatPolicy.ThreatKind.RANGED_CLEAR_LANE.priority()
-                > CombatPolicy.ThreatKind.ROUTINE.priority());
+        assertTrue(CombatPolicy.ThreatKind.RANGED_CLEAR_LANE.priority() > CombatPolicy.ThreatKind.ROUTINE.priority());
 
         double current = CombatPolicy.targetScore(CombatPolicy.ThreatKind.ROUTINE, 5.0, true, 5.0, 24);
         double other = CombatPolicy.targetScore(CombatPolicy.ThreatKind.ROUTINE, 5.0, false, 5.0, 24);
@@ -255,7 +308,9 @@ class CombatPolicyTest {
     @Test
     void windupRaisesTheShieldBeforeTheArrowExists() {
         CombatDecision decision = CombatPolicy.decide(
-                snapshot(windingUp(calm()), target(true, false, true, 10.0, 10.0),
+                snapshot(
+                        windingUp(calm()),
+                        target(true, false, true, 10.0, 10.0),
                         new CombatSnapshot.Options(false, 0.0, false)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
         assertEquals(CombatDecision.Action.SHIELD, decision.action());
@@ -265,7 +320,9 @@ class CombatPolicyTest {
     @Test
     void windupInReachStillSwings() {
         CombatDecision decision = CombatPolicy.decide(
-                snapshot(windingUp(calm()), target(true, false, true, 2.0, 2.0),
+                snapshot(
+                        windingUp(calm()),
+                        target(true, false, true, 2.0, 2.0),
                         new CombatSnapshot.Options(true, 8.0, true)),
                 settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
         assertEquals(CombatDecision.Action.ATTACK, decision.action());

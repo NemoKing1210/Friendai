@@ -1,11 +1,11 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.place.PlaceNames;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.Task;
+import dev.friendai.task.TaskSettings;
 import dev.friendai.task.builtin.FellTreeSearchTask;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.builtin.MineBlockAtTask;
@@ -35,16 +35,24 @@ final class GatheringTools {
             IntSupplier mineRadius,
             IntSupplier treeRadius) {
         var fellSchema = SchemaBuilder.object()
-                .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs. "
-                        + "Naming one block id also allows felling a log structure of that wood")
-                .string("near", "Fell a tree near the speaker (me, default), yourself (self), or a remembered "
-                        + "place (place:<name>)")
+                .string(
+                        "type",
+                        "Log block id like minecraft:oak_log, or a tag like #minecraft:logs. "
+                                + "Naming one block id also allows felling a log structure of that wood")
+                .string(
+                        "near",
+                        "Fell a tree near the speaker (me, default), yourself (self), or a remembered "
+                                + "place (place:<name>)")
                 .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
                 .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
                 .integer("radius", "Search radius in blocks", 4, 64)
-                .integer("limit", "Cut at most this many logs, from the top down, and stop; the trunk stays. "
-                        + "Omit to fell the whole tree", 1, 256)
+                .integer(
+                        "limit",
+                        "Cut at most this many logs, from the top down, and stop; the trunk stays. "
+                                + "Omit to fell the whole tree",
+                        1,
+                        256)
                 .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
                 .build();
         String fellDescription = "Fell one whole tree: climb beside the trunk once and cut from the crown down, so "
@@ -52,10 +60,17 @@ final class GatheringTools {
                 + "(leaves, or the leftovers of one) around the speaker or yourself; if no tree is in view it looks "
                 + "around for a bounded time and starts when one is seen. A log structure such as a cabin is never "
                 + "felled unless its block id is named. Use find_trees when the choice matters.";
-        ToolKit.addCaller(registry, defs,
-                new TaskToolDef("fell_tree", fellDescription, fellSchema,
-                        (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true,
-                        AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+        ToolKit.addCaller(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "fell_tree",
+                        fellDescription,
+                        fellSchema,
+                        (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius),
+                        true,
+                        AccessLevel.TRUSTED,
+                        TaskToolDef.QueueTraits.DEFAULT,
                         (c, caller, a) -> createFellTask(c, caller, a, treeRadius)),
                 (c, caller, a) -> {
                     try {
@@ -64,8 +79,11 @@ final class GatheringTools {
                         return ToolResult.error(e.getMessage());
                     }
                 });
-        ToolKit.addCaller(registry, defs,
-                new TaskToolDef("mine_blocks",
+        ToolKit.addCaller(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "mine_blocks",
                         "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
                                 + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "
                                 + "instead of destroying the block. near: me searches around the speaker; place:<name> "
@@ -73,22 +91,28 @@ final class GatheringTools {
                         SchemaBuilder.object()
                                 .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
                                 .integer("count", "How many blocks to mine", 1, 64)
-                                .string("near", "Search around yourself (self, default), the speaker (me), or a "
-                                        + "remembered place (place:<name>)")
-                                .integer("x", "Block x coordinate to search around instead of near",
-                                        -30000000, 30000000)
+                                .string(
+                                        "near",
+                                        "Search around yourself (self, default), the speaker (me), or a "
+                                                + "remembered place (place:<name>)")
+                                .integer(
+                                        "x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
-                                .integer("z", "Block z coordinate to search around instead of near",
-                                        -30000000, 30000000)
-                                .bool("collect",
+                                .integer(
+                                        "z", "Block z coordinate to search around instead of near", -30000000, 30000000)
+                                .bool(
+                                        "collect",
                                         "Whether to pick up the drops afterwards; default follows the server setting")
-                                .bool("placed",
+                                .bool(
+                                        "placed",
                                         "Mine only blocks you placed yourself that are still in the world; "
                                                 + "never an unplaced neighbour")
                                 .required("block", "count")
                                 .build(),
                         (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, mineRadius),
-                        true, AccessLevel.TRUSTED, new TaskToolDef.QueueTraits(false, "count"),
+                        true,
+                        AccessLevel.TRUSTED,
+                        new TaskToolDef.QueueTraits(false, "count"),
                         (c, caller, a) -> createMineTask(c, caller, a, mineRadius)),
                 (c, caller, a) -> {
                     try {
@@ -97,46 +121,63 @@ final class GatheringTools {
                         return ToolResult.error(e.getMessage());
                     }
                 });
-        ToolKit.add(registry, defs, new TaskToolDef("mine_block_at", "Mine the block at the given coordinates and collect the drops.",
-                SchemaBuilder.object()
-                        .integer("x", "Block X coordinate")
-                        .integer("y", "Block Y coordinate")
-                        .integer("z", "Block Z coordinate")
-                        .required("x", "y", "z")
-                        .build(),
-                (c, a) -> {
-                    int x = a.get("x").getAsInt();
-                    int y = a.get("y").getAsInt();
-                    int z = a.get("z").getAsInt();
-                    if (y < c.level().getMinY() || y > c.level().getMaxY()) {
-                        throw new IllegalArgumentException("y is outside the world (" + c.level().getMinY() + ".." + c.level().getMaxY() + ")");
-                    }
-                    if (!c.level().hasChunkAt(x, z)) {
-                        throw new IllegalArgumentException("the chunk at " + x + " " + z + " is not loaded");
-                    }
-                    return new MineBlockAtTask(new BlockPos(x, y, z));
-                }, true));
-        ToolKit.add(registry, defs, new TaskToolDef("pickup_items", "Pick up dropped items within the given radius.",
-                SchemaBuilder.object()
-                        .integer("radius", "Search radius in blocks", 1, 16)
-                        .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")
-                        .bool("placed", "Pick up around the nearest block you placed instead of around yourself")
-                        .required("radius")
-                        .build(),
-                (c, a) -> new PickupItemsTask(
-                        a.get("radius").getAsInt(),
-                        a.has("item") && !a.get("item").isJsonNull()
-                                ? ToolKit.parseItemMatcher(a.get("item").getAsString())
-                                : null,
-                        a.has("placed") && !a.get("placed").isJsonNull() && a.get("placed").getAsBoolean()),
-                true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "mine_block_at",
+                        "Mine the block at the given coordinates and collect the drops.",
+                        SchemaBuilder.object()
+                                .integer("x", "Block X coordinate")
+                                .integer("y", "Block Y coordinate")
+                                .integer("z", "Block Z coordinate")
+                                .required("x", "y", "z")
+                                .build(),
+                        (c, a) -> {
+                            int x = a.get("x").getAsInt();
+                            int y = a.get("y").getAsInt();
+                            int z = a.get("z").getAsInt();
+                            if (y < c.level().getMinY() || y > c.level().getMaxY()) {
+                                throw new IllegalArgumentException("y is outside the world ("
+                                        + c.level().getMinY() + ".." + c.level().getMaxY() + ")");
+                            }
+                            if (!c.level().hasChunkAt(x, z)) {
+                                throw new IllegalArgumentException("the chunk at " + x + " " + z + " is not loaded");
+                            }
+                            return new MineBlockAtTask(new BlockPos(x, y, z));
+                        },
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "pickup_items",
+                        "Pick up dropped items within the given radius.",
+                        SchemaBuilder.object()
+                                .integer("radius", "Search radius in blocks", 1, 16)
+                                .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")
+                                .bool(
+                                        "placed",
+                                        "Pick up around the nearest block you placed instead of around yourself")
+                                .required("radius")
+                                .build(),
+                        (c, a) -> new PickupItemsTask(
+                                a.get("radius").getAsInt(),
+                                a.has("item") && !a.get("item").isJsonNull()
+                                        ? ToolKit.parseItemMatcher(a.get("item").getAsString())
+                                        : null,
+                                a.has("placed")
+                                        && !a.get("placed").isJsonNull()
+                                        && a.get("placed").getAsBoolean()),
+                        true));
     }
 
     private static MineBlocksTask createMineTask(
             CompanionEntity c, Caller caller, JsonObject a, IntSupplier mineRadius) {
         BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
         // Unlike the tree tools, mining searches around the companion unless the speaker or a place is named.
-        String near = a.has("near") && !a.get("near").isJsonNull() ? a.get("near").getAsString() : null;
+        String near =
+                a.has("near") && !a.get("near").isJsonNull() ? a.get("near").getAsString() : null;
         boolean named = ToolKit.optionalPos(a).isPresent()
                 || PlaceNames.fromNear(near).isPresent()
                 || (near != null && !near.isBlank() && NearTarget.parse(near) == NearTarget.ME);
@@ -144,13 +185,14 @@ final class GatheringTools {
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : TaskSettings.mineCollectDrops;
-        boolean placed = a.has("placed") && !a.get("placed").isJsonNull() && a.get("placed").getAsBoolean();
+        boolean placed = a.has("placed")
+                && !a.get("placed").isJsonNull()
+                && a.get("placed").getAsBoolean();
         return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt(), origin, collect, placed);
     }
 
     /** Picks the tree for a {@code fell_tree} call; throws {@link IllegalArgumentException} with the reason. */
-    private static Task createFellTask(
-            CompanionEntity c, Caller caller, JsonObject a, IntSupplier treeRadius) {
+    private static Task createFellTask(CompanionEntity c, Caller caller, JsonObject a, IntSupplier treeRadius) {
         BlockPos origin = NearResolver.resolve(c, caller, a);
         int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
         BlockMatcher matcher = a.has("type") && !a.get("type").isJsonNull()
@@ -163,14 +205,20 @@ final class GatheringTools {
         // The sight cache is companion-centred, but a call may search around its speaker. Expand only
         // the evidence radius here; the exact requested radius is applied around origin below.
         int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
-        BlockMatcher logs = matcher != null ? matcher : BlockMatcher.parse("#minecraft:logs").orElseThrow();
+        BlockMatcher logs = matcher != null
+                ? matcher
+                : BlockMatcher.parse("#minecraft:logs").orElseThrow();
         var observed = resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024).entrySet().stream()
                 .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                 .filter(entry -> {
                     var id = net.minecraft.resources.Identifier.tryParse(entry.getValue());
-                    return id != null && net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(id)
-                            && logs.test(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
-                }).collect(java.util.stream.Collectors.toMap(
+                    return id != null
+                            && net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(id)
+                            && logs.test(net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                                    .getValue(id)
+                                    .defaultBlockState());
+                })
+                .collect(java.util.stream.Collectors.toMap(
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
         var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
@@ -183,16 +231,19 @@ final class GatheringTools {
                 : TaskSettings.fellCollectDrops;
         List<TreeFinder.TreeInfo> all = TreeFinder.findObserved(level, origin, observed, leaves, 1 + 8);
         List<TreeFinder.TreeInfo> found = all.stream()
-                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE).toList();
+                .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
+                .toList();
         if (found.isEmpty()) {
             if (treesOnly) {
                 List<TreeFinder.TreeInfo> structures = all.stream()
-                        .filter(tree -> tree.kind() == TreeFinder.Kind.LOG_STRUCTURE).toList();
+                        .filter(tree -> tree.kind() == TreeFinder.Kind.LOG_STRUCTURE)
+                        .toList();
                 if (!structures.isEmpty()) {
                     TreeFinder.TreeInfo s = structures.get(0);
                     String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
                     throw new IllegalArgumentException("no tree within " + radius + " blocks of " + where
-                            + "; the nearest " + s.type() + " is a log structure at " + s.base().getX() + " "
+                            + "; the nearest " + s.type() + " is a log structure at "
+                            + s.base().getX() + " "
                             + s.base().getY() + " " + s.base().getZ()
                             + "; use mine_blocks to take named blocks");
                 }

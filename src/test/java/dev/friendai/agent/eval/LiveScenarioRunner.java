@@ -41,9 +41,13 @@ class LiveScenarioRunner {
         String configPath = System.getProperty("friendai.live.config");
         assertTrue(configPath != null && !configPath.isBlank(), "pass -Dfriendai.live.config=<server config>");
         Gson gson = new Gson();
-        ServerConfig config = gson.fromJson(Files.readString(Path.of(configPath), StandardCharsets.UTF_8), ServerConfig.class);
+        ServerConfig config =
+                gson.fromJson(Files.readString(Path.of(configPath), StandardCharsets.UTF_8), ServerConfig.class);
         HttpTransport transport = new HttpTransport(
-                HttpClient.newHttpClient(), Duration.ofSeconds(config.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
+                HttpClient.newHttpClient(),
+                Duration.ofSeconds(config.brain.requestTimeoutSec),
+                2,
+                Duration.ofMillis(500));
         LlmGateway live = new LlmClient(ProviderRegistry.withBuiltins(transport), config.toLlmProfile(System::getenv));
 
         Path dir = Path.of(LiveScenarioRunner.class.getResource("/scenarios").toURI());
@@ -65,6 +69,8 @@ class LiveScenarioRunner {
         }
         Path out = Path.of("build/eval");
         Files.createDirectories(out);
-        Files.write(out.resolve(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now()) + ".md"), report);
+        Files.write(
+                out.resolve(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now()) + ".md"),
+                report);
     }
 }

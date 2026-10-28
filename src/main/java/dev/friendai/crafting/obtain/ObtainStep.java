@@ -85,8 +85,13 @@ public sealed interface ObtainStep {
     /** Execute one captured, component-neutral merchant fill under an existing owner scope. */
     record Trade(UUID trader, String offerRef, long revision, int count, UUID scopeId) implements ObtainStep {
         public Trade {
-            if (trader == null || scopeId == null || offerRef == null || offerRef.isBlank()
-                    || offerRef.length() > 160 || revision < 0 || count <= 0) {
+            if (trader == null
+                    || scopeId == null
+                    || offerRef == null
+                    || offerRef.isBlank()
+                    || offerRef.length() > 160
+                    || revision < 0
+                    || count <= 0) {
                 throw new IllegalArgumentException("invalid obtain trade step");
             }
         }
@@ -94,6 +99,8 @@ public sealed interface ObtainStep {
 
     /** The candidate quote is stale or ambiguous; inspect before planning a trade. */
     record InspectTrader(UUID trader) implements ObtainStep {
-        public InspectTrader { if (trader == null) throw new IllegalArgumentException("trader is required"); }
+        public InspectTrader {
+            if (trader == null) throw new IllegalArgumentException("trader is required");
+        }
     }
 }

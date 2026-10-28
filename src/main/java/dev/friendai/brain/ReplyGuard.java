@@ -17,23 +17,22 @@ public final class ReplyGuard {
     private static final Pattern TASK_ID = Pattern.compile("(?i)\\btask\\s*#?\\s*\\d+\\b");
     private static final Pattern NAMESPACE = Pattern.compile("\\bminecraft:");
     private static final Pattern PAREN_TRIPLE = Pattern.compile("\\(\\s*-?\\d+(?:[ ,]+-?\\d+){2}\\s*\\)");
-    private static final Pattern CONTEXT_TRIPLE = Pattern.compile(
-            "(?iu)(?<![\\p{L}\\d])(?:at|near|around|в|на|около)\\s+-?\\d+(?:[ ,]+-?\\d+){2}(?![\\d])");
-    private static final Pattern XYZ_TRIPLE = Pattern.compile(
-            "(?iu)\\bx\\s*=\\s*-?\\d+\\s*[,;]?\\s*y\\s*=\\s*-?\\d+\\s*[,;]?\\s*z\\s*=\\s*-?\\d+");
-    private static final Pattern LABEL_TRIPLE = Pattern.compile(
-            "(?iu)(?<![\\p{L}])"
-                    + "(?:(?:your|my|тво\\p{L}*|мо\\p{L}*)\\s+)?"
-                    + "(?:coordinates?|coords?|position|location|координат\\p{L}*|позици\\p{L}*)"
-                    + "(?:\\s+\\p{L}{1,12}){0,3}\\s*:?\\s*"
-                    + "-?\\d+(?:[ ,]+-?\\d+){2}[.!?]?(?![\\d])");
+    private static final Pattern CONTEXT_TRIPLE =
+            Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:at|near|around|в|на|около)\\s+-?\\d+(?:[ ,]+-?\\d+){2}(?![\\d])");
+    private static final Pattern XYZ_TRIPLE =
+            Pattern.compile("(?iu)\\bx\\s*=\\s*-?\\d+\\s*[,;]?\\s*y\\s*=\\s*-?\\d+\\s*[,;]?\\s*z\\s*=\\s*-?\\d+");
+    private static final Pattern LABEL_TRIPLE = Pattern.compile("(?iu)(?<![\\p{L}])"
+            + "(?:(?:your|my|тво\\p{L}*|мо\\p{L}*)\\s+)?"
+            + "(?:coordinates?|coords?|position|location|координат\\p{L}*|позици\\p{L}*)"
+            + "(?:\\s+\\p{L}{1,12}){0,3}\\s*:?\\s*"
+            + "-?\\d+(?:[ ,]+-?\\d+){2}[.!?]?(?![\\d])");
     private static final Pattern EMPTY_BRACKETS = Pattern.compile("\\(\\s*\\)");
     private static final Pattern MULTI_SPACE = Pattern.compile("\\s{2,}");
     private static final Pattern SPACE_BEFORE_PUNCT = Pattern.compile("\\s+([,.!?;:])");
     private static final Pattern LEADING_PUNCT = Pattern.compile("^[\\s,;:.!?]+");
     private static final Pattern PUNCT_ONLY = Pattern.compile("[\\s\\p{Punct}]*");
-    private static final Pattern COORDINATE_CUES = Pattern.compile(
-            "(?iu)(?<![\\p{L}])(?:where|coords|coordinates|location|locate|position)(?![\\p{L}])"
+    private static final Pattern COORDINATE_CUES =
+            Pattern.compile("(?iu)(?<![\\p{L}])(?:where|coords|coordinates|location|locate|position)(?![\\p{L}])"
                     + "|(?<![\\p{L}])где(?![\\p{L}])|координат|местоположен");
 
     private ReplyGuard() {}
@@ -47,11 +46,7 @@ public final class ReplyGuard {
      */
     public static Optional<String> filter(
             String reply, boolean coordinatesAllowed, String lastSpoken, Set<String> internalNames) {
-        return filter(
-                reply,
-                coordinatesAllowed,
-                lastSpoken == null ? List.of() : List.of(lastSpoken),
-                internalNames);
+        return filter(reply, coordinatesAllowed, lastSpoken == null ? List.of() : List.of(lastSpoken), internalNames);
     }
 
     /**
@@ -80,8 +75,7 @@ public final class ReplyGuard {
                     if (name == null || !name.contains("_")) {
                         continue;
                     }
-                    Pattern namePattern =
-                            Pattern.compile("(?<![\\w:])" + Pattern.quote(name) + "(?![\\w:])");
+                    Pattern namePattern = Pattern.compile("(?<![\\w:])" + Pattern.quote(name) + "(?![\\w:])");
                     text = namePattern.matcher(text).replaceAll(" ");
                 }
             }
@@ -113,6 +107,8 @@ public final class ReplyGuard {
 
     /** True when the player's message asks where something is. */
     public static boolean playerAskedForCoordinates(String message) {
-        return message != null && !message.isBlank() && COORDINATE_CUES.matcher(message).find();
+        return message != null
+                && !message.isBlank()
+                && COORDINATE_CUES.matcher(message).find();
     }
 }

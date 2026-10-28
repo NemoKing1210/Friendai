@@ -17,9 +17,15 @@ public final class ExecuteCommandTask implements Task {
         this.command = command;
     }
 
-    @Override public String type() { return "execute_command"; }
+    @Override
+    public String type() {
+        return "execute_command";
+    }
 
-    @Override public void start(TaskContext context) { summary = ""; }
+    @Override
+    public void start(TaskContext context) {
+        summary = "";
+    }
 
     @Override
     public TaskStatus tick(TaskContext context) {
@@ -32,7 +38,8 @@ public final class ExecuteCommandTask implements Task {
             summary = "command denied: the owner must be online";
             return TaskStatus.FAILED;
         }
-        CreativeCommandPolicy.Decision decision = CreativeCommandPolicy.evaluate(command, owner.getName().getString());
+        CreativeCommandPolicy.Decision decision =
+                CreativeCommandPolicy.evaluate(command, owner.getName().getString());
         if (!decision.allowed()) {
             summary = "command denied: " + decision.reason();
             return TaskStatus.FAILED;
@@ -43,9 +50,16 @@ public final class ExecuteCommandTask implements Task {
         return result.success() ? TaskStatus.SUCCESS : TaskStatus.FAILED;
     }
 
-    @Override public void stop(TaskContext context) {}
+    @Override
+    public void stop(TaskContext context) {}
 
-    @Override public String describe() { return "running an allowlisted gameplay command"; }
+    @Override
+    public String describe() {
+        return "running an allowlisted gameplay command";
+    }
 
-    @Override public String resultSummary() { return summary; }
+    @Override
+    public String resultSummary() {
+        return summary;
+    }
 }

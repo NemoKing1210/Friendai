@@ -15,9 +15,12 @@ public final class SearchHintStore {
         if (owner == null || hint == null) return;
         hints.put(owner, hint);
         while (hints.size() > MAX_OWNERS) {
-            hints.entrySet().remove(hints.entrySet().stream()
-                    .min(Comparator.comparingLong(entry -> entry.getValue().createdTick()))
-                    .map(Map.Entry::getKey).orElseThrow());
+            hints.entrySet()
+                    .remove(hints.entrySet().stream()
+                            .min(Comparator.comparingLong(
+                                    entry -> entry.getValue().createdTick()))
+                            .map(Map.Entry::getKey)
+                            .orElseThrow());
         }
     }
 
@@ -36,5 +39,7 @@ public final class SearchHintStore {
         if (owner != null) hints.remove(owner);
     }
 
-    public synchronized int size() { return hints.size(); }
+    public synchronized int size() {
+        return hints.size();
+    }
 }

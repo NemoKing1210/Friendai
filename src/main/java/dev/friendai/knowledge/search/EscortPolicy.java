@@ -10,7 +10,8 @@ public final class EscortPolicy {
         public static final Config DEFAULTS = new Config(32, 48, 24, true);
 
         public Config {
-            if (sightRadius < 8 || sightRadius > 128) throw new IllegalArgumentException("sightRadius must be between 8 and 128");
+            if (sightRadius < 8 || sightRadius > 128)
+                throw new IllegalArgumentException("sightRadius must be between 8 and 128");
             if (holdDistance <= sightRadius || holdDistance > 512)
                 throw new IllegalArgumentException("holdDistance must be above sightRadius and at most 512");
             if (resumeDistance < 1 || resumeDistance >= holdDistance)
@@ -18,15 +19,27 @@ public final class EscortPolicy {
         }
     }
 
-    public enum Action { NONE, CAP_RADIUS, WAIT, ASK_ONCE, AUTONOMOUS }
+    public enum Action {
+        NONE,
+        CAP_RADIUS,
+        WAIT,
+        ASK_ONCE,
+        AUTONOMOUS
+    }
 
     /**
      * @param ownerWasNear whether the owner was within sight earlier in this search, so WAIT means "lagged"
      * @param holding whether the search is already waiting for the owner; it then resumes only at resumeDistance
      */
-    public record Input(boolean ownerOnline, boolean autonomous, boolean ownerInCurrentDimension,
-                        double ownerDistance, boolean ownerWasNear, boolean holding, int wantedRadius,
-                        boolean askedForGoal) {
+    public record Input(
+            boolean ownerOnline,
+            boolean autonomous,
+            boolean ownerInCurrentDimension,
+            double ownerDistance,
+            boolean ownerWasNear,
+            boolean holding,
+            int wantedRadius,
+            boolean askedForGoal) {
         public Input {
             if (ownerDistance < 0 || !Double.isFinite(ownerDistance))
                 throw new IllegalArgumentException("ownerDistance must be finite and non-negative");
@@ -52,33 +65,44 @@ public final class EscortPolicy {
             return new Decision(Action.NONE, input.wantedRadius(), "");
         }
         if (input.autonomous()) {
-            return new Decision(Action.AUTONOMOUS, input.wantedRadius(), input.askedForGoal() ? ""
-                    : "free time: searching on its own, nobody to ask");
+            return new Decision(
+                    Action.AUTONOMOUS,
+                    input.wantedRadius(),
+                    input.askedForGoal() ? "" : "free time: searching on its own, nobody to ask");
         }
         if (config.waitForOwner() && input.holding() && input.ownerDistance() > config.resumeDistance()) {
-            return new Decision(Action.WAIT, 0, "waiting for the owner, "
-                    + Math.round(input.ownerDistance()) + " blocks away");
+            return new Decision(
+                    Action.WAIT, 0, "waiting for the owner, " + Math.round(input.ownerDistance()) + " blocks away");
         }
         if (config.waitForOwner() && input.ownerWasNear() && input.ownerDistance() > config.holdDistance()) {
-            return new Decision(Action.WAIT, 0, "waiting for the owner, "
-                    + Math.round(input.ownerDistance()) + " blocks away");
+            return new Decision(
+                    Action.WAIT, 0, "waiting for the owner, " + Math.round(input.ownerDistance()) + " blocks away");
         }
         if (input.ownerDistance() > config.holdDistance()) {
             return input.wantedRadius() > config.sightRadius() && !input.askedForGoal()
-                    ? new Decision(Action.ASK_ONCE, config.sightRadius(), "the owner is "
-                            + Math.round(input.ownerDistance()) + " blocks away; ask once whether to search ~"
-                            + input.wantedRadius() + " blocks or to wait")
+                    ? new Decision(
+                            Action.ASK_ONCE,
+                            config.sightRadius(),
+                            "the owner is "
+                                    + Math.round(input.ownerDistance()) + " blocks away; ask once whether to search ~"
+                                    + input.wantedRadius() + " blocks or to wait")
                     : new Decision(Action.NONE, input.wantedRadius(), "");
         }
-        if (input.ownerDistance() > config.sightRadius() && input.wantedRadius() > config.sightRadius()
+        if (input.ownerDistance() > config.sightRadius()
+                && input.wantedRadius() > config.sightRadius()
                 && !input.askedForGoal()) {
-            return new Decision(Action.ASK_ONCE, config.sightRadius(), "the owner is "
-                    + Math.round(input.ownerDistance()) + " blocks away; ask once whether to search ~"
-                    + input.wantedRadius() + " blocks or to wait");
+            return new Decision(
+                    Action.ASK_ONCE,
+                    config.sightRadius(),
+                    "the owner is "
+                            + Math.round(input.ownerDistance()) + " blocks away; ask once whether to search ~"
+                            + input.wantedRadius() + " blocks or to wait");
         }
         int cap = Math.min(input.wantedRadius(), config.sightRadius());
         return new Decision(Action.CAP_RADIUS, cap, "");
     }
 
-    public Config config() { return config; }
+    public Config config() {
+        return config;
+    }
 }

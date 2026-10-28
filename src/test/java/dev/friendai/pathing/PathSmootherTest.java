@@ -35,9 +35,7 @@ class PathSmootherTest {
     }
 
     private static final GridCellView FLOOR = new GridCellView(
-            "##########/##########/##########",
-            "........../........../..........",
-            "........../........../..........");
+            "##########/##########/##########", "........../........../..........", "........../........../..........");
 
     @Test
     void collapsesAStraightRunIntoOneLeg() {
@@ -52,8 +50,10 @@ class PathSmootherTest {
     @Test
     void aPlacementInTheMiddleStaysItsOwnStep() {
         List<PathStep> steps = eastRun(5);
-        steps.set(2, new PathStep(new Node(2, 1, 0), new Node(3, 1, 0), Move.WALK, List.of(),
-                List.of(new Pos(3, 0, 0)), 4.6, 0));
+        steps.set(
+                2,
+                new PathStep(
+                        new Node(2, 1, 0), new Node(3, 1, 0), Move.WALK, List.of(), List.of(new Pos(3, 0, 0)), 4.6, 0));
         Path merged = PathSmoother.simplify(path(steps), FLOOR);
         assertEquals(3, merged.steps().size());
         assertEquals(1, merged.places());

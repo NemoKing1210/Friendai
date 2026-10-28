@@ -15,6 +15,7 @@ public final class WeaponPolicy {
     public static final double BOW_DISTANCE = 8.0;
     /** A bow already in hand stays until the target closes this far inside the style's start distance. */
     public static final double BOW_HYSTERESIS = 1.5;
+
     private static final double AXE_PREFERENCE = 0.97;
 
     private WeaponPolicy() {}
@@ -43,8 +44,14 @@ public final class WeaponPolicy {
             double distance,
             boolean safe,
             boolean targetFlying) {
-        public static Facts melee(double dps, double reach, double durability, boolean axe, boolean sword,
-                double distance, boolean safe) {
+        public static Facts melee(
+                double dps,
+                double reach,
+                double durability,
+                boolean axe,
+                boolean sword,
+                double distance,
+                boolean safe) {
             return new Facts(dps, reach, durability, axe, sword, false, distance, safe, false);
         }
 
@@ -68,9 +75,14 @@ public final class WeaponPolicy {
             utility *= AXE_PREFERENCE;
         }
         return switch (style) {
-            case RANGED -> facts.bow() || facts.dps() >= 6.0
-                    ? new Score(utility * 0.6, BOW_DISTANCE, Intent.KEEP_RANGE, true)
-                    : new Score(utility * 0.5, facts.reach(), facts.distance() <= facts.reach() ? Intent.STRIKE : Intent.CLOSE, utility > 0);
+            case RANGED ->
+                facts.bow() || facts.dps() >= 6.0
+                        ? new Score(utility * 0.6, BOW_DISTANCE, Intent.KEEP_RANGE, true)
+                        : new Score(
+                                utility * 0.5,
+                                facts.reach(),
+                                facts.distance() <= facts.reach() ? Intent.STRIKE : Intent.CLOSE,
+                                utility > 0);
             case CAUTIOUS -> {
                 double preferred = Math.max(facts.reach() + 1.5, 3.0);
                 Intent intent;
@@ -97,13 +109,16 @@ public final class WeaponPolicy {
     }
 
     private static Score scoreBow(Facts facts, FightingStyle style) {
-        double utility = 6.0 * (facts.durabilityFraction() >= MIN_DURABILITY ? 1.0 : 0.0)
-                + (facts.safe() ? 2.0 : 0.0);
+        double utility = 6.0 * (facts.durabilityFraction() >= MIN_DURABILITY ? 1.0 : 0.0) + (facts.safe() ? 2.0 : 0.0);
         return switch (style) {
             case RANGED -> new Score(utility * 1.5, BOW_DISTANCE, Intent.KEEP_RANGE, true);
             case CAUTIOUS -> new Score(utility, BOW_DISTANCE, Intent.KEEP_RANGE, true);
-            case BALANCED -> new Score(facts.targetFlying() || facts.distance() > 6.0 ? utility : utility * 0.5,
-                    BOW_DISTANCE, Intent.KEEP_RANGE, true);
+            case BALANCED ->
+                new Score(
+                        facts.targetFlying() || facts.distance() > 6.0 ? utility : utility * 0.5,
+                        BOW_DISTANCE,
+                        Intent.KEEP_RANGE,
+                        true);
             case MELEE -> new Score(utility * 0.4, BOW_DISTANCE, Intent.KEEP_RANGE, true);
         };
     }

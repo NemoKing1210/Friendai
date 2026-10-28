@@ -28,7 +28,8 @@ public final class ResourceFamily {
         if (blockIds.stream().allMatch(ResourceFamily::isOreBlock)) {
             String family = oreFamily(blockIds.iterator().next());
             return blockIds.stream().allMatch(id -> oreFamily(id).equals(family))
-                    ? Optional.of(family) : Optional.empty();
+                    ? Optional.of(family)
+                    : Optional.empty();
         }
         if (blockIds.size() == 1) {
             return Optional.of(blockIds.iterator().next());
@@ -39,21 +40,28 @@ public final class ResourceFamily {
     /** True for a wood family: any log tag or a family named after a log, stem or hypha. */
     public static boolean isWood(String family) {
         if (family == null) return false;
-        return family.equals(ANY_WOOD) || family.endsWith("_log") || family.endsWith("_wood")
-                || family.endsWith("_stem") || family.endsWith("_hyphae");
+        return family.equals(ANY_WOOD)
+                || family.endsWith("_log")
+                || family.endsWith("_wood")
+                || family.endsWith("_stem")
+                || family.endsWith("_hyphae");
     }
 
     /** True for a family a surface search can look for. */
     public static boolean isPlant(String family) {
-        return isWood(family) || LEAVES.equals(family) || CROPS.equals(family)
-                || family != null && (family.endsWith("_leaves") || family.endsWith("_sapling")
-                || family.endsWith("_flower") || family.endsWith("_planks"));
+        return isWood(family)
+                || LEAVES.equals(family)
+                || CROPS.equals(family)
+                || family != null
+                        && (family.endsWith("_leaves")
+                                || family.endsWith("_sapling")
+                                || family.endsWith("_flower")
+                                || family.endsWith("_planks"));
     }
 
     private static boolean isWoodBlock(String blockId) {
         String path = path(blockId);
-        return path.endsWith("_log") || path.endsWith("_wood")
-                || path.endsWith("_stem") || path.endsWith("_hyphae");
+        return path.endsWith("_log") || path.endsWith("_wood") || path.endsWith("_stem") || path.endsWith("_hyphae");
     }
 
     private static boolean isLeafBlock(String blockId) {
@@ -62,9 +70,14 @@ public final class ResourceFamily {
 
     private static boolean isCropBlock(String blockId) {
         String path = path(blockId);
-        return path.equals("wheat") || path.equals("carrots") || path.equals("potatoes")
-                || path.equals("beetroots") || path.equals("torchflower_crop")
-                || path.equals("pitcher_crop") || path.equals("nether_wart") || path.endsWith("_crop");
+        return path.equals("wheat")
+                || path.equals("carrots")
+                || path.equals("potatoes")
+                || path.equals("beetroots")
+                || path.equals("torchflower_crop")
+                || path.equals("pitcher_crop")
+                || path.equals("nether_wart")
+                || path.endsWith("_crop");
     }
 
     private static boolean isOreBlock(String blockId) {

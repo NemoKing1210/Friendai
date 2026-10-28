@@ -27,24 +27,29 @@ final class StructureTools {
     private StructureTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(registry, defs, new TaskToolDef("build_special",
-                "Build a special structure and bring it to life: an iron golem, a snow golem or a lit nether portal. "
-                        + "The body blocks are gathered if missing; the finishing item (a carved pumpkin or flint and steel) "
-                        + "must already be in the inventory. Use plan_special first to see what is needed.",
-                schema(),
-                (c, a) -> {
-                    SpecialStructure structure = structure(a);
-                    StructureSite site = site(c, structure, a);
-                    String missing = missingFinisher(c, structure, site);
-                    if (missing != null) {
-                        throw new IllegalArgumentException("I need " + missing
-                                + " in the inventory first; get it with obtain_item");
-                    }
-                    return new SpecialStructureTask(
-                            structure, site.origin(), site.rotation(), TaskSettings.maxNearbySpawned);
-                },
-                true));
-        registry.register(ToolKit.instantTool("plan_special",
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "build_special",
+                        "Build a special structure and bring it to life: an iron golem, a snow golem or a lit nether portal. "
+                                + "The body blocks are gathered if missing; the finishing item (a carved pumpkin or flint and steel) "
+                                + "must already be in the inventory. Use plan_special first to see what is needed.",
+                        schema(),
+                        (c, a) -> {
+                            SpecialStructure structure = structure(a);
+                            StructureSite site = site(c, structure, a);
+                            String missing = missingFinisher(c, structure, site);
+                            if (missing != null) {
+                                throw new IllegalArgumentException(
+                                        "I need " + missing + " in the inventory first; get it with obtain_item");
+                            }
+                            return new SpecialStructureTask(
+                                    structure, site.origin(), site.rotation(), TaskSettings.maxNearbySpawned);
+                        },
+                        true));
+        registry.register(ToolKit.instantTool(
+                "plan_special",
                 "Check whether a special structure can be built here and what it would take, without building it.",
                 schema(),
                 (c, a) -> {
@@ -65,7 +70,9 @@ final class StructureTools {
     private static com.google.gson.JsonObject schema() {
         return SchemaBuilder.object()
                 .enumeration("kind", "Which structure to build", BOOK.ids().toArray(String[]::new))
-                .integer("x", "Origin X (minimum corner); give all of x, y, z or none for 3 blocks in front of the owner")
+                .integer(
+                        "x",
+                        "Origin X (minimum corner); give all of x, y, z or none for 3 blocks in front of the owner")
                 .integer("y", "Origin Y")
                 .integer("z", "Origin Z")
                 .enumeration("facing", "The direction the structure's front faces", "north", "south", "east", "west")
@@ -75,17 +82,19 @@ final class StructureTools {
 
     private static SpecialStructure structure(JsonObject args) {
         String kind = args.get("kind").getAsString();
-        return BOOK.get(kind).orElseThrow(() ->
-                new IllegalArgumentException("unknown kind " + kind + "; valid kinds: " + String.join(", ", BOOK.ids())));
+        return BOOK.get(kind)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "unknown kind " + kind + "; valid kinds: " + String.join(", ", BOOK.ids())));
     }
 
     private static StructureSite site(CompanionEntity companion, SpecialStructure structure, JsonObject args) {
-        Placement.PlacedBlueprint placed = Placement.of(
-                structure.body(), BuildTools.origin(args), BuildTools.facing(args), companion);
+        Placement.PlacedBlueprint placed =
+                Placement.of(structure.body(), BuildTools.origin(args), BuildTools.facing(args), companion);
         return new StructureSite(placed.origin(), placed.rotation());
     }
 
-    private static StructureSnapshot snapshot(CompanionEntity companion, SpecialStructure structure, StructureSite site) {
+    private static StructureSnapshot snapshot(
+            CompanionEntity companion, SpecialStructure structure, StructureSite site) {
         return StructureSnapshotBuilder.build(
                 (ServerLevel) companion.level(), companion, structure, site, TaskSettings.maxNearbySpawned);
     }
@@ -93,8 +102,10 @@ final class StructureTools {
     /** The finishing item the bag lacks, or null when it is there. */
     private static String missingFinisher(CompanionEntity companion, SpecialStructure structure, StructureSite site) {
         String item = switch (structure.trigger()) {
-            case Trigger.LastBlock t -> BuiltInRegistries.ITEM
-                    .getKey(site.wanted(t.state()).getBlock().asItem()).toString();
+            case Trigger.LastBlock t ->
+                BuiltInRegistries.ITEM
+                        .getKey(site.wanted(t.state()).getBlock().asItem())
+                        .toString();
             case Trigger.Ignite t -> t.item();
         };
         return snapshot(companion, structure, site).bag().getOrDefault(item, 0) > 0 ? null : item;

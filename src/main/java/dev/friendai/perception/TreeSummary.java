@@ -15,8 +15,8 @@ public record TreeSummary(
 
     /** The form for the tool result, with the base coordinates. */
     public String toListing() {
-        return type + " at " + coords + " (" + distanceText() + " blocks " + direction + "), " + logs
-                + " logs, height " + height + ", " + kind;
+        return type + " at " + coords + " (" + distanceText() + " blocks " + direction + "), " + logs + " logs, height "
+                + height + ", " + kind;
     }
 
     private String distanceText() {

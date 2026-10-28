@@ -80,10 +80,22 @@ final class MemoryTab implements MenuTab {
         int trustWidth = 76;
         clearX = headLeft + headWidth - clearWidth;
         trustX = clearX - GAP - trustWidth;
-        clear = host.add(new FlatButton(clearX, top, clearWidth, ROW,
-                Component.translatable("friendai.menu.memory.clear"), Ui.BAD, this::clickClear));
-        trust = host.add(new FlatButton(trustX, top, trustWidth, ROW,
-                Component.translatable("friendai.menu.memory.trust_on"), Ui.GOOD, this::clickTrust));
+        clear = host.add(new FlatButton(
+                clearX,
+                top,
+                clearWidth,
+                ROW,
+                Component.translatable("friendai.menu.memory.clear"),
+                Ui.BAD,
+                this::clickClear));
+        trust = host.add(new FlatButton(
+                trustX,
+                top,
+                trustWidth,
+                ROW,
+                Component.translatable("friendai.menu.memory.trust_on"),
+                Ui.GOOD,
+                this::clickTrust));
 
         int statusY = top + height - LINE;
         int formY = statusY - GAP - ROW;
@@ -95,10 +107,22 @@ final class MemoryTab implements MenuTab {
 
         host.add(new HitArea(sideLeft, sideTop, sideWidth, sideHeight, this::clickGroup));
         factsHit = host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickFact));
-        edit = host.add(new FlatButton(headLeft, actionY, 70, ROW,
-                Component.translatable("friendai.menu.memory.edit"), Ui.ACCENT, this::startEdit));
-        forget = host.add(new FlatButton(headLeft + 70 + GAP, actionY, 70, ROW,
-                Component.translatable("friendai.menu.memory.forget"), Ui.WARN, this::clickForget));
+        edit = host.add(new FlatButton(
+                headLeft,
+                actionY,
+                70,
+                ROW,
+                Component.translatable("friendai.menu.memory.edit"),
+                Ui.ACCENT,
+                this::startEdit));
+        forget = host.add(new FlatButton(
+                headLeft + 70 + GAP,
+                actionY,
+                70,
+                ROW,
+                Component.translatable("friendai.menu.memory.forget"),
+                Ui.WARN,
+                this::clickForget));
 
         // At the smallest GUI the rail leaves a narrow content column: shrink the form instead of overlapping it.
         boolean narrow = headWidth < 260;
@@ -111,10 +135,16 @@ final class MemoryTab implements MenuTab {
         int textX = headLeft + categoryWidth + formGap;
         int textWidth = Math.max(narrow ? 30 : 40, addX - formGap - textX);
         draftCategory = model.draftCategory();
-        categoryButton = host.add(new FlatButton(headLeft, formY, categoryWidth, ROW,
-                categoryLabel(draftCategory), categoryColor(draftCategory), this::cycleCategory));
-        text = host.add(new EditBox(host.font(), textX, formY, textWidth, ROW,
-                Component.translatable("friendai.menu.memory.text_hint")));
+        categoryButton = host.add(new FlatButton(
+                headLeft,
+                formY,
+                categoryWidth,
+                ROW,
+                categoryLabel(draftCategory),
+                categoryColor(draftCategory),
+                this::cycleCategory));
+        text = host.add(new EditBox(
+                host.font(), textX, formY, textWidth, ROW, Component.translatable("friendai.menu.memory.text_hint")));
         text.setHint(Component.translatable("friendai.menu.memory.text_hint"));
         text.setMaxLength(160);
         text.setValue(model.draftText());
@@ -123,12 +153,16 @@ final class MemoryTab implements MenuTab {
                 model.setDraft(draftCategory, s);
             }
         });
-        addOrSave = host.add(new FlatButton(addX, formY, addWidth, ROW,
-                Component.translatable("friendai.menu.memory.add"), Ui.GOOD, this::submit));
-        cancel = host.add(new FlatButton(cancelX, formY, cancelWidth, ROW,
-                Component.translatable("friendai.menu.memory.cancel"), Ui.DIM, () -> {
+        addOrSave = host.add(new FlatButton(
+                addX, formY, addWidth, ROW, Component.translatable("friendai.menu.memory.add"), Ui.GOOD, this::submit));
+        cancel = host.add(new FlatButton(
+                cancelX, formY, cancelWidth, ROW, Component.translatable("friendai.menu.memory.cancel"), Ui.DIM, () -> {
                     if (model.personaSelected()) {
-                        net.minecraft.client.Minecraft.getInstance().setScreenAndShow(SkillEditorScreen.description(net.minecraft.client.Minecraft.getInstance().gui.screen()));
+                        net.minecraft.client.Minecraft.getInstance()
+                                .setScreenAndShow(
+                                        SkillEditorScreen.description(net.minecraft.client.Minecraft.getInstance()
+                                                .gui
+                                                .screen()));
                         return;
                     }
                     model.cancelEdit();
@@ -143,15 +177,24 @@ final class MemoryTab implements MenuTab {
             PersonaPresets.Preset preset = presets.get(i);
             int px = headLeft + (i % 3) * (presetWidth + GAP);
             int py = listTop + PERSONA_PRESETS_Y + (i / 3) * (ROW + GAP);
-            presetButtons.add(host.add(new FlatButton(px, py, presetWidth, ROW,
-                    Component.translatable(preset.labelKey()), Ui.ACCENT, () -> personaBox.setValue(preset.text()))));
+            presetButtons.add(host.add(new FlatButton(
+                    px,
+                    py,
+                    presetWidth,
+                    ROW,
+                    Component.translatable(preset.labelKey()),
+                    Ui.ACCENT,
+                    () -> personaBox.setValue(preset.text()))));
         }
         int boxTop = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + LINE + GAP;
         personaBox = host.add(MultiLineEditBox.builder()
                 .setX(headLeft)
                 .setY(boxTop)
                 .setPlaceholder(Component.translatable("friendai.menu.description.hint"))
-                .build(host.font(), headWidth, Math.max(30, formY - GAP - boxTop),
+                .build(
+                        host.font(),
+                        headWidth,
+                        Math.max(30, formY - GAP - boxTop),
                         Component.translatable("friendai.menu.description.title")));
         personaBox.setCharacterLimit(PersonaText.MAX_LENGTH);
         wasPersona = false;
@@ -237,9 +280,10 @@ final class MemoryTab implements MenuTab {
         cancel.setMessage(Component.translatable("friendai.menu.memory.cancel"));
 
         clear.active = group.isPresent() && enabled;
-        clear.setMessage(Component.translatable(model.clearArmed(System.currentTimeMillis())
-                ? "friendai.menu.memory.clear_confirm"
-                : "friendai.menu.memory.clear"));
+        clear.setMessage(Component.translatable(
+                model.clearArmed(System.currentTimeMillis())
+                        ? "friendai.menu.memory.clear_confirm"
+                        : "friendai.menu.memory.clear"));
         if (group.isPresent()) {
             MemoryView.Group current = group.get();
             boolean playerGroup = current.role() == MemoryView.Role.TRUSTED || current.role() == MemoryView.Role.GUEST;
@@ -260,8 +304,8 @@ final class MemoryTab implements MenuTab {
         edit.active = enabled && model.selected().isPresent() && !nowEditing;
         forget.active = enabled && model.selected().isPresent();
         addOrSave.active = enabled && group.isPresent();
-        addOrSave.setMessage(Component.translatable(
-                nowEditing ? "friendai.menu.memory.save" : "friendai.menu.memory.add"));
+        addOrSave.setMessage(
+                Component.translatable(nowEditing ? "friendai.menu.memory.save" : "friendai.menu.memory.add"));
     }
 
     private void startEdit() {
@@ -321,13 +365,14 @@ final class MemoryTab implements MenuTab {
     }
 
     private static Component categoryLabel(Category category) {
-        return Component.translatable(switch (category) {
-            case PROFILE -> "friendai.menu.memory.category.profile";
-            case PREFERENCE -> "friendai.menu.memory.category.preference";
-            case PLACE -> "friendai.menu.memory.category.place";
-            case PROMISE -> "friendai.menu.memory.category.promise";
-            case NOTE -> "friendai.menu.memory.category.note";
-        });
+        return Component.translatable(
+                switch (category) {
+                    case PROFILE -> "friendai.menu.memory.category.profile";
+                    case PREFERENCE -> "friendai.menu.memory.category.preference";
+                    case PLACE -> "friendai.menu.memory.category.place";
+                    case PROMISE -> "friendai.menu.memory.category.promise";
+                    case NOTE -> "friendai.menu.memory.category.note";
+                });
     }
 
     private static int categoryColor(Category category) {
@@ -375,7 +420,13 @@ final class MemoryTab implements MenuTab {
         }
         model.group().ifPresent(group -> drawHeader(g, font, view.get(), group));
         if (!view.get().enabled()) {
-            Ui.text(g, font, Component.translatable("friendai.menu.memory.error.disabled"), listLeft, listTop + 4, Ui.BAD);
+            Ui.text(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.memory.error.disabled"),
+                    listLeft,
+                    listTop + 4,
+                    Ui.BAD);
         } else {
             drawFacts(g, font);
         }
@@ -398,8 +449,16 @@ final class MemoryTab implements MenuTab {
                 g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
             }
             Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, Ui.PURPLE);
-            Ui.text(g, font, Ui.clip(font, Component.translatable("friendai.menu.description.title").getString(),
-                    sideWidth - 16 - 8), sideLeft + 16, y + (GROUP_ROW - font.lineHeight) / 2 + 1,
+            Ui.text(
+                    g,
+                    font,
+                    Ui.clip(
+                            font,
+                            Component.translatable("friendai.menu.description.title")
+                                    .getString(),
+                            sideWidth - 16 - 8),
+                    sideLeft + 16,
+                    y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     current ? Ui.TEXT : Ui.DIM);
         }
         y += GROUP_ROW;
@@ -417,10 +476,20 @@ final class MemoryTab implements MenuTab {
                 Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, roleColor(group.role()));
                 String count = String.valueOf(group.count());
                 int nameWidth = sideWidth - 8 - 8 - 6 - font.width(count) - 8;
-                Ui.text(g, font, Ui.clip(font, groupName(group).getString(), nameWidth), sideLeft + 16,
-                        y + (GROUP_ROW - font.lineHeight) / 2 + 1, current ? Ui.TEXT : Ui.DIM);
-                Ui.text(g, font, count, sideLeft + sideWidth - 8 - font.width(count),
-                        y + (GROUP_ROW - font.lineHeight) / 2 + 1, Ui.DIM);
+                Ui.text(
+                        g,
+                        font,
+                        Ui.clip(font, groupName(group).getString(), nameWidth),
+                        sideLeft + 16,
+                        y + (GROUP_ROW - font.lineHeight) / 2 + 1,
+                        current ? Ui.TEXT : Ui.DIM);
+                Ui.text(
+                        g,
+                        font,
+                        count,
+                        sideLeft + sideWidth - 8 - font.width(count),
+                        y + (GROUP_ROW - font.lineHeight) / 2 + 1,
+                        Ui.DIM);
                 if (group.online() && group.role() != MemoryView.Role.WORLD) {
                     Ui.dot(g, sideLeft + sideWidth - 6, y + 2, 3, Ui.GOOD);
                 }
@@ -465,8 +534,7 @@ final class MemoryTab implements MenuTab {
         }
         String current = personaBox.getValue().strip();
         for (int i = 0; i < presetButtons.size(); i++) {
-            presetButtons.get(i).setStatus(
-                    PersonaPresets.all().get(i).text().equals(current) ? Ui.GOOD : Ui.ACCENT);
+            presetButtons.get(i).setStatus(PersonaPresets.all().get(i).text().equals(current) ? Ui.GOOD : Ui.ACCENT);
         }
         String counter = personaBox.getValue().length() + "/" + PersonaText.MAX_LENGTH;
         int counterY = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + 2;
@@ -491,7 +559,13 @@ final class MemoryTab implements MenuTab {
             rebuildRows(font, facts, listWidth);
         }
         if (facts.isEmpty()) {
-            Ui.text(g, font, Component.translatable("friendai.menu.memory.empty_group"), listLeft + 2, listTop + 4, Ui.DIM);
+            Ui.text(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.memory.empty_group"),
+                    listLeft + 2,
+                    listTop + 4,
+                    Ui.DIM);
             return;
         }
         int total = 0;
@@ -505,15 +579,23 @@ final class MemoryTab implements MenuTab {
         for (Row row : rows) {
             if (factsView.visible(y, row.height())) {
                 boolean current = row.factId() == selected;
-                Ui.card(g, listLeft, y, cardWidth, row.height(),
-                        current ? Ui.CARD_HOVER : Ui.CARD, current ? Ui.ACCENT : Ui.BORDER);
+                Ui.card(
+                        g,
+                        listLeft,
+                        y,
+                        cardWidth,
+                        row.height(),
+                        current ? Ui.CARD_HOVER : Ui.CARD,
+                        current ? Ui.ACCENT : Ui.BORDER);
                 int color = categoryColor(row.fact().category());
                 g.fill(listLeft, y, listLeft + 3, y + row.height(), color);
                 int x = listLeft + PAD;
                 x += Ui.badge(g, font, categoryLabel(row.fact().category()).getString(), x, y + 3, color) + 5;
                 Ui.text(g, font, "#" + row.factId(), x, y + 5, Ui.DIM);
                 if (!row.fact().authorName().isEmpty()) {
-                    String from = Component.translatable("friendai.menu.memory.from", row.fact().authorName()).getString();
+                    String from = Component.translatable(
+                                    "friendai.menu.memory.from", row.fact().authorName())
+                            .getString();
                     from = Ui.clip(font, from, cardWidth / 2);
                     Ui.text(g, font, from, listLeft + cardWidth - PAD - font.width(from), y + 5, Ui.DIM);
                 }

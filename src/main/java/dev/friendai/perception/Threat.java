@@ -8,8 +8,8 @@ import java.util.Locale;
  */
 public record Threat(String type, double distance, String direction, float health, float maxHealth, String target) {
     public String toPromptText() {
-        return type + " " + String.format(Locale.ROOT, "%.1f", distance) + " blocks " + direction
-                + ", " + Math.round(health) + "/" + Math.round(maxHealth) + " hp, " + targetText();
+        return type + " " + String.format(Locale.ROOT, "%.1f", distance) + " blocks " + direction + ", "
+                + Math.round(health) + "/" + Math.round(maxHealth) + " hp, " + targetText();
     }
 
     private String targetText() {

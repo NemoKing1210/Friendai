@@ -65,11 +65,10 @@ public final class Emotes {
         return switch (kind) {
             case WAVE -> new Pose(0.0f, -10.0f, false, tick % 8 == 0, false);
             case NOD -> new Pose(0.0f, (float) (25.0 * Math.abs(Math.sin(Math.PI * tick / 12.0))), false, false, false);
-            case SHAKE_HEAD -> new Pose((float) (35.0 * Math.sin(2.0 * Math.PI * tick / 8.0)), 0.0f, false, false, false);
+            case SHAKE_HEAD ->
+                new Pose((float) (35.0 * Math.sin(2.0 * Math.PI * tick / 8.0)), 0.0f, false, false, false);
             case JUMP_FOR_JOY -> new Pose(0.0f, -15.0f, false, tick == 0 || tick == 15, tick == 0 || tick == 15);
-            case BOW -> tick >= 4 && tick < 22
-                    ? new Pose(0.0f, 40.0f, true, false, false)
-                    : Pose.REST;
+            case BOW -> tick >= 4 && tick < 22 ? new Pose(0.0f, 40.0f, true, false, false) : Pose.REST;
             case SPIN -> new Pose(360.0f * tick / kind.duration(), 0.0f, false, false, false);
         };
     }

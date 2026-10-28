@@ -13,7 +13,10 @@ import net.minecraft.world.item.ItemStack;
 
 /** Delivers one bounded stack of a registered item's default instance per task tick. */
 public final class CreateItemsTask implements Task {
-    public enum Destination { SELF, OWNER }
+    public enum Destination {
+        SELF,
+        OWNER
+    }
 
     public static final double OWNER_DELIVERY_RADIUS = 16.0;
 
@@ -58,9 +61,10 @@ public final class CreateItemsTask implements Task {
         }
         Optional<Container> target = destination(context);
         if (target.isEmpty()) {
-            summary = result(destination == Destination.OWNER
-                    ? "the owner must be online within 16 blocks in this dimension"
-                    : "the companion inventory is unavailable");
+            summary = result(
+                    destination == Destination.OWNER
+                            ? "the owner must be online within 16 blocks in this dimension"
+                            : "the companion inventory is unavailable");
             return TaskStatus.FAILED;
         }
 
@@ -115,7 +119,8 @@ public final class CreateItemsTask implements Task {
             return Optional.of(context.companion().inventory());
         }
         ServerPlayer owner = context.companion().owner().orElse(null);
-        if (owner == null || owner.level() != context.companion().level()
+        if (owner == null
+                || owner.level() != context.companion().level()
                 || context.companion().distanceToSqr(owner) > OWNER_DELIVERY_RADIUS * OWNER_DELIVERY_RADIUS) {
             return Optional.empty();
         }
@@ -124,7 +129,8 @@ public final class CreateItemsTask implements Task {
 
     private static long capacity(Container inventory, ItemStack prototype) {
         int slots = inventory instanceof Inventory playerInventory
-                ? playerInventory.getNonEquipmentItems().size() : inventory.getContainerSize();
+                ? playerInventory.getNonEquipmentItems().size()
+                : inventory.getContainerSize();
         long empty = 0;
         long compatibleRoom = 0;
         for (int slot = 0; slot < slots; slot++) {
@@ -143,7 +149,8 @@ public final class CreateItemsTask implements Task {
     /** Inserts only into main inventory slots; any remainder stays with the task for an accurate partial result. */
     private static int insert(Container inventory, ItemStack stack) {
         int slots = inventory instanceof Inventory playerInventory
-                ? playerInventory.getNonEquipmentItems().size() : inventory.getContainerSize();
+                ? playerInventory.getNonEquipmentItems().size()
+                : inventory.getContainerSize();
         int requested = stack.getCount();
         for (int slot = 0; slot < slots && !stack.isEmpty(); slot++) {
             ItemStack current = inventory.getItem(slot);
@@ -171,11 +178,13 @@ public final class CreateItemsTask implements Task {
     }
 
     private String itemName() {
-        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(prototype.getItem()).toString();
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getKey(prototype.getItem())
+                .toString();
     }
 
     private String result(String detail) {
-        return "created " + delivered + " of " + requested + " " + itemName() + "; "
-                + remaining() + " remaining (" + detail + ")";
+        return "created " + delivered + " of " + requested + " " + itemName() + "; " + remaining() + " remaining ("
+                + detail + ")";
     }
 }

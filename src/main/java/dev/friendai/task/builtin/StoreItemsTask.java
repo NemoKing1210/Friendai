@@ -114,10 +114,17 @@ public final class StoreItemsTask extends ContainerTaskBase {
             text.append(entry.getValue()).append(' ').append(entry.getKey());
             first = false;
         }
-        text.append(" in ").append(ContainerAccess.label(c.level(), containerPos)).append(" at ").append(coords());
-        int left = matcher == null ? totalItems(c.companion()) : InventoryOps.count(c.companion().inventory(), matcher);
+        text.append(" in ")
+                .append(ContainerAccess.label(c.level(), containerPos))
+                .append(" at ")
+                .append(coords());
+        int left = matcher == null
+                ? totalItems(c.companion())
+                : InventoryOps.count(c.companion().inventory(), matcher);
         if (remaining > 0 && left > 0) {
-            text.append("; the ").append(ContainerAccess.shortLabel(c.level(), containerPos)).append(" is full");
+            text.append("; the ")
+                    .append(ContainerAccess.shortLabel(c.level(), containerPos))
+                    .append(" is full");
         }
         summary = text.toString();
         return TaskStatus.SUCCESS;
@@ -130,9 +137,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
                     ? "storing items in a container I placed"
                     : "storing " + matcher.label() + " in a container I placed";
         }
-        return matcher == null
-                ? "storing items in a container"
-                : "storing " + matcher.label() + " in a container";
+        return matcher == null ? "storing items in a container" : "storing " + matcher.label() + " in a container";
     }
 
     private static int totalItems(CompanionEntity companion) {

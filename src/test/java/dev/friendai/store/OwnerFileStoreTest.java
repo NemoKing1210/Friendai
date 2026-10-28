@@ -18,16 +18,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class OwnerFileStoreTest {
-    @TempDir Path temp;
+    @TempDir
+    Path temp;
 
     /** Mutable test value; the revision advances with every increment and is not persisted. */
     private static final class Counter {
         private int value;
         private long revision;
 
-        int value() { return value; }
+        int value() {
+            return value;
+        }
 
-        long revision() { return revision; }
+        long revision() {
+            return revision;
+        }
 
         void increment() {
             value++;
@@ -44,13 +49,19 @@ class OwnerFileStoreTest {
         }
 
         @Override
-        public String save(Counter counter) { return Integer.toString(counter.value); }
+        public String save(Counter counter) {
+            return Integer.toString(counter.value);
+        }
 
         @Override
-        public long revision(Counter counter) { return counter.revision(); }
+        public long revision(Counter counter) {
+            return counter.revision();
+        }
 
         @Override
-        public long maxBytes() { return 64; }
+        public long maxBytes() {
+            return 64;
+        }
     };
 
     @Test
@@ -103,10 +114,26 @@ class OwnerFileStoreTest {
         Files.write(dir.resolve(owner + ".json"), new byte[65]);
         AtomicBoolean parsed = new AtomicBoolean();
         StoreCodec<Counter> counting = new StoreCodec<>() {
-            @Override public Counter load(String json) { parsed.set(json != null); return COUNTER_CODEC.load(json); }
-            @Override public String save(Counter counter) { return COUNTER_CODEC.save(counter); }
-            @Override public long revision(Counter counter) { return COUNTER_CODEC.revision(counter); }
-            @Override public long maxBytes() { return COUNTER_CODEC.maxBytes(); }
+            @Override
+            public Counter load(String json) {
+                parsed.set(json != null);
+                return COUNTER_CODEC.load(json);
+            }
+
+            @Override
+            public String save(Counter counter) {
+                return COUNTER_CODEC.save(counter);
+            }
+
+            @Override
+            public long revision(Counter counter) {
+                return COUNTER_CODEC.revision(counter);
+            }
+
+            @Override
+            public long maxBytes() {
+                return COUNTER_CODEC.maxBytes();
+            }
         };
         try (OwnerFileStore<Counter> store = OwnerFileStore.withWriterThread(dir, counting)) {
             assertEquals(0, store.book(owner).value());
@@ -136,10 +163,12 @@ class OwnerFileStoreTest {
 
     @Test
     void rejectedSaveDoesNotEscapeOrClearDirtyRevision() {
-        Executor rejecting = command -> { throw new RejectedExecutionException("closed writer"); };
+        Executor rejecting = command -> {
+            throw new RejectedExecutionException("closed writer");
+        };
         UUID owner = UUID.randomUUID();
-        try (OwnerFileStore<Counter> store = new OwnerFileStore<>(temp.resolve("rejected"), COUNTER_CODEC,
-                rejecting, () -> 5_000L, false)) {
+        try (OwnerFileStore<Counter> store =
+                new OwnerFileStore<>(temp.resolve("rejected"), COUNTER_CODEC, rejecting, () -> 5_000L, false)) {
             store.book(owner).increment();
             assertDoesNotThrow(() -> store.flushIfDue(5_000));
             assertTrue(store.dirty(owner));
@@ -200,10 +229,17 @@ class OwnerFileStoreTest {
     private static final class ManualExecutor implements Executor {
         private final Queue<Runnable> tasks = new ArrayDeque<>();
 
-        @Override public void execute(Runnable command) { tasks.add(command); }
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
 
-        void runNext() { tasks.remove().run(); }
+        void runNext() {
+            tasks.remove().run();
+        }
 
-        int size() { return tasks.size(); }
+        int size() {
+            return tasks.size();
+        }
     }
 }

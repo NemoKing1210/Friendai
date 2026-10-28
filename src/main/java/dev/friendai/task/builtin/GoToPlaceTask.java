@@ -20,8 +20,8 @@ public final class GoToPlaceTask implements Task {
 
     public GoToPlaceTask(Place place) {
         this.place = place;
-        this.target = Vec3.atCenterOf(
-                new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z()));
+        this.target = Vec3.atCenterOf(new BlockPos(
+                place.anchor().x(), place.anchor().y(), place.anchor().z()));
         this.successRadius = Math.max(2, Math.min(place.radius(), 8));
     }
 

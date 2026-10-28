@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 class AbandonPolicyTest {
-    private static AbandonPolicy.Facts facts(float health, int food, boolean night, boolean sheltered,
-            boolean online, boolean sameDimension) {
+    private static AbandonPolicy.Facts facts(
+            float health, int food, boolean night, boolean sheltered, boolean online, boolean sameDimension) {
         return new AbandonPolicy.Facts(health, 20, food, night, sheltered, online, sameDimension);
     }
 
@@ -19,21 +19,27 @@ class AbandonPolicyTest {
 
     @Test
     void eachSafetyReasonStopsTheSearch() {
-        assertEquals(AbandonPolicy.Reason.LOW_HEALTH,
+        assertEquals(
+                AbandonPolicy.Reason.LOW_HEALTH,
                 AbandonPolicy.check(facts(5, 20, false, false, true, true)).orElseThrow());
-        assertEquals(AbandonPolicy.Reason.HUNGER,
+        assertEquals(
+                AbandonPolicy.Reason.HUNGER,
                 AbandonPolicy.check(facts(20, 3, false, false, true, true)).orElseThrow());
-        assertEquals(AbandonPolicy.Reason.NIGHT_UNSHELTERED,
+        assertEquals(
+                AbandonPolicy.Reason.NIGHT_UNSHELTERED,
                 AbandonPolicy.check(facts(20, 20, true, false, true, true)).orElseThrow());
-        assertEquals(AbandonPolicy.Reason.OWNER_GONE,
+        assertEquals(
+                AbandonPolicy.Reason.OWNER_GONE,
                 AbandonPolicy.check(facts(20, 20, false, false, false, true)).orElseThrow());
-        assertEquals(AbandonPolicy.Reason.WRONG_DIMENSION,
+        assertEquals(
+                AbandonPolicy.Reason.WRONG_DIMENSION,
                 AbandonPolicy.check(facts(20, 20, false, false, true, false)).orElseThrow());
     }
 
     @Test
     void ownerReasonsOutrankHealth() {
-        assertEquals(AbandonPolicy.Reason.OWNER_GONE,
+        assertEquals(
+                AbandonPolicy.Reason.OWNER_GONE,
                 AbandonPolicy.check(facts(1, 1, true, false, false, false)).orElseThrow());
     }
 }

@@ -1,11 +1,10 @@
 package dev.friendai.fire;
 
-import dev.friendai.fire.BurningCell.Kind;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import dev.friendai.pathing.Pos;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FireTextTest {
 
@@ -13,8 +12,10 @@ class FireTextTest {
 
     @Test
     void describeNamesEveryStepAndItsPosition() {
-        ExtinguishPlan plan = new ExtinguishPlan(new FireTarget.Block(POS),
-                List.of(new ExtinguishStep.PlaceWater(POS), new ExtinguishStep.RecoverBucket(POS)), List.of());
+        ExtinguishPlan plan = new ExtinguishPlan(
+                new FireTarget.Block(POS),
+                List.of(new ExtinguishStep.PlaceWater(POS), new ExtinguishStep.RecoverBucket(POS)),
+                List.of());
 
         String text = FireText.describe(plan);
 
@@ -37,8 +38,8 @@ class FireTextTest {
 
     @Test
     void describeMarksACampfireStepAsWater() {
-        ExtinguishPlan plan = new ExtinguishPlan(new FireTarget.Block(POS),
-                List.of(new ExtinguishStep.DouseCampfire(POS)), List.of());
+        ExtinguishPlan plan = new ExtinguishPlan(
+                new FireTarget.Block(POS), List.of(new ExtinguishStep.DouseCampfire(POS)), List.of());
 
         String text = FireText.describe(plan);
 

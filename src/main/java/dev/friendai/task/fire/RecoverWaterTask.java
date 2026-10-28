@@ -56,8 +56,9 @@ public final class RecoverWaterTask implements Task {
             return TaskStatus.FAILED;
         }
         BlockPos left = hands.recoverSource(blockPos());
-        summary = left == null ? "took the water back" : "left the water at " + source.x() + " " + source.y()
-                + " " + source.z();
+        summary = left == null
+                ? "took the water back"
+                : "left the water at " + source.x() + " " + source.y() + " " + source.z();
         return left == null ? TaskStatus.SUCCESS : TaskStatus.FAILED;
     }
 

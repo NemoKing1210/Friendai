@@ -10,10 +10,8 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
 import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
@@ -30,10 +28,9 @@ import net.minecraft.server.level.ServerPlayer;
 public class PlannerTests {
     private static final String FAILING_PLAN =
             "{\"goal\":\"tools\",\"steps\":[{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"}]}";
-    private static final String FAILING_PLAN_WITH_A_STEP_LEFT =
-            "{\"goal\":\"iron\",\"steps\":["
-                    + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"},"
-                    + "{\"tool\":\"jump\"}]}";
+    private static final String FAILING_PLAN_WITH_A_STEP_LEFT = "{\"goal\":\"iron\",\"steps\":["
+            + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"},"
+            + "{\"tool\":\"jump\"}]}";
     private static final String IN_PLACE = "I could not work out a plan; I will stay here.";
 
     /** Records what the companion says, as the player would hear it. */
@@ -65,10 +62,13 @@ public class PlannerTests {
             JsonObject step = new JsonObject();
             step.addProperty("tool", "jump");
             steps.add(step);
-            var action = new dev.friendai.queue.QueuedStep("jump", new JsonObject(), null, List.of(),
-                    dev.friendai.queue.GuardAction.WAIT, null, 1, List.of());
-            return CompletableFuture.completedFuture(new PlanProposal(new dev.friendai.queue.PlanDefinition(List.of(
-                    new dev.friendai.queue.PlanNode.Action(action))), steps, "hop first", "it hopped"));
+            var action = new dev.friendai.queue.QueuedStep(
+                    "jump", new JsonObject(), null, List.of(), dev.friendai.queue.GuardAction.WAIT, null, 1, List.of());
+            return CompletableFuture.completedFuture(new PlanProposal(
+                    new dev.friendai.queue.PlanDefinition(List.of(new dev.friendai.queue.PlanNode.Action(action))),
+                    steps,
+                    "hop first",
+                    "it hopped"));
         };
     }
 
@@ -81,20 +81,27 @@ public class PlannerTests {
         BrainService brains = state.brains();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
-        brains.setGatewayOverride(player.getUUID(), new CompanionControlTests.Script()
-                .call("set_goal", "{\"text\":\"a house and some iron\"}")
-                .text("[silent]"));
+        brains.setGatewayOverride(
+                player.getUUID(),
+                new CompanionControlTests.Script()
+                        .call("set_goal", "{\"text\":\"a house and some iron\"}")
+                        .text("[silent]"));
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(
-                player.getUUID(), "Steve", "build a house and bring iron", BrainEvent.Source.CHAT));
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        player.getUUID(), "Steve", "build a house and bring iron", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             h.assertTrue(asked.get() == 1, "the planner is asked once, asked=" + asked.get());
             var goal = state.goals().board(player.getUUID()).primary();
             h.assertTrue(goal.isPresent(), "the goal was set");
             h.assertTrue(goal.get().planId() != 0, "the planner's plan is linked to the goal");
-            CompanionEntity c = CompanionManager.get(server).find(player.getUUID()).orElseThrow();
-            h.assertTrue(c.taskRunner().queue().plan(goal.get().planId()).isPresent()
-                    || !c.taskRunner().queue().archives().isEmpty(), "the plan is in the queue or already done");
+            CompanionEntity c =
+                    CompanionManager.get(server).find(player.getUUID()).orElseThrow();
+            h.assertTrue(
+                    c.taskRunner().queue().plan(goal.get().planId()).isPresent()
+                            || !c.taskRunner().queue().archives().isEmpty(),
+                    "the plan is in the queue or already done");
         });
     }
 
@@ -113,7 +120,10 @@ public class PlannerTests {
             requests.incrementAndGet();
             seen.add(messages.get(messages.size() - 1).text());
             return CompletableFuture.completedFuture(new dev.friendai.llm.model.LlmResponse(
-                    "[silent]", List.of(), dev.friendai.llm.model.StopReason.END, new dev.friendai.llm.model.Usage(0, 0)));
+                    "[silent]",
+                    List.of(),
+                    dev.friendai.llm.model.StopReason.END,
+                    new dev.friendai.llm.model.Usage(0, 0)));
         });
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
@@ -127,8 +137,11 @@ public class PlannerTests {
             h.assertTrue(goal.replans() == 1, "the replan is spent once, got " + goal.replans());
             h.assertTrue(goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE, "the goal is not blocked");
             // The old plan is reported once, when it blocks; cancelling it for the replacement is silent.
-            long reportsOfOldPlan = seen.stream().filter(line -> line.contains("plan #1")).count();
-            h.assertTrue(reportsOfOldPlan == 1, "plan #1 must be reported exactly once, got " + reportsOfOldPlan + " " + seen);
+            long reportsOfOldPlan =
+                    seen.stream().filter(line -> line.contains("plan #1")).count();
+            h.assertTrue(
+                    reportsOfOldPlan == 1,
+                    "plan #1 must be reported exactly once, got " + reportsOfOldPlan + " " + seen);
             h.succeed();
         });
     }
@@ -142,21 +155,25 @@ public class PlannerTests {
         BrainService brains = state.brains();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
-        brains.setGatewayOverride(player.getUUID(), new CompanionControlTests.Script().text("[silent]").text("[silent]"));
+        brains.setGatewayOverride(
+                player.getUUID(),
+                new CompanionControlTests.Script().text("[silent]").text("[silent]"));
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
         h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "failing plan queued and linked");
-        long firstPlan = state.goals().board(player.getUUID()).primary().orElseThrow().planId();
+        long firstPlan =
+                state.goals().board(player.getUUID()).primary().orElseThrow().planId();
         h.assertTrue(firstPlan != 0, "linked to the goal");
         h.succeedWhen(() -> {
             h.assertTrue(asked.get() >= 1, "the failed plan triggers a replan, asked=" + asked.get());
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(goal.planId() != firstPlan && goal.planId() != 0, "the goal now follows the new plan");
-            h.assertTrue(c.taskRunner().queue().plan(firstPlan).isEmpty()
-                    || c.taskRunner().queue().jobsOfPlan(firstPlan).stream()
-                            .allMatch(j -> dev.friendai.queue.JobQueue.terminal(j)),
+            h.assertTrue(
+                    c.taskRunner().queue().plan(firstPlan).isEmpty()
+                            || c.taskRunner().queue().jobsOfPlan(firstPlan).stream()
+                                    .allMatch(j -> dev.friendai.queue.JobQueue.terminal(j)),
                     "the old plan no longer runs");
         });
     }
@@ -172,7 +189,8 @@ public class PlannerTests {
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
         BrainService brains = state.brains();
-        brains.setPlannerOverride(player.getUUID(),
+        brains.setPlannerOverride(
+                player.getUUID(),
                 input -> CompletableFuture.failedFuture(new IllegalStateException("planner is down")));
         CompanionEntity c = CompanionManager.get(server).summon(player);
         BlockPos start = h.absolutePos(new BlockPos(2, 2, 2));
@@ -209,17 +227,24 @@ public class PlannerTests {
                 h.assertTrue(false, "the line arrived; observing the next ticks");
             }
             ticksAfterTheLine[0]++;
-            h.assertTrue(ticksAfterTheLine[0] > 100,
-                    "observing " + ticksAfterTheLine[0] + " ticks, task=" + c.taskRunner().currentToolName());
+            h.assertTrue(
+                    ticksAfterTheLine[0] > 100,
+                    "observing " + ticksAfterTheLine[0] + " ticks, task="
+                            + c.taskRunner().currentToolName());
             h.assertTrue(said.said.size() == 1, "exactly one line for the failure, got " + said.said);
             double distance = c.position().distanceTo(player.position());
-            h.assertTrue(distance > distanceBefore - 1.0,
+            h.assertTrue(
+                    distance > distanceBefore - 1.0,
                     "the companion walked to the owner to say it: " + distanceBefore + " -> " + distance
                             + " blocks, running " + c.taskRunner().currentToolName());
-            long planId = state.goals().board(player.getUUID()).primary()
-                    .map(dev.friendai.agent.goal.Goal::planId).orElse(0L);
+            long planId = state.goals()
+                    .board(player.getUUID())
+                    .primary()
+                    .map(dev.friendai.agent.goal.Goal::planId)
+                    .orElse(0L);
             h.assertTrue(planId != 0, "the goal lost its plan");
-            h.assertTrue(c.taskRunner().queue().jobsOfPlan(planId).stream()
+            h.assertTrue(
+                    c.taskRunner().queue().jobsOfPlan(planId).stream()
                             .anyMatch(job -> job.state() == dev.friendai.queue.JobState.PENDING),
                     "the remaining step was dropped from the queue");
         });

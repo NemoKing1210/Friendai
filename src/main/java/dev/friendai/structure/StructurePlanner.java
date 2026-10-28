@@ -23,8 +23,10 @@ public final class StructurePlanner {
         }
         if (structure.outcome() instanceof Outcome.EntitySpawned spawned
                 && snap.nearbySpawned() >= snap.maxNearbySpawned()) {
-            return blocked(StructurePlan.Reason.LIMIT_REACHED, "already " + snap.nearbySpawned() + " "
-                    + spawned.entityType() + " nearby (limit " + snap.maxNearbySpawned() + ")");
+            return blocked(
+                    StructurePlan.Reason.LIMIT_REACHED,
+                    "already " + snap.nearbySpawned() + " " + spawned.entityType() + " nearby (limit "
+                            + snap.maxNearbySpawned() + ")");
         }
         if (snap.entityInFootprint()) {
             return blocked(StructurePlan.Reason.ENTITY_IN_WAY, "someone stands where " + id + " goes");
