@@ -1,6 +1,8 @@
 package dev.friendai.task.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.movement.PathSteering;
+import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.MoveGenerator;
 import dev.friendai.pathing.Move;
@@ -61,6 +63,12 @@ public final class PathExecutor {
     private final PathExecutionGuard guard;
     /** Where blocks this route places are remembered for cleanup, or null when the caller does not want them. */
     private final PlacementLedger ledger;
+    /** Horizontal length left from each step's start, so the pace decision is O(1) per tick. */
+    private final double[] remaining;
+    /** The view this step was checked with; reused for the step's own break and place validation. */
+    private LevelCellView view;
+    /** A live world view for the per-tick standability test: it re-reads every cell it is asked about. */
+    private CellView liveView;
 
     private int index = -1;
     private Phase phase = Phase.CHECK;
@@ -102,6 +110,13 @@ public final class PathExecutor {
         this.config = config;
         this.guard = guard;
         this.ledger = ledger;
+        this.remaining = new double[path.steps().size() + 1];
+        for (int i = path.steps().size() - 1; i >= 0; i--) {
+            PathStep step = path.steps().get(i);
+            double dx = step.to().x() - step.from().x();
+            double dz = step.to().z() - step.from().z();
+            this.remaining[i] = this.remaining[i + 1] + Math.hypot(dx, dz);
+        }
     }
 
     /** How many steps are finished; the step being worked on starts at this index. */
@@ -112,6 +127,15 @@ public final class PathExecutor {
     /** Number of blocks this executor actually destroyed; vanished blocks do not count. */
     public int brokenBlocks() {
         return brokenBlocks;
+    }
+
+    /** Horizontal blocks left on the route from the step being executed, for the pace decision. */
+    public double remainingDistance() {
+        if (remaining.length <= 1) {
+            return 0.0;
+        }
+        int at = index < 0 ? 0 : Math.min(index, remaining.length - 1);
+        return remaining[at];
     }
 
     public State tick(TaskContext c) {
@@ -185,7 +209,8 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
+        view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS);
+        liveView = LevelCellView.liveTerrain(c.companion());
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);
             BlockState state = stateAt(c, pos);
@@ -297,7 +322,7 @@ public final class PathExecutor {
         if (!guard.allowMove(c, step)) {
             return fail(c);
         }
-        if (!MoveGenerator.standable(LevelCellView.terrain(companion), step.to())) {
+        if (!MoveGenerator.standable(liveView, step.to())) {
             return fail(c);
         }
         if (step.move() == Move.DOOR && !doorOpened) {
@@ -321,11 +346,25 @@ public final class PathExecutor {
         }
         FeetTarget target = feetTarget(c, step);
         boolean climbing = step.move() == Move.CLIMB;
-        companion.getMoveControl().setWantedPosition(
-                climbing ? companion.getX() : step.to().x() + 0.5,
-                target.y(),
-                climbing ? companion.getZ() : step.to().z() + 0.5,
-                MOVE_SPEED);
+        boolean holding = !climbing && !companion.onGround() && step.move() == Move.DESCEND;
+        if (!climbing) {
+            float yaw = PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(),
+                    companion.getYRot(), holding);
+            if (yaw != companion.getYRot()) {
+                companion.setYRot(yaw);
+                companion.setYBodyRot(yaw);
+            }
+        }
+        if (climbing) {
+            companion.getMoveControl().setWantedPosition(companion.getX(), target.y(), companion.getZ(), MOVE_SPEED);
+        } else {
+            double radians = Math.toRadians(companion.getYRot());
+            companion.getMoveControl().setWantedPosition(
+                    companion.getX() - Math.sin(radians),
+                    target.y(),
+                    companion.getZ() + Math.cos(radians),
+                    MOVE_SPEED);
+        }
         boolean up = step.to().y() > step.from().y();
         if (companion.isInWater()) {
             double dx = step.to().x() + 0.5 - companion.getX();

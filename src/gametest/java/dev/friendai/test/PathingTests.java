@@ -733,4 +733,98 @@ public class PathingTests {
             h.assertTrue(state == MoveHelper.State.ARRIVED, "still centering: " + state + " distance " + distance);
         });
     }
+
+    /** A walled corridor along z=11: high ground, a one-block drop at x=6, a three-block drop at x=12. */
+    private static void descentCorridor(GameTestHelper h, int base) {
+        GameTestSupport.platformAt(h, base, 24);
+        for (int z = 9; z <= 13; z++) {
+            for (int x = 0; x < 24; x++) {
+                int top = x <= 5 ? base + 4 : x <= 11 ? base + 3 : base;
+                for (int y = base + 1; y <= top; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+                }
+                for (int y = top + 1; y <= top + 5; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+                }
+            }
+        }
+        for (int x = 0; x < 24; x++) {
+            for (int y = base; y <= base + 9; y++) {
+                h.setBlock(new BlockPos(x, y, 9), Blocks.STONE);
+                h.setBlock(new BlockPos(x, y, 13), Blocks.STONE);
+            }
+        }
+    }
+
+    /**
+     * Walks the corridor and fails if the body ever turns more than 30 degrees in one tick. The reported value is
+     * the largest turn seen, so a regression says how bad it got.
+     */
+    private static void walkCorridorAndCheckYaw(GameTestHelper h, int base, double targetX, double targetY) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 5, 11);
+        Vec3 target = h.absoluteVec(new Vec3(targetX, targetY, 11.5));
+        Navigator navigator = new Navigator(c);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        float[] lastYaw = {c.getYRot()};
+        float[] maxStep = {0};
+        long[] arrivedAt = {-1};
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            float delta = Math.abs(net.minecraft.util.Mth.wrapDegrees(c.getYRot() - lastYaw[0]));
+            maxStep[0] = Math.max(maxStep[0], delta);
+            lastYaw[0] = c.getYRot();
+            if (state[0] == Navigator.State.ARRIVED && arrivedAt[0] < 0) {
+                arrivedAt[0] = h.getTick();
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "not arrived: " + state[0] + " at " + c.position());
+            // The policy caps at 30; vanilla's own rotlerp can add a fraction of a degree on top.
+            h.assertTrue(maxStep[0] <= 31.0f, "turned " + maxStep[0] + " degrees in one tick");
+            // A cap that stalls the walk would show up here: the 18-block corridor takes about 137 ticks.
+            h.assertTrue(arrivedAt[0] <= 200, "took " + arrivedAt[0] + " ticks down the corridor");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void walksDownOneBlockWithoutTurningBack(GameTestHelper h) {
+        int base = 210;
+        descentCorridor(h, base);
+        walkCorridorAndCheckYaw(h, base, 10.5, base + 4);
+    }
+
+    @GameTest(maxTicks = 600)
+    public void walksDownThreeBlocksWithoutTurningBack(GameTestHelper h) {
+        int base = 220;
+        descentCorridor(h, base);
+        walkCorridorAndCheckYaw(h, base, 20.5, base + 1);
+    }
+
+    @GameTest(maxTicks = 600)
+    public void walksThirtyTwoBlocksInBudget(GameTestHelper h) {
+        int base = 230;
+        GameTestSupport.platformAt(h, base, 40);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 20);
+        Vec3 target = h.absoluteVec(new Vec3(34.5, base + 1, 20.5));
+        Navigator navigator = new Navigator(c);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        long[] arrivedAt = {-1};
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            if (state[0] == Navigator.State.ARRIVED && arrivedAt[0] < 0) {
+                arrivedAt[0] = h.getTick();
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(arrivedAt[0] > 0, "not arrived: " + state[0]);
+            // A regression guard on the walking pace: the route is 32 blocks and a plain walk takes about 176
+            // ticks. A pathing change that halves the effective speed fails here.
+            h.assertTrue(arrivedAt[0] <= 200, "took " + arrivedAt[0] + " ticks for 32 blocks");
+            h.assertFalse(navigator.lastSearch().isEmpty(), "the route must have been searched, not assumed");
+        });
+    }
 }

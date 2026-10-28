@@ -87,6 +87,55 @@ public final class LevelCellView implements CellView {
         return new LevelCellView(companion, TERRAIN_ONLY, CostModel.DEFAULTS);
     }
 
+    /** Shared per-kind cells for the live view: it only answers kind questions, so these never vary. */
+    private static final Cell[] LIVE = new Cell[Cell.Kind.values().length];
+
+    static {
+        for (Cell.Kind kind : Cell.Kind.values()) {
+            LIVE[kind.ordinal()] = new Cell(kind, -1, false, false);
+        }
+    }
+
+    /**
+     * A view that reads the world on every {@code at} call: for a check that must see a block another entity placed
+     * or removed since the step was validated. It keeps no cache and allocates nothing per access, so the executor
+     * can use it every tick.
+     */
+    public static CellView liveTerrain(CompanionEntity companion) {
+        return new LiveTerrain(companion);
+    }
+
+    private static final class LiveTerrain implements CellView {
+        private final ServerLevel level;
+        private final AABB bounds;
+        private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+
+        LiveTerrain(CompanionEntity companion) {
+            this.level = (ServerLevel) companion.level();
+            this.bounds = companion.pathBounds();
+        }
+
+        @Override
+        public Cell at(int x, int y, int z) {
+            if (y < level.getMinY() || y > level.getMaxY()) {
+                return Cell.UNLOADED;
+            }
+            if (bounds != null && !bounds.contains(x + 0.5, y + 0.5, z + 0.5)) {
+                return Cell.UNLOADED;
+            }
+            cursor.set(x, y, z);
+            if (!level.hasChunkAt(cursor)) {
+                return Cell.UNLOADED;
+            }
+            BlockState state = level.getBlockState(cursor);
+            if (state.isAir()) {
+                return Cell.AIR;
+            }
+            VoxelShape shape = state.getCollisionShape(level, cursor);
+            return LIVE[kindOf(state, shape, state.getFluidState()).ordinal()];
+        }
+    }
+
     public LevelCellView(CompanionEntity companion, PathingConfig config, CostModel costs) {
         this.companion = companion;
         this.level = (ServerLevel) companion.level();
@@ -120,29 +169,33 @@ public final class LevelCellView implements CellView {
         }
         VoxelShape shape = state.getCollisionShape(level, pos);
         FluidState fluid = state.getFluidState();
-        Cell.Kind kind;
-        if (shape.isEmpty() && !fluid.isEmpty()) {
-            kind = fluid.is(FluidTags.LAVA) ? Cell.Kind.LAVA : Cell.Kind.WATER;
-        } else if (HAZARDS.contains(state.getBlock())) {
-            kind = Cell.Kind.HAZARD;
-        } else if (isClosedDoor(state)) {
-            kind = Cell.Kind.DOOR;
-        } else if (isClimbable(state)) {
-            kind = Cell.Kind.CLIMBABLE;
-        } else if (shape.isEmpty()) {
-            kind = state.canBeReplaced() ? Cell.Kind.AIR : Cell.Kind.PASSABLE;
-        } else {
-            double top = shape.max(Direction.Axis.Y);
-            if (top > 1.0) {
-                kind = Cell.Kind.TALL;
-            } else if (top < 1.0) {
-                kind = Cell.Kind.PARTIAL;
-            } else {
-                kind = Cell.Kind.SOLID;
-            }
-        }
+        Cell.Kind kind = kindOf(state, shape, fluid);
         boolean placeable = (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER) && mayPlaceAt(pos);
         return new Cell(kind, breakTicks(pos, state, kind), state.getBlock() instanceof FallingBlock, placeable);
+    }
+
+    /** The cell kind of a state, without the break time or placement rules a search needs. */
+    private static Cell.Kind kindOf(BlockState state, VoxelShape shape, FluidState fluid) {
+        if (shape.isEmpty() && !fluid.isEmpty()) {
+            return fluid.is(FluidTags.LAVA) ? Cell.Kind.LAVA : Cell.Kind.WATER;
+        }
+        if (HAZARDS.contains(state.getBlock())) {
+            return Cell.Kind.HAZARD;
+        }
+        if (isClosedDoor(state)) {
+            return Cell.Kind.DOOR;
+        }
+        if (isClimbable(state)) {
+            return Cell.Kind.CLIMBABLE;
+        }
+        if (shape.isEmpty()) {
+            return state.canBeReplaced() ? Cell.Kind.AIR : Cell.Kind.PASSABLE;
+        }
+        double top = shape.max(Direction.Axis.Y);
+        if (top > 1.0) {
+            return Cell.Kind.TALL;
+        }
+        return top < 1.0 ? Cell.Kind.PARTIAL : Cell.Kind.SOLID;
     }
 
     /** Whether a block may be placed here: allowed by the settings and not protected. */
