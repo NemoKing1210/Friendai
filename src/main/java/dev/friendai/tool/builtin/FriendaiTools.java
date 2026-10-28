@@ -2,6 +2,8 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.features.interaction.minecraft.tool.BodyTools;
+import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import dev.friendai.perception.PerceptionContext;
@@ -106,8 +108,8 @@ public final class FriendaiTools {
         ControlTools.register(registry, defs);
         TradingTools.register(registry, defs);
         QueueTools.register(registry, defs);
-        BodyTools.register(registry, defs);
-        InteractionTools.register(registry, defs);
+        new BodyTools().register(featureTools);
+        new InteractionTools().register(featureTools);
         FireTools.register(registry, defs);
         CreativeTools.register(registry, defs);
         GoalTools.register(registry);

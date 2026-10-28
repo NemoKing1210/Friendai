@@ -1,18 +1,24 @@
-package dev.friendai.tool.builtin;
+package dev.friendai.features.interaction.minecraft.tool;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
+import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
-import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.interaction.minecraft.task.EmoteTask;
+import dev.friendai.features.interaction.minecraft.task.SitTask;
+import dev.friendai.features.interaction.minecraft.task.WaitTask;
+import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
 import dev.friendai.features.navigation.minecraft.task.TurnTask;
 import dev.friendai.features.navigation.movement.Emotes;
 import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.server.execution.tools.FeatureToolContributor;
+import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
-import dev.friendai.task.builtin.EmoteTask;
-import dev.friendai.task.builtin.SitTask;
-import dev.friendai.task.builtin.WaitTask;
-import dev.friendai.task.interact.EntityTargets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -24,16 +30,18 @@ import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.phys.Vec3;
 
 /** Body language: where the companion looks, how it stands, small gestures. None of it needs a long task. */
-final class BodyTools {
+public final class BodyTools implements FeatureToolContributor {
     private static final int DEFAULT_LOOK_TICKS = 100;
     private static final int MAX_LOOK_TICKS = 1200;
     private static final int POINT_TICKS = 60;
     private static final double GAZE_DISTANCE = 8.0;
 
-    private BodyTools() {}
+    public BodyTools() {}
 
-    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        registry.register(ToolKit.instantTool(
+    @Override
+    public void register(FeatureToolRegistry registry) {
+        registerInstant(
+                registry,
                 "look_at",
                 "Turn your head toward something and keep looking at it for a while, without stopping what you are doing. "
                         + "Name the target (owner, a player's name, or an animal/mob type such as cow), give x, y, z, "
@@ -56,8 +64,9 @@ final class BodyTools {
                     c.body().holdLook(gaze.point(), ticks);
                     applyLookNow(c, gaze.point());
                     return ToolResult.ok("looking at " + gaze.label() + " for " + ticks / 20.0 + " seconds");
-                })));
-        registry.register(ToolKit.instantTool(
+                }));
+        registerInstant(
+                registry,
                 "point_at",
                 "Point something out to the player: look at it and swing your arm toward it. "
                         + "Name the target (owner, a player's name, an animal/mob type) or give x, y, z.",
@@ -76,30 +85,29 @@ final class BodyTools {
                     applyLookNow(c, gaze.point());
                     c.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                     return ToolResult.ok("pointing at " + gaze.label());
-                })));
-        ToolKit.add(
+                }));
+        registerTask(
                 registry,
-                defs,
-                new TaskToolDef(
-                        "turn",
-                        "Turn on the spot without walking: to a side (left, right, around), to a compass direction, "
-                                + "or by an exact number of degrees (positive is to the right).",
-                        SchemaBuilder.object()
-                                .enumeration(
-                                        "direction",
-                                        "Where to turn",
-                                        "left",
-                                        "right",
-                                        "around",
-                                        "north",
-                                        "south",
-                                        "east",
-                                        "west")
-                                .number("degrees", "Turn by this many degrees instead; positive right, negative left")
-                                .build(),
-                        BodyTools::turn,
-                        true));
-        registry.register(ToolKit.instantTool(
+                "turn",
+                "Turn on the spot without walking: to a side (left, right, around), to a compass direction, "
+                        + "or by an exact number of degrees (positive is to the right).",
+                SchemaBuilder.object()
+                        .enumeration(
+                                "direction",
+                                "Where to turn",
+                                "left",
+                                "right",
+                                "around",
+                                "north",
+                                "south",
+                                "east",
+                                "west")
+                        .number("degrees", "Turn by this many degrees instead; positive right, negative left")
+                        .build(),
+                BodyTools::turn,
+                true);
+        registerInstant(
+                registry,
                 "sneak",
                 "Crouch (sneak) or stand up straight. While crouched you walk more slowly and quietly and do not sprint; "
                         + "it stays on until you turn it off, or until the given time runs out.",
@@ -113,59 +121,55 @@ final class BodyTools {
                     int ticks = a.has("ticks") ? a.get("ticks").getAsInt() : 0;
                     c.body().setSneaking(on, ticks);
                     return ToolResult.ok(on ? "crouching" : "standing up straight");
-                }));
-        ToolKit.add(
+                });
+        registerTask(
                 registry,
-                defs,
-                new TaskToolDef(
-                        "emote",
-                        "Make a short gesture: wave (greeting), nod (agree), shake_head (disagree), jump_for_joy, bow, spin.",
-                        SchemaBuilder.object()
-                                .enumeration("kind", "The gesture", labels())
-                                .required("kind")
-                                .build(),
-                        BodyTools::emote,
-                        true));
-        ToolKit.add(
+                "emote",
+                "Make a short gesture: wave (greeting), nod (agree), shake_head (disagree), jump_for_joy, bow, spin.",
+                SchemaBuilder.object()
+                        .enumeration("kind", "The gesture", labels())
+                        .required("kind")
+                        .build(),
+                BodyTools::emote,
+                true);
+        registerTask(
                 registry,
-                defs,
-                new TaskToolDef(
-                        "sit",
-                        "Sit down (a low crouch) and stay put until you are told to stand or get another task.",
-                        SchemaBuilder.object().build(),
-                        (c, a) -> new SitTask(),
-                        false,
-                        new TaskToolDef.QueueTraits(true, null)));
-        registry.register(ToolKit.instantTool("stand", "Stand up from sitting or crouching.", (c, a) -> {
-            boolean wasSitting = c.body().sitting();
-            if (c.executionCoordinator()
-                    .current()
-                    .map(t -> t instanceof SitTask)
-                    .orElse(false)) {
-                c.executionCoordinator().stop("stand up");
-            }
-            c.body().setSitting(false);
-            c.body().setSneaking(false, 0);
-            return ToolResult.ok(wasSitting ? "stood up" : "standing");
-        }));
-        ToolKit.add(
+                "sit",
+                "Sit down (a low crouch) and stay put until you are told to stand or get another task.",
+                SchemaBuilder.object().build(),
+                (c, a) -> new SitTask(),
+                false,
+                new TaskToolDefinition.QueueTraits(true, null));
+        registerInstant(
                 registry,
-                defs,
-                new TaskToolDef(
-                        "wait",
-                        "Do nothing for a number of seconds. Use it between the steps of a queue when something has to settle.",
-                        SchemaBuilder.object()
-                                .number("seconds", "How long to wait, from 0.5 to 60")
-                                .required("seconds")
-                                .build(),
-                        (c, a) -> {
-                            double seconds = Math.max(
-                                    0.5, Math.min(60.0, a.get("seconds").getAsDouble()));
-                            return new WaitTask((int) Math.round(seconds * 20.0));
-                        },
-                        true));
-        registry.register(ToolKit.instantTool(
-                "swap_hands", "Swap what you hold in your main hand with what is in your off hand.", (c, a) -> {
+                "stand",
+                "Stand up from sitting or crouching.",
+                SchemaBuilder.object().build(),
+                (c, a) -> {
+                    boolean wasSitting = c.body().sitting();
+                    c.body().setSitting(false);
+                    c.body().setSneaking(false, 0);
+                    return ToolResult.ok(wasSitting ? "stood up" : "standing");
+                });
+        registerTask(
+                registry,
+                "wait",
+                "Do nothing for a number of seconds. Use it between the steps of a queue when something has to settle.",
+                SchemaBuilder.object()
+                        .number("seconds", "How long to wait, from 0.5 to 60")
+                        .required("seconds")
+                        .build(),
+                (c, a) -> {
+                    double seconds =
+                            Math.max(0.5, Math.min(60.0, a.get("seconds").getAsDouble()));
+                    return new WaitTask((int) Math.round(seconds * 20.0));
+                },
+                true);
+        registerInstant(
+                registry,
+                "swap_hands",
+                "Swap what you hold in your main hand with what is in your off hand.",
+                (c, a) -> {
                     ItemStack main = c.getItemBySlot(EquipmentSlot.MAINHAND).copy();
                     ItemStack off = c.getItemBySlot(EquipmentSlot.OFFHAND).copy();
                     if (main.isEmpty() && off.isEmpty()) {
@@ -174,8 +178,9 @@ final class BodyTools {
                     c.setItemSlot(EquipmentSlot.MAINHAND, off);
                     c.setItemSlot(EquipmentSlot.OFFHAND, main);
                     return ToolResult.ok("swapped hands. " + c.equipmentText());
-                }));
-        registry.register(ToolKit.instantTool(
+                });
+        registerInstant(
+                registry,
                 "set_idle_behavior",
                 "Choose how you behave while idle beside the owner: idle_look makes you glance at them now and then; "
                         + "idle_gestures lets you make small gestures such as a nod on your own (off by default).",
@@ -195,8 +200,9 @@ final class BodyTools {
                     }
                     return ToolResult.ok("idle look: " + (c.body().idleLook() ? "on" : "off") + ", idle gestures: "
                             + (c.body().idleGestures() ? "on" : "off"));
-                }));
-        registry.register(ToolKit.instantTool(
+                });
+        registerInstant(
+                registry,
                 "set_follow_distance",
                 "Set how close you keep to the owner while following, in blocks (1 hugging them, 8 giving them room).",
                 SchemaBuilder.object()
@@ -206,7 +212,7 @@ final class BodyTools {
                 (c, a) -> {
                     c.body().setFollowDistance(a.get("blocks").getAsDouble());
                     return ToolResult.ok("following at " + c.body().followDistance() + " blocks");
-                }));
+                });
     }
 
     /** What to look at: a point (re-read every tick, null when the target is gone) and a name for the report. */
@@ -288,7 +294,7 @@ final class BodyTools {
     }
 
     /** Reports an unusable argument as a tool error with the plain message, not as a crash. */
-    static ToolKit.Action guarded(ToolKit.Action action) {
+    private static Action guarded(Action action) {
         return (c, a) -> {
             try {
                 return action.run(c, a);
@@ -296,5 +302,67 @@ final class BodyTools {
                 return ToolResult.error(e.getMessage());
             }
         };
+    }
+
+    private static void registerTask(
+            FeatureToolRegistry registry,
+            String name,
+            String description,
+            JsonObject schema,
+            TaskToolDefinition.Factory factory,
+            boolean plannable) {
+        registerTask(registry, name, description, schema, factory, plannable, TaskToolDefinition.QueueTraits.DEFAULT);
+    }
+
+    private static void registerTask(
+            FeatureToolRegistry registry,
+            String name,
+            String description,
+            JsonObject schema,
+            TaskToolDefinition.Factory factory,
+            boolean plannable,
+            TaskToolDefinition.QueueTraits queueTraits) {
+        registry.registerTask(
+                new TaskToolDefinition(name, description, schema, factory, plannable, queueTraits, metadata(name)));
+    }
+
+    private static void registerInstant(FeatureToolRegistry registry, String name, String description, Action action) {
+        registerInstant(registry, name, description, SchemaBuilder.object().build(), action);
+    }
+
+    private static void registerInstant(
+            FeatureToolRegistry registry, String name, String description, JsonObject schema, Action action) {
+        registry.registerTool(
+                new Tool<>() {
+                    @Override
+                    public String name() {
+                        return name;
+                    }
+
+                    @Override
+                    public String description() {
+                        return description;
+                    }
+
+                    @Override
+                    public JsonObject schema() {
+                        return schema;
+                    }
+
+                    @Override
+                    public ToolResult execute(CompanionEntity companion, JsonObject args) {
+                        return action.run(companion, args);
+                    }
+                },
+                metadata(name));
+    }
+
+    private static ToolMeta metadata(String name) {
+        return new ToolMeta(name, ToolGroup.BODY, false, "", List.of(), Cost.LOW);
+    }
+
+    @FunctionalInterface
+    private interface Action {
+        ToolResult run(CompanionEntity companion, JsonObject args);
     }
 }

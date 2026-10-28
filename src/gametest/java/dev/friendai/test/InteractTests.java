@@ -2,19 +2,53 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.interaction.minecraft.task.ApproachTask;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.cow.Cow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public class InteractTests {
+    @GameTest(maxTicks = 400)
+    public void interactionApproachUsesSharedEntityMovement(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Cow target = h.spawn(EntityTypes.COW, 9, 2, 2);
+        assertApproachesEntity(h, c, target, new ApproachTask(target, 2.0), 2.0);
+    }
+
+    @GameTest(maxTicks = 400)
+    public void navigationApproachToolUsesSharedEntityMovement(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Cow target = h.spawn(EntityTypes.COW, 9, 2, 2);
+        assertApproachesEntity(h, c, target, new ApproachEntityTask(target, 2.0), 2.0);
+    }
+
+    private static void assertApproachesEntity(
+            GameTestHelper h, CompanionEntity companion, Cow target, dev.friendai.task.Task task, double reach) {
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        task.start(context);
+        h.succeedWhen(() -> {
+            TaskStatus status = task.tick(context);
+            h.assertTrue(status == TaskStatus.SUCCESS, "approach status was " + status + ": " + task.resultSummary());
+            h.assertTrue(companion.distanceTo(target) <= reach, "distance was " + companion.distanceTo(target));
+            h.assertTrue(task.resultSummary().startsWith("standing "), "summary was " + task.resultSummary());
+            task.stop(context);
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void approachReachesBlock(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

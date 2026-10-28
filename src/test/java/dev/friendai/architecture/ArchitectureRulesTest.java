@@ -159,6 +159,18 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
                 edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.features.navigation.pathing.Pos"),
                 edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
+                edge(
+                        "dev.friendai.features.interaction.minecraft.task.ReachEntityTask",
+                        "dev.friendai.features.navigation.minecraft.nav.EntityApproach"),
+                edge(
+                        "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
+                        "dev.friendai.features.creative.CreativeCommandPolicy"),
+                edge(
+                        "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
+                        "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
+                edge(
+                        "dev.friendai.features.creative.CreativeCommandPolicy",
+                        "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                 edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"),
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.acquisition.ObtainPlan")));
 
@@ -170,8 +182,16 @@ class ArchitectureRulesTest {
                                 "dev.friendai.features.farming.FarmPlanner"),
                         violation(
                                 "feature-dependency-not-allowed",
+                                "dev.friendai.features.creative.CreativeCommandPolicy",
+                                "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
+                        violation(
+                                "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.Navigator",
-                                "dev.friendai.features.acquisition.ObtainPlan")),
+                                "dev.friendai.features.acquisition.ObtainPlan"),
+                        violation(
+                                "feature-dependency-not-allowed",
+                                "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
+                                "dev.friendai.features.interaction.minecraft.task.ApproachTask")),
                 PackageDependencyRules.validate(edges));
     }
 

@@ -1,9 +1,9 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.interaction.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.interact.EntityTargets;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 

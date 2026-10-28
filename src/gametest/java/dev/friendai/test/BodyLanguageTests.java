@@ -2,14 +2,14 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.interaction.minecraft.task.EmoteTask;
+import dev.friendai.features.interaction.minecraft.task.SitTask;
+import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
 import dev.friendai.features.navigation.minecraft.task.TurnTask;
 import dev.friendai.features.navigation.movement.Emotes;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.builtin.EmoteTask;
-import dev.friendai.task.builtin.SitTask;
 import dev.friendai.task.builtin.ThrowItemTask;
-import dev.friendai.task.builtin.WaitTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BreakAction;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

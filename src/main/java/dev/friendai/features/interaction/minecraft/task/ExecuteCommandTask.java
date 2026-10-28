@@ -1,4 +1,4 @@
-package dev.friendai.task.builtin;
+package dev.friendai.features.interaction.minecraft.task;
 
 import dev.friendai.command.CompanionCommandExecutor;
 import dev.friendai.features.creative.CreativeAction;

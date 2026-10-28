@@ -490,6 +490,35 @@ public class ToolTests {
     }
 
     @GameTest
+    public void standToolLetsSitTaskFinish(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolExecutor tools = tools(companion);
+
+        ToolResult sit = run(tools, "sit", "{}");
+        h.assertTrue(!sit.error(), "sit result was " + sit.content());
+        h.assertTrue(companion.body().sitting(), "companion did not sit");
+        h.assertTrue(
+                companion
+                        .executionCoordinator()
+                        .current()
+                        .map(task -> task.type().equals("sit"))
+                        .orElse(false),
+                "sit task should be current");
+
+        ToolResult stand = run(tools, "stand", "{}");
+        h.assertTrue(!stand.error(), "stand result was " + stand.content());
+        h.assertFalse(companion.body().sitting(), "stand tool left the companion sitting");
+        h.succeedWhen(() -> h.assertTrue(
+                companion
+                        .executionCoordinator()
+                        .current()
+                        .map(task -> !task.type().equals("sit"))
+                        .orElse(true),
+                "sit task did not finish after stand"));
+    }
+
+    @GameTest
     public void queueAddAcceptsTaskTools(GameTestHelper h) {
         ToolSpec spec = FriendaiTools.create(() -> 32).specs().stream()
                 .filter(s -> s.name().equals("queue_add"))

@@ -6,6 +6,8 @@ import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
+import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.CircleTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
 import dev.friendai.features.navigation.movement.Facing;
@@ -13,8 +15,6 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
-import dev.friendai.task.builtin.ApproachTask;
-import dev.friendai.task.interact.EntityTargets;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
@@ -140,7 +140,7 @@ public final class RelativeMovementTools implements FeatureToolContributor {
         double distance = a.has("distance")
                 ? Math.max(1.0, Math.min(8.0, a.get("distance").getAsDouble()))
                 : DEFAULT_APPROACH_DISTANCE;
-        return new ApproachTask(target, distance);
+        return new ApproachEntityTask(target, distance);
     }
 
     private static Task circle(CompanionEntity c, JsonObject a) {
