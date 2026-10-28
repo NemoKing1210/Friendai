@@ -1,5 +1,6 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'com.diffplug.spotless' version "${spotless_version}"
 }
 
 version = project.mod_version
@@ -130,6 +131,23 @@ java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(25)
 	}
+}
+
+// One Java style for the whole tree. `./gradlew spotlessApply` rewrites the sources, `spotlessCheck` (part of
+// `check`) fails on a file that was edited by hand in another style. Palantir's formatter is the one that matches
+// this repository: 4-space indent and 120-column lines, where google-java-format re-indents everything to 2 spaces.
+spotless {
+	java {
+		target 'src/*/java/**/*.java'
+		palantirJavaFormat(project.palantir_java_format_version)
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+}
+
+tasks.named('check') {
+	dependsOn 'spotlessCheck'
 }
 
 // Copies the freshly built mod jar to /test-builds/ (git-ignored) so it can be dropped into a
