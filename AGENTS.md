@@ -45,19 +45,20 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | Command | What it does |
 |---|---|
 | `./gradlew build` | Compile, run unit tests **and** the Fabric GameTests (`runGameTest` is part of `check`), then package. The full gate: CI runs it at merge to `main`; agents do not run it while working (see "Test scope"). |
-| `./gradlew test` | Unit tests only (JUnit 5, no Minecraft). Fast. |
+| `./gradlew test` | Root and engine unit tests (JUnit 5, no Minecraft); root `test` aggregates `:engine:test`. |
+| `./gradlew :engine:test --tests 'dev.friendai.<package>.*'` | Tests only the selected pure engine package. |
 | `./gradlew test --tests '*SomeTest'` | One unit test class. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
-| `./gradlew spotlessApply` | Rewrites Java sources with the project formatter (Palantir: 4-space indent, 120 columns) and sorts the imports. `-PspotlessFiles=<a.java,b.java>` limits it to those files. Run it at the end of a task; CI runs `spotlessCheck`. |
-| `./gradlew assemble` | Compile and package; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
+| `./gradlew spotlessApply` | Rewrites Java sources in the root and engine with the project formatter (Palantir: 4-space indent, 120 columns) and sorts the imports. `-PspotlessFiles=<root-relative paths>` limits it to those files; prefix engine paths with `engine/`. Run it at the end of a task; CI runs `spotlessCheck`. |
+| `./gradlew assemble verifyModArtifact` | Compile and package, verify nested engine classes/resources and fixture exclusion; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
 | `./gradlew runClient` / `runServer` | Dev client / server. `run/` is git-ignored; the server needs `run/eula.txt` with `eula=true`. |
 | `./gradlew genSources` | Decompiled Minecraft sources, for looking up API names (see "Minecraft API notes"). |
 
 The first build downloads Minecraft and takes minutes; later builds take seconds.
 
-- Unit results: `build/test-results/test/*.xml` (one XML per class; sum `tests`/`failures`).
+- Unit results: `build/test-results/test/*.xml` and `engine/build/test-results/test/*.xml` (one XML per class; sum `tests`/`failures`).
 - GameTest results: console output — `========= N GAME TESTS COMPLETE` and `N required tests failed` (or `All N required tests passed`).
 - Gradle may run `runGameTest` before `test`; if a GameTest fails, run `./gradlew test` separately to get the unit-test count.
 - Only one Gradle run per checkout at a time: parallel builds fight over the Gradle lock and the shared `run/` directory.
@@ -68,18 +69,21 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 
 | Path | What it is |
 |---|---|
+| `engine/src/main/java/dev/friendai/` | Game-independent Java library; no Minecraft, Fabric, optional UI or native audio dependency. |
+| `engine/src/test/java/dev/friendai/` | Pure engine unit tests; `engine/src/testFixtures/java/` holds reusable pure fakes. |
 | `src/main/java/dev/friendai/` | Common + server code (the mod's `main` source set). |
 | `src/client/java/dev/friendai/client/` | Client-only code (Loom split source set). |
 | `src/test/java/dev/friendai/` | JUnit 5 unit tests and `testutil` fakes. |
 | `src/gametest/java/dev/friendai/test/` | Fabric GameTests (a separate mod id, `friendai-gametest`). |
 | `src/main/resources/` | `fabric.mod.json`, `assets/friendai/lang/`, icon, GUI sprites. |
 | `src/gametest/resources/` | GameTest `fabric.mod.json` (entrypoints) and `data/.../structure/*.nbt`. |
-| `build.gradle`, `settings.gradle`, `gradle.properties` | Loom setup, dependencies, and all versions including `mod_version`. |
+| `build.gradle`, `engine/build.gradle`, `settings.gradle`, `gradle.properties` | Loom + engine setup, dependencies, and all versions including `mod_version`. |
 | `gradle/` | Wrapper. |
 | `scripts/` | Maintenance scripts (`setup-branch-protection.sh`). |
 | `.github/workflows/` | CI: unit tests, GameTests, build, commit lint, release. |
 | `.githooks/` | Local `commit-msg` hook mirroring commitlint. Enable with `git config core.hooksPath .githooks`. |
 | `docs/superpowers/{specs,plans}/` | Local design specs and implementation plans. **Git-ignored**; read for context, never commit. |
+| `architecture/` | Tracked build, dependency and migration inventories/rules. |
 | `test-builds/` | Exported test jars (`friendai-<version>.jar`). Git-ignored. |
 | `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local runtime/generated files. Git-ignored. |
 | `AGENTS.md`, `ARCHITECTURE.md` | The two halves of this guide: the rules every session loads, and the reference (packages, flows, persistence, protocol). See "Code map and flows". |
@@ -126,7 +130,7 @@ The mod ships one mixin set — `friendai.mixins.json`, package `dev.friendai.mi
 
 Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://github.com/diffplug/spotless) to [palantir-java-format](https://github.com/palantir/palantir-java-format) over `src/*/java/**/*.java`, both versions pinned in `gradle.properties`. Palantir is the formatter that matches this repository — 4-space indent and 120-column lines — where google-java-format would re-indent every file to 2 spaces.
 
-- **Formatting is the last step of every task, before the commit.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. It rewrites them, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
+- **Formatting is the last step of every task, before the commit.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated root-relative paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. Include `engine/` in paths under the engine module. The root formatter task delegates to both projects and each formats only its own selection. It rewrites them, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
 - **Never run a bare `./gradlew spotlessApply` in a shared checkout.** Without `-PspotlessFiles` it rewrites the whole tree, including another session's uncommitted files (see "Parallel sessions"). The bare form is for a checkout you own and for the one-time sweep after a formatter bump; in a shared one, pass your own files, or `./gradlew spotlessCheck -PspotlessFiles=…` to check without writing.
 - The tool owns the layout: never hand-format around it, and do not reflow a file yourself to "fix" its diff.
 - `// spotless:off` and `// spotless:on` around a block that must keep its own layout (an ASCII table, a generated literal, a golden file written out as text), with a reason next to it.
@@ -139,7 +143,7 @@ Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://gi
 A full run is about 9 minutes of GameTests plus the unit suite, so an agent does **not** run it while working on a task. The rule:
 
 - **While working** (new module, skill, fix): run only the group that covers your change.
-  - Unit tests of the area: `./gradlew test --tests 'dev.friendai.<package>.*'` (or a single class). Pure-layer work needs nothing else.
+  - Root unit tests of the area: `./gradlew test --tests 'dev.friendai.<package>.*'` (or a single class). For engine-only code, use `./gradlew :engine:test --tests 'dev.friendai.<package>.*'`.
   - GameTests of the area, only if the change touches the game layer: one class glob per run, e.g. `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` (`BuildTests` → `build_tests_*`, `FarmingTests` → `farming_tests_*`). Name the class(es) you added or whose behavior you changed; a new skill's GameTest class counts.
   - Always run `LangFilesTest` when you touched a language file.
 - **Do not** run `./gradlew build`, `check` or a bare `runGameTest` to "be safe" before a commit or a task report.
@@ -343,7 +347,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 ## Definition of done
 
-0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble` (compiles every source set and packages) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. Formatting is part of this gate: run `./gradlew spotlessApply -PspotlessFiles=<the files you changed>` before the commit (see "Formatting").
+0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble verifyModArtifact` (compiles every source set, packages and inspects the mod jar) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. Formatting is part of this gate: run `./gradlew spotlessApply -PspotlessFiles=<the files you changed>` before the commit (see "Formatting").
 1. Tests are not a gate for a commit: commit a coherent change when it is ready. Run only your group's tests (see "Test scope" under Testing); the full suite is CI's job at merge to `main`. Quote the real result of what you ran (unit-test count and GameTest line) instead of assuming.
 2. New player-facing strings exist in both language files.
 3. New behavior has a test that pins it and would fail without the change (see "Batch the loop" for how to prove that inside one run); bugs get a regression test.

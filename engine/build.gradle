@@ -1,0 +1,61 @@
+plugins {
+	id 'java-library'
+	id 'java-test-fixtures'
+	id 'com.diffplug.spotless' version "${spotless_version}"
+}
+
+group = rootProject.maven_group
+version = rootProject.mod_version
+
+repositories {
+	mavenCentral()
+}
+
+java {
+	withSourcesJar()
+
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}
+
+dependencies {
+	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+	useJUnitPlatform()
+}
+
+spotless {
+	java {
+		def selected = providers.gradleProperty('spotlessFiles')
+				.map {
+					it.split(',')*.trim()
+							.collect { path -> path.replace('\\', '/') }
+							.findAll { path -> path.startsWith('engine/') }
+							.collect { path -> path.substring('engine/'.length()) }
+				}
+				.getOrElse(null)
+		if (selected != null) {
+			if (selected.isEmpty()) {
+				target fileTree(layout.buildDirectory.dir('spotless-empty-selection'))
+			} else {
+				target selected
+			}
+		} else {
+			target 'src/**/*.java'
+		}
+		palantirJavaFormat(rootProject.palantir_java_format_version)
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+		lineEndings(com.diffplug.spotless.LineEnding.UNIX)
+	}
+}

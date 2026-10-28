@@ -50,6 +50,9 @@ tasks.named('runGameTest') {
 }
 
 dependencies {
+	implementation project(':engine')
+	include project(':engine')
+
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
@@ -84,9 +87,11 @@ dependencies {
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 	testImplementation "com.google.code.gson:gson:2.11.0"
+	testImplementation(testFixtures(project(':engine')))
 }
 
 test {
+	dependsOn ':engine:test'
 	useJUnitPlatform()
 	// Lets the gated local-TTS spike opt in with -Dfriendai.tts.voice=<installed voice dir>.
 	def ttsVoice = System.getProperty("friendai.tts.voice")
@@ -103,6 +108,24 @@ test {
 		def value = System.getProperty(key)
 		if (value != null) {
 			systemProperty key, value
+		}
+	}
+}
+
+def requestedTaskNames = gradle.startParameter.taskNames
+def rootTestRequested = requestedTaskNames.any { it == 'test' || it == ':test' }
+def engineTestRequested = requestedTaskNames.any { it == ':engine:test' }
+def rootTestFiltered = requestedTaskNames.any { it == '--tests' || it.startsWith('--tests=') }
+
+project(':engine').plugins.withId('java') {
+	project(':engine').tasks.named('test').configure { engineTask ->
+		engineTask.onlyIf('Skip engine tests for a filtered root-only test invocation') { task ->
+			if (rootTestRequested && !engineTestRequested && rootTestFiltered) {
+				task.logger.lifecycle(
+						'Skipping :engine:test for a filtered root test run; invoke :engine:test directly to select engine tests.')
+				return false
+			}
+			true
 		}
 	}
 }
@@ -141,10 +164,19 @@ java {
 spotless {
 	java {
 		def selected = providers.gradleProperty('spotlessFiles')
-				.map { it.split(',')*.trim().findAll { path -> !path.isEmpty() } }
+				.map {
+					it.split(',')*.trim()
+							.findAll { path -> !path.isEmpty() }
+							.collect { path -> path.replace('\\', '/') }
+							.findAll { path -> !path.startsWith('engine/') }
+				}
 				.getOrElse(null)
 		if (selected != null) {
-			target selected
+			if (selected.isEmpty()) {
+				target fileTree(layout.buildDirectory.dir('spotless-empty-selection'))
+			} else {
+				target selected
+			}
 		} else {
 			target 'src/*/java/**/*.java'
 		}
@@ -158,8 +190,124 @@ spotless {
 	}
 }
 
+tasks.named('spotlessApply') {
+	dependsOn ':engine:spotlessApply'
+}
+
+tasks.named('spotlessCheck') {
+	dependsOn ':engine:spotlessCheck'
+}
+
 tasks.named('check') {
 	dependsOn 'spotlessCheck'
+}
+
+tasks.register('verifyModArtifact') {
+	group = 'verification'
+	description = 'Verifies that the exported mod jar embeds the engine exactly once without test fixtures.'
+
+	def modJar = tasks.named('jar')
+	def engineJar = project(':engine').tasks.named('jar')
+	def engineFixturesJar = project(':engine').tasks.named('testFixturesJar')
+	def modJarArtifact = modJar.flatMap { it.archiveFile }
+	def engineJarArtifact = engineJar.flatMap { it.archiveFile }
+	def engineFixturesArtifact = engineFixturesJar.flatMap { it.archiveFile }
+	def engineMainClasses = project(':engine').sourceSets.main.output.classesDirs
+	def productionRuntime = sourceSets.main.runtimeClasspath
+
+	dependsOn modJar, engineJar, engineFixturesJar
+	inputs.file(modJarArtifact)
+	inputs.file(engineJarArtifact)
+	inputs.file(engineFixturesArtifact)
+	inputs.files(engineMainClasses)
+	inputs.files(productionRuntime)
+
+	doLast {
+		def artifact = modJarArtifact.get().asFile
+		def requiredEngineClasses = [
+				'dev/friendai/text/UserMessage.class',
+				'dev/friendai/text/UserFacingException.class',
+				'dev/friendai/text/LanguageDetector.class',
+				'dev/friendai/text/LanguageMemory.class'
+		] as Set
+		def engineCopies = []
+		def engineClassEntries = [] as Set
+
+		new java.util.zip.ZipFile(artifact).withCloseable { modArchive ->
+			def metadataEntry = modArchive.getEntry('fabric.mod.json')
+			if (metadataEntry == null) {
+				throw new GradleException("Mod artifact is missing fabric.mod.json: ${artifact}")
+			}
+			def metadata
+			modArchive.getInputStream(metadataEntry).withCloseable { stream ->
+				metadata = new groovy.json.JsonSlurper().parse(stream)
+			}
+			def nestedPaths = (metadata.jars ?: []).collect { it.file }.findAll { it instanceof String }
+			nestedPaths.each { nestedPath ->
+				def nestedEntry = modArchive.getEntry(nestedPath)
+				if (nestedEntry == null) {
+					throw new GradleException("Nested jar metadata points to a missing entry: ${nestedPath}")
+				}
+				def foundClasses = [] as Set
+				new java.util.jar.JarInputStream(modArchive.getInputStream(nestedEntry)).withCloseable { nested ->
+					java.util.jar.JarEntry entry
+					while ((entry = nested.nextJarEntry) != null) {
+						if (!entry.isDirectory() && entry.name.endsWith('.class')) {
+							foundClasses.add(entry.name)
+						}
+					}
+				}
+				if (!requiredEngineClasses.intersect(foundClasses).isEmpty()) {
+					engineCopies.add(nestedPath)
+					engineClassEntries = foundClasses
+				}
+			}
+			if (engineCopies.size() != 1) {
+				throw new GradleException("Expected one nested engine jar, found ${engineCopies.size()} in ${artifact}")
+			}
+			def duplicateClasses = engineClassEntries.findAll { modArchive.getEntry(it) != null }
+			if (!duplicateClasses.isEmpty()) {
+				throw new GradleException("Engine classes are duplicated in the outer mod jar: ${duplicateClasses}")
+			}
+		}
+
+		def missingEngineClasses = []
+		engineMainClasses.files.each { classesDir ->
+			if (classesDir.exists()) {
+				classesDir.eachFileRecurse { file ->
+					if (file.isFile() && file.name.endsWith('.class')) {
+						def className = classesDir.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+						if (!engineClassEntries.contains(className)) {
+							missingEngineClasses.add(className)
+						}
+					}
+				}
+			}
+		}
+		if (!missingEngineClasses.isEmpty()) {
+			throw new GradleException("Engine artifact is missing compiled classes: ${missingEngineClasses}")
+		}
+
+		def fixtureClasses = [] as Set
+		new java.util.zip.ZipFile(engineFixturesArtifact.get().asFile).withCloseable { fixtures ->
+			fixtures.entries().each { entry ->
+				if (!entry.isDirectory() && entry.name.endsWith('.class')) {
+					fixtureClasses.add(entry.name)
+				}
+			}
+		}
+		def leakedFixtureClasses = fixtureClasses.intersect(engineClassEntries)
+		if (!leakedFixtureClasses.isEmpty()) {
+			throw new GradleException("Test fixture classes leaked into the engine artifact: ${leakedFixtureClasses}")
+		}
+
+		def runtimeUrls = productionRuntime.files.collect { it.toURI().toURL() } as URL[]
+		new java.net.URLClassLoader(runtimeUrls, null).withCloseable { resourceLoader ->
+			if (resourceLoader.getResource('agent/intents_en.json') == null) {
+				throw new GradleException('Production resource lookup failed for agent/intents_en.json')
+			}
+		}
+	}
 }
 
 // Copies the freshly built mod jar to /test-builds/ (git-ignored) so it can be dropped into a
