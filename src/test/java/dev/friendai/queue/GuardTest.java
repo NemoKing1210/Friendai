@@ -67,6 +67,63 @@ class GuardTest {
     }
 
     @Test
+    void compoundGuardsComposeAndRoundTripAsTrees() {
+        Guard guard = Guard.parse(json("""
+                {"type":"all_of","conditions":[
+                  {"type":"has_item","item":"minecraft:iron_ingot","count":2},
+                  {"type":"any_of","conditions":[
+                    {"type":"dimension","dimension":"minecraft:the_nether"},
+                    {"type":"not","condition":{"type":"health_at_least","percent":90}}
+                  ]}
+                ]}
+                """)).orElseThrow();
+
+        assertTrue(guard.holds(facts(Map.of("minecraft:iron_ingot", 2))));
+        assertFalse(guard.holds(facts(Map.of("minecraft:iron_ingot", 1))));
+        assertEquals(guard, Guard.parse(guard.toJson()).orElseThrow());
+    }
+
+    @Test
+    void conditionalPrimitivesReadTheirOwnFactsAndRejectOutOfRangeValues() {
+        GuardFacts world = new GuardFacts() {
+            @Override public int countItems(String idOrTag) { return 0; }
+            @Override public int emptySlots() { return 0; }
+            @Override public float healthFraction() { return 0; }
+            @Override public int ownerDistance() { return -1; }
+            @Override public int countBlocks(String idOrTag, int radius) { return 0; }
+            @Override public String dimension() { return "minecraft:overworld"; }
+            @Override public boolean blockInFront(String idOrTag, int distance) {
+                return idOrTag.equals("minecraft:oak_log") && distance == 8;
+            }
+            @Override public String biome() { return "minecraft:plains"; }
+            @Override public boolean fluidAhead() { return true; }
+            @Override public int distanceTravelled() { return 16384; }
+            @Override public long timeElapsed() { return 24000; }
+        };
+
+        assertTrue(Guard.parse(json("{\"type\":\"block_in_front\",\"block\":\"minecraft:oak_log\",\"distance\":8}"))
+                .orElseThrow().holds(world));
+        assertTrue(Guard.parse(json("{\"type\":\"biome\",\"biome\":\"minecraft:plains\"}"))
+                .orElseThrow().holds(world));
+        assertTrue(Guard.parse(json("{\"type\":\"fluid_ahead\"}")).orElseThrow().holds(world));
+        assertTrue(Guard.parse(json("{\"type\":\"distance_travelled\",\"blocks\":16384}"))
+                .orElseThrow().holds(world));
+        assertTrue(Guard.parse(json("{\"type\":\"time_elapsed\",\"ticks\":24000}"))
+                .orElseThrow().holds(world));
+
+        for (String invalid : List.of(
+                "{\"type\":\"all_of\",\"conditions\":[]}",
+                "{\"type\":\"any_of\",\"conditions\":[{\"type\":\"missing\"}]}",
+                "{\"type\":\"block_in_front\",\"block\":\"minecraft:stone\",\"distance\":9}",
+                "{\"type\":\"biome\",\"biome\":\"\"}",
+                "{\"type\":\"fluid_ahead\",\"distance\":2}",
+                "{\"type\":\"distance_travelled\",\"blocks\":0}",
+                "{\"type\":\"time_elapsed\",\"ticks\":24001}")) {
+            assertTrue(Guard.parse(json(invalid)).isEmpty(), invalid);
+        }
+    }
+
+    @Test
     void queuedStepNormalizesNullsClampsAttemptsAndCopiesArgs() {
         JsonObject args = new JsonObject();
         args.addProperty("x", 1);

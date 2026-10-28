@@ -9,6 +9,12 @@ public interface GuardFacts {
     int countBlocks(String idOrTag, int radius);
     String dimension();
 
+    default boolean blockInFront(String idOrTag, int distance) { return false; }
+    default String biome() { return ""; }
+    default boolean fluidAhead() { return false; }
+    default int distanceTravelled() { return 0; }
+    default long timeElapsed() { return 0; }
+
     default boolean hasBlocks(String idOrTag, int radius, int count) {
         return countBlocks(idOrTag, radius) >= count;
     }
