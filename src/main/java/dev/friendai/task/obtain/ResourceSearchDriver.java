@@ -44,6 +44,8 @@ public final class ResourceSearchDriver implements Task {
     private final long startTravel;
     private final long startTicks;
     private final int startExcavation;
+    private long foundCheckedTick = Long.MIN_VALUE;
+    private boolean foundCached;
     private ResourceJourney journey;
     private Pos origin;
     private Pos lastPosition;
@@ -68,6 +70,12 @@ public final class ResourceSearchDriver implements Task {
     public ResourceSearchDriver(SearchSession session, TargetKind target, ResourceSearchProfile profile, int radius,
             boolean expedition, ResourceSearchProfile.Strategy selectedStrategy, String requestedHeading,
             CaveEntranceObservation caveEntrance, SearchHint hint) {
+        this(session, target, profile, radius, expedition, selectedStrategy, requestedHeading, caveEntrance, hint, false);
+    }
+
+    public ResourceSearchDriver(SearchSession session, TargetKind target, ResourceSearchProfile profile, int radius,
+            boolean expedition, ResourceSearchProfile.Strategy selectedStrategy, String requestedHeading,
+            CaveEntranceObservation caveEntrance, SearchHint hint, boolean initialFound) {
         this.session = session;
         this.target = target;
         this.profile = profile;
@@ -81,6 +89,7 @@ public final class ResourceSearchDriver implements Task {
         this.startTravel = Math.round(snapshot.spentTravelBlocks());
         this.startTicks = snapshot.spentTicks();
         this.startExcavation = snapshot.excavationBlocks();
+        this.found = initialFound;
     }
 
     @Override public String type() { return "resource_search_driver"; }
@@ -159,6 +168,9 @@ public final class ResourceSearchDriver implements Task {
     public boolean holding() { return waiting; }
 
     public TargetKind target() { return target; }
+
+    /** Whether this search has already seen the target; persisted when an expedition walks home. */
+    public boolean discovered() { return found; }
 
     @Override
     public TaskStatus tick(TaskContext context) {
@@ -389,14 +401,24 @@ public final class ResourceSearchDriver implements Task {
 
     private SearchPlanner.Request plannerRequest(TaskContext context, FriendaiServerState state, long now) {
         long remaining = Math.max(0, session.snapshot().limits().ticks() - session.snapshot().spentTicks());
+        SearchHint live = hint;
+        var owner = context.companion().ownerUuid();
+        if (owner != null) {
+            live = FriendaiServerState.get(context.level().getServer()).searchHints().get(owner, now).orElse(null);
+        }
         return new SearchPlanner.Request(context.level().dimension().identifier().toString(), origin,
                 frontiers(context), profile, state.knowledge().book(context.companion().ownerUuid()).searchCoverage(),
-                remaining, now, heading(), Optional.ofNullable(hint).filter(value -> !value.expired(now)));
+                remaining, now, heading(), Optional.ofNullable(live).filter(value -> !value.expired(now)));
     }
 
     private void explainChoice(TaskContext context, List<SearchPlanner.Ranked> ranked, long now) {
-        if (!hintLogged && hint != null && !hint.expired(now)) {
-            context.companion().taskRunner().debug("search hint: " + hint.describe(now));
+        SearchHint live = hint;
+        var owner = context.companion().ownerUuid();
+        if (owner != null) {
+            live = FriendaiServerState.get(context.level().getServer()).searchHints().get(owner, now).orElse(null);
+        }
+        if (!hintLogged && live != null && !live.expired(now)) {
+            context.companion().taskRunner().debug("search hint: " + live.describe(now));
             hintLogged = true;
         }
         StringBuilder line = new StringBuilder("search chose ").append(describe(ranked.get(0)));
@@ -471,12 +493,21 @@ public final class ResourceSearchDriver implements Task {
     }
 
     private boolean targetFound(TaskContext context) {
-        return SearchTargets.found(context.companion(), target, radius);
+        long tick = logicalTick(context);
+        if (tick == foundCheckedTick) return foundCached;
+        foundCheckedTick = tick;
+        foundCached = SearchTargets.found(context.companion(), target, effectiveRadius());
+        return foundCached;
+    }
+
+    /** The live session radius: an escort cap or a reload can shrink it after this driver was built. */
+    private int effectiveRadius() {
+        return Math.min(radius, session.snapshot().limits().radius());
     }
 
     private List<SearchPlanner.Frontier> frontiers(TaskContext context) {
         List<SearchPlanner.Frontier> result = new ArrayList<>();
-        int steps = Math.max(1, radius / 16);
+        int steps = Math.max(1, effectiveRadius() / 16);
         var trails = FriendaiServerState.get(context.level().getServer()).knowledge()
                 .book(context.companion().ownerUuid()).trails();
         for (int step = 1; step <= steps; step++) {

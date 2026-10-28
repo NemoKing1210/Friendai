@@ -41,6 +41,7 @@ public final class SearchSession {
     private long spentTicks;
     private int excavationBlocks;
     private int blockedLegs;
+    private Runnable onChange;
 
     public SearchSession(UUID id, String dimension, String goal, Pos origin, Limits limits, long tick) {
         this.id = Objects.requireNonNull(id); this.dimension = requireText(dimension); this.goal = requireText(goal);
@@ -58,7 +59,20 @@ public final class SearchSession {
         return restored;
     }
 
+    /** Registers a listener that runs after every state or counter change, so the owner's book is flushed. */
+    public synchronized void onChange(Runnable listener) { onChange = listener; }
+
+    private void changed() {
+        if (onChange != null) onChange.run();
+    }
+
     public synchronized Decision advance(Input input) {
+        Decision decision = advanceInternal(input);
+        changed();
+        return decision;
+    }
+
+    private Decision advanceInternal(Input input) {
         if (!dimension.equals(input.dimension())) return terminal(Phase.FAILED, Reason.WRONG_DIMENSION);
         lastTick = Math.max(lastTick, input.tick());
         spentTicks = Math.max(spentTicks, input.tick() - startedTick) + input.workTicks();
@@ -108,7 +122,7 @@ public final class SearchSession {
         return decision(Reason.CONTINUE, null);
     }
 
-    public synchronized void interrupt() { phase = Phase.INTERRUPTED; }
+    public synchronized void interrupt() { phase = Phase.INTERRUPTED; changed(); }
 
     /** Accounts for one task tick of travel and excavation without forcing a planner phase transition. */
     public synchronized boolean accountWork(long tick, Pos position, double travelBlocks, int blocksExcavated) {
@@ -123,6 +137,7 @@ public final class SearchSession {
                 || excavationBlocks >= limits.excavationBlocks()) {
             if (phase != Phase.COMPLETE && phase != Phase.FAILED && phase != Phase.INTERRUPTED) phase = Phase.RETURN;
         }
+        changed();
         return phase == Phase.RETURN;
     }
 
@@ -133,6 +148,7 @@ public final class SearchSession {
                 Math.min(limits.travelBlocks(), currentPolicy.travelBlocks()),
                 Math.min(limits.ticks(), currentPolicy.ticks()),
                 Math.min(limits.excavationBlocks(), currentPolicy.excavationBlocks()));
+        changed();
     }
 
     public synchronized void resumeForNewRequest(long now) {
@@ -141,6 +157,7 @@ public final class SearchSession {
         phase = Phase.CHOOSE_FRONTIER;
         lastTick = now;
         startedTick = Math.max(0, now - spentTicks);
+        changed();
     }
 
     /**
@@ -153,6 +170,7 @@ public final class SearchSession {
         startedTick = Math.max(0, now - spentTicks);
         if (phase == Phase.COMPLETE || phase == Phase.FAILED) return;
         if (phase != Phase.RETURN) phase = Phase.CHOOSE_FRONTIER;
+        changed();
     }
     public synchronized Snapshot snapshot() {
         return new Snapshot(id, dimension, goal, origin, limits, phase, startedTick, lastTick,

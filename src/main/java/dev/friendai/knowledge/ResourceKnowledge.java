@@ -39,6 +39,7 @@ public final class ResourceKnowledge {
 
     public ResourceKnowledge(KnowledgeLimits limits) {
         this.limits = Objects.requireNonNull(limits, "limits");
+        searchLedger.onChange(() -> revision++);
     }
 
     public record ContainerObservation(ResourceObservation.Location location, Map<String, Integer> items, long observedTick) {

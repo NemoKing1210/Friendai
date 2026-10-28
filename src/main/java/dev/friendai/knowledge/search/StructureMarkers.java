@@ -47,7 +47,7 @@ public final class StructureMarkers {
         }
         entries.put("minecraft:village", new Entry(village, 1));
         entries.put("minecraft:pillager_outpost", new Entry(
-                Set.of("minecraft:dark_oak_log", "minecraft:cobblestone"), 1));
+                Set.of("minecraft:dark_oak_log", "minecraft:cobblestone"), 2));
         entries.put("minecraft:ocean_monument", new Entry(
                 Set.of("minecraft:prismarine", "minecraft:prismarine_bricks", "minecraft:dark_prismarine",
                         "minecraft:sea_lantern", "minecraft:wet_sponge"), 1));
@@ -63,7 +63,7 @@ public final class StructureMarkers {
                 Set.of("minecraft:trial_spawner", "minecraft:vault", "minecraft:copper_bulb",
                         "minecraft:chiseled_tuff_bricks"), 1));
         entries.put("minecraft:stronghold", new Entry(
-                Set.of("minecraft:stone_bricks", "minecraft:mossy_stone_bricks", "minecraft:cracked_stone_bricks",
+                Set.of("minecraft:mossy_stone_bricks", "minecraft:cracked_stone_bricks",
                         "minecraft:end_portal_frame", "minecraft:infested_stone_bricks"), 1));
         entries.put("minecraft:woodland_mansion", new Entry(
                 Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks", "minecraft:dark_oak_log"), 2));
@@ -74,10 +74,9 @@ public final class StructureMarkers {
         entries.put("minecraft:swamp_hut", new Entry(
                 Set.of("minecraft:cauldron", "minecraft:spruce_planks"), 2));
         entries.put("minecraft:ruined_portal", new Entry(
-                Set.of("minecraft:obsidian", "minecraft:netherrack", "minecraft:magma_block",
-                        "minecraft:crying_obsidian"), 1));
+                Set.of("minecraft:netherrack", "minecraft:magma_block", "minecraft:crying_obsidian"), 1));
         entries.put("minecraft:mineshaft", new Entry(
-                Set.of("minecraft:rail", "minecraft:cobweb", "minecraft:oak_fence"), 1));
+                Set.of("minecraft:rail", "minecraft:cobweb"), 1));
         return Map.copyOf(entries);
     }
 }

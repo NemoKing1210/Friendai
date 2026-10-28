@@ -1,6 +1,7 @@
 package dev.friendai.knowledge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.knowledge.search.ResourceSearchProfile;
 import dev.friendai.knowledge.search.SearchCoverage;
@@ -49,5 +50,28 @@ class SearchLedgerPersistenceTest {
         assertEquals(12, restored.searchLedger().stats().counters("minecraft:iron_ore").travelBlocks());
         org.junit.jupiter.api.Assertions.assertTrue(
                 restored.searchLedger().asked(owner, "minecraft:overworld", " IRON  ORE "));
+    }
+
+    @Test
+    void ledgerChangesMarkTheKnowledgeBookDirty() {
+        ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        long before = book.revision();
+        book.searchLedger().stats().record("minecraft:iron_ore", true, 1, 2, 3);
+        assertTrue(book.revision() > before, "stats must dirty the book");
+
+        before = book.revision();
+        UUID owner = UUID.randomUUID();
+        book.searchLedger().markAsked(owner, "minecraft:overworld", "iron");
+        assertTrue(book.revision() > before, "ask-once must dirty the book");
+
+        before = book.revision();
+        var session = book.searchLedger().acquire(owner, "minecraft:overworld", "iron", 1,
+                SearchLedger.LOCAL_DEFAULTS);
+        assertTrue(book.revision() > before, "a new session must dirty the book");
+
+        before = book.revision();
+        session.advance(new SearchSession.Input(2, "minecraft:overworld", new Pos(0, 64, 0), true, false,
+                SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+        assertTrue(book.revision() > before, "session work must dirty the book");
     }
 }

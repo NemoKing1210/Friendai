@@ -10,7 +10,11 @@ class EscortPolicyTest {
 
     private static EscortPolicy.Input input(boolean online, boolean autonomous, double distance,
             boolean wasNear, int wanted, boolean asked) {
-        return new EscortPolicy.Input(online, autonomous, true, distance, wasNear, wanted, asked);
+        return new EscortPolicy.Input(online, autonomous, true, distance, wasNear, false, wanted, asked);
+    }
+
+    private static EscortPolicy.Input holding(double distance, int wanted) {
+        return new EscortPolicy.Input(true, false, true, distance, true, true, wanted, false);
     }
 
     @Test
@@ -30,6 +34,14 @@ class EscortPolicyTest {
         var resumed = policy.decide(input(true, false, 20, true, 64, false));
         assertEquals(EscortPolicy.Action.CAP_RADIUS, resumed.action());
         assertEquals(32, resumed.radiusCap());
+    }
+
+    @Test
+    void holdingOwnerResumesOnlyAtTheResumeDistance() {
+        var stillWaiting = policy.decide(holding(30, 64));
+        assertEquals(EscortPolicy.Action.WAIT, stillWaiting.action());
+        var resumed = policy.decide(holding(24, 64));
+        assertEquals(EscortPolicy.Action.CAP_RADIUS, resumed.action());
     }
 
     @Test
@@ -59,7 +71,7 @@ class EscortPolicyTest {
     @Test
     void offlineOrOtherDimensionOwnerLeavesTheSearchAlone() {
         assertEquals(EscortPolicy.Action.NONE, policy.decide(input(false, false, 0, false, 64, false)).action());
-        var otherDimension = new EscortPolicy.Input(true, false, false, 0, false, 64, false);
+        var otherDimension = new EscortPolicy.Input(true, false, false, 0, false, false, 64, false);
         assertEquals(EscortPolicy.Action.NONE, policy.decide(otherDimension).action());
     }
 }

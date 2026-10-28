@@ -15,6 +15,22 @@ public final class SearchLedger {
     private final Map<Key, SearchSession> sessions = new LinkedHashMap<>();
     private final SearchStats stats = new SearchStats();
     private final java.util.LinkedHashSet<String> askedGoals = new java.util.LinkedHashSet<>();
+    private Runnable onChange;
+    private long revision;
+
+    public SearchLedger() {
+        stats.onChange(this::changed);
+    }
+
+    /** Registers a listener that runs after every ledger change, so the owner's book is flushed. */
+    public synchronized void onChange(Runnable listener) { onChange = listener; }
+
+    public synchronized long revision() { return revision; }
+
+    private void changed() {
+        revision++;
+        if (onChange != null) onChange.run();
+    }
 
     /** Per-kind counters; persisted with the ledger so the priors survive a reload. */
     public SearchStats stats() { return stats; }
@@ -24,6 +40,7 @@ public final class SearchLedger {
         if (owner == null) return;
         askedGoals.add(askedKey(owner, dimension, goal));
         while (askedGoals.size() > MAX_ASKED) askedGoals.remove(askedGoals.iterator().next());
+        changed();
     }
 
     public synchronized boolean asked(UUID owner, String dimension, String goal) {
@@ -50,7 +67,9 @@ public final class SearchLedger {
             return prior;
         }
         SearchSession created = new SearchSession(UUID.randomUUID(), dimension, normalized, origin, requested, now);
+        created.onChange(this::changed);
         sessions.put(key, created);
+        changed();
         while (sessions.size() > 2_048) sessions.remove(sessions.keySet().iterator().next());
         return created;
     }
@@ -65,8 +84,9 @@ public final class SearchLedger {
     }
     public synchronized void interrupt(UUID sessionId) {
         sessions.values().stream().filter(session -> session.snapshot().id().equals(sessionId)).forEach(SearchSession::interrupt);
+        changed();
     }
-    public synchronized void interruptActive() { sessions.values().stream().filter(session -> !session.terminal()).forEach(SearchSession::interrupt); }
+    public synchronized void interruptActive() { sessions.values().stream().filter(session -> !session.terminal()).forEach(SearchSession::interrupt); changed(); }
     public synchronized long logicalTick() {
         return sessions.values().stream().mapToLong(session -> session.snapshot().lastTick()).max().orElse(0);
     }
@@ -130,7 +150,9 @@ public final class SearchLedger {
                     limits, SearchSession.Phase.valueOf(row.get("phase").getAsString()), row.get("started").getAsLong(),
                     row.get("last").getAsLong(), row.get("spent_travel").getAsDouble(), row.get("spent_ticks").getAsLong(),
                     row.get("excavated").getAsInt(), row.get("blocked").getAsInt());
-            sessions.put(new Key(owner, dimension, goal), SearchSession.restore(snapshot));
+            SearchSession session = SearchSession.restore(snapshot);
+            session.onChange(this::changed);
+            sessions.put(new Key(owner, dimension, goal), session);
         }
     }
 

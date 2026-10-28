@@ -53,18 +53,19 @@ public final class SearchResourceTask implements Task {
     private int radius;
     private boolean ownerWasNear;
     private boolean restored;
+    private boolean restoredFound;
 
     public SearchResourceTask(String resource, String requestedStrategy, String scope, String heading, Caller caller) {
-        this(null, resource, requestedStrategy, scope, heading, caller, null, false);
+        this(null, resource, requestedStrategy, scope, heading, caller, null, false, false);
     }
 
     public SearchResourceTask(TargetKind target, String requestedStrategy, String scope, String heading,
             Caller caller) {
-        this(target, null, requestedStrategy, scope, heading, caller, null, false);
+        this(target, null, requestedStrategy, scope, heading, caller, null, false, false);
     }
 
     private SearchResourceTask(TargetKind target, String resource, String requestedStrategy, String scope,
-            String heading, Caller caller, UUID restoreSession, boolean restored) {
+            String heading, Caller caller, UUID restoreSession, boolean restored, boolean restoredFound) {
         this.fixedTarget = target;
         this.resource = resource;
         this.requestedStrategy = requestedStrategy == null ? "auto" : requestedStrategy;
@@ -73,6 +74,7 @@ public final class SearchResourceTask implements Task {
         this.caller = caller;
         this.restoreSession = restoreSession;
         this.restored = restored;
+        this.restoredFound = restoredFound;
     }
 
     /** Rebuilds an owner-principal search after a reload; the ledger keeps every spent unit. */
@@ -88,7 +90,8 @@ public final class SearchResourceTask implements Task {
                     payload.has("strategy") ? payload.get("strategy").getAsString() : "auto",
                     payload.has("scope") ? payload.get("scope").getAsString() : "local",
                     payload.has("heading") ? payload.get("heading").getAsString() : null,
-                    null, sessionId, true);
+                    null, sessionId, true,
+                    payload.has("found") && payload.get("found").getAsBoolean());
         } catch (RuntimeException malformed) {
             return null;
         }
@@ -104,11 +107,13 @@ public final class SearchResourceTask implements Task {
             throw new IllegalArgumentException("resource search is unavailable to this caller");
         var serverState = FriendaiServerState.get(context.level().getServer());
         var policy = serverState.config().tasks.resources;
+        var ledger = serverState.knowledge().book(owner).searchLedger();
         if (!scope.equals("local") && !scope.equals("expedition"))
             throw new IllegalArgumentException("scope must be local or expedition");
         boolean expedition = scope.equals("expedition");
         if (expedition && (caller == null || caller.access() != AccessLevel.OWNER || !policy.allowExpeditions)) {
             if (restored) {
+                if (restoreSession != null) ledger.interrupt(restoreSession);
                 summary = "an expedition does not resume after a reload; ask again";
                 return;
             }
@@ -167,8 +172,11 @@ public final class SearchResourceTask implements Task {
         SearchSession.Limits requested = new SearchSession.Limits(radius, radius * 4.0, ticks, excavationLimit);
         Pos origin = position(context);
         long logicalTick = context.level().getServer().overworld().getGameTime();
-        var ledger = serverState.knowledge().book(owner).searchLedger();
         session = restoreSession == null ? null : ledger.session(restoreSession);
+        if (restoreSession != null && session == null) {
+            summary = "saved search session is unavailable; ask again";
+            return;
+        }
         if (session != null && session.terminal()
                 && session.snapshot().phase() != SearchSession.Phase.INTERRUPTED) {
             summary = "saved search already finished";
@@ -186,7 +194,7 @@ public final class SearchResourceTask implements Task {
         hint = serverState.searchHints().get(owner, logicalTick).orElse(null);
         escort = new EscortPolicy(policy.escort());
         driver = new ResourceSearchDriver(session, target, profile, radius, expedition, strategy, heading,
-                caveEntrance, hint);
+                caveEntrance, hint, restoredFound);
         ownerId = owner;
         driver.start(context);
     }
@@ -235,8 +243,11 @@ public final class SearchResourceTask implements Task {
             askOnce(FriendaiServerState.get(context.level().getServer()),
                     "free time: searching for " + target.label() + " on its own", dimension);
         }
-        EscortPolicy.Decision decision = escort.decide(new EscortPolicy.Input(ownerOnline, autonomous,
-                sameDimension, ownerDistance, ownerWasNear, radius, asked));
+        boolean holding = driver instanceof ResourceSearchDriver search && search.holding();
+        EscortPolicy.Decision decision = scope.equals("expedition")
+                ? new EscortPolicy.Decision(EscortPolicy.Action.NONE, radius, "")
+                : escort.decide(new EscortPolicy.Input(ownerOnline, autonomous, sameDimension, ownerDistance,
+                        ownerWasNear, holding, radius, asked));
         switch (decision.action()) {
             case WAIT -> {
                 if (!(driver instanceof ResourceSearchDriver search)) return TaskStatus.FAILED;
@@ -316,6 +327,7 @@ public final class SearchResourceTask implements Task {
             payload.addProperty("strategy", requestedStrategy);
             payload.addProperty("scope", scope);
             if (heading != null) payload.addProperty("heading", heading);
+            payload.addProperty("found", driver instanceof ResourceSearchDriver search && search.discovered());
             String json = payload.toString();
             return SAVE_PREFIX + Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(json.getBytes(StandardCharsets.UTF_8));

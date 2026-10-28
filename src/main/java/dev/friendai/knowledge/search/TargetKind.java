@@ -3,8 +3,11 @@ package dev.friendai.knowledge.search;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.friendai.pathing.Pos;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -38,7 +41,14 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
 
     /** What an adapter observed at one candidate position. Sets are copied; no Minecraft types cross this boundary. */
     record CandidateFacts(Pos position, String dimension, String biomeId, Set<String> visibleBlockIds,
-                          Set<String> knownBlockIds, Set<String> visibleEntityIds, Set<String> placeNames) {
+                          Set<String> knownBlockIds, Set<String> visibleEntityIds, Set<String> placeNames,
+                          Map<Pos, String> visibleBlockLocations) {
+        /** Facts without per-block positions; a structure then falls back to a marker count. */
+        public CandidateFacts(Pos position, String dimension, String biomeId, Set<String> visibleBlockIds,
+                              Set<String> knownBlockIds, Set<String> visibleEntityIds, Set<String> placeNames) {
+            this(position, dimension, biomeId, visibleBlockIds, knownBlockIds, visibleEntityIds, placeNames, Map.of());
+        }
+
         public CandidateFacts {
             Objects.requireNonNull(position, "position");
             if (dimension == null || dimension.isBlank()) throw new IllegalArgumentException("dimension must not be blank");
@@ -47,8 +57,12 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
             knownBlockIds = Set.copyOf(knownBlockIds == null ? Set.of() : knownBlockIds);
             visibleEntityIds = Set.copyOf(visibleEntityIds == null ? Set.of() : visibleEntityIds);
             placeNames = Set.copyOf(placeNames == null ? Set.of() : placeNames);
+            visibleBlockLocations = Map.copyOf(visibleBlockLocations == null ? Map.of() : visibleBlockLocations);
         }
     }
+
+    /** How close markers must stand to be one structure rather than two unrelated sightings. */
+    int STRUCTURE_CLUSTER_RADIUS = 24;
 
     /** A block family resolved from an item, block or tag; the strategy profile keeps today's behaviour. */
     record BlockFamily(String family, Set<String> blockIds, ResourceSearchProfile profile) implements TargetKind {
@@ -100,6 +114,22 @@ public sealed interface TargetKind permits TargetKind.BlockFamily, TargetKind.St
         @Override public Set<String> dimensions() { return Set.of(); }
 
         @Override public boolean matches(CandidateFacts facts) {
+            if (!facts.visibleBlockLocations().isEmpty()) {
+                List<Pos> hits = new ArrayList<>();
+                facts.visibleBlockLocations().forEach((pos, id) -> {
+                    if (markers.contains(id)) hits.add(pos);
+                });
+                for (Pos pivot : hits) {
+                    int cluster = 0;
+                    for (Pos other : hits) {
+                        double dx = (double) pivot.x() - other.x(), dy = (double) pivot.y() - other.y(),
+                                dz = (double) pivot.z() - other.z();
+                        if (dx * dx + dy * dy + dz * dz <= STRUCTURE_CLUSTER_RADIUS * STRUCTURE_CLUSTER_RADIUS) cluster++;
+                    }
+                    if (cluster >= minimumMarkers) return true;
+                }
+                return false;
+            }
             long seen = markers.stream().filter(facts.visibleBlockIds()::contains).count();
             return seen >= minimumMarkers;
         }

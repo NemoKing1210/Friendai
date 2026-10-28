@@ -10,6 +10,7 @@ import dev.friendai.knowledge.search.SearchHint;
 import dev.friendai.knowledge.search.SearchPlanner;
 import dev.friendai.knowledge.ResourceKnowledgeText;
 import dev.friendai.pathing.Pos;
+import dev.friendai.perception.LandmarkScanner;
 import dev.friendai.task.obtain.ResourceResolver;
 import dev.friendai.task.obtain.SearchTargets;
 import dev.friendai.task.builtin.SearchResourceTask;
@@ -164,7 +165,29 @@ final class ResourceTools {
                 companion.blockPosition().getZ());
         Pos area = args.has("x") && args.has("z")
                 ? new Pos(args.get("x").getAsInt(), origin.y(), args.get("z").getAsInt()) : null;
-        int areaRadius = args.has("radius") ? args.get("radius").getAsInt() : 64;
+        boolean explicitRadius = args.has("radius");
+        int areaRadius = explicitRadius ? args.get("radius").getAsInt() : 64;
+        if (area == null && direction == null && landmark != null) {
+            String needle = landmark.toLowerCase(java.util.Locale.ROOT);
+            for (var seen : LandmarkScanner.scan((ServerLevel) companion.level(), companion.blockPosition())) {
+                if (!seen.kind().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                        && !seen.block().toLowerCase(java.util.Locale.ROOT).contains(needle)) continue;
+                String[] parts = seen.position().split(" ");
+                if (parts.length == 3) {
+                    try {
+                        area = new Pos(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]),
+                                Integer.parseInt(parts[2]));
+                        if (!explicitRadius) areaRadius = 16;
+                    } catch (NumberFormatException malformed) {
+                        // A malformed landmark position is treated as not seen.
+                    }
+                }
+                if (area != null) break;
+            }
+            if (area == null) {
+                return ToolResult.error("no landmark matching '" + landmark + "' is in view; use look_around first");
+            }
+        }
         SearchHint hint;
         try {
             hint = SearchHint.create(direction, landmark, biome, area, areaRadius, reason, now);

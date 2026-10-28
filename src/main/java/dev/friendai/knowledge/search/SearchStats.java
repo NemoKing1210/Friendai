@@ -28,6 +28,14 @@ public final class SearchStats {
     }
 
     private final Map<String, Counters> counters = new TreeMap<>();
+    private Runnable onChange;
+
+    /** Registers a listener that runs after every counter change, so the owner's book is flushed. */
+    public synchronized void onChange(Runnable listener) { onChange = listener; }
+
+    private void changed() {
+        if (onChange != null) onChange.run();
+    }
 
     public synchronized void record(String kind, boolean found, double travelBlocks, long ticks, int excavationBlocks) {
         if (kind == null || kind.isBlank()) throw new IllegalArgumentException("kind must not be blank");
@@ -38,6 +46,7 @@ public final class SearchStats {
                 (left, right) -> new Counters(left.finds() + right.finds(), left.misses() + right.misses(),
                         left.travelBlocks() + right.travelBlocks(), left.ticks() + right.ticks(),
                         left.excavationBlocks() + right.excavationBlocks()));
+        changed();
     }
 
     public synchronized Counters counters(String kind) {
@@ -49,6 +58,7 @@ public final class SearchStats {
         if (kind == null || kind.isBlank() || value == null) return;
         if (!counters.containsKey(kind) && counters.size() >= MAX_KINDS) return;
         counters.put(kind, value);
+        changed();
     }
 
     public synchronized Set<String> kinds() { return Set.copyOf(counters.keySet()); }

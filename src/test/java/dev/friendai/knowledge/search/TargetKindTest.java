@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import dev.friendai.pathing.Pos;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,22 @@ class TargetKindTest {
         assertFalse(both.matches(facts(Set.of("minecraft:dark_oak_planks"), Set.of(), Set.of(), Set.of(), "")));
         assertTrue(both.matches(facts(Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"),
                 Set.of(), Set.of(), Set.of(), "")));
+    }
+
+    @Test
+    void structureMarkersMustStandInOneCluster() {
+        var mansion = new TargetKind.Structure("minecraft:woodland_mansion",
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), 2, 64);
+        var far = new TargetKind.CandidateFacts(HERE, "minecraft:overworld", "",
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), Set.of(), Set.of(), Set.of(),
+                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks",
+                        new Pos(100, 64, 0), "minecraft:birch_planks"));
+        var near = new TargetKind.CandidateFacts(HERE, "minecraft:overworld", "",
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), Set.of(), Set.of(), Set.of(),
+                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks",
+                        new Pos(8, 64, 0), "minecraft:birch_planks"));
+        assertFalse(mansion.matches(far));
+        assertTrue(mansion.matches(near));
     }
 
     @Test

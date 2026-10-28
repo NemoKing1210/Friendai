@@ -36,7 +36,6 @@ import net.minecraft.world.phys.AABB;
  * class owns the reads.
  */
 public final class SearchTargets {
-    public static final int ENTITY_RADIUS = 16;
 
     /** A resolved kind, or a sentence the model can act on. */
     public record Resolution(TargetKind kind, String error) {
@@ -119,19 +118,25 @@ public final class SearchTargets {
         ResourceCandidates resources = state.resources();
         Pos position = blockPosition(companion);
         String dimension = level.dimension().identifier().toString();
+        if (kind instanceof TargetKind.Structure) {
+            java.util.Map<Pos, String> locations = new java.util.LinkedHashMap<>();
+            for (var observation : resources.confirmedRecent(companion, radius)) {
+                locations.put(observation.location().pos(), observation.blockId());
+            }
+            return kind.matches(new TargetKind.CandidateFacts(position, dimension, "",
+                    new LinkedHashSet<>(locations.values()), Set.of(), Set.of(), Set.of(), locations));
+        }
         TargetKind.CandidateFacts facts = switch (kind) {
             case TargetKind.BlockFamily ignored -> new TargetKind.CandidateFacts(position, dimension, "",
                     new LinkedHashSet<>(resources.confirmedRecentBlockIds(companion, radius).values()),
                     Set.of(), Set.of(), Set.of());
-            case TargetKind.Structure ignored -> new TargetKind.CandidateFacts(position, dimension, "",
-                    new LinkedHashSet<>(resources.confirmedRecentBlockIds(companion, radius).values()),
-                    Set.of(), Set.of(), Set.of());
             case TargetKind.Biome ignored -> new TargetKind.CandidateFacts(position, dimension,
                     biomeAt(level, position), Set.of(), Set.of(), Set.of(), Set.of());
-            case TargetKind.Entity ignored -> new TargetKind.CandidateFacts(position, dimension, "",
-                    Set.of(), Set.of(), visibleEntityIds(level, companion), Set.of());
+            case TargetKind.Entity entity -> new TargetKind.CandidateFacts(position, dimension, "",
+                    Set.of(), Set.of(), visibleEntityIds(level, companion, entity.radius()), Set.of());
             case TargetKind.Place ignored -> new TargetKind.CandidateFacts(position, dimension, "",
                     Set.of(), Set.of(), Set.of(), placeNamesAt(companion, position));
+            case TargetKind.Structure ignored -> throw new IllegalStateException("handled above");
         };
         return kind.matches(facts);
     }
@@ -176,10 +181,10 @@ public final class SearchTargets {
                 && Math.abs(position.z() - place.anchor().z()) <= r;
     }
 
-    private static Set<String> visibleEntityIds(ServerLevel level, CompanionEntity companion) {
+    private static Set<String> visibleEntityIds(ServerLevel level, CompanionEntity companion, int radius) {
         Pos at = blockPosition(companion);
-        AABB box = new AABB(at.x() - ENTITY_RADIUS, at.y() - 8, at.z() - ENTITY_RADIUS,
-                at.x() + ENTITY_RADIUS, at.y() + 16, at.z() + ENTITY_RADIUS);
+        AABB box = new AABB(at.x() - radius, at.y() - 8, at.z() - radius,
+                at.x() + radius, at.y() + 16, at.z() + radius);
         Set<String> ids = new LinkedHashSet<>();
         List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, box,
                 entity -> entity != companion && entity.isAlive());

@@ -20,9 +20,13 @@ public final class EscortPolicy {
 
     public enum Action { NONE, CAP_RADIUS, WAIT, ASK_ONCE, AUTONOMOUS }
 
-    /** @param ownerWasNear whether the owner was within sight earlier in this search, so WAIT means "lagged" */
+    /**
+     * @param ownerWasNear whether the owner was within sight earlier in this search, so WAIT means "lagged"
+     * @param holding whether the search is already waiting for the owner; it then resumes only at resumeDistance
+     */
     public record Input(boolean ownerOnline, boolean autonomous, boolean ownerInCurrentDimension,
-                        double ownerDistance, boolean ownerWasNear, int wantedRadius, boolean askedForGoal) {
+                        double ownerDistance, boolean ownerWasNear, boolean holding, int wantedRadius,
+                        boolean askedForGoal) {
         public Input {
             if (ownerDistance < 0 || !Double.isFinite(ownerDistance))
                 throw new IllegalArgumentException("ownerDistance must be finite and non-negative");
@@ -50,6 +54,10 @@ public final class EscortPolicy {
         if (input.autonomous()) {
             return new Decision(Action.AUTONOMOUS, input.wantedRadius(), input.askedForGoal() ? ""
                     : "free time: searching on its own, nobody to ask");
+        }
+        if (config.waitForOwner() && input.holding() && input.ownerDistance() > config.resumeDistance()) {
+            return new Decision(Action.WAIT, 0, "waiting for the owner, "
+                    + Math.round(input.ownerDistance()) + " blocks away");
         }
         if (config.waitForOwner() && input.ownerWasNear() && input.ownerDistance() > config.holdDistance()) {
             return new Decision(Action.WAIT, 0, "waiting for the owner, "
