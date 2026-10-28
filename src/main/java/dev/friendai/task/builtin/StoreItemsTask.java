@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.placed.PlacedService;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
@@ -16,13 +17,23 @@ import net.minecraft.world.item.ItemStack;
 
 /** Puts items from the 27-slot inventory into a storage container. Never touches the main hand. */
 public final class StoreItemsTask extends ContainerTaskBase {
+    /** How far from the companion a placed storage container may be. */
+    private static final int NEAR_PLACED_RADIUS = 64;
+
     private final ItemMatcher matcher;
     private final int count;
+    /** When true, the target is the nearest storage container the companion placed. */
+    private final boolean placed;
 
     public StoreItemsTask(ItemMatcher matcher, int count, BlockPos target) {
+        this(matcher, count, target, false);
+    }
+
+    public StoreItemsTask(ItemMatcher matcher, int count, BlockPos target, boolean placed) {
         super(target);
         this.matcher = matcher;
         this.count = count;
+        this.placed = placed;
     }
 
     @Override
@@ -45,12 +56,17 @@ public final class StoreItemsTask extends ContainerTaskBase {
 
     @Override
     protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
+        if (placed) {
+            return PlacedService.nearestContainer(companion, NEAR_PLACED_RADIUS);
+        }
         return ContainerAccess.nearest(companion, RADIUS);
     }
 
     @Override
     protected String noTargetSummary() {
-        return "no storage container within " + RADIUS + " blocks";
+        return placed
+                ? "no storage container you placed within " + NEAR_PLACED_RADIUS + " blocks"
+                : "no storage container within " + RADIUS + " blocks";
     }
 
     @Override
@@ -109,6 +125,11 @@ public final class StoreItemsTask extends ContainerTaskBase {
 
     @Override
     public String describe() {
+        if (placed) {
+            return matcher == null
+                    ? "storing items in a container I placed"
+                    : "storing " + matcher.label() + " in a container I placed";
+        }
         return matcher == null
                 ? "storing items in a container"
                 : "storing " + matcher.label() + " in a container";

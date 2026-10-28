@@ -24,6 +24,7 @@ final class StorageTools {
                         .integer("x", "Container X coordinate")
                         .integer("y", "Container Y coordinate")
                         .integer("z", "Container Z coordinate")
+                        .bool("placed", "Use the nearest storage container you placed yourself")
                         .build(),
                 (c, a) -> {
                     ItemMatcher matcher = a.has("item") && !a.get("item").isJsonNull()
@@ -32,7 +33,9 @@ final class StorageTools {
                     int count = a.has("count") && !a.get("count").isJsonNull()
                             ? a.get("count").getAsInt()
                             : Integer.MAX_VALUE;
-                    return new StoreItemsTask(matcher, count, ToolKit.optionalPos(a).orElse(null));
+                    boolean placed = a.has("placed") && !a.get("placed").isJsonNull()
+                            && a.get("placed").getAsBoolean();
+                    return new StoreItemsTask(matcher, count, ToolKit.optionalPos(a).orElse(null), placed);
                 }, true));
         ToolKit.add(registry, defs, new TaskToolDef("take_items",
                 "Take items from a chest, barrel or other storage container into the companion's inventory.",

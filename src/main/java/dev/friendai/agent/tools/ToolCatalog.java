@@ -113,7 +113,7 @@ public final class ToolCatalog {
         group(metas, ToolGroup.BLUEPRINT, Cost.HIGH, "blueprint_help", "preview_structure", "build_structure",
                 "save_blueprint", "list_blueprints");
         group(metas, ToolGroup.STRUCTURE, Cost.HIGH, "build_special", "plan_special");
-        group(metas, ToolGroup.INFO, Cost.LOW, "find_trees", "find_blocks", "player_view", "describe_block",
+        group(metas, ToolGroup.INFO, Cost.LOW, "find_trees", "find_blocks", "find_placed", "player_view", "describe_block",
                 "survey_area");
         group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "go_to_place", "rename_place", "forget_place");
         group(metas, ToolGroup.TRUST, Cost.LOW, "trust_player", "untrust_player");
@@ -126,7 +126,15 @@ public final class ToolCatalog {
                 "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It fells that whole tree from the lowest log up. Pass limit only when the player asks for a few logs or to hurry; pass collect:false only when speed matters more than the drops.\n"
                         + "- When the player says 'near me', near: \"me\" is the default for the tree tools and means their position; near: \"self\" means yours.");
         hint(metas, "mine_blocks",
-                "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.");
+                "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
+                        + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.");
+        hint(metas, "pickup_items",
+                "- To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.");
+        hint(metas, "store_items",
+                "- When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record.");
+        hint(metas, "find_placed",
+                "- Use find_placed when the player asks what you just placed or tells you to take those blocks back. "
+                        + "mine_blocks, pickup_items and store_items take placed:true to act on your own placements.");
         hint(metas, "obtain_item",
                 "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
                         + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.");

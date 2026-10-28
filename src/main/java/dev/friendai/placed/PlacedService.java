@@ -5,10 +5,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Pos;
 import dev.friendai.perception.RelativeDirection;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -139,21 +141,74 @@ public final class PlacedService {
         return PlacedText.prompt(groups, PROMPT_CHARS);
     }
 
-    /** The recorded blocks matching {@code matcher} within {@code radius} of the companion, nearest first. */
+    /** The recorded blocks matching {@code matcher} (or every block when null) within radius, nearest first. */
     public static PlacedQuery.Result find(
             CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+        BlockPos origin = companion.blockPosition();
+        return findAt(companion, matcher, new Pos(origin.getX(), origin.getY(), origin.getZ()), radius, limit);
+    }
+
+    /** As {@link #find}, around an explicit origin. */
+    public static PlacedQuery.Result findAt(
+            CompanionEntity companion, BlockMatcher matcher, Pos origin, int radius, int limit) {
         prune(companion);
         if (!(companion.level() instanceof ServerLevel level)) {
             return new PlacedQuery.Result(List.of(), 0, false);
         }
-        BlockPos origin = companion.blockPosition();
         return PlacedQuery.find(
                 book(companion),
                 level.dimension().identifier().toString(),
-                new Pos(origin.getX(), origin.getY(), origin.getZ()),
+                origin,
                 radius,
-                entry -> matches(matcher, entry.blockId()),
+                entry -> matcher == null || matches(matcher, entry.blockId()),
                 limit);
+    }
+
+    /**
+     * Candidate cells for {@code mine_blocks(placed=true)}: only recorded blocks that still hold their block in a
+     * loaded chunk, nearest first. An unplaced block is never a candidate, even when it sits beside one.
+     */
+    public static List<BlockPos> candidates(
+            CompanionEntity companion, BlockMatcher matcher, BlockPos origin, int radius, int limit) {
+        if (!(companion.level() instanceof ServerLevel level)) {
+            return List.of();
+        }
+        BlockPos center = origin != null ? origin : companion.blockPosition();
+        PlacedQuery.Result result = findAt(
+                companion, matcher, new Pos(center.getX(), center.getY(), center.getZ()), radius, limit);
+        List<BlockPos> cells = new ArrayList<>(result.entries().size());
+        for (PlacedBlock entry : result.entries()) {
+            BlockPos pos = toBlockPos(entry);
+            if (level.hasChunkAt(pos) && matcher.test(level.getBlockState(pos))) {
+                cells.add(pos);
+            }
+        }
+        return cells;
+    }
+
+    /** The nearest recorded block within {@code radius}, if any, for a pickup centred on it. */
+    public static Optional<BlockPos> nearestCenter(CompanionEntity companion, int radius) {
+        PlacedQuery.Result result = find(companion, null, radius, 1);
+        return result.entries().isEmpty() ? Optional.empty() : Optional.of(toBlockPos(result.entries().getFirst()));
+    }
+
+    /** The nearest recorded block that is still a storage container, for {@code store_items(placed=true)}. */
+    public static Optional<BlockPos> nearestContainer(CompanionEntity companion, int radius) {
+        if (!(companion.level() instanceof ServerLevel level)) {
+            return Optional.empty();
+        }
+        PlacedQuery.Result result = find(companion, null, radius, PRUNE_BUDGET);
+        for (PlacedBlock entry : result.entries()) {
+            BlockPos pos = toBlockPos(entry);
+            if (level.hasChunkAt(pos) && ContainerAccess.at(level, pos).isPresent()) {
+                return Optional.of(pos);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static BlockPos toBlockPos(PlacedBlock entry) {
+        return new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
     }
 
     static boolean matches(BlockMatcher matcher, String blockId) {

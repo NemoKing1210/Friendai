@@ -8,6 +8,10 @@ import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionSnapshot;
 import dev.friendai.perception.TreeSummary;
 import dev.friendai.perception.TreeText;
+import dev.friendai.pathing.Pos;
+import dev.friendai.placed.PlacedQuery;
+import dev.friendai.placed.PlacedService;
+import dev.friendai.placed.PlacedText;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.TreeFinder;
@@ -120,6 +124,27 @@ final class InfoTools {
                                 .append(" (").append(String.format(Locale.ROOT, "%.1f", distance)).append(" blocks)");
                     }
                     return ToolResult.ok(text.toString());
+                }));
+        registry.register(ToolKit.instantTool("find_placed",
+                "List blocks you placed that are still in the world, nearest first, with coordinates, distance "
+                        + "and what placed them. Use it when the player asks what you just placed or tells you to "
+                        + "take those blocks back; mine_blocks, pickup_items and store_items take placed:true.",
+                SchemaBuilder.object()
+                        .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
+                        .integer("radius", "Search radius in blocks", 1, 128)
+                        .integer("limit", "How many blocks to list", 1, 20)
+                        .build(),
+                (c, a) -> {
+                    BlockMatcher matcher = a.has("block") && !a.get("block").isJsonNull()
+                            ? ToolKit.parseBlockMatcher(a.get("block").getAsString())
+                            : null;
+                    int radius = a.has("radius") ? a.get("radius").getAsInt() : 32;
+                    int limit = a.has("limit") ? a.get("limit").getAsInt() : 8;
+                    PlacedQuery.Result result = PlacedService.find(c, matcher, radius, limit);
+                    BlockPos here = c.blockPosition();
+                    return ToolResult.ok(PlacedText.listing(
+                            result, matcher == null ? null : matcher.label(), radius,
+                            new Pos(here.getX(), here.getY(), here.getZ())));
                 }));
         registry.register(ToolKit.callerTool("player_view",
                 "Where the player who is talking to you stands and what they are looking at or standing on, "

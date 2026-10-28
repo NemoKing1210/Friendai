@@ -72,17 +72,25 @@ public final class MineBlocksTask implements Task {
     private final BlockPos origin;
     /** Whether to walk around picking the drops up afterwards; drops at the feet are always taken. */
     private final boolean collect;
+    /** When true, candidates come only from the placement ledger; unplaced siblings are never mined. */
+    private final boolean placedOnly;
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
-        this(matcher, count, radius, null, true);
+        this(matcher, count, radius, null, true, false);
     }
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius, BlockPos origin, boolean collect) {
+        this(matcher, count, radius, origin, collect, false);
+    }
+
+    public MineBlocksTask(
+            BlockMatcher matcher, int count, int radius, BlockPos origin, boolean collect, boolean placedOnly) {
         this.matcher = matcher;
         this.count = count;
         this.radius = radius;
         this.origin = origin;
         this.collect = collect;
+        this.placedOnly = placedOnly;
     }
 
     @Override
@@ -239,31 +247,38 @@ public final class MineBlocksTask implements Task {
             summary = "mined " + mined + " " + matcher.label();
             return TaskStatus.SUCCESS;
         }
-        List<BlockPos> candidates = treeCandidates(c);
-        if (candidates.isEmpty()) {
-            if (startSweep()) {
-                // The tree is finished: pick its drops up before going anywhere else.
-                return TaskStatus.RUNNING;
-            }
-            var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
-            int evidenceRadius = origin == null ? radius
-                    : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
-            candidates = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, evidenceRadius,
-                    evidenceLimit(origin == null ? CANDIDATES : 64)));
+        List<BlockPos> candidates;
+        if (placedOnly) {
+            candidates = new ArrayList<>(PlacedService.candidates(
+                    c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
             candidates.removeIf(this::excluded);
-            if (origin != null) {
-                double radiusSquared = (double) radius * radius;
-                double originX = origin.getX() + 0.5, originY = origin.getY() + 0.5, originZ = origin.getZ() + 0.5;
-                candidates.removeIf(pos -> pos.distToCenterSqr(originX, originY, originZ) > radiusSquared);
-                candidates.sort(java.util.Comparator.comparingDouble(
-                        pos -> pos.distToCenterSqr(originX, originY, originZ)));
-                if (candidates.size() > 1) {
-                    // BlockBreaker walks from the companion, so choose the nearest eligible evidence to the
-                    // requested origin before handing it a single target.
-                    candidates = new ArrayList<>(candidates.subList(0, 1));
+        } else {
+            candidates = treeCandidates(c);
+            if (candidates.isEmpty()) {
+                if (startSweep()) {
+                    // The tree is finished: pick its drops up before going anywhere else.
+                    return TaskStatus.RUNNING;
                 }
-            } else if (candidates.size() > CANDIDATES) {
-                candidates = new ArrayList<>(candidates.subList(0, CANDIDATES));
+                var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+                int evidenceRadius = origin == null ? radius
+                        : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
+                candidates = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, evidenceRadius,
+                        evidenceLimit(origin == null ? CANDIDATES : 64)));
+                candidates.removeIf(this::excluded);
+                if (origin != null) {
+                    double radiusSquared = (double) radius * radius;
+                    double originX = origin.getX() + 0.5, originY = origin.getY() + 0.5, originZ = origin.getZ() + 0.5;
+                    candidates.removeIf(pos -> pos.distToCenterSqr(originX, originY, originZ) > radiusSquared);
+                    candidates.sort(java.util.Comparator.comparingDouble(
+                            pos -> pos.distToCenterSqr(originX, originY, originZ)));
+                    if (candidates.size() > 1) {
+                        // BlockBreaker walks from the companion, so choose the nearest eligible evidence to the
+                        // requested origin before handing it a single target.
+                        candidates = new ArrayList<>(candidates.subList(0, 1));
+                    }
+                } else if (candidates.size() > CANDIDATES) {
+                    candidates = new ArrayList<>(candidates.subList(0, CANDIDATES));
+                }
             }
         }
         // Historical evidence can outlive a registry block's current state. Keep the old scanner's
@@ -288,12 +303,14 @@ public final class MineBlocksTask implements Task {
             // Say which it is: nothing around, or blocks that were found and could not be reached.
             boolean hidden = !blacklist.isEmpty();
             if (mined == 0) {
-                summary = hidden
-                        ? "could not reach any " + matcher.label() + " nearby"
-                        : "no " + matcher.label() + " nearby";
+                summary = placedOnly
+                        ? "no " + matcher.label() + " you placed nearby"
+                        : hidden
+                                ? "could not reach any " + matcher.label() + " nearby"
+                                : "no " + matcher.label() + " nearby";
             } else {
                 summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
-                        + (hidden ? " could be reached" : " nearby");
+                        + (placedOnly ? " you placed nearby" : hidden ? " could be reached" : " nearby");
             }
             return TaskStatus.FAILED;
         }

@@ -80,6 +80,9 @@ final class GatheringTools {
                                         -30000000, 30000000)
                                 .bool("collect",
                                         "Whether to pick up the drops afterwards; default follows the server setting")
+                                .bool("placed",
+                                        "Mine only blocks you placed yourself that are still in the world; "
+                                                + "never an unplaced neighbour")
                                 .required("block", "count")
                                 .build(),
                         (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, mineRadius),
@@ -115,13 +118,15 @@ final class GatheringTools {
                 SchemaBuilder.object()
                         .integer("radius", "Search radius in blocks", 1, 16)
                         .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")
+                        .bool("placed", "Pick up around the nearest block you placed instead of around yourself")
                         .required("radius")
                         .build(),
                 (c, a) -> new PickupItemsTask(
                         a.get("radius").getAsInt(),
                         a.has("item") && !a.get("item").isJsonNull()
                                 ? ToolKit.parseItemMatcher(a.get("item").getAsString())
-                                : null),
+                                : null,
+                        a.has("placed") && !a.get("placed").isJsonNull() && a.get("placed").getAsBoolean()),
                 true));
     }
 
@@ -137,7 +142,8 @@ final class GatheringTools {
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : TaskSettings.mineCollectDrops;
-        return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt(), origin, collect);
+        boolean placed = a.has("placed") && !a.get("placed").isJsonNull() && a.get("placed").getAsBoolean();
+        return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt(), origin, collect, placed);
     }
 
     /** Picks the tree for a {@code fell_tree} call; throws {@link IllegalArgumentException} with the reason. */

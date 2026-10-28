@@ -291,7 +291,7 @@ public class ToolTests {
     public void registryExposesToolsInGroupOrder(GameTestHelper h) {
         List<String> names = FriendaiTools.create(() -> 32).specs().stream().map(ToolSpec::name).toList();
         h.assertTrue(names.equals(List.of("follow_player", "stay", "go_to", "jump", "set_pace", "fell_tree", "mine_blocks", "mine_block_at", "pickup_items",
-                "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "store_items",
+                "give_items", "drop_items", "get_inventory", "place_block", "use_block", "light_area", "clear_area", "store_items",
                 "take_items", "check_container", "deposit_items", "craft_item", "get_recipe", "smelt_items", "cook_food",
                 "collect_smelted", "enchant_item", "anvil_item", "grindstone_item", "attack", "attack_player",
                 "set_combat_mode", "get_combat_settings", "set_combat_settings", "equip_item", "eat",
@@ -301,7 +301,7 @@ public class ToolTests {
                 "search_resource", "known_resources",
                 "remember_place", "find_place", "go_to_place", "rename_place", "forget_place",
                 "blueprint_help", "preview_structure", "build_structure", "save_blueprint", "list_blueprints",
-                "build_special", "plan_special", "find_trees", "look_around", "find_blocks", "player_view", "describe_block", "survey_area", "trust_player",
+                "build_special", "plan_special", "find_trees", "look_around", "find_blocks", "find_placed", "player_view", "describe_block", "survey_area", "trust_player",
                 "untrust_player", "show_inventory", "set_name", "set_follow_mode", "stop", "find_traders",
                 "inspect_trader", "refresh_trades", "wait_for_restock", "level_trader", "barter",
                 "known_trades", "plan_trade", "trade_item", "queue_add", "queue_show", "queue_edit",

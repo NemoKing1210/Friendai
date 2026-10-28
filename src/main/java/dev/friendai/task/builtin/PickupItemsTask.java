@@ -1,6 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -13,11 +14,17 @@ import org.jetbrains.annotations.Nullable;
 
 /** Walks to dropped items within a radius of where it started and collects them. */
 public final class PickupItemsTask implements Task {
+    /** How far from the companion a placed block may be when it becomes the pickup centre. */
+    private static final int NEAR_PLACED_RADIUS = 64;
+
     private final int radius;
     private final @Nullable ItemMatcher filter;
+    /** When true, the round is centred on the nearest block the companion placed, not on the companion. */
+    private final boolean nearPlaced;
     private DropCollector collector;
     private Vec3 origin;
     private String summary = "";
+    private String failure = "";
 
     public PickupItemsTask(int radius) {
         this(radius, null);
@@ -25,8 +32,13 @@ public final class PickupItemsTask implements Task {
 
     /** @param filter when given, only item entities matching it are picked up; the rest stay on the ground */
     public PickupItemsTask(int radius, @Nullable ItemMatcher filter) {
+        this(radius, filter, false);
+    }
+
+    public PickupItemsTask(int radius, @Nullable ItemMatcher filter, boolean nearPlaced) {
         this.radius = radius;
         this.filter = filter;
+        this.nearPlaced = nearPlaced;
     }
 
     @Override
@@ -37,11 +49,23 @@ public final class PickupItemsTask implements Task {
     @Override
     public void start(TaskContext c) {
         origin = c.companion().position();
+        if (nearPlaced) {
+            var placed = PlacedService.nearestCenter(c.companion(), NEAR_PLACED_RADIUS);
+            if (placed.isEmpty()) {
+                failure = "you have not placed any block nearby";
+                return;
+            }
+            origin = Vec3.atCenterOf(placed.get());
+        }
         collector = new DropCollector(origin, radius, filter);
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (!failure.isEmpty()) {
+            summary = failure;
+            return TaskStatus.FAILED;
+        }
         if (collector.tick(c) == DropCollector.State.COLLECTING) {
             return TaskStatus.RUNNING;
         }
@@ -69,7 +93,9 @@ public final class PickupItemsTask implements Task {
 
     @Override
     public String describe() {
-        return "picking up items within " + radius + " blocks";
+        return nearPlaced
+                ? "picking up items around the block I placed"
+                : "picking up items within " + radius + " blocks";
     }
 
     @Override
