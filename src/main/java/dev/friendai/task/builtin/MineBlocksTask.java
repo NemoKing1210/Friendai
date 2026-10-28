@@ -323,6 +323,18 @@ public final class MineBlocksTask implements Task {
         }
         boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
         if (!logs) {
+            if (placedOnly) {
+                // A corridor planner may break blocks outside the ledger. A placed-only job uses the plain
+                // breaker instead: no unplaced block is ever broken to reach a recorded one.
+                if (!hasRoomForDrops(c, candidates.get(0))) {
+                    summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
+                    c.owner().ifPresent(player -> player.sendSystemMessage(
+                            Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+                    return TaskStatus.FAILED;
+                }
+                breaker = new BlockBreaker(candidates, matcher::test, true, true, false, false, placements);
+                return TaskStatus.RUNNING;
+            }
             if (miningSession == null) {
                 BlockPos start = origin != null ? origin : c.companion().blockPosition();
                 miningSession = new MiningSession(c.companion(), new MiningBounds(
@@ -339,7 +351,7 @@ public final class MineBlocksTask implements Task {
                     Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
             return TaskStatus.FAILED;
         }
-        breaker = new BlockBreaker(candidates, matcher::test, true, true, true, false, placements);
+        breaker = new BlockBreaker(candidates, matcher::test, true, true, !placedOnly, false, placements);
         return TaskStatus.RUNNING;
     }
 
