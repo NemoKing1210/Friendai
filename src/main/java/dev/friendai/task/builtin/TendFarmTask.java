@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.task.farming.Crops;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.farming.FarmReport;
@@ -98,6 +99,11 @@ public final class TendFarmTask implements Task {
     @Override
     public java.util.List<DebugTarget> debugTargets() {
         return pass == null ? java.util.List.of() : pass.debugTargets();
+    }
+
+    @Override
+    public java.util.List<WorkSet> debugWorkSets() {
+        return pass == null ? java.util.List.of() : pass.debugWorkSets();
     }
 
     @Override

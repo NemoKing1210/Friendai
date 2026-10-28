@@ -4,6 +4,8 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugService;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.MovementDebug;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkSetBudget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.pathing.Move;
@@ -79,6 +81,18 @@ public final class MovementDebugStream {
         int stepIndex = -1;
         String task = c.taskRunner().current().map(Task::describe).orElse("none");
         lines.add("task: " + task);
+        c.taskRunner().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
+        var ownerId = c.ownerUuid();
+        if (ownerId != null) {
+            var freeTime = FriendaiServerState.get(c.level().getServer()).freeTime().state(ownerId);
+            if (freeTime.shift() != null && !freeTime.shift().goal().isBlank()) {
+                lines.add("free-time shift: " + freeTime.shift().goal());
+            } else if (freeTime.awaitingChoice()) {
+                lines.add("free-time: choosing activity");
+            } else if (freeTime.on() && !freeTime.wish().isBlank()) {
+                lines.add("free-time wish: " + freeTime.wish());
+            }
+        }
         if (nav == null) {
             lines.add("navigator: idle");
         } else {
@@ -137,8 +151,12 @@ public final class MovementDebugStream {
                 c.isSprinting()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
-        List<String> upcoming =
-                MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
-        return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming);
+        List<WorkSet> workSets = WorkSetBudget.select(
+                c.taskRunner().current().map(Task::debugWorkSets).orElse(List.of()),
+                c.blockPosition().getX(), c.blockPosition().getY(), c.blockPosition().getZ());
+        List<String> upcoming = MovementDebug.upcomingSteps(c.taskRunner().queue().jobs());
+        return new MovementDebug(c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming,
+                workSets);
+
     }
 }

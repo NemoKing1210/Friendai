@@ -3,6 +3,11 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.build.Scaffold;
 import dev.friendai.task.build.ScaffoldCleanupTask;
@@ -640,6 +645,34 @@ public final class FellTreeTask implements Task {
     public String describe() {
         BlockPos base = tree.base();
         return "felling " + label + " tree at " + base.getX() + " " + base.getY() + " " + base.getZ();
+    }
+
+    @Override
+    public List<WorkSet> debugWorkSets() {
+        List<WorkCell> cells = new ArrayList<>(known.size());
+        Set<BlockPos> planned = new HashSet<>();
+        if (plan != null) {
+            for (TreeCell cell : plan.cutOrder()) planned.add(pos(cell));
+        }
+        BlockPos next = null;
+        if (stageIndex < stages.size()) {
+            FellPlan.Stage stage = stages.get(stageIndex);
+            if (logIndex < stage.logs().size()) next = pos(stage.logs().get(logIndex));
+        }
+        for (BlockPos block : known) {
+            WorkStatus status = blacklist.containsKey(block) ? WorkStatus.SKIPPED
+                    : !remaining.contains(block) ? WorkStatus.DONE
+                    : block.equals(next) ? WorkStatus.NEXT
+                    : planned.contains(block) ? WorkStatus.PENDING : WorkStatus.SKIPPED;
+            cells.add(new WorkCell(block.getX(), block.getY(), block.getZ(), DebugAction.BREAK, status,
+                    blacklist.getOrDefault(block, status == WorkStatus.SKIPPED ? "outside selected cut plan" : "Cut log")));
+        }
+        int doneCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
+        int nextCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
+        int skippedCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.SKIPPED).count();
+        int pendingCount = cells.size() - doneCount - nextCount - skippedCount;
+        return cells.isEmpty() ? List.of() : List.of(new WorkSet(label + " tree", WorkKind.BLOCKS, cells.size(),
+                doneCount, nextCount, pendingCount, skippedCount, false, cells));
     }
 
     @Override

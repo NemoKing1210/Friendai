@@ -70,6 +70,32 @@ public class MineBlocksTests {
         }
     }
 
+    @GameTest(maxTicks = 200)
+    public void veinWorkSetIncludesAllSixVisibleOreBlocks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        java.util.List<BlockPos> vein = new java.util.ArrayList<>();
+        for (int z = 2; z < 8; z++) {
+            BlockPos pos = new BlockPos(6, 2, z);
+            h.setBlock(pos, Blocks.COAL_ORE);
+            BlockPos absolute = h.absolutePos(pos);
+            h.assertTrue(GameTestSupport.observeVisible(h, c, absolute), "ore should be visible at " + pos);
+            vein.add(absolute);
+        }
+        MineBlocksTask task = mine("minecraft:coal_ore", 6);
+        TaskRunner runner = runner(c, new Result());
+        runner.start(task, "mine_blocks");
+        runner.tick();
+        var work = task.debugWorkSets().getFirst();
+        h.assertValueEqual(work.total(), 6, "vein work-set total");
+        h.assertTrue(vein.stream().allMatch(pos -> work.cells().stream().anyMatch(cell -> cell.x() == pos.getX()
+                        && cell.y() == pos.getY() && cell.z() == pos.getZ())),
+                "work set should include all planned vein blocks: " + work.cells());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 1200)
     public void minesRequestedLogs(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -194,6 +220,10 @@ public class MineBlocksTests {
         runner.start(task, "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
+            h.assertTrue(task.debugWorkSets().stream().flatMap(set -> set.cells().stream())
+                            .anyMatch(cell -> cell.x() == target.getX() && cell.y() == target.getY()
+                                    && cell.z() == target.getZ()),
+                    "task work set should contain the live mining candidate");
             var targets = task.debugTargets();
             h.assertTrue(
                     targets.stream()

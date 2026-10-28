@@ -45,6 +45,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Toggles tab's free-time button toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Movement debug work sets
+
+- [ ] Enable Debug as an operator; verify a large tree shows NEXT, pending and done logs, with totals that remain truthful when more than 256 cells are planned.
+- [ ] Inspect a vein, farm plot, build, exploration route and resource search; verify the whole task-owned work set appears beyond the single current target.
+- [ ] Confirm route break/place obstacles remain visible when the work-set cap is reached, and cell labels stay limited to each set and its NEXT cell.
+- [ ] Check readability and frame rate while facing the work set and while looking away; distant and behind-camera cells should be culled.
+- [ ] Disconnect and reconnect as an operator; the saved preference should restore after support/operator state arrives. Verify a non-operator receives no debug stream.
+
 ## Voice
 
 - [ ] Settings → Voice → Download `base`: progress toasts, then "Installed".

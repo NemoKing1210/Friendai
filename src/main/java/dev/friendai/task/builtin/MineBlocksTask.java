@@ -19,6 +19,20 @@ import dev.friendai.task.mining.MiningRefusal;
 import dev.friendai.task.mining.MiningSession;
 import dev.friendai.task.mining.TemporaryBlockCleanup;
 import dev.friendai.task.nav.PlacementLedger;
+import dev.friendai.mining.MiningBounds;
+import dev.friendai.pathing.Node;
+import dev.friendai.core.Components;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -116,6 +130,27 @@ public final class MineBlocksTask implements Task {
             return List.of(target(selected));
         }
         return breaker.candidates().stream().map(this::target).toList();
+    }
+
+    @Override
+    public List<WorkSet> debugWorkSets() {
+        List<BlockPos> positions = new ArrayList<>();
+        if (miningSessionActive && miningSession != null) {
+            positions.addAll(miningSession.targets());
+            if (miningSession.target() != null && !positions.contains(miningSession.target())) positions.add(0, miningSession.target());
+        } else if (breaker != null) {
+            if (breaker.target() != null) positions.add(breaker.target());
+            else positions.addAll(breaker.candidates());
+        }
+        if (positions.isEmpty()) return List.of();
+        BlockPos selected = miningSessionActive && miningSession != null ? miningSession.target()
+                : breaker == null ? positions.get(0) : breaker.target() == null ? positions.get(0) : breaker.target();
+        List<WorkCell> cells = positions.stream().distinct().map(pos -> new WorkCell(pos.getX(), pos.getY(), pos.getZ(),
+                DebugAction.BREAK, selected != null && selected.equals(pos) ? WorkStatus.NEXT : WorkStatus.PENDING,
+                "Mine " + matcher.label())).toList();
+        int nextCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
+        return List.of(new WorkSet(matcher.label(), WorkKind.BLOCKS, cells.size(), 0, nextCount, cells.size() - nextCount, 0,
+                false, cells));
     }
 
     private DebugTarget target(BlockPos pos) {

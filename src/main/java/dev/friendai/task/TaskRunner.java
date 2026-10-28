@@ -227,6 +227,17 @@ public final class TaskRunner {
     public String currentToolName() {
         return current == null ? "" : current.toolName();
     }
+
+    /** Active queue intent, including its durable plan goal when this task belongs to a plan. */
+    public Optional<String> currentQueueIntent() {
+        if (current == null || current.jobId() <= 0) return Optional.empty();
+        Job job = queue.job(current.jobId()).orElse(null);
+        if (job == null) return Optional.empty();
+        String goal = job.planId() <= 0 ? "" : queue.plan(job.planId()).map(p -> p.goal()).orElse("");
+        return Optional.of(goal.isBlank() ? "queue job #" + job.id() + " " + job.tool()
+                : "queue plan " + goal + " (" + job.tool() + ")");
+    }
+    }
     /**
      * True while a task that is neither the default activity, free time's nor a movement order runs: owner work comes
      * first. A movement order ("wait here", "come here") says where to be, not what to do, so free time keeps its

@@ -10,6 +10,7 @@ import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.task.farming.FarmPass;
 import dev.friendai.task.farming.FarmReport;
 import net.minecraft.core.BlockPos;
@@ -81,6 +82,11 @@ public final class FarmTask implements Task {
     @Override
     public java.util.List<DebugTarget> debugTargets() {
         return pass == null ? java.util.List.of() : pass.debugTargets();
+    }
+
+    @Override
+    public java.util.List<WorkSet> debugWorkSets() {
+        return pass == null ? java.util.List.of() : pass.debugWorkSets();
     }
 
     @Override

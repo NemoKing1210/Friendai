@@ -8,6 +8,7 @@ public final class MovementDebugState {
     private static final long STALE_AFTER_MS = 2000;
 
     private static volatile boolean enabled;
+    private static volatile boolean preferenceChecked;
     private static volatile MovementDebug view;
     private static volatile long receivedAt;
 
@@ -22,6 +23,15 @@ public final class MovementDebugState {
         if (!on) {
             view = null;
         }
+    }
+
+    public static boolean preferenceRestorePending() {
+        return !preferenceChecked;
+    }
+
+    public static void restorePreference(boolean on) {
+        preferenceChecked = true;
+        setEnabled(on);
     }
 
     /** An empty array means the server has nothing to show; the previous view is dropped. */
@@ -45,6 +55,7 @@ public final class MovementDebugState {
 
     public static void reset() {
         enabled = false;
+        preferenceChecked = false;
         view = null;
     }
 }

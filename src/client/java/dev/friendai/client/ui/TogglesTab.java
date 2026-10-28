@@ -1,6 +1,7 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.client.debug.MovementDebugState;
+import dev.friendai.client.FriendaiClient;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.RequestType;
 import net.minecraft.client.gui.Font;
@@ -63,6 +64,8 @@ final class TogglesTab implements MenuTab {
     private static void toggleMovementDebug() {
         boolean on = !MovementDebugState.enabled();
         MovementDebugState.setEnabled(on);
+        FriendaiClient.clientConfig().debug.movementOverlay = on;
+        FriendaiClient.clientConfigStore().save(FriendaiClient.clientConfig());
         CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
     }
 
@@ -84,7 +87,14 @@ final class TogglesTab implements MenuTab {
         boolean present = snapshot.map(CompanionSnapshot::present).orElse(false);
         boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
 
-        movementDebug.visible = snapshot.map(CompanionSnapshot::operator).orElse(false);
+        boolean operator = snapshot.map(CompanionSnapshot::operator).orElse(false);
+        if (connected && operator && MovementDebugState.preferenceRestorePending()) {
+            boolean preferred = FriendaiClient.clientConfig().debug.movementOverlay;
+            MovementDebugState.restorePreference(preferred);
+            if (preferred) CompanionRequests.send(RequestType.MOVE_DEBUG_ON);
+        }
+
+        movementDebug.visible = operator;
         movementDebug.active = connected;
         movementDebug.setMessage(Component.translatable(
                 MovementDebugState.enabled() ? "friendai.menu.debug.on" : "friendai.menu.debug.off"));

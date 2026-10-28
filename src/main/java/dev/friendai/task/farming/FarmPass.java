@@ -3,6 +3,10 @@ package dev.friendai.task.farming;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.farming.CropBook;
 import dev.friendai.farming.FarmGoal;
 import dev.friendai.farming.FarmPlan;
@@ -174,6 +178,37 @@ public final class FarmPass {
         }
         BlockPos pos = at(currentCell(current));
         return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), action, detail));
+    }
+
+    /** Returns the remaining planned plot steps, with completed/failed cells summarized from retained pass state. */
+    public List<WorkSet> debugWorkSets() {
+        List<WorkCell> cells = new ArrayList<>();
+        if (current != null && !(current instanceof FarmStep.NeedSeeds)) {
+            cells.add(workCell(current, WorkStatus.NEXT));
+        }
+        for (FarmStep step : queue) {
+            if (!(step instanceof FarmStep.NeedSeeds)) cells.add(workCell(step, WorkStatus.PENDING));
+        }
+        if (cells.isEmpty() && attempted.isEmpty()) return List.of();
+        int skipped = skippedHarvest.size() + failedTill.size();
+        int completed = replanted + planted + tilled + harvested.values().stream().mapToInt(Integer::intValue).sum();
+        int next = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
+        int pending = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.PENDING).count();
+        int total = Math.max(completed + skipped + next + pending, completed + skipped + cells.size());
+        return List.of(new WorkSet(crop == null ? "Farm plot" : "Farm " + crop.toString(), WorkKind.PLOT, total,
+                completed, next, Math.max(pending, total - completed - skipped - next), skipped, false, cells));
+    }
+
+    private WorkCell workCell(FarmStep step, WorkStatus status) {
+        DebugAction action;
+        String detail;
+        if (step instanceof FarmStep.Harvest) { action = DebugAction.HARVEST; detail = "Harvest crop"; }
+        else if (step instanceof FarmStep.Replant) { action = DebugAction.PLACE; detail = "Replant crop"; }
+        else if (step instanceof FarmStep.Sow) { action = DebugAction.PLACE; detail = "Sow crop"; }
+        else if (step instanceof FarmStep.Till) { action = DebugAction.USE; detail = "Till soil"; }
+        else { action = DebugAction.USE; detail = "Use bone meal"; }
+        BlockPos pos = at(currentCell(step));
+        return new WorkCell(pos.getX(), pos.getY(), pos.getZ(), action, status, detail);
     }
 
     private static FieldCell currentCell(FarmStep step) {

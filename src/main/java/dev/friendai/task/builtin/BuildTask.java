@@ -19,6 +19,10 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
@@ -1331,6 +1335,31 @@ public final class BuildTask implements Task {
                 pos.getZ(),
                 phase == Phase.CLEAR ? DebugAction.BREAK : phase == Phase.TAKE ? DebugAction.USE : DebugAction.PLACE,
                 detail));
+    }
+
+    @Override
+    public List<WorkSet> debugWorkSets() {
+        if (placed == null || placed.specs().isEmpty()) return List.of();
+        List<WorkCell> cells = new ArrayList<>();
+        for (int i = 0; i < placed.specs().size(); i++) {
+            Placement.PlacedSpec placedSpec = placed.specs().get(i);
+            BlockSpec spec = buildPlan.blocks().get(i);
+            int index = order.indexOf(spec);
+            boolean deferredPending = deferred.contains(spec);
+            WorkStatus status;
+            if (index < 0) status = WorkStatus.DONE;
+            else if (current != null && current.equals(spec)) status = WorkStatus.NEXT;
+            else if (index < cursor && !deferredPending) status = WorkStatus.DONE;
+            else status = WorkStatus.PENDING;
+            cells.add(new WorkCell(placedSpec.pos().getX(), placedSpec.pos().getY(), placedSpec.pos().getZ(),
+                    DebugAction.PLACE, status, "Place build block"));
+        }
+        int doneCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
+        int nextCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
+        int pendingCount = (int) cells.stream().filter(cell -> cell.status() == WorkStatus.PENDING).count();
+        int totalCount = cells.size();
+        return List.of(new WorkSet(blueprint.name(), WorkKind.BUILD, totalCount, doneCount, nextCount, pendingCount,
+                0, false, cells));
     }
 
     @Override

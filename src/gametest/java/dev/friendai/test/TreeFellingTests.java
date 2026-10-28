@@ -164,10 +164,23 @@ public class TreeFellingTests {
         leaf(h, 6, 6, 7);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, true));
+        FellTreeTask task = new FellTreeTask(treeAt(h, 6, 6), oak(), 0, true);
+        TaskRunner runner = start(c, result, task);
+        var work = task.debugWorkSets().getFirst();
+        h.assertValueEqual(work.total(), 5, "full tree work-set size");
+        h.assertValueEqual(work.pending() + work.next(), 5, "planned tree logs before work starts");
+        boolean[] sawTwoDone = {false};
         h.succeedWhen(() -> {
             runner.tick();
+            var progress = task.debugWorkSets().getFirst();
+            if (progress.done() == 2) {
+                sawTwoDone[0] = true;
+                h.assertValueEqual(progress.next(), 1, "next log after two cuts");
+            }
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            var finished = task.debugWorkSets().getFirst();
+            h.assertValueEqual(finished.done(), 5, "completed tree work-set count");
+            h.assertTrue(sawTwoDone[0], "did not observe the two-log work-set transition");
             for (int y = 2; y <= 6; y++) {
                 h.assertTrue(h.getBlockState(new BlockPos(6, y, 6)).isAir(), "log left at y " + y);
             }

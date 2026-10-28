@@ -3,6 +3,7 @@ package dev.friendai.client.debug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.debug.MovementDebug;
 import java.util.List;
@@ -50,5 +51,17 @@ class MovementDebugStateTest {
 
         assertFalse(MovementDebugState.enabled());
         assertEquals(java.util.Optional.empty(), MovementDebugState.view());
+    }
+
+    @Test
+    void preferenceCanBeRestoredAgainOnlyAfterConnectionStateResets() {
+        assertTrue(MovementDebugState.preferenceRestorePending());
+        MovementDebugState.reset();
+        assertTrue(MovementDebugState.preferenceRestorePending());
+        MovementDebugState.restorePreference(true);
+        assertTrue(MovementDebugState.enabled());
+        assertFalse(MovementDebugState.preferenceRestorePending());
+        MovementDebugState.reset();
+        assertTrue(MovementDebugState.preferenceRestorePending());
     }
 }

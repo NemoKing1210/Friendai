@@ -2,7 +2,6 @@ package dev.friendai.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -37,12 +36,10 @@ class ClientConfigMigrationTest {
         assertEquals("Mic", c.voice.stt.inputDevice);
         assertEquals(10, c.voice.stt.maxRecordSec);
         assertFalse(c.voice.tts.enabled);
-        assertEquals(
-                3,
-                JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
-                        .getAsJsonObject()
-                        .get("version")
-                        .getAsInt());
+        assertEquals(4, JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
+                .getAsJsonObject().get("version").getAsInt());
+        assertFalse(c.debug.movementOverlay);
+
     }
 
     @Test
@@ -116,9 +113,25 @@ class ClientConfigMigrationTest {
     }
 
     @Test
-    void version3IsNotMigrated() {
+    void version3AddsDisabledMovementOverlayAndPreservesVoice() {
         JsonObject json = JsonParser.parseString("""
-            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""").getAsJsonObject();
-        assertSame(json, ClientConfig.migrate(json, 3));
+            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""")
+                .getAsJsonObject();
+        JsonObject migrated = ClientConfig.migrate(json, 3);
+        assertEquals("openai", migrated.getAsJsonObject("voice").getAsJsonObject("stt").get("provider").getAsString());
+        assertFalse(migrated.getAsJsonObject("debug").get("movementOverlay").getAsBoolean());
+        assertEquals(4, migrated.get("version").getAsInt());
+    }
+
+    @Test
+    void movementOverlayPreferenceSurvivesConfigSaveAndReload() {
+        ClientConfig config = ClientConfig.defaults();
+        config.debug.movementOverlay = true;
+        Path file = dir.resolve("friendai-client.json");
+        ConfigStore<ClientConfig> store = new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+        store.save(config);
+        assertTrue(store.load().debug.movementOverlay);
+
     }
 }

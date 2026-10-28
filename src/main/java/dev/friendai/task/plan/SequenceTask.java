@@ -1,6 +1,7 @@
 package dev.friendai.task.plan;
 
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -166,6 +167,11 @@ public final class SequenceTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         return active == null ? List.of() : active.debugTargets();
+    }
+
+    @Override
+    public List<WorkSet> debugWorkSets() {
+        return active == null ? List.of() : active.debugWorkSets();
     }
 
     @Override

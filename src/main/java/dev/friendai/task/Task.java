@@ -1,6 +1,7 @@
 package dev.friendai.task;
 
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.place.PlaceCandidate;
 import java.util.List;
 
@@ -20,6 +21,11 @@ public interface Task {
 
     /** Concrete block targets for the debug overlay while this task is running; empty when it has none. */
     default List<DebugTarget> debugTargets() {
+        return List.of();
+    }
+
+    /** Immutable, task-owned snapshot of its complete planned work, when the task exposes one. */
+    default List<WorkSet> debugWorkSets() {
         return List.of();
     }
 

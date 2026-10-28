@@ -15,6 +15,7 @@ import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.debug.WorkSet;
 import dev.friendai.task.obtain.ResourceSearchDriver;
 import dev.friendai.task.obtain.SearchTargets;
 import dev.friendai.tool.AccessLevel;
@@ -314,6 +315,11 @@ public final class SearchResourceTask implements Task {
         TaskStatus status = driver.tick(context);
         summary = driver.resultSummary();
         return status;
+    }
+
+    @Override
+    public java.util.List<WorkSet> debugWorkSets() {
+        return driver == null ? java.util.List.of() : driver.debugWorkSets();
     }
 
     private void resume() {

@@ -162,6 +162,11 @@ public final class MiningSession {
         return target;
     }
 
+    /** Immutable copy of the current task-owned candidate set for diagnostics. */
+    public List<BlockPos> targets() {
+        return targets.stream().map(BlockPos::immutable).toList();
+    }
+
     public UserMessage failure() {
         return failure;
     }

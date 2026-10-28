@@ -26,7 +26,8 @@ public record MovementDebug(
         List<Cell> goalCells,
         List<String> lines,
         List<DebugTarget> targets,
-        List<String> upcomingSteps) {
+        List<String> upcomingSteps,
+        List<WorkSet> workSets) {
 
     public static final int MAX_SEGMENTS = 400;
     public static final int MAX_CELLS = 200;
@@ -35,6 +36,8 @@ public record MovementDebug(
     public static final int MAX_TARGETS = 128;
     public static final int MAX_DETAIL_CHARS = 80;
     public static final int MAX_UPCOMING_STEPS = 2;
+    public static final int MAX_WORK_SETS = WorkSetBudget.MAX_WORK_SETS;
+    public static final int MAX_WORK_CELLS = WorkSetBudget.MAX_WORK_CELLS;
 
     /** Retained for callers that only provide the original movement view. */
     public MovementDebug(
@@ -45,7 +48,22 @@ public record MovementDebug(
             List<Cell> places,
             List<Cell> goalCells,
             List<String> lines) {
-        this(companionId, stepIndex, route, breaks, places, goalCells, lines, List.of(), List.of());
+        this(companionId, stepIndex, route, breaks, places, goalCells, lines, List.of(), List.of(), List.of());
+    }
+
+    /** Retained for callers that provide action targets and upcoming steps but no work sets. */
+    public MovementDebug(
+            int companionId,
+            int stepIndex,
+            List<Segment> route,
+            List<Cell> breaks,
+            List<Cell> places,
+            List<Cell> goalCells,
+            List<String> lines,
+            List<DebugTarget> targets,
+            List<String> upcomingSteps) {
+        this(companionId, stepIndex, route, breaks, places, goalCells, lines, targets, upcomingSteps, List.of());
+    }
     }
 
     /** One step of the route; {@code move} is the ordinal of {@code dev.friendai.pathing.Move}. */
@@ -111,6 +129,7 @@ public record MovementDebug(
         lines = List.copyOf(lines);
         targets = List.copyOf(targets);
         upcomingSteps = List.copyOf(upcomingSteps);
+        workSets = List.copyOf(workSets);
     }
 
     public byte[] encode() {
@@ -140,6 +159,7 @@ public record MovementDebug(
             for (String line : text) {
                 out.writeUTF(line.length() > MAX_LINE_CHARS ? line.substring(0, MAX_LINE_CHARS) : line);
             }
+            writeWorkSets(out, WorkSetBudget.select(workSets, 0, 0, 0));
             return bytes.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -184,11 +204,12 @@ public record MovementDebug(
                 }
                 lines.add(line);
             }
+            List<WorkSet> workSets = in.available() == 0 ? List.of() : readWorkSets(in);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new MovementDebug(
-                    companionId, stepIndex, route, breaks, places, goalCells, lines, targets, upcomingSteps);
+                    companionId, stepIndex, route, breaks, places, goalCells, lines, targets, upcomingSteps, workSets);
         } catch (IOException e) {
             throw new IllegalArgumentException("truncated movement debug", e);
         }
@@ -280,5 +301,90 @@ public record MovementDebug(
             values.add(value);
         }
         return values;
+    }
+
+    private static void writeWorkSets(DataOutputStream out, List<WorkSet> workSets) throws IOException {
+        out.writeByte(workSets.size());
+        int writtenCells = 0;
+        for (WorkSet set : workSets) {
+            out.writeUTF(set.label());
+            out.writeByte(set.kind().ordinal());
+            out.writeInt(set.total());
+            out.writeInt(set.done());
+            out.writeInt(set.next());
+            out.writeInt(set.pending());
+            out.writeInt(set.skipped());
+            out.writeBoolean(set.truncated());
+            int remaining = MAX_WORK_CELLS - writtenCells;
+            int count = Math.min(Math.min(set.cells().size(), WorkSetBudget.MAX_CELLS_PER_SET), remaining);
+            out.writeShort(count);
+            for (int i = 0; i < count; i++) {
+                WorkCell cell = set.cells().get(i);
+                out.writeInt(cell.x());
+                out.writeInt(cell.y());
+                out.writeInt(cell.z());
+                out.writeByte(cell.action().ordinal());
+                out.writeByte(cell.status().ordinal());
+                out.writeUTF(cell.detail());
+            }
+            writtenCells += count;
+        }
+    }
+
+    private static List<WorkSet> readWorkSets(DataInputStream in) throws IOException {
+        int setCount = in.readUnsignedByte();
+        if (setCount > MAX_WORK_SETS) {
+            throw new IllegalArgumentException("too many work sets: " + setCount);
+        }
+        WorkKind[] kinds = WorkKind.values();
+        WorkStatus[] statuses = WorkStatus.values();
+        DebugAction[] actions = DebugAction.values();
+        List<WorkSet> workSets = new ArrayList<>(setCount);
+        int totalCells = 0;
+        for (int i = 0; i < setCount; i++) {
+            String label = in.readUTF();
+            if (label.length() > WorkSet.MAX_LABEL_CHARS) {
+                throw new IllegalArgumentException("work-set label is too long: " + label.length());
+            }
+            int kindOrdinal = in.readUnsignedByte();
+            if (kindOrdinal >= kinds.length) {
+                throw new IllegalArgumentException("unknown work-set kind: " + kindOrdinal);
+            }
+            int total = in.readInt();
+            int done = in.readInt();
+            int next = in.readInt();
+            int pending = in.readInt();
+            int skipped = in.readInt();
+            boolean truncated = in.readBoolean();
+            int cellCount = in.readUnsignedShort();
+            if (cellCount > WorkSetBudget.MAX_CELLS_PER_SET) {
+                throw new IllegalArgumentException("too many work-set cells: " + cellCount);
+            }
+            totalCells += cellCount;
+            if (totalCells > MAX_WORK_CELLS) {
+                throw new IllegalArgumentException("too many work-set cells: " + totalCells);
+            }
+            List<WorkCell> cells = new ArrayList<>(cellCount);
+            for (int j = 0; j < cellCount; j++) {
+                int x = in.readInt();
+                int y = in.readInt();
+                int z = in.readInt();
+                int actionOrdinal = in.readUnsignedByte();
+                int statusOrdinal = in.readUnsignedByte();
+                if (actionOrdinal >= actions.length) {
+                    throw new IllegalArgumentException("unknown work-set action: " + actionOrdinal);
+                }
+                if (statusOrdinal >= statuses.length) {
+                    throw new IllegalArgumentException("unknown work-set status: " + statusOrdinal);
+                }
+                String detail = in.readUTF();
+                if (detail.length() > MAX_DETAIL_CHARS) {
+                    throw new IllegalArgumentException("work-set detail is too long: " + detail.length());
+                }
+                cells.add(new WorkCell(x, y, z, actions[actionOrdinal], statuses[statusOrdinal], detail));
+            }
+            workSets.add(new WorkSet(label, kinds[kindOrdinal], total, done, next, pending, skipped, truncated, cells));
+        }
+        return List.copyOf(workSets);
     }
 }

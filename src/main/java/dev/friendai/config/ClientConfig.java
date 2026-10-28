@@ -14,13 +14,18 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     private static final List<String> NESTED_TTS_PROVIDERS = List.of("openai", "elevenlabs");
 
     public int version = CURRENT_VERSION;
     public VoiceSection voice = new VoiceSection();
+    public DebugSection debug = new DebugSection();
+
+    public static class DebugSection {
+        public boolean movementOverlay = false;
+    }
 
     public static class VoiceSection {
         public SttSection stt = new SttSection();
@@ -113,6 +118,11 @@ public class ClientConfig {
         }
         migrateTts(tts);
         json.add("voice", voice);
+        JsonObject debug = json.has("debug") && json.get("debug").isJsonObject()
+                ? json.getAsJsonObject("debug") : new JsonObject();
+        addIfMissing(debug, "movementOverlay", false);
+        json.add("debug", debug);
+        json.addProperty("version", CURRENT_VERSION);
         return json;
     }
 
@@ -202,6 +212,7 @@ public class ClientConfig {
 
     /** Fills missing or invalid sections and clamps ranges. */
     public void validate() {
+        if (debug == null) debug = new DebugSection();
         if (voice == null) {
             voice = new VoiceSection();
         }

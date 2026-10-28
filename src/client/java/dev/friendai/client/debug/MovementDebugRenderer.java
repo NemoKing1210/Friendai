@@ -95,18 +95,37 @@ public final class MovementDebugRenderer {
                             TextGizmo.Style.forColorAndCentered(GOAL))
                     .setAlwaysOnTop();
         }
-        for (var target : view.targets()) {
-            int color = actionColor(target.action());
-            Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
-                    .setAlwaysOnTop();
-            String action = actionLabel(target.action());
-            String detail = detailLabel(target.detail());
-            String label = detail.isBlank() ? action : action + " · " + detail;
-            Gizmos.billboardText(
-                            clipLabel(label),
-                            new Vec3(target.x() + 0.5, target.y() + 1.35, target.z() + 0.5),
-                            TextGizmo.Style.forColorAndCentered(color))
-                    .setAlwaysOnTop();
+        if (view.workSets().isEmpty()) {
+            for (var target : view.targets()) {
+                int color = actionColor(target.action());
+                Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
+                        .setAlwaysOnTop();
+                String action = actionLabel(target.action());
+                String detail = detailLabel(target.detail());
+                String label = detail.isBlank() ? action : action + " · " + detail;
+                Gizmos.billboardText(clipLabel(label), new Vec3(target.x() + 0.5, target.y() + 1.35,
+                        target.z() + 0.5), TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
+            }
+        }
+        for (var set : view.workSets()) {
+            var anchor = set.cells().stream().filter(cell -> cell.status() == dev.friendai.debug.WorkStatus.NEXT)
+                    .findFirst().orElse(set.cells().isEmpty() ? null : set.cells().getFirst());
+            if (anchor != null && visibleCell(anchor.x(), anchor.y(), anchor.z())) {
+                Gizmos.billboardText(clipLabel(set.label()), new Vec3(anchor.x() + 0.5, anchor.y() + 1.65,
+                        anchor.z() + 0.5), TextGizmo.Style.forColorAndCentered(0xFFE8D7FF)).setAlwaysOnTop();
+            }
+            for (var cell : set.cells()) {
+                if (!visibleCell(cell.x(), cell.y(), cell.z())) continue;
+                int color = workColor(cell.status());
+                Gizmos.cuboid(new BlockPos(cell.x(), cell.y(), cell.z()), GizmoStyle.stroke(color, 2.5f))
+                        .setAlwaysOnTop();
+                if (cell.status() == dev.friendai.debug.WorkStatus.NEXT) {
+                    Gizmos.billboardText(clipLabel(detailLabel(cell.detail())),
+                            new Vec3(cell.x() + 0.5, cell.y() + 1.35, cell.z() + 0.5),
+                            TextGizmo.Style.forColorAndCentered(color)).setAlwaysOnTop();
+                }
+            }
+
         }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null && current < view.route().size()) {
@@ -158,6 +177,10 @@ public final class MovementDebugRenderer {
         if (!task.isBlank() && !"none".equals(task)) {
             lines.add(Component.translatable("friendai.debug.hud.task", task).getString());
         }
+        String intent = lineValue(view.lines(), "intent: ");
+        if (intent.isBlank()) intent = lineValue(view.lines(), "free-time shift: ");
+        if (intent.isBlank()) intent = lineValue(view.lines(), "free-time wish: ");
+        if (!intent.isBlank()) lines.add(Component.translatable("friendai.debug.hud.intent", intent).getString());
         String navigation = lineValue(view.lines(), "navigator: ");
         if (!navigation.isBlank()) {
             lines.add(Component.translatable("friendai.debug.hud.navigation", navigationLabel(navigation))
@@ -167,7 +190,7 @@ public final class MovementDebugRenderer {
         if (!current.isBlank()) {
             lines.add(Component.translatable("friendai.debug.hud.path", current).getString());
         }
-        if (!view.targets().isEmpty()) {
+        if (!view.targets().isEmpty() && view.workSets().isEmpty()) {
             var target = view.targets().getFirst();
             String action = actionLabel(target.action());
             String detail = target.detail().isBlank() ? "" : " · " + detailLabel(target.detail());
@@ -180,7 +203,30 @@ public final class MovementDebugRenderer {
                     .collect(java.util.stream.Collectors.joining("  ›  "));
             lines.add(Component.translatable("friendai.debug.hud.next", steps).getString());
         }
+        for (var set : view.workSets()) {
+            String suffix = set.truncated()
+                    ? " · " + Component.translatable("friendai.debug.work.truncated").getString() : "";
+            lines.add(Component.translatable("friendai.debug.hud.work_set", set.label(), set.done(), set.next(),
+                    set.pending(), set.skipped(), suffix).getString());
+        }
         return lines.stream().map(MovementDebugRenderer::clipHudLine).toList();
+    }
+
+    private static int workColor(dev.friendai.debug.WorkStatus status) {
+        return switch (status) {
+            case DONE -> 0x8055C878;
+            case NEXT -> 0xFFFFD34D;
+            case PENDING -> 0xFF55B9FF;
+            case SKIPPED -> 0xFF9A9A9A;
+        };
+    }
+
+    private static boolean visibleCell(int x, int y, int z) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.gameRenderer == null) return false;
+        Vec3 center = new Vec3(x + 0.5, y + 0.5, z + 0.5);
+        Vec3 offset = center.subtract(mc.player.getEyePosition());
+        return offset.lengthSqr() <= 48 * 48 && mc.player.getLookAngle().dot(offset) > 0.0;
     }
 
     private static String lineValue(java.util.List<String> lines, String prefix) {
