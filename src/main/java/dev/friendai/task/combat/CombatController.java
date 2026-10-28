@@ -75,6 +75,7 @@ public final class CombatController {
     private static final int OUT_OF_SIGHT_TICKS = 100;
     /** How far from the kill the controller looks for the drops of the fight it just ended. */
     private static final double LOOT_RADIUS = 8.0;
+
     private static final int BOW_DRAW_TICKS = 20;
     private static final float ARROW_SPEED = 3.0F;
     private static final float ARROW_INACCURACY = 2.0F;
@@ -114,6 +115,7 @@ public final class CombatController {
     private LivingEntity target;
     /** The round that walks to the drops of the last fight, ticked while idle. */
     private DropCollector loot;
+
     private int nextScan;
     private int attackCooldown;
     private int repathTicks;
@@ -121,6 +123,7 @@ public final class CombatController {
     private boolean taskDriven;
     /** The current task-driven fight targets the owner, who asked for it, so the self-protection check is waived. */
     private boolean ownerConsent;
+
     private boolean weaponSwapped;
     private ItemStack previousMainHand = ItemStack.EMPTY;
     private boolean usingBow;
@@ -254,7 +257,10 @@ public final class CombatController {
      * it in the turn; the owner is never a target otherwise.
      */
     public void fight(LivingEntity enemy, boolean ownerConsent) {
-        if (state != State.IDLE || enemy == null || !enemy.isAlive() || !(companion.level() instanceof ServerLevel level)) {
+        if (state != State.IDLE
+                || enemy == null
+                || !enemy.isAlive()
+                || !(companion.level() instanceof ServerLevel level)) {
             return;
         }
         beginFight(level, new Selection(enemy, Kind.SELF), true, ownerConsent && isOwner(enemy));
@@ -292,9 +298,12 @@ public final class CombatController {
             return;
         }
         if (state == State.RETREATING) {
-            tickRetreat(level, now, threatsNear(level).stream()
-                    .filter(threat -> companion.distanceTo(threat) <= RETREAT_SAFE_RADIUS)
-                    .toList());
+            tickRetreat(
+                    level,
+                    now,
+                    threatsNear(level).stream()
+                            .filter(threat -> companion.distanceTo(threat) <= RETREAT_SAFE_RADIUS)
+                            .toList());
             return;
         }
         List<LivingEntity> threats = threatsNear(level).stream()
@@ -355,12 +364,12 @@ public final class CombatController {
         if (!hungry) {
             return;
         }
-        boolean threatClose = ruleOneThreats(level).stream()
-                .anyMatch(threat -> companion.distanceTo(threat) <= 3.0);
+        boolean threatClose = ruleOneThreats(level).stream().anyMatch(threat -> companion.distanceTo(threat) <= 3.0);
         if (threatClose) {
             return;
         }
-        boolean goldenAllowed = health <= maxHealth * 0.3F && !threatsNear(level).isEmpty();
+        boolean goldenAllowed =
+                health <= maxHealth * 0.3F && !threatsNear(level).isEmpty();
         Food.choose(companion, goldenAllowed).ifPresent(this::startEating);
     }
 
@@ -499,8 +508,7 @@ public final class CombatController {
             abandonFight();
         }
         state = State.RETREATING;
-        decision = new CombatDecision(
-                CombatDecision.Action.RETREAT, CombatDecision.Reason.IMMINENT_DANGER);
+        decision = new CombatDecision(CombatDecision.Action.RETREAT, CombatDecision.Reason.IMMINENT_DANGER);
         retreatTicks = 0;
         retreatRepathTicks = 0;
         retreatNoticed = false;
@@ -548,7 +556,8 @@ public final class CombatController {
         centroid = centroid.scale(1.0 / threats.size());
         ServerPlayer owner = companion.owner().filter(o -> o.level() == level).orElse(null);
         if (owner != null
-                && owner.position().distanceToSqr(centroid) > companion.position().distanceToSqr(centroid)) {
+                && owner.position().distanceToSqr(centroid)
+                        > companion.position().distanceToSqr(centroid)) {
             return owner.position();
         }
         Vec3 away = DefaultRandomPos.getPosAway(companion, (int) FLEE_DISTANCE, (int) FLEE_DISTANCE, centroid);
@@ -618,7 +627,9 @@ public final class CombatController {
         }
 
         ServerPlayer owner = companion.owner().filter(o -> o.level() == level).orElse(null);
-        if (owner != null && companion.distanceTo(owner) <= OWNER_DEFENSE_RANGE && settings.protection().defendsOwner()) {
+        if (owner != null
+                && companion.distanceTo(owner) <= OWNER_DEFENSE_RANGE
+                && settings.protection().defendsOwner()) {
             LivingEntity ownerAttacker = owner.getLastHurtByMob();
             if (validAttacker(ownerAttacker)
                     && owner.tickCount - owner.getLastHurtByMobTimestamp() <= ATTACKER_MEMORY) {
@@ -633,7 +644,9 @@ public final class CombatController {
             }
             if (mob.getTarget() == companion) {
                 addCandidate(scored, entity, Kind.SELF, false, pursuitAnchor);
-            } else if (owner != null && mob.getTarget() == owner && settings.protection().defendsOwner()) {
+            } else if (owner != null
+                    && mob.getTarget() == owner
+                    && settings.protection().defendsOwner()) {
                 addCandidate(scored, entity, Kind.OWNER, false, pursuitAnchor);
             }
         }
@@ -660,14 +673,17 @@ public final class CombatController {
         double dz = entity.getZ() - companion.getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
         double vertical = Math.abs(entity.getY() - companion.getY());
-        boolean reachesNow = companion.isWithinMeleeAttackRange(entity)
-                || (distance <= meleeReach(entity) && vertical <= 2.0);
-        scored.add(new Scored(entity, kind, new ThreatTable.Candidate(
-                distance,
-                reachesNow,
-                attackedUs,
-                entity == target,
-                entity.position().distanceTo(pursuitAnchor))));
+        boolean reachesNow =
+                companion.isWithinMeleeAttackRange(entity) || (distance <= meleeReach(entity) && vertical <= 2.0);
+        scored.add(new Scored(
+                entity,
+                kind,
+                new ThreatTable.Candidate(
+                        distance,
+                        reachesNow,
+                        attackedUs,
+                        entity == target,
+                        entity.position().distanceTo(pursuitAnchor))));
     }
 
     /** Drops the old target's per-target state and stops a draw that no longer belongs to the fight. */
@@ -690,7 +706,8 @@ public final class CombatController {
 
     /** The protected anchor now: where the owner stands, or the companion when there is no owner in this level. */
     private Vec3 currentAnchor(ServerLevel level) {
-        return companion.owner()
+        return companion
+                .owner()
                 .filter(owner -> owner.level() == level)
                 .map(owner -> owner.position())
                 .orElse(companion.position());
@@ -751,7 +768,8 @@ public final class CombatController {
         usingBow = false;
         lastSeenTick = companion.tickCount;
         kills.clear();
-        anchor = companion.owner()
+        anchor = companion
+                .owner()
                 .filter(owner -> owner.level() == level)
                 .map(owner -> owner.position())
                 .orElse(companion.position());
@@ -893,8 +911,7 @@ public final class CombatController {
             return;
         }
         if (enemy.position().distanceTo(anchor) > companion.combatSettings().pursuitLimitBlocks()) {
-            decision = new CombatDecision(
-                    CombatDecision.Action.DISENGAGE, CombatDecision.Reason.OUT_OF_PURSUIT);
+            decision = new CombatDecision(CombatDecision.Action.DISENGAGE, CombatDecision.Reason.OUT_OF_PURSUIT);
             endFight(level, enemy);
             return;
         }
@@ -1049,7 +1066,8 @@ public final class CombatController {
         if (!usingBow) {
             if (!holdBow()) {
                 noticeAmmunition();
-                decision = new CombatDecision(CombatDecision.Action.MELEE_APPROACH, CombatDecision.Reason.NO_AMMUNITION);
+                decision =
+                        new CombatDecision(CombatDecision.Action.MELEE_APPROACH, CombatDecision.Reason.NO_AMMUNITION);
                 return;
             }
             usingBow = true;
@@ -1130,18 +1148,22 @@ public final class CombatController {
     }
 
     private boolean safeStep(ServerLevel level, Vec3 destination) {
-        var box = companion.getBoundingBox().move(destination.x - companion.getX(), 0, destination.z - companion.getZ());
+        var box =
+                companion.getBoundingBox().move(destination.x - companion.getX(), 0, destination.z - companion.getZ());
         if (!level.noCollision(companion, box)) {
             return false;
         }
         var feet = net.minecraft.core.BlockPos.containing(destination);
         var below = feet.below();
         var floor = level.getBlockState(below);
-        if (floor.getCollisionShape(level, below).isEmpty() || !floor.getFluidState().isEmpty()) {
+        if (floor.getCollisionShape(level, below).isEmpty()
+                || !floor.getFluidState().isEmpty()) {
             return false;
         }
         return level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
-                && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
+                && level.getBlockState(feet.above())
+                        .getCollisionShape(level, feet.above())
+                        .isEmpty();
     }
 
     private boolean tryDodge(ServerLevel level, ProjectileThreat.Facts projectile) {
@@ -1186,10 +1208,20 @@ public final class CombatController {
                     companion.getBoundingBox().maxZ);
             Vec3 velocity = projectile.getDeltaMovement();
             var facts = ProjectileThreat.Facts.of(
-                    projectile.getX(), projectile.getY(), projectile.getZ(),
-                    velocity.x, velocity.y, velocity.z, radius,
-                    ProjectileThreat.isFrontal(projectile.getX(), projectile.getZ(), companion.getX(), companion.getZ(),
-                            companion.getLookAngle().x, companion.getLookAngle().z),
+                    projectile.getX(),
+                    projectile.getY(),
+                    projectile.getZ(),
+                    velocity.x,
+                    velocity.y,
+                    velocity.z,
+                    radius,
+                    ProjectileThreat.isFrontal(
+                            projectile.getX(),
+                            projectile.getZ(),
+                            companion.getX(),
+                            companion.getZ(),
+                            companion.getLookAngle().x,
+                            companion.getLookAngle().z),
                     BuiltInRegistries.ENTITY_TYPE.getKey(projectile.getType()).toString());
             if (!ProjectileThreat.intersects(facts, bounds, CombatPolicy.PROJECTILE_HORIZON_TICKS)) {
                 continue;
@@ -1352,9 +1384,17 @@ public final class CombatController {
                 shortest = PotionFacts.MIN_USEFUL_DURATION;
             }
             PotionFacts facts = new PotionFacts(
-                    harmful, beneficial, harmful && beneficial, shortest,
-                    protectedNear(level, enemy.position(), enemy), 1, true, true, potionBudget);
-            if (!PotionPolicy.evaluate(facts, snapshotFor(level, enemy, windup), settings).allowed()) {
+                    harmful,
+                    beneficial,
+                    harmful && beneficial,
+                    shortest,
+                    protectedNear(level, enemy.position(), enemy),
+                    1,
+                    true,
+                    true,
+                    potionBudget);
+            if (!PotionPolicy.evaluate(facts, snapshotFor(level, enemy, windup), settings)
+                    .allowed()) {
                 return false;
             }
             throwPotion(level, enemy, i, stack);
@@ -1365,7 +1405,8 @@ public final class CombatController {
 
     private int protectedNear(ServerLevel level, Vec3 center, LivingEntity enemy) {
         int count = 0;
-        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(4.0))) {
+        for (LivingEntity entity :
+                level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(4.0))) {
             if (entity == companion || entity == enemy || !entity.isAlive()) {
                 continue;
             }
@@ -1388,14 +1429,35 @@ public final class CombatController {
     private CombatSnapshot snapshotFor(ServerLevel level, LivingEntity enemy, boolean windup) {
         return new CombatSnapshot(
                 new CombatSnapshot.Self(
-                        companion.getHealth() / Math.max(1.0F, companion.getMaxHealth()), false, false, false,
-                        shieldAvailable(), shieldRaised, false, false, false, false,
-                        Equipment.hasBowAndArrows(companion), false, false, true, true, true, potionBudget,
+                        companion.getHealth() / Math.max(1.0F, companion.getMaxHealth()),
+                        false,
+                        false,
+                        false,
+                        shieldAvailable(),
+                        shieldRaised,
+                        false,
+                        false,
+                        false,
+                        false,
+                        Equipment.hasBowAndArrows(companion),
+                        false,
+                        false,
+                        true,
+                        true,
+                        true,
+                        potionBudget,
                         windup),
                 new CombatSnapshot.Target(
-                        true, companion.hasLineOfSight(enemy), validAttacker(enemy),
-                        targetKind == Kind.SELF, targetKind == Kind.OWNER, enemy instanceof net.minecraft.world.entity.monster.Enemy,
-                        companion.distanceTo(enemy), enemy.position().distanceTo(anchor), isFlying(enemy), false),
+                        true,
+                        companion.hasLineOfSight(enemy),
+                        validAttacker(enemy),
+                        targetKind == Kind.SELF,
+                        targetKind == Kind.OWNER,
+                        enemy instanceof net.minecraft.world.entity.monster.Enemy,
+                        companion.distanceTo(enemy),
+                        enemy.position().distanceTo(anchor),
+                        isFlying(enemy),
+                        false),
                 new CombatSnapshot.Options(companion.isWithinMeleeAttackRange(enemy), 0.0, true));
     }
 
@@ -1466,10 +1528,17 @@ public final class CombatController {
         Vec3 eye = companion.getEyePosition();
         Vec3 velocity = enemy.getDeltaMovement();
         CombatPolicy.Lead lead = CombatPolicy.leadPoint(
-                enemy.getX(), enemy.getEyeY(), enemy.getZ(),
-                velocity.x, velocity.y, velocity.z,
-                eye.x, eye.y, eye.z,
-                ARROW_SPEED, CombatPolicy.MAX_LEAD_TICKS);
+                enemy.getX(),
+                enemy.getEyeY(),
+                enemy.getZ(),
+                velocity.x,
+                velocity.y,
+                velocity.z,
+                eye.x,
+                eye.y,
+                eye.z,
+                ARROW_SPEED,
+                CombatPolicy.MAX_LEAD_TICKS);
         Vec3 direction = new Vec3(lead.x(), lead.y(), lead.z()).subtract(eye);
         arrow.shoot(direction.x, direction.y, direction.z, ARROW_SPEED, ARROW_INACCURACY);
         level.addFreshEntity(arrow);
@@ -1484,7 +1553,9 @@ public final class CombatController {
 
     private static boolean hasInfinity(ServerLevel level, ItemStack bow) {
         return EnchantmentHelper.getItemEnchantmentLevel(
-                        level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.INFINITY),
+                        level.registryAccess()
+                                .lookupOrThrow(Registries.ENCHANTMENT)
+                                .getOrThrow(Enchantments.INFINITY),
                         bow)
                 > 0;
     }
@@ -1527,7 +1598,8 @@ public final class CombatController {
     }
 
     private int attackInterval() {
-        return Math.max(1, (int) Math.round(20.0 / Math.max(0.1, companion.getAttributeValue(Attributes.ATTACK_SPEED))));
+        return Math.max(1, (int)
+                Math.round(20.0 / Math.max(0.1, companion.getAttributeValue(Attributes.ATTACK_SPEED))));
     }
 
     private void endFight(ServerLevel level, LivingEntity ended) {
@@ -1569,9 +1641,10 @@ public final class CombatController {
         if (kills.isEmpty()) {
             text.append("nothing killed");
         } else {
-            text.append("killed ").append(kills.entrySet().stream()
-                    .map(kill -> kill.getValue() + " " + kill.getKey())
-                    .collect(Collectors.joining(", ")));
+            text.append("killed ")
+                    .append(kills.entrySet().stream()
+                            .map(kill -> kill.getValue() + " " + kill.getKey())
+                            .collect(Collectors.joining(", ")));
         }
         return text.append(", health ")
                 .append(number(companion.getHealth()))

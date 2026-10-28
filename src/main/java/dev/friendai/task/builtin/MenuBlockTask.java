@@ -94,9 +94,10 @@ abstract class MenuBlockTask implements Task {
             }
             return given;
         }
-        BlockMatcher matcher = BlockMatcher.parse(BuiltInRegistries.BLOCK.getKey(block).toString()).orElseThrow();
-        BlockPos found = BlockSearch.nearest(
-                        c.level(), c.companion().blockPosition(), SEARCH_RADIUS, matcher, Set.of())
+        BlockMatcher matcher = BlockMatcher.parse(
+                        BuiltInRegistries.BLOCK.getKey(block).toString())
+                .orElseThrow();
+        BlockPos found = BlockSearch.nearest(c.level(), c.companion().blockPosition(), SEARCH_RADIUS, matcher, Set.of())
                 .orElse(null);
         if (found == null) {
             summary = "no " + noun + " within " + SEARCH_RADIUS + " blocks";

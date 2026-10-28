@@ -14,9 +14,12 @@ public record CompanionRequestC2SPayload(RequestType request, String a, String b
             new CustomPacketPayload.Type<>(FriendaiMod.id("companion_request"));
     public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, CompanionRequestC2SPayload> CODEC =
             StreamCodec.composite(
-                            ByteBufCodecs.VAR_INT, (CompanionRequestC2SPayload p) -> p.request().ordinal(),
-                            ByteBufCodecs.stringUtf8(MAX_A), CompanionRequestC2SPayload::a,
-                            ByteBufCodecs.stringUtf8(MAX_B), CompanionRequestC2SPayload::b,
+                            ByteBufCodecs.VAR_INT,
+                            (CompanionRequestC2SPayload p) -> p.request().ordinal(),
+                            ByteBufCodecs.stringUtf8(MAX_A),
+                            CompanionRequestC2SPayload::a,
+                            ByteBufCodecs.stringUtf8(MAX_B),
+                            CompanionRequestC2SPayload::b,
                             (ordinal, a, b) -> new CompanionRequestC2SPayload(RequestType.fromOrdinal(ordinal), a, b))
                     .cast();
 

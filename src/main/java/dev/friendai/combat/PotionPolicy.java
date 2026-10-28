@@ -25,7 +25,9 @@ public final class PotionPolicy {
         if (!facts.harmful()) {
             return PotionDecision.reject(PotionDecision.Reason.NO_TARGET);
         }
-        if (facts.affectedEnemies() <= 0 || !snapshot.target().present() || !snapshot.target().attackable()) {
+        if (facts.affectedEnemies() <= 0
+                || !snapshot.target().present()
+                || !snapshot.target().attackable()) {
             return PotionDecision.reject(PotionDecision.Reason.NO_TARGET);
         }
         if (facts.shortestDurationTicks() < PotionFacts.MIN_USEFUL_DURATION) {

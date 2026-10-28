@@ -56,9 +56,8 @@ public final class ObtainText {
     public static String stepText(ObtainStep step) {
         return switch (step) {
             case ObtainStep.Take take -> "take " + take.count() + " × " + take.item();
-            case ObtainStep.Craft craft -> craft.count() == 1
-                    ? "craft " + craft.item()
-                    : "craft " + craft.count() + " × " + craft.item();
+            case ObtainStep.Craft craft ->
+                craft.count() == 1 ? "craft " + craft.item() : "craft " + craft.count() + " × " + craft.item();
             case ObtainStep.Smelt smelt -> "smelt " + smelt.count() + " × " + smelt.input();
             case ObtainStep.Mine mine -> "mine " + mine.count() + " × " + mine.block();
             case ObtainStep.VisitResource visit -> "visit remembered site " + visit.siteId() + " for " + visit.block();
@@ -66,9 +65,10 @@ public final class ObtainText {
             case ObtainStep.Harvest harvest -> "harvest " + harvest.count() + " × " + harvest.crop();
             case ObtainStep.Shear shear -> "shear " + shear.count() + " × " + shear.mob();
             case ObtainStep.Milk milk -> "milk " + milk.count() + (milk.count() == 1 ? " bucket" : " buckets");
-            case ObtainStep.Explore explore -> explore.down()
-                    ? "explore down to Y " + explore.depthY() + " for " + explore.block()
-                    : "explore up to 64 blocks around for " + explore.block();
+            case ObtainStep.Explore explore ->
+                explore.down()
+                        ? "explore down to Y " + explore.depthY() + " for " + explore.block()
+                        : "explore up to 64 blocks around for " + explore.block();
             case ObtainStep.Trade trade -> "trade " + trade.count() + " fill(s) with merchant " + trade.trader();
             case ObtainStep.InspectTrader inspect -> "inspect merchant " + inspect.trader() + " before trading";
         };
@@ -78,7 +78,8 @@ public final class ObtainText {
      * True when the tool is neither carried nor listed as its own craft step, so the step's text has to say
      * that the tool will be made on the way.
      */
-    private static boolean annotateTool(ToolNeed tool, java.util.List<ObtainStep> steps, Map<String, Integer> inventory) {
+    private static boolean annotateTool(
+            ToolNeed tool, java.util.List<ObtainStep> steps, Map<String, Integer> inventory) {
         String item = tool.vanillaItem();
         if (item == null) {
             return false;

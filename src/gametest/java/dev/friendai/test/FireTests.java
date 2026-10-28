@@ -57,19 +57,22 @@ public class FireTests {
         c.inventory().addItem(new ItemStack(Items.BUCKET));
         BlockPos fire = h.absolutePos(new BlockPos(3, 2, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result,
-                new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
+        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "the task did not finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getLevel().getBlockState(fire).isAir(),
+            h.assertTrue(
+                    h.getLevel().getBlockState(fire).isAir(),
                     "fire left behind: " + h.getLevel().getBlockState(fire));
-            h.assertTrue(!h.getLevel().getFluidState(fire).getType().isSame(Fluids.WATER),
-                    "water left behind");
-            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1, "water buckets back: " + c.inventory().countItem(Items.WATER_BUCKET));
-            h.assertTrue(c.inventory().countItem(Items.BUCKET) == 1, "empty buckets left: " + c.inventory().countItem(Items.BUCKET));
+            h.assertTrue(!h.getLevel().getFluidState(fire).getType().isSame(Fluids.WATER), "water left behind");
+            h.assertTrue(
+                    c.inventory().countItem(Items.WATER_BUCKET) == 1,
+                    "water buckets back: " + c.inventory().countItem(Items.WATER_BUCKET));
+            h.assertTrue(
+                    c.inventory().countItem(Items.BUCKET) == 1,
+                    "empty buckets left: " + c.inventory().countItem(Items.BUCKET));
         });
     }
 
@@ -88,8 +91,7 @@ public class FireTests {
         BlockPos fire = h.absolutePos(new BlockPos(3, 3, 2));
         BlockPos frame = h.absolutePos(new BlockPos(2, 3, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result,
-                new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 3, 2)), 8));
+        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 3, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();
@@ -98,7 +100,9 @@ public class FireTests {
             h.assertTrue(result.summary.contains("portal frame"), "reason: " + result.summary);
             h.assertTrue(h.getLevel().getBlockState(fire).is(Blocks.FIRE), "the fire was put out anyway");
             h.assertTrue(h.getLevel().getBlockState(frame).is(Blocks.OBSIDIAN), "the frame was damaged");
-            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1, "the bucket was spent: " + c.inventory().countItem(Items.WATER_BUCKET));
+            h.assertTrue(
+                    c.inventory().countItem(Items.WATER_BUCKET) == 1,
+                    "the bucket was spent: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
     }
 
@@ -109,14 +113,17 @@ public class FireTests {
         c.inventory().addItem(new ItemStack(Items.WATER_BUCKET));
         c.setRemainingFireTicks(200);
         // On its own the fire would burn for 200 ticks; the reflex has to douse it long before that.
-        h.runAfterDelay(40, () -> h.assertTrue(!c.isOnFire(),
-                "still burning after 40 ticks: the fire reflex did not run"));
+        h.runAfterDelay(
+                40, () -> h.assertTrue(!c.isOnFire(), "still burning after 40 ticks: the fire reflex did not run"));
 
         h.succeedWhen(() -> {
             h.assertTrue(!c.isOnFire(), "the companion is still on fire");
-            h.assertTrue(h.getLevel().getBlockState(c.blockPosition()).isAir(),
+            h.assertTrue(
+                    h.getLevel().getBlockState(c.blockPosition()).isAir(),
                     "water left at its feet: " + h.getLevel().getBlockState(c.blockPosition()));
-            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1, "the bucket came back: " + c.inventory().countItem(Items.WATER_BUCKET));
+            h.assertTrue(
+                    c.inventory().countItem(Items.WATER_BUCKET) == 1,
+                    "the bucket came back: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
     }
 
@@ -141,11 +148,14 @@ public class FireTests {
             runner.tick();
             h.assertTrue(result.status != null, "the task did not finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getLevel().getBlockState(first).isAir(),
+            h.assertTrue(
+                    h.getLevel().getBlockState(first).isAir(),
                     "the first fire is still there: " + h.getLevel().getBlockState(first));
-            h.assertTrue(h.getLevel().getBlockState(second).isAir(),
+            h.assertTrue(
+                    h.getLevel().getBlockState(second).isAir(),
                     "the second fire is still there: " + h.getLevel().getBlockState(second));
-            h.assertTrue(h.getLevel().getBlockState(campfire).getValue(CampfireBlock.LIT),
+            h.assertTrue(
+                    h.getLevel().getBlockState(campfire).getValue(CampfireBlock.LIT),
                     "the cooking campfire was put out");
         });
     }
@@ -164,7 +174,8 @@ public class FireTests {
             runner.tick();
             h.assertTrue(result.status != null, "the task did not finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getLevel().getBlockState(fire).isAir(),
+            h.assertTrue(
+                    h.getLevel().getBlockState(fire).isAir(),
                     "the corner fire is still there: " + h.getLevel().getBlockState(fire));
         });
     }
@@ -179,16 +190,18 @@ public class FireTests {
         c.inventory().addItem(new ItemStack(Items.BUCKET));
         BlockPos fire = h.absolutePos(new BlockPos(3, 2, 2));
         Result result = new Result();
-        TaskRunner runner = run(c, result,
-                new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
+        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 2, 2)), 8));
         runner.tick();
         runner.stop("test stop");
 
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(h.getLevel().getFluidState(fire).isEmpty() || !h.getLevel().getFluidState(fire).isSource(),
+            h.assertTrue(
+                    h.getLevel().getFluidState(fire).isEmpty()
+                            || !h.getLevel().getFluidState(fire).isSource(),
                     "a source was left behind: " + h.getLevel().getBlockState(fire));
-            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1,
+            h.assertTrue(
+                    c.inventory().countItem(Items.WATER_BUCKET) == 1,
                     "the bucket did not come back: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
     }
@@ -202,17 +215,19 @@ public class FireTests {
         BlockPos campfire = h.absolutePos(new BlockPos(3, 1, 2));
         c.stationLease().keep(Station.CAMPFIRE, campfire.asLong(), h.getLevel().getGameTime());
         Result result = new Result();
-        TaskRunner runner = run(c, result,
-                new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 1, 2)), 8));
+        TaskRunner runner = run(c, result, new ExtinguishFireTask(new FireTarget.Block(absolute(h, 3, 1, 2)), 8));
 
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "the task did not finish");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
             h.assertTrue(result.summary.contains("cooking station"), "reason: " + result.summary);
-            h.assertTrue(h.getLevel().getBlockState(campfire).getValue(CampfireBlock.LIT),
+            h.assertTrue(
+                    h.getLevel().getBlockState(campfire).getValue(CampfireBlock.LIT),
                     "the cooking campfire was put out");
-            h.assertTrue(c.inventory().countItem(Items.WATER_BUCKET) == 1, "the bucket was spent: " + c.inventory().countItem(Items.WATER_BUCKET));
+            h.assertTrue(
+                    c.inventory().countItem(Items.WATER_BUCKET) == 1,
+                    "the bucket was spent: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
     }
 }

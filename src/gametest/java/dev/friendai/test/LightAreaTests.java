@@ -65,7 +65,9 @@ public class LightAreaTests {
                 h.assertTrue(result.status != TaskStatus.FAILED, "failed: " + result.summary);
                 if (result.status == TaskStatus.SUCCESS) {
                     h.assertTrue(result.summary.startsWith("placed "), "summary was " + result.summary);
-                    h.assertTrue(result.summary.endsWith("no dark spots left within 6 blocks"), "summary was " + result.summary);
+                    h.assertTrue(
+                            result.summary.endsWith("no dark spots left within 6 blocks"),
+                            "summary was " + result.summary);
                     after[0] = 20;
                 }
                 return;
@@ -120,7 +122,8 @@ public class LightAreaTests {
                 return;
             }
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.status == TaskStatus.SUCCESS, "should succeed: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.equals("no dark spots within 8 blocks"), "summary was " + result.summary);
         });
     }
@@ -137,7 +140,8 @@ public class LightAreaTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("couldn't reach or place any torch within 2 blocks"),
+            h.assertTrue(
+                    result.summary.equals("couldn't reach or place any torch within 2 blocks"),
                     "summary was " + result.summary);
         });
     }
@@ -153,7 +157,9 @@ public class LightAreaTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("placed 2 torches, then ran out of torches"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("placed 2 torches, then ran out of torches"),
+                    "summary was " + result.summary);
         });
     }
 }

@@ -60,7 +60,10 @@ public final class BlueprintStore {
 
     /** The blueprint directory of the world the level belongs to. */
     public static BlueprintStore forLevel(ServerLevel level) {
-        return new BlueprintStore(level.getServer().getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("blueprints"));
+        return new BlueprintStore(level.getServer()
+                .getWorldPath(LevelResource.ROOT)
+                .resolve("friendai")
+                .resolve("blueprints"));
     }
 
     public static boolean validName(String name) {
@@ -98,7 +101,9 @@ public final class BlueprintStore {
             throw new IllegalArgumentException("bad build id");
         }
         JsonObject root = new JsonObject();
-        root.add("blueprint", JsonParser.parseString(BlueprintJson.toJson(blueprint)).getAsJsonObject());
+        root.add(
+                "blueprint",
+                JsonParser.parseString(BlueprintJson.toJson(blueprint)).getAsJsonObject());
         root.add("origin", numbers(origin.getX(), origin.getY(), origin.getZ()));
         root.addProperty("rotation", rotation.name());
         root.addProperty("clearSite", clearSite);
@@ -127,8 +132,10 @@ public final class BlueprintStore {
             return Optional.empty();
         }
         try {
-            JsonObject root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
-            Optional<Blueprint> blueprint = BlueprintJson.fromJson(root.get("blueprint").toString());
+            JsonObject root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
+            Optional<Blueprint> blueprint =
+                    BlueprintJson.fromJson(root.get("blueprint").toString());
             if (blueprint.isEmpty()) {
                 return Optional.empty();
             }
@@ -147,11 +154,16 @@ public final class BlueprintStore {
                     return Optional.empty();
                 }
                 scaffold.add(new BlockPos(
-                        entry.get(0).getAsInt(), entry.get(1).getAsInt(), entry.get(2).getAsInt()));
+                        entry.get(0).getAsInt(),
+                        entry.get(1).getAsInt(),
+                        entry.get(2).getAsInt()));
             }
             return Optional.of(new InProgress(
                     blueprint.get(),
-                    new BlockPos(origin.get(0).getAsInt(), origin.get(1).getAsInt(), origin.get(2).getAsInt()),
+                    new BlockPos(
+                            origin.get(0).getAsInt(),
+                            origin.get(1).getAsInt(),
+                            origin.get(2).getAsInt()),
                     rotation,
                     clearSite,
                     gather,
@@ -201,7 +213,8 @@ public final class BlueprintStore {
         if (Files.exists(file) && !overwrite) {
             throw new IllegalArgumentException("a blueprint named " + name + " exists; use overwrite");
         }
-        JsonObject root = JsonParser.parseString(BlueprintJson.toJson(blueprint)).getAsJsonObject();
+        JsonObject root =
+                JsonParser.parseString(BlueprintJson.toJson(blueprint)).getAsJsonObject();
         if (author != null) {
             root.addProperty("author", author.toString());
         }
@@ -243,31 +256,34 @@ public final class BlueprintStore {
         }
         List<Entry> entries = new ArrayList<>();
         try (var files = Files.list(dir)) {
-            files.filter(path -> path.getFileName().toString().endsWith(".json")).forEach(path -> {
-                String name = path.getFileName().toString();
-                name = name.substring(0, name.length() - ".json".length());
-                try {
-                    String text = Files.readString(path, StandardCharsets.UTF_8);
-                    Optional<Blueprint> blueprint = BlueprintJson.fromJson(text);
-                    if (blueprint.isEmpty()) {
-                        return;
-                    }
-                    JsonObject root = JsonParser.parseString(text).getAsJsonObject();
-                    Optional<UUID> author = Optional.empty();
-                    if (root.has("author")) {
+            files.filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .forEach(path -> {
+                        String name = path.getFileName().toString();
+                        name = name.substring(0, name.length() - ".json".length());
                         try {
-                            author = Optional.of(UUID.fromString(root.get("author").getAsString()));
-                        } catch (IllegalArgumentException ignored) {
-                            author = Optional.empty();
+                            String text = Files.readString(path, StandardCharsets.UTF_8);
+                            Optional<Blueprint> blueprint = BlueprintJson.fromJson(text);
+                            if (blueprint.isEmpty()) {
+                                return;
+                            }
+                            JsonObject root = JsonParser.parseString(text).getAsJsonObject();
+                            Optional<UUID> author = Optional.empty();
+                            if (root.has("author")) {
+                                try {
+                                    author = Optional.of(
+                                            UUID.fromString(root.get("author").getAsString()));
+                                } catch (IllegalArgumentException ignored) {
+                                    author = Optional.empty();
+                                }
+                            }
+                            long created =
+                                    root.has("created") ? root.get("created").getAsLong() : 0L;
+                            Blueprint bp = blueprint.get();
+                            entries.add(new Entry(name, bp.width(), bp.height(), bp.depth(), author, created));
+                        } catch (IOException | RuntimeException ignored) {
+                            // A broken file is simply not listed; load() reports it as missing too.
                         }
-                    }
-                    long created = root.has("created") ? root.get("created").getAsLong() : 0L;
-                    Blueprint bp = blueprint.get();
-                    entries.add(new Entry(name, bp.width(), bp.height(), bp.depth(), author, created));
-                } catch (IOException | RuntimeException ignored) {
-                    // A broken file is simply not listed; load() reports it as missing too.
-                }
-            });
+                    });
         } catch (IOException e) {
             return List.of();
         }

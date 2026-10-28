@@ -41,54 +41,113 @@ final class AppearanceTab implements MenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         int y = top + HEADING;
-        name = host.add(new EditBox(host.font(), left, y, width - APPLY_WIDTH - GAP, FIELD,
+        name = host.add(new EditBox(
+                host.font(),
+                left,
+                y,
+                width - APPLY_WIDTH - GAP,
+                FIELD,
                 Component.translatable("friendai.menu.appearance.name_hint")));
         name.setMaxLength(32);
         name.setHint(Component.translatable("friendai.menu.appearance.name_hint"));
         name.setValue(nameText.isEmpty() ? currentName() : nameText);
         name.setResponder(s -> nameText = s);
-        rename = host.add(new FlatButton(left + width - APPLY_WIDTH, y, APPLY_WIDTH, FIELD,
-                Component.translatable("friendai.menu.appearance.rename"), Ui.GOOD,
+        rename = host.add(new FlatButton(
+                left + width - APPLY_WIDTH,
+                y,
+                APPLY_WIDTH,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.rename"),
+                Ui.GOOD,
                 () -> CompanionRequests.rename(name.getValue())));
 
         y += FIELD + GAP + HEADING;
-        file = host.add(new FlatButton(left, y, width, FIELD,
-                Component.translatable("friendai.menu.appearance.choose_file"), Ui.ACCENT,
+        file = host.add(new FlatButton(
+                left,
+                y,
+                width,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.choose_file"),
+                Ui.ACCENT,
                 () -> run(SkinSources::fromFile)));
 
         y += FIELD + GAP;
-        EditBox user = host.add(new EditBox(host.font(), left, y, width - APPLY_WIDTH - GAP, FIELD,
+        EditBox user = host.add(new EditBox(
+                host.font(),
+                left,
+                y,
+                width - APPLY_WIDTH - GAP,
+                FIELD,
                 Component.translatable("friendai.menu.appearance.username_hint")));
         user.setMaxLength(16);
         user.setHint(Component.translatable("friendai.menu.appearance.username_hint"));
         user.setValue(userText);
         user.setResponder(s -> userText = s);
-        userApply = host.add(new FlatButton(left + width - APPLY_WIDTH, y, APPLY_WIDTH, FIELD,
-                Component.translatable("friendai.menu.appearance.apply"), Ui.ACCENT,
+        userApply = host.add(new FlatButton(
+                left + width - APPLY_WIDTH,
+                y,
+                APPLY_WIDTH,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.apply"),
+                Ui.ACCENT,
                 () -> run(callback -> SkinSources.fromUsername(user.getValue(), callback))));
 
         y += FIELD + GAP;
-        EditBox url = host.add(new EditBox(host.font(), left, y, width - APPLY_WIDTH - GAP, FIELD,
+        EditBox url = host.add(new EditBox(
+                host.font(),
+                left,
+                y,
+                width - APPLY_WIDTH - GAP,
+                FIELD,
                 Component.translatable("friendai.menu.appearance.url_hint")));
         url.setMaxLength(500);
         url.setHint(Component.translatable("friendai.menu.appearance.url_hint"));
         url.setValue(urlText);
         url.setResponder(s -> urlText = s);
-        urlApply = host.add(new FlatButton(left + width - APPLY_WIDTH, y, APPLY_WIDTH, FIELD,
-                Component.translatable("friendai.menu.appearance.apply"), Ui.ACCENT,
+        urlApply = host.add(new FlatButton(
+                left + width - APPLY_WIDTH,
+                y,
+                APPLY_WIDTH,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.apply"),
+                Ui.ACCENT,
                 () -> run(callback -> SkinSources.fromUrl(url.getValue(), callback))));
 
         y += FIELD + GAP;
         int third = (width - 2 * GAP) / 3;
-        wide = host.add(new FlatButton(left, y, third, FIELD,
-                Component.translatable("friendai.menu.appearance.wide"), Ui.ACCENT, () -> setSlim(false)));
-        slimButton = host.add(new FlatButton(left + third + GAP, y, third, FIELD,
-                Component.translatable("friendai.menu.appearance.slim"), Ui.ACCENT, () -> setSlim(true)));
-        reset = host.add(new FlatButton(left + 2 * (third + GAP), y, width - 2 * (third + GAP), FIELD,
-                Component.translatable("friendai.menu.appearance.reset"), Ui.WARN, AppearanceTab::resetSkin));
+        wide = host.add(new FlatButton(
+                left,
+                y,
+                third,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.wide"),
+                Ui.ACCENT,
+                () -> setSlim(false)));
+        slimButton = host.add(new FlatButton(
+                left + third + GAP,
+                y,
+                third,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.slim"),
+                Ui.ACCENT,
+                () -> setSlim(true)));
+        reset = host.add(new FlatButton(
+                left + 2 * (third + GAP),
+                y,
+                width - 2 * (third + GAP),
+                FIELD,
+                Component.translatable("friendai.menu.appearance.reset"),
+                Ui.WARN,
+                AppearanceTab::resetSkin));
         statusY = y + FIELD + GAP;
-        host.add(new FlatButton(left, statusY + HEADING + GAP, width, FIELD,
-                Component.translatable("friendai.menu.appearance.find_skins"), Ui.PURPLE, AppearanceTab::openSkinSite));
+        host.add(new FlatButton(
+                left,
+                statusY + HEADING + GAP,
+                width,
+                FIELD,
+                Component.translatable("friendai.menu.appearance.find_skins"),
+                Ui.PURPLE,
+                AppearanceTab::openSkinSite));
         tick();
     }
 
@@ -144,7 +203,8 @@ final class AppearanceTab implements MenuTab {
 
     @Override
     public void tick() {
-        boolean present = CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
+        boolean present =
+                CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
         boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale() && present;
         boolean skins = connected && CompanionRequests.skinsSupported();
         rename.active = connected;
@@ -159,8 +219,13 @@ final class AppearanceTab implements MenuTab {
     public void render(
             GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
         Ui.heading(g, font, Component.translatable("friendai.menu.appearance.name"), left, top, width);
-        Ui.heading(g, font, Component.translatable("friendai.menu.appearance.skin"), left,
-                top + HEADING + FIELD + GAP, width);
+        Ui.heading(
+                g,
+                font,
+                Component.translatable("friendai.menu.appearance.skin"),
+                left,
+                top + HEADING + FIELD + GAP,
+                width);
         Ui.text(g, font, Ui.clip(font, status.getString(), width), left, statusY, statusColor);
     }
 }

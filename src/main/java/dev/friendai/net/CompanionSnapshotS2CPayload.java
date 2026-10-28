@@ -13,7 +13,8 @@ public record CompanionSnapshotS2CPayload(CompanionSnapshot snapshot) implements
             new CustomPacketPayload.Type<>(FriendaiMod.id("companion_snapshot"));
     public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, CompanionSnapshotS2CPayload> CODEC =
             ByteBufCodecs.byteArray(1 << 20)
-                    .map(bytes -> new CompanionSnapshotS2CPayload(SnapshotCodec.decode(bytes)),
+                    .map(
+                            bytes -> new CompanionSnapshotS2CPayload(SnapshotCodec.decode(bytes)),
                             p -> SnapshotCodec.encode(p.snapshot()))
                     .cast();
 

@@ -122,7 +122,8 @@ public final class VoiceHud {
     }
 
     /** The vanilla window body: a black outline, a light top-left bevel, a grey fill and a dark bottom-right bevel. */
-    private static void drawPanel(GuiGraphicsExtractor graphics, int x, int y, int width, int height, float visibility) {
+    private static void drawPanel(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, float visibility) {
         graphics.fill(x, y, x + width, y + height, withAlpha(OUTLINE, visibility));
         graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, withAlpha(HIGHLIGHT, visibility));
         graphics.fill(x + 2, y + 2, x + width - 2, y + height - 2, withAlpha(PANEL, visibility));
@@ -145,8 +146,7 @@ public final class VoiceHud {
         for (int i = 0; i < 3; i++) {
             float phase = 0.35f + 0.65f * (0.5f + 0.5f * (float) Math.sin(seconds * 7.0 - i * 1.1));
             int x = startX + i * SMALL_DOT_STEP;
-            graphics.fill(
-                    x, top, x + SMALL_DOT, top + SMALL_DOT, withAlpha(ACCENT_TRANSCRIBING, visibility * phase));
+            graphics.fill(x, top, x + SMALL_DOT, top + SMALL_DOT, withAlpha(ACCENT_TRANSCRIBING, visibility * phase));
         }
     }
 

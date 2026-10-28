@@ -54,8 +54,8 @@ class WeaponPolicyTest {
 
     @Test
     void rangedStyleKeepsUsefulRange() {
-        WeaponPolicy.Score score = WeaponPolicy.score(
-                WeaponPolicy.Facts.bow(0.9, 10.0, true, false), FightingStyle.RANGED);
+        WeaponPolicy.Score score =
+                WeaponPolicy.score(WeaponPolicy.Facts.bow(0.9, 10.0, true, false), FightingStyle.RANGED);
         assertTrue(score.usable());
         assertEquals(WeaponPolicy.Intent.KEEP_RANGE, score.intent());
         assertEquals(WeaponPolicy.BOW_DISTANCE, score.preferredDistance(), 1e-9);

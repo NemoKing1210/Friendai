@@ -173,7 +173,8 @@ public final class CompanionManager {
             return null;
         }
         BlockState footState = level.getBlockState(foot);
-        if (!footState.is(BlockTags.BEDS) || !footState.hasProperty(BlockStateProperties.BED_PART)
+        if (!footState.is(BlockTags.BEDS)
+                || !footState.hasProperty(BlockStateProperties.BED_PART)
                 || !footState.hasProperty(HorizontalDirectionalBlock.FACING)
                 || footState.getValue(BlockStateProperties.BED_PART) != BedPart.FOOT) {
             return null;
@@ -183,12 +184,14 @@ public final class CompanionManager {
             return null;
         }
         BlockState headState = level.getBlockState(head);
-        if (!headState.is(BlockTags.BEDS) || !headState.hasProperty(BlockStateProperties.BED_PART)
+        if (!headState.is(BlockTags.BEDS)
+                || !headState.hasProperty(BlockStateProperties.BED_PART)
                 || !headState.hasProperty(HorizontalDirectionalBlock.FACING)
                 || headState.getValue(BlockStateProperties.BED_PART) != BedPart.HEAD
                 || headState.getValue(HorizontalDirectionalBlock.FACING)
                         != footState.getValue(HorizontalDirectionalBlock.FACING)
-                || !headState.hasProperty(BedBlock.OCCUPIED) || headState.getValue(BedBlock.OCCUPIED)) {
+                || !headState.hasProperty(BedBlock.OCCUPIED)
+                || headState.getValue(BedBlock.OCCUPIED)) {
             return null;
         }
         List<BlockPos> candidates = new ArrayList<>();
@@ -205,9 +208,11 @@ public final class CompanionManager {
             if (!level.hasChunkAt(pos) || !level.hasChunkAt(pos.above()) || !level.hasChunkAt(below)) {
                 continue;
             }
-            if (level.getBlockState(pos).isAir() && level.getBlockState(pos.above()).isAir()
+            if (level.getBlockState(pos).isAir()
+                    && level.getBlockState(pos.above()).isAir()
                     && level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
-                    && level.getEntities(null, new AABB(pos).expandTowards(0, 1, 0)).isEmpty()) {
+                    && level.getEntities(null, new AABB(pos).expandTowards(0, 1, 0))
+                            .isEmpty()) {
                 return pos;
             }
         }
@@ -253,8 +258,8 @@ public final class CompanionManager {
         }
         // Detach without notifying removal listeners: the replacement may load before the old entity unloads.
         byOwner.remove(owner.getUUID());
-        Entity moved = companion.teleport(new TeleportTransition(
-                level, target, Vec3.ZERO, owner.getYRot(), 0.0F, TeleportTransition.DO_NOTHING));
+        Entity moved = companion.teleport(
+                new TeleportTransition(level, target, Vec3.ZERO, owner.getYRot(), 0.0F, TeleportTransition.DO_NOTHING));
         if (moved instanceof CompanionEntity next) {
             register(next);
             return true;
@@ -275,9 +280,11 @@ public final class CompanionManager {
         candidates.add(feet);
         for (BlockPos pos : candidates) {
             BlockPos below = pos.below();
-            if (level.getBlockState(pos).isAir() && level.getBlockState(pos.above()).isAir()
+            if (level.getBlockState(pos).isAir()
+                    && level.getBlockState(pos.above()).isAir()
                     && level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
-                    && level.getEntities(owner, new AABB(pos).expandTowards(0, 1, 0)).isEmpty()) {
+                    && level.getEntities(owner, new AABB(pos).expandTowards(0, 1, 0))
+                            .isEmpty()) {
                 return pos;
             }
         }

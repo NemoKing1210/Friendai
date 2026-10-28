@@ -27,9 +27,14 @@ public final class VisitResourceTask implements Task {
         this.maxTicks = Math.max(1, maxTicks);
     }
 
-    public ResourceCandidates.Verification result() { return result; }
+    public ResourceCandidates.Verification result() {
+        return result;
+    }
 
-    @Override public String type() { return "visit_resource"; }
+    @Override
+    public String type() {
+        return "visit_resource";
+    }
 
     @Override
     public void start(TaskContext c) {
@@ -41,15 +46,22 @@ public final class VisitResourceTask implements Task {
             result = ResourceCandidates.Verification.UNLOADED;
             return;
         }
-        ResourceSite site = FriendaiServerState.get(c.level().getServer()).resources()
-                .site(c.companion(), siteId).orElse(null);
+        ResourceSite site = FriendaiServerState.get(c.level().getServer())
+                .resources()
+                .site(c.companion(), siteId)
+                .orElse(null);
         if (site == null) {
             result = ResourceCandidates.Verification.ABSENT;
             return;
         }
         Pos approach = site.approach();
-        journey = new ResourceJourney(c, dimension, approach, null,
-                FriendaiServerState.get(c.level().getServer()).resources().trails(c.companion()), false);
+        journey = new ResourceJourney(
+                c,
+                dimension,
+                approach,
+                null,
+                FriendaiServerState.get(c.level().getServer()).resources().trails(c.companion()),
+                false);
     }
 
     @Override
@@ -58,9 +70,10 @@ public final class VisitResourceTask implements Task {
             result = ResourceCandidates.Verification.UNLOADED;
             return TaskStatus.FAILED;
         }
-        if (result == ResourceCandidates.Verification.ABSENT
-                || result == ResourceCandidates.Verification.UNLOADED) return TaskStatus.FAILED;
-        ResourceCandidates candidates = FriendaiServerState.get(c.level().getServer()).resources();
+        if (result == ResourceCandidates.Verification.ABSENT || result == ResourceCandidates.Verification.UNLOADED)
+            return TaskStatus.FAILED;
+        ResourceCandidates candidates =
+                FriendaiServerState.get(c.level().getServer()).resources();
         if (!observing) {
             ResourceJourney.State state = journey.tick(c);
             if (state == ResourceJourney.State.BLOCKED || state == ResourceJourney.State.WAITING_FOR_CHUNK) {
@@ -86,9 +99,18 @@ public final class VisitResourceTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    @Override public void stop(TaskContext c) { if (journey != null) journey.stop(c); }
-    @Override public String describe() { return "visiting remembered resource site " + siteId; }
-    @Override public String resultSummary() {
+    @Override
+    public void stop(TaskContext c) {
+        if (journey != null) journey.stop(c);
+    }
+
+    @Override
+    public String describe() {
+        return "visiting remembered resource site " + siteId;
+    }
+
+    @Override
+    public String resultSummary() {
         String value = "site=" + siteId + "; phase=" + (observing ? "inspect" : "travel")
                 + "; result=" + result.name().toLowerCase(java.util.Locale.ROOT)
                 + "; ticks=" + ticks + "/" + maxTicks

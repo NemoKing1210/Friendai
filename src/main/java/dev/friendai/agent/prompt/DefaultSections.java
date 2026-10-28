@@ -8,26 +8,37 @@ import java.util.function.Function;
 
 /** The sections of the companion's system prompt, in the order they are assembled. */
 public final class DefaultSections {
-    public static final String SPEECH_RULES =
-            "Speech:\n"
-                    + "- You are a person, not a status screen. Answer; do not narrate your own work.\n"
-                    + "- Say each thing once. Do not restate what the player already knows from the conversation.\n"
-                    + "- Other words are still a repeat: if an event only confirms what you already told the player, reply exactly [silent].\n"
-                    + "- Do not narrate plan steps. Report the outcome once, when it is known.\n"
-                    + "- Give coordinates only when the player asks where something is. Otherwise use direction and distance (\"behind you\", \"a few blocks west\").\n"
-                    + "- Do not recite your inventory or state unless asked or something important changed.\n"
-                    + "- Never say task numbers, tool names, or ids like minecraft:oak_log; use plain words.\n"
-                    + "- For planks and sticks, any log works; prefer wood you can see nearby over travelling for a named species.\n"
-                    + "- If you are not sure of a fact, say so. Do not invent details and correct them later.\n"
-                    + "- Do not end every reply with a question; ask only when the next step depends on the answer.\n"
-                    + "- Do not lecture about your abilities: one sentence, then what you can actually do.\n"
-                    + "- When a step only calls a tool and you have nothing to tell the player, reply exactly [silent].";
+    public static final String SPEECH_RULES = "Speech:\n"
+            + "- You are a person, not a status screen. Answer; do not narrate your own work.\n"
+            + "- Say each thing once. Do not restate what the player already knows from the conversation.\n"
+            + "- Other words are still a repeat: if an event only confirms what you already told the player, reply exactly [silent].\n"
+            + "- Do not narrate plan steps. Report the outcome once, when it is known.\n"
+            + "- Give coordinates only when the player asks where something is. Otherwise use direction and distance (\"behind you\", \"a few blocks west\").\n"
+            + "- Do not recite your inventory or state unless asked or something important changed.\n"
+            + "- Never say task numbers, tool names, or ids like minecraft:oak_log; use plain words.\n"
+            + "- For planks and sticks, any log works; prefer wood you can see nearby over travelling for a named species.\n"
+            + "- If you are not sure of a fact, say so. Do not invent details and correct them later.\n"
+            + "- Do not end every reply with a question; ask only when the next step depends on the answer.\n"
+            + "- Do not lecture about your abilities: one sentence, then what you can actually do.\n"
+            + "- When a step only calls a tool and you have nothing to tell the player, reply exactly [silent].";
 
     private DefaultSections() {}
 
     /** Identity, speech, rules, role, memory, mission, places and state; priorities decide what a tight budget cuts first. */
     public static List<PromptSection> all() {
-        return List.of(identity(), speech(), protocol(), rules(), toolHints(), trading(), role(), memory(), mission(), placed(), places(), state());
+        return List.of(
+                identity(),
+                speech(),
+                protocol(),
+                rules(),
+                toolHints(),
+                trading(),
+                role(),
+                memory(),
+                mission(),
+                placed(),
+                places(),
+                state());
     }
 
     /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
@@ -50,9 +61,18 @@ public final class DefaultSections {
 
     private static PromptSection of(String id, int priority, Function<TurnContext, String> render) {
         return new PromptSection() {
-            @Override public String id() { return id; }
-            @Override public int priority() { return priority; }
-            @Override public Optional<String> render(TurnContext ctx) {
+            @Override
+            public String id() {
+                return id;
+            }
+
+            @Override
+            public int priority() {
+                return priority;
+            }
+
+            @Override
+            public Optional<String> render(TurnContext ctx) {
                 String text = render.apply(ctx);
                 return text == null || text.isEmpty() ? Optional.empty() : Optional.of(text);
             }
@@ -80,7 +100,8 @@ public final class DefaultSections {
             String turnLine = ctx.turn() == dev.friendai.brain.TurnKind.EVENT
                     ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent]."
                     : "This turn: the player is talking to you now.";
-            return "You are " + p.name() + ", the player's companion in Minecraft. Description: " + p.description() + "\n"
+            return "You are " + p.name() + ", the player's companion in Minecraft. Description: " + p.description()
+                    + "\n"
                     + languageRule + "\n"
                     + turnLine;
         });
@@ -117,19 +138,23 @@ public final class DefaultSections {
 
     /** Guidance for the tools visible this turn; the first thing a tight budget cuts. */
     static PromptSection toolHints() {
-        return of("tool_hints", 40, ctx -> ctx.toolHints().isEmpty()
-                ? ""
-                : "Tool notes:\n" + String.join("\n", ctx.toolHints()));
+        return of(
+                "tool_hints",
+                40,
+                ctx -> ctx.toolHints().isEmpty() ? "" : "Tool notes:\n" + String.join("\n", ctx.toolHints()));
     }
 
     /** Observed market context is private to the owner and always labeled as historical evidence. */
     static PromptSection trading() {
-        return of("trading", 35, ctx -> ctx.caller().access() == AccessLevel.OWNER
-                && ctx.tradingSummary().length() > 0
-                ? "Owner's observed trading offers (historical; inspect the live trader and price before spending):\n"
-                        + ctx.tradingSummary()
-                        + "\nPiglin barter rewards are random; never promise a specific drop."
-                : "");
+        return of(
+                "trading",
+                35,
+                ctx -> ctx.caller().access() == AccessLevel.OWNER
+                                && ctx.tradingSummary().length() > 0
+                        ? "Owner's observed trading offers (historical; inspect the live trader and price before spending):\n"
+                                + ctx.tradingSummary()
+                                + "\nPiglin barter rewards are random; never promise a specific drop."
+                        : "");
     }
 
     static PromptSection role() {
@@ -160,14 +185,14 @@ public final class DefaultSections {
 
     /** The owner's goal; a guest's prompt never carries it. */
     static PromptSection mission() {
-        return of("mission", 70,
-                ctx -> ctx.caller().access().allows(AccessLevel.TRUSTED) ? ctx.mission() : "");
+        return of("mission", 70, ctx -> ctx.caller().access().allows(AccessLevel.TRUSTED) ? ctx.mission() : "");
     }
 
     /** The blocks the companion placed and may take back; the ledger facade enforces the same guest gate. */
     static PromptSection placed() {
         return of("placed", 75, ctx -> {
-            if (!ctx.caller().access().allows(AccessLevel.TRUSTED) || ctx.placedBlock().isBlank()) {
+            if (!ctx.caller().access().allows(AccessLevel.TRUSTED)
+                    || ctx.placedBlock().isBlank()) {
                 return "";
             }
             return ctx.placedBlock();
@@ -177,7 +202,8 @@ public final class DefaultSections {
     /** The places block, rendered verbatim; the service that builds it enforces the same guest gate. */
     static PromptSection places() {
         return of("places", 80, ctx -> {
-            if (!ctx.caller().access().allows(AccessLevel.TRUSTED) || ctx.places().isBlank()) {
+            if (!ctx.caller().access().allows(AccessLevel.TRUSTED)
+                    || ctx.places().isBlank()) {
                 return "";
             }
             return ctx.places();

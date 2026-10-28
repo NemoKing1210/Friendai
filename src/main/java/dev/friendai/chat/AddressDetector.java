@@ -12,8 +12,7 @@ public record AddressDetector(String name, String prefix, boolean respondToName,
     /** @return the text for the brain, or empty if the message is not for the companion */
     public Optional<String> match(String message) {
         String msg = message.strip();
-        Pattern leadingName = Pattern.compile(
-                "^" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")[,:!]?\\s*", FLAGS);
+        Pattern leadingName = Pattern.compile("^" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")[,:!]?\\s*", FLAGS);
 
         if (prefix != null && !prefix.isEmpty() && msg.startsWith(prefix)) {
             String rest = msg.substring(prefix.length()).stripLeading();
@@ -21,8 +20,8 @@ public record AddressDetector(String name, String prefix, boolean respondToName,
             return Optional.of(rest.isBlank() ? message : rest.strip());
         }
         if (respondToName) {
-            Pattern anywhere = Pattern.compile(
-                    "(?<!" + WORD_CHARS + ")" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")", FLAGS);
+            Pattern anywhere =
+                    Pattern.compile("(?<!" + WORD_CHARS + ")" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")", FLAGS);
             Matcher m = anywhere.matcher(msg);
             if (m.find()) {
                 if (m.start() == 0) {

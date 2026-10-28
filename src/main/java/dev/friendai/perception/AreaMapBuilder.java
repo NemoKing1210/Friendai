@@ -1,8 +1,8 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -40,7 +40,8 @@ public final class AreaMapBuilder {
             if (blockId.equals("minecraft:water")) {
                 return '~';
             }
-            if (blockId.equals("minecraft:lava") || blockId.equals("minecraft:fire")
+            if (blockId.equals("minecraft:lava")
+                    || blockId.equals("minecraft:fire")
                     || blockId.equals("minecraft:soul_fire")) {
                 return '^';
             }

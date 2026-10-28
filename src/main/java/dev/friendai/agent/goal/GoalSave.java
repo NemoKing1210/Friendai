@@ -52,7 +52,8 @@ public final class GoalSave {
             return Optional.empty();
         }
         try {
-            JsonObject root = JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
+            JsonObject root =
+                    JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
             List<Goal> goals = new ArrayList<>();
             for (JsonElement element : root.getAsJsonArray("goals")) {
                 JsonObject g = element.getAsJsonObject();

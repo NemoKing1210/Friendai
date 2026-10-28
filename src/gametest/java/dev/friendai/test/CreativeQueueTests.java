@@ -39,36 +39,54 @@ public final class CreativeQueueTests {
         GameTestSupport.platform(h, 8);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer trusted = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
-        owner.level().getServer().getPlayerList().op(owner.nameAndId(),
-                Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        h.assertTrue(CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+        owner.level()
+                .getServer()
+                .getPlayerList()
+                .op(owner.nameAndId(), Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        h.assertTrue(
+                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
 
         var runner = companion.taskRunner();
         runner.setPaused(true);
-        long jobId = runner.enqueue(new QueuedStep("place_block", new JsonObject(), null, List.of(),
-                        GuardAction.WAIT, FailurePolicy.ASK, 1, List.of(), owner.getUUID(), true),
+        long jobId = runner.enqueue(
+                new QueuedStep(
+                        "place_block",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        true),
                 context -> new StayTask());
         runner.queue().fail(jobId, "simulated failed creative action");
-        h.assertTrue(runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
+        h.assertTrue(
+                runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
                 "creative job did not reach FAILED state");
 
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
         ToolResult trustedRetry = retry(tools, jobId, caller(trusted, AccessLevel.TRUSTED));
         h.assertTrue(trustedRetry.error(), "trusted caller retried an owner creative job: " + trustedRetry.content());
-        h.assertTrue(runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
+        h.assertTrue(
+                runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
                 "denied trusted retry changed the job state");
 
         runner.setPaused(false);
         runner.tick();
-        h.assertTrue(runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
+        h.assertTrue(
+                runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
                 "denied retry still ran the creative task");
 
         ToolResult ownerRetry = retry(tools, jobId, caller(owner, AccessLevel.OWNER));
         h.assertTrue(!ownerRetry.error(), "owner retry was refused: " + ownerRetry.content());
         runner.tick();
-        h.assertTrue(runner.queue().job(jobId).orElseThrow().state() == JobState.RUNNING,
+        h.assertTrue(
+                runner.queue().job(jobId).orElseThrow().state() == JobState.RUNNING,
                 "authorized owner retry did not run the creative task");
         h.succeed();
     }

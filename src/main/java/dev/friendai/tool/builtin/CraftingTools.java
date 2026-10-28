@@ -33,20 +33,30 @@ final class CraftingTools {
     private CraftingTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(registry, defs, new TaskToolDef("craft_item",
-                "Craft an item from the companion's inventory, crafting intermediate items (planks, sticks, a crafting table) as needed. Uses a nearby crafting table, stonecutter or smithing table, or places its own. Call get_recipe first for anything complex.",
-                SchemaBuilder.object()
-                        .string("item", "Item id like minecraft:stick; tags are not accepted")
-                        .integer("count", "How many to craft; ones already carried do not count", 1, 64)
-                        .enumeration("station", "What to do with a station the companion places itself", "keep", "take")
-                        .required("item", "count")
-                        .build(),
-                (c, a) -> {
-                    String item = itemId(a.get("item").getAsString());
-                    int count = a.get("count").getAsInt();
-                    return new CraftTask(item, count, policy(a));
-                }, true));
-        registry.register(ToolKit.instantTool("get_recipe",
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "craft_item",
+                        "Craft an item from the companion's inventory, crafting intermediate items (planks, sticks, a crafting table) as needed. Uses a nearby crafting table, stonecutter or smithing table, or places its own. Call get_recipe first for anything complex.",
+                        SchemaBuilder.object()
+                                .string("item", "Item id like minecraft:stick; tags are not accepted")
+                                .integer("count", "How many to craft; ones already carried do not count", 1, 64)
+                                .enumeration(
+                                        "station",
+                                        "What to do with a station the companion places itself",
+                                        "keep",
+                                        "take")
+                                .required("item", "count")
+                                .build(),
+                        (c, a) -> {
+                            String item = itemId(a.get("item").getAsString());
+                            int count = a.get("count").getAsInt();
+                            return new CraftTask(item, count, policy(a));
+                        },
+                        true));
+        registry.register(ToolKit.instantTool(
+                "get_recipe",
                 "Show how an item is crafted, which station it needs, and whether the companion can craft it now from its inventory.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:stick; tags are not accepted")
@@ -55,7 +65,9 @@ final class CraftingTools {
                         .build(),
                 (c, a) -> {
                     String item = itemId(a.get("item").getAsString());
-                    int count = a.has("count") && !a.get("count").isJsonNull() ? a.get("count").getAsInt() : 1;
+                    int count = a.has("count") && !a.get("count").isJsonNull()
+                            ? a.get("count").getAsInt()
+                            : 1;
                     return ToolResult.ok(recipeText(c, item, count));
                 }));
     }
@@ -67,8 +79,9 @@ final class CraftingTools {
         return switch (args.get("station").getAsString()) {
             case "keep" -> StationPolicy.KEEP;
             case "take" -> StationPolicy.TAKE;
-            default -> throw new IllegalArgumentException(
-                    "station must be keep or take: " + args.get("station").getAsString());
+            default ->
+                throw new IllegalArgumentException(
+                        "station must be keep or take: " + args.get("station").getAsString());
         };
     }
 
@@ -102,7 +115,11 @@ final class CraftingTools {
         text.append('\n').append(CraftText.planText(plan, item, count));
         int carried = items.getOrDefault(item, 0);
         if (carried > 0) {
-            text.append('\n').append("already carries ").append(carried).append(" × ").append(item);
+            text.append('\n')
+                    .append("already carries ")
+                    .append(carried)
+                    .append(" × ")
+                    .append(item);
         }
         return text.toString();
     }

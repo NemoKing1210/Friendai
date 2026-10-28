@@ -29,13 +29,17 @@ public class GoalTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
-        ToolResult r = call(c, owner(player), "set_goal",
+        ToolResult r = call(
+                c,
+                owner(player),
+                "set_goal",
                 "{\"text\":\"gather 12 logs\",\"criteria\":[{\"text\":\"12 logs\",\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":12},{\"text\":\"tell the owner\"}]}");
         h.assertFalse(r.error(), "error: " + r.content());
         var state = FriendaiServerState.get(h.getLevel().getServer());
         var board = state.goals().board(player.getUUID());
         h.assertTrue(board.primary().isPresent(), "a primary goal exists");
-        h.assertTrue(board.primary().get().criteria().get(0).check().isPresent(), "the guard criterion keeps its check");
+        h.assertTrue(
+                board.primary().get().criteria().get(0).check().isPresent(), "the guard criterion keeps its check");
         h.assertTrue(board.primary().get().criteria().get(1).check().isEmpty(), "the text criterion has no check");
         h.assertTrue(state.memory().book(player.getUUID()).goals().isPresent(), "the book holds the encoded goals");
         h.succeed();
@@ -47,14 +51,18 @@ public class GoalTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
         CompanionEntity c = manager.summon(player);
-        h.assertFalse(call(c, owner(player), "set_goal", "{\"text\":\"build a house\"}").error(), "set_goal works");
+        h.assertFalse(
+                call(c, owner(player), "set_goal", "{\"text\":\"build a house\"}")
+                        .error(),
+                "set_goal works");
         manager.dismiss(player);
         manager.summon(player);
 
         var state = FriendaiServerState.get(h.getLevel().getServer());
         GoalService fresh = new GoalService(state.memory()::book, () -> 3);
-        h.assertTrue(fresh.board(player.getUUID()).primary().isPresent()
-                && fresh.board(player.getUUID()).primary().get().text().equals("build a house"),
+        h.assertTrue(
+                fresh.board(player.getUUID()).primary().isPresent()
+                        && fresh.board(player.getUUID()).primary().get().text().equals("build a house"),
                 "a board decoded from the book still has the goal");
         h.succeed();
     }
@@ -64,11 +72,19 @@ public class GoalTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
-        ToolResult r = call(c, new Caller(java.util.UUID.randomUUID(), "Gus", AccessLevel.GUEST), "set_goal",
+        ToolResult r = call(
+                c,
+                new Caller(java.util.UUID.randomUUID(), "Gus", AccessLevel.GUEST),
+                "set_goal",
                 "{\"text\":\"take over\"}");
         h.assertTrue(r.error(), "a guest must be refused");
-        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).goals()
-                .board(player.getUUID()).primary().isEmpty(), "no goal was stored");
+        h.assertTrue(
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .goals()
+                        .board(player.getUUID())
+                        .primary()
+                        .isEmpty(),
+                "no goal was stored");
         h.succeed();
     }
 
@@ -77,11 +93,19 @@ public class GoalTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
-        ToolResult r = call(c, new Caller(java.util.UUID.randomUUID(), "Tom", AccessLevel.TRUSTED), "set_goal",
+        ToolResult r = call(
+                c,
+                new Caller(java.util.UUID.randomUUID(), "Tom", AccessLevel.TRUSTED),
+                "set_goal",
                 "{\"text\":\"kill the villagers\"}");
         h.assertTrue(r.error(), "a trusted player must be refused");
-        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).goals()
-                .board(player.getUUID()).primary().isEmpty(), "no goal was stored");
+        h.assertTrue(
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .goals()
+                        .board(player.getUUID())
+                        .primary()
+                        .isEmpty(),
+                "no goal was stored");
         h.succeed();
     }
 
@@ -93,8 +117,16 @@ public class GoalTests {
         Caller owner = owner(player);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"first\"}").error(), "first goal");
         h.assertTrue(call(c, owner, "set_goal", "{\"text\":\"second\"}").error(), "second primary is refused");
-        long id = FriendaiServerState.get(h.getLevel().getServer()).goals().board(player.getUUID()).primary().get().id();
-        h.assertFalse(call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"ok\"}").error(), "finish works");
+        long id = FriendaiServerState.get(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .get()
+                .id();
+        h.assertFalse(
+                call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"ok\"}")
+                        .error(),
+                "finish works");
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"second\"}").error(), "the slot is free again");
         h.succeed();
     }
@@ -108,7 +140,11 @@ public class GoalTests {
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"stay put\"}").error(), "goal set");
         ToolResult r = call(c, owner, "queue_add", "{\"goal\":\"stay\",\"steps\":[{\"tool\":\"jump\"}]}");
         h.assertFalse(r.error(), "queue_add error: " + r.content());
-        var goal = FriendaiServerState.get(h.getLevel().getServer()).goals().board(player.getUUID()).primary().get();
+        var goal = FriendaiServerState.get(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .get();
         h.assertTrue(goal.planId() != 0, "the plan is linked to the goal");
         h.succeed();
     }

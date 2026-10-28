@@ -29,12 +29,7 @@ public final class PlacedQuery {
 
     /** Selects entries in one dimension within {@code radius} of {@code origin}, nearest first. */
     public static Result find(
-            PlacedBook book,
-            String dimension,
-            Pos origin,
-            int radius,
-            Predicate<PlacedBlock> filter,
-            int limit) {
+            PlacedBook book, String dimension, Pos origin, int radius, Predicate<PlacedBlock> filter, int limit) {
         Objects.requireNonNull(book, "book");
         Objects.requireNonNull(dimension, "dimension");
         Objects.requireNonNull(origin, "origin");
@@ -46,8 +41,7 @@ public final class PlacedQuery {
                 matched.add(block);
             }
         }
-        matched.sort(Comparator
-                .comparingDouble((PlacedBlock block) -> distanceSquared(origin, block.pos()))
+        matched.sort(Comparator.comparingDouble((PlacedBlock block) -> distanceSquared(origin, block.pos()))
                 .thenComparingInt(block -> block.pos().x())
                 .thenComparingInt(block -> block.pos().y())
                 .thenComparingInt(block -> block.pos().z()));

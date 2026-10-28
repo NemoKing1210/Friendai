@@ -4,8 +4,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.movement.PathSteering;
 import dev.friendai.pathing.CellView;
 import dev.friendai.pathing.CostModel;
-import dev.friendai.pathing.MoveGenerator;
 import dev.friendai.pathing.Move;
+import dev.friendai.pathing.MoveGenerator;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
 import dev.friendai.pathing.PathingConfig;
@@ -20,8 +20,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
@@ -33,15 +33,21 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  * several ticks may pass before its route starts. A step that no longer holds fails, and the caller searches again.
  */
 public final class PathExecutor {
-    public enum State { RUNNING, DONE, FAILED }
+    public enum State {
+        RUNNING,
+        DONE,
+        FAILED
+    }
 
     /** How many ticks a placement may take before the step is given up. */
     private static final int PLACE_TIMEOUT = 40;
     /** How many ticks the companion may take to rise one block after the jump of a pillar. */
     private static final int JUMP_TIMEOUT = 20;
+
     private static final double MOVE_SPEED = 1.0;
     /** Blocks per tick while swimming; set directly, because a mob's own water acceleration is very slow. */
     private static final double SWIM_SPEED = 0.14;
+
     private static final double DIVE_SPEED = 0.15;
     private static final double RISE_SPEED = 0.2;
     private static final int STUCK_WINDOW = 10;
@@ -55,7 +61,12 @@ public final class PathExecutor {
     /** How long the companion picks up after a break: the vanilla pickup delay plus a few ticks to walk onto it. */
     private static final int PICKUP_TICKS = 15;
 
-    private enum Phase { CHECK, BREAK, PLACE, MOVE }
+    private enum Phase {
+        CHECK,
+        BREAK,
+        PLACE,
+        MOVE
+    }
 
     private final Path path;
     private final MaterialPicker materials;
@@ -80,6 +91,7 @@ public final class PathExecutor {
     private int jumpTicks;
     /** Ticks left in which a drop from a dug cell is picked up. Armed only by a break, so walking collects nothing. */
     private int pickupTicks;
+
     private double stepStartY;
     private int lowestY;
     private double progressX;
@@ -101,7 +113,11 @@ public final class PathExecutor {
      * @param ledger records every block this route places, so the caller can take a pillar or bridge down after the
      *     job; null for routes whose placements are meant to stay, like a build.
      */
-    public PathExecutor(Path path, MaterialPicker materials, PathingConfig config, PathExecutionGuard guard,
+    public PathExecutor(
+            Path path,
+            MaterialPicker materials,
+            PathingConfig config,
+            PathExecutionGuard guard,
             PlacementLedger ledger) {
         this.path = path;
         this.materials = materials;
@@ -360,18 +376,20 @@ public final class PathExecutor {
         FeetTarget target = feetTarget(c, step);
         boolean climbing = step.move() == Move.CLIMB;
         boolean holding = climbing || (!companion.onGround() && step.move() == Move.DESCEND);
-        float yaw = PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(),
-                companion.getYRot(), holding);
+        float yaw =
+                PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(), companion.getYRot(), holding);
         if (yaw != companion.getYRot()) {
             companion.setYRot(yaw);
             companion.setYBodyRot(yaw);
         }
         double radians = Math.toRadians(companion.getYRot());
-        companion.getMoveControl().setWantedPosition(
-                companion.getX() - Math.sin(radians),
-                target.y(),
-                companion.getZ() + Math.cos(radians),
-                MOVE_SPEED);
+        companion
+                .getMoveControl()
+                .setWantedPosition(
+                        companion.getX() - Math.sin(radians),
+                        target.y(),
+                        companion.getZ() + Math.cos(radians),
+                        MOVE_SPEED);
         boolean up = step.to().y() > step.from().y();
         if (companion.isInWater()) {
             double dx = step.to().x() + 0.5 - companion.getX();
@@ -382,15 +400,17 @@ public final class PathExecutor {
             double horizontal = distance < 1.0e-4 ? 0.0 : Math.min(SWIM_SPEED, distance) / distance;
             companion.setDeltaMovement(dx * horizontal, swimVertical(c, step, target, velocity.y, up), dz * horizontal);
         }
-        if (up && (step.move() == Move.CLIMB || step.move() == Move.SWIM || step.move() == Move.ASCEND
-                || step.move() == Move.DIG_ASCEND)
+        if (up
+                && (step.move() == Move.CLIMB
+                        || step.move() == Move.SWIM
+                        || step.move() == Move.ASCEND
+                        || step.move() == Move.DIG_ASCEND)
                 && (climbing || companion.onClimbable() || companion.isInWater())) {
             var velocity = companion.getDeltaMovement();
             // At the top of a scaffold vanilla switches from climbing to a normal jump.  The climb impulse alone
             // stops at the top collision face, so hand that transition to the mob's jump control below.
             double vertical = climbing && !companion.onClimbable() ? velocity.y : Math.max(velocity.y, 0.2);
-            companion.setDeltaMovement(climbing ? 0.0 : velocity.x, vertical,
-                    climbing ? 0.0 : velocity.z);
+            companion.setDeltaMovement(climbing ? 0.0 : velocity.x, vertical, climbing ? 0.0 : velocity.z);
         }
         if (++progressTicks >= STUCK_WINDOW) {
             double dx = companion.getX() - progressX;
@@ -411,7 +431,9 @@ public final class PathExecutor {
             progressZ = companion.getZ();
             progressTicks = 0;
         }
-        if (step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND || step.move() == Move.JUMP_GAP
+        if (step.move() == Move.ASCEND
+                || step.move() == Move.DIG_ASCEND
+                || step.move() == Move.JUMP_GAP
                 || (step.move() == Move.PILLAR && !jumped)) {
             if (companion.onGround() && needsJump(companion, step, target)) {
                 companion.getJumpControl().jump();
@@ -439,7 +461,8 @@ public final class PathExecutor {
      */
     private static double swimVertical(TaskContext c, PathStep step, FeetTarget target, double current, boolean up) {
         if (step.move() == Move.SWIM || step.move() == Move.DESCEND) {
-            BlockPos head = new BlockPos(step.to().x(), step.to().y() + 1, step.to().z());
+            BlockPos head =
+                    new BlockPos(step.to().x(), step.to().y() + 1, step.to().z());
             if (c.level().getFluidState(head).is(FluidTags.WATER)) {
                 double error = target.y() - c.companion().getY();
                 return Math.max(-DIVE_SPEED, Math.min(RISE_SPEED, error * 0.5));
@@ -514,9 +537,13 @@ public final class PathExecutor {
         }
         PathStep next = path.steps().get(index + 1);
         boolean plain = (step.move() == Move.WALK || step.move() == Move.WALK_DIAGONAL || step.move() == Move.SWIM)
-                && next.move() == step.move() && next.breaks().isEmpty() && next.places().isEmpty()
-                && step.to().x() - step.from().x() == next.to().x() - next.from().x()
-                && step.to().z() - step.from().z() == next.to().z() - next.from().z();
+                && next.move() == step.move()
+                && next.breaks().isEmpty()
+                && next.places().isEmpty()
+                && step.to().x() - step.from().x()
+                        == next.to().x() - next.from().x()
+                && step.to().z() - step.from().z()
+                        == next.to().z() - next.from().z();
         return plain ? 0.8 : 0.5;
     }
 

@@ -18,8 +18,8 @@ import dev.friendai.llm.model.StopReason;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.llm.model.Usage;
-import dev.friendai.text.UserMessage;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.text.UserMessage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,7 +103,9 @@ public class BrainServiceTests {
         brains.setGatewayOverride(player.getUUID(), script);
         brains.setSpeakerWrapper(player.getUUID(), real -> said);
         CompanionManager.get(server).summon(player);
-        h.assertTrue(!brains.runTool(player.getUUID(), "set_name", "{\"name\":\"Bob\"}").error(),
+        h.assertTrue(
+                !brains.runTool(player.getUUID(), "set_name", "{\"name\":\"Bob\"}")
+                        .error(),
                 "set_name should work for the owner");
         ChatRouter.onChat(player, "Bob, hi");
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
@@ -118,7 +120,9 @@ public class BrainServiceTests {
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionEntity companion = CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> h.assertTrue(
                 companion.isThinking(), "the companion should carry the thinking flag for the client to draw"));
     }
@@ -132,10 +136,17 @@ public class BrainServiceTests {
         h.setBlock(log, Blocks.MANGROVE_LOG);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var companion = CompanionManager.get(h.getLevel().getServer()).summon(player);
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
                 "mangrove log should be directly visible");
-        h.assertTrue(FriendaiServerState.get(h.getLevel().getServer()).resources()
-                        .knownOrVisible(companion, BlockMatcher.parse("minecraft:mangrove_log").orElseThrow(), 8, 8)
+        h.assertTrue(
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .resources()
+                        .knownOrVisible(
+                                companion,
+                                BlockMatcher.parse("minecraft:mangrove_log").orElseThrow(),
+                                8,
+                                8)
                         .contains(h.absolutePos(log)),
                 "the directly observed log should be queryable by the companion");
         var server = h.getLevel().getServer();
@@ -145,12 +156,18 @@ public class BrainServiceTests {
                 .text("On it")
                 .text("Done");
         brains.setGatewayOverride(player.getUUID(), script);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "mine a log", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
-            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(log)).isAir(),
-                    "log should be mined; task=" + companion.taskRunner().current().map(task -> task.type() + ":" + task.resultSummary())
-                            + ", history=" + brains.debug().historyOf(player.getUUID()).recent());
-            h.assertTrue(script.requests.size() == 2,
+            h.assertTrue(
+                    h.getLevel().getBlockState(h.absolutePos(log)).isAir(),
+                    "log should be mined; task="
+                            + companion.taskRunner().current().map(task -> task.type() + ":" + task.resultSummary())
+                            + ", history="
+                            + brains.debug().historyOf(player.getUUID()).recent());
+            h.assertTrue(
+                    script.requests.size() == 2,
                     "a successful queue job must not generate a brain event: " + script.requests.size());
         });
     }
@@ -184,7 +201,9 @@ public class BrainServiceTests {
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionManager.get(server).summon(player);
-        brains.post(player.getUUID(), new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
         h.assertTrue(brains.brainOf(player.getUUID()).get().isThinking(), "brain should be waiting for the LLM");
         brains.onOwnerLeft(player.getUUID());
         h.assertTrue(!brains.brainOf(player.getUUID()).get().isThinking(), "brain should have been cancelled");
@@ -199,7 +218,9 @@ public class BrainServiceTests {
         ServerConfig changed = ServerConfig.defaults();
         changed.profiles.get(changed.activeProfile).model = "swapped-model";
         state.applyConfig(changed);
-        h.assertTrue("swapped-model".equals(state.brains().activeModel()), "model was " + state.brains().activeModel());
+        h.assertTrue(
+                "swapped-model".equals(state.brains().activeModel()),
+                "model was " + state.brains().activeModel());
         state.applyConfig(original);
         h.assertTrue(!"swapped-model".equals(state.brains().activeModel()), "original config should be restored");
         h.succeed();

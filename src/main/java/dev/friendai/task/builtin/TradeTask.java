@@ -39,9 +39,14 @@ public final class TradeTask implements Task {
         this.order = java.util.Objects.requireNonNull(order, "trade order is required");
     }
 
-    public TradeOrder order() { return order; }
+    public TradeOrder order() {
+        return order;
+    }
 
-    @Override public String type() { return "trade_item"; }
+    @Override
+    public String type() {
+        return "trade_item";
+    }
 
     @Override
     public void start(TaskContext context) {
@@ -51,9 +56,13 @@ public final class TradeTask implements Task {
         if (ownerAtStart != null && ownerAtStart.equals(order.owner())) {
             authority = state.brains().tradeAuthorityFor(ownerAtStart);
             progress = currentProgress();
-            traderRecord = state.trading().book(order.owner()).trader(order.trader()).orElse(null);
+            traderRecord =
+                    state.trading().book(order.owner()).trader(order.trader()).orElse(null);
             if (traderRecord != null) {
-                quote = traderRecord.offers().stream().filter(value -> value.ref().equals(order.offerRef())).findFirst().orElse(null);
+                quote = traderRecord.offers().stream()
+                        .filter(value -> value.ref().equals(order.offerRef()))
+                        .findFirst()
+                        .orElse(null);
             }
         }
         navigator = TraderTaskNavigation.navigator(context.companion());
@@ -85,7 +94,8 @@ public final class TradeTask implements Task {
     }
 
     private TaskStatus tickActive(TaskContext context) {
-        if (authority == null) return finish(context, TaskStatus.FAILED, "trade order owner does not match the companion");
+        if (authority == null)
+            return finish(context, TaskStatus.FAILED, "trade order owner does not match the companion");
         if (++ticks > TraderTaskNavigation.MAX_TASK_TICKS) return shortResult(context, "trade task deadline expired");
         String invalid = TraderTaskNavigation.invalidContext(context, ownerAtStart, dimensionAtStart);
         if (invalid != null) return shortResult(context, invalid);
@@ -95,8 +105,11 @@ public final class TradeTask implements Task {
 
         progress = currentProgress();
         if (progress.terminal()) {
-            return finish(context, progress.state() == TradeProgress.State.COMPLETED
-                    || progress.state() == TradeProgress.State.PARTIAL ? TaskStatus.SUCCESS : TaskStatus.FAILED,
+            return finish(
+                    context,
+                    progress.state() == TradeProgress.State.COMPLETED || progress.state() == TradeProgress.State.PARTIAL
+                            ? TaskStatus.SUCCESS
+                            : TaskStatus.FAILED,
                     progress.reason());
         }
 
@@ -110,7 +123,8 @@ public final class TradeTask implements Task {
         }
         if (target == null) {
             FriendaiServerState state = FriendaiServerState.get(context.level().getServer());
-            traderRecord = state.trading().book(order.owner()).trader(order.trader()).orElse(traderRecord);
+            traderRecord =
+                    state.trading().book(order.owner()).trader(order.trader()).orElse(traderRecord);
             BlockPos hint = TraderTaskNavigation.lastKnownPosition(traderRecord, dimensionAtStart);
             if (hint == null) return shortResult(context, "exact merchant is not loaded in this dimension");
             if (!TraderTaskNavigation.inBoundedArea(context.companion(), hint)) {
@@ -138,7 +152,8 @@ public final class TradeTask implements Task {
         }
 
         MerchantSession.Outcome outcome;
-        try (MerchantSession session = FriendaiServerState.get(context.level().getServer()).merchantAdapter()
+        try (MerchantSession session = FriendaiServerState.get(context.level().getServer())
+                .merchantAdapter()
                 .openSession(context.companion(), target, order, authority, nowTick)) {
             outcome = session.tradeOnce(order);
         } catch (RuntimeException failure) {
@@ -166,17 +181,26 @@ public final class TradeTask implements Task {
         if (progress.state() == TradeProgress.State.COMPLETED) return finish(context, TaskStatus.SUCCESS, "");
         int received = exactReceivedCount(progress);
         if (received > 0 && order.allowPartial()) {
-            TradeProgress partial = new TradeProgress(order.orderId(), TradeProgress.State.PARTIAL,
-                    progress.spent(), progress.received(), progress.completedTrades(), bounded("remaining="
-                    + remaining(received) + "; " + why));
+            TradeProgress partial = new TradeProgress(
+                    order.orderId(),
+                    TradeProgress.State.PARTIAL,
+                    progress.spent(),
+                    progress.received(),
+                    progress.completedTrades(),
+                    bounded("remaining=" + remaining(received) + "; " + why));
             authority.record(partial);
             persistProgress(context, partial);
             progress = partial;
             return finish(context, TaskStatus.SUCCESS, why);
         }
         if (progress.state() == TradeProgress.State.AUTHORIZED || progress.state() == TradeProgress.State.RUNNING) {
-            TradeProgress failed = new TradeProgress(order.orderId(), TradeProgress.State.FAILED,
-                    progress.spent(), progress.received(), progress.completedTrades(), bounded(why));
+            TradeProgress failed = new TradeProgress(
+                    order.orderId(),
+                    TradeProgress.State.FAILED,
+                    progress.spent(),
+                    progress.received(),
+                    progress.completedTrades(),
+                    bounded(why));
             authority.record(failed);
             if (progress.completedTrades() > 0) persistProgress(context, failed);
             progress = failed;
@@ -185,7 +209,9 @@ public final class TradeTask implements Task {
     }
 
     private TradeProgress currentProgress() {
-        return authority == null ? emptyProgress() : authority.progress(order.orderId()).orElseGet(this::emptyProgress);
+        return authority == null
+                ? emptyProgress()
+                : authority.progress(order.orderId()).orElseGet(this::emptyProgress);
     }
 
     private TradeProgress emptyProgress() {
@@ -229,37 +255,56 @@ public final class TradeTask implements Task {
             if ((progress.state() == TradeProgress.State.AUTHORIZED || progress.state() == TradeProgress.State.RUNNING)
                     && authority != null) {
                 TradeProgress.State state = received > 0 && order.allowPartial()
-                        ? TradeProgress.State.PARTIAL : TradeProgress.State.INTERRUPTED;
-                TradeProgress stopped = new TradeProgress(order.orderId(), state, progress.spent(), progress.received(),
-                        progress.completedTrades(), bounded(received > 0
-                        ? "stopped after receiving " + received + " output items" : "stopped before a payment"));
+                        ? TradeProgress.State.PARTIAL
+                        : TradeProgress.State.INTERRUPTED;
+                TradeProgress stopped = new TradeProgress(
+                        order.orderId(),
+                        state,
+                        progress.spent(),
+                        progress.received(),
+                        progress.completedTrades(),
+                        bounded(
+                                received > 0
+                                        ? "stopped after receiving " + received + " output items"
+                                        : "stopped before a payment"));
                 authority.record(stopped);
                 persistProgress(context, stopped);
                 progress = stopped;
             }
-            terminal = progress.state() == TradeProgress.State.PARTIAL
-                    || progress.state() == TradeProgress.State.COMPLETED ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+            terminal =
+                    progress.state() == TradeProgress.State.PARTIAL || progress.state() == TradeProgress.State.COMPLETED
+                            ? TaskStatus.SUCCESS
+                            : TaskStatus.FAILED;
             reason = progress.reason().isBlank() ? "trade task stopped" : progress.reason();
         }
     }
 
-    @Override public String describe() { return "trade with merchant " + order.trader(); }
+    @Override
+    public String describe() {
+        return "trade with merchant " + order.trader();
+    }
 
     @Override
     public String resultSummary() {
         TradeProgress value = progress == null ? currentProgress() : progress;
         int received = exactReceivedCount(value);
         String output = quote == null ? "selected output" : quote.output().itemId();
-        String summary = "order=" + order.orderId() + "; state=" + value.state().name().toLowerCase(java.util.Locale.ROOT)
-                + "; received=" + received + "/" + order.desiredOutputCount() + " " + output
-                + "; remaining=" + remaining(received) + "; spent=" + value.spent()
-                + (reason.isBlank() ? (value.reason().isBlank() ? "" : "; reason=" + value.reason()) : "; reason=" + reason)
-                + "; ticks=" + ticks;
+        String summary =
+                "order=" + order.orderId() + "; state=" + value.state().name().toLowerCase(java.util.Locale.ROOT)
+                        + "; received=" + received + "/" + order.desiredOutputCount() + " " + output
+                        + "; remaining=" + remaining(received) + "; spent=" + value.spent()
+                        + (reason.isBlank()
+                                ? (value.reason().isBlank() ? "" : "; reason=" + value.reason())
+                                : "; reason=" + reason)
+                        + "; ticks=" + ticks;
         return summary.length() <= 600 ? summary : summary.substring(0, 597) + "...";
     }
 
     /** Orders carry a live runtime capability and are never restored from saved task text. */
-    @Override public String saveData() { return null; }
+    @Override
+    public String saveData() {
+        return null;
+    }
 
     private static String safeMessage(RuntimeException failure) {
         return bounded(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
@@ -276,10 +321,14 @@ public final class TradeTask implements Task {
 
     private void persistProgress(TaskContext context, TradeProgress value) {
         try {
-            FriendaiServerState.get(context.level().getServer()).trading().book(order.owner()).record(value);
+            FriendaiServerState.get(context.level().getServer())
+                    .trading()
+                    .book(order.owner())
+                    .record(value);
         } catch (RuntimeException failure) {
             // Runtime authority remains authoritative if informational history cannot be updated.
-            LOGGER.warn("Could not persist final progress for trade order {}: {}", order.orderId(), safeMessage(failure));
+            LOGGER.warn(
+                    "Could not persist final progress for trade order {}: {}", order.orderId(), safeMessage(failure));
         }
     }
 }

@@ -2,12 +2,12 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.friendai.creative.CreativeItemCount;
 import dev.friendai.creative.CreativeCommandPolicy;
+import dev.friendai.creative.CreativeItemCount;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.builtin.CreateItemsTask;
-import dev.friendai.task.builtin.FlyToTask;
 import dev.friendai.task.builtin.ExecuteCommandTask;
+import dev.friendai.task.builtin.FlyToTask;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.SchemaBuilder;
@@ -42,8 +42,12 @@ final class CreativeTools {
                 AccessLevel.OWNER,
                 TaskToolDef.QueueTraits.DEFAULT,
                 CreativeTools::createTask);
-        ToolKit.addCaller(registry, defs, def, (companion, caller, args) ->
-                ToolKit.startTask(companion, "create_item", createTask(companion, caller, args), caller));
+        ToolKit.addCaller(
+                registry,
+                defs,
+                def,
+                (companion, caller, args) ->
+                        ToolKit.startTask(companion, "create_item", createTask(companion, caller, args), caller));
 
         TaskToolDef flight = new TaskToolDef(
                 "fly_to",
@@ -59,8 +63,11 @@ final class CreativeTools {
                 AccessLevel.OWNER,
                 TaskToolDef.QueueTraits.DEFAULT,
                 CreativeTools::flyTask);
-        ToolKit.addCaller(registry, defs, flight, (companion, caller, args) ->
-                ToolKit.startTask(companion, "fly_to", flyTask(companion, args), caller));
+        ToolKit.addCaller(
+                registry,
+                defs,
+                flight,
+                (companion, caller, args) -> ToolKit.startTask(companion, "fly_to", flyTask(companion, args), caller));
 
         TaskToolDef command = new TaskToolDef(
                 "execute_command",
@@ -74,8 +81,12 @@ final class CreativeTools {
                 AccessLevel.OWNER,
                 TaskToolDef.QueueTraits.DEFAULT,
                 CreativeTools::commandTask);
-        ToolKit.addCaller(registry, defs, command, (companion, caller, args) ->
-                ToolKit.startTask(companion, "execute_command", commandTask(companion, args), caller));
+        ToolKit.addCaller(
+                registry,
+                defs,
+                command,
+                (companion, caller, args) ->
+                        ToolKit.startTask(companion, "execute_command", commandTask(companion, args), caller));
     }
 
     private static CreateItemsTask createTask(CompanionEntity companion, Caller caller, JsonObject args) {
@@ -91,7 +102,9 @@ final class CreativeTools {
             throw new IllegalArgumentException("unknown registered item: " + rawItem);
         }
         JsonElement countValue = args.get("count");
-        if (countValue == null || !countValue.isJsonPrimitive() || !countValue.getAsJsonPrimitive().isNumber()) {
+        if (countValue == null
+                || !countValue.isJsonPrimitive()
+                || !countValue.getAsJsonPrimitive().isNumber()) {
             throw new IllegalArgumentException("count must be an exact positive integer representable as a long");
         }
         long count = CreativeItemCount.parsePositiveLong(countValue.getAsString());
@@ -100,7 +113,8 @@ final class CreativeTools {
         if (prototype.isEmpty()) {
             throw new IllegalArgumentException("air is not an item that can be created");
         }
-        String rawDestination = args.has("destination") ? args.get("destination").getAsString() : "self";
+        String rawDestination =
+                args.has("destination") ? args.get("destination").getAsString() : "self";
         CreateItemsTask.Destination destination = switch (rawDestination) {
             case "self" -> CreateItemsTask.Destination.SELF;
             case "owner" -> CreateItemsTask.Destination.OWNER;
@@ -134,26 +148,32 @@ final class CreativeTools {
         if (!companion.creativeMode()) {
             throw new IllegalArgumentException("creative mode must be active to run commands");
         }
-        ServerPlayer owner = companion.owner().orElseThrow(() ->
-                new IllegalArgumentException("the owner must be online to run commands"));
+        ServerPlayer owner = companion
+                .owner()
+                .orElseThrow(() -> new IllegalArgumentException("the owner must be online to run commands"));
         if (caller == null || !owner.getUUID().equals(caller.uuid())) {
             throw new IllegalArgumentException("only the owner may run commands");
         }
         String raw = args.has("command") ? args.get("command").getAsString() : "";
-        CreativeCommandPolicy.Decision decision = CreativeCommandPolicy.evaluate(raw, owner.getName().getString());
+        CreativeCommandPolicy.Decision decision =
+                CreativeCommandPolicy.evaluate(raw, owner.getName().getString());
         if (!decision.allowed()) throw new IllegalArgumentException(decision.reason());
         return new ExecuteCommandTask(decision.command());
     }
 
     private static ExecuteCommandTask commandTask(CompanionEntity companion, JsonObject args) {
-        ServerPlayer owner = companion.owner().orElseThrow(() ->
-                new IllegalArgumentException("the owner must be online to run commands"));
-        return commandTask(companion, new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER), args);
+        ServerPlayer owner = companion
+                .owner()
+                .orElseThrow(() -> new IllegalArgumentException("the owner must be online to run commands"));
+        return commandTask(
+                companion, new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER), args);
     }
 
     private static double coordinate(JsonObject args, String field) {
         JsonElement value = args.get(field);
-        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+        if (value == null
+                || !value.isJsonPrimitive()
+                || !value.getAsJsonPrimitive().isNumber()) {
             throw new IllegalArgumentException(field + " must be a finite number");
         }
         double number = value.getAsDouble();

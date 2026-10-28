@@ -32,7 +32,9 @@ public final class PlacementLedger {
     /** True while the position still holds the block this ledger placed there. */
     public boolean stillPlaced(ServerLevel level, BlockPos pos) {
         Block expected = placed.get(pos);
-        return expected != null && level.hasChunkAt(pos) && level.getBlockState(pos).is(expected);
+        return expected != null
+                && level.hasChunkAt(pos)
+                && level.getBlockState(pos).is(expected);
     }
 
     public boolean isEmpty() {

@@ -16,17 +16,25 @@ class TradeAuthorityTest {
     private static final UUID GUEST = new UUID(0, 2);
     private static final UUID TRADER = new UUID(0, 3);
 
-    @Test void onlyAnActualOwnerPlayerBatchCreatesAScope() {
+    @Test
+    void onlyAnActualOwnerPlayerBatchCreatesAScope() {
         var authority = new TradeAuthority(OWNER);
         var owner = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         assertNotNull(owner.tradingScope());
 
-        assertNull(authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), false).tradingScope());
-        assertNull(authority.begin(new Caller(GUEST, "guest", AccessLevel.GUEST), true).tradingScope());
-        assertNull(authority.begin(new Caller(GUEST, "trusted", AccessLevel.TRUSTED), true).tradingScope());
+        assertNull(authority
+                .begin(new Caller(OWNER, "owner", AccessLevel.OWNER), false)
+                .tradingScope());
+        assertNull(authority
+                .begin(new Caller(GUEST, "guest", AccessLevel.GUEST), true)
+                .tradingScope());
+        assertNull(authority
+                .begin(new Caller(GUEST, "trusted", AccessLevel.TRUSTED), true)
+                .tradingScope());
     }
 
-    @Test void deferredCallerKeepsCapturedScopeAcrossLaterOwnerTurn() {
+    @Test
+    void deferredCallerKeepsCapturedScopeAcrossLaterOwnerTurn() {
         var authority = new TradeAuthority(OWNER);
         var deferred = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var captured = deferred.tradingScope();
@@ -37,7 +45,8 @@ class TradeAuthorityTest {
         assertEquals(captured, bound.scopeId());
     }
 
-    @Test void manualRetryReusesTheCapturedScopeInsteadOfTheLaterTurn() {
+    @Test
+    void manualRetryReusesTheCapturedScopeInsteadOfTheLaterTurn() {
         var authority = new TradeAuthority(OWNER);
         var originalCaller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var originalOrder = order(originalCaller.tradingScope(), budget(10), 4);
@@ -50,7 +59,8 @@ class TradeAuthorityTest {
         assertTrue(authority.reserve(retried, Map.of("minecraft:emerald", 3)));
     }
 
-    @Test void oneScopeAggregatesReservationsAndReconcilesOnlyActualSpend() {
+    @Test
+    void oneScopeAggregatesReservationsAndReconcilesOnlyActualSpend() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var budget = budget(10);
@@ -59,75 +69,106 @@ class TradeAuthorityTest {
 
         assertTrue(authority.reserve(first, Map.of("minecraft:emerald", 6)));
         assertFalse(authority.reserve(second, Map.of("minecraft:emerald", 5)));
-        authority.record(new TradeProgress(first.orderId(), State.COMPLETED,
-                Map.of("minecraft:emerald", 4), List.of(new TradeItem("minecraft:book", "{}", 1)), 1, ""));
+        authority.record(new TradeProgress(
+                first.orderId(),
+                State.COMPLETED,
+                Map.of("minecraft:emerald", 4),
+                List.of(new TradeItem("minecraft:book", "{}", 1)),
+                1,
+                ""));
         assertTrue(authority.reserve(second, Map.of("minecraft:emerald", 6)));
         assertFalse(authority.reserve(second, Map.of("minecraft:emerald", 1)));
     }
 
-    @Test void actualSpendCannotExceedNarrowOrderBudgetEvenWhenSharedBudgetAllowsIt() {
+    @Test
+    void actualSpendCannotExceedNarrowOrderBudgetEvenWhenSharedBudgetAllowsIt() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var sharedCeilingOrder = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
         var narrowOrder = authority.authorize(caller, order(caller.tradingScope(), budget(5), 1));
 
-        authority.record(new TradeProgress(narrowOrder.orderId(), State.FAILED,
-                Map.of("minecraft:emerald", 6), List.of(), 0, "observed payment exceeded this order's budget"));
+        authority.record(new TradeProgress(
+                narrowOrder.orderId(),
+                State.FAILED,
+                Map.of("minecraft:emerald", 6),
+                List.of(),
+                0,
+                "observed payment exceeded this order's budget"));
 
-        assertFalse(authority.reserve(sharedCeilingOrder, Map.of("minecraft:emerald", 1)),
+        assertFalse(
+                authority.reserve(sharedCeilingOrder, Map.of("minecraft:emerald", 1)),
                 "an individual order overrun must fail closed for the whole scope");
-        assertThrows(RuntimeException.class,
-                () -> authority.authorize(caller, order(caller.tradingScope(), budget(1), 1)));
+        assertThrows(
+                RuntimeException.class, () -> authority.authorize(caller, order(caller.tradingScope(), budget(1), 1)));
     }
 
-    @Test void aScopeMayNarrowItsFirstBudgetButCannotIncreaseIt() {
+    @Test
+    void aScopeMayNarrowItsFirstBudgetButCannotIncreaseIt() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
 
         assertDoesNotThrow(() -> authority.authorize(caller, order(caller.tradingScope(), budget(8), 1)));
-        assertThrows(RuntimeException.class, () -> authority.authorize(caller, order(caller.tradingScope(), budget(11), 1)));
+        assertThrows(
+                RuntimeException.class, () -> authority.authorize(caller, order(caller.tradingScope(), budget(11), 1)));
     }
 
-    @Test void repeatedSameIntentKeepsItsOriginalAbsoluteDeadline() {
+    @Test
+    void repeatedSameIntentKeepsItsOriginalAbsoluteDeadline() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var first = order(caller.tradingScope(), budget(10), 1);
         var bound = authority.authorize(caller, first);
-        var laterFactoryCall = new TradeOrder(first.orderId(), first.owner(), first.scopeId(), first.trader(),
-                first.offerRef(), first.observationRevision(), first.desiredOutputCount(), first.budget(),
-                first.allowedPaymentFingerprints(), first.allowOvershoot(), first.allowPartial(), 150);
+        var laterFactoryCall = new TradeOrder(
+                first.orderId(),
+                first.owner(),
+                first.scopeId(),
+                first.trader(),
+                first.offerRef(),
+                first.observationRevision(),
+                first.desiredOutputCount(),
+                first.budget(),
+                first.allowedPaymentFingerprints(),
+                first.allowOvershoot(),
+                first.allowPartial(),
+                150);
 
         var repeated = authority.authorize(caller, laterFactoryCall);
 
-        assertEquals(bound.deadlineTick(), repeated.deadlineTick(),
+        assertEquals(
+                bound.deadlineTick(),
+                repeated.deadlineTick(),
                 "a second caller-aware factory invocation must not extend the spending window");
     }
 
-    @Test void foreignAndInvalidatedScopesNeverAuthorizeAndRestartHasNoAuthority() {
+    @Test
+    void foreignAndInvalidatedScopesNeverAuthorizeAndRestartHasNoAuthority() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var authorized = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
         var foreign = new Caller(GUEST, "guest", AccessLevel.GUEST, caller.tradingScope());
-        assertThrows(RuntimeException.class, () -> authority.authorize(foreign,
-                order(caller.tradingScope(), budget(10), 1)));
+        assertThrows(
+                RuntimeException.class,
+                () -> authority.authorize(foreign, order(caller.tradingScope(), budget(10), 1)));
 
         authority.invalidateAll("server restarted");
-        assertThrows(RuntimeException.class, () -> authority.authorize(caller,
-                order(caller.tradingScope(), budget(10), 1)));
+        assertThrows(
+                RuntimeException.class, () -> authority.authorize(caller, order(caller.tradingScope(), budget(10), 1)));
         var restarted = new TradeAuthority(OWNER);
         assertThrows(RuntimeException.class, () -> restarted.authorize(caller, authorized));
     }
 
-    @Test void authorizationRejectsForgedScopeIdsAndMalformedRequestedCaps() {
+    @Test
+    void authorizationRejectsForgedScopeIdsAndMalformedRequestedCaps() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
-        assertThrows(RuntimeException.class, () -> authority.authorize(caller,
-                order(UUID.randomUUID(), budget(10), 1)));
+        assertThrows(
+                RuntimeException.class, () -> authority.authorize(caller, order(UUID.randomUUID(), budget(10), 1)));
         assertThrows(IllegalArgumentException.class, () -> new TradeBudget(Map.of(), Map.of(), Map.of()));
     }
 
-    @Test void progressReadExposesOnlyAuthorizedRuntimeOrders() {
+    @Test
+    void progressReadExposesOnlyAuthorizedRuntimeOrders() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var order = order(caller.tradingScope(), budget(10), 2);
@@ -135,31 +176,33 @@ class TradeAuthorityTest {
         assertTrue(authority.progress(order.orderId()).isEmpty());
         var bound = authority.authorize(caller, order);
         assertTrue(authority.progress(bound.orderId()).isEmpty());
-        var progress = new TradeProgress(bound.orderId(), State.RUNNING,
-                Map.of("minecraft:emerald", 3), List.of(), 1, "one fill");
+        var progress = new TradeProgress(
+                bound.orderId(), State.RUNNING, Map.of("minecraft:emerald", 3), List.of(), 1, "one fill");
         authority.record(progress);
 
         assertEquals(progress, authority.progress(bound.orderId()).orElseThrow());
         assertTrue(authority.progress(UUID.randomUUID()).isEmpty());
     }
 
-    @Test void terminalUncertainProgressCannotReserveAnotherPayment() {
+    @Test
+    void terminalUncertainProgressCannotReserveAnotherPayment() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var order = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
         assertTrue(authority.reserve(order, Map.of("minecraft:emerald", 3)));
-        authority.record(new TradeProgress(order.orderId(), State.UNCERTAIN,
-                Map.of(), List.of(), 0, "result was ambiguous"));
-        authority.record(new TradeProgress(order.orderId(), State.RUNNING,
-                Map.of(), List.of(), 0, "late update"));
+        authority.record(
+                new TradeProgress(order.orderId(), State.UNCERTAIN, Map.of(), List.of(), 0, "result was ambiguous"));
+        authority.record(new TradeProgress(order.orderId(), State.RUNNING, Map.of(), List.of(), 0, "late update"));
 
         assertFalse(authority.reserve(order, Map.of("minecraft:emerald", 1)));
         var other = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
-        assertFalse(authority.reserve(other, Map.of("minecraft:emerald", 8)),
+        assertFalse(
+                authority.reserve(other, Map.of("minecraft:emerald", 8)),
                 "unresolved payment reservation must still consume the shared ceiling");
     }
 
-    @Test void reservationCanBeReleasedForTheSameOrderOnlyBeforeAResultIsObserved() {
+    @Test
+    void reservationCanBeReleasedForTheSameOrderOnlyBeforeAResultIsObserved() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var order = authority.authorize(caller, order(caller.tradingScope(), budget(10), 1));
@@ -168,25 +211,48 @@ class TradeAuthorityTest {
         assertTrue(authority.reserve(order, payment));
         assertTrue(authority.releaseReservation(order, payment));
         assertTrue(authority.reserve(order, payment), "safe retry could not reserve the same order again");
-        authority.record(new TradeProgress(order.orderId(), State.UNCERTAIN,
-                Map.of("minecraft:emerald", 3), List.of(), 1, "result uncertain"));
-        assertFalse(authority.releaseReservation(order, payment), "uncertain spend released its protective reservation");
+        authority.record(new TradeProgress(
+                order.orderId(), State.UNCERTAIN, Map.of("minecraft:emerald", 3), List.of(), 1, "result uncertain"));
+        assertFalse(
+                authority.releaseReservation(order, payment), "uncertain spend released its protective reservation");
     }
 
-    @Test void reauthorizationCanNarrowBudgetButCannotChangeOrderTargetOrSelection() {
+    @Test
+    void reauthorizationCanNarrowBudgetButCannotChangeOrderTargetOrSelection() {
         var authority = new TradeAuthority(OWNER);
         var caller = authority.begin(new Caller(OWNER, "owner", AccessLevel.OWNER), true);
         var original = order(caller.tradingScope(), budget(10), 4);
         authority.authorize(caller, original);
 
-        var narrower = new TradeOrder(original.orderId(), original.owner(), original.scopeId(), original.trader(),
-                original.offerRef(), original.observationRevision(), original.desiredOutputCount(), budget(8),
-                original.allowedPaymentFingerprints(), original.allowOvershoot(), original.allowPartial(), 90);
-        assertEquals(8, authority.authorize(caller, narrower).budget().inputCaps().get("minecraft:emerald"));
+        var narrower = new TradeOrder(
+                original.orderId(),
+                original.owner(),
+                original.scopeId(),
+                original.trader(),
+                original.offerRef(),
+                original.observationRevision(),
+                original.desiredOutputCount(),
+                budget(8),
+                original.allowedPaymentFingerprints(),
+                original.allowOvershoot(),
+                original.allowPartial(),
+                90);
+        assertEquals(
+                8, authority.authorize(caller, narrower).budget().inputCaps().get("minecraft:emerald"));
 
-        var retargeted = new TradeOrder(original.orderId(), original.owner(), original.scopeId(), original.trader(),
-                "different-offer", original.observationRevision(), original.desiredOutputCount(), budget(8),
-                original.allowedPaymentFingerprints(), original.allowOvershoot(), original.allowPartial(), 90);
+        var retargeted = new TradeOrder(
+                original.orderId(),
+                original.owner(),
+                original.scopeId(),
+                original.trader(),
+                "different-offer",
+                original.observationRevision(),
+                original.desiredOutputCount(),
+                budget(8),
+                original.allowedPaymentFingerprints(),
+                original.allowOvershoot(),
+                original.allowPartial(),
+                90);
         assertThrows(RuntimeException.class, () -> authority.authorize(caller, retargeted));
     }
 
@@ -195,7 +261,7 @@ class TradeAuthorityTest {
     }
 
     private static TradeOrder order(UUID scope, TradeBudget budget, int desired) {
-        return new TradeOrder(UUID.randomUUID(), OWNER, scope, TRADER, "offer", 1, desired, budget,
-                Set.of(), false, true, 100);
+        return new TradeOrder(
+                UUID.randomUUID(), OWNER, scope, TRADER, "offer", 1, desired, budget, Set.of(), false, true, 100);
     }
 }

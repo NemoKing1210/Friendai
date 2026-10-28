@@ -46,7 +46,9 @@ public class VoiceTests {
         h.succeedWhen(() -> {
             h.assertTrue(!recorder.requests.isEmpty(), "no LLM request yet");
             List<Message> first = recorder.requests.get(0);
-            h.assertTrue(first.get(first.size() - 1).text().equals(expected), "message was " + first.get(first.size() - 1).text());
+            h.assertTrue(
+                    first.get(first.size() - 1).text().equals(expected),
+                    "message was " + first.get(first.size() - 1).text());
         });
     }
 
@@ -66,9 +68,11 @@ public class VoiceTests {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        h.assertTrue(!state.memory().book(player.getUUID()).isTrusted(target),
+        h.assertTrue(
+                !state.memory().book(player.getUUID()).isTrusted(target),
                 "the trust answer was applied on the calling thread");
-        h.succeedWhen(() -> h.assertTrue(state.memory().book(player.getUUID()).isTrusted(target),
+        h.succeedWhen(() -> h.assertTrue(
+                state.memory().book(player.getUUID()).isTrusted(target),
                 "the trust answer never reached the server thread"));
     }
 

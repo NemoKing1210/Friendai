@@ -4,12 +4,11 @@ import dev.friendai.crafting.obtain.ObtainPlan;
 import dev.friendai.crafting.obtain.ObtainPlanner;
 import dev.friendai.crafting.obtain.ObtainStep;
 import dev.friendai.crafting.obtain.ObtainText;
+import dev.friendai.crafting.obtain.TradingContext;
 import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.crafting.obtain.TradingContext;
-import dev.friendai.trading.TradeOrder;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -17,12 +16,11 @@ import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.tool.Caller;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
-import dev.friendai.task.builtin.CreateItemsTask;
 import dev.friendai.task.obtain.DropIndex;
 import dev.friendai.task.obtain.WorldScan;
+import dev.friendai.tool.Caller;
+import dev.friendai.trading.TradeOrder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -83,25 +81,85 @@ public final class ObtainTask implements Task {
     private int lastNoticeTick = -NOTICE_INTERVAL;
 
     public ObtainTask(String item, int count, boolean useContainers, boolean explore) {
-        this(item, count, useContainers, explore, DEFAULT_MAX_STEPS, DEFAULT_MAX_TICKS,
-                DEFAULT_EXPLORE_RADIUS, DEFAULT_EXPLORE_BLOCKS, DEFAULT_EXPLORE_TICKS, "local", null);
+        this(
+                item,
+                count,
+                useContainers,
+                explore,
+                DEFAULT_MAX_STEPS,
+                DEFAULT_MAX_TICKS,
+                DEFAULT_EXPLORE_RADIUS,
+                DEFAULT_EXPLORE_BLOCKS,
+                DEFAULT_EXPLORE_TICKS,
+                "local",
+                null);
     }
 
     /** The full constructor, for tests with tighter limits. */
-    public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
-            int exploreRadius, int exploreBlocks, int exploreTicks) {
-        this(item, count, useContainers, explore, maxSteps, maxTicks, exploreRadius, exploreBlocks,
-                exploreTicks, "local", null, null);
+    public ObtainTask(
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks) {
+        this(
+                item,
+                count,
+                useContainers,
+                explore,
+                maxSteps,
+                maxTicks,
+                exploreRadius,
+                exploreBlocks,
+                exploreTicks,
+                "local",
+                null,
+                null);
     }
 
-    public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
-            int exploreRadius, int exploreBlocks, int exploreTicks, String searchScope, Caller caller) {
-        this(item, count, useContainers, explore, maxSteps, maxTicks, exploreRadius, exploreBlocks, exploreTicks,
-                searchScope, caller, null);
+    public ObtainTask(
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks,
+            String searchScope,
+            Caller caller) {
+        this(
+                item,
+                count,
+                useContainers,
+                explore,
+                maxSteps,
+                maxTicks,
+                exploreRadius,
+                exploreBlocks,
+                exploreTicks,
+                searchScope,
+                caller,
+                null);
     }
 
-    public ObtainTask(String item, int count, boolean useContainers, boolean explore, int maxSteps, int maxTicks,
-            int exploreRadius, int exploreBlocks, int exploreTicks, String searchScope, Caller caller,
+    public ObtainTask(
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks,
+            String searchScope,
+            Caller caller,
             TradingContext tradingContext) {
         this.item = item;
         this.count = count;
@@ -163,7 +221,8 @@ public final class ObtainTask implements Task {
                 return fail("couldn't finish creative delivery: " + creationSummary);
             }
             String subSummary = current.resultSummary();
-            var visitVerification = current instanceof VisitResourceTask visit ? visit.result()
+            var visitVerification = current instanceof VisitResourceTask visit
+                    ? visit.result()
                     : dev.friendai.perception.resource.ResourceCandidates.Verification.PENDING;
             safeStop(current, c);
             ObtainStep step = currentStep;
@@ -175,7 +234,8 @@ public final class ObtainTask implements Task {
                 lastFailedKey = null;
             } else {
                 if (step instanceof ObtainStep.VisitResource visit
-                        && visitVerification != dev.friendai.perception.resource.ResourceCandidates.Verification.PRESENT) {
+                        && visitVerification
+                                != dev.friendai.perception.resource.ResourceCandidates.Verification.PRESENT) {
                     excludedSiteIds.add(visit.siteId());
                 }
                 String key = stepKey(step);
@@ -200,8 +260,7 @@ public final class ObtainTask implements Task {
             if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
                 ItemStack prototype = new ItemStack(BuiltInRegistries.ITEM.getValue(id));
                 if (!prototype.isEmpty()) {
-                    current = new CreateItemsTask(prototype, (long) count - have,
-                            CreateItemsTask.Destination.SELF);
+                    current = new CreateItemsTask(prototype, (long) count - have, CreateItemsTask.Destination.SELF);
                     currentStep = null;
                     creativeCreationStep = true;
                     current.start(c);
@@ -213,13 +272,19 @@ public final class ObtainTask implements Task {
             return fail("gave up after " + maxSteps + " steps; have " + have + " of " + count + " " + item);
         }
         ServerLevel level = c.level();
-        WorldFacts facts = WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore,
-                Set.of(), excludedSiteIds);
-        ObtainPlan plan = ObtainPlanner.plan(item, count, inventoryMap(companion), RecipeIndex.of(level),
-                DropIndex.of(level), facts, tradingContext);
+        WorldFacts facts = WorldScan.scan(
+                level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore, Set.of(), excludedSiteIds);
+        ObtainPlan plan = ObtainPlanner.plan(
+                item,
+                count,
+                inventoryMap(companion),
+                RecipeIndex.of(level),
+                DropIndex.of(level),
+                facts,
+                tradingContext);
         if (!plan.actionable()) {
-            return fail("can't get " + count + " " + item + " here: "
-                    + ObtainText.missingText(plan.missing(), !explore));
+            return fail(
+                    "can't get " + count + " " + item + " here: " + ObtainText.missingText(plan.missing(), !explore));
         }
         if (plan.steps().isEmpty()) {
             return fail("can't get " + count + " " + item + " here: nothing to do");
@@ -232,54 +297,80 @@ public final class ObtainTask implements Task {
         current = subtask(c, currentStep);
         if (ticks - lastNoticeTick >= NOTICE_INTERVAL) {
             lastNoticeTick = ticks;
-            companion.taskRunner().debug("obtain " + item + ": " + ObtainText.stepText(currentStep)
-                    + " (step " + (stepsRun + 1) + ")");
+            companion
+                    .taskRunner()
+                    .debug("obtain " + item + ": " + ObtainText.stepText(currentStep) + " (step " + (stepsRun + 1)
+                            + ")");
         }
         current.start(c);
         return TaskStatus.RUNNING;
     }
-
 
     private Task subtask(TaskContext c, ObtainStep step) {
         ServerLevel level = c.level();
         return switch (step) {
             case ObtainStep.Take take -> new TakeItemsTask(itemMatcher(take.item()), take.count(), null);
             case ObtainStep.Craft craft -> new CraftTask(craft.item(), craft.count(), CraftTask.StationPolicy.AUTO);
-            case ObtainStep.Smelt smelt -> new SmeltTask(itemMatcher(smelt.input()), smelt.count(), null, null, true,
-                    CraftTask.StationPolicy.AUTO, SMELT_WAIT_TICKS);
+            case ObtainStep.Smelt smelt ->
+                new SmeltTask(
+                        itemMatcher(smelt.input()),
+                        smelt.count(),
+                        null,
+                        null,
+                        true,
+                        CraftTask.StationPolicy.AUTO,
+                        SMELT_WAIT_TICKS);
             case ObtainStep.Mine mine -> new MineBlocksTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS);
-            case ObtainStep.VisitResource visit -> new VisitResourceTask(visit.siteId(), visit.dimension(), exploreTicks);
-            case ObtainStep.Hunt hunt -> new HuntTask(
-                    type -> entityId(type).equals(hunt.mob()), hunt.mob(), hunt.count(), HUNT_RADIUS);
+            case ObtainStep.VisitResource visit ->
+                new VisitResourceTask(visit.siteId(), visit.dimension(), exploreTicks);
+            case ObtainStep.Hunt hunt ->
+                new HuntTask(type -> entityId(type).equals(hunt.mob()), hunt.mob(), hunt.count(), HUNT_RADIUS);
             case ObtainStep.Harvest harvest -> {
                 BlockMatcher crop = blockMatcher(harvest.crop());
-                BlockPos center = dev.friendai.core.FriendaiServerState.get(level.getServer()).resources()
-                        .knownOrVisible(c.companion(), crop, CONTAINER_RADIUS, 1).stream().findFirst()
+                BlockPos center = dev.friendai.core.FriendaiServerState.get(level.getServer())
+                        .resources()
+                        .knownOrVisible(c.companion(), crop, CONTAINER_RADIUS, 1)
+                        .stream()
+                        .findFirst()
                         .orElse(c.companion().blockPosition());
                 yield new FarmTask(center, FARM_RADIUS, null, false);
             }
             case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count());
             case ObtainStep.Milk milk -> new MilkTask(milk.count(), null);
-            case ObtainStep.Explore explore -> caller == null
-                    ? new ExploreTask(blockMatcher(explore.block()), explore.down(), explore.depthY(), exploreRadius,
-                            exploreBlocks, exploreTicks)
-                    : new SearchResourceTask(explore.block(), "auto", searchScope, null, caller);
+            case ObtainStep.Explore explore ->
+                caller == null
+                        ? new ExploreTask(
+                                blockMatcher(explore.block()),
+                                explore.down(),
+                                explore.depthY(),
+                                exploreRadius,
+                                exploreBlocks,
+                                exploreTicks)
+                        : new SearchResourceTask(explore.block(), "auto", searchScope, null, caller);
             case ObtainStep.Trade trade -> tradeTask(c, trade);
             case ObtainStep.InspectTrader inspect -> new InspectTraderTask(inspect.trader());
         };
     }
 
     private Task tradeTask(TaskContext c, ObtainStep.Trade step) {
-        if (caller == null || tradingContext == null || !tradingContext.scopeId().equals(step.scopeId())) {
+        if (caller == null
+                || tradingContext == null
+                || !tradingContext.scopeId().equals(step.scopeId())) {
             throw new IllegalStateException("obtain trade has no captured owner scope");
         }
         var state = dev.friendai.core.FriendaiServerState.get(c.level().getServer());
-        var trader = tradingContext.traders().stream().filter(value -> value.id().equals(step.trader()))
-                .findFirst().orElseThrow(() -> new IllegalStateException("planned trader disappeared"));
-        var offer = trader.offers().stream().filter(value -> value.ref().equals(step.offerRef()))
-                .findFirst().orElseThrow(() -> new IllegalStateException("planned offer disappeared"));
-        if (trader.revision() != step.revision() || !state.brains().tradeAuthorityFor(caller.uuid())
-                .permitsPayment(step.scopeId(), offer.fingerprint())) {
+        var trader = tradingContext.traders().stream()
+                .filter(value -> value.id().equals(step.trader()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("planned trader disappeared"));
+        var offer = trader.offers().stream()
+                .filter(value -> value.ref().equals(step.offerRef()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("planned offer disappeared"));
+        if (trader.revision() != step.revision()
+                || !state.brains()
+                        .tradeAuthorityFor(caller.uuid())
+                        .permitsPayment(step.scopeId(), offer.fingerprint())) {
             throw new IllegalStateException("planned offer or payment authority is stale");
         }
         var authority = state.brains().tradeAuthorityFor(caller.uuid());
@@ -288,8 +379,19 @@ public final class ObtainTask implements Task {
         if (deadline <= now) throw new IllegalStateException("owner trading scope expired");
         UUID id = UUID.randomUUID();
         int desired = Math.multiplyExact(step.count(), offer.output().count());
-        TradeOrder order = new TradeOrder(id, caller.uuid(), step.scopeId(), step.trader(), step.offerRef(),
-                step.revision(), desired, tradingContext.budget(), Set.of(offer.fingerprint()), true, true, deadline);
+        TradeOrder order = new TradeOrder(
+                id,
+                caller.uuid(),
+                step.scopeId(),
+                step.trader(),
+                step.offerRef(),
+                step.revision(),
+                desired,
+                tradingContext.budget(),
+                Set.of(offer.fingerprint()),
+                true,
+                true,
+                deadline);
         return new TradeTask(authority.authorize(caller, order));
     }
 
@@ -348,20 +450,23 @@ public final class ObtainTask implements Task {
                 case ObtainStep.Hunt hunt -> used.add(hunt.mob());
                 case ObtainStep.Harvest harvest -> used.add(harvest.crop());
                 case ObtainStep.Shear shear -> used.add(shear.mob());
-                case ObtainStep.Milk ignored -> {
-                }
-                case ObtainStep.Explore ignored -> {
-                }
-                case ObtainStep.Trade ignored -> { }
-                case ObtainStep.InspectTrader ignored -> { }
+                case ObtainStep.Milk ignored -> {}
+                case ObtainStep.Explore ignored -> {}
+                case ObtainStep.Trade ignored -> {}
+                case ObtainStep.InspectTrader ignored -> {}
             }
         }
         return used;
     }
 
     private TaskStatus succeed() {
-        StringBuilder text = new StringBuilder("got ").append(count).append(' ').append(item)
-                .append(" in ").append(stepsRun).append(" steps");
+        StringBuilder text = new StringBuilder("got ")
+                .append(count)
+                .append(' ')
+                .append(item)
+                .append(" in ")
+                .append(stepsRun)
+                .append(" steps");
         if (!history.isEmpty()) {
             text.append(": ");
             int shown = Math.min(history.size(), 8);
@@ -386,7 +491,9 @@ public final class ObtainTask implements Task {
 
     private int have(CompanionEntity companion) {
         ItemMatcher matcher = itemMatcher(item);
-        int held = matcher.test(companion.getMainHandItem()) ? companion.getMainHandItem().getCount() : 0;
+        int held = matcher.test(companion.getMainHandItem())
+                ? companion.getMainHandItem().getCount()
+                : 0;
         return InventoryOps.count(companion.inventory(), matcher) + held;
     }
 
@@ -441,7 +548,8 @@ public final class ObtainTask implements Task {
             case ObtainStep.Craft craft -> "craft:" + craft.item();
             case ObtainStep.Smelt smelt -> "smelt:" + smelt.input() + "->" + smelt.output();
             case ObtainStep.Mine mine -> "mine:" + mine.block();
-            case ObtainStep.VisitResource visit -> "visit:" + visit.siteId() + ":" + visit.dimension() + ":" + visit.block();
+            case ObtainStep.VisitResource visit ->
+                "visit:" + visit.siteId() + ":" + visit.dimension() + ":" + visit.block();
             case ObtainStep.Hunt hunt -> "hunt:" + hunt.mob();
             case ObtainStep.Harvest harvest -> "harvest:" + harvest.crop();
             case ObtainStep.Shear shear -> "shear:" + shear.mob();
@@ -455,9 +563,8 @@ public final class ObtainTask implements Task {
     private static String pastText(ObtainStep step) {
         return switch (step) {
             case ObtainStep.Take take -> "took " + take.count() + " " + take.item();
-            case ObtainStep.Craft craft -> craft.count() == 1
-                    ? "crafted " + craft.item()
-                    : "crafted " + craft.count() + " × " + craft.item();
+            case ObtainStep.Craft craft ->
+                craft.count() == 1 ? "crafted " + craft.item() : "crafted " + craft.count() + " × " + craft.item();
             case ObtainStep.Smelt smelt -> "smelted " + smelt.count() + " " + smelt.input();
             case ObtainStep.Mine mine -> "mined " + mine.count() + " " + mine.block();
             case ObtainStep.VisitResource visit -> "visited site " + visit.siteId() + " for " + visit.block();
@@ -490,9 +597,7 @@ public final class ObtainTask implements Task {
 
     @Override
     public String describe() {
-        String step = currentStep == null
-                ? "planning"
-                : ObtainText.stepText(currentStep);
+        String step = currentStep == null ? "planning" : ObtainText.stepText(currentStep);
         return "getting " + count + " " + item + ": step " + (stepsRun + 1) + " — " + step;
     }
 

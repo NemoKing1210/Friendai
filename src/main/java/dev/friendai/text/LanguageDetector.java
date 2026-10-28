@@ -27,17 +27,17 @@ public final class LanguageDetector {
     private static final Pattern WORD = Pattern.compile("\\p{L}+");
 
     private static final Set<String> ENGLISH = Set.of(
-            "the", "and", "you", "is", "are", "to", "of", "it", "that", "this", "for", "with", "have", "what",
-            "do", "not", "my", "me", "a", "i", "can", "could", "would", "please", "from", "there", "bring");
+            "the", "and", "you", "is", "are", "to", "of", "it", "that", "this", "for", "with", "have", "what", "do",
+            "not", "my", "me", "a", "i", "can", "could", "would", "please", "from", "there", "bring");
     private static final Set<String> GERMAN = Set.of(
-            "der", "die", "das", "und", "ist", "nicht", "ich", "du", "ein", "eine", "mit", "auf", "fur", "zu",
-            "es", "wir", "mir", "bitte", "kannst", "kann", "aus", "holen");
+            "der", "die", "das", "und", "ist", "nicht", "ich", "du", "ein", "eine", "mit", "auf", "fur", "zu", "es",
+            "wir", "mir", "bitte", "kannst", "kann", "aus", "holen");
     private static final Set<String> FRENCH = Set.of(
-            "le", "la", "les", "et", "est", "pas", "je", "tu", "il", "elle", "un", "une", "pour", "avec",
-            "que", "qui", "dans", "du", "des", "au", "mon", "ma", "ce", "cette", "coffre");
+            "le", "la", "les", "et", "est", "pas", "je", "tu", "il", "elle", "un", "une", "pour", "avec", "que", "qui",
+            "dans", "du", "des", "au", "mon", "ma", "ce", "cette", "coffre");
     private static final Set<String> SPANISH = Set.of(
-            "el", "la", "los", "las", "y", "es", "no", "que", "un", "una", "para", "con", "por", "como", "muy",
-            "esta", "puedes", "traerme", "pico", "cofre");
+            "el", "la", "los", "las", "y", "es", "no", "que", "un", "una", "para", "con", "por", "como", "muy", "esta",
+            "puedes", "traerme", "pico", "cofre");
 
     private LanguageDetector() {}
 
@@ -80,8 +80,9 @@ public final class LanguageDetector {
     /** Ukrainian has letters Russian does not; without them Cyrillic here is Russian, the mod's second language. */
     private static String cyrillicLanguage(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        return lower.indexOf('і') >= 0 || lower.indexOf('ї') >= 0 || lower.indexOf('є') >= 0
-                || lower.indexOf('ґ') >= 0 ? "Ukrainian" : "Russian";
+        return lower.indexOf('і') >= 0 || lower.indexOf('ї') >= 0 || lower.indexOf('є') >= 0 || lower.indexOf('ґ') >= 0
+                ? "Ukrainian"
+                : "Russian";
     }
 
     private static Optional<String> latinLanguage(String text) {

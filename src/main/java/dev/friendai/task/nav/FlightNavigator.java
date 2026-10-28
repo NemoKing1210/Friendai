@@ -13,7 +13,12 @@ import net.minecraft.world.phys.Vec3;
 
 /** Collision-aware flight over loaded, body-clear cells with bounded incremental search work. */
 public final class FlightNavigator {
-    public enum State { SEARCHING, MOVING, ARRIVED, UNREACHABLE }
+    public enum State {
+        SEARCHING,
+        MOVING,
+        ARRIVED,
+        UNREACHABLE
+    }
 
     public static final double SPEED = 0.30;
     public static final double ARRIVAL_TOLERANCE = 1.0;
@@ -106,8 +111,7 @@ public final class FlightNavigator {
             return state;
         }
         Vec3 finalCell = route.isEmpty() ? target : feetCenter(route.getLast());
-        Vec3 aim = companion.position().distanceToSqr(target) <= finalCell.distanceToSqr(target)
-                ? target : finalCell;
+        Vec3 aim = companion.position().distanceToSqr(target) <= finalCell.distanceToSqr(target) ? target : finalCell;
         if (companion.position().distanceToSqr(aim) > WAYPOINT_TOLERANCE * WAYPOINT_TOLERANCE) {
             if (!moveToward(context, aim) && ++blockedTicks >= 3) {
                 if (++replans > MAX_REPLANS) return unreachable(context);
@@ -125,8 +129,8 @@ public final class FlightNavigator {
     public String diagnostic() {
         if (lastSearchStatus == FlightSearch.Status.NO_PATH) return "no loaded collision-safe route";
         if (lastSearchStatus == FlightSearch.Status.LIMIT) return "flight search reached its node budget";
-        if (replans > MAX_REPLANS) return "movement remained blocked after bounded replanning ("
-                + lastMovementBlock + ")";
+        if (replans > MAX_REPLANS)
+            return "movement remained blocked after bounded replanning (" + lastMovementBlock + ")";
         return "flight route is unavailable";
     }
 
@@ -212,8 +216,10 @@ public final class FlightNavigator {
     private static boolean canOccupy(ServerLevel level, CompanionEntity companion, AABB box) {
         if (box.minY < level.getMinY() || box.maxY > level.getMaxY() + 1.0) return false;
         var border = level.getWorldBorder();
-        if (box.minX < border.getMinX() || box.maxX > border.getMaxX()
-                || box.minZ < border.getMinZ() || box.maxZ > border.getMaxZ()) return false;
+        if (box.minX < border.getMinX()
+                || box.maxX > border.getMaxX()
+                || box.minZ < border.getMinZ()
+                || box.maxZ > border.getMaxZ()) return false;
         int minX = BlockPos.containing(box.minX, box.minY, box.minZ).getX();
         int maxX = BlockPos.containing(box.maxX, box.maxY, box.maxZ).getX();
         int minY = BlockPos.containing(box.minX, box.minY, box.minZ).getY();

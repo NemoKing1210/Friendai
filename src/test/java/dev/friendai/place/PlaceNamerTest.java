@@ -51,8 +51,16 @@ class PlaceNamerTest {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
         registry.remember(
                 new PlaceValues(
-                        "base", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("house"),
-                        PlaceSource.MANUAL, null, ""),
+                        "base",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of("house"),
+                        PlaceSource.MANUAL,
+                        null,
+                        ""),
                 1);
         assertEquals("house 2", PlaceNamer.autoName(registry, OVERWORLD, PlaceKind.HOUSE, ""));
     }
@@ -98,9 +106,7 @@ class PlaceNamerTest {
     @Test
     void aBlankDimensionIsRejected() {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PlaceNamer.autoName(registry, " ", PlaceKind.HOUSE, ""));
+        assertThrows(IllegalArgumentException.class, () -> PlaceNamer.autoName(registry, " ", PlaceKind.HOUSE, ""));
     }
 
     @Test

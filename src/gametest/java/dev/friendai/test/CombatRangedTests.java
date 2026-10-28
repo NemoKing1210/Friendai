@@ -18,13 +18,18 @@ public class CombatRangedTests {
 
     private static ItemStack infinityBow(GameTestHelper h) {
         ItemStack bow = new ItemStack(Items.BOW);
-        bow.enchant(h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
-                .getOrThrow(Enchantments.INFINITY), 1);
+        bow.enchant(
+                h.getLevel()
+                        .registryAccess()
+                        .lookupOrThrow(Registries.ENCHANTMENT)
+                        .getOrThrow(Enchantments.INFINITY),
+                1);
         return bow;
     }
 
     private static int flyingArrows(GameTestHelper h, CompanionEntity c) {
-        return h.getLevel()
+        return h
+                .getLevel()
                 .getEntitiesOfClass(AbstractArrow.class, c.getBoundingBox().inflate(32.0))
                 .stream()
                 .filter(arrow -> arrow.getOwner() == c)
@@ -44,12 +49,12 @@ public class CombatRangedTests {
         c.inventory().addItem(new ItemStack(Items.ARROW, 1));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 13, 2, 2);
         zombie.setNoAi(true);
-        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                20,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.succeedWhen(() -> {
-            h.assertTrue(c.inventory().countItem(Items.ARROW) == 0 || flyingArrows(h, c) > 0,
-                    "waiting for the shot");
-            h.assertValueEqual(c.inventory().countItem(Items.ARROW), 0,
-                    "the last arrow was not consumed exactly once");
+            h.assertTrue(c.inventory().countItem(Items.ARROW) == 0 || flyingArrows(h, c) > 0, "waiting for the shot");
+            h.assertValueEqual(c.inventory().countItem(Items.ARROW), 0, "the last arrow was not consumed exactly once");
             h.assertValueEqual(flyingArrows(h, c), 1, "the last arrow was duplicated");
         });
     }
@@ -62,10 +67,14 @@ public class CombatRangedTests {
         c.inventory().addItem(new ItemStack(Items.ARROW, 1));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 13, 2, 2);
         zombie.setNoAi(true);
-        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                20,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.succeedWhen(() -> {
             h.assertTrue(flyingArrows(h, c) > 0, "waiting for the Infinity shot");
-            h.assertValueEqual(c.inventory().countItem(Items.ARROW), 1,
+            h.assertValueEqual(
+                    c.inventory().countItem(Items.ARROW),
+                    1,
                     "Infinity consumed the only arrow, which vanilla does not do for a normal arrow");
         });
     }
@@ -83,14 +92,19 @@ public class CombatRangedTests {
         zombie.setNoAi(true);
         zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100.0);
         zombie.setHealth(100.0f);
-        h.runAfterDelay(20, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                20,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.runAfterDelay(240, () -> {
             h.assertTrue(c.inventory().countItem(Items.ARROW) <= 3, "arrows were duplicated");
             h.assertTrue(c.inventory().countItem(Items.ARROW) >= 0, "arrows went negative");
-            h.assertTrue(!c.getMainHandItem().is(Items.BOW),
-                    "the broken bow stayed held: " + c.getMainHandItem()
-                            + ", state " + c.combatController().state());
-            h.assertTrue(c.getMainHandItem().is(Items.STONE_SWORD) || c.getMainHandItem().isEmpty(),
+            h.assertTrue(
+                    !c.getMainHandItem().is(Items.BOW),
+                    "the broken bow stayed held: " + c.getMainHandItem() + ", state "
+                            + c.combatController().state());
+            h.assertTrue(
+                    c.getMainHandItem().is(Items.STONE_SWORD)
+                            || c.getMainHandItem().isEmpty(),
                     "no melee fallback: " + c.getMainHandItem());
             zombie.kill(h.getLevel());
             c.combatController().stopFight();
@@ -114,15 +128,18 @@ public class CombatRangedTests {
         h.runAfterDelay(20, () -> c.combatController().stopFight());
         h.runAfterDelay(22, () -> {
             int swords = c.inventory().countItem(Items.STONE_SWORD)
-                    + h.getLevel().getEntitiesOfClass(
-                            net.minecraft.world.entity.item.ItemEntity.class,
-                            c.getBoundingBox().inflate(8.0))
-                    .stream()
-                    .filter(item -> item.getItem().is(Items.STONE_SWORD))
-                    .mapToInt(item -> item.getItem().getCount())
-                    .sum();
+                    + h
+                            .getLevel()
+                            .getEntitiesOfClass(
+                                    net.minecraft.world.entity.item.ItemEntity.class,
+                                    c.getBoundingBox().inflate(8.0))
+                            .stream()
+                            .filter(item -> item.getItem().is(Items.STONE_SWORD))
+                            .mapToInt(item -> item.getItem().getCount())
+                            .sum();
             h.assertValueEqual(swords, 1, "the weapon was duplicated or lost with a full inventory");
-            h.assertTrue(c.getMainHandItem().isEmpty(), "the previous empty hand was not restored: " + c.getMainHandItem());
+            h.assertTrue(
+                    c.getMainHandItem().isEmpty(), "the previous empty hand was not restored: " + c.getMainHandItem());
             zombie.kill(h.getLevel());
             h.succeed();
         });

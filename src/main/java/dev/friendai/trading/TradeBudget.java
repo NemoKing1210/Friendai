@@ -4,8 +4,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /** Owner-approved input limits for one trading scope. Counts are item-id totals. */
-public record TradeBudget(Map<String, Integer> inputCaps, Map<String, Integer> reserves,
-                          Map<String, Integer> maxUnitCosts) {
+public record TradeBudget(
+        Map<String, Integer> inputCaps, Map<String, Integer> reserves, Map<String, Integer> maxUnitCosts) {
     public static final int MAX_INPUT_KINDS = 256;
 
     public TradeBudget {

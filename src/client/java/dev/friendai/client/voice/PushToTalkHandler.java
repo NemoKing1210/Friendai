@@ -88,24 +88,26 @@ public final class PushToTalkHandler {
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         final int generation = recording;
         String language = FriendaiClient.clientConfig().voice.stt.language;
-        stt.get().transcribe(PcmConverter.toFloat(pcm), language).whenComplete((text, error) -> mc.execute(() -> {
-            if (generation != VoiceRuntime.captureGeneration()) {
-                // A newer press owns the HUD state; if only a config change bumped the generation,
-                // nobody else will clear the "transcribing" indicator.
-                if (recording == generation) {
-                    VoiceState.set(VoiceState.Kind.IDLE, null);
-                }
-                return;
-            }
-            if (error != null) {
-                FriendaiMod.LOGGER.warn("Speech recognition failed", error);
-                VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
-            } else {
-                VoiceState.set(VoiceState.Kind.IDLE, null);
-                if (text != null && !text.isBlank()) {
-                    onTranscript.accept(text.strip());
-                }
-            }
-        }));
+        stt.get()
+                .transcribe(PcmConverter.toFloat(pcm), language)
+                .whenComplete((text, error) -> mc.execute(() -> {
+                    if (generation != VoiceRuntime.captureGeneration()) {
+                        // A newer press owns the HUD state; if only a config change bumped the generation,
+                        // nobody else will clear the "transcribing" indicator.
+                        if (recording == generation) {
+                            VoiceState.set(VoiceState.Kind.IDLE, null);
+                        }
+                        return;
+                    }
+                    if (error != null) {
+                        FriendaiMod.LOGGER.warn("Speech recognition failed", error);
+                        VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
+                    } else {
+                        VoiceState.set(VoiceState.Kind.IDLE, null);
+                        if (text != null && !text.isBlank()) {
+                            onTranscript.accept(text.strip());
+                        }
+                    }
+                }));
     }
 }

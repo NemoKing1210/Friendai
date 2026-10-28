@@ -43,7 +43,8 @@ public final class MicCapture {
         TargetDataLine opened = null;
         if (deviceName != null && !deviceName.isBlank()) {
             for (Mixer.Info mixerInfo : AudioSystem.getMixerInfo()) {
-                if (mixerInfo.getName().equals(deviceName) && AudioSystem.getMixer(mixerInfo).isLineSupported(info)) {
+                if (mixerInfo.getName().equals(deviceName)
+                        && AudioSystem.getMixer(mixerInfo).isLineSupported(info)) {
                     opened = (TargetDataLine) AudioSystem.getMixer(mixerInfo).getLine(info);
                     break;
                 }
@@ -61,20 +62,22 @@ public final class MicCapture {
         int limit = maxSeconds * BYTES_PER_SECOND;
         TargetDataLine source = opened;
         ByteArrayOutputStream sink = buffer;
-        reader = new Thread(() -> {
-            byte[] chunk = new byte[1024];
-            while (recording && sink.size() < limit) {
-                int n = source.read(chunk, 0, chunk.length);
-                if (n <= 0) {
-                    break;
-                }
-                level = AudioLevel.of(chunk, n);
-                synchronized (sink) {
-                    sink.write(chunk, 0, n);
-                }
-            }
-            recording = false;
-        }, "friendai-mic");
+        reader = new Thread(
+                () -> {
+                    byte[] chunk = new byte[1024];
+                    while (recording && sink.size() < limit) {
+                        int n = source.read(chunk, 0, chunk.length);
+                        if (n <= 0) {
+                            break;
+                        }
+                        level = AudioLevel.of(chunk, n);
+                        synchronized (sink) {
+                            sink.write(chunk, 0, n);
+                        }
+                    }
+                    recording = false;
+                },
+                "friendai-mic");
         reader.setDaemon(true);
         reader.start();
     }

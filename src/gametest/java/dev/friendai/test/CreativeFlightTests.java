@@ -23,10 +23,14 @@ import net.minecraft.world.phys.Vec3;
 
 public final class CreativeFlightTests {
     private static CompanionEntity creativeCompanion(GameTestHelper h, ServerPlayer owner) {
-        owner.level().getServer().getPlayerList().op(owner.nameAndId(),
-                Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        h.assertTrue(CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+        owner.level()
+                .getServer()
+                .getPlayerList()
+                .op(owner.nameAndId(), Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        h.assertTrue(
+                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
         return companion;
     }
@@ -46,8 +50,11 @@ public final class CreativeFlightTests {
             for (int z = 0; z < 6; z++) h.setBlock(6, y, z, net.minecraft.world.level.block.Blocks.STONE);
         }
         Vec3 target = h.absoluteVec(new Vec3(10.5, 8, 2.5));
-        h.assertTrue(CreativeModeService.isActionAuthorized(companion,
-                new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()), CreativeAction.FLIGHT),
+        h.assertTrue(
+                CreativeModeService.isActionAuthorized(
+                        companion,
+                        new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()),
+                        CreativeAction.FLIGHT),
                 "flight authorization was not available to the operator owner");
         h.assertTrue(h.getLevel().hasChunkAt(BlockPos.containing(target)), "flight test target chunk is not loaded");
         AABB targetBox = companion.getBoundingBox().move(target.subtract(companion.position()));
@@ -57,7 +64,8 @@ public final class CreativeFlightTests {
         AABB wall = new AABB(h.absoluteVec(new Vec3(6, 2, 0)), h.absoluteVec(new Vec3(7, 6, 6)));
         h.succeedWhen(() -> {
             h.assertFalse(companion.getBoundingBox().intersects(wall), "companion clipped through the wall");
-            h.assertTrue(companion.position().distanceTo(target) <= FlightTolerance.VALUE,
+            h.assertTrue(
+                    companion.position().distanceTo(target) <= FlightTolerance.VALUE,
                     "companion has not reached target; current position " + companion.position()
                             + "; result=" + task.resultSummary() + "; route=" + task.navigationDebug()
                             + "; noGravity=" + companion.isNoGravity());
@@ -76,7 +84,8 @@ public final class CreativeFlightTests {
             for (int z = 0; z < 6; z++) h.setBlock(x, 1, z, net.minecraft.world.level.block.Blocks.AIR);
         }
         companion.taskRunner().start(new FollowTask(false), "follow_player", caller(owner), true);
-        h.succeedWhen(() -> h.assertTrue(companion.position().distanceTo(owner.position()) <= 5.0,
+        h.succeedWhen(() -> h.assertTrue(
+                companion.position().distanceTo(owner.position()) <= 5.0,
                 "follow did not cross the gap; companion=" + companion.position() + ", owner=" + owner.position()));
     }
 
@@ -99,13 +108,15 @@ public final class CreativeFlightTests {
                 if (Double.isNaN(hoverY[0])) hoverY[0] = companion.getY();
                 hoveringTicks[0]++;
                 h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity when it arrived");
-                h.assertTrue(Math.abs(companion.getY() - hoverY[0]) < 0.05,
-                        "companion drifted vertically while hovering: start=" + hoverY[0]
-                                + ", now=" + companion.getY());
+                h.assertTrue(
+                        Math.abs(companion.getY() - hoverY[0]) < 0.05,
+                        "companion drifted vertically while hovering: start=" + hoverY[0] + ", now="
+                                + companion.getY());
             }
-            h.assertTrue(hoveringTicks[0] >= 30,
-                    "companion did not remain at the follow position for 30 ticks; position="
-                            + companion.position() + ", distance=" + distance);
+            h.assertTrue(
+                    hoveringTicks[0] >= 30,
+                    "companion did not remain at the follow position for 30 ticks; position=" + companion.position()
+                            + ", distance=" + distance);
         });
     }
 
@@ -118,7 +129,8 @@ public final class CreativeFlightTests {
         companion.snapTo(high.getX() + 0.5, high.getY(), high.getZ() + 0.5, 0, 0);
         companion.beginCreativeFlight();
         h.assertTrue(companion.isNoGravity(), "flight did not enable no-gravity movement");
-        h.assertTrue(CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
+        h.assertTrue(
+                CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
                 "operator owner could not disable creative mode");
         h.assertTrue(companion.creativeLanding(), "mode exit did not enter landing");
         h.succeedWhen(() -> {
@@ -141,11 +153,14 @@ public final class CreativeFlightTests {
         final TaskStatus[] status = {null};
         final String[] summary = {""};
         companion.taskRunner().setListener(new TaskListener() {
-            @Override public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
                 summary[0] = result;
             }
-            @Override public void onCancelled(int id, String toolName, String reason) {}
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {}
         });
         Vec3 targetPosition = new Vec3(target.getX() + 0.5, target.getY(), target.getZ() + 0.5);
         companion.taskRunner().start(new FlyToTask(targetPosition), "fly_to", caller(owner), true);
@@ -175,7 +190,8 @@ public final class CreativeFlightTests {
                 double distance = companion.position().distanceTo(owner.position());
                 if (distance <= companion.body().followDistance() + 2.0) {
                     hoveringTicks[0]++;
-                    h.assertTrue(companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
+                    h.assertTrue(
+                            companion.isNoGravity(), "follow stopped flight gravity before permission was revoked");
                 }
                 if (hoveringTicks[0] >= 30) {
                     companion.taskRunner().start(new StayTask(), "stay", caller(owner), false);
@@ -183,8 +199,10 @@ public final class CreativeFlightTests {
                 }
             }
             if (stayStartedAtTick[0] < 0) {
-                h.assertTrue(hoveringTicks[0] >= 30,
-                        "companion did not hover at the follow position for 30 ticks; position=" + companion.position());
+                h.assertTrue(
+                        hoveringTicks[0] >= 30,
+                        "companion did not hover at the follow position for 30 ticks; position="
+                                + companion.position());
             } else if (revokedAtTick[0] < 0) {
                 h.assertTrue(companion.tickCount > stayStartedAtTick[0], "stay did not replace the follow task");
                 h.assertTrue(companion.isNoGravity(), "authorized stay did not preserve creative hover");
@@ -193,9 +211,11 @@ public final class CreativeFlightTests {
             }
             h.assertTrue(revokedAtTick[0] >= 0, "owner operator rights were not revoked");
             h.assertTrue(companion.tickCount > revokedAtTick[0], "permission revocation was not followed by a tick");
-            h.assertFalse(companion.isNoGravity(), "companion kept hovering after its owner's flight right was revoked");
+            h.assertFalse(
+                    companion.isNoGravity(), "companion kept hovering after its owner's flight right was revoked");
         });
     }
+
     private static final class FlightTolerance {
         private static final double VALUE = 1.0;
     }

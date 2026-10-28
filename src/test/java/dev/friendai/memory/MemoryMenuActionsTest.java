@@ -92,12 +92,18 @@ class MemoryMenuActionsTest {
 
     @Test
     void badJsonAndBadIdAreBadRequest() {
-        assertEquals("friendai.menu.memory.error.bad_request", actions(true).add("world", "{oops").message().key());
+        assertEquals(
+                "friendai.menu.memory.error.bad_request",
+                actions(true).add("world", "{oops").message().key());
         assertEquals(
                 "friendai.menu.memory.error.bad_request",
                 actions(true).add("world", body("WHAT", "x")).message().key());
-        assertEquals("friendai.menu.memory.error.bad_request", actions(true).forget("-3").message().key());
-        assertEquals("friendai.menu.memory.error.bad_request", actions(true).forget("x").message().key());
+        assertEquals(
+                "friendai.menu.memory.error.bad_request",
+                actions(true).forget("-3").message().key());
+        assertEquals(
+                "friendai.menu.memory.error.bad_request",
+                actions(true).forget("x").message().key());
     }
 
     @Test
@@ -110,8 +116,11 @@ class MemoryMenuActionsTest {
     @Test
     void editMakesOwnerTheAuthor() {
         book.ensurePlayer(B, "Bob");
-        int id = book.addFact(Subject.player(B), Category.NOTE, "cats", B, "Bob", 0, L).id();
-        assertTrue(actions(true).edit(String.valueOf(id), body("PREFERENCE", "Likes cats")).ok());
+        int id = book.addFact(Subject.player(B), Category.NOTE, "cats", B, "Bob", 0, L)
+                .id();
+        assertTrue(actions(true)
+                .edit(String.valueOf(id), body("PREFERENCE", "Likes cats"))
+                .ok());
         assertEquals(O, book.fact(id).orElseThrow().authorUuid());
     }
 
@@ -152,8 +161,10 @@ class MemoryMenuActionsTest {
 
     @Test
     void forgetAndDuplicateAreReported() {
-        int first = book.addFact(Subject.WORLD, Category.NOTE, "a", O, "Steve", 0, L).id();
-        int second = book.addFact(Subject.WORLD, Category.NOTE, "b", O, "Steve", 0, L).id();
+        int first = book.addFact(Subject.WORLD, Category.NOTE, "a", O, "Steve", 0, L)
+                .id();
+        int second = book.addFact(Subject.WORLD, Category.NOTE, "b", O, "Steve", 0, L)
+                .id();
         assertEquals(
                 UserMessage.of("friendai.menu.memory.error.duplicate", first),
                 actions(true).edit(String.valueOf(second), body("NOTE", "a")).message());
@@ -170,9 +181,15 @@ class MemoryMenuActionsTest {
         assertEquals(
                 "friendai.menu.memory.error.disabled",
                 actions(false).add("world", body("NOTE", "x")).message().key());
-        assertEquals("friendai.menu.memory.error.disabled", actions(false).edit("1", body("NOTE", "x")).message().key());
-        assertEquals("friendai.menu.memory.error.disabled", actions(false).forget("1").message().key());
-        assertEquals("friendai.menu.memory.error.disabled", actions(false).clear("world").message().key());
+        assertEquals(
+                "friendai.menu.memory.error.disabled",
+                actions(false).edit("1", body("NOTE", "x")).message().key());
+        assertEquals(
+                "friendai.menu.memory.error.disabled",
+                actions(false).forget("1").message().key());
+        assertEquals(
+                "friendai.menu.memory.error.disabled",
+                actions(false).clear("world").message().key());
         assertTrue(actions(false).trust(B.toString(), "true").ok());
         assertTrue(book.isTrusted(B));
     }
@@ -213,7 +230,9 @@ class MemoryMenuActionsTest {
 
     @Test
     void ownerGroupNeverNeedsAnOnlineLookup() {
-        assertTrue(actions(true).add(O.toString(), body("PROFILE", "Steve likes oak")).ok());
+        assertTrue(actions(true)
+                .add(O.toString(), body("PROFILE", "Steve likes oak"))
+                .ok());
         assertEquals("Steve", book.fact(1).orElseThrow().authorName());
     }
 }

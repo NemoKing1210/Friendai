@@ -64,7 +64,9 @@ class MemoryViewCodecTest {
         assertEquals(view.facts(), decoded.facts());
         assertTrue(decoded.status().isPresent());
         assertTrue(decoded.status().get().ok());
-        assertEquals("friendai.menu.memory.status.cleared", decoded.status().get().message().key());
+        assertEquals(
+                "friendai.menu.memory.status.cleared",
+                decoded.status().get().message().key());
         assertEquals(List.of("3"), decoded.status().get().message().args());
     }
 
@@ -109,8 +111,7 @@ class MemoryViewCodecTest {
         for (int i = 1; i <= 2001; i++) {
             facts.add(new MemoryView.FactRow(i, "world", Category.NOTE, "fact " + i, ""));
         }
-        MemoryView view = new MemoryView(
-                true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty());
+        MemoryView view = new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty());
         byte[] data = MemoryViewCodec.encode(view);
         assertThrows(IllegalArgumentException.class, () -> MemoryViewCodec.decode(data));
     }
@@ -120,14 +121,9 @@ class MemoryViewCodecTest {
         List<MemoryView.Group> groups = new ArrayList<>();
         for (int i = 1; i <= 501; i++) {
             groups.add(new MemoryView.Group(
-                    "00000000-0000-0000-0000-" + String.format("%012d", i),
-                    "p" + i,
-                    MemoryView.Role.GUEST,
-                    0,
-                    false));
+                    "00000000-0000-0000-0000-" + String.format("%012d", i), "p" + i, MemoryView.Role.GUEST, 0, false));
         }
-        MemoryView view = new MemoryView(
-                true, MemoryLimits.DEFAULTS, groups, List.of(), Optional.empty());
+        MemoryView view = new MemoryView(true, MemoryLimits.DEFAULTS, groups, List.of(), Optional.empty());
         byte[] data = MemoryViewCodec.encode(view);
         assertThrows(IllegalArgumentException.class, () -> MemoryViewCodec.decode(data));
     }
@@ -185,9 +181,11 @@ class MemoryViewCodecTest {
         for (MemoryView.PersonaView persona : List.of(
                 new MemoryView.PersonaView("Calm guide", true),
                 new MemoryView.PersonaView("Спокойный проводник", false))) {
-            MemoryView view = new MemoryView(
-                    true, MemoryLimits.DEFAULTS, List.of(), List.of(), Optional.empty(), persona);
-            assertEquals(persona, MemoryViewCodec.decode(MemoryViewCodec.encode(view)).persona());
+            MemoryView view =
+                    new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), List.of(), Optional.empty(), persona);
+            assertEquals(
+                    persona,
+                    MemoryViewCodec.decode(MemoryViewCodec.encode(view)).persona());
         }
     }
 
@@ -198,8 +196,7 @@ class MemoryViewCodecTest {
             facts.add(new MemoryView.FactRow(i, "world", Category.NOTE, "текст ".repeat(20), ""));
         }
         MemoryView.PersonaView persona = new MemoryView.PersonaView("Calm guide", true);
-        MemoryView view =
-                new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty(), persona);
+        MemoryView view = new MemoryView(true, MemoryLimits.DEFAULTS, List.of(), facts, Optional.empty(), persona);
         byte[] fitted = MemoryViewCodec.encodeFitting(view, MemoryViewCodec.encode(view).length / 2);
         MemoryView decoded = MemoryViewCodec.decode(fitted);
         assertEquals(persona, decoded.persona());
@@ -209,9 +206,7 @@ class MemoryViewCodecTest {
     @Test
     void encodeFittingLeavesASmallViewAlone() {
         MemoryView view = sample(Optional.empty());
-        assertEquals(
-                MemoryViewCodec.encode(view).length,
-                MemoryViewCodec.encodeFitting(view, 1 << 20).length);
+        assertEquals(MemoryViewCodec.encode(view).length, MemoryViewCodec.encodeFitting(view, 1 << 20).length);
     }
 
     @Test

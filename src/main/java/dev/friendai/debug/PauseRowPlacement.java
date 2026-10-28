@@ -26,11 +26,14 @@ public final class PauseRowPlacement {
             byY.computeIfAbsent(r.y(), y -> new ArrayList<>()).add(r);
         }
         List<Rect> row = byY.entrySet().stream()
-                .max(Comparator.<Map.Entry<Integer, List<Rect>>>comparingInt(e -> e.getValue().size())
-                        .thenComparing(Comparator.comparingInt((Map.Entry<Integer, List<Rect>> e) -> e.getKey()).reversed()))
+                .max(Comparator.<Map.Entry<Integer, List<Rect>>>comparingInt(
+                                e -> e.getValue().size())
+                        .thenComparing(Comparator.comparingInt((Map.Entry<Integer, List<Rect>> e) -> e.getKey())
+                                .reversed()))
                 .orElseThrow()
                 .getValue();
-        List<Rect> sorted = row.stream().sorted(Comparator.comparingInt(Rect::x)).toList();
+        List<Rect> sorted =
+                row.stream().sorted(Comparator.comparingInt(Rect::x)).toList();
         Rect last = sorted.get(sorted.size() - 1);
         int gap = sorted.size() > 1 ? last.x() - sorted.get(sorted.size() - 2).right() : DEFAULT_GAP;
         Rect first = sorted.get(0);

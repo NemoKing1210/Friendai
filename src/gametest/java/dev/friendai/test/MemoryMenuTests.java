@@ -31,7 +31,9 @@ public class MemoryMenuTests {
                 new CompanionRequestC2SPayload(
                         RequestType.MEMORY_ADD, "world", "{\"category\":\"NOTE\",\"text\":\"" + text + "\"}"));
         CompanionRequestHandler.handle(
-                a, new CompanionRequestC2SPayload(RequestType.MEMORY_TRUST, c.getUUID().toString(), "true"));
+                a,
+                new CompanionRequestC2SPayload(
+                        RequestType.MEMORY_TRUST, c.getUUID().toString(), "true"));
         MemoryBook book = FriendaiServerState.get(server).memory().book(a.getUUID());
         h.assertTrue(
                 book.allFacts().stream().anyMatch(f -> f.text().equals(text)),
@@ -46,10 +48,10 @@ public class MemoryMenuTests {
         ServerPlayer c = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
         var server = h.getLevel().getServer();
         CompanionRequestHandler.handle(
-                a, new CompanionRequestC2SPayload(RequestType.MEMORY_TRUST, c.getUUID().toString(), "true"));
-        h.assertTrue(
-                FriendaiServerState.get(server).memory().book(a.getUUID()).isTrusted(c.getUUID()),
-                "A trusts C");
+                a,
+                new CompanionRequestC2SPayload(
+                        RequestType.MEMORY_TRUST, c.getUUID().toString(), "true"));
+        h.assertTrue(FriendaiServerState.get(server).memory().book(a.getUUID()).isTrusted(c.getUUID()), "A trusts C");
         MemoryBook cBook = FriendaiServerState.get(server).memory().book(c.getUUID());
         h.assertTrue(cBook.trusted().isEmpty(), "C's book must not trust anyone: " + cBook.trusted());
         h.assertTrue(cBook.player(a.getUUID()).isEmpty(), "C's book must not gain a record of A");

@@ -165,8 +165,17 @@ public final class FishTask implements Task {
         }
         caughtCount++;
         c.companion().swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-        c.level().sendParticles(ParticleTypes.SPLASH,
-                water.getX() + 0.5, water.getY() + 1.0, water.getZ() + 0.5, 10, 0.2, 0.1, 0.2, 0.05);
+        c.level()
+                .sendParticles(
+                        ParticleTypes.SPLASH,
+                        water.getX() + 0.5,
+                        water.getY() + 1.0,
+                        water.getZ() + 0.5,
+                        10,
+                        0.2,
+                        0.1,
+                        0.2,
+                        0.05);
         c.level().playSound(null, water, SoundEvents.FISHING_BOBBER_SPLASH, SoundSource.NEUTRAL, 0.5F, 1.0F);
         int damage = rod.getDamageValue() + 1;
         if (rod.isDamageableItem() && damage >= rod.getMaxDamage()) {
@@ -185,7 +194,8 @@ public final class FishTask implements Task {
             return Math.max(1, waitSource.getAsInt());
         }
         int slot = findRodSlot(c.companion());
-        int lure = slot < 0 ? 0 : enchantLevel(c.level(), c.companion().inventory().getItem(slot), Enchantments.LURE);
+        int lure =
+                slot < 0 ? 0 : enchantLevel(c.level(), c.companion().inventory().getItem(slot), Enchantments.LURE);
         return Math.max(20, 100 + c.level().getRandom().nextInt(500) - 100 * lure);
     }
 
@@ -224,8 +234,10 @@ public final class FishTask implements Task {
         return -1;
     }
 
-    private static int enchantLevel(ServerLevel level, ItemStack stack, ResourceKey<net.minecraft.world.item.enchantment.Enchantment> key) {
-        var holder = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(key);
+    private static int enchantLevel(
+            ServerLevel level, ItemStack stack, ResourceKey<net.minecraft.world.item.enchantment.Enchantment> key) {
+        var holder =
+                level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(key);
         return EnchantmentHelper.getItemEnchantmentLevel(holder, stack);
     }
 
@@ -268,10 +280,22 @@ public final class FishTask implements Task {
         if (!level.getBlockState(pos.above()).isAir()) {
             return false;
         }
-        return water(level, pos) && water(level, pos.east()) && water(level, pos.south()) && water(level, pos.east().south())
-                || water(level, pos) && water(level, pos.west()) && water(level, pos.south()) && water(level, pos.west().south())
-                || water(level, pos) && water(level, pos.east()) && water(level, pos.north()) && water(level, pos.east().north())
-                || water(level, pos) && water(level, pos.west()) && water(level, pos.north()) && water(level, pos.west().north());
+        return water(level, pos)
+                        && water(level, pos.east())
+                        && water(level, pos.south())
+                        && water(level, pos.east().south())
+                || water(level, pos)
+                        && water(level, pos.west())
+                        && water(level, pos.south())
+                        && water(level, pos.west().south())
+                || water(level, pos)
+                        && water(level, pos.east())
+                        && water(level, pos.north())
+                        && water(level, pos.east().north())
+                || water(level, pos)
+                        && water(level, pos.west())
+                        && water(level, pos.north())
+                        && water(level, pos.west().north());
     }
 
     private static boolean water(ServerLevel level, BlockPos pos) {
@@ -284,11 +308,15 @@ public final class FishTask implements Task {
         for (int dx = -2; dx <= 2; dx++) {
             for (int dz = -2; dz <= 2; dz++) {
                 BlockPos solid = water.offset(dx, 0, dz);
-                if (water(level, solid) || level.getBlockState(solid).getCollisionShape(level, solid).isEmpty()) {
+                if (water(level, solid)
+                        || level.getBlockState(solid)
+                                .getCollisionShape(level, solid)
+                                .isEmpty()) {
                     continue;
                 }
                 BlockPos stand = solid.above();
-                if (!level.getBlockState(stand).isAir() || !level.getBlockState(stand.above()).isAir()) {
+                if (!level.getBlockState(stand).isAir()
+                        || !level.getBlockState(stand.above()).isAir()) {
                     continue;
                 }
                 double distance = Vec3.atCenterOf(stand).distanceToSqr(Vec3.atCenterOf(water));

@@ -69,7 +69,9 @@ public final class LocalTtsEngine implements SpeechEngine {
                 GeneratedAudio audio = tts.generate(text, 0, (float) speed);
                 return new TtsClip(PcmConverter.fromFloat(audio.getSamples()), audio.getSampleRate());
             } catch (RuntimeException | LinkageError e) {
-                throw e instanceof UserFacingException ? (UserFacingException) e : uf("friendai.voice.tts.error.failed");
+                throw e instanceof UserFacingException
+                        ? (UserFacingException) e
+                        : uf("friendai.voice.tts.error.failed");
             }
         }
     }

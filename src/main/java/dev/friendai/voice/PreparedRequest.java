@@ -13,7 +13,7 @@ public record PreparedRequest(URI uri, Map<String, String> headers, byte[] body,
     /** Header values may carry the API key, so they never appear here. */
     @Override
     public String toString() {
-        return "PreparedRequest[uri=" + uri + ", headers=" + headers.size()
-                + ", contentType=" + contentType + ", body=" + body.length + " bytes]";
+        return "PreparedRequest[uri=" + uri + ", headers=" + headers.size() + ", contentType=" + contentType + ", body="
+                + body.length + " bytes]";
     }
 }

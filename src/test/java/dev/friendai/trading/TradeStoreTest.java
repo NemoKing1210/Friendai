@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -27,7 +26,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class TradeStoreTest {
-    @TempDir Path temp;
+    @TempDir
+    Path temp;
 
     private static final UUID ACTOR = new UUID(0, 7);
 
@@ -36,17 +36,29 @@ class TradeStoreTest {
                 new TradeCost("minecraft:emerald", "{\"minecraft:custom_data\":{\"grade\":\"rare\"}}", 3),
                 new TradeCost("minecraft:diamond", "{\"minecraft:custom_data\":{\"mark\":\"blue\"}}", 1));
         var effective = List.of(
-                new TradeCost("minecraft:emerald", "{\"minecraft:custom_data\":{\"grade\":\"rare\"}}", 2),
-                base.get(1));
+                new TradeCost("minecraft:emerald", "{\"minecraft:custom_data\":{\"grade\":\"rare\"}}", 2), base.get(1));
         var output = new TradeItem("minecraft:enchanted_book", "{\"minecraft:custom_data\":{\"label\":\"Ω\"}}", 1);
-        return new TradeOffer("temporary", TradeOffer.fingerprint(base, output, 0), base, effective,
-                output, 2, 12, 3, ACTOR, 20);
+        return new TradeOffer(
+                "temporary", TradeOffer.fingerprint(base, output, 0), base, effective, output, 2, 12, 3, ACTOR, 20);
     }
 
     private static TraderRecord trader(UUID id, int x, long lastSeen) {
-        return new TraderRecord(id, "minecraft:villager", "minecraft:overworld", x, 70, -9,
-                "Librarian", "minecraft:librarian", 4, 10, lastSeen, lastSeen, 3,
-                TraderRecord.Status.VERIFIED, List.of(offer()));
+        return new TraderRecord(
+                id,
+                "minecraft:villager",
+                "minecraft:overworld",
+                x,
+                70,
+                -9,
+                "Librarian",
+                "minecraft:librarian",
+                4,
+                10,
+                lastSeen,
+                lastSeen,
+                3,
+                TraderRecord.Status.VERIFIED,
+                List.of(offer()));
     }
 
     private static TradeProgress progress(UUID id, TradeProgress.State state, List<TradeItem> received) {
@@ -91,10 +103,13 @@ class TradeStoreTest {
             assertEquals(-9, loaded.z());
             TradeOffer loadedOffer = loaded.offers().getFirst();
             assertEquals(2, loadedOffer.baseInputs().size());
-            assertEquals("{\"minecraft:custom_data\":{\"grade\":\"rare\"}}",
+            assertEquals(
+                    "{\"minecraft:custom_data\":{\"grade\":\"rare\"}}",
                     loadedOffer.baseInputs().getFirst().predicateJson());
             assertEquals(2, loadedOffer.effectiveInputs().getFirst().count());
-            assertEquals("{\"minecraft:custom_data\":{\"label\":\"Ω\"}}", loadedOffer.output().componentsJson());
+            assertEquals(
+                    "{\"minecraft:custom_data\":{\"label\":\"Ω\"}}",
+                    loadedOffer.output().componentsJson());
             TradeProgress loadedProgress = restored.snapshot().history().getFirst();
             assertEquals(orderId, loadedProgress.orderId());
             assertEquals(TradeProgress.State.PARTIAL, loadedProgress.state());
@@ -176,7 +191,12 @@ class TradeStoreTest {
             assertTrue(store.repairOwner(owner));
             store.flushAll();
             assertFalse(store.writesDisabled(owner));
-            assertEquals(11, TradeFile.read(Files.readAllBytes(path)).traders().getFirst().x());
+            assertEquals(
+                    11,
+                    TradeFile.read(Files.readAllBytes(path))
+                            .traders()
+                            .getFirst()
+                            .x());
         }
     }
 
@@ -199,7 +219,8 @@ class TradeStoreTest {
         Path directory = temp.resolve("future");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 11);
-        byte[] future = "{\"version\":7,\"opaque\":{\"future\":true}}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] future =
+                "{\"version\":7,\"opaque\":{\"future\":true}}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Path path = directory.resolve(owner + ".json");
         Files.write(path, future);
         try (TradeStore store = new TradeStore(directory)) {
@@ -220,8 +241,8 @@ class TradeStoreTest {
         Path directory = temp.resolve("future-deep");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 111);
-        byte[] future = ("{\"opaque\":" + "[".repeat(256) + "0" + "]".repeat(256)
-                + ",\"version\":8}").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] future = ("{\"opaque\":" + "[".repeat(256) + "0" + "]".repeat(256) + ",\"version\":8}")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Path path = directory.resolve(owner + ".json");
         Files.write(path, future);
         try (TradeStore store = new TradeStore(directory)) {
@@ -237,20 +258,23 @@ class TradeStoreTest {
     void collectionAndAggregateOfferLimitsAreCheckedWhileStreaming() {
         String excessiveTraders = "{\"version\":1,\"traders\":[" + "null,".repeat(TradeFile.MAX_TRADERS)
                 + "null],\"history\":[],\"pinned\":[]}";
-        assertThrows(IllegalArgumentException.class, () -> TradeFile.read(
-                excessiveTraders.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TradeFile.read(excessiveTraders.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
         String sixtyFiveOffers = "{\"version\":1,\"traders\":[{\"offers\":["
                 + "null,".repeat(TradeFile.MAX_OFFERS_PER_TRADER) + "null]}],\"history\":[],\"pinned\":[]}";
-        assertThrows(IllegalArgumentException.class, () -> TradeFile.read(
-                sixtyFiveOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TradeFile.read(sixtyFiveOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
         String traderWith64Offers = "{\"offers\":[" + "null,".repeat(TradeFile.MAX_OFFERS_PER_TRADER - 1) + "null]}";
         String tooManyTotalOffers = "{\"version\":1,\"traders\":["
                 + String.join(",", java.util.Collections.nCopies(TradeFile.MAX_TOTAL_OFFERS / 64, traderWith64Offers))
                 + ",{\"offers\":[null]}],\"history\":[],\"pinned\":[]}";
-        assertThrows(IllegalArgumentException.class, () -> TradeFile.read(
-                tooManyTotalOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TradeFile.read(tooManyTotalOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
     @Test
@@ -268,14 +292,16 @@ class TradeStoreTest {
         TradeItem receipt = new TradeItem("minecraft:book", "{}", 1);
         List<TradeItem> receipts = java.util.Collections.nCopies(TradeProgress.MAX_RECEIPTS, receipt);
         List<TradeProgress> history = java.util.stream.IntStream.range(0, 32)
-                .mapToObj(i -> new TradeProgress(new UUID(3, i), TradeProgress.State.COMPLETED,
-                        Map.of(), receipts, 1, ""))
+                .mapToObj(i ->
+                        new TradeProgress(new UUID(3, i), TradeProgress.State.COMPLETED, Map.of(), receipts, 1, ""))
                 .toList();
         byte[] encoded = TradeFile.write(new TradeFile(TradeFile.VERSION, 1, List.of(), history, java.util.Set.of()));
         assertTrue(encoded.length < TradeFile.MAX_FILE_BYTES);
         TradeFile decoded = TradeFile.read(encoded);
         assertEquals(32, decoded.history().size());
-        assertEquals(TradeProgress.MAX_RECEIPTS, decoded.history().getFirst().received().size());
+        assertEquals(
+                TradeProgress.MAX_RECEIPTS,
+                decoded.history().getFirst().received().size());
     }
 
     @Test
@@ -335,7 +361,8 @@ class TradeStoreTest {
         UUID owner = new UUID(0, 14);
         String payload = "x".repeat(7_900);
         var many = java.util.stream.IntStream.range(0, 1_100)
-                .mapToObj(i -> new TradeItem("minecraft:book", "{\"data\":\"" + payload + "\"}", 1)).toList();
+                .mapToObj(i -> new TradeItem("minecraft:book", "{\"data\":\"" + payload + "\"}", 1))
+                .toList();
         try (TradeStore store = new TradeStore(directory)) {
             TradeBook book = store.book(owner);
             book.observe(trader(new UUID(0, 141), 2, 30));
@@ -358,7 +385,8 @@ class TradeStoreTest {
         Files.write(target, durable);
         String payload = "y".repeat(7_900);
         var many = java.util.stream.IntStream.range(0, 1_100)
-                .mapToObj(i -> new TradeItem("minecraft:book", "{\"data\":\"" + payload + "\"}", 1)).toList();
+                .mapToObj(i -> new TradeItem("minecraft:book", "{\"data\":\"" + payload + "\"}", 1))
+                .toList();
         try (TradeStore store = new TradeStore(directory)) {
             TradeBook book = store.book(owner);
             UUID protectedTrader = new UUID(0, 151);
@@ -382,8 +410,9 @@ class TradeStoreTest {
             book.record(progress(new UUID(1, i), TradeProgress.State.RUNNING, List.of()));
         }
         long revision = book.revision();
-        assertThrows(IllegalStateException.class, () ->
-                book.record(progress(new UUID(2, 1), TradeProgress.State.COMPLETED, List.of())));
+        assertThrows(
+                IllegalStateException.class,
+                () -> book.record(progress(new UUID(2, 1), TradeProgress.State.COMPLETED, List.of())));
         assertEquals(revision, book.revision());
         assertEquals(TradeFile.MAX_HISTORY, book.snapshot().history().size());
         assertTrue(book.snapshot().history().stream().allMatch(row -> row.state() == TradeProgress.State.RUNNING));
@@ -436,7 +465,14 @@ class TradeStoreTest {
 
     private static final class ManualExecutor implements Executor {
         private final Queue<Runnable> queued = new ArrayDeque<>();
-        @Override public void execute(Runnable command) { queued.add(command); }
-        void runNext() { queued.remove().run(); }
+
+        @Override
+        public void execute(Runnable command) {
+            queued.add(command);
+        }
+
+        void runNext() {
+            queued.remove().run();
+        }
     }
 }

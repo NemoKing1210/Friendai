@@ -35,12 +35,9 @@ class PlaceNamesTest {
 
     @Test
     void keysIgnoreCaseAndIncludeTheDimension() {
-        assertEquals(
-                PlaceNames.key("Дом", "minecraft:overworld"),
-                PlaceNames.key("  дом ", "minecraft:overworld"));
+        assertEquals(PlaceNames.key("Дом", "minecraft:overworld"), PlaceNames.key("  дом ", "minecraft:overworld"));
         assertNotEquals(
-                PlaceNames.key("portal", "minecraft:overworld"),
-                PlaceNames.key("portal", "minecraft:the_nether"));
+                PlaceNames.key("portal", "minecraft:overworld"), PlaceNames.key("portal", "minecraft:the_nether"));
         assertThrows(IllegalArgumentException.class, () -> PlaceNames.key("home", " "));
     }
 

@@ -45,7 +45,8 @@ public final class PlaceNames {
             char c = raw.charAt(i);
             int type = Character.getType(c);
             if ((c != '\t' && Character.isISOControl(c))
-                    || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR) {
+                    || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR) {
                 throw new IllegalArgumentException("A place name cannot contain control characters.");
             }
         }

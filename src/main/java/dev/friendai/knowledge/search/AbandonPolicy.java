@@ -13,13 +13,23 @@ public final class AbandonPolicy {
 
         private final String text;
 
-        Reason(String text) { this.text = text; }
+        Reason(String text) {
+            this.text = text;
+        }
 
-        public String text() { return text; }
+        public String text() {
+            return text;
+        }
     }
 
-    public record Facts(float health, float maxHealth, int food, boolean night, boolean sheltered,
-                        boolean ownerOnline, boolean ownerInCurrentDimension) {
+    public record Facts(
+            float health,
+            float maxHealth,
+            int food,
+            boolean night,
+            boolean sheltered,
+            boolean ownerOnline,
+            boolean ownerInCurrentDimension) {
         public Facts {
             if (!Float.isFinite(health) || health < 0 || !Float.isFinite(maxHealth) || maxHealth <= 0)
                 throw new IllegalArgumentException("invalid health");

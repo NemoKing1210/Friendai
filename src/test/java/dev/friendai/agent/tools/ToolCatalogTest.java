@@ -51,12 +51,17 @@ class ToolCatalogTest {
     @Test
     void hintsHaveOneLinePerVisibleToolWithGuidance() {
         ToolCatalog custom = new ToolCatalog(List.of(
-                new ToolMeta("mine_blocks", ToolGroup.GATHERING, false, "Use mine_blocks for ore.", List.of(), Cost.HIGH),
-                new ToolMeta("craft_item", ToolGroup.CRAFTING, false, "Use craft_item for recipes.", List.of(), Cost.LOW),
+                new ToolMeta(
+                        "mine_blocks", ToolGroup.GATHERING, false, "Use mine_blocks for ore.", List.of(), Cost.HIGH),
+                new ToolMeta(
+                        "craft_item", ToolGroup.CRAFTING, false, "Use craft_item for recipes.", List.of(), Cost.LOW),
                 new ToolMeta("stop", ToolGroup.CORE, true, "", List.of(), Cost.LOW)));
         assertEquals(List.of("Use mine_blocks for ore."), custom.hints(EnumSet.of(ToolGroup.GATHERING)));
         assertTrue(custom.hints(Set.of()).isEmpty());
-        assertEquals(2, custom.hints(EnumSet.of(ToolGroup.GATHERING, ToolGroup.CRAFTING)).size());
+        assertEquals(
+                2,
+                custom.hints(EnumSet.of(ToolGroup.GATHERING, ToolGroup.CRAFTING))
+                        .size());
     }
 
     @Test
@@ -84,7 +89,8 @@ class ToolCatalogTest {
         assertTrue(find.core(), "find_place must be core: reading the book unlocks no group");
         assertEquals(ToolGroup.CORE, find.group(), "find_place");
         assertEquals(List.of("find_place"), names(catalog.filter(List.of(spec("find_place")), Set.of())));
-        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));    }
+        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));
+    }
 
     @Test
     void everyToolHasExactlyOneEntry() {
@@ -95,11 +101,18 @@ class ToolCatalogTest {
     @Test
     void creativeToolsExplainWhenToUseThemAndTheirLimits() {
         List<String> hints = catalog.hints(EnumSet.of(ToolGroup.CONTROL));
-        assertTrue(hints.stream().anyMatch(line -> line.contains("create_item")
-                && line.contains("instead of mining unnecessarily")), hints.toString());
-        assertTrue(hints.stream().anyMatch(line -> line.contains("fly_to")
-                && line.contains("collision-safe route")), hints.toString());
-        assertTrue(hints.stream().anyMatch(line -> line.contains("execute_command")
-                && line.contains("without claiming a denied or failed command succeeded")), hints.toString());
+        assertTrue(
+                hints.stream()
+                        .anyMatch(line ->
+                                line.contains("create_item") && line.contains("instead of mining unnecessarily")),
+                hints.toString());
+        assertTrue(
+                hints.stream().anyMatch(line -> line.contains("fly_to") && line.contains("collision-safe route")),
+                hints.toString());
+        assertTrue(
+                hints.stream()
+                        .anyMatch(line -> line.contains("execute_command")
+                                && line.contains("without claiming a denied or failed command succeeded")),
+                hints.toString());
     }
 }

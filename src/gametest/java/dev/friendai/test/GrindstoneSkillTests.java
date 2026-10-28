@@ -59,7 +59,9 @@ public class GrindstoneSkillTests {
     @GameTest
     public void stripsEnchantsAndGivesExperience(GameTestHelper h) {
         CompanionEntity c = setup(h, 144, true);
-        var sharpness = h.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
+        var sharpness = h.getLevel()
+                .registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT)
                 .getOrThrow(Enchantments.SHARPNESS);
         ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
         EnchantmentHelper.updateEnchantments(sword, mutable -> mutable.set(sharpness, 3));
@@ -90,7 +92,9 @@ public class GrindstoneSkillTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "status was " + result.status + " " + result.summary);
             h.assertTrue(!find(c, Items.STICK).isEmpty(), "the stick must come back");
-            h.assertTrue(c.experience().points() == 0, "points were " + c.experience().points());
+            h.assertTrue(
+                    c.experience().points() == 0,
+                    "points were " + c.experience().points());
         });
     }
 

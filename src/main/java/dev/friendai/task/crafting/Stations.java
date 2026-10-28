@@ -1,11 +1,11 @@
 package dev.friendai.task.crafting;
 
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
-import dev.friendai.core.FriendaiServerState;
-import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -57,7 +57,8 @@ public final class Stations {
     /** Evidence-backed station candidates for companion decisions. */
     public static List<BlockPos> nearbyAll(CompanionEntity companion, Station station, int limit) {
         if (!(companion.level() instanceof ServerLevel level) || block(station) == null) return List.of();
-        ResourceCandidates candidates = FriendaiServerState.get(level.getServer()).resources();
+        ResourceCandidates candidates =
+                FriendaiServerState.get(level.getServer()).resources();
         return candidates.knownOrVisible(companion, matcher(station), SEARCH_RADIUS, limit);
     }
 
@@ -72,7 +73,8 @@ public final class Stations {
             @Override
             public boolean test(BlockState state) {
                 if (station == Station.CAMPFIRE) {
-                    return state.is(BlockTags.CAMPFIRES) && state.hasProperty(CampfireBlock.LIT)
+                    return state.is(BlockTags.CAMPFIRES)
+                            && state.hasProperty(CampfireBlock.LIT)
                             && state.getValue(CampfireBlock.LIT);
                 }
                 return state.is(block);
@@ -130,12 +132,14 @@ public final class Stations {
     /** Evaluates base features only from direct observations, for production station selection. */
     public static boolean looksLikeBase(CompanionEntity companion, BlockPos pos) {
         if (!(companion.level() instanceof ServerLevel level)) return false;
-        var observations = FriendaiServerState.get(level.getServer()).resources().confirmedRecent(companion, BASE_RADIUS * 2);
+        var observations =
+                FriendaiServerState.get(level.getServer()).resources().confirmedRecent(companion, BASE_RADIUS * 2);
         int kinds = 0;
         for (var observation : observations) {
             var p = observation.location().pos();
             BlockPos seen = new BlockPos(p.x(), p.y(), p.z());
-            if (seen.equals(pos) || Math.abs(seen.getX() - pos.getX()) > BASE_RADIUS
+            if (seen.equals(pos)
+                    || Math.abs(seen.getX() - pos.getX()) > BASE_RADIUS
                     || Math.abs(seen.getY() - pos.getY()) > BASE_RADIUS
                     || Math.abs(seen.getZ() - pos.getZ()) > BASE_RADIUS) continue;
             var id = net.minecraft.resources.Identifier.tryParse(observation.blockId());

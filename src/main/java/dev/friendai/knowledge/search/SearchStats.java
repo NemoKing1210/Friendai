@@ -12,13 +12,21 @@ public final class SearchStats {
 
     public record Counters(int finds, int misses, double travelBlocks, long ticks, int excavationBlocks) {
         public Counters {
-            if (finds < 0 || misses < 0 || !Double.isFinite(travelBlocks) || travelBlocks < 0 || ticks < 0
+            if (finds < 0
+                    || misses < 0
+                    || !Double.isFinite(travelBlocks)
+                    || travelBlocks < 0
+                    || ticks < 0
                     || excavationBlocks < 0) throw new IllegalArgumentException("invalid search counters");
         }
 
         public Counters plus(boolean found, double travel, long tickCost, int blocks) {
-            return new Counters(finds + (found ? 1 : 0), misses + (found ? 0 : 1), travelBlocks + travel,
-                    ticks + tickCost, excavationBlocks + blocks);
+            return new Counters(
+                    finds + (found ? 1 : 0),
+                    misses + (found ? 0 : 1),
+                    travelBlocks + travel,
+                    ticks + tickCost,
+                    excavationBlocks + blocks);
         }
 
         /** Excavated blocks per find; zero when nothing has been found yet. */
@@ -31,7 +39,9 @@ public final class SearchStats {
     private Runnable onChange;
 
     /** Registers a listener that runs after every counter change, so the owner's book is flushed. */
-    public synchronized void onChange(Runnable listener) { onChange = listener; }
+    public synchronized void onChange(Runnable listener) {
+        onChange = listener;
+    }
 
     private void changed() {
         if (onChange != null) onChange.run();
@@ -42,9 +52,14 @@ public final class SearchStats {
         if (travelBlocks < 0 || ticks < 0 || excavationBlocks < 0)
             throw new IllegalArgumentException("invalid search work");
         if (!counters.containsKey(kind) && counters.size() >= MAX_KINDS) return;
-        counters.merge(kind, new Counters(found ? 1 : 0, found ? 0 : 1, travelBlocks, ticks, excavationBlocks),
-                (left, right) -> new Counters(left.finds() + right.finds(), left.misses() + right.misses(),
-                        left.travelBlocks() + right.travelBlocks(), left.ticks() + right.ticks(),
+        counters.merge(
+                kind,
+                new Counters(found ? 1 : 0, found ? 0 : 1, travelBlocks, ticks, excavationBlocks),
+                (left, right) -> new Counters(
+                        left.finds() + right.finds(),
+                        left.misses() + right.misses(),
+                        left.travelBlocks() + right.travelBlocks(),
+                        left.ticks() + right.ticks(),
                         left.excavationBlocks() + right.excavationBlocks()));
         changed();
     }
@@ -61,7 +76,9 @@ public final class SearchStats {
         changed();
     }
 
-    public synchronized Set<String> kinds() { return Set.copyOf(counters.keySet()); }
+    public synchronized Set<String> kinds() {
+        return Set.copyOf(counters.keySet());
+    }
 
     public synchronized JsonObject toJson() {
         JsonObject json = new JsonObject();
@@ -84,12 +101,14 @@ public final class SearchStats {
             if (stats.counters.size() >= MAX_KINDS || !entry.getValue().isJsonObject()) continue;
             JsonObject row = entry.getValue().getAsJsonObject();
             try {
-                stats.counters.put(entry.getKey(), new Counters(
-                        row.has("finds") ? row.get("finds").getAsInt() : 0,
-                        row.has("misses") ? row.get("misses").getAsInt() : 0,
-                        row.has("travel") ? row.get("travel").getAsDouble() : 0,
-                        row.has("ticks") ? row.get("ticks").getAsLong() : 0,
-                        row.has("excavated") ? row.get("excavated").getAsInt() : 0));
+                stats.counters.put(
+                        entry.getKey(),
+                        new Counters(
+                                row.has("finds") ? row.get("finds").getAsInt() : 0,
+                                row.has("misses") ? row.get("misses").getAsInt() : 0,
+                                row.has("travel") ? row.get("travel").getAsDouble() : 0,
+                                row.has("ticks") ? row.get("ticks").getAsLong() : 0,
+                                row.has("excavated") ? row.get("excavated").getAsInt() : 0));
             } catch (RuntimeException malformed) {
                 // A broken counter row is dropped, not allowed to invalidate the whole knowledge file.
             }
@@ -106,9 +125,14 @@ public final class SearchStats {
             Counters value = entry.getValue();
             if (!first) text.append("; ");
             first = false;
-            text.append(entry.getKey()).append(' ').append(value.finds()).append(" finds/")
-                    .append(value.misses()).append(" misses, ")
-                    .append(String.format(Locale.ROOT, "%.1f", value.blocksPerFind())).append(" blocks/find");
+            text.append(entry.getKey())
+                    .append(' ')
+                    .append(value.finds())
+                    .append(" finds/")
+                    .append(value.misses())
+                    .append(" misses, ")
+                    .append(String.format(Locale.ROOT, "%.1f", value.blocksPerFind()))
+                    .append(" blocks/find");
         }
         return text.toString();
     }

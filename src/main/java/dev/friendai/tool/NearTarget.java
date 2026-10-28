@@ -17,8 +17,7 @@ public enum NearTarget {
         return switch (raw.strip().toLowerCase(Locale.ROOT)) {
             case "me", "you", "speaker" -> ME;
             case "self", "companion" -> SELF;
-            default -> throw new IllegalArgumentException(
-                    "near must be \"me\", \"self\" or \"place:<name>\"");
+            default -> throw new IllegalArgumentException("near must be \"me\", \"self\" or \"place:<name>\"");
         };
     }
 }

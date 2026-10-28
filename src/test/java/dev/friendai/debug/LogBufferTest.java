@@ -16,21 +16,33 @@ class LogBufferTest {
         LogBuffer buffer = new LogBuffer(10);
         buffer.append(List.of(e(1, LogKind.USER), e(2, LogKind.USER)));
         buffer.append(List.of(e(2, LogKind.USER), e(3, LogKind.USER)));
-        assertEquals(List.of(1L, 2L, 3L), buffer.view(EnumSet.allOf(LogKind.class)).stream().map(LogEntry::id).toList());
+        assertEquals(
+                List.of(1L, 2L, 3L),
+                buffer.view(EnumSet.allOf(LogKind.class)).stream()
+                        .map(LogEntry::id)
+                        .toList());
     }
 
     @Test
     void evictsOldest() {
         LogBuffer buffer = new LogBuffer(2);
         buffer.append(List.of(e(1, LogKind.USER), e(2, LogKind.USER), e(3, LogKind.USER)));
-        assertEquals(List.of(2L, 3L), buffer.view(EnumSet.allOf(LogKind.class)).stream().map(LogEntry::id).toList());
+        assertEquals(
+                List.of(2L, 3L),
+                buffer.view(EnumSet.allOf(LogKind.class)).stream()
+                        .map(LogEntry::id)
+                        .toList());
     }
 
     @Test
     void viewFiltersByKind() {
         LogBuffer buffer = new LogBuffer(10);
         buffer.append(List.of(e(1, LogKind.USER), e(2, LogKind.ERROR), e(3, LogKind.USER)));
-        assertEquals(List.of(2L), buffer.view(EnumSet.of(LogKind.ERROR)).stream().map(LogEntry::id).toList());
+        assertEquals(
+                List.of(2L),
+                buffer.view(EnumSet.of(LogKind.ERROR)).stream()
+                        .map(LogEntry::id)
+                        .toList());
     }
 
     @Test

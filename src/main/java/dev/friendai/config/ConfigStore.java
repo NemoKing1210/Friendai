@@ -19,7 +19,8 @@ import org.slf4j.LoggerFactory;
 /** Loads and saves a JSON config file: defaults on first run, backup on corruption, versioned migrations. */
 public final class ConfigStore<T> {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
     private final Path file;
     private final Class<T> type;

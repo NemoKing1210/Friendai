@@ -47,21 +47,60 @@ public final class AutoProfile {
     private static final Pattern QUOTED = Pattern.compile("\"[^\"]*\"|`[^`]*`");
     private static final Pattern COMMAND = Pattern.compile("(?<!\\S)/\\S+");
     private static final Pattern SENTENCE_END = Pattern.compile("[.!?;\\n]");
-    private static final Pattern ADDRESS_CLAUSE_END =
-            Pattern.compile("\\s+(?:and|but|и|но|а)\\s+", FLAGS);
+    private static final Pattern ADDRESS_CLAUSE_END = Pattern.compile("\\s+(?:and|but|и|но|а)\\s+", FLAGS);
     private static final Pattern EDGE_PUNCTUATION = Pattern.compile("^[\\s,\"'«»]+|[\\s,\"'«»]+$");
     private static final Pattern POLITENESS = Pattern.compile("\\s+(?:please|пожалуйста)$", FLAGS);
     private static final int NEGATION_LOOKBACK = 12;
 
     private static final Set<String> BARE_VALUES = Set.of(
-            "it", "this", "that", "them", "you", "him", "her", "me", "us", "these", "those", "everything",
-            "anything", "это", "этого", "этот", "эту", "его", "её", "ее", "их", "тебя", "вас", "себя", "всё",
-            "все", "ничего");
+            "it",
+            "this",
+            "that",
+            "them",
+            "you",
+            "him",
+            "her",
+            "me",
+            "us",
+            "these",
+            "those",
+            "everything",
+            "anything",
+            "это",
+            "этого",
+            "этот",
+            "эту",
+            "его",
+            "её",
+            "ее",
+            "их",
+            "тебя",
+            "вас",
+            "себя",
+            "всё",
+            "все",
+            "ничего");
 
     /** "Call me when you arrive" is a request, not a name. */
     private static final Set<String> CLAUSE_STARTS = Set.of(
-            "when", "whenever", "if", "once", "after", "before", "later", "tomorrow", "now", "back", "again",
-            "как", "когда", "если", "потом", "завтра", "сейчас", "обратно");
+            "when",
+            "whenever",
+            "if",
+            "once",
+            "after",
+            "before",
+            "later",
+            "tomorrow",
+            "now",
+            "back",
+            "again",
+            "как",
+            "когда",
+            "если",
+            "потом",
+            "завтра",
+            "сейчас",
+            "обратно");
 
     private static final Pattern ADDRESS_CALL_EN = address("call me\\s+");
     private static final Pattern ADDRESS_NAME_EN = address("my name is\\s+");
@@ -116,8 +155,7 @@ public final class AutoProfile {
             }
             String name = addressValue(value.get());
             if (name != null) {
-                captures.add(new Capture(
-                        Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
+                captures.add(new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
                 break;
             }
         }
@@ -134,28 +172,19 @@ public final class AutoProfile {
                     && thing.toLowerCase(Locale.ROOT).startsWith("to be called ")) {
                 String name = addressValue(thing.substring("to be called ".length()));
                 if (name != null) {
-                    captures.add(new Capture(
-                            Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
+                    captures.add(new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
                 }
                 continue;
             }
             captures.add(new Capture(
-                    Kind.PREFERENCE,
-                    Category.PREFERENCE,
-                    preferenceSlot(thing),
-                    rule.canonicalPrefix() + thing + "."));
+                    Kind.PREFERENCE, Category.PREFERENCE, preferenceSlot(thing), rule.canonicalPrefix() + thing + "."));
         }
         return captures;
     }
 
     /** Records every explicit profile statement in an owner's message. Never throws on a full book. */
     public static void record(
-            MemoryBook book,
-            UUID owner,
-            String ownerName,
-            String message,
-            long now,
-            MemoryLimits limits) {
+            MemoryBook book, UUID owner, String ownerName, String message, long now, MemoryLimits limits) {
         for (Capture capture : parse(message)) {
             upsert(book, owner, ownerName, capture, now, limits);
         }
@@ -163,12 +192,7 @@ public final class AutoProfile {
 
     /** Keeps the language fact in step with the value learned on the record. Never throws on a full book. */
     public static void syncLanguage(
-            MemoryBook book,
-            UUID owner,
-            String ownerName,
-            String language,
-            long now,
-            MemoryLimits limits) {
+            MemoryBook book, UUID owner, String ownerName, String language, long now, MemoryLimits limits) {
         if (language == null || language.isBlank()) {
             return;
         }
@@ -187,12 +211,7 @@ public final class AutoProfile {
     }
 
     private static void upsert(
-            MemoryBook book,
-            UUID owner,
-            String ownerName,
-            Capture capture,
-            long now,
-            MemoryLimits limits) {
+            MemoryBook book, UUID owner, String ownerName, Capture capture, long now, MemoryLimits limits) {
         Fact existing = null;
         for (Fact fact : book.facts(Subject.player(owner))) {
             if (slotOf(fact.text()).filter(capture.slot()::equals).isPresent()) {
@@ -224,7 +243,8 @@ public final class AutoProfile {
 
     /** "Don't call me X" and "не называй меня X" say the opposite, so they are not an address. */
     private static boolean negated(String text, int start) {
-        String before = text.substring(Math.max(0, start - NEGATION_LOOKBACK), start).toLowerCase(Locale.ROOT);
+        String before =
+                text.substring(Math.max(0, start - NEGATION_LOOKBACK), start).toLowerCase(Locale.ROOT);
         return before.contains("don't") || before.contains("do not") || before.contains("не ");
     }
 

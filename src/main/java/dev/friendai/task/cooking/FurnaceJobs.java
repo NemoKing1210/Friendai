@@ -9,8 +9,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * The companion's loaded furnaces. The watcher posts one notice per job when its furnace finishes or runs out
@@ -61,16 +61,20 @@ public final class FurnaceJobs {
             ItemStack result = furnace.getItem(2);
             if (input.isEmpty() && !result.isEmpty()) {
                 notified.add(pos);
-                companion.taskRunner().notice("the " + job.station().noun() + " at " + coords(pos) + " finished: "
-                        + result.getCount() + " " + job.output() + " ready (use collect_smelted)");
+                companion
+                        .taskRunner()
+                        .notice("the " + job.station().noun() + " at " + coords(pos) + " finished: " + result.getCount()
+                                + " " + job.output() + " ready (use collect_smelted)");
                 continue;
             }
             BlockState state = level.getBlockState(pos);
             boolean lit = state.hasProperty(AbstractFurnaceBlock.LIT) && state.getValue(AbstractFurnaceBlock.LIT);
             if (!input.isEmpty() && !lit && furnace.getItem(1).isEmpty()) {
                 notified.add(pos);
-                companion.taskRunner().notice("the " + job.station().noun() + " at " + coords(pos) + " stopped: "
-                        + "out of fuel, " + input.getCount() + " " + job.input() + " left");
+                companion
+                        .taskRunner()
+                        .notice("the " + job.station().noun() + " at " + coords(pos) + " stopped: " + "out of fuel, "
+                                + input.getCount() + " " + job.input() + " left");
             }
         }
     }
@@ -78,8 +82,10 @@ public final class FurnaceJobs {
     private void drop(CompanionEntity companion, FurnaceJob job) {
         jobs.remove(job);
         notified.remove(job.pos());
-        companion.taskRunner().notice("the " + job.station().noun() + " at " + coords(job.pos()) + " is gone; "
-                + "the job for " + job.output() + " was dropped");
+        companion
+                .taskRunner()
+                .notice("the " + job.station().noun() + " at " + coords(job.pos()) + " is gone; " + "the job for "
+                        + job.output() + " was dropped");
     }
 
     private static String coords(BlockPos pos) {

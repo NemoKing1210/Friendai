@@ -8,11 +8,10 @@ public final class PacePolicy {
     /** Distance to the owner below which an automatic follower stops running. */
     public static final double RUN_STOP_DISTANCE = 5.0;
 
-    private PacePolicy() {
-    }
+    private PacePolicy() {}
 
-    public static boolean shouldRun(PaceMode mode, boolean following, double ownerDistance,
-                                    boolean canSprint, boolean running) {
+    public static boolean shouldRun(
+            PaceMode mode, boolean following, double ownerDistance, boolean canSprint, boolean running) {
         if (!canSprint) {
             return false;
         }

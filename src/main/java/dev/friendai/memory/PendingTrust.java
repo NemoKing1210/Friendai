@@ -20,8 +20,7 @@ public final class PendingTrust {
 
     /** Replaces any earlier request of the same owner. Returns the new request. */
     public TrustRequest open(UUID owner, UUID target, String name, boolean trust, long now) {
-        TrustRequest request =
-                new TrustRequest(nextId++, owner, target, name, trust, now + TTL_MILLIS);
+        TrustRequest request = new TrustRequest(nextId++, owner, target, name, trust, now + TTL_MILLIS);
         requests.put(owner, request);
         return request;
     }

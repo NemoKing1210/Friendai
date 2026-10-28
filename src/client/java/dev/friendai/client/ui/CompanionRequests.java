@@ -15,13 +15,18 @@ public final class CompanionRequests {
     }
 
     private static long skillSequence;
-    public static long skills(String operation,String json) {
-        if(operation==null||operation.length()>32||json==null||json.length()>32768
-                ||!ClientPlayNetworking.canSend(dev.friendai.net.SkillsRequestC2SPayload.TYPE))return -1;
-        long id=++skillSequence;
-        ClientPlayNetworking.send(new dev.friendai.net.SkillsRequestC2SPayload(operation,json,id));
+
+    public static long skills(String operation, String json) {
+        if (operation == null
+                || operation.length() > 32
+                || json == null
+                || json.length() > 32768
+                || !ClientPlayNetworking.canSend(dev.friendai.net.SkillsRequestC2SPayload.TYPE)) return -1;
+        long id = ++skillSequence;
+        ClientPlayNetworking.send(new dev.friendai.net.SkillsRequestC2SPayload(operation, json, id));
         return id;
     }
+
     public static void rename(String name) {
         send(RequestType.RENAME, name, "");
     }
@@ -47,10 +52,20 @@ public final class CompanionRequests {
         }
     }
 
-    public static boolean tradingSupported() { return ClientPlayNetworking.canSend(TradeRequestC2SPayload.TYPE); }
-    public static void trade(TradeRequestC2SPayload.Action action, String queryId, String item, String components,
-            int direction, int page, String trader) {
-        if (tradingSupported()) ClientPlayNetworking.send(new TradeRequestC2SPayload(action, queryId, item,
-                components, direction, page, trader));
+    public static boolean tradingSupported() {
+        return ClientPlayNetworking.canSend(TradeRequestC2SPayload.TYPE);
+    }
+
+    public static void trade(
+            TradeRequestC2SPayload.Action action,
+            String queryId,
+            String item,
+            String components,
+            int direction,
+            int page,
+            String trader) {
+        if (tradingSupported())
+            ClientPlayNetworking.send(
+                    new TradeRequestC2SPayload(action, queryId, item, components, direction, page, trader));
     }
 }

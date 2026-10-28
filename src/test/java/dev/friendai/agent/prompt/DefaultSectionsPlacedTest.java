@@ -22,14 +22,29 @@ class DefaultSectionsPlacedTest {
     private static TurnContext ctx(AccessLevel level, String placed) {
         String name = level == AccessLevel.GUEST ? "Gus" : "Steve";
         return new TurnContext(
-                PERSONA, "Position: 1 2 3", new Caller(ID, name, level), "", TurnKind.PLAYER, "",
-                List.of(), "", placed, "", List.of());
+                PERSONA,
+                "Position: 1 2 3",
+                new Caller(ID, name, level),
+                "",
+                TurnKind.PLAYER,
+                "",
+                List.of(),
+                "",
+                placed,
+                "",
+                List.of());
     }
 
     @Test
     void ownerAndTrustedSeeTheBlock() {
-        assertTrue(DefaultSections.placed().render(ctx(AccessLevel.OWNER, BLOCK)).orElseThrow().contains("oak_log"));
-        assertTrue(DefaultSections.placed().render(ctx(AccessLevel.TRUSTED, BLOCK)).orElseThrow().contains("oak_log"));
+        assertTrue(DefaultSections.placed()
+                .render(ctx(AccessLevel.OWNER, BLOCK))
+                .orElseThrow()
+                .contains("oak_log"));
+        assertTrue(DefaultSections.placed()
+                .render(ctx(AccessLevel.TRUSTED, BLOCK))
+                .orElseThrow()
+                .contains("oak_log"));
     }
 
     @Test

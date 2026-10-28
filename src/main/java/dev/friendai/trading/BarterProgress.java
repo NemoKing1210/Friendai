@@ -6,17 +6,32 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Cumulative barter evidence separating accepted payments, emitted entities and inventory receipts. */
-public record BarterProgress(UUID orderId, int goldAccepted, Set<UUID> emittedItems,
-                             List<TradeItem> collected, State state, String reason) {
-    public enum State { AUTHORIZED, RUNNING, GOLD_ACCEPTED, OUTPUT_EMITTED, COLLECTED,
-        PARTIAL, LOST, UNCERTAIN, INTERRUPTED }
+public record BarterProgress(
+        UUID orderId, int goldAccepted, Set<UUID> emittedItems, List<TradeItem> collected, State state, String reason) {
+    public enum State {
+        AUTHORIZED,
+        RUNNING,
+        GOLD_ACCEPTED,
+        OUTPUT_EMITTED,
+        COLLECTED,
+        PARTIAL,
+        LOST,
+        UNCERTAIN,
+        INTERRUPTED
+    }
+
     public static final int MAX_EMITTED_ITEMS = 1_024;
     public static final int MAX_COLLECTED_STACKS = 2_048;
 
     public BarterProgress {
-        if (orderId == null || goldAccepted < 0 || emittedItems == null
-                || emittedItems.size() > MAX_EMITTED_ITEMS || emittedItems.stream().anyMatch(id -> id == null)
-                || collected == null || collected.size() > MAX_COLLECTED_STACKS || collected.stream().anyMatch(item -> item == null)
+        if (orderId == null
+                || goldAccepted < 0
+                || emittedItems == null
+                || emittedItems.size() > MAX_EMITTED_ITEMS
+                || emittedItems.stream().anyMatch(id -> id == null)
+                || collected == null
+                || collected.size() > MAX_COLLECTED_STACKS
+                || collected.stream().anyMatch(item -> item == null)
                 || state == null) throw new IllegalArgumentException("invalid barter progress");
         emittedItems = Set.copyOf(new HashSet<>(emittedItems));
         collected = List.copyOf(collected);
@@ -35,7 +50,8 @@ public record BarterProgress(UUID orderId, int goldAccepted, Set<UUID> emittedIt
     public int collectedCount(TradeQuery query) {
         int total = 0;
         for (TradeItem item : collected) {
-            if (query.direction() == TradeQuery.Direction.BUY && item.itemId().equals(query.itemId())
+            if (query.direction() == TradeQuery.Direction.BUY
+                    && item.itemId().equals(query.itemId())
                     && componentsMatch(query.requiredComponentsJson(), item.componentsJson())) {
                 total = Math.addExact(total, item.count());
             }
@@ -46,7 +62,8 @@ public record BarterProgress(UUID orderId, int goldAccepted, Set<UUID> emittedIt
     private static boolean componentsMatch(String requiredJson, String actualJson) {
         var required = com.google.gson.JsonParser.parseString(requiredJson).getAsJsonObject();
         var actual = com.google.gson.JsonParser.parseString(actualJson).getAsJsonObject();
-        return required.entrySet().stream().allMatch(entry -> actual.has(entry.getKey())
-                && entry.getValue().equals(actual.get(entry.getKey())));
+        return required.entrySet().stream()
+                .allMatch(
+                        entry -> actual.has(entry.getKey()) && entry.getValue().equals(actual.get(entry.getKey())));
     }
 }

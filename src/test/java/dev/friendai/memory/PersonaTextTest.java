@@ -22,7 +22,11 @@ class PersonaTextTest {
         assertTrue(PersonaText.parse(null).isEmpty());
         assertTrue(PersonaText.parse("   ").isEmpty());
         assertTrue(PersonaText.parse("x".repeat(PersonaText.MAX_LENGTH + 1)).isEmpty());
-        assertEquals(PersonaText.MAX_LENGTH, PersonaText.parse("x".repeat(PersonaText.MAX_LENGTH)).orElseThrow().length());
+        assertEquals(
+                PersonaText.MAX_LENGTH,
+                PersonaText.parse("x".repeat(PersonaText.MAX_LENGTH))
+                        .orElseThrow()
+                        .length());
     }
 
     @Test

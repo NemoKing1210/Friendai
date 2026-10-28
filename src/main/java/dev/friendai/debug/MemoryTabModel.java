@@ -29,7 +29,8 @@ public final class MemoryTabModel {
     public void onView(MemoryView next) {
         String previousGroup = groupKey;
         view = next;
-        boolean known = groupKey != null && next.groups().stream().anyMatch(g -> g.key().equals(groupKey));
+        boolean known =
+                groupKey != null && next.groups().stream().anyMatch(g -> g.key().equals(groupKey));
         if (!known) {
             groupKey = next.groups().isEmpty() ? null : next.groups().get(0).key();
         }

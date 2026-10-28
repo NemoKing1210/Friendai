@@ -81,29 +81,36 @@ final class BuildTools {
             """;
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        registry.register(ToolKit.instantTool("blueprint_help",
+        registry.register(ToolKit.instantTool(
+                "blueprint_help",
                 "Explain the blueprint JSON format and the structure generators; read it before writing a blueprint.",
                 (c, a) -> ToolResult.ok(HELP)));
-        registry.register(ToolKit.instantTool("preview_structure",
+        registry.register(ToolKit.instantTool(
+                "preview_structure",
                 "Check a structure before building it: size, materials, site problems, and an outline for the owner.",
-                sourceSchema().build(), BuildTools::preview));
-        ToolKit.add(registry, defs, new TaskToolDef("build_structure",
-                "Build a structure from a blueprint, a generator or a saved blueprint, taking missing materials from nearby storage.",
-                buildSchema(),
-                (c, a) -> {
-                    ServerLevel level = (ServerLevel) c.level();
-                    ParseResult parsed = BlueprintResolver.resolve(a, level, author(c));
-                    if (parsed.blueprint().isEmpty()) {
-                        throw new IllegalArgumentException(String.join("; ", parsed.errors()));
-                    }
-                    Blueprint blueprint = parsed.blueprint().get();
-                    Placement.PlacedBlueprint placed =
-                            Placement.of(blueprint, origin(a), facing(a), c);
-                    return new BuildTask(blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a),
-                            parts(a));
-                },
-                true));
-        registry.register(ToolKit.instantTool("save_blueprint",
+                sourceSchema().build(),
+                BuildTools::preview));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "build_structure",
+                        "Build a structure from a blueprint, a generator or a saved blueprint, taking missing materials from nearby storage.",
+                        buildSchema(),
+                        (c, a) -> {
+                            ServerLevel level = (ServerLevel) c.level();
+                            ParseResult parsed = BlueprintResolver.resolve(a, level, author(c));
+                            if (parsed.blueprint().isEmpty()) {
+                                throw new IllegalArgumentException(String.join("; ", parsed.errors()));
+                            }
+                            Blueprint blueprint = parsed.blueprint().get();
+                            Placement.PlacedBlueprint placed = Placement.of(blueprint, origin(a), facing(a), c);
+                            return new BuildTask(
+                                    blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a), parts(a));
+                        },
+                        true));
+        registry.register(ToolKit.instantTool(
+                "save_blueprint",
                 "Save a blueprint under a name so it can be built again later.",
                 SchemaBuilder.object()
                         .string("name", "Name of the blueprint: a-z, 0-9, _ and -, at most 32 characters")
@@ -112,7 +119,8 @@ final class BuildTools {
                         .required("name")
                         .build(),
                 BuildTools::save));
-        registry.register(ToolKit.instantTool("list_blueprints",
+        registry.register(ToolKit.instantTool(
+                "list_blueprints",
                 "List saved blueprints with their sizes and authors, and structure templates matching the query.",
                 SchemaBuilder.object()
                         .string("query", "Only blueprint names and template ids containing this text")
@@ -125,7 +133,8 @@ final class BuildTools {
                 .string("blueprint", "Blueprint JSON; blueprint_help explains the format")
                 .string("generator", "Generator JSON, for example {\"type\":\"house\",\"width\":7,\"depth\":7}")
                 .string("saved", "Name of a saved blueprint")
-                .string("structure",
+                .string(
+                        "structure",
                         "Structure template id, for example minecraft:village/plains/houses/plains_small_house_1")
                 .integer("x", "Origin X; give all of x, y, z or none for 3 blocks in front of the owner")
                 .integer("y", "Origin Y")
@@ -137,8 +146,12 @@ final class BuildTools {
         return sourceSchema()
                 .bool("clear_site", "Break natural ground on the site (default true)")
                 .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
-                .array("parts", "Build only these parts: floor, walls, roof, entrance, window; omit for everything",
-                        partSchema(), 0, 5)
+                .array(
+                        "parts",
+                        "Build only these parts: floor, walls, roof, entrance, window; omit for everything",
+                        partSchema(),
+                        0,
+                        5)
                 .build();
     }
 
@@ -165,9 +178,16 @@ final class BuildTools {
             return ToolResult.error(e.getMessage());
         }
         companion.setLastPreview(blueprint);
-        companion.owner().ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), placed, blueprint)));
+        companion
+                .owner()
+                .ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), placed, blueprint)));
         return ToolResult.ok(previewText(
-                blueprint, placed, site, needed, Materials.have(companion, level), Materials.carried(companion),
+                blueprint,
+                placed,
+                site,
+                needed,
+                Materials.have(companion, level),
+                Materials.carried(companion),
                 parsed.notes()));
     }
 
@@ -179,7 +199,8 @@ final class BuildTools {
             Map<Item, Integer> have,
             Map<Item, Integer> carried,
             List<String> notes) {
-        long blocks = placed.specs().stream().filter(spec -> !spec.wanted().isAir()).count();
+        long blocks =
+                placed.specs().stream().filter(spec -> !spec.wanted().isAir()).count();
         return blueprint.name() + " " + blueprint.width() + "×" + blueprint.height() + "×" + blueprint.depth()
                 + " at " + coords(placed.origin())
                 + " facing " + Placement.facingFor(placed.rotation()).getSerializedName()
@@ -207,8 +228,11 @@ final class BuildTools {
             if (text.length() > 0) {
                 text.append(", ");
             }
-            text.append(entry.getValue()).append(" × ").append(BuiltInRegistries.ITEM.getKey(item))
-                    .append(" (have ").append(atHand);
+            text.append(entry.getValue())
+                    .append(" × ")
+                    .append(BuiltInRegistries.ITEM.getKey(item))
+                    .append(" (have ")
+                    .append(atHand);
             if (stored > 0) {
                 text.append(" + ").append(stored).append(" in chests");
             }
@@ -240,7 +264,8 @@ final class BuildTools {
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());
         }
-        return ToolResult.ok("saved blueprint " + name + " (" + blueprint.blocks().size() + " blocks)");
+        return ToolResult.ok(
+                "saved blueprint " + name + " (" + blueprint.blocks().size() + " blocks)");
     }
 
     private static ToolResult list(CompanionEntity companion, JsonObject args) {
@@ -249,7 +274,9 @@ final class BuildTools {
         List<BlueprintStore.Entry> entries = BlueprintStore.forLevel(level).list().stream()
                 .filter(entry -> entry.name().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
-        List<String> templates = level.getServer().getStructureTemplateManager().listTemplates()
+        List<String> templates = level.getServer()
+                .getStructureTemplateManager()
+                .listTemplates()
                 .map(Identifier::toString)
                 .filter(id -> id.toLowerCase(Locale.ROOT).contains(query))
                 .sorted()
@@ -264,9 +291,14 @@ final class BuildTools {
                     text.append(", ");
                 }
                 text.append(entry.name())
-                        .append(' ').append(entry.width()).append('×').append(entry.height()).append('×')
+                        .append(' ')
+                        .append(entry.width())
+                        .append('×')
+                        .append(entry.height())
+                        .append('×')
                         .append(entry.depth())
-                        .append(" by ").append(authorName(level, entry.author()));
+                        .append(" by ")
+                        .append(authorName(level, entry.author()));
             }
         }
         if (!templates.isEmpty()) {
@@ -277,9 +309,10 @@ final class BuildTools {
             text.append(String.join(", ", templates));
         }
         if (text.length() == 0) {
-            return ToolResult.ok(query.isEmpty()
-                    ? "no saved blueprints or structure templates"
-                    : "no saved blueprints or structure templates matching " + query);
+            return ToolResult.ok(
+                    query.isEmpty()
+                            ? "no saved blueprints or structure templates"
+                            : "no saved blueprints or structure templates matching " + query);
         }
         return ToolResult.ok(text.toString());
     }
@@ -329,8 +362,8 @@ final class BuildTools {
             }
             String name = element.getAsString();
             PartKind kind = PartKind.parse(name)
-                    .orElseThrow(() -> new IllegalArgumentException("unknown part '" + name
-                            + "'; use floor, walls, roof, entrance or window"));
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "unknown part '" + name + "'; use floor, walls, roof, entrance or window"));
             if (kind == PartKind.INTERIOR) {
                 throw new IllegalArgumentException("the interior is empty space and is not built");
             }

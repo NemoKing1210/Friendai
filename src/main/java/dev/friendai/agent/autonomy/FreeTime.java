@@ -49,13 +49,14 @@ public record FreeTime(
         wish = cut(wish == null ? "" : wish.strip(), MAX_WISH);
         nextShiftId = Math.max(1, nextShiftId);
         history = history == null ? List.of() : List.copyOf(history.subList(0, Math.min(history.size(), MAX_HISTORY)));
-        lessons = lessons == null ? List.of() : lessons.stream()
-                .skip(Math.max(0, lessons.size() - MAX_LESSONS))
-                .map(lesson -> cut(lesson, MAX_LESSON))
-                .toList();
-        cooldownUntil = cooldownUntil == null || cooldownUntil.isEmpty()
-                ? Map.of()
-                : Map.copyOf(new EnumMap<>(cooldownUntil));
+        lessons = lessons == null
+                ? List.of()
+                : lessons.stream()
+                        .skip(Math.max(0, lessons.size() - MAX_LESSONS))
+                        .map(lesson -> cut(lesson, MAX_LESSON))
+                        .toList();
+        cooldownUntil =
+                cooldownUntil == null || cooldownUntil.isEmpty() ? Map.of() : Map.copyOf(new EnumMap<>(cooldownUntil));
         away = away == null ? List.of() : List.copyOf(away.subList(Math.max(0, away.size() - MAX_AWAY), away.size()));
     }
 

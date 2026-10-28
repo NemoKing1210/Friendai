@@ -14,7 +14,9 @@ public record StructureSite(BlockPos origin, Rotation rotation) {
     public BlockPos pos(SpecialStructure structure, Offset offset) {
         BlockPos local = Placement.rotate(
                 new BlockPos(offset.x(), offset.y(), offset.z()),
-                rotation, structure.body().width(), structure.body().depth());
+                rotation,
+                structure.body().width(),
+                structure.body().depth());
         return origin.offset(local);
     }
 
@@ -29,7 +31,11 @@ public record StructureSite(BlockPos origin, Rotation rotation) {
         BlockPos a = pos(structure, new Offset(0, 0, 0));
         BlockPos b = pos(structure, new Offset(f.width() - 1, f.height() - 1, f.depth() - 1));
         return new AABB(
-                Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()),
-                Math.max(a.getX(), b.getX()) + 1, Math.max(a.getY(), b.getY()) + 1, Math.max(a.getZ(), b.getZ()) + 1);
+                Math.min(a.getX(), b.getX()),
+                Math.min(a.getY(), b.getY()),
+                Math.min(a.getZ(), b.getZ()),
+                Math.max(a.getX(), b.getX()) + 1,
+                Math.max(a.getY(), b.getY()) + 1,
+                Math.max(a.getZ(), b.getZ()) + 1);
     }
 }

@@ -25,7 +25,8 @@ public final class BarterDropTracker {
         if (attempt == null || piglin == null || tick < 0 || attempts.containsKey(attempt)) {
             throw new IllegalArgumentException("barter attempt, piglin and nonnegative tick are required");
         }
-        if (piglinAttempts.containsKey(piglin)) throw new IllegalStateException("piglin already has an active barter attempt");
+        if (piglinAttempts.containsKey(piglin))
+            throw new IllegalStateException("piglin already has an active barter attempt");
         if (attempts.size() >= MAX_ATTEMPTS) throw new IllegalStateException("too many active barter attempts");
         attempts.put(attempt, new Attempt(piglin, tick, new ArrayList<>(), new HashSet<>()));
         piglinAttempts.put(piglin, attempt);
@@ -36,7 +37,9 @@ public final class BarterDropTracker {
         return value == null ? List.of() : List.copyOf(value.outputs());
     }
 
-    public boolean hasAttemptFor(UUID piglin) { return piglinAttempts.containsKey(piglin); }
+    public boolean hasAttemptFor(UUID piglin) {
+        return piglinAttempts.containsKey(piglin);
+    }
 
     public java.util.Optional<UUID> attemptFor(UUID piglin) {
         return java.util.Optional.ofNullable(piglinAttempts.get(piglin));
@@ -46,8 +49,12 @@ public final class BarterDropTracker {
     public boolean observeVanillaOutput(UUID attempt, UUID piglin, UUID entity, long tick) {
         UUID activeId = piglin == null ? null : piglinAttempts.get(piglin);
         Attempt active = activeId == null ? null : attempts.get(activeId);
-        if (active == null || !activeId.equals(attempt) || entity == null || tick < active.startedAt()
-                || tick - active.startedAt() > MAX_ATTEMPT_TICKS || !active.seen().add(entity)) return false;
+        if (active == null
+                || !activeId.equals(attempt)
+                || entity == null
+                || tick < active.startedAt()
+                || tick - active.startedAt() > MAX_ATTEMPT_TICKS
+                || !active.seen().add(entity)) return false;
         if (active.outputs().size() >= MAX_OUTPUTS_PER_ATTEMPT) {
             overflowed.add(attempt);
             return false;
@@ -56,7 +63,9 @@ public final class BarterDropTracker {
         return true;
     }
 
-    public boolean overflowed(UUID attempt) { return overflowed.contains(attempt); }
+    public boolean overflowed(UUID attempt) {
+        return overflowed.contains(attempt);
+    }
 
     public boolean ownsAttempt(UUID attempt, UUID piglin) {
         return attempt != null && piglin != null && attempt.equals(piglinAttempts.get(piglin));
@@ -74,7 +83,8 @@ public final class BarterDropTracker {
         var expired = attempts.entrySet().stream()
                 .filter(entry -> tick >= entry.getValue().startedAt()
                         && tick - entry.getValue().startedAt() > MAX_ATTEMPT_TICKS)
-                .map(Map.Entry::getKey).toList();
+                .map(Map.Entry::getKey)
+                .toList();
         expired.forEach(this::finish);
     }
 }

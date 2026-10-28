@@ -4,11 +4,11 @@ import dev.friendai.crafting.Ingredient;
 import dev.friendai.crafting.Recipe;
 import dev.friendai.crafting.RecipeBook;
 import dev.friendai.crafting.Station;
-import dev.friendai.trading.TradePlanner;
 import dev.friendai.trading.TradeBudget;
-import dev.friendai.trading.TradeQuery;
-import dev.friendai.trading.TradePlan;
 import dev.friendai.trading.TradeItem;
+import dev.friendai.trading.TradePlan;
+import dev.friendai.trading.TradePlanner;
+import dev.friendai.trading.TradeQuery;
 import dev.friendai.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,14 +50,25 @@ public final class ObtainPlanner {
 
     private ObtainPlanner() {}
 
-    public static ObtainPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook recipes,
-            SourceBook sources, WorldFacts world) {
+    public static ObtainPlan plan(
+            String target,
+            int count,
+            Map<String, Integer> inventory,
+            RecipeBook recipes,
+            SourceBook sources,
+            WorldFacts world) {
         return plan(target, count, inventory, recipes, sources, world, null);
     }
 
     /** Adds merchant candidates only when the caller supplies an explicit, owner-authorized trading context. */
-    public static ObtainPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook recipes,
-            SourceBook sources, WorldFacts world, TradingContext trading) {
+    public static ObtainPlan plan(
+            String target,
+            int count,
+            Map<String, Integer> inventory,
+            RecipeBook recipes,
+            SourceBook sources,
+            WorldFacts world,
+            TradingContext trading) {
         Objects.requireNonNull(target, "target");
         if (target.isEmpty()) {
             throw new IllegalArgumentException("target must not be empty");
@@ -82,8 +93,8 @@ public final class ObtainPlanner {
                 sim.containers.put(item, amount);
             }
         });
-        Attempt attempt = new Search(recipes, sources, world, trading)
-                .need(target, count, 0, new LinkedHashSet<>(), sim, true);
+        Attempt attempt =
+                new Search(recipes, sources, world, trading).need(target, count, 0, new LinkedHashSet<>(), sim, true);
         List<ObtainStep> steps = merge(attempt.steps);
         return new ObtainPlan(steps, attempt.missing, steps.size(), attempt.conditional);
     }
@@ -277,8 +288,8 @@ public final class ObtainPlanner {
             return need(item, qty, depth, path, sim, emitCraft, true);
         }
 
-        Attempt need(String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft,
-                boolean allowExplore) {
+        Attempt need(
+                String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft, boolean allowExplore) {
             Attempt total = new Attempt();
             qty -= sim.take(item, qty);
             if (qty <= 0) {
@@ -304,7 +315,8 @@ public final class ObtainPlanner {
                     }
                     Sim copy = sim.copy();
                     Candidate candidate = provider.take(this, copy, capacity, depth, nextPath, emitCraft);
-                    if (candidate != null && (candidate.supplied() > 0 || candidate.attempt().conditional)
+                    if (candidate != null
+                            && (candidate.supplied() > 0 || candidate.attempt().conditional)
                             && (best == null || cheaper(candidate, best))) {
                         best = candidate;
                     }
@@ -354,8 +366,11 @@ public final class ObtainPlanner {
         }
 
         private static ObtainStep.VisitResource firstVisit(Attempt attempt) {
-            return attempt.steps.stream().filter(ObtainStep.VisitResource.class::isInstance)
-                    .map(ObtainStep.VisitResource.class::cast).findFirst().orElse(null);
+            return attempt.steps.stream()
+                    .filter(ObtainStep.VisitResource.class::isInstance)
+                    .map(ObtainStep.VisitResource.class::cast)
+                    .findFirst()
+                    .orElse(null);
         }
 
         private List<Provider> providers(String item, Sim sim, boolean allowExplore) {
@@ -378,15 +393,18 @@ public final class ObtainPlanner {
                         }
                         if (world.exploreAllowed()) {
                             world.resourceCandidates().stream()
-                                    .filter(candidate -> !candidate.visibleNow() && candidate.blockId().equals(mine.block()))
-                                    .filter(candidate -> !world.excludedSiteIds().contains(candidate.siteId()))
+                                    .filter(candidate -> !candidate.visibleNow()
+                                            && candidate.blockId().equals(mine.block()))
+                                    .filter(candidate ->
+                                            !world.excludedSiteIds().contains(candidate.siteId()))
                                     .sorted(java.util.Comparator.comparingLong(ResourceCandidate::siteId)
                                             .thenComparing(ResourceCandidate::blockId))
                                     .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
                         }
                         if (allowExplore && world.exploreAllowed() && explorable(item, mine)) {
                             boolean hasRememberedSite = world.resourceCandidates().stream()
-                                    .anyMatch(candidate -> !candidate.visibleNow() && candidate.blockId().equals(mine.block())
+                                    .anyMatch(candidate -> !candidate.visibleNow()
+                                            && candidate.blockId().equals(mine.block())
                                             && !world.excludedSiteIds().contains(candidate.siteId()));
                             if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true));
                         }
@@ -401,19 +419,35 @@ public final class ObtainPlanner {
                 TradeQuery query = new TradeQuery(TradeQuery.Direction.BUY, item, "{}", TradeQuery.MAX_RESULTS);
                 TradeBudget budget = remainingBudget(sim);
                 if (budget == null) return providers;
-                TradePlan plan = TradePlanner.plan(query, TradeItem.MAX_COUNT, trading.traders(), sim.items,
-                        budget, trading.nowTick(), false, trading.pricingActor());
+                TradePlan plan = TradePlanner.plan(
+                        query,
+                        TradeItem.MAX_COUNT,
+                        trading.traders(),
+                        sim.items,
+                        budget,
+                        trading.nowTick(),
+                        false,
+                        trading.pricingActor());
                 for (TradePlan.Fill fill : plan.fills()) {
-                    TraderRecord trader = trading.traders().stream().filter(value -> value.id().equals(fill.trader()))
-                            .findFirst().orElse(null);
-                    var offer = trader == null ? null : trader.offers().stream()
-                            .filter(value -> value.ref().equals(fill.offerRef())).findFirst().orElse(null);
-                    if (offer == null || !neutralItem(offer.output().itemId())
+                    TraderRecord trader = trading.traders().stream()
+                            .filter(value -> value.id().equals(fill.trader()))
+                            .findFirst()
+                            .orElse(null);
+                    var offer = trader == null
+                            ? null
+                            : trader.offers().stream()
+                                    .filter(value -> value.ref().equals(fill.offerRef()))
+                                    .findFirst()
+                                    .orElse(null);
+                    if (offer == null
+                            || !neutralItem(offer.output().itemId())
                             || !offer.output().componentsJson().equals("{}")
-                            || offer.effectiveInputs().stream().anyMatch(cost -> cost.itemId().equals(item))) continue;
+                            || offer.effectiveInputs().stream()
+                                    .anyMatch(cost -> cost.itemId().equals(item))) continue;
                     providers.add(new TradeProvider(item, fill, offer));
                 }
-                for (java.util.UUID traderId : plan.needsInspection()) providers.add(new InspectTraderProvider(traderId));
+                for (java.util.UUID traderId : plan.needsInspection())
+                    providers.add(new InspectTraderProvider(traderId));
             }
             return providers;
         }
@@ -426,9 +460,13 @@ public final class ObtainPlanner {
             });
             if (caps.isEmpty()) return null;
             var reserves = new LinkedHashMap<String, Integer>();
-            trading.budget().reserves().forEach((id, amount) -> { if (caps.containsKey(id)) reserves.put(id, amount); });
+            trading.budget().reserves().forEach((id, amount) -> {
+                if (caps.containsKey(id)) reserves.put(id, amount);
+            });
             var unit = new LinkedHashMap<String, Integer>();
-            trading.budget().maxUnitCosts().forEach((id, amount) -> { if (caps.containsKey(id)) unit.put(id, amount); });
+            trading.budget().maxUnitCosts().forEach((id, amount) -> {
+                if (caps.containsKey(id)) unit.put(id, amount);
+            });
             return new TradeBudget(caps, reserves, unit);
         }
 
@@ -447,13 +485,16 @@ public final class ObtainPlanner {
                 this.offer = offer;
             }
 
-            @Override public int capacity(Sim sim, int want) {
+            @Override
+            public int capacity(Sim sim, int want) {
                 return Math.min(want, Math.multiplyExact(offer.output().count(), fill.repeats()));
             }
 
-            @Override public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path,
-                    boolean emitCraft) {
-                int repeats = Math.min(fill.repeats(), (want + offer.output().count() - 1) / offer.output().count());
+            @Override
+            public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
+                int repeats = Math.min(
+                        fill.repeats(),
+                        (want + offer.output().count() - 1) / offer.output().count());
                 var working = sim.copy();
                 Attempt attempt = new Attempt();
                 for (var input : offer.effectiveInputs()) {
@@ -463,8 +504,8 @@ public final class ObtainPlanner {
                 }
                 int output = Math.multiplyExact(offer.output().count(), repeats);
                 working.add(item, output);
-                attempt.add(new ObtainStep.Trade(fill.trader(), fill.offerRef(), fill.revision(), repeats,
-                        trading.scopeId()));
+                attempt.add(new ObtainStep.Trade(
+                        fill.trader(), fill.offerRef(), fill.revision(), repeats, trading.scopeId()));
                 attempt.cost = 10 + repeats;
                 return new Candidate(this, attempt, working, Math.min(want, output));
             }
@@ -472,10 +513,18 @@ public final class ObtainPlanner {
 
         private final class InspectTraderProvider implements Provider {
             private final java.util.UUID trader;
-            InspectTraderProvider(java.util.UUID trader) { this.trader = trader; }
-            @Override public int capacity(Sim sim, int want) { return want; }
-            @Override public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path,
-                    boolean emitCraft) {
+
+            InspectTraderProvider(java.util.UUID trader) {
+                this.trader = trader;
+            }
+
+            @Override
+            public int capacity(Sim sim, int want) {
+                return want;
+            }
+
+            @Override
+            public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 Attempt attempt = new Attempt();
                 attempt.add(new ObtainStep.InspectTrader(trader));
                 attempt.conditional = true;
@@ -496,7 +545,8 @@ public final class ObtainPlanner {
                 return true;
             }
             for (Map.Entry<String, Integer> entry : sim.items.entrySet()) {
-                if (entry.getValue() > 0 && !sim.reserved.contains(entry.getKey())
+                if (entry.getValue() > 0
+                        && !sim.reserved.contains(entry.getKey())
                         && need.satisfiedBy(sources.toolOf(entry.getKey()))) {
                     return true;
                 }
@@ -514,7 +564,9 @@ public final class ObtainPlanner {
             if (carriedTool(need, sim)) {
                 return true;
             }
-            String item = sources.toolItem(need).or(() -> Optional.ofNullable(need.vanillaItem())).orElse(null);
+            String item = sources.toolItem(need)
+                    .or(() -> Optional.ofNullable(need.vanillaItem()))
+                    .orElse(null);
             if (item == null) {
                 return false;
             }
@@ -581,7 +633,8 @@ public final class ObtainPlanner {
                 }
                 Sim copy = sim.copy();
                 Candidate candidate = new CraftProvider(recipe).take(this, copy, qty, depth, nextPath, true);
-                if (candidate != null && candidate.supplied() > 0
+                if (candidate != null
+                        && candidate.supplied() > 0
                         && (best == null || candidate.attempt().cost < best.cost)) {
                     best = candidate.attempt();
                     bestSim = copy;
@@ -630,8 +683,14 @@ public final class ObtainPlanner {
             return null;
         }
 
-        private boolean fillIngredient(Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim,
-                Attempt attempt, boolean allowExplore) {
+        private boolean fillIngredient(
+                Ingredient ingredient,
+                int qty,
+                int depth,
+                Set<String> path,
+                Sim sim,
+                Attempt attempt,
+                boolean allowExplore) {
             for (String id : ingredient.items()) {
                 if (sim.available(id) > 0) {
                     qty -= sim.take(id, qty);
@@ -666,8 +725,8 @@ public final class ObtainPlanner {
             return !best.attempt.conditional;
         }
 
-        private Choice bestIngredient(Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim,
-                boolean allowExplore) {
+        private Choice bestIngredient(
+                Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim, boolean allowExplore) {
             Choice best = null;
             for (String id : ingredient.items()) {
                 Sim copy = sim.copy();
@@ -813,7 +872,8 @@ public final class ObtainPlanner {
                         break;
                     }
                 }
-                if (inputItem == null || !addFuel(sim, attempt, times, depth, path)
+                if (inputItem == null
+                        || !addFuel(sim, attempt, times, depth, path)
                         || !ensureStation(recipe.station(), depth, path, sim, attempt)) {
                     return null;
                 }
@@ -896,9 +956,13 @@ public final class ObtainPlanner {
             @Override
             public int capacity(Sim sim, int want) {
                 if (sim.reservedSites.contains(resource.siteId())) return 0;
-                int availableBlocks = sim.siteBlocks.computeIfAbsent(resource.siteId(), ignored ->
-                        world.resourceCandidates().stream().filter(candidate -> candidate.siteId() == resource.siteId())
-                                .mapToInt(ResourceCandidate::lastObservedBlocks).max().orElse(0));
+                int availableBlocks = sim.siteBlocks.computeIfAbsent(
+                        resource.siteId(),
+                        ignored -> world.resourceCandidates().stream()
+                                .filter(candidate -> candidate.siteId() == resource.siteId())
+                                .mapToInt(ResourceCandidate::lastObservedBlocks)
+                                .max()
+                                .orElse(0));
                 if (availableBlocks < 1) return 0;
                 return Math.min(want, Math.max(1, (int) Math.floor(availableBlocks * source.perBlock())));
             }

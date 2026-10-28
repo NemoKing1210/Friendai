@@ -40,14 +40,39 @@ class GeminiProtocolTest {
         JsonObject w = protocol.toWire(request(
                 List.of(Message.user("hi"), Message.assistant("ok", List.of(call))),
                 List.of(new ToolSpec("stay", "Stay put", schema))));
-        assertEquals("SYS", w.getAsJsonObject("systemInstruction").getAsJsonArray("parts").get(0).getAsJsonObject().get("text").getAsString());
-        assertEquals("stay", w.getAsJsonArray("tools").get(0).getAsJsonObject()
-                .getAsJsonArray("functionDeclarations").get(0).getAsJsonObject().get("name").getAsString());
-        assertEquals(1024, w.getAsJsonObject("generationConfig").get("maxOutputTokens").getAsInt());
+        assertEquals(
+                "SYS",
+                w.getAsJsonObject("systemInstruction")
+                        .getAsJsonArray("parts")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("text")
+                        .getAsString());
+        assertEquals(
+                "stay",
+                w.getAsJsonArray("tools")
+                        .get(0)
+                        .getAsJsonObject()
+                        .getAsJsonArray("functionDeclarations")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("name")
+                        .getAsString());
+        assertEquals(
+                1024,
+                w.getAsJsonObject("generationConfig").get("maxOutputTokens").getAsInt());
         assertFalse(w.getAsJsonObject("generationConfig").has("temperature"));
         JsonArray contents = w.getAsJsonArray("contents");
         assertEquals("user", contents.get(0).getAsJsonObject().get("role").getAsString());
-        assertEquals("hi", contents.get(0).getAsJsonObject().getAsJsonArray("parts").get(0).getAsJsonObject().get("text").getAsString());
+        assertEquals(
+                "hi",
+                contents.get(0)
+                        .getAsJsonObject()
+                        .getAsJsonArray("parts")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("text")
+                        .getAsString());
         assertEquals("model", contents.get(1).getAsJsonObject().get("role").getAsString());
     }
 
@@ -56,7 +81,8 @@ class GeminiProtocolTest {
         ToolCall a = new ToolCall("a", "x", new JsonObject(), "{}", null);
         ToolCall b = new ToolCall("b", "y", new JsonObject(), "{}", null);
         JsonObject w = protocol.toWire(request(
-                List.of(Message.user("go"), Message.assistant("", List.of(a, b)),
+                List.of(
+                        Message.user("go"), Message.assistant("", List.of(a, b)),
                         Message.toolResult("a", "x", "1"), Message.toolResult("b", "y", "2")),
                 List.of()));
         JsonArray contents = w.getAsJsonArray("contents");
@@ -66,7 +92,13 @@ class GeminiProtocolTest {
         JsonObject fr = parts.get(0).getAsJsonObject().getAsJsonObject("functionResponse");
         assertEquals("x", fr.get("name").getAsString());
         assertEquals("1", fr.getAsJsonObject("response").get("content").getAsString());
-        assertEquals("y", parts.get(1).getAsJsonObject().getAsJsonObject("functionResponse").get("name").getAsString());
+        assertEquals(
+                "y",
+                parts.get(1)
+                        .getAsJsonObject()
+                        .getAsJsonObject("functionResponse")
+                        .get("name")
+                        .getAsString());
     }
 
     @Test
@@ -76,8 +108,14 @@ class GeminiProtocolTest {
                   {"functionCall":{"name":"stay","args":{}},"thoughtSignature":"sig1"}]},"finishReason":"STOP"}]}"""));
         ToolCall call = r.toolCalls().get(0);
         assertEquals("sig1", call.signature());
-        JsonObject w = protocol.toWire(request(List.of(Message.user("go"), Message.assistant("", List.of(call))), List.of()));
-        JsonObject part = w.getAsJsonArray("contents").get(1).getAsJsonObject().getAsJsonArray("parts").get(0).getAsJsonObject();
+        JsonObject w =
+                protocol.toWire(request(List.of(Message.user("go"), Message.assistant("", List.of(call))), List.of()));
+        JsonObject part = w.getAsJsonArray("contents")
+                .get(1)
+                .getAsJsonObject()
+                .getAsJsonArray("parts")
+                .get(0)
+                .getAsJsonObject();
         assertEquals("sig1", part.get("thoughtSignature").getAsString());
     }
 
@@ -105,9 +143,11 @@ class GeminiProtocolTest {
     @Test
     void usesGoogApiKeyHeader() throws Exception {
         try (MockHttpServer server = new MockHttpServer()) {
-            server.enqueue(200, "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hi\"}]},\"finishReason\":\"STOP\"}]}");
+            server.enqueue(
+                    200, "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hi\"}]},\"finishReason\":\"STOP\"}]}");
             Endpoint endpoint = new Endpoint(server.baseUrl(), "secret", AuthStyle.GOOG_API_KEY);
-            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of())).get();
+            protocol.complete(endpoint, request(List.of(Message.user("hi")), List.of()))
+                    .get();
             MockHttpServer.RecordedRequest r = server.requests().get(0);
             assertEquals("/models/gemini-x:generateContent", r.path());
             assertEquals("secret", r.header("x-goog-api-key"));
@@ -119,7 +159,9 @@ class GeminiProtocolTest {
         try (MockHttpServer server = new MockHttpServer()) {
             server.enqueue(200, "{\"models\":[{\"name\":\"models/gemini-a\"},{\"name\":\"models/gemini-b\"}]}");
             Endpoint endpoint = new Endpoint(server.baseUrl(), "k", AuthStyle.GOOG_API_KEY);
-            assertEquals(List.of("gemini-a", "gemini-b"), protocol.listModels(endpoint).get());
+            assertEquals(
+                    List.of("gemini-a", "gemini-b"),
+                    protocol.listModels(endpoint).get());
         }
     }
 }

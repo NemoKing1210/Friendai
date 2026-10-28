@@ -1,6 +1,7 @@
 package dev.friendai.perception;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import org.junit.jupiter.api.Test;
 
 class RelativeDirectionTest {
@@ -18,12 +19,12 @@ class RelativeDirectionTest {
 
     @Test
     void relativeToUsesMinecraftYaw() {
-        assertEquals("ahead", RelativeDirection.relativeTo(-90, 5, 0));      // facing east
-        assertEquals("right", RelativeDirection.relativeTo(-90, 0, 5));      // south is right of east
+        assertEquals("ahead", RelativeDirection.relativeTo(-90, 5, 0)); // facing east
+        assertEquals("right", RelativeDirection.relativeTo(-90, 0, 5)); // south is right of east
         assertEquals("behind", RelativeDirection.relativeTo(-90, -5, 0));
         assertEquals("left", RelativeDirection.relativeTo(-90, 0, -5));
-        assertEquals("ahead-left", RelativeDirection.relativeTo(0, 5, 5));   // facing south
+        assertEquals("ahead-left", RelativeDirection.relativeTo(0, 5, 5)); // facing south
         assertEquals("ahead-right", RelativeDirection.relativeTo(0, -5, 5));
-        assertEquals("ahead", RelativeDirection.relativeTo(180, 0, -5));     // facing north
+        assertEquals("ahead", RelativeDirection.relativeTo(180, 0, -5)); // facing north
     }
 }

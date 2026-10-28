@@ -14,7 +14,12 @@ import java.util.function.Predicate;
 
 /** Incremental, bounded A* over body-clear 3D cells. Paths include both start and goal. */
 public final class FlightSearch {
-    public enum Status { RUNNING, FOUND, NO_PATH, LIMIT }
+    public enum Status {
+        RUNNING,
+        FOUND,
+        NO_PATH,
+        LIMIT
+    }
 
     public record Progress(Status status, int expandedThisStep, int totalExpanded) {}
 
@@ -27,8 +32,8 @@ public final class FlightSearch {
     private final Pos goal;
     private final Predicate<Pos> free;
     private final int maxExpansions;
-    private final PriorityQueue<Open> open = new PriorityQueue<>(Comparator
-            .comparingDouble(Open::score).thenComparingLong(Open::order));
+    private final PriorityQueue<Open> open =
+            new PriorityQueue<>(Comparator.comparingDouble(Open::score).thenComparingLong(Open::order));
     private final Map<Pos, Double> costs = new HashMap<>();
     private final Map<Pos, Pos> previous = new HashMap<>();
     private final Set<Pos> closed = new HashSet<>();
@@ -63,7 +68,8 @@ public final class FlightSearch {
                 break;
             }
             Open current = open.poll();
-            if (closed.contains(current.pos()) || current.cost() > costs.getOrDefault(current.pos(), Double.POSITIVE_INFINITY)) {
+            if (closed.contains(current.pos())
+                    || current.cost() > costs.getOrDefault(current.pos(), Double.POSITIVE_INFINITY)) {
                 continue;
             }
             if (current.pos().equals(goal)) {
@@ -80,16 +86,24 @@ public final class FlightSearch {
         return new Progress(status, stepExpansions, expanded);
     }
 
-    public Status status() { return status; }
+    public Status status() {
+        return status;
+    }
 
-    public List<Pos> path() { return path == null ? null : path; }
+    public List<Pos> path() {
+        return path == null ? null : path;
+    }
 
-    public int expanded() { return expanded; }
+    public int expanded() {
+        return expanded;
+    }
 
     private void expand(Open current) {
         for (int[] delta : NEIGHBORS) {
             Pos next = current.pos().offset(delta[0], delta[1], delta[2]);
-            if (closed.contains(next) || !withinSearchBounds(next) || !free.test(next)
+            if (closed.contains(next)
+                    || !withinSearchBounds(next)
+                    || !free.test(next)
                     || !clearDiagonal(current.pos(), delta)) continue;
             double stepCost = Math.sqrt(delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]);
             double cost = current.cost() + stepCost;

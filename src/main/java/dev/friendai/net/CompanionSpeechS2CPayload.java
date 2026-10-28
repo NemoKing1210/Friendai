@@ -17,11 +17,16 @@ public record CompanionSpeechS2CPayload(
             new CustomPacketPayload.Type<>(FriendaiMod.id("companion_speech"));
     public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, CompanionSpeechS2CPayload> CODEC =
             StreamCodec.composite(
-                            ByteBufCodecs.stringUtf8(MAX_NAME), CompanionSpeechS2CPayload::companion,
-                            ByteBufCodecs.stringUtf8(MAX_TEXT), CompanionSpeechS2CPayload::text,
-                            UUIDUtil.STREAM_CODEC, CompanionSpeechS2CPayload::addressee,
-                            UUIDUtil.STREAM_CODEC, CompanionSpeechS2CPayload::companionId,
-                            ByteBufCodecs.VAR_INT, CompanionSpeechS2CPayload::audibleRange,
+                            ByteBufCodecs.stringUtf8(MAX_NAME),
+                            CompanionSpeechS2CPayload::companion,
+                            ByteBufCodecs.stringUtf8(MAX_TEXT),
+                            CompanionSpeechS2CPayload::text,
+                            UUIDUtil.STREAM_CODEC,
+                            CompanionSpeechS2CPayload::addressee,
+                            UUIDUtil.STREAM_CODEC,
+                            CompanionSpeechS2CPayload::companionId,
+                            ByteBufCodecs.VAR_INT,
+                            CompanionSpeechS2CPayload::audibleRange,
                             CompanionSpeechS2CPayload::new)
                     .cast();
 

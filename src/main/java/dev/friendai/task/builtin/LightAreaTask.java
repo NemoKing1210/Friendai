@@ -98,8 +98,7 @@ public final class LightAreaTask implements Task {
             case UNREACHABLE -> {
                 return skip();
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         if (!companion.hands().canInteract(spot)) {
             return skip();

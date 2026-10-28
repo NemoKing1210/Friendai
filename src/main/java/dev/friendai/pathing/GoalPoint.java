@@ -3,8 +3,7 @@ package dev.friendai.pathing;
 import java.util.Optional;
 
 /** A goal near a single point, as {@code MoveHelper} wants: within a horizontal radius and a height band. */
-public record GoalPoint(double x, double y, double z, double horizontal, double vertical)
-        implements PathGoal {
+public record GoalPoint(double x, double y, double z, double horizontal, double vertical) implements PathGoal {
 
     @Override
     public boolean protects(Pos p) {
@@ -28,8 +27,7 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
         double horizontalGap = Math.max(0, Math.sqrt(dx * dx + dz * dz) - horizontal);
         double above = Math.max(0, y - n.y() - vertical);
         double below = Math.max(0, n.y() - y - vertical);
-        return Math.max(horizontalWeight(costs) * horizontalGap,
-                upWeight(costs) * above + downWeight(costs) * below);
+        return Math.max(horizontalWeight(costs) * horizontalGap, upWeight(costs) * above + downWeight(costs) * below);
     }
 
     private static double horizontalWeight(CostModel costs) {

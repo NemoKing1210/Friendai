@@ -47,24 +47,26 @@ public final class WhisperLocalStt implements SpeechToText, AutoCloseable {
 
     @Override
     public CompletableFuture<String> transcribe(float[] samples16k, String language) {
-        return CompletableFuture.supplyAsync(() -> {
-            WhisperFullParams params = new WhisperFullParams(WhisperSamplingStrategy.GREEDY);
-            params.printProgress = false;
-            params.printRealtime = false;
-            params.printTimestamps = false;
-            params.nThreads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
-            params.language = language == null || language.isBlank() ? "auto" : language;
-            int result = whisper.full(context, params, samples16k, samples16k.length);
-            if (result != 0) {
-                throw new IllegalStateException("whisper returned " + result);
-            }
-            StringBuilder text = new StringBuilder();
-            int segments = whisper.fullNSegments(context);
-            for (int i = 0; i < segments; i++) {
-                text.append(whisper.fullGetSegmentText(context, i));
-            }
-            return text.toString().strip();
-        }, executor);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    WhisperFullParams params = new WhisperFullParams(WhisperSamplingStrategy.GREEDY);
+                    params.printProgress = false;
+                    params.printRealtime = false;
+                    params.printTimestamps = false;
+                    params.nThreads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+                    params.language = language == null || language.isBlank() ? "auto" : language;
+                    int result = whisper.full(context, params, samples16k, samples16k.length);
+                    if (result != 0) {
+                        throw new IllegalStateException("whisper returned " + result);
+                    }
+                    StringBuilder text = new StringBuilder();
+                    int segments = whisper.fullNSegments(context);
+                    for (int i = 0; i < segments; i++) {
+                        text.append(whisper.fullGetSegmentText(context, i));
+                    }
+                    return text.toString().strip();
+                },
+                executor);
     }
 
     @Override

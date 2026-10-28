@@ -26,15 +26,16 @@ public final class QueueTradeScope {
         JsonObject args = copy(source);
         if (args.has(ARG)) throw new IllegalArgumentException(ARG + " is server-managed");
         if (spending) {
-            if (currentScope == null) throw new IllegalArgumentException("spending jobs require an owner-initiated turn");
+            if (currentScope == null)
+                throw new IllegalArgumentException("spending jobs require an owner-initiated turn");
             args.addProperty(ARG, currentScope.toString());
         }
         return args;
     }
 
     /** Captures queue arguments and the matching caller scope; spending work is limited to one attempt. */
-    public static EnqueueCapture captureEnqueue(JsonObject source, UUID currentScope, boolean spending,
-                                                int requestedMaxAttempts) {
+    public static EnqueueCapture captureEnqueue(
+            JsonObject source, UUID currentScope, boolean spending, int requestedMaxAttempts) {
         if (requestedMaxAttempts < 1) throw new IllegalArgumentException("max attempts must be positive");
         JsonObject args = capture(source, currentScope, spending);
         return new EnqueueCapture(args, spending ? 1 : requestedMaxAttempts, read(args));
@@ -56,7 +57,8 @@ public final class QueueTradeScope {
     public static UUID read(JsonObject args) {
         if (args == null || !args.has(ARG)) return null;
         try {
-            if (!args.get(ARG).isJsonPrimitive() || !args.getAsJsonPrimitive(ARG).isString()) {
+            if (!args.get(ARG).isJsonPrimitive()
+                    || !args.getAsJsonPrimitive(ARG).isString()) {
                 throw new IllegalArgumentException("queued trading scope is malformed");
             }
             return UUID.fromString(args.get(ARG).getAsString());
@@ -74,7 +76,8 @@ public final class QueueTradeScope {
     public static UUID retry(JsonObject savedArgs, boolean spending, boolean ownerAccess) {
         if (spending && !ownerAccess) throw new IllegalArgumentException("only the owner may retry spending work");
         UUID captured = read(savedArgs);
-        if (spending && captured == null) throw new IllegalArgumentException("spending job has no original owner scope");
+        if (spending && captured == null)
+            throw new IllegalArgumentException("spending job has no original owner scope");
         return captured;
     }
 

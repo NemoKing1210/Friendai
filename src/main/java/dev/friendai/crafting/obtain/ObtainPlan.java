@@ -6,10 +6,12 @@ import java.util.List;
 import java.util.Map;
 
 /** The steps to get an item, what could not be obtained, and how many steps the plan has. */
-public record ObtainPlan(List<ObtainStep> steps, Map<String, Integer> missing, int estimatedSteps, boolean conditional) {
+public record ObtainPlan(
+        List<ObtainStep> steps, Map<String, Integer> missing, int estimatedSteps, boolean conditional) {
     public ObtainPlan(List<ObtainStep> steps, Map<String, Integer> missing, int estimatedSteps) {
         this(steps, missing, estimatedSteps, false);
     }
+
     public ObtainPlan {
         steps = List.copyOf(steps);
         missing = Collections.unmodifiableMap(new LinkedHashMap<>(missing));
@@ -21,5 +23,7 @@ public record ObtainPlan(List<ObtainStep> steps, Map<String, Integer> missing, i
     }
 
     /** A conditional prefix is useful to execute up to its visit/search boundary. */
-    public boolean actionable() { return !steps.isEmpty() && (ok() || conditional); }
+    public boolean actionable() {
+        return !steps.isEmpty() && (ok() || conditional);
+    }
 }

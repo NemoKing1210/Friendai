@@ -1,7 +1,7 @@
 package dev.friendai.trading;
 
-import java.io.IOException;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.CopyOption;
@@ -69,13 +69,24 @@ public final class TradeStore implements AutoCloseable {
         this(dir, writer, null, waitForWrites, clock, mover, Files::copy);
     }
 
-    private TradeStore(Path dir, ExecutorService ownedWriter, boolean waitForWrites,
-                       LongSupplier clock, FileMover mover, FileCopier copier) {
+    private TradeStore(
+            Path dir,
+            ExecutorService ownedWriter,
+            boolean waitForWrites,
+            LongSupplier clock,
+            FileMover mover,
+            FileCopier copier) {
         this(dir, ownedWriter, ownedWriter, waitForWrites, clock, mover, copier);
     }
 
-    private TradeStore(Path dir, Executor writer, ExecutorService ownedWriter, boolean waitForWrites,
-                       LongSupplier clock, FileMover mover, FileCopier copier) {
+    private TradeStore(
+            Path dir,
+            Executor writer,
+            ExecutorService ownedWriter,
+            boolean waitForWrites,
+            LongSupplier clock,
+            FileMover mover,
+            FileCopier copier) {
         this.dir = Objects.requireNonNull(dir);
         this.writer = Objects.requireNonNull(writer);
         this.ownedWriter = ownedWriter;
@@ -145,7 +156,9 @@ public final class TradeStore implements AutoCloseable {
         queueDirty();
     }
 
-    public void flushIfDue() { flushIfDue(clock.getAsLong()); }
+    public void flushIfDue() {
+        flushIfDue(clock.getAsLong());
+    }
 
     /** Queues the latest snapshot of every dirty owner; production waits through revisions queued during a save. */
     public void flushAll() {
@@ -157,7 +170,8 @@ public final class TradeStore implements AutoCloseable {
     }
 
     private synchronized void queueDirty() {
-        owners: for (Map.Entry<UUID, TradeBook> entry : books.entrySet()) {
+        owners:
+        for (Map.Entry<UUID, TradeBook> entry : books.entrySet()) {
             UUID owner = entry.getKey();
             TradeBook book = entry.getValue();
             if (writeDisabledOwners.containsKey(owner)) {
@@ -165,7 +179,8 @@ public final class TradeStore implements AutoCloseable {
                 continue;
             }
             long revision = book.revision();
-            if (revision == savedRevision.getOrDefault(owner, 0L) || pending.contains(owner)
+            if (revision == savedRevision.getOrDefault(owner, 0L)
+                    || pending.contains(owner)
                     || failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision) continue;
 
             TradeFile snapshot;
@@ -280,9 +295,13 @@ public final class TradeStore implements AutoCloseable {
         return book != null && book.revision() != savedRevision.getOrDefault(owner, 0L);
     }
 
-    synchronized boolean writesDisabled(UUID owner) { return writeDisabledOwners.containsKey(owner); }
+    synchronized boolean writesDisabled(UUID owner) {
+        return writeDisabledOwners.containsKey(owner);
+    }
 
-    synchronized String failure(UUID owner) { return failures.get(owner); }
+    synchronized String failure(UUID owner) {
+        return failures.get(owner);
+    }
 
     private void fail(UUID owner, long revision, String message) {
         String previous = failures.get(owner);
@@ -302,8 +321,11 @@ public final class TradeStore implements AutoCloseable {
             LOGGER.warn("Trade file {} is invalid ({}); original bytes remain at {}", file, safeMessage(cause), file);
             return false;
         }
-        LOGGER.warn("Trade file {} is invalid ({}); using an empty book and preserving the original at {}",
-                file, safeMessage(cause), backup);
+        LOGGER.warn(
+                "Trade file {} is invalid ({}); using an empty book and preserving the original at {}",
+                file,
+                safeMessage(cause),
+                backup);
         return true;
     }
 
@@ -319,11 +341,13 @@ public final class TradeStore implements AutoCloseable {
         return message == null || message.isBlank() ? failure.getClass().getSimpleName() : message;
     }
 
-    private Path file(UUID owner) { return dir.resolve(owner + ".json"); }
+    private Path file(UUID owner) {
+        return dir.resolve(owner + ".json");
+    }
 
     private static byte[] readBounded(Path file) throws IOException {
         try (InputStream input = Files.newInputStream(file);
-             var output = new ByteArrayOutputStream()) {
+                var output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8 * 1024];
             int total = 0;
             int read;

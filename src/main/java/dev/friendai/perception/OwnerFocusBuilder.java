@@ -90,9 +90,7 @@ public final class OwnerFocusBuilder {
             return null;
         }
         ServerPlayer player = resolve(c, principal);
-        return player != null && player.level() == level && inView(c, player, c.distanceTo(player))
-                ? player
-                : null;
+        return player != null && player.level() == level && inView(c, player, c.distanceTo(player)) ? player : null;
     }
 
     private static ServerPlayer resolve(CompanionEntity c, UUID principal) {
@@ -163,8 +161,8 @@ public final class OwnerFocusBuilder {
 
         if (entityHit != null && entityDistance < blockDistance) {
             Entity target = entityHit.getEntity();
-            return "entity " + shortName(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()))
-                    + " at " + coords(target.blockPosition()) + " (" + blocks(entityDistance) + " blocks)";
+            return "entity " + shortName(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType())) + " at "
+                    + coords(target.blockPosition()) + " (" + blocks(entityDistance) + " blocks)";
         }
         if (blockPos != null) {
             return "block " + blockName(level, blockPos) + " at " + coords(blockPos) + " (" + blocks(blockDistance)
@@ -184,9 +182,10 @@ public final class OwnerFocusBuilder {
             return facts.append(", can be dug by hand").toString();
         }
         String tool = toolFor(companion, state);
-        return facts.append(tool == null
-                        ? ", needs a proper tool (you have none)"
-                        : ", needs a proper tool (you have " + tool + ")")
+        return facts.append(
+                        tool == null
+                                ? ", needs a proper tool (you have none)"
+                                : ", needs a proper tool (you have " + tool + ")")
                 .toString();
     }
 

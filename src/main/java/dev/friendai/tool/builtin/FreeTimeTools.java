@@ -18,25 +18,34 @@ final class FreeTimeTools {
     private FreeTimeTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry) {
-        registry.register(ToolKit.callerTool("start_free_time",
+        registry.register(ToolKit.callerTool(
+                "start_free_time",
                 "Start free time: you work on your own, like a survival player, until the owner calls you back. "
                         + "Use it when the owner says to do your own thing or whatever you want. Pass their hint as wish.",
-                SchemaBuilder.object().string("wish", "The owner's hint, like 'focus on food'; optional").build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> {
+                SchemaBuilder.object()
+                        .string("wish", "The owner's hint, like 'focus on food'; optional")
+                        .build(),
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> {
                     FreeTimeDriver driver = driver(c);
                     if (driver.disabled()) {
                         return ToolResult.error("free time is disabled on this server");
                     }
                     String wish = args.has("wish") && !args.get("wish").isJsonNull()
-                            ? args.get("wish").getAsString() : "";
+                            ? args.get("wish").getAsString()
+                            : "";
                     driver.start(c, FreeTime.Origin.COMMAND, wish);
                     return ToolResult.ok("free time on; you will pick your own work in a moment");
                 }));
-        registry.register(ToolKit.callerTool("end_free_time",
+        registry.register(ToolKit.callerTool(
+                "end_free_time",
                 "End free time and come back to the owner. Use it when the owner calls you back or tells you to stop "
                         + "working; it is not the answer to 'don't follow me', which only switches following off.",
                 SchemaBuilder.object().build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> {
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> {
                     FreeTimeDriver driver = driver(c);
                     // "Come back" turns following on even when free time was already off: that is the whole order.
                     c.setFollowMode(true);
@@ -46,19 +55,29 @@ final class FreeTimeTools {
                     driver.stop(c.ownerUuid(), "owner ended free time");
                     return ToolResult.ok("free time off; following the owner again");
                 }));
-        registry.register(ToolKit.callerTool("choose_activity",
+        registry.register(ToolKit.callerTool(
+                "choose_activity",
                 "Free time only: choose the one activity you do next and the agenda need it serves. A planner "
                         + "turns it into steps.",
                 SchemaBuilder.object()
                         .string("goal", "The activity in one short sentence, like 'mine iron for a pickaxe'")
-                        .array("criteria", "How you will know it is done", SchemaBuilder.object()
-                                .string("text", "One check").required("text").build(), 0, 6)
+                        .array(
+                                "criteria",
+                                "How you will know it is done",
+                                SchemaBuilder.object()
+                                        .string("text", "One check")
+                                        .required("text")
+                                        .build(),
+                                0,
+                                6)
                         .string("why", "One short sentence to tell the owner why")
                         .enumeration("need", "The agenda need this activity serves", agendaNames())
                         .integer("minutes", "How long it may take", 3, 120)
                         .required("goal", "why")
                         .build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> {
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> {
                     String goal = args.get("goal").getAsString().strip();
                     if (goal.isEmpty() || goal.length() > 200) {
                         return ToolResult.error("goal must be 1 to 200 characters");
@@ -67,17 +86,24 @@ final class FreeTimeTools {
                     List<String> criteria = new ArrayList<>();
                     if (args.has("criteria") && args.get("criteria").isJsonArray()) {
                         for (JsonElement e : args.getAsJsonArray("criteria")) {
-                            criteria.add(e.isJsonObject() && e.getAsJsonObject().has("text")
-                                    ? e.getAsJsonObject().get("text").getAsString()
-                                    : e.getAsString());
+                            criteria.add(
+                                    e.isJsonObject() && e.getAsJsonObject().has("text")
+                                            ? e.getAsJsonObject().get("text").getAsString()
+                                            : e.getAsString());
                         }
                     }
                     int minutes = args.has("minutes") ? args.get("minutes").getAsInt() : 20;
                     String need = args.has("need") && !args.get("need").isJsonNull()
-                            ? args.get("need").getAsString() : "";
-                    return driver(c).choose(c, goal, criteria,
-                            why.length() > FreeTime.MAX_WISH ? why.substring(0, FreeTime.MAX_WISH) : why, minutes,
-                            need);
+                            ? args.get("need").getAsString()
+                            : "";
+                    return driver(c)
+                            .choose(
+                                    c,
+                                    goal,
+                                    criteria,
+                                    why.length() > FreeTime.MAX_WISH ? why.substring(0, FreeTime.MAX_WISH) : why,
+                                    minutes,
+                                    need);
                 }));
     }
 

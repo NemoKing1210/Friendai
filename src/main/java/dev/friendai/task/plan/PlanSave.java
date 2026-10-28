@@ -76,9 +76,8 @@ public final class PlanSave {
                 if (args != null && !args.isJsonNull() && !args.isJsonObject()) {
                     return Optional.empty();
                 }
-                steps.add(new Step(tool, args == null || args.isJsonNull()
-                        ? new JsonObject()
-                        : args.getAsJsonObject()));
+                steps.add(
+                        new Step(tool, args == null || args.isJsonNull() ? new JsonObject() : args.getAsJsonObject()));
             }
             if (steps.isEmpty() || index < 0 || index > steps.size()) {
                 return Optional.empty();

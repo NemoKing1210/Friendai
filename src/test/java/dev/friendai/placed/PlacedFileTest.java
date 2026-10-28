@@ -27,8 +27,7 @@ class PlacedFileTest {
     @Test
     void rejectsWrongVersion() {
         String json = "{\"version\":0,\"entries\":[]}";
-        assertThrows(IllegalArgumentException.class,
-                () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
     }
 
     @Test
@@ -38,8 +37,7 @@ class PlacedFileTest {
                 + "\"block\":\"minecraft:oak_log\",\"tick\":1,\"source\":\"direct\"},"
                 + "{\"dimension\":\"minecraft:overworld\",\"x\":1,\"y\":64,\"z\":0,"
                 + "\"block\":\"minecraft:oak_log\",\"tick\":2,\"source\":\"direct\"}]}";
-        assertThrows(IllegalArgumentException.class,
-                () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
     }
 
     @Test
@@ -47,8 +45,7 @@ class PlacedFileTest {
         String json = "{\"version\":1,\"entries\":["
                 + "{\"dimension\":\"minecraft:overworld\",\"x\":1,\"y\":64,\"z\":0,"
                 + "\"block\":\"oak log\",\"tick\":1,\"source\":\"direct\"}]}";
-        assertThrows(IllegalArgumentException.class,
-                () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
     }
 
     @Test
@@ -56,8 +53,7 @@ class PlacedFileTest {
         String json = "{\"version\":1,\"entries\":["
                 + "{\"dimension\":\"minecraft:overworld\",\"x\":1,\"y\":64,\"z\":0,"
                 + "\"block\":\"minecraft:oak_log\",\"tick\":-1,\"source\":\"direct\"}]}";
-        assertThrows(IllegalArgumentException.class,
-                () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
+        assertThrows(IllegalArgumentException.class, () -> PlacedFile.decode(json, PlacedLimits.DEFAULTS));
     }
 
     @Test
@@ -67,8 +63,7 @@ class PlacedFileTest {
             book.record(block(i, "minecraft:oak_log", i, "direct"));
         }
         String json = PlacedFile.encode(book).toJson();
-        assertThrows(IllegalArgumentException.class,
-                () -> PlacedFile.decode(json, new PlacedLimits(2, 1 << 20)));
+        assertThrows(IllegalArgumentException.class, () -> PlacedFile.decode(json, new PlacedLimits(2, 1 << 20)));
     }
 
     @Test
@@ -81,8 +76,10 @@ class PlacedFileTest {
         PlacedBook book = new PlacedBook(PlacedLimits.DEFAULTS);
         book.record(block(1, "minecraft:oak_log", 1, "direct"));
         book.record(block(2, "minecraft:oak_log", 2, "direct"));
-        assertEquals(List.of(1, 2),
-                PlacedFile.decode(PlacedFile.encode(book).toJson(), PlacedLimits.DEFAULTS)
-                        .all().stream().map(b -> b.pos().x()).toList());
+        assertEquals(
+                List.of(1, 2),
+                PlacedFile.decode(PlacedFile.encode(book).toJson(), PlacedLimits.DEFAULTS).all().stream()
+                        .map(b -> b.pos().x())
+                        .toList());
     }
 }

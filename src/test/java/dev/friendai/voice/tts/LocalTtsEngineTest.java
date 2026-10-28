@@ -16,14 +16,15 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 class LocalTtsEngineTest {
-    private static final VoiceModel MODEL = VoiceModels.byId("en_US-lessac-medium").orElseThrow();
+    private static final VoiceModel MODEL =
+            VoiceModels.byId("en_US-lessac-medium").orElseThrow();
 
     @Test
     void missingFilesAreNotReady(@TempDir Path dir) throws Exception {
         try (LocalTtsEngine engine = new LocalTtsEngine(MODEL, dir, 1.0, Runnable::run)) {
             assertFalse(engine.isReady());
-            ExecutionException error =
-                    assertThrows(ExecutionException.class, () -> engine.synthesize("Hello").get());
+            ExecutionException error = assertThrows(
+                    ExecutionException.class, () -> engine.synthesize("Hello").get());
             assertEquals(
                     "friendai.voice.tts.error.no_voice",
                     ((UserFacingException) error.getCause()).userMessage().key());
@@ -39,8 +40,8 @@ class LocalTtsEngineTest {
         assertTrue(engine.isReady());
         engine.close();
         assertFalse(engine.isReady());
-        ExecutionException error =
-                assertThrows(ExecutionException.class, () -> engine.synthesize("Hello").get());
+        ExecutionException error = assertThrows(
+                ExecutionException.class, () -> engine.synthesize("Hello").get());
         assertEquals(
                 "friendai.voice.tts.error.failed",
                 ((UserFacingException) error.getCause()).userMessage().key());

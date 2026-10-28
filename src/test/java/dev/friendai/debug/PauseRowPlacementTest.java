@@ -14,8 +14,7 @@ class PauseRowPlacementTest {
 
     @Test
     void usesLargestSameYGroup() {
-        List<Rect> icons = List.of(
-                new Rect(0, 10, 20, 20), new Rect(24, 10, 20, 20), new Rect(200, 90, 20, 20));
+        List<Rect> icons = List.of(new Rect(0, 10, 20, 20), new Rect(24, 10, 20, 20), new Rect(200, 90, 20, 20));
         assertEquals(new Rect(48, 10, 20, 20), PauseRowPlacement.place(icons, 400, 20));
     }
 

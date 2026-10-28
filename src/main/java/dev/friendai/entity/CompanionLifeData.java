@@ -23,20 +23,20 @@ public final class CompanionLifeData extends SavedData {
     public record RespawnPoint(ResourceKey<Level> dimension, BlockPos bed) {}
 
     /** @param followMode the owner's follow switch; empty until they make the choice, so the config default applies */
-    private record OwnerState(boolean autoRespawn, String respawnPoint, boolean creativeMode,
-                              Optional<Boolean> followMode) {
+    private record OwnerState(
+            boolean autoRespawn, String respawnPoint, boolean creativeMode, Optional<Boolean> followMode) {
         static final Codec<OwnerState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                Codec.BOOL.optionalFieldOf("autoRespawn", true).forGetter(OwnerState::autoRespawn),
-                Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint),
-                Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode),
-                Codec.BOOL.optionalFieldOf("followMode").forGetter(OwnerState::followMode))
+                        Codec.BOOL.optionalFieldOf("autoRespawn", true).forGetter(OwnerState::autoRespawn),
+                        Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint),
+                        Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode),
+                        Codec.BOOL.optionalFieldOf("followMode").forGetter(OwnerState::followMode))
                 .apply(instance, OwnerState::new));
     }
 
     private static final Codec<CompanionLifeData> CODEC = Codec.unboundedMap(UUIDUtil.STRING_CODEC, OwnerState.CODEC)
             .xmap(CompanionLifeData::new, data -> data.owners);
-    public static final SavedDataType<CompanionLifeData> TYPE = new SavedDataType<>(
-            FriendaiMod.id("companion_life"), CompanionLifeData::new, CODEC, DataFixTypes.LEVEL);
+    public static final SavedDataType<CompanionLifeData> TYPE =
+            new SavedDataType<>(FriendaiMod.id("companion_life"), CompanionLifeData::new, CODEC, DataFixTypes.LEVEL);
 
     private final Map<UUID, OwnerState> owners = new HashMap<>();
 
@@ -77,8 +77,8 @@ public final class CompanionLifeData extends SavedData {
         }
         try {
             long packedBed = Long.parseLong(saved.substring(separator + 1));
-            return Optional.of(new RespawnPoint(
-                    ResourceKey.create(Registries.DIMENSION, dimension), BlockPos.of(packedBed)));
+            return Optional.of(
+                    new RespawnPoint(ResourceKey.create(Registries.DIMENSION, dimension), BlockPos.of(packedBed)));
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
@@ -87,17 +87,21 @@ public final class CompanionLifeData extends SavedData {
     public void setAutoRespawn(UUID owner, boolean enabled) {
         OwnerState current = state(owner);
         if (current.autoRespawn() != enabled) {
-            owners.put(owner, new OwnerState(enabled, current.respawnPoint(), current.creativeMode(),
-                    current.followMode()));
+            owners.put(
+                    owner,
+                    new OwnerState(enabled, current.respawnPoint(), current.creativeMode(), current.followMode()));
             setDirty();
         }
     }
 
     public void setRespawnPoint(UUID owner, RespawnPoint point) {
         OwnerState current = state(owner);
-        String next = point == null ? "" : point.dimension().identifier() + "|" + point.bed().asLong();
+        String next = point == null
+                ? ""
+                : point.dimension().identifier() + "|" + point.bed().asLong();
         if (!current.respawnPoint().equals(next)) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), next, current.creativeMode(), current.followMode()));
+            owners.put(
+                    owner, new OwnerState(current.autoRespawn(), next, current.creativeMode(), current.followMode()));
             setDirty();
         }
     }
@@ -111,8 +115,13 @@ public final class CompanionLifeData extends SavedData {
     public void setFollowMode(UUID owner, boolean enabled) {
         OwnerState current = state(owner);
         if (!current.followMode().equals(Optional.of(enabled))) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), current.creativeMode(),
-                    Optional.of(enabled)));
+            owners.put(
+                    owner,
+                    new OwnerState(
+                            current.autoRespawn(),
+                            current.respawnPoint(),
+                            current.creativeMode(),
+                            Optional.of(enabled)));
             setDirty();
         }
     }
@@ -120,8 +129,9 @@ public final class CompanionLifeData extends SavedData {
     public void setCreativeMode(UUID owner, boolean enabled) {
         OwnerState current = state(owner);
         if (current.creativeMode() != enabled) {
-            owners.put(owner, new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled,
-                    current.followMode()));
+            owners.put(
+                    owner,
+                    new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled, current.followMode()));
             setDirty();
         }
     }

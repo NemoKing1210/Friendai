@@ -59,7 +59,8 @@ public class InteractTests {
         InteractionResult result = c.hands().place(new ItemStack(Items.MOSSY_COBBLESTONE, 3), against, Direction.UP);
         h.assertTrue(result.consumesAction(), "placement result was " + result);
         h.assertTrue(h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.MOSSY_COBBLESTONE), "block must be placed");
-        h.assertTrue(c.inventory().countItem(Items.MOSSY_COBBLESTONE) == 2,
+        h.assertTrue(
+                c.inventory().countItem(Items.MOSSY_COBBLESTONE) == 2,
                 "leftover was " + c.inventory().countItem(Items.MOSSY_COBBLESTONE));
         h.assertTrue(c.hands().player().getInventory().isEmpty(), "the fake player inventory must be empty");
         h.succeed();
@@ -73,7 +74,8 @@ public class InteractTests {
         BlockPos against = h.absolutePos(new BlockPos(5, 1, 5));
         InteractionResult result = c.hands().place(new ItemStack(Items.CRACKED_STONE_BRICKS), against, Direction.UP);
         h.assertTrue(!result.consumesAction(), "placement result was " + result);
-        h.assertTrue(c.inventory().countItem(Items.CRACKED_STONE_BRICKS) == 1,
+        h.assertTrue(
+                c.inventory().countItem(Items.CRACKED_STONE_BRICKS) == 1,
                 "item must come back, have " + c.inventory().countItem(Items.CRACKED_STONE_BRICKS));
         h.assertTrue(c.hands().player().getInventory().isEmpty(), "the fake player inventory must be empty");
         h.succeed();

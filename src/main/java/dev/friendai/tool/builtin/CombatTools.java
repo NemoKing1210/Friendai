@@ -43,32 +43,51 @@ final class CombatTools {
     private CombatTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.addCaller(registry, defs, new TaskToolDef("attack",
-                "Hunt and kill mobs of a type near the companion, then collect the drops. Use attack_player for"
-                        + " players. Villagers, wandering traders and golems are off limits on your own initiative;"
-                        + " when the owner explicitly orders one hit or killed, that order is the permission, so"
-                        + " call attack with its type and do it.",
-                SchemaBuilder.object()
-                        .string("target", "Entity type id like minecraft:cow, or a tag like #minecraft:skeletons")
-                        .integer("count", "How many to hunt", 1, 16)
-                        .integer("radius", "Search radius in blocks", 1, 32)
-                        .required("target", "count")
-                        .build(),
-                (c, a) -> huntTask(a, false),
-                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
-                (c, caller, a) -> huntTask(a, caller != null && caller.access() == AccessLevel.OWNER)),
+        ToolKit.addCaller(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "attack",
+                        "Hunt and kill mobs of a type near the companion, then collect the drops. Use attack_player for"
+                                + " players. Villagers, wandering traders and golems are off limits on your own initiative;"
+                                + " when the owner explicitly orders one hit or killed, that order is the permission, so"
+                                + " call attack with its type and do it.",
+                        SchemaBuilder.object()
+                                .string(
+                                        "target",
+                                        "Entity type id like minecraft:cow, or a tag like #minecraft:skeletons")
+                                .integer("count", "How many to hunt", 1, 16)
+                                .integer("radius", "Search radius in blocks", 1, 32)
+                                .required("target", "count")
+                                .build(),
+                        (c, a) -> huntTask(a, false),
+                        true,
+                        AccessLevel.TRUSTED,
+                        TaskToolDef.QueueTraits.DEFAULT,
+                        (c, caller, a) -> huntTask(a, caller != null && caller.access() == AccessLevel.OWNER)),
                 CombatTools::attack);
-        ToolKit.addCaller(registry, defs, new TaskToolDef("attack_player",
-                "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.",
-                SchemaBuilder.object()
-                        .string("name", "Player name")
-                        .required("name")
-                        .build(),
-                (c, a) -> attackPlayerTask(c, new Caller(null, "", AccessLevel.OWNER), a.get("name").getAsString()),
-                false,
-                AccessLevel.OWNER, TaskToolDef.QueueTraits.DEFAULT,
-                (c, caller, a) -> attackPlayerTask(c, caller, a.get("name").getAsString())), CombatTools::attackPlayerAction);
-        registry.register(ToolKit.instantTool("set_combat_mode",
+        ToolKit.addCaller(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "attack_player",
+                        "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.",
+                        SchemaBuilder.object()
+                                .string("name", "Player name")
+                                .required("name")
+                                .build(),
+                        (c, a) -> attackPlayerTask(
+                                c,
+                                new Caller(null, "", AccessLevel.OWNER),
+                                a.get("name").getAsString()),
+                        false,
+                        AccessLevel.OWNER,
+                        TaskToolDef.QueueTraits.DEFAULT,
+                        (c, caller, a) ->
+                                attackPlayerTask(c, caller, a.get("name").getAsString())),
+                CombatTools::attackPlayerAction);
+        registry.register(ToolKit.instantTool(
+                "set_combat_mode",
                 "Set how the companion fights with the legacy presets: defensive (bodyguard, balanced), guard (guard, balanced), passive (avoid combat, balanced). Owner only. Keeps potion, pursuit and retreat settings.",
                 SchemaBuilder.object()
                         .enumeration("mode", "Combat mode", "defensive", "guard", "passive")
@@ -80,12 +99,14 @@ final class CombatTools {
                     c.setCombatMode(mode);
                     return ToolResult.ok("combat mode is now " + mode.label());
                 }));
-        registry.register(ToolKit.instantTool("get_combat_settings",
+        registry.register(ToolKit.instantTool(
+                "get_combat_settings",
                 "Owner only. Show whom the companion protects, how it fights, whether it may use splash potions,"
                         + " how far it pursues and whether it retreats conservatively.",
                 AccessLevel.OWNER,
                 (c, a) -> ToolResult.ok(describeCombatSettings(c))));
-        registry.register(ToolKit.instantTool("set_combat_settings",
+        registry.register(ToolKit.instantTool(
+                "set_combat_settings",
                 "Owner only. Change persistent combat preferences. protection: self_only (defend itself only),"
                         + " bodyguard (self and owner), guard (also attack hostile mobs near the owner),"
                         + " avoid_combat (never initiate damage). style: balanced, cautious, melee, ranged."
@@ -101,33 +122,58 @@ final class CombatTools {
                         .build(),
                 AccessLevel.OWNER,
                 CombatTools::setCombatSettings));
-        ToolKit.add(registry, defs, new TaskToolDef("equip_item",
-                "Wear or hold an item from the inventory: armor goes to its slot, other items to the main hand unless a slot is given.",
-                SchemaBuilder.object()
-                        .string("item", "Item id like minecraft:iron_helmet")
-                        .enumeration("slot", "Where to put it", "mainhand", "offhand", "head", "chest", "legs", "feet")
-                        .required("item")
-                        .build(),
-                (c, a) -> new EquipTask(item(a.get("item").getAsString()), slot(a)),
-                true));
-        ToolKit.addCaller(registry, defs, new TaskToolDef("eat",
-                "Eat food from the inventory to heal. Without item, picks the best safe food. When the owner names a food you normally refuse, eating it is their permission: it is remembered.",
-                SchemaBuilder.object()
-                        .string("item", "Food item id like minecraft:bread")
-                        .build(),
-                (c, a) -> new EatTask(optionalItem(a)),
-                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
-                (c, caller, a) -> eatTask(c, caller, a)), CombatTools::eat);
-        ToolKit.add(registry, defs, new TaskToolDef("get_food",
-                "Get food the most efficient way: cook what I carry, take it from chests, bake bread, harvest, hunt or fish.",
-                SchemaBuilder.object()
-                        .integer("count", "How many food items to get (default 4)", 1, 16)
-                        .build(),
-                (c, a) -> new GetFoodTask(a.has("count") && !a.get("count").isJsonNull()
-                        ? a.get("count").getAsInt()
-                        : 4),
-                true));
-        registry.register(ToolKit.instantTool("allow_food",
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "equip_item",
+                        "Wear or hold an item from the inventory: armor goes to its slot, other items to the main hand unless a slot is given.",
+                        SchemaBuilder.object()
+                                .string("item", "Item id like minecraft:iron_helmet")
+                                .enumeration(
+                                        "slot",
+                                        "Where to put it",
+                                        "mainhand",
+                                        "offhand",
+                                        "head",
+                                        "chest",
+                                        "legs",
+                                        "feet")
+                                .required("item")
+                                .build(),
+                        (c, a) -> new EquipTask(item(a.get("item").getAsString()), slot(a)),
+                        true));
+        ToolKit.addCaller(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "eat",
+                        "Eat food from the inventory to heal. Without item, picks the best safe food. When the owner names a food you normally refuse, eating it is their permission: it is remembered.",
+                        SchemaBuilder.object()
+                                .string("item", "Food item id like minecraft:bread")
+                                .build(),
+                        (c, a) -> new EatTask(optionalItem(a)),
+                        true,
+                        AccessLevel.TRUSTED,
+                        TaskToolDef.QueueTraits.DEFAULT,
+                        (c, caller, a) -> eatTask(c, caller, a)),
+                CombatTools::eat);
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "get_food",
+                        "Get food the most efficient way: cook what I carry, take it from chests, bake bread, harvest, hunt or fish.",
+                        SchemaBuilder.object()
+                                .integer("count", "How many food items to get (default 4)", 1, 16)
+                                .build(),
+                        (c, a) -> new GetFoodTask(
+                                a.has("count") && !a.get("count").isJsonNull()
+                                        ? a.get("count").getAsInt()
+                                        : 4),
+                        true));
+        registry.register(ToolKit.instantTool(
+                "allow_food",
                 "Owner only. Let the companion eat a food it normally refuses, such as rotten flesh, or one it keeps for emergencies. The rule is remembered across sessions.",
                 SchemaBuilder.object()
                         .string("item", "Food item id like minecraft:rotten_flesh")
@@ -135,7 +181,8 @@ final class CombatTools {
                         .build(),
                 AccessLevel.OWNER,
                 (c, a) -> setFoodRule(c, a.get("item").getAsString(), true)));
-        registry.register(ToolKit.instantTool("forbid_food",
+        registry.register(ToolKit.instantTool(
+                "forbid_food",
                 "Owner only. Never let the companion eat a food, even one it would otherwise eat. The rule is remembered across sessions.",
                 SchemaBuilder.object()
                         .string("item", "Food item id like minecraft:bread")
@@ -143,7 +190,8 @@ final class CombatTools {
                         .build(),
                 AccessLevel.OWNER,
                 (c, a) -> setFoodRule(c, a.get("item").getAsString(), false)));
-        registry.register(ToolKit.instantTool("reset_food_rule",
+        registry.register(ToolKit.instantTool(
+                "reset_food_rule",
                 "Owner only. Drop the owner's rule for one food, so the default applies again.",
                 SchemaBuilder.object()
                         .string("item", "Food item id like minecraft:rotten_flesh")
@@ -151,7 +199,8 @@ final class CombatTools {
                         .build(),
                 AccessLevel.OWNER,
                 (c, a) -> resetFoodRule(c, a.get("item").getAsString())));
-        registry.register(ToolKit.instantTool("get_food_rules",
+        registry.register(ToolKit.instantTool(
+                "get_food_rules",
                 "List the foods the owner allowed or forbade, the foods refused by default, and the ones kept for emergencies.",
                 (c, a) -> describeFoodRules(c)));
     }
@@ -190,7 +239,9 @@ final class CombatTools {
     }
 
     private static @Nullable Item optionalItem(JsonObject args) {
-        return args.has("item") && !args.get("item").isJsonNull() ? item(args.get("item").getAsString()) : null;
+        return args.has("item") && !args.get("item").isJsonNull()
+                ? item(args.get("item").getAsString())
+                : null;
     }
 
     /** Parses every supplied field before mutating, so a bad field never leaves a partial update. */
@@ -198,10 +249,12 @@ final class CombatTools {
         CombatSettings settings = companion.combatSettings();
         try {
             if (has(args, "protection")) {
-                settings = settings.withProtection(ProtectionPolicy.parseStrict(args.get("protection").getAsString()));
+                settings = settings.withProtection(
+                        ProtectionPolicy.parseStrict(args.get("protection").getAsString()));
             }
             if (has(args, "style")) {
-                settings = settings.withStyle(FightingStyle.parseStrict(args.get("style").getAsString()));
+                settings = settings.withStyle(
+                        FightingStyle.parseStrict(args.get("style").getAsString()));
             }
             if (has(args, "splash_potions")) {
                 settings = settings.withSplashPotions(args.get("splash_potions").getAsBoolean());
@@ -210,7 +263,8 @@ final class CombatTools {
                 settings = settings.withPursuitLimit(args.get("pursuit_limit").getAsInt());
             }
             if (has(args, "retreat")) {
-                settings = settings.withRetreatPreference(RetreatPreference.parseStrict(args.get("retreat").getAsString()));
+                settings = settings.withRetreatPreference(
+                        RetreatPreference.parseStrict(args.get("retreat").getAsString()));
             }
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());
@@ -302,7 +356,9 @@ final class CombatTools {
                 matcher(target, ownerOrder),
                 targetLabel(target),
                 args.get("count").getAsInt(),
-                args.has("radius") && !args.get("radius").isJsonNull() ? args.get("radius").getAsInt() : 16,
+                args.has("radius") && !args.get("radius").isJsonNull()
+                        ? args.get("radius").getAsInt()
+                        : 16,
                 ownerOrder);
     }
 
@@ -358,8 +414,11 @@ final class CombatTools {
             throw new IllegalArgumentException("use attack_player for players");
         }
         if (type == FriendaiEntities.COMPANION
-                || (!ownerOrder && (type == EntityTypes.VILLAGER || type == EntityTypes.WANDERING_TRADER
-                        || type == EntityTypes.IRON_GOLEM || type == EntityTypes.SNOW_GOLEM))) {
+                || (!ownerOrder
+                        && (type == EntityTypes.VILLAGER
+                                || type == EntityTypes.WANDERING_TRADER
+                                || type == EntityTypes.IRON_GOLEM
+                                || type == EntityTypes.SNOW_GOLEM))) {
             throw new IllegalArgumentException("I won't attack " + BuiltInRegistries.ENTITY_TYPE.getKey(type));
         }
         return candidate -> candidate == type;
@@ -400,7 +459,9 @@ final class CombatTools {
             case "chest" -> EquipmentSlot.CHEST;
             case "legs" -> EquipmentSlot.LEGS;
             case "feet" -> EquipmentSlot.FEET;
-            default -> throw new IllegalArgumentException("unknown slot: " + args.get("slot").getAsString());
+            default ->
+                throw new IllegalArgumentException(
+                        "unknown slot: " + args.get("slot").getAsString());
         };
     }
 }

@@ -154,6 +154,8 @@ public final class AnthropicMessagesProtocol implements LlmProtocol {
                 text.toString(),
                 calls,
                 stop,
-                new Usage(ProtocolSupport.intOr(usage, "input_tokens", 0), ProtocolSupport.intOr(usage, "output_tokens", 0)));
+                new Usage(
+                        ProtocolSupport.intOr(usage, "input_tokens", 0),
+                        ProtocolSupport.intOr(usage, "output_tokens", 0)));
     }
 }

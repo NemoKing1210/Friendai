@@ -5,7 +5,9 @@ import java.util.List;
 /** One immutable node in a bounded conditional plan. */
 public sealed interface PlanNode permits PlanNode.Action, PlanNode.Conditional, PlanNode.Repeat {
     record Action(QueuedStep step) implements PlanNode {
-        public Action { if (step == null) throw new IllegalArgumentException("step"); }
+        public Action {
+            if (step == null) throw new IllegalArgumentException("step");
+        }
     }
 
     record Conditional(Guard condition, List<PlanNode> thenNodes, List<PlanNode> elseNodes) implements PlanNode {

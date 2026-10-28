@@ -12,6 +12,7 @@ class TaskHistoryTest {
         history.add(new TaskRecord(1, "stay", "SUCCESS", "a"));
         history.add(new TaskRecord(2, "go_to", "FAILED", "b"));
         history.add(new TaskRecord(3, "mine_blocks", "CANCELLED", "c"));
-        assertEquals(List.of(3, 2), history.recent().stream().map(TaskRecord::id).toList());
+        assertEquals(
+                List.of(3, 2), history.recent().stream().map(TaskRecord::id).toList());
     }
 }

@@ -1,7 +1,7 @@
 package dev.friendai.task.mining;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.nav.LevelCellView;
@@ -22,7 +22,12 @@ import net.minecraft.world.phys.Vec3;
  * returned state means for its own task.
  */
 public final class BreakAction {
-    public enum State { WORKING, BROKEN, GONE, BLOCKED }
+    public enum State {
+        WORKING,
+        BROKEN,
+        GONE,
+        BLOCKED
+    }
 
     private static final int SWING_INTERVAL = 5;
 
@@ -31,6 +36,7 @@ public final class BreakAction {
     private final boolean allowBreakingSupport;
     /** Whether the block is already broken: the action then keeps reporting it, however often it is ticked. */
     private boolean broken;
+
     private int breakTicks;
     private int breakNeeded;
 
@@ -59,10 +65,13 @@ public final class BreakAction {
             return State.GONE;
         }
         boolean creative = companion.creativeMode();
-        boolean blacklisted = creative && TaskSettings.breakList.matches(
-                BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state));
-        if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
-                || blacklisted || (!creative && state.getDestroySpeed(level, pos) < 0)
+        boolean blacklisted = creative
+                && TaskSettings.breakList.matches(
+                        BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state));
+        if (!companion.hands().canInteract(pos)
+                || (!allowBreakingSupport && occupiesSupport(companion, pos))
+                || blacklisted
+                || (!creative && state.getDestroySpeed(level, pos) < 0)
                 || dev.friendai.task.autonomy.PlaceGuard.protects(c, pos)) {
             stop(c);
             return State.BLOCKED;
@@ -86,7 +95,8 @@ public final class BreakAction {
             ToolSelector.equipBest(companion, state);
             var tool = companion.getMainHandItem();
             boolean correct = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
-            breakNeeded = BreakProgress.ticksToBreak(state.getDestroySpeed(level, pos), tool.getDestroySpeed(state), correct);
+            breakNeeded =
+                    BreakProgress.ticksToBreak(state.getDestroySpeed(level, pos), tool.getDestroySpeed(state), correct);
         }
         Vec3 center = Vec3.atCenterOf(pos);
         companion.getLookControl().setLookAt(center.x, center.y, center.z);
@@ -99,7 +109,8 @@ public final class BreakAction {
             return State.WORKING;
         }
         level.destroyBlockProgress(companion.getId(), pos, -1);
-        if (!stillValid.test(level.getBlockState(pos)) || !companion.hands().canInteract(pos)
+        if (!stillValid.test(level.getBlockState(pos))
+                || !companion.hands().canInteract(pos)
                 || (!allowBreakingSupport && occupiesSupport(companion, pos))) {
             stop(c);
             return State.BLOCKED;
@@ -132,7 +143,9 @@ public final class BreakAction {
         AABB bounds = companion.getBoundingBox();
         double top = pos.getY() + 1.0;
         return Math.abs(bounds.minY - top) < 0.2
-                && bounds.maxX > pos.getX() && bounds.minX < pos.getX() + 1.0
-                && bounds.maxZ > pos.getZ() && bounds.minZ < pos.getZ() + 1.0;
+                && bounds.maxX > pos.getX()
+                && bounds.minX < pos.getX() + 1.0
+                && bounds.maxZ > pos.getZ()
+                && bounds.minZ < pos.getZ() + 1.0;
     }
 }

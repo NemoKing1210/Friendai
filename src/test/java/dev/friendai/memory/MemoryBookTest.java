@@ -63,7 +63,9 @@ class MemoryBookTest {
         var b = new MemoryBook();
         b.setTrusted(A, "zed", true, 1);
         b.setTrusted(B, "Amy", true, 1);
-        assertEquals(List.of("Amy", "zed"), b.trusted().stream().map(PlayerRecord::lastName).toList());
+        assertEquals(
+                List.of("Amy", "zed"),
+                b.trusted().stream().map(PlayerRecord::lastName).toList());
     }
 
     @Test
@@ -130,7 +132,8 @@ class MemoryBookTest {
         var b = new MemoryBook();
         assertEquals(
                 "Invalid companion name. " + CompanionName.PROBLEM,
-                assertThrows(IllegalArgumentException.class, () -> b.setCompanionName("  ")).getMessage());
+                assertThrows(IllegalArgumentException.class, () -> b.setCompanionName("  "))
+                        .getMessage());
         assertTrue(b.companionName().isEmpty());
     }
 
@@ -147,8 +150,14 @@ class MemoryBookTest {
     @Test
     void addFactAssignsIncreasingIds() {
         var b = new MemoryBook();
-        assertEquals(1, b.addFact(Subject.WORLD, Category.PLACE, "Base at 1 2 3", A, "Steve", 5, L).id());
-        assertEquals(2, b.addFact(Subject.player(A), Category.PROFILE, "Likes oak", A, "Steve", 6, L).id());
+        assertEquals(
+                1,
+                b.addFact(Subject.WORLD, Category.PLACE, "Base at 1 2 3", A, "Steve", 5, L)
+                        .id());
+        assertEquals(
+                2,
+                b.addFact(Subject.player(A), Category.PROFILE, "Likes oak", A, "Steve", 6, L)
+                        .id());
         assertTrue(b.isDirty());
     }
 
@@ -164,20 +173,23 @@ class MemoryBookTest {
         var b = new MemoryBook();
         assertEquals(
                 "Fact text is empty.",
-                assertThrows(IllegalArgumentException.class,
-                        () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L))
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L))
                         .getMessage());
         assertEquals(
                 "Fact is too long (161 chars, max 160). Shorten it.",
-                assertThrows(IllegalArgumentException.class,
-                        () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L))
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L))
                         .getMessage());
     }
 
     @Test
     void duplicateTextUpdatesInPlace() {
         var b = new MemoryBook();
-        int id = b.addFact(Subject.player(A), Category.NOTE, "Likes Oak", A, "S", 1, L).id();
+        int id = b.addFact(Subject.player(A), Category.NOTE, "Likes Oak", A, "S", 1, L)
+                .id();
         var f = b.addFact(Subject.player(A), Category.PREFERENCE, "likes  oak", B, "Bob", 9, L);
         assertEquals(id, f.id());
         assertEquals(Category.PREFERENCE, f.category());
@@ -193,8 +205,9 @@ class MemoryBookTest {
         b.addFact(Subject.player(B), Category.NOTE, "two", A, "S", 0, limits);
         assertEquals(
                 "Memory about Bob is full (2 facts). Forget something first.",
-                assertThrows(IllegalArgumentException.class,
-                        () -> b.addFact(Subject.player(B), Category.NOTE, "three", A, "S", 0, limits))
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> b.addFact(Subject.player(B), Category.NOTE, "three", A, "S", 0, limits))
                         .getMessage());
         assertDoesNotThrow(() -> b.addFact(Subject.player(B), Category.PROFILE, "ONE", A, "S", 0, limits));
     }
@@ -204,11 +217,11 @@ class MemoryBookTest {
         var limits = new MemoryLimits(160, 20, 1);
         var b = new MemoryBook();
         b.addFact(Subject.WORLD, Category.NOTE, "a", A, "S", 0, limits);
-        assertTrue(
-                assertThrows(IllegalArgumentException.class,
+        assertTrue(assertThrows(
+                        IllegalArgumentException.class,
                         () -> b.addFact(Subject.WORLD, Category.NOTE, "b", A, "S", 0, limits))
-                        .getMessage()
-                        .startsWith("Memory about the world is full"));
+                .getMessage()
+                .startsWith("Memory about the world is full"));
     }
 
     @Test
@@ -216,7 +229,8 @@ class MemoryBookTest {
         var b = new MemoryBook();
         b.addFact(Subject.WORLD, Category.NOTE, "a", A, "S", 0, L);
         b.clearAllFacts();
-        assertEquals(2, b.addFact(Subject.WORLD, Category.NOTE, "b", A, "S", 0, L).id());
+        assertEquals(
+                2, b.addFact(Subject.WORLD, Category.NOTE, "b", A, "S", 0, L).id());
     }
 
     @Test
@@ -244,7 +258,9 @@ class MemoryBookTest {
         b.addFact(Subject.player(A), Category.PLACE, "Home at 1 2 3", B, "Bob", 4, L);
         var copy = MemoryBook.fromFile(b.toFile());
         assertEquals(b.allFacts(), copy.allFacts());
-        assertEquals(2, copy.addFact(Subject.WORLD, Category.NOTE, "next", A, "S", 0, L).id());
+        assertEquals(
+                2,
+                copy.addFact(Subject.WORLD, Category.NOTE, "next", A, "S", 0, L).id());
     }
 
     @Test
@@ -262,7 +278,8 @@ class MemoryBookTest {
     @Test
     void limitErrorsAreTypedAndKeepTheModelText() {
         var b = new MemoryBook();
-        var e = assertThrows(MemoryLimitException.class,
+        var e = assertThrows(
+                MemoryLimitException.class,
                 () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L));
         assertEquals(MemoryLimitException.Kind.TOO_LONG, e.kind());
         assertEquals(List.of(161, 160), e.values());
@@ -272,8 +289,8 @@ class MemoryBookTest {
     @Test
     void emptyTextIsTyped() {
         var b = new MemoryBook();
-        var e = assertThrows(MemoryLimitException.class,
-                () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L));
+        var e = assertThrows(
+                MemoryLimitException.class, () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L));
         assertEquals(MemoryLimitException.Kind.EMPTY, e.kind());
         assertEquals(List.of(), e.values());
         assertEquals("Fact text is empty.", e.getMessage());
@@ -284,8 +301,8 @@ class MemoryBookTest {
         var limits = new MemoryLimits(160, 20, 1);
         var b = new MemoryBook();
         b.addFact(Subject.WORLD, Category.NOTE, "one", A, "S", 0, limits);
-        var e = assertThrows(MemoryLimitException.class,
-                () -> b.addFact(Subject.WORLD, Category.NOTE, "two", A, "S", 0, limits));
+        var e = assertThrows(
+                MemoryLimitException.class, () -> b.addFact(Subject.WORLD, Category.NOTE, "two", A, "S", 0, limits));
         assertEquals(MemoryLimitException.Kind.FULL, e.kind());
         assertEquals(List.of(Subject.WORLD, 1), e.values());
     }
@@ -293,7 +310,8 @@ class MemoryBookTest {
     @Test
     void editKeepsIdAndSubjectAndChangesAuthor() {
         var b = new MemoryBook();
-        int id = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", B, "Bob", 1, L).id();
+        int id = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", B, "Bob", 1, L)
+                .id();
         Fact f = b.editFact(id, Category.PREFERENCE, "Likes  big cats", A, "Steve", 9, L);
         assertEquals(new Fact(id, Subject.player(B), Category.PREFERENCE, "Likes big cats", A, "Steve", 9), f);
     }
@@ -301,7 +319,8 @@ class MemoryBookTest {
     @Test
     void editToOwnTextIsAllowed() {
         var b = new MemoryBook();
-        int id = b.addFact(Subject.player(B), Category.NOTE, "cats", A, "S", 0, L).id();
+        int id = b.addFact(Subject.player(B), Category.NOTE, "cats", A, "S", 0, L)
+                .id();
         Fact f = b.editFact(id, Category.PREFERENCE, "cats", A, "S", 1, L);
         assertEquals(id, f.id());
         assertEquals(Category.PREFERENCE, f.category());
@@ -311,10 +330,12 @@ class MemoryBookTest {
     @Test
     void editDuplicateOfAnotherFact() {
         var b = new MemoryBook();
-        int first = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", A, "S", 0, L).id();
-        int second = b.addFact(Subject.player(B), Category.NOTE, "Likes dogs", A, "S", 0, L).id();
-        var e = assertThrows(MemoryLimitException.class,
-                () -> b.editFact(second, Category.NOTE, "  likes CATS ", A, "S", 1, L));
+        int first = b.addFact(Subject.player(B), Category.NOTE, "Likes cats", A, "S", 0, L)
+                .id();
+        int second = b.addFact(Subject.player(B), Category.NOTE, "Likes dogs", A, "S", 0, L)
+                .id();
+        var e = assertThrows(
+                MemoryLimitException.class, () -> b.editFact(second, Category.NOTE, "  likes CATS ", A, "S", 1, L));
         assertEquals(MemoryLimitException.Kind.DUPLICATE, e.kind());
         assertEquals(List.of(first), e.values());
         assertEquals("This is already remembered as [" + first + "].", e.getMessage());
@@ -322,8 +343,8 @@ class MemoryBookTest {
 
     @Test
     void editMissingFact() {
-        var e = assertThrows(MemoryLimitException.class,
-                () -> new MemoryBook().editFact(5, Category.NOTE, "x", A, "S", 0, L));
+        var e = assertThrows(
+                MemoryLimitException.class, () -> new MemoryBook().editFact(5, Category.NOTE, "x", A, "S", 0, L));
         assertEquals(MemoryLimitException.Kind.NO_FACT, e.kind());
         assertEquals("There is no fact [5].", e.getMessage());
     }
@@ -379,8 +400,7 @@ class MemoryBookTest {
         b.setFoodRule("minecraft:spider_eye", true);
         b.setFoodRule("minecraft:bread", false);
         var copy = MemoryBook.fromFile(b.toFile());
-        assertEquals(
-                Map.of("minecraft:bread", false, "minecraft:spider_eye", true), copy.foodRules());
+        assertEquals(Map.of("minecraft:bread", false, "minecraft:spider_eye", true), copy.foodRules());
         assertFalse(copy.isDirty());
     }
 
@@ -428,7 +448,8 @@ class MemoryBookTest {
         b.setOwnerLanguage(A, "German");
         var loaded = MemoryBook.fromFile(b.toFile());
         assertEquals(Optional.of("German"), loaded.ownerLanguage(A));
-        assertEquals(new PlayerRecord(A, "Bob", false, 7, "German"), loaded.player(A).orElseThrow());
+        assertEquals(
+                new PlayerRecord(A, "Bob", false, 7, "German"), loaded.player(A).orElseThrow());
     }
 
     @Test

@@ -1,15 +1,15 @@
 package dev.friendai.task;
 
-import dev.friendai.entity.CompanionEntity;
+import dev.friendai.core.CreativeModeService;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.creative.CreativeActionContext;
-import dev.friendai.core.CreativeModeService;
+import dev.friendai.entity.CompanionEntity;
 import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
-public record TaskContext(CompanionEntity companion, ServerLevel level, TaskRunner runner,
-                          CreativeActionContext creativeActionContext) {
+public record TaskContext(
+        CompanionEntity companion, ServerLevel level, TaskRunner runner, CreativeActionContext creativeActionContext) {
     public TaskContext(CompanionEntity companion, ServerLevel level, TaskRunner runner) {
         this(companion, level, runner, null);
     }

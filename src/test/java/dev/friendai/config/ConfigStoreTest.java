@@ -35,7 +35,8 @@ class ConfigStoreTest {
     void missingFileWritesDefaults() throws IOException {
         Sample s = store().load();
         assertEquals("default", s.name);
-        JsonObject written = JsonParser.parseString(Files.readString(dir.resolve("friendai-server.json"))).getAsJsonObject();
+        JsonObject written = JsonParser.parseString(Files.readString(dir.resolve("friendai-server.json")))
+                .getAsJsonObject();
         assertEquals("default", written.get("name").getAsString());
         assertEquals(1, written.get("version").getAsInt());
     }
@@ -56,7 +57,9 @@ class ConfigStoreTest {
         store.save(s);
         assertEquals("custom", store.load().name);
         try (Stream<Path> files = Files.list(dir)) {
-            assertEquals(List.of("friendai-server.json"), files.map(p -> p.getFileName().toString()).toList());
+            assertEquals(
+                    List.of("friendai-server.json"),
+                    files.map(p -> p.getFileName().toString()).toList());
         }
     }
 
@@ -76,7 +79,8 @@ class ConfigStoreTest {
         Sample s = store().load();
         assertEquals("migrated", s.added);
         assertEquals("old", s.name);
-        JsonObject saved = JsonParser.parseString(Files.readString(dir.resolve("friendai-server.json"))).getAsJsonObject();
+        JsonObject saved = JsonParser.parseString(Files.readString(dir.resolve("friendai-server.json")))
+                .getAsJsonObject();
         assertEquals(1, saved.get("version").getAsInt());
         assertTrue(saved.has("added"));
     }

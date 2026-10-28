@@ -74,13 +74,23 @@ class VoiceModelManagerTest {
         byte[] archive = tarBz2(files("test-voice.onnx", new byte[] {1}));
         server.enqueue(200, archive);
         VoiceModel model = new VoiceModel(
-                "test-voice", "Test", "en-US", server.baseUrl() + "/voice.tar.bz2",
-                archive.length, "0".repeat(64), "MIT", "test-voice.onnx", "tokens.txt", "espeak-ng-data");
+                "test-voice",
+                "Test",
+                "en-US",
+                server.baseUrl() + "/voice.tar.bz2",
+                archive.length,
+                "0".repeat(64),
+                "MIT",
+                "test-voice.onnx",
+                "tokens.txt",
+                "espeak-ng-data");
 
-        ExecutionException e = assertThrows(ExecutionException.class,
+        ExecutionException e = assertThrows(
+                ExecutionException.class,
                 () -> manager.download(model, progress -> {}).get());
 
-        assertEquals("friendai.voice.tts.error.model_corrupt",
+        assertEquals(
+                "friendai.voice.tts.error.model_corrupt",
                 ((UserFacingException) e.getCause()).userMessage().key());
         assertFalse(Files.exists(dir.resolve(model.id() + ".tar.bz2.part")));
         assertFalse(Files.exists(manager.dir(model)));
@@ -96,10 +106,12 @@ class VoiceModelManagerTest {
         server.enqueue(200, archive);
         VoiceModel model = model(archive);
 
-        ExecutionException e = assertThrows(ExecutionException.class,
+        ExecutionException e = assertThrows(
+                ExecutionException.class,
                 () -> manager.download(model, progress -> {}).get());
 
-        assertEquals("friendai.voice.tts.error.model_corrupt",
+        assertEquals(
+                "friendai.voice.tts.error.model_corrupt",
                 ((UserFacingException) e.getCause()).userMessage().key());
         assertFalse(Files.exists(dir.resolve("escape.txt")));
         assertFalse(Files.exists(dir.getParent().resolve("escape.txt")));
@@ -134,24 +146,25 @@ class VoiceModelManagerTest {
         List<String> events = new CopyOnWriteArrayList<>();
 
         manager.download(model, new VoiceModelManager.DownloadStage() {
-            @Override
-            public void downloading(double fraction) {
-                if (fraction >= 1.0) {
-                    events.add("downloaded");
-                }
-            }
+                    @Override
+                    public void downloading(double fraction) {
+                        if (fraction >= 1.0) {
+                            events.add("downloaded");
+                        }
+                    }
 
-            @Override
-            public void installing(double fraction) {
-                events.add("installing " + fraction);
-            }
-        }).join();
+                    @Override
+                    public void installing(double fraction) {
+                        events.add("installing " + fraction);
+                    }
+                })
+                .join();
 
         assertEquals("downloaded", events.get(0), events.toString());
         assertTrue(events.size() > 2, "expected several install reports, got " + events);
         assertEquals("installing 1.0", events.get(events.size() - 1), events.toString());
-        assertTrue(events.subList(1, events.size()).stream().allMatch(e -> e.startsWith("installing")),
-                events.toString());
+        assertTrue(
+                events.subList(1, events.size()).stream().allMatch(e -> e.startsWith("installing")), events.toString());
     }
 
     private VoiceModel model(byte[] archive) {

@@ -1,7 +1,7 @@
 package dev.friendai.task.mining;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.Components;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.mining.ExplorationPlanner;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.mining.MiningGoal;
@@ -34,8 +34,17 @@ import net.minecraft.world.level.block.state.BlockState;
 /** Shared bounded search and guarded execution for resource extraction and underground exploration. */
 public final class MiningSession {
 
-    public enum State { WORKING, EXTRACTED, EXHAUSTED, FAILED }
-    private enum Mode { TARGETS, EXPLORE }
+    public enum State {
+        WORKING,
+        EXTRACTED,
+        EXHAUSTED,
+        FAILED
+    }
+
+    private enum Mode {
+        TARGETS,
+        EXPLORE
+    }
 
     /** How many planned steps one search may commit to; a search per block would leave the companion standing still. */
     private static final int MAX_CHAIN = 8;
@@ -71,6 +80,7 @@ public final class MiningSession {
     private UserMessage primaryFailure;
     /** A refusal caused by the wrong tool; it must not be replaced by the generic "unreachable" that follows. */
     private UserMessage toolFailure;
+
     private String phase = "";
 
     public MiningSession(CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks) {
@@ -103,7 +113,8 @@ public final class MiningSession {
         this.exploration = null;
         this.excludedTargets.clear();
         this.excludedStances.clear();
-        this.mustRelocateFromSupport = this.targets.stream().anyMatch(pos -> pos.equals(blockPos(initialNode.support())));
+        this.mustRelocateFromSupport =
+                this.targets.stream().anyMatch(pos -> pos.equals(blockPos(initialNode.support())));
         this.closeApproach = false;
         rememberCurrentSupport();
     }
@@ -234,14 +245,22 @@ public final class MiningSession {
             extraction = new BreakAction(target);
             return State.WORKING;
         }
-        return executeSteps(context, path.steps().subList(0, Math.min(path.steps().size(), MAX_CHAIN)));
+        return executeSteps(
+                context, path.steps().subList(0, Math.min(path.steps().size(), MAX_CHAIN)));
     }
 
     private State tickExplore(TaskContext context) {
         if (exploration == null) {
             var view = guard(context).planningView(context, TaskSettings.pathing);
-            exploration = new ExplorationPlanner(view, node(), targetY, heading, bounds, supports,
-                    CostModel.DEFAULTS, TaskSettings.pathing.maxNodes());
+            exploration = new ExplorationPlanner(
+                    view,
+                    node(),
+                    targetY,
+                    heading,
+                    bounds,
+                    supports,
+                    CostModel.DEFAULTS,
+                    TaskSettings.pathing.maxNodes());
         }
         ExplorationPlanner.Status result = exploration.step(searchBudget(), System::nanoTime);
         if (result == ExplorationPlanner.Status.RUNNING) {
@@ -278,9 +297,12 @@ public final class MiningSession {
         executor = null;
         rememberWalked(activeSteps.size());
         for (PathStep completed : activeSteps) {
-            if (mode == Mode.EXPLORE && completed.to().y() <= targetY
+            if (mode == Mode.EXPLORE
+                    && completed.to().y() <= targetY
                     && Math.abs(completed.from().x() - completed.to().x())
-                            + Math.abs(completed.from().z() - completed.to().z()) == 1) {
+                                    + Math.abs(completed.from().z()
+                                            - completed.to().z())
+                            == 1) {
                 completedExplorationSteps++;
             }
         }
@@ -304,8 +326,10 @@ public final class MiningSession {
             if (target != null) {
                 excludedTargets.add(plain(target));
             }
-            return retryPlan(target == null ? UserMessage.of("friendai.mining.unreachable")
-                    : guard(context).targetFailure(context, target));
+            return retryPlan(
+                    target == null
+                            ? UserMessage.of("friendai.mining.unreachable")
+                            : guard(context).targetFailure(context, target));
         }
         BreakAction.State result = extraction.tick(context, matches);
         if (result == BreakAction.State.WORKING) {
@@ -328,8 +352,10 @@ public final class MiningSession {
         }
         target = null;
         search = null;
-        return retryPlan(result == BreakAction.State.BLOCKED
-                ? UserMessage.of("friendai.mining.unsafe_support") : UserMessage.of("friendai.mining.unreachable"));
+        return retryPlan(
+                result == BreakAction.State.BLOCKED
+                        ? UserMessage.of("friendai.mining.unsafe_support")
+                        : UserMessage.of("friendai.mining.unreachable"));
     }
 
     private State executeEdge(TaskContext context, PathStep step) {
@@ -381,17 +407,29 @@ public final class MiningSession {
                 candidates.add(plain);
             }
         }
-        goal = new MiningGoal(candidates, closeApproach ? 1.5 : Approach.REACH, companion.getEyeHeight(), supports,
-                excludedStances, closeApproach);
+        goal = new MiningGoal(
+                candidates,
+                closeApproach ? 1.5 : Approach.REACH,
+                companion.getEyeHeight(),
+                supports,
+                excludedStances,
+                closeApproach);
         MiningPathPolicy miningPolicy = new MiningPathPolicy(view, bounds, supports, CostModel.DEFAULTS);
         PathPolicy policy = (freshView, step) -> {
-            if (mustRelocateFromSupport && step.from().equals(initialNode) && !step.breaks().isEmpty()) {
+            if (mustRelocateFromSupport
+                    && step.from().equals(initialNode)
+                    && !step.breaks().isEmpty()) {
                 return java.util.Optional.empty();
             }
             return miningPolicy.prepare(freshView, step);
         };
-        search = new PathSearch(view, CostModel.DEFAULTS, goal, node(),
-                new SearchOptions(TaskSettings.pathing.maxNodes(), bounds.radius(), 0, 1), policy);
+        search = new PathSearch(
+                view,
+                CostModel.DEFAULTS,
+                goal,
+                node(),
+                new SearchOptions(TaskSettings.pathing.maxNodes(), bounds.radius(), 0, 1),
+                policy);
     }
 
     private void rememberCurrentSupport() {
@@ -454,14 +492,15 @@ public final class MiningSession {
             return;
         }
         phase = next;
-        UserMessage message = UserMessage.of(switch (next) {
-            case "approach" -> "friendai.mining.phase.approach";
-            case "descend" -> "friendai.mining.phase.descend";
-            case "tunnel" -> "friendai.mining.phase.tunnel";
-            case "ascend" -> "friendai.mining.phase.ascend";
-            case "extract" -> "friendai.mining.phase.extract";
-            default -> "friendai.mining.phase.approach";
-        });
+        UserMessage message = UserMessage.of(
+                switch (next) {
+                    case "approach" -> "friendai.mining.phase.approach";
+                    case "descend" -> "friendai.mining.phase.descend";
+                    case "tunnel" -> "friendai.mining.phase.tunnel";
+                    case "ascend" -> "friendai.mining.phase.ascend";
+                    case "extract" -> "friendai.mining.phase.extract";
+                    default -> "friendai.mining.phase.approach";
+                });
         companion.owner().ifPresent(player -> player.sendSystemMessage(Components.of(message), true));
     }
 

@@ -19,8 +19,13 @@ public class SpeechTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         UUID companionId = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
         CompanionSpeaker speaker = new CompanionSpeaker(
-                h.getLevel().getServer(), player.getUUID(), () -> "Nova", () -> 400, thinking -> {},
-                () -> companionId, () -> 16);
+                h.getLevel().getServer(),
+                player.getUUID(),
+                () -> "Nova",
+                () -> 400,
+                thinking -> {},
+                () -> companionId,
+                () -> 16);
         speaker.say("Hello there", player.getUUID());
         h.succeed();
     }
@@ -29,8 +34,8 @@ public class SpeechTests {
     public void speechPayloadRoundTrips(GameTestHelper h) {
         UUID companionId = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
         UUID addressee = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
-        CompanionSpeechS2CPayload payload = new CompanionSpeechS2CPayload(
-                "Nova", "Hello there", addressee, companionId, 16);
+        CompanionSpeechS2CPayload payload =
+                new CompanionSpeechS2CPayload("Nova", "Hello there", addressee, companionId, 16);
         RegistryFriendlyByteBuf buf =
                 new RegistryFriendlyByteBuf(Unpooled.buffer(), h.getLevel().registryAccess());
         CompanionSpeechS2CPayload.CODEC.encode(buf, payload);
@@ -50,7 +55,8 @@ public class SpeechTests {
         Component name = line.getSiblings().get(0);
         h.assertValueEqual(NameColor.rgb("Nova"), name.getStyle().getColor().getValue(), "name colour");
         h.assertTrue(
-                line.getSiblings().get(1).getStyle().getColor() == null, "the reply itself must keep the default colour");
+                line.getSiblings().get(1).getStyle().getColor() == null,
+                "the reply itself must keep the default colour");
         h.succeed();
     }
 

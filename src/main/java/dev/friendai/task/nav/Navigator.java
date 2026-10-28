@@ -32,12 +32,19 @@ import org.jetbrains.annotations.Nullable;
  * when the search returns a route. Nothing here touches the world off the server thread.
  */
 public final class Navigator {
-    public enum State { SEARCHING, MOVING, GATHERING, ARRIVED, UNREACHABLE }
+    public enum State {
+        SEARCHING,
+        MOVING,
+        GATHERING,
+        ARRIVED,
+        UNREACHABLE
+    }
 
     /** Re-plans without getting closer than this many ticks of cost are given up after three tries. */
     private static final int REPLAN_LIMIT = 3;
     /** How many times one goal may send the companion out to gather before giving up. */
     private static final int GATHER_ROUNDS = 2;
+
     private static final double PROGRESS = 1.0;
     /** How many leading steps of a new route may be skipped when the companion has already walked past them. */
     private static final int TRIM_LOOKAHEAD = 8;
@@ -49,6 +56,7 @@ public final class Navigator {
     private final @Nullable PathingConfig override;
     /** Where blocks this route places are remembered for cleanup, or null when they are meant to stay. */
     private final @Nullable PlacementLedger ledger;
+
     private PathGoal goal;
     private PathSearch search;
     private Path plan;
@@ -61,6 +69,7 @@ public final class Navigator {
     private boolean probing;
     /** How many blocks the inventory held when the probe started; the probe path may want more. */
     private int availableAtProbe;
+
     private MaterialGatherer gatherer;
     private int gatherRounds;
     /** The last search's summary, for the movement debug overlay. */
@@ -91,7 +100,10 @@ public final class Navigator {
      * @param ledger records every block this route places so the caller can remove a temporary pillar or bridge;
      *     null for routes whose placements are meant to stay.
      */
-    public Navigator(CompanionEntity companion, boolean mayPlace, @Nullable PathingConfig override,
+    public Navigator(
+            CompanionEntity companion,
+            boolean mayPlace,
+            @Nullable PathingConfig override,
             @Nullable PlacementLedger ledger) {
         this.companion = companion;
         this.mayPlace = mayPlace;
@@ -143,7 +155,8 @@ public final class Navigator {
     /** The cells the goal asks for, for the movement debug overlay; a point goal gives the cell holding the point. */
     public List<Pos> goalCells() {
         if (goal instanceof GoalPoint point) {
-            return List.of(new Pos((int) Math.floor(point.x()), (int) Math.floor(point.y()), (int) Math.floor(point.z())));
+            return List.of(
+                    new Pos((int) Math.floor(point.x()), (int) Math.floor(point.y()), (int) Math.floor(point.z())));
         }
         if (goal instanceof GoalReach reach) {
             return reach.targets().subList(0, Math.min(reach.targets().size(), 64));
@@ -165,8 +178,12 @@ public final class Navigator {
      * is replaced when a search finds a way to the new goal.
      */
     public void setGoal(PathGoal goal) {
-        if (goal == null || goal.equals(this.goal)
-                && (search != null || executor != null || state == State.SEARCHING || state == State.GATHERING)) {
+        if (goal == null
+                || goal.equals(this.goal)
+                        && (search != null
+                                || executor != null
+                                || state == State.SEARCHING
+                                || state == State.GATHERING)) {
             return;
         }
         if (gatherer != null) {
@@ -244,7 +261,11 @@ public final class Navigator {
         LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS);
         availableAtProbe = new MaterialPicker(settings).count(companion.inventory());
         probing = true;
-        search = new PathSearch(view, CostModel.DEFAULTS, goal, node(),
+        search = new PathSearch(
+                view,
+                CostModel.DEFAULTS,
+                goal,
+                node(),
                 new SearchOptions(settings.maxNodes(), 64, Integer.MAX_VALUE, 1));
         state = State.SEARCHING;
     }
@@ -294,12 +315,20 @@ public final class Navigator {
 
     private void handleSearchResult(TaskContext c, SearchResult result) {
         Path path = result.path();
-        StringBuilder line = new StringBuilder("path ").append(describe(goal())).append(": ").append(result.status());
-        line.append(", ").append(search.expanded()).append(" nodes, ").append(searchNanos / 1_000_000L).append(" ms");
+        StringBuilder line =
+                new StringBuilder("path ").append(describe(goal())).append(": ").append(result.status());
+        line.append(", ")
+                .append(search.expanded())
+                .append(" nodes, ")
+                .append(searchNanos / 1_000_000L)
+                .append(" ms");
         if (path != null) {
-            line.append(", cost ").append(Math.round(path.cost()))
-                    .append(", breaks ").append(path.breaks())
-                    .append(", places ").append(path.places())
+            line.append(", cost ")
+                    .append(Math.round(path.cost()))
+                    .append(", breaks ")
+                    .append(path.breaks())
+                    .append(", places ")
+                    .append(path.places())
                     .append(path.partial() ? ", partial" : "");
         }
         boolean probed = probing;
@@ -310,7 +339,9 @@ public final class Navigator {
         companion.taskRunner().debug(line.toString());
         lastSearch = line.toString();
         search = null;
-        if (result.status() == SearchResult.Status.FOUND && path != null && path.steps().isEmpty()) {
+        if (result.status() == SearchResult.Status.FOUND
+                && path != null
+                && path.steps().isEmpty()) {
             // The start node already is the goal: there is nothing to walk.
             state = State.ARRIVED;
             return;
@@ -331,7 +362,9 @@ public final class Navigator {
             startGathering(c, firstUnaffordableStep(path, availableAtProbe));
             return;
         }
-        if (result.status() == SearchResult.Status.NO_PATH || path == null || path.steps().isEmpty()) {
+        if (result.status() == SearchResult.Status.NO_PATH
+                || path == null
+                || path.steps().isEmpty()) {
             if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
                 state = State.UNREACHABLE;
                 return;
@@ -473,7 +506,8 @@ public final class Navigator {
         LevelCellView view = new LevelCellView(companion, config(), CostModel.DEFAULTS);
         // A partial support physically contains the feet, while the pure grid puts its node above the support.
         int y = pos.getY();
-        if (companion.onGround() && view.at(pos.getX(), y, pos.getZ()).kind() == dev.friendai.pathing.Cell.Kind.PARTIAL) {
+        if (companion.onGround()
+                && view.at(pos.getX(), y, pos.getZ()).kind() == dev.friendai.pathing.Cell.Kind.PARTIAL) {
             y++;
         }
         return new Node(pos.getX(), y, pos.getZ());

@@ -14,8 +14,8 @@ import net.minecraft.world.level.material.Fluids;
 public final class SearchFrontierFacts {
     private SearchFrontierFacts() {}
 
-    public static SearchPlanner.Terrain sample(CompanionEntity companion, Pos origin, Pos candidate,
-            TrailGraph trails) {
+    public static SearchPlanner.Terrain sample(
+            CompanionEntity companion, Pos origin, Pos candidate, TrailGraph trails) {
         ServerLevel level = (ServerLevel) companion.level();
         int water = 0, hazard = 0, columns = 0;
         for (int dx = -1; dx <= 1; dx++) {
@@ -29,15 +29,18 @@ public final class SearchFrontierFacts {
                 BlockState feet = level.getBlockState(feetPos);
                 BlockState below = level.getBlockState(feetPos.below());
                 if (feet.getFluidState().getType() == Fluids.WATER) water++;
-                if (feet.getFluidState().getType() == Fluids.LAVA || feet.is(Blocks.FIRE) || feet.is(Blocks.SOUL_FIRE)
+                if (feet.getFluidState().getType() == Fluids.LAVA
+                        || feet.is(Blocks.FIRE)
+                        || feet.is(Blocks.SOUL_FIRE)
                         || !below.isSolid()) hazard++;
             }
         }
         String originBiome = SearchTargets.biomeAt(level, origin);
         String biome = SearchTargets.biomeAt(level, candidate);
         boolean transition = !originBiome.isEmpty() && !originBiome.equals(biome);
-        boolean onTrail = trails != null && trails.hasNodeNear(level.dimension().identifier().toString(), candidate, 12);
-        return new SearchPlanner.Terrain(transition, water / (double) columns, hazard / (double) columns,
-                onTrail, biome);
+        boolean onTrail = trails != null
+                && trails.hasNodeNear(level.dimension().identifier().toString(), candidate, 12);
+        return new SearchPlanner.Terrain(
+                transition, water / (double) columns, hazard / (double) columns, onTrail, biome);
     }
 }

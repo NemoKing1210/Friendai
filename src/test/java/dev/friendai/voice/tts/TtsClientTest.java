@@ -49,14 +49,17 @@ class TtsClientTest {
 
     @Test
     void anUnknownProtocolFailsWithoutSending() {
-        ResolvedTts settings = new ResolvedTts("weird", "weird_tts", server.baseUri() + "/v1",
-                "sk", "m", "alloy", "", null, 1.0);
+        ResolvedTts settings =
+                new ResolvedTts("weird", "weird_tts", server.baseUri() + "/v1", "sk", "m", "alloy", "", null, 1.0);
 
-        CompletionException e = assertThrows(CompletionException.class,
+        CompletionException e = assertThrows(
+                CompletionException.class,
                 () -> client.synthesize(settings, "Hi").join());
 
         assertInstanceOf(UserFacingException.class, e.getCause());
-        assertEquals("friendai.voice.tts.error.failed", ((UserFacingException) e.getCause()).userMessage().key());
+        assertEquals(
+                "friendai.voice.tts.error.failed",
+                ((UserFacingException) e.getCause()).userMessage().key());
         assertEquals(0, server.requests().size());
     }
 
@@ -64,7 +67,8 @@ class TtsClientTest {
     void theKeyNeverReachesTheUrlBodyOrAMessage() {
         server.enqueue(401, "rejected sk-secret-123");
 
-        CompletionException e = assertThrows(CompletionException.class,
+        CompletionException e = assertThrows(
+                CompletionException.class,
                 () -> client.synthesize(openAi("sk-secret-123"), "Hi").join());
 
         assertInstanceOf(UserFacingException.class, e.getCause());
@@ -77,8 +81,7 @@ class TtsClientTest {
 
     @Test
     void aPreparedRequestAlsoHidesTheKey() {
-        PreparedRequest request = new OpenAiTtsProtocol()
-                .prepare(openAi("sk-secret-123"), "Hi");
+        PreparedRequest request = new OpenAiTtsProtocol().prepare(openAi("sk-secret-123"), "Hi");
         assertFalse(request.uri().toString().contains("sk-secret-123"));
         assertFalse(new String(request.body(), StandardCharsets.UTF_8).contains("sk-secret-123"));
         assertFalse(request.toString().contains("sk-secret-123"));
@@ -86,19 +89,22 @@ class TtsClientTest {
 
     @Test
     void anInvalidBaseUrlBecomesTheOnePlayerFacingFailure() {
-        ResolvedTts settings = new ResolvedTts("elevenlabs", "elevenlabs_tts", "not a uri",
-                "key", "m", "voice", "", null, 1.0);
+        ResolvedTts settings =
+                new ResolvedTts("elevenlabs", "elevenlabs_tts", "not a uri", "key", "m", "voice", "", null, 1.0);
 
-        CompletionException e = assertThrows(CompletionException.class,
+        CompletionException e = assertThrows(
+                CompletionException.class,
                 () -> client.synthesize(settings, "Hi").join());
 
         assertInstanceOf(UserFacingException.class, e.getCause());
-        assertEquals("friendai.voice.tts.error.failed", ((UserFacingException) e.getCause()).userMessage().key());
+        assertEquals(
+                "friendai.voice.tts.error.failed",
+                ((UserFacingException) e.getCause()).userMessage().key());
         assertEquals(0, server.requests().size());
     }
 
     private ResolvedTts openAi(String key) {
-        return new ResolvedTts("openai", "openai_speech", server.baseUri() + "/v1",
-                key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);
+        return new ResolvedTts(
+                "openai", "openai_speech", server.baseUri() + "/v1", key, "gpt-4o-mini-tts", "alloy", "", null, 1.0);
     }
 }

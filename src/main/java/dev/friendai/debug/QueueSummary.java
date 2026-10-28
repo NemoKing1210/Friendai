@@ -9,7 +9,8 @@ import java.util.regex.Pattern;
  * ({@code Task queue: N running, M pending[, K blocked]; plans: P} plus optional Running/Next/Blocked lines),
  * so the menu can draw it as counters and rows instead of one run of text.
  */
-public record QueueSummary(int running, int pending, int blocked, int plans, String runningLine, String nextLine, String blockedLine) {
+public record QueueSummary(
+        int running, int pending, int blocked, int plans, String runningLine, String nextLine, String blockedLine) {
     private static final Pattern HEAD =
             Pattern.compile("Task queue: ([0-9]+) running, ([0-9]+) pending(?:, ([0-9]+) blocked)?; plans: ([0-9]+)");
 

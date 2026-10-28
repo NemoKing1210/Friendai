@@ -20,7 +20,8 @@ public class InventoryWindowTests {
     public void ownerOpensAndMovesItems(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         companion.inventory().addItem(new ItemStack(Items.STONE, 5));
 
         InventoryAccess.Denial denial = FriendaiMenus.open(owner, companion);
@@ -37,7 +38,8 @@ public class InventoryWindowTests {
 
         int from = -1;
         for (int index = CompanionInventoryMenu.GEAR_SLOTS + CompanionInventoryMenu.COMPANION_SLOTS;
-                index < menu.slots.size(); index++) {
+                index < menu.slots.size();
+                index++) {
             if (menu.slots.get(index).getItem().is(Items.STONE)) {
                 from = index;
                 break;
@@ -57,9 +59,11 @@ public class InventoryWindowTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer other = GameTestSupport.mockPlayerAt(h, 3, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
 
-        h.assertTrue(FriendaiMenus.open(other, companion) == InventoryAccess.Denial.NOT_OWNER,
+        h.assertTrue(
+                FriendaiMenus.open(other, companion) == InventoryAccess.Denial.NOT_OWNER,
                 "a non-owner must not open the window");
         h.assertTrue(other.containerMenu == other.inventoryMenu, "a window opened for a non-owner");
         h.assertTrue(!companion.taskRunner().held(), "a denied open must not hold the companion");
@@ -69,8 +73,8 @@ public class InventoryWindowTests {
         h.assertTrue(helmet.mayPlace(new ItemStack(Items.IRON_HELMET)), "a helmet must fit the head slot");
         h.assertTrue(!helmet.mayPlace(new ItemStack(Items.IRON_CHESTPLATE)), "a chestplate must not fit the head slot");
         h.assertTrue(!helmet.mayPlace(new ItemStack(Items.STONE)), "stone must not fit the head slot");
-        h.assertTrue(owner.containerMenu.slots.get(4).mayPlace(new ItemStack(Items.STONE)),
-                "the main hand takes anything");
+        h.assertTrue(
+                owner.containerMenu.slots.get(4).mayPlace(new ItemStack(Items.STONE)), "the main hand takes anything");
         owner.closeContainer();
         h.succeed();
     }
@@ -79,7 +83,8 @@ public class InventoryWindowTests {
     public void menuPlacesSlotsLikeTheVanillaInventory(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertTrue(FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.NONE, "the owner was denied");
         AbstractContainerMenu menu = owner.containerMenu;
         int pitch = CompanionInventoryLayout.PITCH;
@@ -97,12 +102,14 @@ public class InventoryWindowTests {
         int companionStart = CompanionInventoryMenu.GEAR_SLOTS;
         h.assertValueEqual(menu.slots.get(companionStart).x, CompanionInventoryLayout.SLOT_X, "companion grid x");
         h.assertValueEqual(menu.slots.get(companionStart).y, CompanionInventoryLayout.ITEMS_Y, "companion grid y");
-        h.assertValueEqual(menu.slots.get(companionStart + 9).y, CompanionInventoryLayout.ITEMS_Y + pitch,
+        h.assertValueEqual(
+                menu.slots.get(companionStart + 9).y,
+                CompanionInventoryLayout.ITEMS_Y + pitch,
                 "companion grid second row");
         int playerStart = companionStart + CompanionInventoryMenu.COMPANION_SLOTS;
         h.assertValueEqual(menu.slots.get(playerStart).y, CompanionInventoryLayout.PLAYER_Y, "player grid y");
-        h.assertValueEqual(menu.slots.get(playerStart + 9).y, CompanionInventoryLayout.PLAYER_Y + pitch,
-                "player grid second row");
+        h.assertValueEqual(
+                menu.slots.get(playerStart + 9).y, CompanionInventoryLayout.PLAYER_Y + pitch, "player grid second row");
         h.assertValueEqual(menu.slots.size() - 9, playerStart + 27, "hotbar start");
         h.assertValueEqual(menu.slots.get(playerStart + 27).y, CompanionInventoryLayout.HOTBAR_Y, "hotbar y");
 
@@ -114,7 +121,8 @@ public class InventoryWindowTests {
     public void hungerReachesTheSyncedField(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         companion.hunger().load(7, 0.0f, 0.0f);
         companion.tick();
         h.assertValueEqual(companion.syncedFood(), 7, "food must reach the field the client reads");
@@ -125,11 +133,13 @@ public class InventoryWindowTests {
     public void goneCompanionCannotBeOpened(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         UUID ownerId = owner.getUUID();
         companion.setOwner(ownerId);
         companion.discard();
-        h.assertTrue(FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.GONE,
+        h.assertTrue(
+                FriendaiMenus.open(owner, companion) == InventoryAccess.Denial.GONE,
                 "a discarded companion must not open");
         h.succeed();
     }

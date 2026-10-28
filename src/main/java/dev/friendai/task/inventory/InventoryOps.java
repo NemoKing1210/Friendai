@@ -59,7 +59,8 @@ public final class InventoryOps {
 
     private static void merge(List<ItemStack> stacks, ItemStack stack) {
         for (ItemStack existing : stacks) {
-            if (!ItemStack.isSameItemSameComponents(existing, stack) || existing.getCount() >= existing.getMaxStackSize()) {
+            if (!ItemStack.isSameItemSameComponents(existing, stack)
+                    || existing.getCount() >= existing.getMaxStackSize()) {
                 continue;
             }
             int move = Math.min(existing.getMaxStackSize() - existing.getCount(), stack.getCount());

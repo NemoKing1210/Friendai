@@ -212,7 +212,8 @@ public final class PlaceCommand {
         if (taken.isPresent() && taken.get().id() != place.id()) {
             return failure(ctx, "friendai.command.place.name.taken", newName);
         }
-        Place renamed = session.book().rename(place.id(), newName, session.player().level().getGameTime());
+        Place renamed = session.book()
+                .rename(place.id(), newName, session.player().level().getGameTime());
         reply(ctx, "friendai.command.place.rename", place.name(), renamed.name());
         return 1;
     }
@@ -237,8 +238,7 @@ public final class PlaceCommand {
      * The one place the sender's dimension knows under this name or alias. Ambiguity cannot arise while the
      * registry keeps one key per name, but reporting it beats guessing if that invariant ever breaks.
      */
-    private static Optional<Place> resolve(
-            CommandContext<CommandSourceStack> ctx, Session session, String name) {
+    private static Optional<Place> resolve(CommandContext<CommandSourceStack> ctx, Session session, String name) {
         List<Place> hits = matches(session, name);
         if (hits.isEmpty()) {
             failure(ctx, "friendai.command.place.notfound", name);
@@ -293,27 +293,29 @@ public final class PlaceCommand {
 
     /** The localized kind name; every key is a literal so {@code LangFilesTest} can verify it. */
     private static UserMessage kindMessage(PlaceKind kind) {
-        return UserMessage.of(switch (kind) {
-            case HOUSE -> "friendai.command.place.kind.house";
-            case FARM -> "friendai.command.place.kind.farm";
-            case MINE -> "friendai.command.place.kind.mine";
-            case STORAGE -> "friendai.command.place.kind.storage";
-            case PORTAL -> "friendai.command.place.kind.portal";
-            case TRADE -> "friendai.command.place.kind.trade";
-            case LANDMARK -> "friendai.command.place.kind.landmark";
-        });
+        return UserMessage.of(
+                switch (kind) {
+                    case HOUSE -> "friendai.command.place.kind.house";
+                    case FARM -> "friendai.command.place.kind.farm";
+                    case MINE -> "friendai.command.place.kind.mine";
+                    case STORAGE -> "friendai.command.place.kind.storage";
+                    case PORTAL -> "friendai.command.place.kind.portal";
+                    case TRADE -> "friendai.command.place.kind.trade";
+                    case LANDMARK -> "friendai.command.place.kind.landmark";
+                });
     }
 
     /** The localized origin name; every key is a literal so {@code LangFilesTest} can verify it. */
     private static UserMessage sourceMessage(PlaceSource source) {
-        return UserMessage.of(switch (source) {
-            case MANUAL -> "friendai.command.place.source.manual";
-            case COMMAND -> "friendai.command.place.source.command";
-            case BUILD -> "friendai.command.place.source.build";
-            case STRUCTURE -> "friendai.command.place.source.structure";
-            case FARM -> "friendai.command.place.source.farm";
-            case MINE -> "friendai.command.place.source.mine";
-        });
+        return UserMessage.of(
+                switch (source) {
+                    case MANUAL -> "friendai.command.place.source.manual";
+                    case COMMAND -> "friendai.command.place.source.command";
+                    case BUILD -> "friendai.command.place.source.build";
+                    case STRUCTURE -> "friendai.command.place.source.structure";
+                    case FARM -> "friendai.command.place.source.farm";
+                    case MINE -> "friendai.command.place.source.mine";
+                });
     }
 
     /** The raw lowercase kind used by the {@code .kind.unknown} syntax list, not as player-facing prose. */
@@ -322,9 +324,7 @@ public final class PlaceCommand {
     }
 
     private static String kindsText() {
-        return Arrays.stream(PlaceKind.values())
-                .map(PlaceCommand::kindText)
-                .collect(Collectors.joining(", "));
+        return Arrays.stream(PlaceKind.values()).map(PlaceCommand::kindText).collect(Collectors.joining(", "));
     }
 
     private static void reply(CommandContext<CommandSourceStack> ctx, String key, Object... args) {

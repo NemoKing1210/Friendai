@@ -74,15 +74,14 @@ class MoveGeneratorDigTest {
         double plain = stepTo(stepsFrom(stoneOnly, new Node(1, 1, 0)), 2, 1, 0).cost();
         PathStep step = stepTo(stepsFrom(gravel, new Node(1, 1, 0)), 2, 1, 0);
         assertTrue(step.breaks().contains(new Pos(2, 2, 0)));
-        assertEquals(plain - (30 + COSTS.breakExtra()) + (9 + COSTS.breakExtra() + COSTS.fallingExtra()),
-                step.cost(), 1e-9);
+        assertEquals(
+                plain - (30 + COSTS.breakExtra()) + (9 + COSTS.breakExtra() + COSTS.fallingExtra()), step.cost(), 1e-9);
     }
 
     @Test
     void pillarsWhenBlocksAvailable() {
         GridCellView view = new GridCellView("#", ".", ".", ".");
-        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5), 3),
-                0, 2, 0);
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5), 3), 0, 2, 0);
         assertEquals(Move.PILLAR, step.move());
         assertEquals(List.of(new Pos(0, 1, 0)), step.places());
     }
@@ -97,8 +96,7 @@ class MoveGeneratorDigTest {
     @Test
     void bridgesOverHole() {
         GridCellView view = new GridCellView("#.#", "...", "...");
-        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(2.5, 1, 0.5, 0.5, 0.5), 3),
-                1, 1, 0);
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(2.5, 1, 0.5, 0.5, 0.5), 3), 1, 1, 0);
         assertEquals(Move.BRIDGE, step.move());
         assertEquals(List.of(new Pos(1, 0, 0)), step.places());
     }

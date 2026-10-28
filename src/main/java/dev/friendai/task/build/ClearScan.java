@@ -79,7 +79,8 @@ public final class ClearScan {
                         skipped.merge(SkipReason.PROTECTED, 1, Integer::sum);
                         continue;
                     }
-                    if (TaskSettings.breakList.matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
+                    if (TaskSettings.breakList.matches(
+                            LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
                         skipped.merge(SkipReason.BLACKLISTED, 1, Integer::sum);
                         continue;
                     }

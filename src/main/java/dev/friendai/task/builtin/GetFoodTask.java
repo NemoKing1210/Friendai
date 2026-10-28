@@ -19,7 +19,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Leashable;
@@ -28,8 +27,8 @@ import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 
 /**
@@ -50,12 +49,23 @@ public final class GetFoodTask implements Task {
      * an ingredient, not a meal.
      */
     private static final Set<Item> RAW_FOOD = Set.of(
-            Items.BEEF, Items.PORKCHOP, Items.CHICKEN, Items.MUTTON, Items.RABBIT, Items.COD, Items.SALMON,
+            Items.BEEF,
+            Items.PORKCHOP,
+            Items.CHICKEN,
+            Items.MUTTON,
+            Items.RABBIT,
+            Items.COD,
+            Items.SALMON,
             Items.POTATO);
     /** Animals that are free to hunt: farm animals have no owner, so only leashes protect them. */
     private static final Set<EntityType<?>> HUNTABLE = Set.of(
-            EntityTypes.COW, EntityTypes.PIG, EntityTypes.SHEEP, EntityTypes.CHICKEN, EntityTypes.RABBIT,
-            EntityTypes.COD, EntityTypes.SALMON);
+            EntityTypes.COW,
+            EntityTypes.PIG,
+            EntityTypes.SHEEP,
+            EntityTypes.CHICKEN,
+            EntityTypes.RABBIT,
+            EntityTypes.COD,
+            EntityTypes.SALMON);
 
     private static final int CONTAINER_RADIUS = 16;
     private static final int CROP_RADIUS = 16;
@@ -218,16 +228,18 @@ public final class GetFoodTask implements Task {
                 int loaves = Math.min(remaining, wheatCount(companion) / WHEAT_PER_BREAD);
                 yield loaves <= 0 ? null : new CraftTask("minecraft:bread", loaves, CraftTask.StationPolicy.AUTO);
             }
-            case HARVESTING -> nearestMatureCrop(c)
-                    .map(center -> (Task) new FarmTask(center, FARM_RADIUS, null, false))
-                    .orElse(null);
+            case HARVESTING ->
+                nearestMatureCrop(c)
+                        .map(center -> (Task) new FarmTask(center, FARM_RADIUS, null, false))
+                        .orElse(null);
             case HUNTING -> {
                 LivingEntity target = nearestHuntable(level, companion);
                 if (target == null) {
                     yield null;
                 }
                 EntityType<?> type = target.getType();
-                yield new HuntTask(matched -> matched == type, entityId(type), Math.min(remaining, HUNT_MAX), HUNT_RADIUS);
+                yield new HuntTask(
+                        matched -> matched == type, entityId(type), Math.min(remaining, HUNT_MAX), HUNT_RADIUS);
             }
             case FISHING -> new FishTask(remaining);
         };
@@ -247,7 +259,8 @@ public final class GetFoodTask implements Task {
     private boolean hasAllowedFuel(TaskContext c) {
         CompanionEntity companion = c.companion();
         return !FuelPolicy.pick(companion, c.level(), companion.blockPosition(), FUEL_CHECK_TICKS, null)
-                .stacks().isEmpty();
+                .stacks()
+                .isEmpty();
     }
 
     /** Chest contents are inspected only after the companion has walked to and opened a known container. */
@@ -259,16 +272,28 @@ public final class GetFoodTask implements Task {
             this.wanted = wanted;
         }
 
-        @Override public String type() { return "take_food"; }
-        @Override public void start(TaskContext c) {}
+        @Override
+        public String type() {
+            return "take_food";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
 
         @Override
         protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
             return ContainerAccess.nearest(companion, CONTAINER_RADIUS);
         }
 
-        @Override protected String noTargetSummary() { return "no known storage container within " + CONTAINER_RADIUS + " blocks"; }
-        @Override protected String missingTargetSummary() { return "the storage container is no longer there"; }
+        @Override
+        protected String noTargetSummary() {
+            return "no known storage container within " + CONTAINER_RADIUS + " blocks";
+        }
+
+        @Override
+        protected String missingTargetSummary() {
+            return "the storage container is no longer there";
+        }
 
         @Override
         protected TaskStatus work(TaskContext c) {
@@ -278,7 +303,8 @@ public final class GetFoodTask implements Task {
                 ItemStack stack = container.getItem(slot);
                 if (!isReadyFood(c.companion(), stack)) continue;
                 FoodProperties food = stack.get(DataComponents.FOOD);
-                if (best == null || food.nutrition() > best.nutrition()
+                if (best == null
+                        || food.nutrition() > best.nutrition()
                         || food.nutrition() == best.nutrition() && food.saturation() > best.saturation()) {
                     bestSlot = slot;
                     best = food;
@@ -301,17 +327,27 @@ public final class GetFoodTask implements Task {
                 else current.grow(leftover.getCount());
             }
             c.companion().inventory().setChanged();
-            summary = taken == 0 ? "my inventory is full" : "took " + taken + " ready food from the "
-                    + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords();
+            summary = taken == 0
+                    ? "my inventory is full"
+                    : "took " + taken + " ready food from the " + ContainerAccess.shortLabel(c.level(), containerPos)
+                            + " at " + coords();
             return taken == 0 ? TaskStatus.FAILED : TaskStatus.SUCCESS;
         }
 
-        @Override public String describe() { return "taking ready food from a container"; }
-        @Override public String resultSummary() { return summary; }
+        @Override
+        public String describe() {
+            return "taking ready food from a container";
+        }
+
+        @Override
+        public String resultSummary() {
+            return summary;
+        }
     }
 
     private static Optional<BlockPos> nearestMatureCrop(TaskContext c) {
-        var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        var evidence =
+                dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
         return evidence.confirmedRecent(c.companion(), CROP_RADIUS).stream()
                 .map(observation -> observation.location().pos())
                 .map(pos -> new BlockPos(pos.x(), pos.y(), pos.z()))
@@ -331,8 +367,14 @@ public final class GetFoodTask implements Task {
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity : nearby) {
-            if (level.clip(new ClipContext(companion.getEyePosition(), entity.getBoundingBox().getCenter(),
-                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion)).getType() != HitResult.Type.MISS) continue;
+            if (level.clip(new ClipContext(
+                                    companion.getEyePosition(),
+                                    entity.getBoundingBox().getCenter(),
+                                    ClipContext.Block.COLLIDER,
+                                    ClipContext.Fluid.NONE,
+                                    companion))
+                            .getType()
+                    != HitResult.Type.MISS) continue;
             double distance = entity.distanceToSqr(companion);
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -372,13 +414,17 @@ public final class GetFoodTask implements Task {
         if (!sourceWater(level, pos) || !level.getBlockState(pos.above()).isAir()) {
             return false;
         }
-        return sourceWater(level, pos.east()) && sourceWater(level, pos.south())
+        return sourceWater(level, pos.east())
+                        && sourceWater(level, pos.south())
                         && sourceWater(level, pos.east().south())
-                || sourceWater(level, pos.west()) && sourceWater(level, pos.south())
+                || sourceWater(level, pos.west())
+                        && sourceWater(level, pos.south())
                         && sourceWater(level, pos.west().south())
-                || sourceWater(level, pos.east()) && sourceWater(level, pos.north())
+                || sourceWater(level, pos.east())
+                        && sourceWater(level, pos.north())
                         && sourceWater(level, pos.east().north())
-                || sourceWater(level, pos.west()) && sourceWater(level, pos.north())
+                || sourceWater(level, pos.west())
+                        && sourceWater(level, pos.north())
                         && sourceWater(level, pos.west().north());
     }
 
@@ -435,9 +481,7 @@ public final class GetFoodTask implements Task {
         if (isReadyFood(companion, companion.getMainHandItem())) {
             kinds.add(idOf(companion.getMainHandItem()));
         }
-        summary = kinds.isEmpty()
-                ? "got " + gained + " food"
-                : "got " + gained + " food: " + String.join(", ", kinds);
+        summary = kinds.isEmpty() ? "got " + gained + " food" : "got " + gained + " food: " + String.join(", ", kinds);
         return TaskStatus.SUCCESS;
     }
 

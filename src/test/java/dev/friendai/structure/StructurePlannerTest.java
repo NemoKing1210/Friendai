@@ -23,8 +23,15 @@ class StructurePlannerTest {
         return new StructureSnapshot(true, false, false, false, Set.of(), false, 0, 4, Map.of());
     }
 
-    private static StructureSnapshot with(StructureSnapshot b, Boolean footprintFree, Boolean entity,
-            Boolean prot, Boolean inEnd, Set<Offset> correct, Boolean present, Integer nearby,
+    private static StructureSnapshot with(
+            StructureSnapshot b,
+            Boolean footprintFree,
+            Boolean entity,
+            Boolean prot,
+            Boolean inEnd,
+            Set<Offset> correct,
+            Boolean present,
+            Integer nearby,
             Map<String, Integer> bag) {
         return new StructureSnapshot(
                 footprintFree != null ? footprintFree : b.footprintFree(),
@@ -39,7 +46,9 @@ class StructurePlannerTest {
     }
 
     private static Set<Offset> bodyOffsets(SpecialStructure s) {
-        return s.body().blocks().stream().map(b -> new Offset(b.x(), b.y(), b.z())).collect(Collectors.toSet());
+        return s.body().blocks().stream()
+                .map(b -> new Offset(b.x(), b.y(), b.z()))
+                .collect(Collectors.toSet());
     }
 
     private static StructurePlan.Reason blockedReason(StructurePlan plan) {
@@ -49,13 +58,14 @@ class StructurePlannerTest {
     @Test
     void freshSiteGivesClearBuildFinishVerifyInOrder() {
         SpecialStructure snow = s("snow_golem");
-        StructurePlan.Ready plan = assertInstanceOf(StructurePlan.Ready.class,
-                StructurePlanner.plan(snow, fresh()));
-        assertEquals(List.of(
-                new StructureStep.Clear(),
-                new StructureStep.BuildBody(bodyOffsets(snow)),
-                new StructureStep.Finish(snow.trigger()),
-                new StructureStep.Verify(snow.outcome())), plan.steps());
+        StructurePlan.Ready plan = assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(snow, fresh()));
+        assertEquals(
+                List.of(
+                        new StructureStep.Clear(),
+                        new StructureStep.BuildBody(bodyOffsets(snow)),
+                        new StructureStep.Finish(snow.trigger()),
+                        new StructureStep.Verify(snow.outcome())),
+                plan.steps());
     }
 
     @Test
@@ -72,9 +82,10 @@ class StructurePlannerTest {
 
     @Test
     void endBlocksOnlyDisallowedStructures() {
-        StructureSnapshot snap = with(fresh(), null, null, null, true, null, null, null,
-                Map.of("minecraft:flint_and_steel", 1));
-        assertEquals(StructurePlan.Reason.WRONG_DIMENSION, blockedReason(StructurePlanner.plan(s("nether_portal"), snap)));
+        StructureSnapshot snap =
+                with(fresh(), null, null, null, true, null, null, null, Map.of("minecraft:flint_and_steel", 1));
+        assertEquals(
+                StructurePlan.Reason.WRONG_DIMENSION, blockedReason(StructurePlanner.plan(s("nether_portal"), snap)));
         assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(s("iron_golem"), snap));
     }
 
@@ -87,15 +98,15 @@ class StructurePlannerTest {
 
     @Test
     void presentFinishingItemLetsThePortalPlanProceed() {
-        StructureSnapshot snap = with(fresh(), null, null, null, null, null, null, null,
-                Map.of("minecraft:flint_and_steel", 1));
+        StructureSnapshot snap =
+                with(fresh(), null, null, null, null, null, null, null, Map.of("minecraft:flint_and_steel", 1));
         assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(s("nether_portal"), snap));
     }
 
     @Test
     void limitReachedIsBlockedForSpawnedMobsOnly() {
-        StructureSnapshot snap = with(fresh(), null, null, null, null, null, null, 4,
-                Map.of("minecraft:flint_and_steel", 1));
+        StructureSnapshot snap =
+                with(fresh(), null, null, null, null, null, null, 4, Map.of("minecraft:flint_and_steel", 1));
         assertEquals(StructurePlan.Reason.LIMIT_REACHED, blockedReason(StructurePlanner.plan(s("iron_golem"), snap)));
         assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(s("nether_portal"), snap));
     }
@@ -111,14 +122,17 @@ class StructurePlannerTest {
         SpecialStructure iron = s("iron_golem");
         StructureSnapshot all = with(fresh(), null, null, null, null, bodyOffsets(iron), null, null, null);
         StructurePlan.Ready ready = assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(iron, all));
-        assertEquals(List.of(new StructureStep.Finish(iron.trigger()), new StructureStep.Verify(iron.outcome())),
+        assertEquals(
+                List.of(new StructureStep.Finish(iron.trigger()), new StructureStep.Verify(iron.outcome())),
                 ready.steps());
 
         Set<Offset> partial = new HashSet<>(bodyOffsets(iron));
         partial.remove(new Offset(2, 1, 0));
         StructureSnapshot some = with(fresh(), null, null, null, null, partial, null, null, null);
         StructurePlan.Ready rest = assertInstanceOf(StructurePlan.Ready.class, StructurePlanner.plan(iron, some));
-        assertEquals(new StructureStep.BuildBody(Set.of(new Offset(2, 1, 0))), rest.steps().get(1));
+        assertEquals(
+                new StructureStep.BuildBody(Set.of(new Offset(2, 1, 0))),
+                rest.steps().get(1));
     }
 
     @Test

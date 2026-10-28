@@ -64,7 +64,8 @@ public final class MemoryPromptRenderer {
     private static void addIndex(List<String> parts, MemoryBook book, UUID owner) {
         Map<UUID, Integer> counts = new LinkedHashMap<>();
         for (Fact fact : book.allFacts()) {
-            if (fact.subject() instanceof Subject.Player player && !player.uuid().equals(owner)) {
+            if (fact.subject() instanceof Subject.Player player
+                    && !player.uuid().equals(owner)) {
                 counts.merge(player.uuid(), 1, Integer::sum);
             }
         }

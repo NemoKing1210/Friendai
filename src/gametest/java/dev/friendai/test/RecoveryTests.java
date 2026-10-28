@@ -57,7 +57,8 @@ public class RecoveryTests {
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
         ToolResult r = call(c, owner, "queue_add", FAILING_PLAN);
         h.assertFalse(r.error(), "queue_add: " + r.content());
-        h.succeedWhen(() -> h.assertTrue(logHas(brains, player, "diagnosis: MISSING_ITEM"),
+        h.succeedWhen(() -> h.assertTrue(
+                logHas(brains, player, "diagnosis: MISSING_ITEM"),
                 "the plan event should carry a diagnosis; log: "
                         + brains.debug().logOf(player.getUUID()).after(0, 200)));
     }
@@ -82,7 +83,13 @@ public class RecoveryTests {
         h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "queue_add");
         h.succeedWhen(() -> {
             h.assertTrue(logHas(brains, player, "replan budget spent"), "the event should say the budget is spent");
-            h.assertTrue(state.goals().board(player.getUUID()).primary().orElseThrow().status() == GoalStatus.BLOCKED,
+            h.assertTrue(
+                    state.goals()
+                                    .board(player.getUUID())
+                                    .primary()
+                                    .orElseThrow()
+                                    .status()
+                            == GoalStatus.BLOCKED,
                     "the goal should be blocked");
             state.applyConfig(original);
         });

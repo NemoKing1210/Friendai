@@ -20,10 +20,12 @@ class BarterDropTrackerTest {
 
         assertFalse(tracker.observeVanillaOutput(attempt, other, UUID.randomUUID(), 21));
         assertFalse(tracker.observeVanillaOutput(attempt, piglin, UUID.randomUUID(), 19));
-        assertFalse(tracker.observeVanillaOutput(UUID.randomUUID(), piglin, UUID.randomUUID(), 21),
+        assertFalse(
+                tracker.observeVanillaOutput(UUID.randomUUID(), piglin, UUID.randomUUID(), 21),
                 "another attempt cannot claim the exact piglin's output");
         assertTrue(tracker.observeVanillaOutput(attempt, piglin, output, 21));
-        assertFalse(tracker.observeVanillaOutput(attempt, piglin, output, 22), "one item entity must not be counted twice");
+        assertFalse(
+                tracker.observeVanillaOutput(attempt, piglin, output, 22), "one item entity must not be counted twice");
         assertEquals(java.util.List.of(output), tracker.outputs(attempt));
         tracker.finish(attempt);
         assertEquals(java.util.List.of(), tracker.outputs(attempt));

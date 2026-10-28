@@ -1,21 +1,16 @@
 package dev.friendai.client;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.client.debug.MovementDebugRenderer;
+import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.render.CompanionRenderer;
+import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.tts.SpeechKeybind;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.CompanionClientState;
+import dev.friendai.client.ui.CompanionInventoryScreen;
 import dev.friendai.client.ui.PauseMenuButton;
-import dev.friendai.net.CompanionSnapshotS2CPayload;
-import dev.friendai.net.CompanionSpeechS2CPayload;
-import dev.friendai.net.PlacesViewS2CPayload;
-import dev.friendai.net.PromptS2CPayload;
-import dev.friendai.net.SkinS2CPayload;
-import dev.friendai.place.PlaceViewCodec;
-import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.voice.PushToTalkHandler;
-import dev.friendai.client.debug.MovementDebugRenderer;
-import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.config.ClientConfig;
@@ -23,12 +18,17 @@ import dev.friendai.config.ConfigStore;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.memory.MemoryViewCodec;
 import dev.friendai.menu.FriendaiMenus;
+import dev.friendai.net.CompanionSnapshotS2CPayload;
+import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.net.MemoryViewS2CPayload;
-import dev.friendai.net.TradeViewS2CPayload;
-import dev.friendai.trading.TradeViewCodec;
 import dev.friendai.net.MovementDebugS2CPayload;
+import dev.friendai.net.PlacesViewS2CPayload;
+import dev.friendai.net.PromptS2CPayload;
+import dev.friendai.net.SkinS2CPayload;
+import dev.friendai.net.TradeViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
-import dev.friendai.client.ui.CompanionInventoryScreen;
+import dev.friendai.place.PlaceViewCodec;
+import dev.friendai.trading.TradeViewCodec;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -81,7 +81,8 @@ public class FriendaiClient implements ClientModInitializer {
         PauseMenuButton.register();
         ClientPlayNetworking.registerGlobalReceiver(
                 CompanionSnapshotS2CPayload.TYPE,
-                (payload, context) -> context.client().execute(() -> CompanionClientState.onSnapshot(payload.snapshot())));
+                (payload, context) ->
+                        context.client().execute(() -> CompanionClientState.onSnapshot(payload.snapshot())));
         ClientPlayNetworking.registerGlobalReceiver(
                 PromptS2CPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> CompanionClientState.onPrompt(payload.prompt())));
@@ -89,10 +90,14 @@ public class FriendaiClient implements ClientModInitializer {
                 CompanionSpeechS2CPayload.TYPE,
                 (payload, context) -> context.client().execute(() -> SpeechRuntime.onCompanionSpeech(payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> SpeechRuntime.shutdown());
-        ClientPlayNetworking.registerGlobalReceiver(dev.friendai.net.SkillsViewS2CPayload.TYPE,(payload,context)->
-                context.client().execute(()->dev.friendai.skill.SkillViewCodec.decode(payload.data()).ifPresent(CompanionClientState::onSkillsView)));
-        ClientPlayNetworking.registerGlobalReceiver(MemoryViewS2CPayload.TYPE, (payload, context) ->
-                context.client().execute(() -> {
+        ClientPlayNetworking.registerGlobalReceiver(
+                dev.friendai.net.SkillsViewS2CPayload.TYPE,
+                (payload, context) -> context.client()
+                        .execute(() -> dev.friendai.skill.SkillViewCodec.decode(payload.data())
+                                .ifPresent(CompanionClientState::onSkillsView)));
+        ClientPlayNetworking.registerGlobalReceiver(
+                MemoryViewS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> {
                     try {
                         CompanionClientState.onMemoryView(MemoryViewCodec.decode(payload.data()));
                     } catch (IllegalArgumentException e) {
@@ -100,8 +105,9 @@ public class FriendaiClient implements ClientModInitializer {
                         FriendaiMod.LOGGER.warn("Dropping a malformed memory view: {}", e.getMessage());
                     }
                 }));
-        ClientPlayNetworking.registerGlobalReceiver(PlacesViewS2CPayload.TYPE, (payload, context) ->
-                context.client().execute(() -> {
+        ClientPlayNetworking.registerGlobalReceiver(
+                PlacesViewS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> {
                     try {
                         CompanionClientState.onPlaceView(PlaceViewCodec.decode(payload.data()));
                     } catch (IllegalArgumentException e) {
@@ -109,11 +115,15 @@ public class FriendaiClient implements ClientModInitializer {
                         FriendaiMod.LOGGER.warn("Dropping a malformed places view: {}", e.getMessage());
                     }
                 }));
-        ClientPlayNetworking.registerGlobalReceiver(TradeViewS2CPayload.TYPE, (payload, context) ->
-                context.client().execute(() -> TradeViewCodec.decode(payload.encoded()).ifPresent(CompanionClientState::onTradeView)));
+        ClientPlayNetworking.registerGlobalReceiver(
+                TradeViewS2CPayload.TYPE,
+                (payload, context) -> context.client()
+                        .execute(() ->
+                                TradeViewCodec.decode(payload.encoded()).ifPresent(CompanionClientState::onTradeView)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> CompanionClientState.clearTradeView());
-        ClientPlayNetworking.registerGlobalReceiver(MovementDebugS2CPayload.TYPE, (payload, context) ->
-                context.client().execute(() -> {
+        ClientPlayNetworking.registerGlobalReceiver(
+                MovementDebugS2CPayload.TYPE,
+                (payload, context) -> context.client().execute(() -> {
                     try {
                         MovementDebugState.onData(payload.data());
                     } catch (IllegalArgumentException e) {
@@ -125,11 +135,12 @@ public class FriendaiClient implements ClientModInitializer {
                 SkinS2CPayload.TYPE, (payload, context) -> context.client().execute(() -> SkinCache.onSkin(payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(SkinCache::clear));
         new PushToTalkHandler(VoiceRuntime::stt, text -> {
-            if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
-                ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));
-            } else {
-                FriendaiMod.LOGGER.warn("Not connected to a server with Friendai, dropping transcript");
-            }
-        }).register();
+                    if (ClientPlayNetworking.canSend(VoiceTranscriptC2SPayload.TYPE)) {
+                        ClientPlayNetworking.send(new VoiceTranscriptC2SPayload(text));
+                    } else {
+                        FriendaiMod.LOGGER.warn("Not connected to a server with Friendai, dropping transcript");
+                    }
+                })
+                .register();
     }
 }

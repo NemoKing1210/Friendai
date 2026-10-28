@@ -31,7 +31,8 @@ public class GoalTickTests {
         public CompletableFuture<LlmResponse> complete(
                 String system, List<Message> messages, List<dev.friendai.llm.model.ToolSpec> tools) {
             messages.forEach(m -> userLines.add(m.text()));
-            return CompletableFuture.completedFuture(new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
         }
 
         boolean sawNudge() {
@@ -41,7 +42,8 @@ public class GoalTickTests {
 
     private static void setGoal(CompanionEntity c, ServerPlayer player) {
         String json = "{\"text\":\"get a pickaxe\"}";
-        ToolCall call = new ToolCall("1", "set_goal", JsonParser.parseString(json).getAsJsonObject(), json, null);
+        ToolCall call =
+                new ToolCall("1", "set_goal", JsonParser.parseString(json).getAsJsonObject(), json, null);
         FriendaiTools.create(() -> 32).bind(c).execute(call, new Caller(player.getUUID(), "Steve", AccessLevel.OWNER));
     }
 
@@ -71,16 +73,19 @@ public class GoalTickTests {
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         setGoal(c, player);
         h.runAfterDelay(300, () -> {
-            h.assertTrue(recorder.sawNudge(),
-                    "an idle companion with a goal should be nudged; saw " + recorder.userLines);
+            h.assertTrue(
+                    recorder.sawNudge(), "an idle companion with a goal should be nudged; saw " + recorder.userLines);
             state.applyConfig(fastTicks("passive"));
             int before = recorder.userLines.size();
             h.runAfterDelay(450, () -> {
                 state.applyConfig(original);
                 long nudgesAfter = recorder.userLines.subList(before, recorder.userLines.size()).stream()
-                        .filter(line -> line.contains("is not finished")).count();
-                h.assertTrue(nudgesAfter == 0, "a passive companion must not start on its own; saw "
-                        + recorder.userLines.subList(before, recorder.userLines.size()));
+                        .filter(line -> line.contains("is not finished"))
+                        .count();
+                h.assertTrue(
+                        nudgesAfter == 0,
+                        "a passive companion must not start on its own; saw "
+                                + recorder.userLines.subList(before, recorder.userLines.size()));
                 h.succeed();
             });
         });

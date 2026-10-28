@@ -5,15 +5,34 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Cumulative observed progress, never a prediction of receipts or permission to pay again. */
-public record TradeProgress(UUID orderId, State state, Map<String, Integer> spent,
-                            List<TradeItem> received, int completedTrades, String reason) {
-    public enum State { AUTHORIZED, RUNNING, COMPLETED, PARTIAL, INTERRUPTED, UNCERTAIN, FAILED }
+public record TradeProgress(
+        UUID orderId,
+        State state,
+        Map<String, Integer> spent,
+        List<TradeItem> received,
+        int completedTrades,
+        String reason) {
+    public enum State {
+        AUTHORIZED,
+        RUNNING,
+        COMPLETED,
+        PARTIAL,
+        INTERRUPTED,
+        UNCERTAIN,
+        FAILED
+    }
+
     public static final int MAX_INPUT_KINDS = 256;
     public static final int MAX_RECEIPTS = 2048;
 
     public TradeProgress {
-        if (orderId == null || state == null || completedTrades < 0 || spent == null
-                || spent.size() > MAX_INPUT_KINDS || received == null || received.size() > MAX_RECEIPTS) {
+        if (orderId == null
+                || state == null
+                || completedTrades < 0
+                || spent == null
+                || spent.size() > MAX_INPUT_KINDS
+                || received == null
+                || received.size() > MAX_RECEIPTS) {
             throw new IllegalArgumentException("invalid trade progress");
         }
         reason = TradeItem.requireText(reason, 512);

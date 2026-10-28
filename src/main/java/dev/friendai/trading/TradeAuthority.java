@@ -34,7 +34,6 @@ public final class TradeAuthority implements TradingTurnPort {
         final Map<UUID, TradeProgress> progress = new HashMap<>();
         final Map<UUID, BarterProgress> barterProgress = new HashMap<>();
         final Map<UUID, Map<String, Integer>> reservations = new HashMap<>();
-
     }
 
     public TradeAuthority(UUID owner) {
@@ -81,8 +80,11 @@ public final class TradeAuthority implements TradingTurnPort {
 
     /** Bind an order to the current owner scope; the returned value is safe to capture in a deferred task. */
     public synchronized TradeOrder authorize(Caller caller, TradeOrder requested) {
-        if (caller == null || requested == null || caller.access() != AccessLevel.OWNER
-                || !owner.equals(caller.uuid()) || caller.tradingScope() == null) {
+        if (caller == null
+                || requested == null
+                || caller.access() != AccessLevel.OWNER
+                || !owner.equals(caller.uuid())
+                || caller.tradingScope() == null) {
             throw denied("owner turn has no trading authority");
         }
         if (!owner.equals(requested.owner()) || !caller.tradingScope().equals(requested.scopeId())) {
@@ -105,7 +107,8 @@ public final class TradeAuthority implements TradingTurnPort {
             if (requested.deadlineTick() > existing.deadlineTick()) {
                 requested = withDeadline(requested, existing.deadlineTick());
             }
-            if (!isNarrower(requested, existing.budget(), existing.deadlineTick(), existing.allowedPaymentFingerprints())) {
+            if (!isNarrower(
+                    requested, existing.budget(), existing.deadlineTick(), existing.allowedPaymentFingerprints())) {
                 throw denied("retry cannot increase its original limits");
             }
             var narrowed = bind(requested, caller.tradingScope());
@@ -127,22 +130,30 @@ public final class TradeAuthority implements TradingTurnPort {
     }
 
     public synchronized BarterOrder authorizeBarter(Caller caller, BarterOrder requested) {
-        if (caller == null || requested == null || caller.access() != AccessLevel.OWNER
-                || !owner.equals(caller.uuid()) || caller.tradingScope() == null
-                || !owner.equals(requested.owner()) || !caller.tradingScope().equals(requested.scopeId())) {
+        if (caller == null
+                || requested == null
+                || caller.access() != AccessLevel.OWNER
+                || !owner.equals(caller.uuid())
+                || caller.tradingScope() == null
+                || !owner.equals(requested.owner())
+                || !caller.tradingScope().equals(requested.scopeId())) {
             throw denied("barter requires this owner's active turn scope");
         }
         Scope scope = scopes.get(caller.tradingScope());
         if (scope == null || !scope.active) throw denied("trading authority expired");
         BarterOrder existing = barterOrders.get(requested.orderId());
         if (existing != null) {
-            if (!caller.tradingScope().equals(barterScopes.get(requested.orderId())) || !sameIntent(requested, existing)) {
+            if (!caller.tradingScope().equals(barterScopes.get(requested.orderId()))
+                    || !sameIntent(requested, existing)) {
                 throw denied("an existing barter order cannot be retargeted");
             }
             if (requested.maxIngots() > existing.maxIngots()) {
                 throw denied("barter retry cannot increase its original limits");
             }
-            return bind(requested, caller.tradingScope(), Math.min(requested.maxIngots(), existing.maxIngots()),
+            return bind(
+                    requested,
+                    caller.tradingScope(),
+                    Math.min(requested.maxIngots(), existing.maxIngots()),
                     existing.deadlineTick());
         }
         if (scope.ceiling == null) {
@@ -156,8 +167,10 @@ public final class TradeAuthority implements TradingTurnPort {
         BarterOrder bound = bind(requested, caller.tradingScope(), requested.maxIngots(), requested.deadlineTick());
         barterOrders.put(bound.orderId(), bound);
         barterScopes.put(bound.orderId(), caller.tradingScope());
-        scope.barterProgress.putIfAbsent(bound.orderId(), new BarterProgress(bound.orderId(), 0, Set.of(),
-                java.util.List.of(), BarterProgress.State.AUTHORIZED, ""));
+        scope.barterProgress.putIfAbsent(
+                bound.orderId(),
+                new BarterProgress(
+                        bound.orderId(), 0, Set.of(), java.util.List.of(), BarterProgress.State.AUTHORIZED, ""));
         return bound;
     }
 
@@ -170,11 +183,15 @@ public final class TradeAuthority implements TradingTurnPort {
         try {
             long orderReserved = reservedTotalFor(scope, order.orderId(), "minecraft:gold_ingot");
             long orderSpent = progress == null ? 0 : progress.goldAccepted();
-            long total = Math.addExact(Math.addExact(scopeSpent(scope).getOrDefault("minecraft:gold_ingot", 0L),
-                    reservedTotal(scope, "minecraft:gold_ingot")), ingots);
+            long total = Math.addExact(
+                    Math.addExact(
+                            scopeSpent(scope).getOrDefault("minecraft:gold_ingot", 0L),
+                            reservedTotal(scope, "minecraft:gold_ingot")),
+                    ingots);
             int sharedCap = scope.ceiling.inputCaps().getOrDefault("minecraft:gold_ingot", 0);
             if (orderSpent + orderReserved + ingots > order.maxIngots() || total > sharedCap) return false;
-            scope.reservations.computeIfAbsent(order.orderId(), ignored -> new HashMap<>())
+            scope.reservations
+                    .computeIfAbsent(order.orderId(), ignored -> new HashMap<>())
                     .merge("minecraft:gold_ingot", ingots, Math::addExact);
             return true;
         } catch (ArithmeticException overflow) {
@@ -200,15 +217,23 @@ public final class TradeAuthority implements TradingTurnPort {
         BarterOrder order = barterOrders.get(update.orderId());
         if (scope == null || order == null || !scope.active) return;
         BarterProgress previous = scope.barterProgress.get(update.orderId());
-        if (previous != null && (update.goldAccepted() < previous.goldAccepted()
-                || !update.emittedItems().containsAll(previous.emittedItems())
-                || update.collected().size() < previous.collected().size()
-                || (previous.terminal() && !update.terminal()))) return;
-        if (update.goldAccepted() > order.maxIngots()) { failClosed(scope, "barter exceeded its order gold limit"); return; }
+        if (previous != null
+                && (update.goldAccepted() < previous.goldAccepted()
+                        || !update.emittedItems().containsAll(previous.emittedItems())
+                        || update.collected().size() < previous.collected().size()
+                        || (previous.terminal() && !update.terminal()))) return;
+        if (update.goldAccepted() > order.maxIngots()) {
+            failClosed(scope, "barter exceeded its order gold limit");
+            return;
+        }
         scope.barterProgress.put(update.orderId(), update);
         Map<String, Long> spent;
-        try { spent = scopeSpent(scope); }
-        catch (ArithmeticException overflow) { failClosed(scope, "shared spending totals overflowed"); return; }
+        try {
+            spent = scopeSpent(scope);
+        } catch (ArithmeticException overflow) {
+            failClosed(scope, "shared spending totals overflowed");
+            return;
+        }
         if (spent.getOrDefault("minecraft:gold_ingot", 0L)
                 > scope.ceiling.inputCaps().getOrDefault("minecraft:gold_ingot", 0)) {
             failClosed(scope, "barter exceeded the shared gold budget");
@@ -217,8 +242,9 @@ public final class TradeAuthority implements TradingTurnPort {
         Map<String, Integer> reservation = scope.reservations.get(update.orderId());
         if (reservation != null) {
             int delta = update.goldAccepted() - (previous == null ? 0 : previous.goldAccepted());
-            if (delta > 0) reservation.computeIfPresent("minecraft:gold_ingot",
-                    (item, held) -> held <= delta ? null : held - delta);
+            if (delta > 0)
+                reservation.computeIfPresent(
+                        "minecraft:gold_ingot", (item, held) -> held <= delta ? null : held - delta);
             if (reservation.isEmpty() || update.terminal()) scope.reservations.remove(update.orderId());
         }
     }
@@ -240,7 +266,8 @@ public final class TradeAuthority implements TradingTurnPort {
         var reservation = scope.reservations.computeIfAbsent(order.orderId(), ignored -> new HashMap<>());
         Map<String, Long> spent = scopeSpent(scope);
         Map<String, Integer> orderSpent = scope.progress.containsKey(order.orderId())
-                ? scope.progress.get(order.orderId()).spent() : Map.of();
+                ? scope.progress.get(order.orderId()).spent()
+                : Map.of();
         try {
             for (var entry : payment.entrySet()) {
                 TradeItem.requireId(entry.getKey());
@@ -251,8 +278,9 @@ public final class TradeAuthority implements TradingTurnPort {
                 if (sharedCap == null || orderCap == null) return false;
                 long pendingOrder = Math.addExact((long) reservation.getOrDefault(entry.getKey(), 0), count);
                 long orderTotal = Math.addExact((long) orderSpent.getOrDefault(entry.getKey(), 0), pendingOrder);
-                long sharedTotal = Math.addExact(Math.addExact(spent.getOrDefault(entry.getKey(), 0L),
-                        reservedTotal(scope, entry.getKey())), count);
+                long sharedTotal = Math.addExact(
+                        Math.addExact(spent.getOrDefault(entry.getKey(), 0L), reservedTotal(scope, entry.getKey())),
+                        count);
                 if (orderTotal > orderCap || sharedTotal > sharedCap) return false;
             }
             payment.forEach((item, count) -> reservation.merge(item, count, Math::addExact));
@@ -278,7 +306,8 @@ public final class TradeAuthority implements TradingTurnPort {
                 if (count == null || count < 1 || reservation.getOrDefault(entry.getKey(), 0) < count) return false;
             }
             for (var entry : payment.entrySet()) {
-                reservation.compute(entry.getKey(), (item, held) -> held <= entry.getValue() ? null : held - entry.getValue());
+                reservation.compute(
+                        entry.getKey(), (item, held) -> held <= entry.getValue() ? null : held - entry.getValue());
             }
             if (reservation.isEmpty()) scope.reservations.remove(order.orderId());
             return true;
@@ -302,8 +331,9 @@ public final class TradeAuthority implements TradingTurnPort {
         Scope scope = scopeId == null ? null : scopes.get(scopeId);
         if (scope == null) return;
         TradeProgress previous = scope.progress.get(update.orderId());
-        if (previous != null && (!monotonic(previous.spent(), update.spent())
-                || (previous.terminal() && !update.terminal()))) return;
+        if (previous != null
+                && (!monotonic(previous.spent(), update.spent()) || (previous.terminal() && !update.terminal())))
+            return;
         scope.progress.put(update.orderId(), update);
 
         TradeOrder order = orders.get(update.orderId());
@@ -335,13 +365,12 @@ public final class TradeAuthority implements TradingTurnPort {
             Map<String, Integer> oldSpend = previous == null ? Map.of() : previous.spent();
             for (var entry : update.spent().entrySet()) {
                 int delta = entry.getValue() - oldSpend.getOrDefault(entry.getKey(), 0);
-                if (delta > 0) reservation.computeIfPresent(entry.getKey(),
-                        (item, held) -> held <= delta ? null : held - delta);
+                if (delta > 0)
+                    reservation.computeIfPresent(entry.getKey(), (item, held) -> held <= delta ? null : held - delta);
             }
             if (update.state() != TradeProgress.State.UNCERTAIN && update.terminal()) {
                 scope.reservations.remove(update.orderId());
-            }
-            else if (reservation.isEmpty()) scope.reservations.remove(update.orderId());
+            } else if (reservation.isEmpty()) scope.reservations.remove(update.orderId());
         }
     }
 
@@ -378,19 +407,27 @@ public final class TradeAuthority implements TradingTurnPort {
     }
 
     private static boolean sameIntent(BarterOrder requested, BarterOrder original) {
-        return requested.owner().equals(original.owner()) && requested.scopeId().equals(original.scopeId())
+        return requested.owner().equals(original.owner())
+                && requested.scopeId().equals(original.scopeId())
                 && requested.piglin().equals(original.piglin())
                 && requested.earlyStopTarget().equals(original.earlyStopTarget())
                 && requested.targetCount() == original.targetCount();
     }
 
     private BarterOrder bind(BarterOrder requested, UUID scopeId, int maxIngots, long deadline) {
-        return new BarterOrder(requested.orderId(), owner, scopeId, requested.piglin(), maxIngots,
-                requested.earlyStopTarget(), requested.targetCount(), deadline);
+        return new BarterOrder(
+                requested.orderId(),
+                owner,
+                scopeId,
+                requested.piglin(),
+                maxIngots,
+                requested.earlyStopTarget(),
+                requested.targetCount(),
+                deadline);
     }
 
-    private static boolean isNarrower(TradeOrder requested, TradeBudget ceiling, long deadline,
-                                      Set<String> allowedPayments) {
+    private static boolean isNarrower(
+            TradeOrder requested, TradeBudget ceiling, long deadline, Set<String> allowedPayments) {
         for (var entry : requested.budget().inputCaps().entrySet()) {
             Integer maximum = ceiling.inputCaps().get(entry.getKey());
             if (maximum == null || entry.getValue() > maximum) return false;
@@ -407,8 +444,10 @@ public final class TradeAuthority implements TradingTurnPort {
     }
 
     private static boolean sameIntent(TradeOrder requested, TradeOrder original) {
-        return requested.owner().equals(original.owner()) && requested.scopeId().equals(original.scopeId())
-                && requested.trader().equals(original.trader()) && requested.offerRef().equals(original.offerRef())
+        return requested.owner().equals(original.owner())
+                && requested.scopeId().equals(original.scopeId())
+                && requested.trader().equals(original.trader())
+                && requested.offerRef().equals(original.offerRef())
                 && requested.observationRevision() == original.observationRevision()
                 && requested.desiredOutputCount() == original.desiredOutputCount()
                 && requested.allowedPaymentFingerprints().equals(original.allowedPaymentFingerprints())
@@ -417,17 +456,35 @@ public final class TradeAuthority implements TradingTurnPort {
     }
 
     private TradeOrder bind(TradeOrder requested, UUID scopeId) {
-        return new TradeOrder(requested.orderId(), owner, scopeId, requested.trader(), requested.offerRef(),
-                requested.observationRevision(), requested.desiredOutputCount(), requested.budget(),
-                requested.allowedPaymentFingerprints(), requested.allowOvershoot(), requested.allowPartial(),
+        return new TradeOrder(
+                requested.orderId(),
+                owner,
+                scopeId,
+                requested.trader(),
+                requested.offerRef(),
+                requested.observationRevision(),
+                requested.desiredOutputCount(),
+                requested.budget(),
+                requested.allowedPaymentFingerprints(),
+                requested.allowOvershoot(),
+                requested.allowPartial(),
                 requested.deadlineTick());
     }
 
     private static TradeOrder withDeadline(TradeOrder requested, long deadlineTick) {
-        return new TradeOrder(requested.orderId(), requested.owner(), requested.scopeId(), requested.trader(),
-                requested.offerRef(), requested.observationRevision(), requested.desiredOutputCount(),
-                requested.budget(), requested.allowedPaymentFingerprints(), requested.allowOvershoot(),
-                requested.allowPartial(), deadlineTick);
+        return new TradeOrder(
+                requested.orderId(),
+                requested.owner(),
+                requested.scopeId(),
+                requested.trader(),
+                requested.offerRef(),
+                requested.observationRevision(),
+                requested.desiredOutputCount(),
+                requested.budget(),
+                requested.allowedPaymentFingerprints(),
+                requested.allowOvershoot(),
+                requested.allowPartial(),
+                deadlineTick);
     }
 
     private static Map<String, Long> scopeSpent(Scope scope) {

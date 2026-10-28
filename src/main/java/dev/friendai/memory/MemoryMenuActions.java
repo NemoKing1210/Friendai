@@ -14,7 +14,7 @@ import java.util.function.Function;
  * with a translation key.
  */
 public final class MemoryMenuActions {
-        private final MemoryBook book;
+    private final MemoryBook book;
     private final UUID owner;
     private final String ownerName;
     private final boolean enabled;
@@ -121,8 +121,7 @@ public final class MemoryMenuActions {
         if (record.isEmpty() && online.isEmpty()) {
             return error("friendai.menu.memory.error.unknown_player");
         }
-        String name = online
-                .map(PlayerRef::name)
+        String name = online.map(PlayerRef::name)
                 .filter(n -> n != null && !n.isBlank())
                 .or(() -> record.map(PlayerRecord::lastName).filter(n -> n != null && !n.isBlank()))
                 .orElse("?");
@@ -130,8 +129,7 @@ public final class MemoryMenuActions {
             book.ensurePlayer(target, name);
         }
         book.setTrusted(target, name, trust, now);
-        return ok(
-                trust ? "friendai.menu.memory.status.trusted" : "friendai.menu.memory.status.untrusted", name);
+        return ok(trust ? "friendai.menu.memory.status.trusted" : "friendai.menu.memory.status.untrusted", name);
     }
 
     /**
@@ -183,7 +181,9 @@ public final class MemoryMenuActions {
 
     private static String stringField(JsonObject object, String name) {
         JsonElement element = object.get(name);
-        if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+        if (element == null
+                || !element.isJsonPrimitive()
+                || !element.getAsJsonPrimitive().isString()) {
             throw new IllegalArgumentException("missing string field " + name);
         }
         return element.getAsString();

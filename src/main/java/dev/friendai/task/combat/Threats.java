@@ -23,7 +23,8 @@ public final class Threats {
 
     /** Hostile mobs near a point, nearest first. Line of sight is the caller's concern. */
     public static List<LivingEntity> hostilesNear(ServerLevel level, Vec3 center, double radius) {
-        return level.getEntitiesOfClass(
+        return level
+                .getEntitiesOfClass(
                         LivingEntity.class,
                         new AABB(center, center).inflate(radius),
                         e -> e.isAlive() && !e.isRemoved() && e instanceof Enemy && !e.isInvulnerable())
@@ -56,8 +57,11 @@ public final class Threats {
         if (entity instanceof Player) {
             return true;
         }
-        if (!ownerOrder && (entity instanceof Villager || entity instanceof WanderingTrader
-                || entity instanceof IronGolem || entity instanceof SnowGolem)) {
+        if (!ownerOrder
+                && (entity instanceof Villager
+                        || entity instanceof WanderingTrader
+                        || entity instanceof IronGolem
+                        || entity instanceof SnowGolem)) {
             return true;
         }
         LivingEntity entityOwner = entity instanceof OwnableEntity ownable ? ownable.getOwner() : null;
@@ -70,6 +74,9 @@ public final class Threats {
 
     /** A player may be fought only when the owner is allowed to hurt them here. */
     public static boolean mayFightPlayer(CompanionEntity companion, ServerPlayer target) {
-        return companion.owner().map(owner -> owner != target && owner.canHarmPlayer(target)).orElse(false);
+        return companion
+                .owner()
+                .map(owner -> owner != target && owner.canHarmPlayer(target))
+                .orElse(false);
     }
 }

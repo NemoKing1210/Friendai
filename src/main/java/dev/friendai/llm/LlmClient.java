@@ -50,7 +50,10 @@ public final class LlmClient implements LlmGateway {
         schema.addProperty("type", "object");
         schema.add("properties", new JsonObject());
         ToolSpec ping = new ToolSpec("ping", "Connectivity check. Call this tool.", schema);
-        return complete("You are a connectivity test. Call the ping tool.", List.of(Message.user("ping")), List.of(ping))
+        return complete(
+                        "You are a connectivity test. Call the ping tool.",
+                        List.of(Message.user("ping")),
+                        List.of(ping))
                 .thenApply(r -> r.toolCalls().isEmpty()
                         ? UserMessage.of("friendai.config.test.ok_text")
                         : UserMessage.of("friendai.config.test.ok_tools"));

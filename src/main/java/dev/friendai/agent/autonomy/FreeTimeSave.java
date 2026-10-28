@@ -54,7 +54,8 @@ public final class FreeTimeSave {
             return Optional.empty();
         }
         try {
-            JsonObject root = JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
+            JsonObject root =
+                    JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
             List<ShiftRecord> history = new ArrayList<>();
             for (JsonElement e : root.getAsJsonArray("history")) {
                 JsonObject o = e.getAsJsonObject();
@@ -67,7 +68,8 @@ public final class FreeTimeSave {
                         o.get("ended").getAsLong()));
             }
             Map<NeedKind, Long> cooldowns = new EnumMap<>(NeedKind.class);
-            for (Map.Entry<String, JsonElement> e : root.getAsJsonObject("cooldowns").entrySet()) {
+            for (Map.Entry<String, JsonElement> e :
+                    root.getAsJsonObject("cooldowns").entrySet()) {
                 cooldowns.put(NeedKind.valueOf(e.getKey()), e.getValue().getAsLong());
             }
             return Optional.of(new FreeTime(

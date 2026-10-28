@@ -38,9 +38,18 @@ public final class CompanionClientState {
     public static void onPlaceView(PlaceView received) {
         placeView = received;
     }
-    public static void onTradeView(TradeView received) { tradeView = received; }
-    public static Optional<TradeView> tradeView() { return Optional.ofNullable(tradeView); }
-    public static void clearTradeView() { tradeView = null; }
+
+    public static void onTradeView(TradeView received) {
+        tradeView = received;
+    }
+
+    public static Optional<TradeView> tradeView() {
+        return Optional.ofNullable(tradeView);
+    }
+
+    public static void clearTradeView() {
+        tradeView = null;
+    }
 
     public static Optional<CompanionSnapshot> snapshot() {
         return Optional.ofNullable(snapshot);
@@ -69,18 +78,39 @@ public final class CompanionClientState {
 
     private static dev.friendai.skill.SkillView skillsView;
     private static dev.friendai.skill.SkillView skillsResponse;
-    public static Optional<dev.friendai.skill.SkillView> skillsResponse() { return Optional.ofNullable(skillsResponse); }
-    public static Optional<dev.friendai.skill.SkillView> skillsView() { return Optional.ofNullable(skillsView); }
-    public static void onSkillsView(dev.friendai.skill.SkillView view) {
-        if(view.responseId()>0&&(skillsResponse==null||view.responseId()>=skillsResponse.responseId()))skillsResponse=view;
-        if(skillsView!=null&&view.detail()!=null&&view.rows().isEmpty()&&view.page()==skillsView.page()) {
-            view=new dev.friendai.skill.SkillView(view.enabled(),view.revision(),view.page(),view.total(),skillsView.rows(),view.detail(),
-                    view.description(),view.ownerProfile(),view.statusKey(),view.ok(),view.exportText(),view.responseId());
-        }
-        if(skillsView==null||view.revision()>=skillsView.revision())skillsView=view;
+
+    public static Optional<dev.friendai.skill.SkillView> skillsResponse() {
+        return Optional.ofNullable(skillsResponse);
     }
+
+    public static Optional<dev.friendai.skill.SkillView> skillsView() {
+        return Optional.ofNullable(skillsView);
+    }
+
+    public static void onSkillsView(dev.friendai.skill.SkillView view) {
+        if (view.responseId() > 0 && (skillsResponse == null || view.responseId() >= skillsResponse.responseId()))
+            skillsResponse = view;
+        if (skillsView != null && view.detail() != null && view.rows().isEmpty() && view.page() == skillsView.page()) {
+            view = new dev.friendai.skill.SkillView(
+                    view.enabled(),
+                    view.revision(),
+                    view.page(),
+                    view.total(),
+                    skillsView.rows(),
+                    view.detail(),
+                    view.description(),
+                    view.ownerProfile(),
+                    view.statusKey(),
+                    view.ok(),
+                    view.exportText(),
+                    view.responseId());
+        }
+        if (skillsView == null || view.revision() >= skillsView.revision()) skillsView = view;
+    }
+
     public static void reset() {
-        skillsView=null;skillsResponse=null;
+        skillsView = null;
+        skillsResponse = null;
         snapshot = null;
         prompt = "";
         memoryView = null;

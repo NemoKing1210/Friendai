@@ -7,8 +7,8 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.function.Supplier;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -24,8 +24,13 @@ public final class ThrowItemTask implements Task {
 
     private final ItemMatcher matcher;
     private final int count;
-    @Nullable private final Supplier<Vec3> target;
-    @Nullable private final Entity entityTarget;
+
+    @Nullable
+    private final Supplier<Vec3> target;
+
+    @Nullable
+    private final Entity entityTarget;
+
     private final String targetLabel;
     private String summary = "";
 
@@ -33,8 +38,12 @@ public final class ThrowItemTask implements Task {
         this(matcher, count, target, targetLabel, null);
     }
 
-    public ThrowItemTask(ItemMatcher matcher, int count, @Nullable Supplier<Vec3> target, String targetLabel,
-                         @Nullable Entity entityTarget) {
+    public ThrowItemTask(
+            ItemMatcher matcher,
+            int count,
+            @Nullable Supplier<Vec3> target,
+            String targetLabel,
+            @Nullable Entity entityTarget) {
         this.matcher = matcher;
         this.count = count;
         this.target = target;
@@ -55,9 +64,14 @@ public final class ThrowItemTask implements Task {
         CompanionEntity companion = c.companion();
         Vec3 aim = target == null ? null : target.get();
         if (matcher.test(new ItemStack(Items.GOLD_INGOT))
-                && (entityTarget instanceof Piglin || (aim != null && !c.level().getEntitiesOfClass(Piglin.class,
-                        AABB.ofSize(aim, 2.0, 2.0, 2.0), Entity::isAlive).isEmpty()))) {
-            summary = "generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required";
+                && (entityTarget instanceof Piglin
+                        || (aim != null
+                                && !c.level()
+                                        .getEntitiesOfClass(
+                                                Piglin.class, AABB.ofSize(aim, 2.0, 2.0, 2.0), Entity::isAlive)
+                                        .isEmpty()))) {
+            summary =
+                    "generic tools cannot initiate piglin barter; a dedicated explicit bounded barter order is required";
             return TaskStatus.FAILED;
         }
         int have = InventoryOps.count(companion.inventory(), matcher);
@@ -66,7 +80,8 @@ public final class ThrowItemTask implements Task {
             return TaskStatus.FAILED;
         }
         Vec3 eye = companion.getEyePosition();
-        Vec3 direction = aim == null ? companion.getLookAngle() : aim.subtract(eye).normalize();
+        Vec3 direction =
+                aim == null ? companion.getLookAngle() : aim.subtract(eye).normalize();
         Vec3 velocity = direction.scale(SPEED).add(0.0, LIFT, 0.0);
         int thrown = 0;
         for (ItemStack stack : InventoryOps.remove(companion.inventory(), matcher, Math.min(count, have))) {

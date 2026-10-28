@@ -16,7 +16,9 @@ public final class FriendaiEntities {
     public static final EntityType<CompanionEntity> COMPANION = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
             COMPANION_KEY,
-            EntityType.Builder.of(CompanionEntity::new, MobCategory.MISC).sized(0.6F, 1.8F).build(COMPANION_KEY));
+            EntityType.Builder.of(CompanionEntity::new, MobCategory.MISC)
+                    .sized(0.6F, 1.8F)
+                    .build(COMPANION_KEY));
 
     private FriendaiEntities() {}
 

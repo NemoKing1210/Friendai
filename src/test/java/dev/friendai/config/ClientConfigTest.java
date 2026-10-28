@@ -39,8 +39,11 @@ class ClientConfigTest {
     @Test
     void roundTripsThroughStore() {
         ConfigStore<ClientConfig> store = new ConfigStore<>(
-                dir.resolve("friendai-client.json"), ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+                dir.resolve("friendai-client.json"),
+                ClientConfig.class,
+                ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION,
+                ClientConfig::migrate);
         ClientConfig c = store.load();
         c.voice.stt.local.model = "small";
         c.voice.stt.inputDevice = "Mic 1";
@@ -103,8 +106,7 @@ class ClientConfigTest {
             {"version":3,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
              "tts":{"provider":"local","local":{}}}}""");
         ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
 
         ClientConfig c = store.load();
         c.validate();
@@ -126,8 +128,11 @@ class ClientConfigTest {
     @Test
     void zeroVolumeIsAMuteThatSurvivesSaveAndReload() {
         ConfigStore<ClientConfig> store = new ConfigStore<>(
-                dir.resolve("friendai-client.json"), ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+                dir.resolve("friendai-client.json"),
+                ClientConfig.class,
+                ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION,
+                ClientConfig::migrate);
         ClientConfig c = store.load();
         c.voice.tts.volume = 0.0;
         c.validate();
@@ -184,8 +189,7 @@ class ClientConfigTest {
         Files.writeString(file, """
             {"version":3,"voice":{"stt":{"provider":"local"},"tts":{"provider":"local"}}}""");
         ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
         assertTrue(store.load().voice.tts.spatial);
     }
 }

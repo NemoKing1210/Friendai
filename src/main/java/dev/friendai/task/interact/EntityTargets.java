@@ -41,7 +41,10 @@ public final class EntityTargets {
             return Optional.empty();
         }
         AABB area = companion.getBoundingBox().inflate(SEARCH_RADIUS);
-        return level.getEntitiesOfClass(Entity.class, area,
+        return level
+                .getEntitiesOfClass(
+                        Entity.class,
+                        area,
                         e -> e != companion && e.isAlive() && !e.isRemoved() && e.getType() == type.get())
                 .stream()
                 .min(Comparator.comparingDouble(companion::distanceToSqr));

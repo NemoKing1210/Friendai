@@ -40,8 +40,13 @@ public final class CombatPolicy {
 
         // 2. Immediate block, dodge or cover. Protective eligibility is irrelevant to physical danger.
         if (self.projectileThreat() || self.rangedWindup()) {
-            ShieldPolicy.Need shield = ShieldPolicy.decide(self.shieldAvailable(), self.shieldRaised(),
-                    self.projectileThreat(), self.rangedWindup(), self.frontalThreat(), options.inBand());
+            ShieldPolicy.Need shield = ShieldPolicy.decide(
+                    self.shieldAvailable(),
+                    self.shieldRaised(),
+                    self.projectileThreat(),
+                    self.rangedWindup(),
+                    self.frontalThreat(),
+                    options.inBand());
             if (shield != ShieldPolicy.Need.LOWER) {
                 return new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.BLOCK_PROJECTILE);
             }
@@ -94,10 +99,8 @@ public final class CombatPolicy {
         boolean selfDefense = target.aggressedSelf();
         boolean ownerDefense = target.aggressedOwner() && settings.protection().defendsOwner();
         boolean guard = target.hostileMob() && settings.protection().guardsArea();
-        boolean mayAttack = target.present()
-                && target.visible()
-                && target.attackable()
-                && (selfDefense || ownerDefense || guard);
+        boolean mayAttack =
+                target.present() && target.visible() && target.attackable() && (selfDefense || ownerDefense || guard);
         if (!mayAttack) {
             return CombatDecision.none();
         }

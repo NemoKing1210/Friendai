@@ -52,21 +52,22 @@ public final class TurnRouter {
 
         boolean question = lower.endsWith("?") || vocabulary.startsWithQuestionMarker(lower, tokens);
         if (question && vocabulary.isAdviceQuestion(lower)) {
-            return new RouteDecision(TurnMode.CHAT, EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
-                    false, "a shopping advice question, not an order");
+            return new RouteDecision(
+                    TurnMode.CHAT,
+                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
+                    false,
+                    "a shopping advice question, not an order");
         }
-        if (question && groups.contains(ToolGroup.TRADING)
-                && vocabulary.startsWithQuestionMarker(lower, tokens)) {
-            Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY,
-                    ToolGroup.TRADING);
-            return new RouteDecision(TurnMode.CHAT, chatGroups, false,
-                    "a question about remembered market facts, not an order");
+        if (question && groups.contains(ToolGroup.TRADING) && vocabulary.startsWithQuestionMarker(lower, tokens)) {
+            Set<ToolGroup> chatGroups =
+                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY, ToolGroup.TRADING);
+            return new RouteDecision(
+                    TurnMode.CHAT, chatGroups, false, "a question about remembered market facts, not an order");
         }
         if (question && verbs.isEmpty()) {
             Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY);
             if (groups.contains(ToolGroup.TRADING)) chatGroups.add(ToolGroup.TRADING);
-            return new RouteDecision(TurnMode.CHAT, chatGroups,
-                    false, "a question with no action in it");
+            return new RouteDecision(TurnMode.CHAT, chatGroups, false, "a question with no action in it");
         }
         int score = kinds(verbs.values())
                 + (vocabulary.hasComplexMarker(lower) ? 1 : 0)
@@ -74,7 +75,10 @@ public final class TurnRouter {
         if (!s.hasActiveGoal() && score >= GOAL_SCORE) {
             groups.add(ToolGroup.MOVEMENT);
             groups.add(ToolGroup.INFO);
-            return new RouteDecision(TurnMode.GOAL, groups.isEmpty() ? all() : groups, true,
+            return new RouteDecision(
+                    TurnMode.GOAL,
+                    groups.isEmpty() ? all() : groups,
+                    true,
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {

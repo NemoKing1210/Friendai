@@ -65,7 +65,7 @@ public record PathingConfig(
 
     /** A copy with digging and placing switched; every limit and blacklist is kept. */
     public PathingConfig withActions(boolean allowBreak, boolean allowPlace) {
-        return new PathingConfig(allowBreak, allowPlace, breakBlacklist, placeBlacklist,
-                searchBudgetMs, maxNodes, maxGatherBlocks);
+        return new PathingConfig(
+                allowBreak, allowPlace, breakBlacklist, placeBlacklist, searchBudgetMs, maxNodes, maxGatherBlocks);
     }
 }

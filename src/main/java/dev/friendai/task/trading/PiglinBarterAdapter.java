@@ -7,8 +7,8 @@ import dev.friendai.task.inventory.ItemMatcher;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -23,15 +23,26 @@ public final class PiglinBarterAdapter {
     }
 
     public boolean canStart(CompanionEntity companion, UUID piglinId) {
-        if (companion == null || piglinId == null || companion.level().isClientSide()
-                || !(companion.level() instanceof ServerLevel level) || companion.ownerUuid() == null
+        if (companion == null
+                || piglinId == null
+                || companion.level().isClientSide()
+                || !(companion.level() instanceof ServerLevel level)
+                || companion.ownerUuid() == null
                 || !companion.owner().isPresent()) return false;
         Entity entity = level.getEntity(piglinId);
-        if (!(entity instanceof Piglin piglin) || !piglin.isAlive() || piglin.isBaby()
-                || piglin.level() != level || piglin.getTarget() != null || piglin.isDancing()
-                || piglin.getMainHandItem().is(Items.GOLD_INGOT) || drops.hasAttemptFor(piglinId)) return false;
-        if (!level.getEntitiesOfClass(ItemEntity.class, piglin.getBoundingBox().inflate(4.0), item ->
-                item.isAlive() && item.getItem().is(Items.GOLD_INGOT)).isEmpty()) return false;
+        if (!(entity instanceof Piglin piglin)
+                || !piglin.isAlive()
+                || piglin.isBaby()
+                || piglin.level() != level
+                || piglin.getTarget() != null
+                || piglin.isDancing()
+                || piglin.getMainHandItem().is(Items.GOLD_INGOT)
+                || drops.hasAttemptFor(piglinId)) return false;
+        if (!level.getEntitiesOfClass(
+                        ItemEntity.class,
+                        piglin.getBoundingBox().inflate(4.0),
+                        item -> item.isAlive() && item.getItem().is(Items.GOLD_INGOT))
+                .isEmpty()) return false;
         return companion.distanceToSqr(piglin) <= MAX_DISTANCE_SQUARED;
     }
 
@@ -72,13 +83,23 @@ public final class PiglinBarterAdapter {
 
     private boolean canStartIgnoringOwnAttempt(CompanionEntity companion, UUID piglinId, UUID attemptId) {
         if (!drops.ownsAttempt(attemptId, piglinId)) return false;
-        if (companion == null || companion.level().isClientSide() || !(companion.level() instanceof ServerLevel level)) return false;
+        if (companion == null || companion.level().isClientSide() || !(companion.level() instanceof ServerLevel level))
+            return false;
         Entity entity = level.getEntity(piglinId);
-        return entity instanceof Piglin piglin && piglin.isAlive() && !piglin.isBaby() && piglin.level() == level
-                && piglin.getTarget() == null && !piglin.isDancing() && !piglin.getMainHandItem().is(Items.GOLD_INGOT)
-                && companion.ownerUuid() != null && companion.owner().isPresent()
-                && level.getEntitiesOfClass(ItemEntity.class, piglin.getBoundingBox().inflate(4.0), item ->
-                        item.isAlive() && item.getItem().is(Items.GOLD_INGOT)).isEmpty()
+        return entity instanceof Piglin piglin
+                && piglin.isAlive()
+                && !piglin.isBaby()
+                && piglin.level() == level
+                && piglin.getTarget() == null
+                && !piglin.isDancing()
+                && !piglin.getMainHandItem().is(Items.GOLD_INGOT)
+                && companion.ownerUuid() != null
+                && companion.owner().isPresent()
+                && level.getEntitiesOfClass(
+                                ItemEntity.class,
+                                piglin.getBoundingBox().inflate(4.0),
+                                item -> item.isAlive() && item.getItem().is(Items.GOLD_INGOT))
+                        .isEmpty()
                 && companion.distanceToSqr(piglin) <= MAX_DISTANCE_SQUARED;
     }
 
@@ -88,8 +109,15 @@ public final class PiglinBarterAdapter {
 
     private static ItemMatcher plainGoldMatcher() {
         return new ItemMatcher() {
-            @Override public boolean test(ItemStack stack) { return plainGold(stack); }
-            @Override public String label() { return "minecraft:gold_ingot (plain)"; }
+            @Override
+            public boolean test(ItemStack stack) {
+                return plainGold(stack);
+            }
+
+            @Override
+            public String label() {
+                return "minecraft:gold_ingot (plain)";
+            }
         };
     }
 

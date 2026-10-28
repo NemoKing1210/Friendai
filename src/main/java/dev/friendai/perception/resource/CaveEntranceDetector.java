@@ -14,8 +14,11 @@ public final class CaveEntranceDetector {
     private CaveEntranceDetector() {}
 
     public static Optional<Entrance> detect(List<Pos> openCells, Pos eyeCell, Pos visibleWall) {
-        if (openCells == null || eyeCell == null || visibleWall == null
-                || visibleWall.y() > eyeCell.y() - MINIMUM_DESCENT || openCells.size() < MINIMUM_INTERIOR_CELLS + 1) {
+        if (openCells == null
+                || eyeCell == null
+                || visibleWall == null
+                || visibleWall.y() > eyeCell.y() - MINIMUM_DESCENT
+                || openCells.size() < MINIMUM_INTERIOR_CELLS + 1) {
             return Optional.empty();
         }
         int openingIndex = -1;
@@ -30,8 +33,8 @@ public final class CaveEntranceDetector {
                 lastInteriorIndex = index;
             }
         }
-        if (openingIndex < 1 || interiorCells < MINIMUM_INTERIOR_CELLS
-                || lastInteriorIndex != openCells.size() - 1) return Optional.empty();
+        if (openingIndex < 1 || interiorCells < MINIMUM_INTERIOR_CELLS || lastInteriorIndex != openCells.size() - 1)
+            return Optional.empty();
         Pos approach = openCells.get(openingIndex - 1);
         Pos opening = openCells.get(openingIndex);
         Pos interior = openCells.get(lastInteriorIndex);

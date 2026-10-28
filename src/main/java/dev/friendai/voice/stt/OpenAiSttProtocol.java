@@ -25,14 +25,16 @@ public final class OpenAiSttProtocol implements SttProtocol {
             body.field("language", settings.language());
         }
         Map<String, String> headers = VoiceAuth.BEARER.headers(settings.apiKey());
-        return new PreparedRequest(join(settings.baseUrl(), "/audio/transcriptions"), headers,
-                body.build(), body.contentType());
+        return new PreparedRequest(
+                join(settings.baseUrl(), "/audio/transcriptions"), headers, body.build(), body.contentType());
     }
 
     @Override
     public String parse(JsonObject response) {
         JsonElement text = response == null ? null : response.get("text");
-        if (text == null || !text.isJsonPrimitive() || !text.getAsJsonPrimitive().isString()
+        if (text == null
+                || !text.isJsonPrimitive()
+                || !text.getAsJsonPrimitive().isString()
                 || text.getAsString().isBlank()) {
             throw failed();
         }

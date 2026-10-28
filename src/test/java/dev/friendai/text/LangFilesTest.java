@@ -42,17 +42,18 @@ class LangFilesTest {
 
     @Test
     void sameKeysInAllLanguages() throws IOException {
-        TreeSet<String> expected = new TreeSet<>(read(LANG_DIR.resolve("en_us.json")).keySet());
+        TreeSet<String> expected =
+                new TreeSet<>(read(LANG_DIR.resolve("en_us.json")).keySet());
         for (Path p : langFiles()) {
-            assertEquals(expected, new TreeSet<>(read(p).keySet()), p.getFileName().toString());
+            assertEquals(
+                    expected, new TreeSet<>(read(p).keySet()), p.getFileName().toString());
         }
     }
 
     @Test
     void noEmptyValues() throws IOException {
         for (Path p : langFiles()) {
-            read(p).asMap().forEach((k, v) ->
-                    assertFalse(v.getAsString().isBlank(), p.getFileName() + ": " + k));
+            read(p).asMap().forEach((k, v) -> assertFalse(v.getAsString().isBlank(), p.getFileName() + ": " + k));
         }
     }
 

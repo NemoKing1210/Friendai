@@ -17,8 +17,8 @@ class JobQueueTest {
     @Test
     void addPlanAssignsIdsOrdersAndPlanPriority() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
-        JobQueue.Added added = q.addPlan("build", List.of(step("mine_blocks"), step("place_block")),
-                new PlanOptions(5, FailurePolicy.ASK, 0));
+        JobQueue.Added added = q.addPlan(
+                "build", List.of(step("mine_blocks"), step("place_block")), new PlanOptions(5, FailurePolicy.ASK, 0));
         assertEquals(List.of(1L, 2L), added.jobIds());
         assertEquals(5, q.job(1).orElseThrow().priority());
         assertEquals(100, q.job(1).orElseThrow().order());
@@ -38,10 +38,18 @@ class JobQueueTest {
 
     @Test
     void afterStepsBecomeEarlierJobIdsAndForwardReferencesFail() {
-        QueuedStep second = new QueuedStep("place_block", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of(1));
-        JobQueue.Added added = new JobQueue(QueueLimits.DEFAULTS).addPlan("p", List.of(step("mine_blocks"), second), PlanOptions.DEFAULT);
+        QueuedStep second =
+                new QueuedStep("place_block", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of(1));
+        JobQueue.Added added = new JobQueue(QueueLimits.DEFAULTS)
+                .addPlan("p", List.of(step("mine_blocks"), second), PlanOptions.DEFAULT);
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
-        assertThrows(IllegalArgumentException.class, () -> q.addPlan("p", List.of(new QueuedStep("go_to", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of(1))), PlanOptions.DEFAULT));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> q.addPlan(
+                        "p",
+                        List.of(new QueuedStep(
+                                "go_to", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of(1))),
+                        PlanOptions.DEFAULT));
         assertEquals(List.of(1L, 2L), added.jobIds());
     }
 
@@ -78,8 +86,8 @@ class JobQueueTest {
     void editingPendingJobRebindsItsInitiatorAndCreativeSensitivityAtomically() {
         UUID original = UUID.randomUUID();
         UUID editor = UUID.randomUUID();
-        QueuedStep originalStep = new QueuedStep("place_block", new JsonObject(), null, List.of(),
-                GuardAction.WAIT, null, 1, List.of(), original, true);
+        QueuedStep originalStep = new QueuedStep(
+                "place_block", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of(), original, true);
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
         long id = q.addDirect(originalStep).id();
 
@@ -91,8 +99,8 @@ class JobQueueTest {
 
     @Test
     void structuredPlanStoresTreeWithoutJobsAndCancellationClosesItsCursor() {
-        PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Conditional(new Guard.FluidAhead(),
-                List.of(new PlanNode.Action(step("work"))), List.of())));
+        PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Conditional(
+                new Guard.FluidAhead(), List.of(new PlanNode.Action(step("work"))), List.of())));
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         long planId = queue.addStructuredPlan(definition, PlanOptions.DEFAULT);
 

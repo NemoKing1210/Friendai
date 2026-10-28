@@ -30,8 +30,7 @@ public final class CompanionRouting {
             boolean ownerOnline = server.getPlayerList().getPlayer(owner) != null;
             candidates.add(new CompanionPicker.Candidate(owner, sameDimension, distance, ownerOnline));
         }
-        return CompanionPicker.pick(
-                sender.getUUID(), candidates, cfg.chat.hearingRadius, cfg.chat.guestsEnabled);
+        return CompanionPicker.pick(sender.getUUID(), candidates, cfg.chat.hearingRadius, cfg.chat.guestsEnabled);
     }
 
     /** True when the sender's own companion is loaded, in the same dimension and within hearing. */

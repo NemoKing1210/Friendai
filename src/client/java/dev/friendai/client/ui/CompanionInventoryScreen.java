@@ -49,8 +49,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         super.extractBackground(graphics, mouseX, mouseY, a);
         drawPanel(graphics);
         for (Slot slot : menu.slots) {
-            graphics.blitSprite(
-                    RenderPipelines.GUI_TEXTURED, SLOT, leftPos + slot.x - 1, topPos + slot.y - 1, 18, 18);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT, leftPos + slot.x - 1, topPos + slot.y - 1, 18, 18);
         }
         CompanionEntity companion = menu.companion();
         if (companion == null) {
@@ -134,7 +133,11 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         graphics.fill(x0, y, x1, y + height, XP_BAR_BACK);
         int filled = Math.round((x1 - x0) * Math.max(0.0f, Math.min(1.0f, companion.syncedXpProgress())));
         graphics.fill(x0, y, x0 + filled, y + height, XP_GREEN);
-        graphics.text(font, Component.translatable("friendai.menu.vital.level", companion.syncedXpLevel()),
-                leftPos + CompanionInventoryLayout.LEVEL_X, topPos + CompanionInventoryLayout.LEVEL_Y, XP_GREEN);
+        graphics.text(
+                font,
+                Component.translatable("friendai.menu.vital.level", companion.syncedXpLevel()),
+                leftPos + CompanionInventoryLayout.LEVEL_X,
+                topPos + CompanionInventoryLayout.LEVEL_Y,
+                XP_GREEN);
     }
 }

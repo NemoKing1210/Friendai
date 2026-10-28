@@ -13,20 +13,23 @@ import org.junit.jupiter.api.Test;
 class ErrorMessagesTest {
     @Test
     void authMapsToKey() {
-        assertEquals(UserMessage.of("friendai.error.llm.auth"),
+        assertEquals(
+                UserMessage.of("friendai.error.llm.auth"),
                 ErrorMessages.forUser(new LlmException(LlmErrorKind.AUTH, "x")));
     }
 
     @Test
     void badRequestCarriesProviderMessage() {
-        assertEquals(UserMessage.of("friendai.error.llm.bad_request", "m"),
+        assertEquals(
+                UserMessage.of("friendai.error.llm.bad_request", "m"),
                 ErrorMessages.forUser(new LlmException(LlmErrorKind.BAD_REQUEST, "m")));
     }
 
     @Test
     void configExceptionIsNestedAndUnwrapped() {
         UserMessage inner = UserMessage.of("friendai.error.config.profile_missing", "x");
-        assertEquals(UserMessage.of("friendai.error.config", inner),
+        assertEquals(
+                UserMessage.of("friendai.error.config", inner),
                 ErrorMessages.forUser(new CompletionException(new ConfigException(inner))));
     }
 

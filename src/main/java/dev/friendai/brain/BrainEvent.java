@@ -23,12 +23,16 @@ public sealed interface BrainEvent {
         VOICE
     }
 
-    record SkillOutcome(String outcomeId,dev.friendai.skill.TeachingContext.OutcomeKind kind,String summary) implements BrainEvent {
+    record SkillOutcome(String outcomeId, dev.friendai.skill.TeachingContext.OutcomeKind kind, String summary)
+            implements BrainEvent {
         public SkillOutcome {
-            if(outcomeId==null||outcomeId.length()>120||kind==null)throw new IllegalArgumentException("Invalid outcome.");
-            summary=summary==null?"":summary.substring(0,Math.min(summary.length(),512));
+            if (outcomeId == null || outcomeId.length() > 120 || kind == null)
+                throw new IllegalArgumentException("Invalid outcome.");
+            summary = summary == null ? "" : summary.substring(0, Math.min(summary.length(), 512));
         }
-        @Override public String toPromptLine() {
+
+        @Override
+        public String toPromptLine() {
             return "[event] completed work outcome: " + kind + ": " + summary
                     + ". If a reusable procedure was learned, manage_skill may save it. Personal facts belong in remember. "
                     + "Do not create another goal or shift just to teach yourself. Otherwise reply [silent].";
@@ -70,25 +74,27 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlanFinished(long planId, String goal, boolean success, String summary, String extra)
-            implements BrainEvent {
+    record PlanFinished(long planId, String goal, boolean success, String summary, String extra) implements BrainEvent {
         public PlanFinished(long planId, String goal, boolean success, String summary) {
             this(planId, goal, success, summary, "");
         }
 
-        @Override public String toPromptLine() {
+        @Override
+        public String toPromptLine() {
             return "[event] plan #" + planId + " " + goal + (success ? " finished: " : " failed: ") + summary
                     + withExtra(extra);
         }
     }
 
-    record PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining,
-                       String extra) implements BrainEvent {
+    record PlanBlocked(
+            long planId, String goal, long jobId, String toolName, String reason, int remaining, String extra)
+            implements BrainEvent {
         public PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
             this(planId, goal, jobId, toolName, reason, remaining, "");
         }
 
-        @Override public String toPromptLine() {
+        @Override
+        public String toPromptLine() {
             return "[event] plan #" + planId + " needs a decision at job #" + jobId + " (" + toolName
                     + "): " + reason + "; " + remaining + " step(s) remain. Use queue_edit to repair the plan."
                     + withExtra(extra);
@@ -130,8 +136,13 @@ public sealed interface BrainEvent {
      * @param recent the last shifts, newest first
      * @param wish the owner's hint, or empty
      */
-    record FreeTimeShift(java.util.List<String> agenda, String ladder, java.util.List<String> recent,
-                         java.util.List<String> lessons, String wish) implements BrainEvent {
+    record FreeTimeShift(
+            java.util.List<String> agenda,
+            String ladder,
+            java.util.List<String> recent,
+            java.util.List<String> lessons,
+            String wish)
+            implements BrainEvent {
         public FreeTimeShift {
             agenda = java.util.List.copyOf(agenda);
             recent = java.util.List.copyOf(recent);
@@ -142,8 +153,9 @@ public sealed interface BrainEvent {
 
         @Override
         public String toPromptLine() {
-            StringBuilder sb = new StringBuilder("[event] free time: you decide what to do next. Act like a survival "
-                    + "player working for the base: keep the companion safe and fed, improve the gear, bring loot home.");
+            StringBuilder sb = new StringBuilder(
+                    "[event] free time: you decide what to do next. Act like a survival "
+                            + "player working for the base: keep the companion safe and fed, improve the gear, bring loot home.");
             sb.append("\nAgenda:");
             agenda.forEach(line -> sb.append('\n').append(line));
             if (!ladder.isBlank()) {

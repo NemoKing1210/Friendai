@@ -15,7 +15,11 @@ import net.minecraft.server.level.ServerLevel;
  * from the top.
  */
 public final class TemporaryBlockCleanup {
-    public enum State { WORKING, DONE, FAILED }
+    public enum State {
+        WORKING,
+        DONE,
+        FAILED
+    }
 
     private final PlacementLedger ledger;
     private final List<BlockPos> remaining;
@@ -27,7 +31,8 @@ public final class TemporaryBlockCleanup {
     public TemporaryBlockCleanup(PlacementLedger ledger) {
         this.ledger = ledger;
         this.remaining = new ArrayList<>(ledger.positions());
-        this.remaining.sort(Comparator.comparingInt((BlockPos pos) -> pos.getY()).reversed());
+        this.remaining.sort(
+                Comparator.comparingInt((BlockPos pos) -> pos.getY()).reversed());
     }
 
     public State tick(TaskContext context) {
@@ -39,8 +44,8 @@ public final class TemporaryBlockCleanup {
                 continue;
             }
             if (breaker == null) {
-                breaker = new BlockBreaker(List.of(pos), state -> ledger.stillPlaced(level, pos), false, false,
-                        false, true);
+                breaker = new BlockBreaker(
+                        List.of(pos), state -> ledger.stillPlaced(level, pos), false, false, false, true);
             }
             BlockBreaker.State state = breaker.tick(context);
             if (state == BlockBreaker.State.WORKING) {

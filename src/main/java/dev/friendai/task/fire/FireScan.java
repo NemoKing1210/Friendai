@@ -82,7 +82,10 @@ public final class FireScan {
         }
         BlockPos focus = switch (target) {
             case FireTarget.Block block -> blockPos(block.pos());
-            case FireTarget.Area area -> area.cells().isEmpty() ? entityPos(companion) : blockPos(area.cells().getFirst());
+            case FireTarget.Area area ->
+                area.cells().isEmpty()
+                        ? entityPos(companion)
+                        : blockPos(area.cells().getFirst());
             case FireTarget.Self self -> entityPos(companion);
             case FireTarget.Owner owner -> ownerPos(c).orElse(entityPos(companion));
             case FireTarget.BurningEntity entity -> blockPos(entity.pos());
@@ -122,9 +125,10 @@ public final class FireScan {
         }
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class,
-                new AABB(companion.blockPosition()).inflate(radius))) {
-            if (entity == companion || !entity.isOnFire()
+        for (LivingEntity entity :
+                level.getEntitiesOfClass(LivingEntity.class, new AABB(companion.blockPosition()).inflate(radius))) {
+            if (entity == companion
+                    || !entity.isOnFire()
                     || (companion.ownerUuid() != null && entity.getUUID().equals(companion.ownerUuid()))) {
                 continue;
             }
@@ -152,8 +156,8 @@ public final class FireScan {
         if (flowSensitiveNear(level, cell)) {
             return false;
         }
-        for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class,
-                new AABB(cell), e -> e != c.companion())) {
+        for (LivingEntity other :
+                level.getEntitiesOfClass(LivingEntity.class, new AABB(cell), e -> e != c.companion())) {
             return false;
         }
         return true;
@@ -256,8 +260,9 @@ public final class FireScan {
         if (state.getDestroySpeed(level, cell) < 0) {
             return false;
         }
-        if (c.companion().creativeMode() && TaskSettings.breakList.matches(
-                BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state))) {
+        if (c.companion().creativeMode()
+                && TaskSettings.breakList.matches(
+                        BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state))) {
             return false;
         }
         return c.companion().hands().canInteract(cell) && !PlaceGuard.protects(c, cell);
@@ -274,13 +279,19 @@ public final class FireScan {
             case FireTarget.Self ignored -> waterSafe(c, entityPos(companion)) ? self : null;
             case FireTarget.Owner ignored -> nether ? null : waterCellBeside(c, focus);
             case FireTarget.BurningEntity entity -> nether ? null : waterCellBeside(c, blockPos(entity.pos()));
-            case FireTarget.Block block -> nether ? null : waterSafe(c, blockPos(block.pos()))
-                    ? block.pos() : null;
+            case FireTarget.Block block -> nether ? null : waterSafe(c, blockPos(block.pos())) ? block.pos() : null;
             case FireTarget.Area area -> nether ? null : firstSafeWaterCell(c, area);
         };
         boolean inReach = companionDistanceSqr(companion, focus) <= (long) OWNER_REACH * OWNER_REACH;
-        return new FireFacts(nether, raining, self, count(c, "minecraft:water_bucket"),
-                count(c, "minecraft:powder_snow_bucket"), waterSource, waterCell, inReach);
+        return new FireFacts(
+                nether,
+                raining,
+                self,
+                count(c, "minecraft:water_bucket"),
+                count(c, "minecraft:powder_snow_bucket"),
+                waterSource,
+                waterCell,
+                inReach);
     }
 
     private static Pos firstSafeWaterCell(TaskContext c, FireTarget.Area area) {
@@ -345,7 +356,8 @@ public final class FireScan {
     }
 
     private static int count(TaskContext c, String itemId) {
-        return dev.friendai.task.inventory.InventoryOps.count(c.companion().inventory(),
+        return dev.friendai.task.inventory.InventoryOps.count(
+                c.companion().inventory(),
                 dev.friendai.task.inventory.ItemMatcher.parse(itemId).orElseThrow());
     }
 

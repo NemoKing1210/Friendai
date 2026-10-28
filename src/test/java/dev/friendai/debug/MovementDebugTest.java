@@ -19,13 +19,17 @@ import org.junit.jupiter.api.Test;
 
 class MovementDebugTest {
     private static QueuedStep step(String tool) {
-        return new QueuedStep(tool, new JsonObject(), null, List.of(), GuardAction.WAIT,
-                FailurePolicy.STOP_PLAN, 1, List.of());
+        return new QueuedStep(
+                tool, new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.STOP_PLAN, 1, List.of());
     }
 
     private static MovementDebug sample() {
-        return new MovementDebug(7, 2,
-                List.of(new MovementDebug.Segment(0, 64, 0, 1, 64, 0, 0), new MovementDebug.Segment(1, 64, 0, 1, 65, 1, 2)),
+        return new MovementDebug(
+                7,
+                2,
+                List.of(
+                        new MovementDebug.Segment(0, 64, 0, 1, 64, 0, 0),
+                        new MovementDebug.Segment(1, 64, 0, 1, 65, 1, 2)),
                 List.of(new MovementDebug.Cell(1, 65, 1)),
                 List.of(new MovementDebug.Cell(2, 63, 1)),
                 List.of(new MovementDebug.Cell(5, 64, 5)),
@@ -39,7 +43,13 @@ class MovementDebugTest {
 
     @Test
     void roundTripsActionTargetsAndUpcomingSteps() {
-        MovementDebug view = new MovementDebug(3, 1, List.of(), List.of(), List.of(), List.of(),
+        MovementDebug view = new MovementDebug(
+                3,
+                1,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of("task: mining"),
                 List.of(new DebugTarget(4, 65, -2, DebugAction.BREAK, "deepslate")),
                 List.of("craft_item", "smelt_items"));
@@ -49,26 +59,34 @@ class MovementDebugTest {
 
     @Test
     void targetAndUpcomingListsAreImmutable() {
-        List<DebugTarget> targets = new ArrayList<>(List.of(
-                new DebugTarget(1, 2, 3, DebugAction.USE, "door")));
+        List<DebugTarget> targets = new ArrayList<>(List.of(new DebugTarget(1, 2, 3, DebugAction.USE, "door")));
         List<String> steps = new ArrayList<>(List.of("use_block"));
-        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
-                targets, steps);
+        MovementDebug view =
+                new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(), targets, steps);
         targets.clear();
         steps.clear();
 
         assertEquals(1, view.targets().size());
         assertEquals(List.of("use_block"), view.upcomingSteps());
         assertThrows(UnsupportedOperationException.class, () -> view.targets().clear());
-        assertThrows(UnsupportedOperationException.class, () -> view.upcomingSteps().clear());
+        assertThrows(
+                UnsupportedOperationException.class, () -> view.upcomingSteps().clear());
     }
 
     @Test
     void boundsTargetDetailAndUpcomingStepText() {
         DebugTarget noDetail = new DebugTarget(0, 0, 0, DebugAction.USE, null);
         DebugTarget longDetail = new DebugTarget(0, 0, 0, DebugAction.USE, "x".repeat(120));
-        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(noDetail, longDetail), List.of("y".repeat(300)));
+        MovementDebug view = new MovementDebug(
+                1,
+                0,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(noDetail, longDetail),
+                List.of("y".repeat(300)));
         MovementDebug decoded = MovementDebug.decode(view.encode());
 
         assertEquals("", decoded.targets().get(0).detail());
@@ -82,8 +100,16 @@ class MovementDebugTest {
         for (int i = 0; i < MovementDebug.MAX_TARGETS + 3; i++) {
             targets.add(new DebugTarget(i, 0, 0, DebugAction.BREAK, "ore"));
         }
-        MovementDebug view = new MovementDebug(1, 0, List.of(), List.of(), List.of(), List.of(), List.of(),
-                targets, List.of("first", "second", "third"));
+        MovementDebug view = new MovementDebug(
+                1,
+                0,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                targets,
+                List.of("first", "second", "third"));
 
         MovementDebug decoded = MovementDebug.decode(view.encode());
         assertEquals(MovementDebug.MAX_TARGETS, decoded.targets().size());
@@ -166,11 +192,13 @@ class MovementDebugTest {
     @Test
     void combinesTaskAndPathTargetsInFirstSeenOrderAndDeduplicatesExactMatches() {
         DebugTarget task = new DebugTarget(1, 2, 3, DebugAction.BREAK, "Path obstacle");
-        List<MovementDebug.Cell> routeBreaks = List.of(new MovementDebug.Cell(1, 2, 3),
-                new MovementDebug.Cell(4, 5, 6));
+        List<MovementDebug.Cell> routeBreaks =
+                List.of(new MovementDebug.Cell(1, 2, 3), new MovementDebug.Cell(4, 5, 6));
         List<MovementDebug.Cell> routePlaces = List.of(new MovementDebug.Cell(7, 8, 9));
 
-        assertEquals(List.of(task,
+        assertEquals(
+                List.of(
+                        task,
                         new DebugTarget(4, 5, 6, DebugAction.BREAK, "Path obstacle"),
                         new DebugTarget(7, 8, 9, DebugAction.PLACE, "Path support")),
                 MovementDebug.combineTargets(List.of(task), routeBreaks, routePlaces));
@@ -183,7 +211,8 @@ class MovementDebugTest {
         for (int i = 0; i < MovementDebug.MAX_TARGETS + 5; i++) {
             taskTargets.add(new DebugTarget(i, 0, 0, DebugAction.USE, "target"));
         }
-        assertEquals(MovementDebug.MAX_TARGETS,
+        assertEquals(
+                MovementDebug.MAX_TARGETS,
                 MovementDebug.combineTargets(taskTargets, List.of(), List.of()).size());
     }
 
@@ -197,9 +226,12 @@ class MovementDebugTest {
         queue.markRunning(running.id());
         queue.finish(terminal.id(), "done");
 
-        assertEquals(List.of("first_tool", "third_tool"),
-                MovementDebug.upcomingSteps(List.of(queue.job(terminal.id()).orElseThrow(),
-                        queue.job(third.id()).orElseThrow(), queue.job(running.id()).orElseThrow(),
+        assertEquals(
+                List.of("first_tool", "third_tool"),
+                MovementDebug.upcomingSteps(List.of(
+                        queue.job(terminal.id()).orElseThrow(),
+                        queue.job(third.id()).orElseThrow(),
+                        queue.job(running.id()).orElseThrow(),
                         queue.job(first.id()).orElseThrow())));
         assertEquals(List.of(), MovementDebug.upcomingSteps(List.of()));
         assertEquals(List.of("first_tool"), MovementDebug.upcomingSteps(List.of(first)));

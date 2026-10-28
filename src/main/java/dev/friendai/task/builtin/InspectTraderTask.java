@@ -7,9 +7,9 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Navigator;
 import dev.friendai.trading.TraderRecord;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.trading.Merchant;
-import net.minecraft.core.BlockPos;
 
 /** Travels to and inspects only the exact loaded trader UUID supplied by the caller. */
 public final class InspectTraderTask implements Task {
@@ -27,9 +27,14 @@ public final class InspectTraderTask implements Task {
         this.trader = trader;
     }
 
-    public TraderRecord result() { return result; }
+    public TraderRecord result() {
+        return result;
+    }
 
-    @Override public String type() { return "inspect_trader"; }
+    @Override
+    public String type() {
+        return "inspect_trader";
+    }
 
     @Override
     public void start(TaskContext context) {
@@ -53,19 +58,23 @@ public final class InspectTraderTask implements Task {
     }
 
     private TaskStatus tickActive(TaskContext context) {
-        if (++ticks > TraderTaskNavigation.MAX_TASK_TICKS) return finish(context, TaskStatus.FAILED, "inspection deadline expired");
+        if (++ticks > TraderTaskNavigation.MAX_TASK_TICKS)
+            return finish(context, TaskStatus.FAILED, "inspection deadline expired");
         String invalid = TraderTaskNavigation.invalidContext(context, ownerAtStart, dimensionAtStart);
         if (invalid != null) return finish(context, TaskStatus.FAILED, invalid);
-        FriendaiServerState serverState = FriendaiServerState.get(context.level().getServer());
+        FriendaiServerState serverState =
+                FriendaiServerState.get(context.level().getServer());
         Entity target = context.level().getEntity(trader);
         if (target != null && !target.isAlive()) return finish(context, TaskStatus.FAILED, "exact trader is dead");
         if (target != null && !(target instanceof Merchant)) {
             return finish(context, TaskStatus.FAILED, "bound UUID no longer identifies a merchant");
         }
         if (target == null) {
-            TraderRecord known = serverState.trading().book(ownerAtStart).trader(trader).orElse(null);
+            TraderRecord known =
+                    serverState.trading().book(ownerAtStart).trader(trader).orElse(null);
             BlockPos hint = TraderTaskNavigation.lastKnownPosition(known, dimensionAtStart);
-            if (hint == null) return finish(context, TaskStatus.FAILED, "exact trader has no same-dimension location hint");
+            if (hint == null)
+                return finish(context, TaskStatus.FAILED, "exact trader has no same-dimension location hint");
             if (!TraderTaskNavigation.inBoundedArea(context.companion(), hint)) {
                 return finish(context, TaskStatus.FAILED, "exact trader is outside the 64-block search bound");
             }
@@ -85,10 +94,15 @@ public final class InspectTraderTask implements Task {
 
         TraderTaskNavigation.aimAt(navigator, target, context.companion());
         if (TraderTaskNavigation.inActionReach(context.companion(), target)) {
-            result = FriendaiServerState.get(context.level().getServer()).merchantAdapter()
-                    .inspect(context.companion(), target, context.level().getServer().overworld().getGameTime())
+            result = FriendaiServerState.get(context.level().getServer())
+                    .merchantAdapter()
+                    .inspect(
+                            context.companion(),
+                            target,
+                            context.level().getServer().overworld().getGameTime())
                     .orElse(null);
-            if (result == null) return finish(context, TaskStatus.FAILED, "merchant inspection was denied or unavailable");
+            if (result == null)
+                return finish(context, TaskStatus.FAILED, "merchant inspection was denied or unavailable");
             return finish(context, TaskStatus.SUCCESS, "");
         }
 
@@ -126,7 +140,10 @@ public final class InspectTraderTask implements Task {
         }
     }
 
-    @Override public String describe() { return "inspect trader " + trader; }
+    @Override
+    public String describe() {
+        return "inspect trader " + trader;
+    }
 
     @Override
     public String resultSummary() {

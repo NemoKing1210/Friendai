@@ -1,7 +1,7 @@
 package dev.friendai.knowledge;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,9 +10,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -20,7 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class KnowledgeStoreTest {
-    @TempDir Path temp;
+    @TempDir
+    Path temp;
 
     private static ResourceObservation observation(String block, Pos pos, long tick) {
         return new ResourceObservation(block, new ResourceObservation.Location("minecraft:overworld", pos), pos, tick);
@@ -46,7 +47,9 @@ class KnowledgeStoreTest {
         long site = original.observe(observation("minecraft:coal_ore", new Pos(0, 10, 0), 1), "coal");
         original.extracted(new ResourceObservation.Location("minecraft:overworld", new Pos(0, 10, 0)), 2);
         ResourceKnowledge restored = ResourceKnowledge.restore(original.snapshot(), KnowledgeLimits.DEFAULTS);
-        assertEquals(ResourceSite.Availability.DEPLETED, restored.site(site, 2).orElseThrow().availability());
+        assertEquals(
+                ResourceSite.Availability.DEPLETED,
+                restored.site(site, 2).orElseThrow().availability());
     }
 
     @Test
@@ -105,7 +108,9 @@ class KnowledgeStoreTest {
     void unknownRegistryIdRetainedAsOpaqueData() {
         ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
         book.observe(observation("some_mod:unregistered_ore", new Pos(4, 20, -3), 7), "some_mod:ore");
-        assertEquals("some_mod:unregistered_ore", book.snapshot().records().getFirst().blockId());
+        assertEquals(
+                "some_mod:unregistered_ore",
+                book.snapshot().records().getFirst().blockId());
     }
 
     @Test
@@ -130,10 +135,12 @@ class KnowledgeStoreTest {
 
     @Test
     void rejectedSaveDoesNotEscapeOrClearDirtyRevision() {
-        Executor rejecting = command -> { throw new RejectedExecutionException("closed writer"); };
+        Executor rejecting = command -> {
+            throw new RejectedExecutionException("closed writer");
+        };
         UUID owner = UUID.randomUUID();
-        try (KnowledgeStore store = new KnowledgeStore(temp.resolve("rejected"), KnowledgeLimits.DEFAULTS,
-                rejecting, () -> 5_000L)) {
+        try (KnowledgeStore store =
+                new KnowledgeStore(temp.resolve("rejected"), KnowledgeLimits.DEFAULTS, rejecting, () -> 5_000L)) {
             store.book(owner).observe(observation("minecraft:coal_ore", new Pos(0, 10, 0), 1), "coal");
             assertDoesNotThrow(() -> store.flushIfDue(5_000));
             assertTrue(store.dirty(owner));
@@ -154,10 +161,12 @@ class KnowledgeStoreTest {
     void authorizedContainerSnapshotSurvivesKnowledgeRoundTrip() {
         ResourceKnowledge book = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
         var location = new ResourceObservation.Location("minecraft:overworld", new Pos(4, 20, -3));
-        assertTrue(book.recordContainer(new ResourceKnowledge.ContainerObservation(location,
-                Map.of("minecraft:iron_ingot", 12), 7)));
+        assertTrue(book.recordContainer(
+                new ResourceKnowledge.ContainerObservation(location, Map.of("minecraft:iron_ingot", 12), 7)));
         ResourceKnowledge restored = ResourceKnowledge.restore(book.snapshot(), KnowledgeLimits.DEFAULTS);
-        assertEquals(Map.of("minecraft:iron_ingot", 12), restored.snapshot().containers().getFirst().items());
+        assertEquals(
+                Map.of("minecraft:iron_ingot", 12),
+                restored.snapshot().containers().getFirst().items());
         assertEquals(7, restored.snapshot().containers().getFirst().observedTick());
     }
 
@@ -168,13 +177,16 @@ class KnowledgeStoreTest {
         ManualExecutor executor = new ManualExecutor();
         try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS, executor, () -> 0L)) {
             var location = new ResourceObservation.Location("minecraft:overworld", new Pos(4, 20, -3));
-            store.book(owner).recordContainer(new ResourceKnowledge.ContainerObservation(location,
-                    Map.of("minecraft:iron_ingot", 12), 7));
+            store.book(owner)
+                    .recordContainer(new ResourceKnowledge.ContainerObservation(
+                            location, Map.of("minecraft:iron_ingot", 12), 7));
             store.flushIfDue(5_000);
             executor.runNext();
         }
         try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS)) {
-            assertEquals(Map.of("minecraft:iron_ingot", 12), store.book(owner).snapshot().containers().getFirst().items());
+            assertEquals(
+                    Map.of("minecraft:iron_ingot", 12),
+                    store.book(owner).snapshot().containers().getFirst().items());
         }
     }
 
@@ -193,7 +205,8 @@ class KnowledgeStoreTest {
         }
         assertFalse(capped.recordContainer(new ResourceKnowledge.ContainerObservation(
                 new ResourceObservation.Location("minecraft:overworld", new Pos(0, 30, 0)),
-                Map.of("minecraft:coal", 1), 16_385)));
+                Map.of("minecraft:coal", 1),
+                16_385)));
     }
 
     @Test
@@ -202,14 +215,21 @@ class KnowledgeStoreTest {
         long id = book.observe(observation("minecraft:coal_ore", new Pos(0, 10, 0), 100), "coal");
         book.observe(observation("minecraft:iron_ore", new Pos(20, 10, 0), 50), "iron");
         assertEquals(100, book.site(id, 50).orElseThrow().lastSeen());
-        ResourceQuery.Request request = new ResourceQuery.Request(Set.of("minecraft:coal_ore"), "minecraft:overworld",
-                new Pos(0, 10, 0), 20, 5, true);
+        ResourceQuery.Request request = new ResourceQuery.Request(
+                Set.of("minecraft:coal_ore"), "minecraft:overworld", new Pos(0, 10, 0), 20, 5, true);
         assertEquals(0, ResourceQuery.find(book, request).getFirst().ageTicks());
     }
 
     private static final class ManualExecutor implements Executor {
         private final Queue<Runnable> tasks = new ArrayDeque<>();
-        @Override public void execute(Runnable command) { tasks.add(command); }
-        void runNext() { tasks.remove().run(); }
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        void runNext() {
+            tasks.remove().run();
+        }
     }
 }

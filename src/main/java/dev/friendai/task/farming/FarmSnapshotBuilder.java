@@ -74,13 +74,14 @@ public final class FarmSnapshotBuilder {
             }
         }
         boolean chestSpace = ContainerAccess.nearest(level, center, CHEST_RADIUS, container -> {
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                if (container.getItem(slot).isEmpty()) {
-                    return true;
-                }
-            }
-            return false;
-        }).isPresent();
+                    for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                        if (container.getItem(slot).isEmpty()) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .isPresent();
         FoodNeed need = FoodNeed.of(companion.hunger().food(), carriesFood);
         return new FarmSnapshot(cells, inventory, hasHoe, boneMeal, chestSpace, need);
     }
@@ -90,15 +91,15 @@ public final class FarmSnapshotBuilder {
         Optional<Harvestable> ripe = Crops.harvestable(level, pos);
         if (ripe.isPresent()) {
             Harvestable harvestable = ripe.get();
-            boolean replants = harvestable.kind() == Harvestable.Kind.CROP
-                    || harvestable.kind() == Harvestable.Kind.NETHER_WART;
+            boolean replants =
+                    harvestable.kind() == Harvestable.Kind.CROP || harvestable.kind() == Harvestable.Kind.NETHER_WART;
             String seed = replants && harvestable.replant() != null ? CropIndex.id(harvestable.replant()) : null;
-            return new FieldCell(dx, dy, dz, CellKind.RIPE, CropIndex.blockId(state.getBlock()), seed,
-                    ageOf(state), null);
+            return new FieldCell(
+                    dx, dy, dz, CellKind.RIPE, CropIndex.blockId(state.getBlock()), seed, ageOf(state), null);
         }
         if (state.getBlock() instanceof CropBlock || state.getBlock() instanceof NetherWartBlock) {
-            return new FieldCell(dx, dy, dz, CellKind.GROWING, CropIndex.blockId(state.getBlock()), null,
-                    ageOf(state), null);
+            return new FieldCell(
+                    dx, dy, dz, CellKind.GROWING, CropIndex.blockId(state.getBlock()), null, ageOf(state), null);
         }
         boolean airAbove = level.getBlockState(pos.above()).isAir();
         if (airAbove && state.is(Blocks.FARMLAND)) {
@@ -126,8 +127,10 @@ public final class FarmSnapshotBuilder {
     /** Dirt-like ground with air above and water within {@value #WATER_RADIUS} blocks on its layer or the one below. */
     public static boolean isTillCandidate(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (!(state.is(Blocks.DIRT) || state.is(Blocks.GRASS_BLOCK)
-                || state.is(Blocks.DIRT_PATH) || state.is(Blocks.COARSE_DIRT))) {
+        if (!(state.is(Blocks.DIRT)
+                || state.is(Blocks.GRASS_BLOCK)
+                || state.is(Blocks.DIRT_PATH)
+                || state.is(Blocks.COARSE_DIRT))) {
             return false;
         }
         if (!level.getBlockState(pos.above()).isAir()) {

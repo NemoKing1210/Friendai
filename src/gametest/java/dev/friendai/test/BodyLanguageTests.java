@@ -12,10 +12,10 @@ import dev.friendai.task.builtin.WaitTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.Vec3;
 
 /** Turning, gestures, sneaking, sitting, short relative moves and tossing items. One floor band per test. */
@@ -45,7 +45,9 @@ public class BodyLanguageTests {
                 crouched[0] = true;
             }
             h.assertTrue(crouched[0], "a bow never crouched");
-            h.assertTrue(c.taskRunner().current().isEmpty() || !"emote".equals(c.taskRunner().current().get().type()),
+            h.assertTrue(
+                    c.taskRunner().current().isEmpty()
+                            || !"emote".equals(c.taskRunner().current().get().type()),
                     "emote still running");
             h.assertFalse(c.body().sneaking(), "sneak was not released after the emote");
         });
@@ -75,8 +77,14 @@ public class BodyLanguageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setYRot(-90.0f);
         Vec3 start = c.position();
-        c.taskRunner().start(new RelativeMoveTask("step", "stepping forward 5 blocks", companion ->
-                new Vec3(start.x + 5.0, start.y, start.z), false), "step");
+        c.taskRunner()
+                .start(
+                        new RelativeMoveTask(
+                                "step",
+                                "stepping forward 5 blocks",
+                                companion -> new Vec3(start.x + 5.0, start.y, start.z),
+                                false),
+                        "step");
         h.succeedWhen(() -> {
             double moved = c.position().x - start.x;
             h.assertTrue(moved > 4.0, "only moved " + moved + " blocks east");
@@ -92,7 +100,10 @@ public class BodyLanguageTests {
         ItemMatcher apple = ItemMatcher.parse("minecraft:apple").orElseThrow();
         c.taskRunner().start(new ThrowItemTask(apple, 2, null, ""), "throw_item");
         h.succeedWhen(() -> {
-            int thrown = h.getLevel().getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(12.0)).stream()
+            int thrown = h
+                    .getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(12.0))
+                    .stream()
                     .map(ItemEntity::getItem)
                     .filter(s -> s.is(Items.APPLE))
                     .mapToInt(ItemStack::getCount)
@@ -108,7 +119,9 @@ public class BodyLanguageTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
         c.taskRunner().start(new WaitTask(20), "wait");
         h.runAfterDelay(40, () -> {
-            h.assertTrue(c.taskRunner().current().isEmpty() || !"wait".equals(c.taskRunner().current().get().type()),
+            h.assertTrue(
+                    c.taskRunner().current().isEmpty()
+                            || !"wait".equals(c.taskRunner().current().get().type()),
                     "still waiting");
             h.succeed();
         });

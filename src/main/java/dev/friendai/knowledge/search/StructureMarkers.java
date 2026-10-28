@@ -1,6 +1,5 @@
 package dev.friendai.knowledge.search;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,42 +40,97 @@ public final class StructureMarkers {
     private static Map<String, Entry> build() {
         Map<String, Entry> entries = new LinkedHashMap<>();
         Set<String> village = new LinkedHashSet<>(List.of("minecraft:bell", "minecraft:composter"));
-        for (String color : List.of("white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
-                "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black")) {
+        for (String color : List.of(
+                "white",
+                "orange",
+                "magenta",
+                "light_blue",
+                "yellow",
+                "lime",
+                "pink",
+                "gray",
+                "light_gray",
+                "cyan",
+                "purple",
+                "blue",
+                "brown",
+                "green",
+                "red",
+                "black")) {
             village.add("minecraft:" + color + "_bed");
         }
         entries.put("minecraft:village", new Entry(village, 1));
-        entries.put("minecraft:pillager_outpost", new Entry(
-                Set.of("minecraft:dark_oak_log", "minecraft:cobblestone"), 2));
-        entries.put("minecraft:ocean_monument", new Entry(
-                Set.of("minecraft:prismarine", "minecraft:prismarine_bricks", "minecraft:dark_prismarine",
-                        "minecraft:sea_lantern", "minecraft:wet_sponge"), 1));
-        entries.put("minecraft:nether_fortress", new Entry(
-                Set.of("minecraft:nether_bricks", "minecraft:nether_brick_fence", "minecraft:nether_brick_stairs"), 1));
-        entries.put("minecraft:bastion_remnant", new Entry(
-                Set.of("minecraft:blackstone", "minecraft:polished_blackstone_bricks",
-                        "minecraft:chiseled_polished_blackstone", "minecraft:magma_block"), 1));
-        entries.put("minecraft:ancient_city", new Entry(
-                Set.of("minecraft:deepslate_bricks", "minecraft:deepslate_tiles", "minecraft:sculk",
-                        "minecraft:sculk_catalyst", "minecraft:reinforced_deepslate"), 1));
-        entries.put("minecraft:trial_chambers", new Entry(
-                Set.of("minecraft:trial_spawner", "minecraft:vault", "minecraft:copper_bulb",
-                        "minecraft:chiseled_tuff_bricks"), 1));
-        entries.put("minecraft:stronghold", new Entry(
-                Set.of("minecraft:mossy_stone_bricks", "minecraft:cracked_stone_bricks",
-                        "minecraft:end_portal_frame", "minecraft:infested_stone_bricks"), 1));
-        entries.put("minecraft:woodland_mansion", new Entry(
-                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks", "minecraft:dark_oak_log"), 2));
-        entries.put("minecraft:desert_pyramid", new Entry(
-                Set.of("minecraft:chiseled_sandstone", "minecraft:orange_terracotta"), 1));
-        entries.put("minecraft:jungle_temple", new Entry(
-                Set.of("minecraft:mossy_cobblestone", "minecraft:chiseled_stone_bricks"), 1));
-        entries.put("minecraft:swamp_hut", new Entry(
-                Set.of("minecraft:cauldron", "minecraft:spruce_planks"), 2));
-        entries.put("minecraft:ruined_portal", new Entry(
-                Set.of("minecraft:netherrack", "minecraft:magma_block", "minecraft:crying_obsidian"), 1));
-        entries.put("minecraft:mineshaft", new Entry(
-                Set.of("minecraft:rail", "minecraft:cobweb"), 1));
+        entries.put(
+                "minecraft:pillager_outpost", new Entry(Set.of("minecraft:dark_oak_log", "minecraft:cobblestone"), 2));
+        entries.put(
+                "minecraft:ocean_monument",
+                new Entry(
+                        Set.of(
+                                "minecraft:prismarine",
+                                "minecraft:prismarine_bricks",
+                                "minecraft:dark_prismarine",
+                                "minecraft:sea_lantern",
+                                "minecraft:wet_sponge"),
+                        1));
+        entries.put(
+                "minecraft:nether_fortress",
+                new Entry(
+                        Set.of(
+                                "minecraft:nether_bricks",
+                                "minecraft:nether_brick_fence",
+                                "minecraft:nether_brick_stairs"),
+                        1));
+        entries.put(
+                "minecraft:bastion_remnant",
+                new Entry(
+                        Set.of(
+                                "minecraft:blackstone",
+                                "minecraft:polished_blackstone_bricks",
+                                "minecraft:chiseled_polished_blackstone",
+                                "minecraft:magma_block"),
+                        1));
+        entries.put(
+                "minecraft:ancient_city",
+                new Entry(
+                        Set.of(
+                                "minecraft:deepslate_bricks",
+                                "minecraft:deepslate_tiles",
+                                "minecraft:sculk",
+                                "minecraft:sculk_catalyst",
+                                "minecraft:reinforced_deepslate"),
+                        1));
+        entries.put(
+                "minecraft:trial_chambers",
+                new Entry(
+                        Set.of(
+                                "minecraft:trial_spawner",
+                                "minecraft:vault",
+                                "minecraft:copper_bulb",
+                                "minecraft:chiseled_tuff_bricks"),
+                        1));
+        entries.put(
+                "minecraft:stronghold",
+                new Entry(
+                        Set.of(
+                                "minecraft:mossy_stone_bricks",
+                                "minecraft:cracked_stone_bricks",
+                                "minecraft:end_portal_frame",
+                                "minecraft:infested_stone_bricks"),
+                        1));
+        entries.put(
+                "minecraft:woodland_mansion",
+                new Entry(Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks", "minecraft:dark_oak_log"), 2));
+        entries.put(
+                "minecraft:desert_pyramid",
+                new Entry(Set.of("minecraft:chiseled_sandstone", "minecraft:orange_terracotta"), 1));
+        entries.put(
+                "minecraft:jungle_temple",
+                new Entry(Set.of("minecraft:mossy_cobblestone", "minecraft:chiseled_stone_bricks"), 1));
+        entries.put("minecraft:swamp_hut", new Entry(Set.of("minecraft:cauldron", "minecraft:spruce_planks"), 2));
+        entries.put(
+                "minecraft:ruined_portal",
+                new Entry(Set.of("minecraft:netherrack", "minecraft:magma_block", "minecraft:crying_obsidian"), 1));
+        entries.put("minecraft:mineshaft", new Entry(Set.of("minecraft:rail", "minecraft:cobweb"), 1));
         return Map.copyOf(entries);
     }
 }

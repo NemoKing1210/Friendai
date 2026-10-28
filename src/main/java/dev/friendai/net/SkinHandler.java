@@ -71,7 +71,10 @@ public final class SkinHandler {
             }
             var stored = skins.load(companion.ownerUuid());
             if (stored.isPresent() && stored.get().hash().equals(hash)) {
-                sender.accept(player, new SkinS2CPayload(hash, stored.get().slim(), stored.get().png()));
+                sender.accept(
+                        player,
+                        new SkinS2CPayload(
+                                hash, stored.get().slim(), stored.get().png()));
                 return;
             }
         }

@@ -48,14 +48,17 @@ public final class WhisperModelManager {
         if (isInstalled(model)) {
             return CompletableFuture.completedFuture(path(model));
         }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/" + model.file())).GET().build();
-        return http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()).thenApplyAsync(response -> {
-            if (response.statusCode() != 200) {
-                closeQuietly(response.body());
-                throw new UserFacingException(UserMessage.of("friendai.error.llm.network"));
-            }
-            return save(model, response.body(), progress);
-        });
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/" + model.file()))
+                .GET()
+                .build();
+        return http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
+                .thenApplyAsync(response -> {
+                    if (response.statusCode() != 200) {
+                        closeQuietly(response.body());
+                        throw new UserFacingException(UserMessage.of("friendai.error.llm.network"));
+                    }
+                    return save(model, response.body(), progress);
+                });
     }
 
     private Path save(ModelSpec model, InputStream body, DoubleConsumer progress) {
@@ -64,7 +67,8 @@ public final class WhisperModelManager {
             Files.createDirectories(dir);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             long total = 0;
-            try (OutputStream out = Files.newOutputStream(part, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            try (OutputStream out =
+                    Files.newOutputStream(part, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 byte[] buffer = new byte[64 * 1024];
                 int n;
                 while ((n = in.read(buffer)) > 0) {
@@ -74,7 +78,8 @@ public final class WhisperModelManager {
                     progress.accept(Math.min(1.0, (double) total / model.size()));
                 }
             }
-            if (total != model.size() || !HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(model.sha256())) {
+            if (total != model.size()
+                    || !HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(model.sha256())) {
                 Files.deleteIfExists(part);
                 throw new UserFacingException(UserMessage.of("friendai.voice.error.model_corrupt"));
             }

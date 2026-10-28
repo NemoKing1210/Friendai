@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.nav.Approach;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -26,7 +26,9 @@ import org.jetbrains.annotations.Nullable;
 public final class SleepTask implements Task {
     private static final int BED_SEARCH_RADIUS = 24;
 
-    @Nullable private final BlockPos requestedBed;
+    @Nullable
+    private final BlockPos requestedBed;
+
     private final boolean untilMorning;
     private final boolean automatic;
     private final List<BlockPos> automaticBeds;
@@ -47,7 +49,10 @@ public final class SleepTask implements Task {
 
     /** Internal autonomous sleep; does not notify the brain when the task completes. */
     public SleepTask(@Nullable BlockPos requestedBed, boolean untilMorning, boolean automatic) {
-        this(requestedBed, untilMorning, automatic,
+        this(
+                requestedBed,
+                untilMorning,
+                automatic,
                 automatic && requestedBed != null ? List.of(requestedBed) : List.of());
     }
 
@@ -78,8 +83,7 @@ public final class SleepTask implements Task {
                 summary = "woke up";
                 return TaskStatus.SUCCESS;
             }
-            if (c.companion().getHealth() < healthAtSleep || c.companion().getTarget() != null
-                    || !isBed(c, bed)) {
+            if (c.companion().getHealth() < healthAtSleep || c.companion().getTarget() != null || !isBed(c, bed)) {
                 c.companion().stopSleeping();
                 summary = "woke up because the bed was unsafe";
                 return TaskStatus.SUCCESS;
@@ -116,8 +120,7 @@ public final class SleepTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         if (!c.companion().startSleeping(bed)) {
             if (automatic) {
@@ -132,9 +135,12 @@ public final class SleepTask implements Task {
         healthAtSleep = c.companion().getHealth();
         BlockPos foot = foot(c, bed);
         if (foot != null && c.companion().ownerUuid() != null) {
-            FriendaiServerState.get(c.level().getServer()).companionLife().setRespawnPoint(
-                    c.companion().ownerUuid(), new dev.friendai.entity.CompanionLifeData.RespawnPoint(
-                            c.level().dimension(), foot));
+            FriendaiServerState.get(c.level().getServer())
+                    .companionLife()
+                    .setRespawnPoint(
+                            c.companion().ownerUuid(),
+                            new dev.friendai.entity.CompanionLifeData.RespawnPoint(
+                                    c.level().dimension(), foot));
         }
         return TaskStatus.RUNNING;
     }
@@ -184,7 +190,8 @@ public final class SleepTask implements Task {
                         continue;
                     }
                     BlockState state = level.getBlockState(foot);
-                    if (!state.is(BlockTags.BEDS) || !state.hasProperty(BlockStateProperties.BED_PART)
+                    if (!state.is(BlockTags.BEDS)
+                            || !state.hasProperty(BlockStateProperties.BED_PART)
                             || !state.hasProperty(HorizontalDirectionalBlock.FACING)
                             || state.getValue(BlockStateProperties.BED_PART) != BedPart.FOOT) {
                         continue;
@@ -194,7 +201,8 @@ public final class SleepTask implements Task {
                         continue;
                     }
                     BlockState headState = level.getBlockState(head);
-                    if (!headState.is(BlockTags.BEDS) || !headState.hasProperty(BedBlock.OCCUPIED)
+                    if (!headState.is(BlockTags.BEDS)
+                            || !headState.hasProperty(BedBlock.OCCUPIED)
                             || headState.getValue(BedBlock.OCCUPIED)) {
                         continue;
                     }
@@ -238,8 +246,11 @@ public final class SleepTask implements Task {
             for (Direction direction : Direction.Plane.HORIZONTAL) {
                 BlockPos stand = bedHalf.relative(direction);
                 BlockPos below = stand.below();
-                if (level.hasChunkAt(stand) && level.hasChunkAt(stand.above()) && level.hasChunkAt(below)
-                        && level.getBlockState(stand).isAir() && level.getBlockState(stand.above()).isAir()
+                if (level.hasChunkAt(stand)
+                        && level.hasChunkAt(stand.above())
+                        && level.hasChunkAt(below)
+                        && level.getBlockState(stand).isAir()
+                        && level.getBlockState(stand.above()).isAir()
                         && level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
                     return true;
                 }
@@ -251,7 +262,8 @@ public final class SleepTask implements Task {
     /** The head half of the bed at pos (the half a sleeper lies on), or null if there is no bed there. */
     private static @Nullable BlockPos head(TaskContext c, BlockPos pos) {
         BlockState state = c.level().getBlockState(pos);
-        if (!state.is(BlockTags.BEDS) || !state.hasProperty(BlockStateProperties.BED_PART)
+        if (!state.is(BlockTags.BEDS)
+                || !state.hasProperty(BlockStateProperties.BED_PART)
                 || !state.hasProperty(HorizontalDirectionalBlock.FACING)) {
             return null;
         }
@@ -262,7 +274,8 @@ public final class SleepTask implements Task {
 
     private static @Nullable BlockPos foot(TaskContext c, BlockPos head) {
         BlockState state = c.level().getBlockState(head);
-        if (!state.is(BlockTags.BEDS) || !state.hasProperty(BlockStateProperties.BED_PART)
+        if (!state.is(BlockTags.BEDS)
+                || !state.hasProperty(BlockStateProperties.BED_PART)
                 || !state.hasProperty(HorizontalDirectionalBlock.FACING)) {
             return null;
         }
@@ -280,7 +293,8 @@ public final class SleepTask implements Task {
         }
         BlockState footState = c.level().getBlockState(foot);
         BlockState headState = c.level().getBlockState(head);
-        return footState.is(BlockTags.BEDS) && headState.is(BlockTags.BEDS)
+        return footState.is(BlockTags.BEDS)
+                && headState.is(BlockTags.BEDS)
                 && footState.hasProperty(BlockStateProperties.BED_PART)
                 && headState.hasProperty(BlockStateProperties.BED_PART)
                 && footState.getValue(BlockStateProperties.BED_PART) == BedPart.FOOT
@@ -294,6 +308,9 @@ public final class SleepTask implements Task {
         if (beds == null) return null;
         var resources = FriendaiServerState.get(c.level().getServer()).resources();
         return resources.knownOrVisible(c.companion(), beds, BED_SEARCH_RADIUS, 16).stream()
-                .map(p -> head(c, p)).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+                .map(p -> head(c, p))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 }

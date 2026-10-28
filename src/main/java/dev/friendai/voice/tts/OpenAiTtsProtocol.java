@@ -26,8 +26,11 @@ public final class OpenAiTtsProtocol implements TtsProtocol {
         body.addProperty("response_format", "wav");
         body.addProperty("speed", settings.speed());
         Map<String, String> headers = new HashMap<>(VoiceAuth.BEARER.headers(settings.apiKey()));
-        return new PreparedRequest(join(settings.baseUrl(), "/audio/speech"), headers,
-                body.toString().getBytes(StandardCharsets.UTF_8), "application/json");
+        return new PreparedRequest(
+                join(settings.baseUrl(), "/audio/speech"),
+                headers,
+                body.toString().getBytes(StandardCharsets.UTF_8),
+                "application/json");
     }
 
     @Override

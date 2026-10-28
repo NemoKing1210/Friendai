@@ -27,7 +27,11 @@ public final class PlannerParser {
      * @param allTools every plannable tool name, so an unknown name is reported as unknown
      */
     public static Parsed parse(
-            String modelText, Map<String, JsonObject> schemas, Set<String> allTools, int maxSteps, int maxArgs,
+            String modelText,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools,
+            int maxSteps,
+            int maxArgs,
             int maxTotal) {
         JsonElement extracted = extract(modelText);
         if (extracted == null) {
@@ -42,8 +46,10 @@ public final class PlannerParser {
         if (!parsed.ok()) {
             return new Parsed(Optional.empty(), parsed.errors());
         }
-        return new Parsed(Optional.of(new PlanProposal(
-                parsed.plan(), steps, note(root, "rationale"), note(root, "expected_outcome"))), List.of());
+        return new Parsed(
+                Optional.of(new PlanProposal(
+                        parsed.plan(), steps, note(root, "rationale"), note(root, "expected_outcome"))),
+                List.of());
     }
 
     /**
@@ -164,13 +170,16 @@ public final class PlannerParser {
 
     private static void normalizeNode(JsonObject node) {
         if (node.has("tool")) {
-            if (node.has("args") && node.get("args").isJsonObject()) node.addProperty("args", node.get("args").toString());
+            if (node.has("args") && node.get("args").isJsonObject())
+                node.addProperty("args", node.get("args").toString());
         } else if (node.has("then") && node.get("then").isJsonArray()) {
             node.add("then", normalize(node.getAsJsonArray("then")));
-            if (node.has("else") && node.get("else").isJsonArray()) node.add("else", normalize(node.getAsJsonArray("else")));
+            if (node.has("else") && node.get("else").isJsonArray())
+                node.add("else", normalize(node.getAsJsonArray("else")));
         } else if (node.has("repeat") && node.get("repeat").isJsonObject()) {
             JsonObject repeat = node.getAsJsonObject("repeat");
-            if (repeat.has("steps") && repeat.get("steps").isJsonArray()) repeat.add("steps", normalize(repeat.getAsJsonArray("steps")));
+            if (repeat.has("steps") && repeat.get("steps").isJsonArray())
+                repeat.add("steps", normalize(repeat.getAsJsonArray("steps")));
         }
     }
 

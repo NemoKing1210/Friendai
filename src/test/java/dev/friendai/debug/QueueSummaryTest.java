@@ -24,7 +24,8 @@ class QueueSummaryTest {
 
     @Test
     void blockedCounterIsOptional() {
-        var s = QueueSummary.parse("Task queue: 1 running, 0 pending; plans: 0\nRunning: #1 direct: follow").orElseThrow();
+        var s = QueueSummary.parse("Task queue: 1 running, 0 pending; plans: 0\nRunning: #1 direct: follow")
+                .orElseThrow();
         assertEquals(0, s.blocked());
         assertEquals("", s.nextLine());
         assertEquals("", s.blockedLine());

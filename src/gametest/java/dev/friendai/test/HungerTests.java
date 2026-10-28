@@ -3,19 +3,18 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.perception.PerceptionBuilder;
-import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
-import dev.friendai.task.TaskStatus;
-import dev.friendai.task.TaskListener;
-import dev.friendai.task.builtin.GetFoodTask;
-import dev.friendai.task.builtin.StayTask;
-import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueuedStep;
+import dev.friendai.survival.HungerModel;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskListener;
+import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.GetFoodTask;
+import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.mining.BlockBreaker;
-import dev.friendai.survival.HungerModel;
+import dev.friendai.task.survival.HungerWatcher;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -47,19 +46,41 @@ public class HungerTests {
         c.hungerWatcher().setAutoDelayTicks(0);
         boolean[] foodInterrupted = {false};
         c.taskRunner().setListener(new TaskListener() {
-            @Override public void onFinished(int id, String tool, TaskStatus status, String summary) {
+            @Override
+            public void onFinished(int id, String tool, TaskStatus status, String summary) {
                 if (tool.equals(HungerWatcher.GET_FOOD_TOOL)) foodInterrupted[0] = true;
             }
-            @Override public void onCancelled(int id, String tool, String reason) {}
+
+            @Override
+            public void onCancelled(int id, String tool, String reason) {}
         });
-        c.taskRunner().enqueue(new QueuedStep("stay", new com.google.gson.JsonObject(), null, List.of(),
-                GuardAction.WAIT, FailurePolicy.ASK, 1, List.of()), ctx -> new StayTask());
+        c.taskRunner()
+                .enqueue(
+                        new QueuedStep(
+                                "stay",
+                                new com.google.gson.JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of()),
+                        ctx -> new StayTask());
         h.succeedWhen(() -> {
             h.assertTrue(foodInterrupted[0], "the starvation task did not interrupt the queued job");
-            h.assertTrue(c.taskRunner().current().map(task -> task.type().equals("stay")).orElse(false),
-                    "the queued task did not resume: " + c.taskRunner().current().map(dev.friendai.task.Task::type).orElse("none"));
+            h.assertTrue(
+                    c.taskRunner()
+                            .current()
+                            .map(task -> task.type().equals("stay"))
+                            .orElse(false),
+                    "the queued task did not resume: "
+                            + c.taskRunner()
+                                    .current()
+                                    .map(dev.friendai.task.Task::type)
+                                    .orElse("none"));
             h.assertTrue(c.taskRunner().queue().jobCount() == 1, "the queued job was dropped");
-            h.assertTrue(c.taskRunner().queue().jobs().getFirst().state() == dev.friendai.queue.JobState.RUNNING,
+            h.assertTrue(
+                    c.taskRunner().queue().jobs().getFirst().state() == dev.friendai.queue.JobState.RUNNING,
                     "the queued job did not return to RUNNING");
         });
     }
@@ -69,8 +90,8 @@ public class HungerTests {
     }
 
     /** An item entity thrown by {@code thrower}, as a player drop would be. */
-    private static ItemEntity dropOwned(GameTestHelper h, ServerPlayer thrower,
-            double x, double y, double z, ItemStack stack) {
+    private static ItemEntity dropOwned(
+            GameTestHelper h, ServerPlayer thrower, double x, double y, double z, ItemStack stack) {
         Vec3 p = h.absoluteVec(new Vec3(x, y, z));
         ItemEntity entity = new ItemEntity(h.getLevel(), p.x, p.y, p.z, stack);
         entity.setDeltaMovement(Vec3.ZERO);
@@ -144,8 +165,7 @@ public class HungerTests {
                 h.succeed();
                 return;
             }
-            h.assertTrue(c.getHealth() == 10.0f,
-                    "health healed without food on " + difficulty + ": " + c.getHealth());
+            h.assertTrue(c.getHealth() == 10.0f, "health healed without food on " + difficulty + ": " + c.getHealth());
             h.succeed();
         });
     }
@@ -158,8 +178,12 @@ public class HungerTests {
         h.assertTrue(text.contains("Health: 20/20\nHunger: 14/20\n"), text);
         // Only the dedicated line: hunger must not leak into the equipment field as well. The Mode line names
         // hunger on purpose (what survival applies), so check that field, not the whole snapshot.
-        String equipment = text.lines().filter(line -> line.startsWith("Wearing:")).findFirst().orElseThrow();
-        h.assertFalse(equipment.toLowerCase(java.util.Locale.ROOT).contains("hunger"),
+        String equipment = text.lines()
+                .filter(line -> line.startsWith("Wearing:"))
+                .findFirst()
+                .orElseThrow();
+        h.assertFalse(
+                equipment.toLowerCase(java.util.Locale.ROOT).contains("hunger"),
                 "hunger leaked into the equipment field:\n" + text);
         h.succeed();
     }
@@ -168,7 +192,8 @@ public class HungerTests {
     public void hungerSurvivesSave(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         a.hunger().load(7, 2.5f, 1.5f);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
@@ -183,7 +208,8 @@ public class HungerTests {
     public void oldSaveLoadsFull(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         a.hunger().load(3, 0.0f, 0.0f);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
         h.assertTrue(a.hunger().food() == 3, "the saved companion should be hungry");
@@ -193,7 +219,9 @@ public class HungerTests {
 
         CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), tag));
-        h.assertTrue(b.hunger().food() == HungerModel.MAX_FOOD, "food was " + b.hunger().food());
+        h.assertTrue(
+                b.hunger().food() == HungerModel.MAX_FOOD,
+                "food was " + b.hunger().food());
         assertClose(h, b.hunger().saturation(), 5.0f, "saturation");
         assertClose(h, b.hunger().exhaustion(), 0.0f, "exhaustion");
         h.succeed();
@@ -219,9 +247,10 @@ public class HungerTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.hunger().load(14, 0.0f, 0.0f);
         c.inventory().addItem(new ItemStack(Items.BREAD));
-        h.succeedWhen(() -> h.assertTrue(c.inventory().countItem(Items.BREAD) == 0,
-                "bread not eaten at food 14: food " + c.hunger().food()
-                        + ", state " + c.combatController().state()));
+        h.succeedWhen(() -> h.assertTrue(
+                c.inventory().countItem(Items.BREAD) == 0,
+                "bread not eaten at food 14: food " + c.hunger().food() + ", state "
+                        + c.combatController().state()));
     }
 
     @GameTest(maxTicks = 150)
@@ -231,8 +260,7 @@ public class HungerTests {
         c.hunger().load(18, 0.0f, 0.0f);
         c.inventory().addItem(new ItemStack(Items.BREAD));
         h.runAfterDelay(120, () -> {
-            h.assertValueEqual(c.inventory().countItem(Items.BREAD), 1,
-                    "bread eaten at food 18 with full health");
+            h.assertValueEqual(c.inventory().countItem(Items.BREAD), 1, "bread eaten at food 18 with full health");
             h.assertValueEqual(c.hunger().food(), 18, "food");
             h.succeed();
         });
@@ -263,9 +291,11 @@ public class HungerTests {
         c.setOwner(owner.getUUID());
         ItemEntity apple = dropOwned(h, owner, 4.5, 2, 2.5, new ItemStack(Items.APPLE, 2));
         h.succeedWhen(() -> {
-            h.assertTrue(c.inventory().countItem(Items.APPLE) == 2,
-                    "the owner's apple was not collected: inventory " + c.inventory().countItem(Items.APPLE)
-                            + ", on the ground " + apple.getItem() + ", removed " + apple.isRemoved());
+            h.assertTrue(
+                    c.inventory().countItem(Items.APPLE) == 2,
+                    "the owner's apple was not collected: inventory "
+                            + c.inventory().countItem(Items.APPLE) + ", on the ground " + apple.getItem() + ", removed "
+                            + apple.isRemoved());
             h.assertTrue(apple.isRemoved(), "the collected item entity is still there");
         });
     }
@@ -299,10 +329,11 @@ public class HungerTests {
             h.assertValueEqual(c.inventory().countItem(Items.APPLE), 0, "a full inventory took apples");
             h.assertTrue(!apples.isRemoved(), "the leftover item entity was removed");
             h.assertValueEqual(apples.getItem().getCount(), 64, "apples left on the ground");
-            int total = h.getLevel()
-                    .getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(6)).stream()
-                    .filter(e -> e.getItem().is(Items.APPLE))
-                    .mapToInt(e -> e.getItem().getCount()).sum();
+            int total =
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(c.blockPosition()).inflate(6)).stream()
+                            .filter(e -> e.getItem().is(Items.APPLE))
+                            .mapToInt(e -> e.getItem().getCount())
+                            .sum();
             h.assertValueEqual(total, 64, "total apples in the world");
             h.succeed();
         });
@@ -352,7 +383,8 @@ public class HungerTests {
     }
 
     private static Container containerAt(GameTestHelper h, int x, int y, int z) {
-        return ContainerAccess.at(h.getLevel(), h.absolutePos(new BlockPos(x, y, z))).orElseThrow();
+        return ContainerAccess.at(h.getLevel(), h.absolutePos(new BlockPos(x, y, z)))
+                .orElseThrow();
     }
 
     private static int countIn(Container container, Item item) {
@@ -375,7 +407,8 @@ public class HungerTests {
         chest.setItem(0, new ItemStack(Items.BREAD, 2));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 201, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 200, 4))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 200, 4))),
                 "furnace should be directly visible");
         c.inventory().addItem(new ItemStack(Items.BEEF, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
@@ -383,8 +416,8 @@ public class HungerTests {
         c.taskRunner().setListener(n);
         c.taskRunner().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
-            h.assertTrue(n.status == TaskStatus.SUCCESS,
-                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
             h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 1, "cooked beef");
             h.assertValueEqual(countIn(chest, Items.BREAD), 2, "the bread must stay in the chest");
         });
@@ -398,14 +431,15 @@ public class HungerTests {
         chest.setItem(0, new ItemStack(Items.BREAD, 5));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 153, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 152, 8))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 152, 8))),
                 "bread chest should be directly visible");
         FoodListener n = new FoodListener(c);
         c.taskRunner().setListener(n);
         c.taskRunner().start(new GetFoodTask(2), "get_food");
         h.succeedWhen(() -> {
-            h.assertTrue(n.status == TaskStatus.SUCCESS,
-                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
             h.assertValueEqual(c.inventory().countItem(Items.BREAD), 2, "bread taken");
             h.assertValueEqual(countIn(chest, Items.BREAD), 3, "bread left in the chest");
         });
@@ -416,15 +450,16 @@ public class HungerTests {
         GameTestSupport.platformAt(h, 56, 16);
         h.setBlock(7, 56, 4, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 57, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 56, 4))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 56, 4))),
                 "crafting table should be directly visible");
         c.inventory().addItem(new ItemStack(Items.WHEAT, 3));
         FoodListener n = new FoodListener(c);
         c.taskRunner().setListener(n);
         c.taskRunner().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
-            h.assertTrue(n.status == TaskStatus.SUCCESS,
-                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
             h.assertValueEqual(c.inventory().countItem(Items.BREAD), 1, "baked bread");
             h.assertValueEqual(c.inventory().countItem(Items.WHEAT), 0, "wheat used up");
         });
@@ -437,7 +472,8 @@ public class HungerTests {
         GameTestSupport.enclose(h, 80, 16, 4);
         h.setBlock(8, 80, 3, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 81, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 80, 3))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 80, 3))),
                 "furnace should be directly visible");
         h.spawn(EntityTypes.COW, 6, 81, 6);
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
@@ -445,8 +481,8 @@ public class HungerTests {
         c.taskRunner().setListener(n);
         c.taskRunner().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
-            h.assertTrue(n.status == TaskStatus.SUCCESS,
-                    "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
             h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 1, "cooked beef from the cow");
         });
     }
@@ -460,7 +496,8 @@ public class HungerTests {
         c.taskRunner().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(n.status == TaskStatus.FAILED, "not failed: " + n.status + " " + n.summary);
-            h.assertValueEqual(n.summary,
+            h.assertValueEqual(
+                    n.summary,
                     "I can't find any food here: no food in chests, no crops, no animals and no way to fish",
                     "summary");
         });
@@ -478,7 +515,8 @@ public class HungerTests {
         c.hungerWatcher().setAutoDelayTicks(40);
         h.runAfterDelay(100, () -> {
             long near = n.notices.stream()
-                    .filter(text -> text.startsWith("I'm hungry (6/20) and have no food; ") && text.endsWith("blocks away"))
+                    .filter(text ->
+                            text.startsWith("I'm hungry (6/20) and have no food; ") && text.endsWith("blocks away"))
                     .count();
             h.assertValueEqual(near, 1L, "notices " + n.notices);
             h.assertValueEqual(n.notices.size(), 1, "the stage notice must come once: " + n.notices);
@@ -494,7 +532,8 @@ public class HungerTests {
         chest.setItem(0, new ItemStack(Items.BREAD, 4));
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 129, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 128, 8))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 128, 8))),
                 "bread chest should be directly visible");
         c.hunger().load(3, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
@@ -502,9 +541,11 @@ public class HungerTests {
         c.hungerWatcher().setAutoDelayTicks(40);
         h.succeedWhen(() -> {
             h.assertTrue(n.notices.contains("starving: going to get food myself"), "notices " + n.notices);
-            h.assertTrue(n.notices.stream().anyMatch(text -> text.startsWith("I'm hungry (3/20) and have no food; ")),
+            h.assertTrue(
+                    n.notices.stream().anyMatch(text -> text.startsWith("I'm hungry (3/20) and have no food; ")),
                     "no starving notice: " + n.notices);
-            h.assertTrue(n.getFoodSuccesses == 1,
+            h.assertTrue(
+                    n.getFoodSuccesses == 1,
                     "the quest did not succeed: " + n.status + " " + n.summary + " " + n.events);
             h.assertValueEqual(n.breadAtFinish, 2, "bread in the inventory when the quest finished");
         });
@@ -525,12 +566,18 @@ public class HungerTests {
                 if (n.getFoodRuns >= 1 && n.status == TaskStatus.FAILED) {
                     failedAt[0] = c.tickCount;
                 }
-                h.assertTrue(failedAt[0] >= 0, "waiting for the auto quest to fail: " + n.status + " " + n.summary
-                        + " " + n.events + " " + n.notices);
+                h.assertTrue(
+                        failedAt[0] >= 0,
+                        "waiting for the auto quest to fail: " + n.status + " " + n.summary + " " + n.events + " "
+                                + n.notices);
             }
             h.assertTrue(c.tickCount - failedAt[0] >= 200, "waiting 200 ticks after the failure");
             h.assertValueEqual(n.getFoodRuns, 1, "get_food runs after the cool-down started: " + n.events);
-            h.assertTrue(c.taskRunner().current().map(task -> !task.type().equals("get_food")).orElse(true),
+            h.assertTrue(
+                    c.taskRunner()
+                            .current()
+                            .map(task -> !task.type().equals("get_food"))
+                            .orElse(true),
                     "a new get_food quest is running inside the cool-down");
         });
     }
@@ -555,11 +602,17 @@ public class HungerTests {
             }
             h.assertTrue(c.tickCount - fedAt[0] >= 120, "waiting out the auto delay and a margin");
             h.assertValueEqual(n.getFoodRuns, 0, "get_food finished after food rose to stage 2: " + n.events);
-            h.assertTrue(n.events.stream().noneMatch(event -> event.startsWith("get_food:")),
+            h.assertTrue(
+                    n.events.stream().noneMatch(event -> event.startsWith("get_food:")),
                     "a get_food task started at food 5: " + n.events);
-            h.assertTrue(c.taskRunner().current().map(task -> !task.type().equals("get_food")).orElse(true),
+            h.assertTrue(
+                    c.taskRunner()
+                            .current()
+                            .map(task -> !task.type().equals("get_food"))
+                            .orElse(true),
                     "a get_food task is running at food 5");
-            h.assertTrue(!n.notices.contains("starving: going to get food myself"),
+            h.assertTrue(
+                    !n.notices.contains("starving: going to get food myself"),
                     "the auto quest notice came at food 5: " + n.notices);
         });
     }

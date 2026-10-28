@@ -22,7 +22,8 @@ class OpenAiTtsProtocolTest {
 
         assertEquals("/v1/audio/speech", r.uri().getPath());
         assertEquals("Bearer sk", r.headers().get("Authorization"));
-        JsonObject body = JsonParser.parseString(new String(r.body(), StandardCharsets.UTF_8)).getAsJsonObject();
+        JsonObject body = JsonParser.parseString(new String(r.body(), StandardCharsets.UTF_8))
+                .getAsJsonObject();
         assertEquals("wav", body.get("response_format").getAsString());
         assertEquals(1.5, body.get("speed").getAsDouble());
         assertEquals("Hi", body.get("input").getAsString());
@@ -37,15 +38,16 @@ class OpenAiTtsProtocolTest {
     void openAiRejectsANonAudioBody() {
         ResolvedTts settings = tts("openai", "sk", "http://localhost:8080/v1", "m", "alloy", 1.0, "");
 
-        UserFacingException e = assertThrows(UserFacingException.class,
+        UserFacingException e = assertThrows(
+                UserFacingException.class,
                 () -> new OpenAiTtsProtocol().parse("<html>error</html>".getBytes(StandardCharsets.UTF_8), settings));
         assertEquals("friendai.voice.tts.error.failed", e.userMessage().key());
     }
 
     @Test
     void keylessCustomEndpointSendsNoAuthorizationHeader() {
-        PreparedRequest r = new OpenAiTtsProtocol().prepare(
-                tts("openai", "", "http://localhost:8080/v1", "m", "alloy", 1.0, ""), "Hi");
+        PreparedRequest r = new OpenAiTtsProtocol()
+                .prepare(tts("openai", "", "http://localhost:8080/v1", "m", "alloy", 1.0, ""), "Hi");
         assertFalse(r.headers().containsKey("Authorization"));
     }
 
@@ -70,9 +72,17 @@ class OpenAiTtsProtocolTest {
         assertEquals(4, audio.data().length);
     }
 
-    private static ResolvedTts tts(String provider, String key, String baseUrl, String model,
-            String voice, double speed, String language) {
-        return new ResolvedTts(provider, provider.equals("local") ? "local" : provider + "_tts",
-                baseUrl, key, model, voice, language, null, speed);
+    private static ResolvedTts tts(
+            String provider, String key, String baseUrl, String model, String voice, double speed, String language) {
+        return new ResolvedTts(
+                provider,
+                provider.equals("local") ? "local" : provider + "_tts",
+                baseUrl,
+                key,
+                model,
+                voice,
+                language,
+                null,
+                speed);
     }
 }

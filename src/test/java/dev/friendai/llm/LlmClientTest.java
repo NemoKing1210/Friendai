@@ -40,8 +40,13 @@ class LlmClientTest {
     @Test
     void completeBuildsRequestFromProfile() throws Exception {
         server.enqueue(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}");
-        assertEquals("hi", client.complete("SYS", List.of(Message.user("yo")), List.of()).get().text());
-        JsonObject body = JsonParser.parseString(server.requests().get(0).body()).getAsJsonObject();
+        assertEquals(
+                "hi",
+                client.complete("SYS", List.of(Message.user("yo")), List.of())
+                        .get()
+                        .text());
+        JsonObject body =
+                JsonParser.parseString(server.requests().get(0).body()).getAsJsonObject();
         assertEquals("m1", body.get("model").getAsString());
         assertEquals(512, body.get("max_tokens").getAsInt());
         assertEquals(0.7, body.get("temperature").getAsDouble(), 1e-9);
@@ -52,13 +57,17 @@ class LlmClientTest {
         server.enqueue(200, """
                 {"choices":[{"message":{"content":null,"tool_calls":[
                   {"id":"c","type":"function","function":{"name":"ping","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}""");
-        assertEquals(UserMessage.of("friendai.config.test.ok_tools"), client.testConnection().get());
+        assertEquals(
+                UserMessage.of("friendai.config.test.ok_tools"),
+                client.testConnection().get());
     }
 
     @Test
     void testConnectionReportsText() throws Exception {
         server.enqueue(200, "{\"choices\":[{\"message\":{\"content\":\"pong\"},\"finish_reason\":\"stop\"}]}");
-        assertEquals(UserMessage.of("friendai.config.test.ok_text"), client.testConnection().get());
+        assertEquals(
+                UserMessage.of("friendai.config.test.ok_text"),
+                client.testConnection().get());
     }
 
     @Test

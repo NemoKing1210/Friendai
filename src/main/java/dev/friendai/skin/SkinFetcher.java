@@ -124,7 +124,8 @@ public final class SkinFetcher {
             }
             try {
                 String json = new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
-                JsonObject textures = JsonParser.parseString(json).getAsJsonObject().getAsJsonObject("textures");
+                JsonObject textures =
+                        JsonParser.parseString(json).getAsJsonObject().getAsJsonObject("textures");
                 return textures == null ? null : textures.getAsJsonObject("SKIN");
             } catch (RuntimeException e) {
                 return null;
@@ -136,7 +137,8 @@ public final class SkinFetcher {
     private JsonObject getJson(URI uri, String notFoundKey) {
         byte[] body = request(uri, notFoundKey);
         try {
-            return JsonParser.parseString(new String(body, StandardCharsets.UTF_8)).getAsJsonObject();
+            return JsonParser.parseString(new String(body, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
         } catch (RuntimeException e) {
             throw error(NETWORK);
         }

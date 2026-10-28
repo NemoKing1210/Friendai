@@ -21,8 +21,8 @@ public final class CraftPlanner {
 
     private CraftPlanner() {}
 
-    public static CraftPlan plan(String target, int count, Map<String, Integer> inventory, RecipeBook book,
-            Set<Station> stationsNearby) {
+    public static CraftPlan plan(
+            String target, int count, Map<String, Integer> inventory, RecipeBook book, Set<Station> stationsNearby) {
         Objects.requireNonNull(target, "target");
         if (target.isEmpty()) {
             throw new IllegalArgumentException("target must not be empty");
@@ -57,8 +57,8 @@ public final class CraftPlanner {
      * the crafting table it uses as a station, and a request to craft one has to produce a new one). Carried
      * ingredients, intermediates included, are used as usual.
      */
-    public static CraftPlan planNew(String target, int count, Map<String, Integer> inventory, RecipeBook book,
-            Set<Station> stationsNearby) {
+    public static CraftPlan planNew(
+            String target, int count, Map<String, Integer> inventory, RecipeBook book, Set<Station> stationsNearby) {
         Objects.requireNonNull(target, "target");
         Map<String, Integer> others = new LinkedHashMap<>();
         if (inventory != null) {
@@ -107,7 +107,8 @@ public final class CraftPlanner {
                 continue;
             }
             for (int producer = 0; producer < n; producer++) {
-                if (producer != consumer && steps.get(producer).recipe().output().equals(stationItem)) {
+                if (producer != consumer
+                        && steps.get(producer).recipe().output().equals(stationItem)) {
                     before.get(producer).add(consumer);
                     waiting[consumer]++;
                 }

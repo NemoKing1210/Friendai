@@ -189,11 +189,14 @@ public final class ClearAreaTask implements Task {
                     .filter(entry -> entry.getValue() > 0)
                     .map(entry -> entry.getValue() + " " + entry.getKey().label())
                     .toList();
-            text.append("; skipped ").append(skippedTotal).append(" (").append(String.join(", ", reasons)).append(')');
+            text.append("; skipped ")
+                    .append(skippedTotal)
+                    .append(" (")
+                    .append(String.join(", ", reasons))
+                    .append(')');
         }
         if (solidsLeft > 0) {
-            text.append("; ").append(solidsLeft)
-                    .append(" solid blocks left (use blocks=true to break them)");
+            text.append("; ").append(solidsLeft).append(" solid blocks left (use blocks=true to break them)");
         }
         if (left > 0) {
             text.append("; ").append(left).append(" more cells left for another pass");

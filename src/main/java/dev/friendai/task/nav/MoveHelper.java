@@ -1,8 +1,8 @@
 package dev.friendai.task.nav;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.creative.CreativeAction;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.GoalPoint;
 import dev.friendai.pathing.Pos;
@@ -104,8 +104,8 @@ public final class MoveHelper {
 
     private State tickCompanion(CompanionEntity companion, Vec3 target) {
         boolean followingOwner = !Double.isNaN(ownerDistance);
-        double paceDistance = followingOwner ? ownerDistance
-                : (navigator != null ? navigator.remainingDistance() : 0.0);
+        double paceDistance =
+                followingOwner ? ownerDistance : (navigator != null ? navigator.remainingDistance() : 0.0);
         companion.pace().update(followingOwner, paceDistance, paceDistance);
         TaskContext context = companion.taskRunner().activeTaskContext();
         boolean passiveFollow = companion.taskRunner().currentIsDefaultActivity()
@@ -152,8 +152,7 @@ public final class MoveHelper {
         Pos stand = inside == Cell.Kind.SOLID || inside == Cell.Kind.TALL
                 ? new Pos(tx, ty, tz)
                 : GoalPoint.snapDown(view, tx, ty, tz, snapDrop);
-        return new GoalPoint(
-                stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL);
+        return new GoalPoint(stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL);
     }
 
     /** Node centres approximate a goal band; an exact positioning caller still needs the real feet inside it. */

@@ -12,10 +12,15 @@ class GoalSaveTest {
     @Test
     void roundTripKeepsGoalsCriteriaGuardsAndLessons() {
         GoalBoard board = new GoalBoard(3, 3);
-        long id = board.set("wood",
-                List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12))),
-                        new Criterion("tell the owner", Optional.empty())),
-                false, 7).value().id();
+        long id = board.set(
+                        "wood",
+                        List.of(
+                                new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12))),
+                                new Criterion("tell the owner", Optional.empty())),
+                        false,
+                        7)
+                .value()
+                .id();
         board.linkPlan(id, 42);
         board.addLesson(id, "no axe");
         board.recordReplan(id);
@@ -27,7 +32,9 @@ class GoalSaveTest {
         assertEquals(42, goal.planId());
         assertEquals(1, goal.replans());
         assertEquals(List.of("no axe"), goal.lessons());
-        assertEquals(new Guard.HasItem("minecraft:oak_log", 12), goal.criteria().get(0).check().orElseThrow());
+        assertEquals(
+                new Guard.HasItem("minecraft:oak_log", 12),
+                goal.criteria().get(0).check().orElseThrow());
         assertTrue(goal.criteria().get(1).check().isEmpty());
         assertEquals(1, back.background().size());
         assertTrue(back.set("later", List.of(), true, 9).ok(), "ids and counters survive");

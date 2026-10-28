@@ -10,9 +10,17 @@ public final class IdleStartPolicy {
      * @param queueIdle nothing runs and nothing is queued
      * @param lastFreeTimeEndMillis when free time last ended; an idle restart needs a fresh full idle period
      */
-    public static boolean shouldStart(FreeTime state, AutonomySettings s, Autonomy ceiling, boolean ownerGoalActive,
-                                      boolean queueIdle, boolean inCombatOrPaused, boolean ownerOnline,
-                                      long nowMillis, long lastOwnerActivityMillis, long lastFreeTimeEndMillis) {
+    public static boolean shouldStart(
+            FreeTime state,
+            AutonomySettings s,
+            Autonomy ceiling,
+            boolean ownerGoalActive,
+            boolean queueIdle,
+            boolean inCombatOrPaused,
+            boolean ownerOnline,
+            long nowMillis,
+            long lastOwnerActivityMillis,
+            long lastFreeTimeEndMillis) {
         if (state.on() || !s.enabled() || !s.idleStart() || ceiling == Autonomy.PASSIVE) {
             return false;
         }

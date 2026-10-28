@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -37,9 +36,14 @@ import org.jetbrains.annotations.Nullable;
  * slot is touched on somebody else's furnace; leftover fuel and station take-back belong to our own jobs.
  */
 public final class CollectSmeltedTask implements Task {
-    private record Target(BlockPos pos, Station station, @Nullable FurnaceJob job) {}
+    private record Target(
+            BlockPos pos, Station station, @Nullable FurnaceJob job) {}
 
-    private enum Phase { APPROACH, TAKE, BREAK }
+    private enum Phase {
+        APPROACH,
+        TAKE,
+        BREAK
+    }
 
     private final @Nullable BlockPos target;
     private final List<Target> targets = new ArrayList<>();
@@ -80,8 +84,9 @@ public final class CollectSmeltedTask implements Task {
                         targets.add(new Target(job.pos(), job.station(), job));
                     }
                 } else {
-                    nearestWithResult(c).ifPresent(pos -> targets.add(
-                            new Target(pos, stationOf(c.level().getBlockState(pos)), null)));
+                    nearestWithResult(c)
+                            .ifPresent(pos -> targets.add(
+                                    new Target(pos, stationOf(c.level().getBlockState(pos)), null)));
                 }
             }
             if (targets.isEmpty()) {
@@ -330,11 +335,21 @@ public final class CollectSmeltedTask implements Task {
         Target current = targets.get(index);
         if (phase == Phase.BREAK) {
             BlockPos pos = breaker == null ? breakPos : breaker.target();
-            return pos == null ? List.of() : List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
-                    DebugAction.BREAK, "Take back " + current.station().noun()));
+            return pos == null
+                    ? List.of()
+                    : List.of(new DebugTarget(
+                            pos.getX(),
+                            pos.getY(),
+                            pos.getZ(),
+                            DebugAction.BREAK,
+                            "Take back " + current.station().noun()));
         }
-        return List.of(new DebugTarget(current.pos().getX(), current.pos().getY(), current.pos().getZ(),
-                DebugAction.COLLECT, "Collect finished items"));
+        return List.of(new DebugTarget(
+                current.pos().getX(),
+                current.pos().getY(),
+                current.pos().getZ(),
+                DebugAction.COLLECT,
+                "Collect finished items"));
     }
 
     @Override

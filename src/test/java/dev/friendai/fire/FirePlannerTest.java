@@ -1,14 +1,14 @@
 package dev.friendai.fire;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import dev.friendai.fire.BurningCell.Kind;
 import dev.friendai.fire.BurningCell.Rails;
 import dev.friendai.pathing.Pos;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirePlannerTest {
 
@@ -33,17 +33,18 @@ class FirePlannerTest {
 
     @Test
     void waterFirstThenTheBucketComesBack() {
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS),
-                List.of(cell(Kind.FIRE, free())));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS), List.of(cell(Kind.FIRE, free())));
 
-        assertEquals(List.of(new ExtinguishStep.PlaceWater(FIRE_POS),
-                new ExtinguishStep.RecoverBucket(FIRE_POS)), plan.steps());
+        assertEquals(
+                List.of(new ExtinguishStep.PlaceWater(FIRE_POS), new ExtinguishStep.RecoverBucket(FIRE_POS)),
+                plan.steps());
     }
 
     @Test
     void breaksWhenThereIsNoWater() {
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts(),
-                List.of(cell(Kind.FIRE, free())));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts(), List.of(cell(Kind.FIRE, free())));
 
         assertEquals(List.of(new ExtinguishStep.BreakFire(FIRE_POS)), plan.steps());
     }
@@ -52,8 +53,8 @@ class FirePlannerTest {
     void neverWatersTheNether() {
         FireFacts nether = new FireFacts(true, false, SELF, 1, 0, null, FIRE_POS, true);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), nether,
-                List.of(cell(Kind.FIRE, free())));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), nether, List.of(cell(Kind.FIRE, free())));
 
         assertEquals(List.of(new ExtinguishStep.BreakFire(FIRE_POS)), plan.steps());
         assertFalse(plan.steps().stream().anyMatch(step -> step instanceof ExtinguishStep.PlaceWater));
@@ -61,31 +62,34 @@ class FirePlannerTest {
 
     @Test
     void aCampfireGetsWaterNeverABreak() {
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS),
-                List.of(cell(Kind.LIT_CAMPFIRE, free())));
+        ExtinguishPlan plan = FirePlanner.plan(
+                new FireTarget.Block(FIRE_POS), wet(FIRE_POS), List.of(cell(Kind.LIT_CAMPFIRE, free())));
 
-        assertEquals(List.of(new ExtinguishStep.DouseCampfire(FIRE_POS),
-                new ExtinguishStep.RecoverBucket(FIRE_POS)), plan.steps());
+        assertEquals(
+                List.of(new ExtinguishStep.DouseCampfire(FIRE_POS), new ExtinguishStep.RecoverBucket(FIRE_POS)),
+                plan.steps());
     }
 
     @Test
     void keepsTheCookingCampfire() {
         Rails reserved = new Rails(true, false, true, true, true, false);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS),
-                List.of(cell(Kind.LIT_CAMPFIRE, reserved)));
+        ExtinguishPlan plan = FirePlanner.plan(
+                new FireTarget.Block(FIRE_POS), wet(FIRE_POS), List.of(cell(Kind.LIT_CAMPFIRE, reserved)));
 
         assertEquals(1, plan.steps().size());
         assertTrue(plan.steps().getFirst() instanceof ExtinguishStep.GiveUp);
-        assertEquals("it is my cooking station", ((ExtinguishStep.GiveUp) plan.steps().getFirst()).reason());
+        assertEquals(
+                "it is my cooking station",
+                ((ExtinguishStep.GiveUp) plan.steps().getFirst()).reason());
     }
 
     @Test
     void refusesAFireInAPortalFrame() {
         Rails frame = new Rails(false, true, false, true, true, false);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts(),
-                List.of(cell(Kind.FIRE, frame)));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts(), List.of(cell(Kind.FIRE, frame)));
 
         assertEquals(List.of(new ExtinguishStep.GiveUp("it is inside a portal frame")), plan.steps());
     }
@@ -94,8 +98,8 @@ class FirePlannerTest {
     void aPortalFrameIsRefusedEvenWithWater() {
         Rails frame = new Rails(false, true, true, true, true, false);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS),
-                List.of(cell(Kind.FIRE, frame)));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), wet(FIRE_POS), List.of(cell(Kind.FIRE, frame)));
 
         assertEquals(List.of(new ExtinguishStep.GiveUp("it is inside a portal frame")), plan.steps());
     }
@@ -105,8 +109,8 @@ class FirePlannerTest {
         Rails protectedCell = new Rails(false, false, false, false, true, true);
         FireFacts watered = new FireFacts(false, false, SELF, 1, 0, null, FIRE_POS, true);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), watered,
-                List.of(cell(Kind.FIRE, protectedCell)));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Block(FIRE_POS), watered, List.of(cell(Kind.FIRE, protectedCell)));
 
         assertEquals(List.of(new ExtinguishStep.GiveUp("it is protected")), plan.steps());
     }
@@ -115,8 +119,8 @@ class FirePlannerTest {
     void selfEntersWaterWhenItStandsNear() {
         FireFacts facts = new FireFacts(false, false, SELF, 0, 0, Pos.of(2, 64, 0), null, true);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Self(), facts,
-                List.of(new BurningCell(SELF, Kind.FIRE, free())));
+        ExtinguishPlan plan =
+                FirePlanner.plan(new FireTarget.Self(), facts, List.of(new BurningCell(SELF, Kind.FIRE, free())));
 
         assertEquals(List.of(new ExtinguishStep.EnterWater(Pos.of(2, 64, 0))), plan.steps());
     }
@@ -144,8 +148,8 @@ class FirePlannerTest {
 
         ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Owner(), facts, List.of());
 
-        assertEquals(List.of(new ExtinguishStep.PlaceWater(beside),
-                new ExtinguishStep.RecoverBucket(beside)), plan.steps());
+        assertEquals(
+                List.of(new ExtinguishStep.PlaceWater(beside), new ExtinguishStep.RecoverBucket(beside)), plan.steps());
         assertFalse(plan.steps().contains(new ExtinguishStep.PlaceWater(Pos.of(4, 64, 4))));
     }
 
@@ -162,8 +166,7 @@ class FirePlannerTest {
     void rainingDoesNotStopABlock() {
         FireFacts facts = new FireFacts(false, true, SELF, 0, 0, null, null, true);
 
-        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts,
-                List.of(cell(Kind.FIRE, free())));
+        ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Block(FIRE_POS), facts, List.of(cell(Kind.FIRE, free())));
 
         assertEquals(List.of(new ExtinguishStep.BreakFire(FIRE_POS)), plan.steps());
     }
@@ -178,13 +181,14 @@ class FirePlannerTest {
         ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Area(List.of(FIRE_POS, second)), facts(), cells);
 
         assertEquals(List.of(new ExtinguishStep.BreakFire(second)), plan.steps());
-        assertTrue(plan.notes().stream().anyMatch(note -> note.contains("cooking station")), plan.notes().toString());
+        assertTrue(
+                plan.notes().stream().anyMatch(note -> note.contains("cooking station")),
+                plan.notes().toString());
     }
 
     @Test
     void anAreaGivesUpOnlyWhenNothingIsPossible() {
-        List<BurningCell> cells = List.of(
-                cell(Kind.LIT_CAMPFIRE, new Rails(true, false, true, true, true, false)));
+        List<BurningCell> cells = List.of(cell(Kind.LIT_CAMPFIRE, new Rails(true, false, true, true, true, false)));
 
         ExtinguishPlan plan = FirePlanner.plan(new FireTarget.Area(List.of(FIRE_POS)), facts(), cells);
 

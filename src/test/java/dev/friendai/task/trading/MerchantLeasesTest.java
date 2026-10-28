@@ -10,7 +10,8 @@ class MerchantLeasesTest {
     private static final UUID FIRST = UUID.fromString("00000000-0000-0000-0000-000000000020");
     private static final UUID SECOND = UUID.fromString("00000000-0000-0000-0000-000000000030");
 
-    @Test void onlyTheOwningOrderCanRenewOrReleaseAndExpiredLeaseCanBeReacquired() {
+    @Test
+    void onlyTheOwningOrderCanRenewOrReleaseAndExpiredLeaseCanBeReacquired() {
         var leases = new MerchantLeases();
 
         assertTrue(leases.acquire(TRADER, FIRST, 10));
@@ -27,7 +28,8 @@ class MerchantLeasesTest {
         assertTrue(leases.acquire(TRADER, SECOND, 13));
     }
 
-    @Test void releaseOnlyRemovesTheMatchingTraderOrderPair() {
+    @Test
+    void releaseOnlyRemovesTheMatchingTraderOrderPair() {
         var leases = new MerchantLeases();
         assertTrue(leases.acquire(TRADER, FIRST, 0));
 
@@ -38,7 +40,8 @@ class MerchantLeasesTest {
         assertTrue(leases.acquire(TRADER, SECOND, 0));
     }
 
-    @Test void timeCannotMoveBackwards() {
+    @Test
+    void timeCannotMoveBackwards() {
         var leases = new MerchantLeases();
         assertFalse(leases.acquire(TRADER, FIRST, -1));
         assertTrue(leases.acquire(TRADER, FIRST, 5));

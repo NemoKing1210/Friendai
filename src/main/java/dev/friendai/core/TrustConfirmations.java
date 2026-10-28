@@ -60,15 +60,15 @@ public final class TrustConfirmations {
                             request.targetName()));
             brains.post(
                     owner,
-                    new BrainEvent.WorldNotice(request.trust()
-                            ? "the owner confirmed: " + request.targetName() + " is now trusted"
-                            : "the owner confirmed: " + request.targetName() + " is no longer trusted"));
+                    new BrainEvent.WorldNotice(
+                            request.trust()
+                                    ? "the owner confirmed: " + request.targetName() + " is now trusted"
+                                    : "the owner confirmed: " + request.targetName() + " is no longer trusted"));
         } else {
             send(owner, Component.translatable("friendai.trust.cancelled"));
             brains.post(
                     owner,
-                    new BrainEvent.WorldNotice(
-                            "the owner cancelled the trust change for " + request.targetName()));
+                    new BrainEvent.WorldNotice("the owner cancelled the trust change for " + request.targetName()));
         }
         return true;
     }
@@ -143,8 +143,7 @@ public final class TrustConfirmations {
 
     private static Component button(String key, String hoverKey, String command) {
         return Component.translatable(key)
-                .withStyle(style -> style
-                        .withColor(ChatFormatting.GREEN)
+                .withStyle(style -> style.withColor(ChatFormatting.GREEN)
                         .withUnderlined(true)
                         .withClickEvent(new ClickEvent.RunCommand(command))
                         .withHoverEvent(new HoverEvent.ShowText(Component.translatable(hoverKey))));

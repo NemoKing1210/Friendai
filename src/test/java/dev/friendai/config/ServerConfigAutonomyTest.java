@@ -56,8 +56,13 @@ class ServerConfigAutonomyTest {
     @Test
     void missingSectionMigrates(@TempDir Path temp) throws Exception {
         Files.writeString(temp.resolve("c.json"), "{\"version\":11}");
-        ServerConfig loaded = new ConfigStore<>(temp.resolve("c.json"), ServerConfig.class,
-                ServerConfig::new, ServerConfig.VERSION, ServerConfig::migrate).load();
+        ServerConfig loaded = new ConfigStore<>(
+                        temp.resolve("c.json"),
+                        ServerConfig.class,
+                        ServerConfig::new,
+                        ServerConfig.VERSION,
+                        ServerConfig::migrate)
+                .load();
         assertEquals(AutonomySettings.DEFAULTS, loaded.autonomy.toSettings());
         assertEquals(ServerConfig.VERSION, loaded.version);
     }

@@ -11,7 +11,15 @@ import org.junit.jupiter.api.Test;
 /** Regression tests for defects found while reviewing the task queue. */
 class QueueReviewFixesTest {
     private static QueuedStep step(String tool, int... after) {
-        return new QueuedStep(tool, new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, java.util.Arrays.stream(after).boxed().toList());
+        return new QueuedStep(
+                tool,
+                new JsonObject(),
+                null,
+                List.of(),
+                GuardAction.WAIT,
+                null,
+                1,
+                java.util.Arrays.stream(after).boxed().toList());
     }
 
     private static JobQueue plan(String... tools) {
@@ -67,9 +75,14 @@ class QueueReviewFixesTest {
     void mergeRepointsDependentsOfTheRemovedJob() {
         JobQueue q = plan("a", "a", "c");
         q.replace(3, List.of(step("c", 2)));
-        long dependent = q.jobs().stream().filter(j -> j.tool().equals("c")).findFirst().orElseThrow().id();
+        long dependent = q.jobs().stream()
+                .filter(j -> j.tool().equals("c"))
+                .findFirst()
+                .orElseThrow()
+                .id();
         assertTrue(q.merge(1, 2, null).ok());
-        assertTrue(QueuePolicy.dependenciesDone(q, q.job(dependent).orElseThrow()) || !q.job(dependent).orElseThrow().after().contains(2L));
+        assertTrue(QueuePolicy.dependenciesDone(q, q.job(dependent).orElseThrow())
+                || !q.job(dependent).orElseThrow().after().contains(2L));
     }
 
     @Test

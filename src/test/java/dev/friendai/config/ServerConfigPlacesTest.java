@@ -39,8 +39,13 @@ class ServerConfigPlacesTest {
     @Test
     void aVersionTenFileWithoutPlacesLoadsWithDefaults(@TempDir Path temp) throws Exception {
         Files.writeString(temp.resolve("c.json"), "{\"version\":10}");
-        ServerConfig loaded = new ConfigStore<>(temp.resolve("c.json"), ServerConfig.class,
-                ServerConfig::new, ServerConfig.VERSION, ServerConfig::migrate).load();
+        ServerConfig loaded = new ConfigStore<>(
+                        temp.resolve("c.json"),
+                        ServerConfig.class,
+                        ServerConfig::new,
+                        ServerConfig.VERSION,
+                        ServerConfig::migrate)
+                .load();
         assertTrue(loaded.places.enabled);
     }
 }

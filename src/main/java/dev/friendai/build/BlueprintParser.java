@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -31,6 +30,7 @@ public final class BlueprintParser {
     private final Map<Pos, String> blocks = new LinkedHashMap<>();
     /** The cells the {@code roof} op filled with stairs, whose shape is resolved after the layers are read. */
     private final Set<Pos> roofStairs = new LinkedHashSet<>();
+
     private final Set<String> reportedUnknownBlocks = new LinkedHashSet<>();
 
     private BlueprintParser(Predicate<String> knownState) {
@@ -85,7 +85,8 @@ public final class BlueprintParser {
             errors.add("palette: must be an object of one-character keys");
             return;
         }
-        for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("palette").entrySet()) {
+        for (Map.Entry<String, JsonElement> entry :
+                root.getAsJsonObject("palette").entrySet()) {
             String key = entry.getKey();
             if (!entry.getValue().isJsonPrimitive()) {
                 errors.add("palette: key \"" + key + "\" must map to a block state");
@@ -158,7 +159,8 @@ public final class BlueprintParser {
             return;
         }
         switch (kind) {
-            case "box" -> fillBox(from, to, block, op.has("hollow") && op.get("hollow").getAsBoolean());
+            case "box" ->
+                fillBox(from, to, block, op.has("hollow") && op.get("hollow").getAsBoolean());
             case "floor" -> fillFloor(from, to, block);
             case "walls" -> fillWalls(from, to, block, corners(op));
             case "line" -> readLine(location, from, to, block);
@@ -201,9 +203,8 @@ public final class BlueprintParser {
         for (int x = from[0]; x <= to[0]; x++) {
             for (int y = from[1]; y <= to[1]; y++) {
                 for (int z = from[2]; z <= to[2]; z++) {
-                    boolean edge = x == from[0] || x == to[0]
-                            || y == from[1] || y == to[1]
-                            || z == from[2] || z == to[2];
+                    boolean edge =
+                            x == from[0] || x == to[0] || y == from[1] || y == to[1] || z == from[2] || z == to[2];
                     if (hollow && !edge) {
                         continue;
                     }
@@ -414,8 +415,8 @@ public final class BlueprintParser {
                 if (expected < 0) {
                     expected = text.length();
                 } else if (text.length() != expected) {
-                    errors.add("layer " + layer + ": row " + row + " has length " + text.length()
-                            + ", expected " + expected);
+                    errors.add("layer " + layer + ": row " + row + " has length " + text.length() + ", expected "
+                            + expected);
                     continue;
                 }
                 for (int x = 0; x < text.length(); x++) {
@@ -534,13 +535,11 @@ public final class BlueprintParser {
         }
         String half = property(state, "half");
         Side side = neighbourFacing(pos, facing, half);
-        if (side != null && side.axis() != facing.axis()
-                && canTakeShape(pos, side.opposite(), facingText, half)) {
+        if (side != null && side.axis() != facing.axis() && canTakeShape(pos, side.opposite(), facingText, half)) {
             return side == facing.counterClockWise() ? "outer_left" : "outer_right";
         }
         Side behind = neighbourFacing(pos, facing.opposite(), half);
-        if (behind != null && behind.axis() != facing.axis()
-                && canTakeShape(pos, behind, facingText, half)) {
+        if (behind != null && behind.axis() != facing.axis() && canTakeShape(pos, behind, facingText, half)) {
             return behind == facing.counterClockWise() ? "inner_left" : "inner_right";
         }
         return null;

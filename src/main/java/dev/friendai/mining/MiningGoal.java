@@ -7,8 +7,8 @@ import dev.friendai.pathing.Node;
 import dev.friendai.pathing.PathGoal;
 import dev.friendai.pathing.Pos;
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 /** Reach goal that only accepts safe, dry stances around explicitly selected resource blocks. */
 public final class MiningGoal implements PathGoal {
@@ -24,13 +24,18 @@ public final class MiningGoal implements PathGoal {
         this(targets, reach, eyeHeight, protectedSupports, Set.of());
     }
 
-    public MiningGoal(List<Pos> targets, double reach, double eyeHeight, Set<Pos> protectedSupports,
-            Set<Node> excludedStances) {
+    public MiningGoal(
+            List<Pos> targets, double reach, double eyeHeight, Set<Pos> protectedSupports, Set<Node> excludedStances) {
         this(targets, reach, eyeHeight, protectedSupports, excludedStances, false);
     }
 
-    public MiningGoal(List<Pos> targets, double reach, double eyeHeight, Set<Pos> protectedSupports,
-            Set<Node> excludedStances, boolean allowOccludedApproach) {
+    public MiningGoal(
+            List<Pos> targets,
+            double reach,
+            double eyeHeight,
+            Set<Pos> protectedSupports,
+            Set<Node> excludedStances,
+            boolean allowOccludedApproach) {
         this.targets = List.copyOf(targets);
         this.reach = reach;
         this.eyeHeight = eyeHeight;
@@ -41,7 +46,9 @@ public final class MiningGoal implements PathGoal {
 
     @Override
     public boolean isGoal(Node node, CellView view) {
-        return allowOccludedApproach ? approachAt(node, view).isPresent() : targetAt(node, view).isPresent();
+        return allowOccludedApproach
+                ? approachAt(node, view).isPresent()
+                : targetAt(node, view).isPresent();
     }
 
     private Optional<Pos> approachAt(Node node, CellView view) {

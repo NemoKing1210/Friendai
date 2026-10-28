@@ -35,8 +35,7 @@ public final class UseBlockTask implements Task {
 
     @Override
     public List<DebugTarget> debugTargets() {
-        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.USE,
-                want == null ? "" : want));
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.USE, want == null ? "" : want));
     }
 
     @Override
@@ -72,8 +71,7 @@ public final class UseBlockTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
         if (!c.companion().hands().canInteract(pos)) {
             summary = coords() + " is protected";

@@ -24,8 +24,11 @@ public final class RefreshTradesTask implements Task {
     }
 
     public RefreshTradesTask(List<UUID> traders, long deadlineTick) {
-        if (traders == null || traders.isEmpty() || traders.size() > MAX_TRADERS
-                || traders.stream().anyMatch(id -> id == null) || new HashSet<>(traders).size() != traders.size()
+        if (traders == null
+                || traders.isEmpty()
+                || traders.size() > MAX_TRADERS
+                || traders.stream().anyMatch(id -> id == null)
+                || new HashSet<>(traders).size() != traders.size()
                 || deadlineTick < 0) {
             throw new IllegalArgumentException("refresh needs 1 to 20 distinct trader UUIDs");
         }
@@ -33,7 +36,10 @@ public final class RefreshTradesTask implements Task {
         this.deadlineTick = deadlineTick;
     }
 
-    @Override public String type() { return "refresh_trades"; }
+    @Override
+    public String type() {
+        return "refresh_trades";
+    }
 
     @Override
     public void start(TaskContext context) {
@@ -69,7 +75,10 @@ public final class RefreshTradesTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    private TaskStatus finish(TaskStatus status) { terminal = status; return status; }
+    private TaskStatus finish(TaskStatus status) {
+        terminal = status;
+        return status;
+    }
 
     @Override
     public void stop(TaskContext context) {
@@ -81,12 +90,15 @@ public final class RefreshTradesTask implements Task {
         }
     }
 
-    @Override public String describe() { return "refresh offers for " + traders.size() + " selected traders"; }
+    @Override
+    public String describe() {
+        return "refresh offers for " + traders.size() + " selected traders";
+    }
 
     @Override
     public String resultSummary() {
-        String result = "inspected=" + inspected + "/" + traders.size()
-                + (reason.isBlank() ? "" : "; unavailable=" + reason);
+        String result =
+                "inspected=" + inspected + "/" + traders.size() + (reason.isBlank() ? "" : "; unavailable=" + reason);
         return result.length() <= 600 ? result : result.substring(0, 597) + "...";
     }
 }

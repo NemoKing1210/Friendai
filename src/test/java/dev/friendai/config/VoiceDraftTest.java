@@ -29,8 +29,12 @@ class VoiceDraftTest {
         ClientConfig c = ClientConfig.defaults();
         c.validate();
         VoiceDraft draft = new VoiceDraft(
-                "local", VoiceDraft.from(c).stt(), false,
-                "yandex", new VoiceDraft.Cloud("ya", null, "filipp", "f1", null, "ru-RU"), true);
+                "local",
+                VoiceDraft.from(c).stt(),
+                false,
+                "yandex",
+                new VoiceDraft.Cloud("ya", null, "filipp", "f1", null, "ru-RU"),
+                true);
 
         draft.applyTo(c);
 
@@ -46,8 +50,13 @@ class VoiceDraftTest {
         c.validate();
         assertFalse(c.voice.stt.cloud.containsKey("local"));
 
-        new VoiceDraft("local", new VoiceDraft.Cloud("sk", "m", null, "f", "https://x", "ru"),
-                false, "local", new VoiceDraft.Cloud("sk", "m", "v", "f", "https://x", "ru"), false)
+        new VoiceDraft(
+                        "local",
+                        new VoiceDraft.Cloud("sk", "m", null, "f", "https://x", "ru"),
+                        false,
+                        "local",
+                        new VoiceDraft.Cloud("sk", "m", "v", "f", "https://x", "ru"),
+                        false)
                 .applyTo(c);
 
         assertFalse(c.voice.stt.cloud.containsKey("local"));
@@ -78,8 +87,13 @@ class VoiceDraftTest {
         ClientConfig c = ClientConfig.defaults();
         c.validate();
 
-        new VoiceDraft("openai", new VoiceDraft.Cloud("  ", "", " ", "", "", ""), false,
-                "local", new VoiceDraft.Cloud(null, null, null, null, null, null), false)
+        new VoiceDraft(
+                        "openai",
+                        new VoiceDraft.Cloud("  ", "", " ", "", "", ""),
+                        false,
+                        "local",
+                        new VoiceDraft.Cloud(null, null, null, null, null, null),
+                        false)
                 .applyTo(c);
 
         ClientConfig.CloudSettings openai = c.voice.stt.cloud.get("openai");
@@ -110,8 +124,12 @@ class VoiceDraftTest {
     @Test
     void toStringNeverPrintsAKey() {
         VoiceDraft draft = new VoiceDraft(
-                "openai", new VoiceDraft.Cloud("sk-openai-secret", "m", null, null, null, null), false,
-                "elevenlabs", new VoiceDraft.Cloud("el-secret", "m", "voice", null, null, null), false);
+                "openai",
+                new VoiceDraft.Cloud("sk-openai-secret", "m", null, null, null, null),
+                false,
+                "elevenlabs",
+                new VoiceDraft.Cloud("el-secret", "m", "voice", null, null, null),
+                false);
 
         assertFalse(draft.toString().contains("sk-openai-secret"));
         assertFalse(draft.toString().contains("el-secret"));

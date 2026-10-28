@@ -1,14 +1,14 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.pathing.GoalPoint;
+import dev.friendai.core.CreativeModeService;
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.GoalPoint;
 import dev.friendai.task.Task;
-import dev.friendai.task.nav.LevelCellView;
-import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.creative.CreativeAction;
-import dev.friendai.core.CreativeModeService;
+import dev.friendai.task.nav.LevelCellView;
+import dev.friendai.task.nav.MoveHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 public final class FollowTask implements Task {
     /** The gap between where the companion stops and where it sets off again. */
     private static final double START_MARGIN = 2.0;
+
     private static final int RETRY_TICKS = 40;
     /** How long the terrain view under an airborne owner is reused. */
     private static final int TERRAIN_TICKS = 5;
@@ -93,14 +94,15 @@ public final class FollowTask implements Task {
                 moving = false;
                 retryCooldown = RETRY_TICKS;
             }
-            default -> { }
+            default -> {}
         }
         return TaskStatus.RUNNING;
     }
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
     private Vec3 followTarget(TaskContext c, ServerPlayer owner) {
-        boolean passiveFlight = c.runner() != null && c.runner().currentIsDefaultActivity()
+        boolean passiveFlight = c.runner() != null
+                && c.runner().currentIsDefaultActivity()
                 && CreativeModeService.ownerMayUsePassiveFlight(c.companion());
         if (c.canUseCreativeAction(CreativeAction.FLIGHT) || passiveFlight) {
             Vec3 away = c.companion().position().subtract(owner.position());
@@ -108,7 +110,9 @@ public final class FollowTask implements Task {
             if (away.lengthSqr() < 1.0E-6) away = new Vec3(1.0, 0.0, 0.0);
             return owner.position().add(away.normalize().scale(1.5));
         }
-        boolean grounded = owner.onGround() || owner.isInWater() || owner.onClimbable()
+        boolean grounded = owner.onGround()
+                || owner.isInWater()
+                || owner.onClimbable()
                 || owner.getVehicle() != null && owner.getVehicle().onGround();
         if (grounded) {
             return owner.position();

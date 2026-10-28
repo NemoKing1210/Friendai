@@ -36,12 +36,15 @@ class CreativePolicyTest {
         assertTrue(CreativePolicy.hasCreativeImmunity(CreativeMode.CREATIVE));
         for (CreativeAction action : CreativeAction.values()) {
             assertTrue(CreativePolicy.canAct(CreativeMode.CREATIVE, AUTHORIZED_OWNER, action), action.name());
-            assertFalse(CreativePolicy.canAct(
-                    CreativeMode.CREATIVE, new CreativePermissions(false, true, true), action), action.name());
-            assertFalse(CreativePolicy.canAct(
-                    CreativeMode.CREATIVE, new CreativePermissions(true, false, true), action), action.name());
-            assertFalse(CreativePolicy.canAct(
-                    CreativeMode.CREATIVE, new CreativePermissions(true, true, false), action), action.name());
+            assertFalse(
+                    CreativePolicy.canAct(CreativeMode.CREATIVE, new CreativePermissions(false, true, true), action),
+                    action.name());
+            assertFalse(
+                    CreativePolicy.canAct(CreativeMode.CREATIVE, new CreativePermissions(true, false, true), action),
+                    action.name());
+            assertFalse(
+                    CreativePolicy.canAct(CreativeMode.CREATIVE, new CreativePermissions(true, true, false), action),
+                    action.name());
         }
     }
 }

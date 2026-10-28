@@ -28,7 +28,8 @@ public final class ArgValidator {
             }
         }
         if (schema.has("properties")) {
-            for (Map.Entry<String, JsonElement> prop : schema.getAsJsonObject("properties").entrySet()) {
+            for (Map.Entry<String, JsonElement> prop :
+                    schema.getAsJsonObject("properties").entrySet()) {
                 JsonElement value = args.get(prop.getKey());
                 if (value == null || value.isJsonNull()) {
                     continue;
@@ -97,10 +98,12 @@ public final class ArgValidator {
         if (isNumber(value)) {
             double d = value.getAsDouble();
             if (spec.has("minimum") && d < spec.get("minimum").getAsDouble()) {
-                errors.add("'" + label + "' must be at least " + spec.get("minimum").getAsString());
+                errors.add("'" + label + "' must be at least "
+                        + spec.get("minimum").getAsString());
             }
             if (spec.has("maximum") && d > spec.get("maximum").getAsDouble()) {
-                errors.add("'" + label + "' must be at most " + spec.get("maximum").getAsString());
+                errors.add(
+                        "'" + label + "' must be at most " + spec.get("maximum").getAsString());
             }
         }
     }
@@ -112,16 +115,19 @@ public final class ArgValidator {
         }
         JsonArray array = value.getAsJsonArray();
         if (spec.has("minItems") && array.size() < spec.get("minItems").getAsInt()) {
-            errors.add("'" + label + "' must have at least " + spec.get("minItems").getAsString() + " items");
+            errors.add(
+                    "'" + label + "' must have at least " + spec.get("minItems").getAsString() + " items");
         }
         if (spec.has("maxItems") && array.size() > spec.get("maxItems").getAsInt()) {
-            errors.add("'" + label + "' must have at most " + spec.get("maxItems").getAsString() + " items");
+            errors.add(
+                    "'" + label + "' must have at most " + spec.get("maxItems").getAsString() + " items");
         }
         if (!spec.has("items") || !spec.get("items").isJsonObject()) {
             return;
         }
         JsonObject itemSchema = spec.getAsJsonObject("items");
-        boolean objectItems = itemSchema.has("type") && "object".equals(itemSchema.get("type").getAsString());
+        boolean objectItems =
+                itemSchema.has("type") && "object".equals(itemSchema.get("type").getAsString());
         for (int i = 0; i < array.size(); i++) {
             String itemLabel = label + "[" + (i + 1) + "]";
             JsonElement element = array.get(i);

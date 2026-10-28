@@ -67,7 +67,8 @@ public class UseBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("used minecraft:oak_door at " + coords(target) + ": now open"),
+            h.assertTrue(
+                    result.summary.equals("used minecraft:oak_door at " + coords(target) + ": now open"),
                     "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(8, 2, 3)).getValue(DoorBlock.OPEN), "lower half must be open");
             h.assertTrue(h.getBlockState(new BlockPos(8, 3, 3)).getValue(DoorBlock.OPEN), "upper half must be open");
@@ -86,7 +87,8 @@ public class UseBlockTests {
         runner.start(new UseBlockTask(target, "open"), "use_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "should succeed: " + result.status + " " + result.summary);
-        h.assertTrue(result.summary.equals("minecraft:spruce_door at " + coords(target) + " is already open"),
+        h.assertTrue(
+                result.summary.equals("minecraft:spruce_door at " + coords(target) + " is already open"),
                 "summary was " + result.summary);
         h.assertTrue(c.position().equals(start), "the companion must not move");
         h.succeed();
@@ -104,9 +106,11 @@ public class UseBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("used minecraft:lever at " + coords(target) + ": now on"),
+            h.assertTrue(
+                    result.summary.equals("used minecraft:lever at " + coords(target) + ": now on"),
                     "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 3)).getValue(BlockStateProperties.POWERED), "lever must be on");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 2, 3)).getValue(BlockStateProperties.POWERED), "lever must be on");
         });
     }
 
@@ -122,7 +126,8 @@ public class UseBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("used minecraft:stone_button at " + coords(target) + ": pressed"),
+            h.assertTrue(
+                    result.summary.equals("used minecraft:stone_button at " + coords(target) + ": pressed"),
                     "summary was " + result.summary);
         });
     }
@@ -139,7 +144,8 @@ public class UseBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("minecraft:iron_door at " + coords(target) + " can't be used by hand"),
+            h.assertTrue(
+                    result.summary.equals("minecraft:iron_door at " + coords(target) + " can't be used by hand"),
                     "summary was " + result.summary);
         });
     }
@@ -155,8 +161,10 @@ public class UseBlockTests {
         runner.start(new UseBlockTask(target, null), "use_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
-        h.assertTrue(result.summary.equals("I can only use doors, trapdoors, fence gates, levers and buttons; "
-                + coords(target) + " is minecraft:anvil"), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.equals("I can only use doors, trapdoors, fence gates, levers and buttons; "
+                        + coords(target) + " is minecraft:anvil"),
+                "summary was " + result.summary);
         h.succeed();
     }
 

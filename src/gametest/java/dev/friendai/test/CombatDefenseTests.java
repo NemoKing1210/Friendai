@@ -9,8 +9,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.monster.skeleton.Skeleton;
+import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -31,17 +31,21 @@ public class CombatDefenseTests {
         c.combatController().fight(skeleton);
         h.runAfterDelay(10, () -> {
             h.assertTrue(skeleton.getUseItem().is(Items.BOW), "the skeleton is not drawing: " + skeleton.getUseItem());
-            h.assertTrue(h.getLevel().getEntitiesOfClass(
-                            net.minecraft.world.entity.projectile.arrow.AbstractArrow.class,
-                            c.getBoundingBox().inflate(24.0))
-                    .isEmpty(), "an arrow exists before the draw was detected");
+            h.assertTrue(
+                    h.getLevel()
+                            .getEntitiesOfClass(
+                                    net.minecraft.world.entity.projectile.arrow.AbstractArrow.class,
+                                    c.getBoundingBox().inflate(24.0))
+                            .isEmpty(),
+                    "an arrow exists before the draw was detected");
             h.assertTrue(c.isBlocking(), "the shield was not raised during the draw: " + c.getItemBlockingWith());
         });
         h.runAfterDelay(20, () -> skeleton.performRangedAttack(c, 0.2F));
         h.runAfterDelay(80, () -> {
-            h.assertTrue(c.getHealth() == c.getMaxHealth(),
-                    "the arrow from the draw was not blocked: " + c.getHealth() + "/" + c.getMaxHealth()
-                            + ", source " + c.getLastDamageSource());
+            h.assertTrue(
+                    c.getHealth() == c.getMaxHealth(),
+                    "the arrow from the draw was not blocked: " + c.getHealth() + "/" + c.getMaxHealth() + ", source "
+                            + c.getLastDamageSource());
             c.combatController().stopFight();
             h.succeed();
         });
@@ -64,14 +68,18 @@ public class CombatDefenseTests {
         skeleton.setNoAi(true);
         skeleton.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         skeleton.setTarget(c);
-        h.runAfterDelay(5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(far), 1.0f));
+        h.runAfterDelay(
+                5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(far), 1.0f));
         h.runAfterDelay(15, () -> {
-            h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
-                    "the companion is not fighting the far zombie: " + c.combatController().state());
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.FIGHTING,
+                    "the companion is not fighting the far zombie: "
+                            + c.combatController().state());
             skeleton.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
         });
         h.runAfterDelay(25, () -> {
-            h.assertTrue(c.isBlocking(),
+            h.assertTrue(
+                    c.isBlocking(),
                     "the shield is claimed but not active: holding " + c.getUseItem()
                             + ", blocking " + c.isBlocking()
                             + ", action " + c.combatController().activeAction());
@@ -95,17 +103,20 @@ public class CombatDefenseTests {
         zombie.setNoAi(true);
         c.combatController().fight(zombie);
         h.runAfterDelay(40, () -> {
-            h.assertTrue(c.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD),
-                    "cautious melee did not raise a shield: " + c.getItemBySlot(EquipmentSlot.OFFHAND)
-                            + ", state " + c.combatController().state());
+            h.assertTrue(
+                    c.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD),
+                    "cautious melee did not raise a shield: " + c.getItemBySlot(EquipmentSlot.OFFHAND) + ", state "
+                            + c.combatController().state());
             c.combatController().stopFight();
         });
         h.runAfterDelay(42, () -> {
-            h.assertTrue(c.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.TORCH),
+            h.assertTrue(
+                    c.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.TORCH),
                     "the torch was not restored: " + c.getItemBySlot(EquipmentSlot.OFFHAND));
             int shields = c.inventory().countItem(Items.SHIELD);
             h.assertValueEqual(shields, 1, "shield count changed");
-            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.IDLE,
                     "state after stop: " + c.combatController().state());
             h.succeed();
         });
@@ -118,23 +129,30 @@ public class CombatDefenseTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 3);
         zombie.setNoAi(true);
-        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(100.0);
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                .setBaseValue(100.0);
         zombie.setHealth(100.0f);
         c.taskRunner().start(new dev.friendai.task.builtin.StayTask(), "stay");
-        h.runAfterDelay(5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
+        h.runAfterDelay(
+                5, () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0f));
         h.runAfterDelay(30, () -> {
-            h.assertTrue(c.combatController().state() == CombatController.State.FIGHTING,
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.FIGHTING,
                     "the reflex fight did not start: " + c.combatController().state());
             h.assertTrue(c.taskRunner().paused(), "the runner was not paused by the reflex fight");
             c.setCombatSettings(c.combatSettings().withProtection(ProtectionPolicy.AVOID_COMBAT));
         });
         h.runAfterDelay(40, () -> zombie.kill(h.getLevel()));
         h.runAfterDelay(120, () -> {
-            h.assertTrue(c.combatController().state() == CombatController.State.IDLE,
-                    "the old fight survived the settings change: " + c.combatController().state());
-            h.assertTrue(c.combatController().target().isEmpty(),
+            h.assertTrue(
+                    c.combatController().state() == CombatController.State.IDLE,
+                    "the old fight survived the settings change: "
+                            + c.combatController().state());
+            h.assertTrue(
+                    c.combatController().target().isEmpty(),
                     "target after the settings change: " + c.combatController().target());
-            h.assertTrue(!c.taskRunner().paused(),
+            h.assertTrue(
+                    !c.taskRunner().paused(),
                     "the task pause was not released: " + c.combatController().state());
             h.succeed();
         });

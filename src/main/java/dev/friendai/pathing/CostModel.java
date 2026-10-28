@@ -17,18 +17,5 @@ public record CostModel(
         int logPenalty) {
 
     /** Vanilla-like defaults tuned against the GameTests. */
-    public static final CostModel DEFAULTS = new CostModel(
-            4.6,
-            4.6 * 1.41,
-            2,
-            1,
-            9,
-            6,
-            4,
-            2,
-            5,
-            40,
-            20,
-            5,
-            20);
+    public static final CostModel DEFAULTS = new CostModel(4.6, 4.6 * 1.41, 2, 1, 9, 6, 4, 2, 5, 40, 20, 5, 20);
 }

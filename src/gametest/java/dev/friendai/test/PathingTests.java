@@ -14,21 +14,21 @@ import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Node;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathStep;
-import dev.friendai.task.nav.PathExecutor;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.builtin.FollowTask;
-import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.MineBlocksTask;
+import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BreakProgress;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.MaterialPicker;
 import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.nav.Navigator;
+import dev.friendai.task.nav.PathExecutor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +51,7 @@ public class PathingTests {
         String summary = "";
         /** The last few pathing decisions, so a timed-out test says why it could not walk. */
         final List<String> debug = new ArrayList<>();
+
         final List<String> notices = new ArrayList<>();
 
         @Override
@@ -90,8 +91,7 @@ public class PathingTests {
     /** A companion whose pathing may not leave a 16x16 platform. */
     private static CompanionEntity walker(GameTestHelper h, float x, float y, float z) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, x, y, z);
-        c.setPathBounds(new AABB(
-                h.absoluteVec(new Vec3(-1, -1, -1)), h.absoluteVec(new Vec3(17, 12, 17))));
+        c.setPathBounds(new AABB(h.absoluteVec(new Vec3(-1, -1, -1)), h.absoluteVec(new Vec3(17, 12, 17))));
         return c;
     }
 
@@ -100,8 +100,8 @@ public class PathingTests {
         c.taskRunner().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
     }
 
-    private static void assertBlock(GameTestHelper h, int x, int y, int z, net.minecraft.world.level.block.Block block,
-            String what) {
+    private static void assertBlock(
+            GameTestHelper h, int x, int y, int z, net.minecraft.world.level.block.Block block, String what) {
         BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z)));
         h.assertTrue(state.is(block), what + " at " + x + " " + y + " " + z + " is " + state);
     }
@@ -145,13 +145,15 @@ public class PathingTests {
         BlockState log = h.getLevel().getBlockState(logPos);
         int expected = BreakProgress.ticksToBreak(log.getDestroySpeed(h.getLevel(), logPos), 1f, true)
                 + CostModel.DEFAULTS.logPenalty();
-        h.assertTrue(cellAt(bare, logPos).breakTicks() == expected,
+        h.assertTrue(
+                cellAt(bare, logPos).breakTicks() == expected,
                 "log ticks " + cellAt(bare, logPos).breakTicks() + " != " + expected);
 
         int bareStone = cellAt(bare, h.absolutePos(new BlockPos(2, 2, 2))).breakTicks();
         c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
         LevelCellView armed = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
-        h.assertTrue(cellAt(armed, h.absolutePos(new BlockPos(2, 2, 2))).breakTicks() < bareStone,
+        h.assertTrue(
+                cellAt(armed, h.absolutePos(new BlockPos(2, 2, 2))).breakTicks() < bareStone,
                 "a pickaxe breaks stone faster");
         h.succeed();
     }
@@ -180,7 +182,9 @@ public class PathingTests {
         Optional<ItemStack> taken = picker.takeCheapest(c.inventory());
         h.assertTrue(taken.isPresent(), "nothing taken");
         h.assertTrue(taken.get().is(Items.DIRT), "took " + taken.get());
-        h.assertTrue(c.inventory().countItem(Items.DIRT) == 4, "dirt left " + c.inventory().countItem(Items.DIRT));
+        h.assertTrue(
+                c.inventory().countItem(Items.DIRT) == 4,
+                "dirt left " + c.inventory().countItem(Items.DIRT));
         h.succeed();
     }
 
@@ -217,7 +221,8 @@ public class PathingTests {
         brains.currentPrompt(player.getUUID());
         c.taskRunner().debug("path test");
         List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
-        h.assertTrue(log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains("path test")),
+        h.assertTrue(
+                log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains("path test")),
                 "debug line must reach the owner's log: " + log);
         h.succeed();
     }
@@ -283,12 +288,12 @@ public class PathingTests {
     public void goToGathersDirtThenBridges(GameTestHelper h) {
         plankPitWithDirtMound(h);
         CompanionEntity c = walker(h, 5, 8, 8);
-        c.setPathBounds(new AABB(
-                h.absoluteVec(new Vec3(0, 0, 5)), h.absoluteVec(new Vec3(16, 14, 11))));
+        c.setPathBounds(new AABB(h.absoluteVec(new Vec3(0, 0, 5)), h.absoluteVec(new Vec3(16, 14, 11))));
         for (int z = 7; z <= 9; z++) {
             Vec3 viewpoint = h.absoluteVec(new Vec3(5.5, 8, z + 0.5));
             c.teleportTo(viewpoint.x, viewpoint.y, viewpoint.z);
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 9, z))),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 9, z))),
                     "the dirt mound edge at z=" + z + " must be directly visible before it can be chosen");
         }
         Vec3 start = h.absoluteVec(new Vec3(5.5, 8, 8.5));
@@ -308,11 +313,14 @@ public class PathingTests {
                     }
                 }
             }
-            h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row; dirt="
-                    + c.inventory().countItem(Items.DIRT) + ", notices=" + out.notices + ", companion="
-                    + c.blockPosition() + "; paths: " + out.debug);
+            h.assertTrue(
+                    bridged >= 1,
+                    "bridged " + bridged + " cells of the pit row; dirt="
+                            + c.inventory().countItem(Items.DIRT) + ", notices=" + out.notices + ", companion="
+                            + c.blockPosition() + "; paths: " + out.debug);
             h.assertTrue(out.gathered, "no gathering log line, last: " + out.debug);
-            h.assertTrue(out.notices.stream().noneMatch(text -> text.startsWith("gathering ")),
+            h.assertTrue(
+                    out.notices.stream().noneMatch(text -> text.startsWith("gathering ")),
                     "gathering must not wake the brain: " + out.notices);
         });
     }
@@ -325,7 +333,8 @@ public class PathingTests {
         h.setBlock(new BlockPos(8, 4, 8), Blocks.DIRT);
         CompanionEntity c = walker(h, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
                 "andesite should be directly visible beneath the dirt cap");
         MineBlocksTask task = new MineBlocksTask(
                 BlockMatcher.parse("minecraft:polished_andesite").orElseThrow(), 1, 32);
@@ -336,7 +345,8 @@ public class PathingTests {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
             BlockState left = h.getLevel().getBlockState(h.absolutePos(new BlockPos(8, 2, 8)));
             h.assertTrue(left.isAir(), "andesite still there: " + left);
-            h.assertTrue(c.inventory().countItem(Items.POLISHED_ANDESITE) >= 1,
+            h.assertTrue(
+                    c.inventory().countItem(Items.POLISHED_ANDESITE) >= 1,
                     "andesite collected: " + c.inventory().countItem(Items.POLISHED_ANDESITE));
         });
     }
@@ -349,12 +359,14 @@ public class PathingTests {
         }
         CompanionEntity c = walker(h, 2, 2, 2);
         for (int y = 2; y <= 9; y++) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, y, 8))),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, y, 8))),
                     "log at y=" + y + " should be directly visible");
         }
         // Dirt to pillar up beside the column: the upper logs are out of reach from the ground.
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
-        MineBlocksTask task = new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
+        MineBlocksTask task =
+                new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
         Outcome out = new Outcome();
         c.taskRunner().setListener(out);
         c.taskRunner().start(task, "mine_blocks");
@@ -362,14 +374,17 @@ public class PathingTests {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
             int left = 0;
             for (int y = 2; y <= 9; y++) {
-                if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(8, y, 8))).is(Blocks.CHERRY_LOG)) {
+                if (h.getLevel()
+                        .getBlockState(h.absolutePos(new BlockPos(8, y, 8)))
+                        .is(Blocks.CHERRY_LOG)) {
                     left++;
                 }
             }
             h.assertTrue(left == 0, "logs left: " + left);
             // The drops of a tall column land on the ground below it, where the mining task's sweep at the last
             // broken block collects them; the mined count is what the task promises.
-            h.assertTrue(c.inventory().countItem(Items.CHERRY_LOG) >= 1,
+            h.assertTrue(
+                    c.inventory().countItem(Items.CHERRY_LOG) >= 1,
                     "logs collected: " + c.inventory().countItem(Items.CHERRY_LOG));
         });
     }
@@ -378,11 +393,16 @@ public class PathingTests {
     public void gatheringLeavesProtectedBlocks(GameTestHelper h) {
         plankPitWithDirtMound(h);
         CompanionEntity c = walker(h, 1, 8, 8);
-        // The mound is protected as a spawn region would be: gathering must leave it alone, so the pit stays uncrossable.
+        // The mound is protected as a spawn region would be: gathering must leave it alone, so the pit stays
+        // uncrossable.
         BlockPos mound = h.absolutePos(new BlockPos(2, 8, 7));
-        c.hands().overrideProtection(pos -> pos.getX() >= mound.getX() && pos.getX() <= mound.getX() + 2
-                && pos.getZ() >= mound.getZ() && pos.getZ() <= mound.getZ() + 2
-                && pos.getY() >= mound.getY() && pos.getY() <= mound.getY() + 1);
+        c.hands()
+                .overrideProtection(pos -> pos.getX() >= mound.getX()
+                        && pos.getX() <= mound.getX() + 2
+                        && pos.getZ() >= mound.getZ()
+                        && pos.getZ() <= mound.getZ() + 2
+                        && pos.getY() >= mound.getY()
+                        && pos.getY() <= mound.getY() + 1);
         Outcome out = new Outcome();
         walkTo(c, h, out, 12.5, 8, 8.5);
         h.succeedWhen(() -> {
@@ -391,7 +411,9 @@ public class PathingTests {
             for (int x = 2; x <= 4; x++) {
                 for (int z = 7; z <= 9; z++) {
                     for (int y = 8; y <= 9; y++) {
-                        if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(Blocks.DIRT)) {
+                        if (h.getLevel()
+                                .getBlockState(h.absolutePos(new BlockPos(x, y, z)))
+                                .is(Blocks.DIRT)) {
                             left++;
                         }
                     }
@@ -480,7 +502,9 @@ public class PathingTests {
             double x = 6 + 2.0 * step;
             mover.tick(c, h.absoluteVec(new Vec3(x + 0.5, 2, 2.5)));
             double distance = c.position().distanceTo(finalTarget);
-            h.assertTrue(h.getTick() >= 100 && distance <= 1.75, "still " + distance + " blocks away on tick " + h.getTick());
+            h.assertTrue(
+                    h.getTick() >= 100 && distance <= 1.75,
+                    "still " + distance + " blocks away on tick " + h.getTick());
         });
     }
 
@@ -500,7 +524,8 @@ public class PathingTests {
         h.onEachTick(() -> state[0] = navigator.tick(context));
         h.succeedWhen(() -> {
             h.assertTrue(state[0] == Navigator.State.ARRIVED, "not on carpet: " + state[0] + " at " + c.position());
-            h.assertTrue(Math.abs(c.getY() - (target.y - 0.9375)) < 0.1, "feet should rest on the carpet: " + c.position());
+            h.assertTrue(
+                    Math.abs(c.getY() - (target.y - 0.9375)) < 0.1, "feet should rest on the carpet: " + c.position());
         });
     }
 
@@ -537,8 +562,8 @@ public class PathingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
         Outcome out = new Outcome();
         walkTo(c, h, out, 11.5, floor + 1, 3.5);
-        h.succeedWhen(() -> h.assertTrue(out.status == TaskStatus.SUCCESS,
-                "did not swim across: " + out.why() + " at " + c.blockPosition()));
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.SUCCESS, "did not swim across: " + out.why() + " at " + c.blockPosition()));
     }
 
     @GameTest(maxTicks = 300)
@@ -557,8 +582,8 @@ public class PathingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
         Outcome out = new Outcome();
         walkTo(c, h, out, 13.5, floor + 1, 3.5);
-        h.succeedWhen(() -> h.assertTrue(out.status == TaskStatus.SUCCESS,
-                "did not swim through: " + out.why() + " at " + c.position()));
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.SUCCESS, "did not swim through: " + out.why() + " at " + c.position()));
     }
 
     @GameTest(maxTicks = 900)
@@ -581,7 +606,8 @@ public class PathingTests {
         double[] last = {c.getX(), c.getY(), c.getZ()};
         double[] biggest = {0};
         h.onEachTick(() -> {
-            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2) + Math.pow(c.getY() - last[1], 2)
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
                     + Math.pow(c.getZ() - last[2], 2));
             biggest[0] = Math.max(biggest[0], step);
             last[0] = c.getX();
@@ -589,7 +615,8 @@ public class PathingTests {
             last[2] = c.getZ();
             h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks in one tick");
         });
-        h.succeedWhen(() -> h.assertTrue(c.position().distanceTo(owner.position()) <= 5.0,
+        h.succeedWhen(() -> h.assertTrue(
+                c.position().distanceTo(owner.position()) <= 5.0,
                 "still " + c.position().distanceTo(owner.position()) + " blocks away"));
     }
 
@@ -603,13 +630,12 @@ public class PathingTests {
         c.setOwner(owner.getUUID());
         c.taskRunner().start(new FollowTask(true), "follow");
         double ceiling = h.absolutePos(new BlockPos(0, floor + 4, 0)).getY();
-        h.onEachTick(() -> h.assertTrue(c.getY() < ceiling,
-                "the companion climbed to " + c.getY() + " toward a flying owner"));
+        h.onEachTick(() ->
+                h.assertTrue(c.getY() < ceiling, "the companion climbed to " + c.getY() + " toward a flying owner"));
         h.succeedWhen(() -> {
             double dx = c.getX() - owner.getX();
             double dz = c.getZ() - owner.getZ();
-            h.assertTrue(Math.sqrt(dx * dx + dz * dz) <= 5.0,
-                    "not standing under the owner: " + c.position());
+            h.assertTrue(Math.sqrt(dx * dx + dz * dz) <= 5.0, "not standing under the owner: " + c.position());
         });
     }
 
@@ -622,22 +648,25 @@ public class PathingTests {
             h.setBlock(new BlockPos(7, y, 5), Blocks.STONE);
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 5);
-        BlockBreaker breaker = new BlockBreaker(h.absolutePos(new BlockPos(8, floor + 1, 5)),
-                state -> state.is(Blocks.DIRT), true);
+        BlockBreaker breaker =
+                new BlockBreaker(h.absolutePos(new BlockPos(8, floor + 1, 5)), state -> state.is(Blocks.DIRT), true);
         TaskContext context = new TaskContext(c, h.getLevel());
         double[] last = {c.getX(), c.getY(), c.getZ()};
         double[] biggest = {0};
         boolean[] done = {false};
         h.onEachTick(() -> {
             BlockBreaker.State state = breaker.tick(context);
-            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2) + Math.pow(c.getY() - last[1], 2)
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
                     + Math.pow(c.getZ() - last[2], 2));
             biggest[0] = Math.max(biggest[0], step);
             last[0] = c.getX();
             last[1] = c.getY();
             last[2] = c.getZ();
             h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks to a view spot");
-            h.assertTrue(state == BlockBreaker.State.WORKING || state == BlockBreaker.State.BROKEN
+            h.assertTrue(
+                    state == BlockBreaker.State.WORKING
+                            || state == BlockBreaker.State.BROKEN
                             || state == BlockBreaker.State.GONE,
                     "the breaker gave up: " + state);
             done[0] = state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE;
@@ -678,14 +707,23 @@ public class PathingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 186, 2);
         BlockPos from = h.absolutePos(new BlockPos(2, 186, 2));
         BlockPos to = from.east();
-        PathStep step = new PathStep(new Node(from.getX(), from.getY(), from.getZ()),
-                new Node(to.getX(), to.getY(), to.getZ()), Move.WALK, List.of(), List.of(), 4.6, 0);
-        PathExecutor executor = new PathExecutor(new Path(List.of(step), step.cost(), 0, 0, false),
-                new MaterialPicker(PathingConfig.DEFAULTS), PathingConfig.DEFAULTS);
+        PathStep step = new PathStep(
+                new Node(from.getX(), from.getY(), from.getZ()),
+                new Node(to.getX(), to.getY(), to.getZ()),
+                Move.WALK,
+                List.of(),
+                List.of(),
+                4.6,
+                0);
+        PathExecutor executor = new PathExecutor(
+                new Path(List.of(step), step.cost(), 0, 0, false),
+                new MaterialPicker(PathingConfig.DEFAULTS),
+                PathingConfig.DEFAULTS);
         TaskContext context = new TaskContext(c, h.getLevel());
         executor.tick(context);
         h.setBlock(new BlockPos(3, 186, 2), Blocks.STONE);
-        h.assertTrue(executor.tick(context) == PathExecutor.State.FAILED,
+        h.assertTrue(
+                executor.tick(context) == PathExecutor.State.FAILED,
                 "an occupied destination must fail before movement starts");
         h.assertFalse(c.pathing(), "a failed step must clear pathing");
         h.succeed();

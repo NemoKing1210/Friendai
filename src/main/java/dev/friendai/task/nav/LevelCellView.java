@@ -273,7 +273,10 @@ public final class LevelCellView implements CellView {
 
     public static Set<String> tagsOf(BlockState state) {
         Set<String> tags = new HashSet<>();
-        state.getBlock().builtInRegistryHolder().tags().forEach(tag -> tags.add(tag.location().toString()));
+        state.getBlock()
+                .builtInRegistryHolder()
+                .tags()
+                .forEach(tag -> tags.add(tag.location().toString()));
         return tags;
     }
 

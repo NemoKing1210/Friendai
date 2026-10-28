@@ -87,15 +87,16 @@ public final class MemoryViewBuilder {
         if (enabled) {
             for (Fact fact : book.allFacts()) {
                 String author = Objects.equals(fact.authorUuid(), owner) ? "" : label(fact.authorName());
-                facts.add(new MemoryView.FactRow(
-                        fact.id(), fact.subject().key(), fact.category(), fact.text(), author));
+                facts.add(
+                        new MemoryView.FactRow(fact.id(), fact.subject().key(), fact.category(), fact.text(), author));
             }
             if (facts.size() > MemoryViewCodec.MAX_FACTS) {
                 facts = new ArrayList<>(facts.subList(0, MemoryViewCodec.MAX_FACTS));
             }
         }
         MemoryView.PersonaView persona = new MemoryView.PersonaView(
-                book.persona().orElse(serverPersona == null ? "" : serverPersona), book.persona().isPresent());
+                book.persona().orElse(serverPersona == null ? "" : serverPersona),
+                book.persona().isPresent());
         return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
     }
 

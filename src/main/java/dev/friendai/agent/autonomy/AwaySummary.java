@@ -25,7 +25,17 @@ public final class AwaySummary {
     }
 
     private static FreeTime withAway(FreeTime s, List<String> away) {
-        return new FreeTime(s.on(), s.origin(), s.wish(), s.sinceMillis(), s.shift(), s.awaitingChoice(),
-                s.nextShiftId(), s.history(), s.lessons(), s.cooldownUntil(), away);
+        return new FreeTime(
+                s.on(),
+                s.origin(),
+                s.wish(),
+                s.sinceMillis(),
+                s.shift(),
+                s.awaitingChoice(),
+                s.nextShiftId(),
+                s.history(),
+                s.lessons(),
+                s.cooldownUntil(),
+                away);
     }
 }

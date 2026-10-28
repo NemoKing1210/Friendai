@@ -67,17 +67,25 @@ public class PerceptionTests {
         for (int y = 2; y <= 6; y++) {
             h.setBlock(5, y, 2, Blocks.CHERRY_LOG);
         }
-        h.setBlock(5, 7, 2, Blocks.CHERRY_LEAVES.defaultBlockState()
-                .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true));
+        h.setBlock(
+                5,
+                7,
+                2,
+                Blocks.CHERRY_LEAVES
+                        .defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         for (int y = 2; y <= 6; y++) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, y, 2))),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, y, 2))),
                     "tree log should be directly visible at y=" + y);
         }
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 7, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 7, 2))),
                 "tree leaves should be directly visible");
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
-        h.assertTrue(p.toPromptText().contains("Trees: minecraft:cherry_log 3 blocks east (5 logs, height 5, standing)"),
+        h.assertTrue(
+                p.toPromptText().contains("Trees: minecraft:cherry_log 3 blocks east (5 logs, height 5, standing)"),
                 p.toPromptText());
         h.succeed();
     }
@@ -88,15 +96,15 @@ public class PerceptionTests {
         h.setBlock(6, 2, 2, Blocks.CRAFTING_TABLE);
         h.setBlock(2, 2, 6, Blocks.FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 2))),
                 "crafting table should be directly visible");
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
                 "furnace should be directly visible");
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
-        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("crafting_table")),
-                p.toPromptText());
-        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("furnace")),
-                p.toPromptText());
+        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("crafting_table")), p.toPromptText());
+        h.assertTrue(p.landmarks().stream().anyMatch(l -> l.block().equals("furnace")), p.toPromptText());
         h.succeed();
     }
 
@@ -120,10 +128,15 @@ public class PerceptionTests {
         h.setBlock(6, 2, 11, Blocks.ANVIL);
         h.setBlock(11, 2, 11, Blocks.CHEST);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
-        for (BlockPos landmark : List.of(new BlockPos(1, 2, 1), new BlockPos(1, 2, 6),
-                new BlockPos(6, 2, 1), new BlockPos(11, 2, 6), new BlockPos(6, 2, 11),
+        for (BlockPos landmark : List.of(
+                new BlockPos(1, 2, 1),
+                new BlockPos(1, 2, 6),
+                new BlockPos(6, 2, 1),
+                new BlockPos(11, 2, 6),
+                new BlockPos(6, 2, 11),
                 new BlockPos(11, 2, 11))) {
-            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(landmark)),
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(landmark)),
                     "landmark should be directly visible at " + landmark);
         }
         PerceptionSnapshot p = PerceptionBuilder.brief(c);
@@ -140,13 +153,14 @@ public class PerceptionTests {
         var owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
                 "wall should be directly visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
-        var call = new dev.friendai.llm.model.ToolCall("1", "survey_area",
-                new com.google.gson.JsonObject(), "{}", null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call =
+                new dev.friendai.llm.model.ToolCall("1", "survey_area", new com.google.gson.JsonObject(), "{}", null);
+        var result = tools.execute(
+                call, new dev.friendai.tool.Caller(owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("@"), result.content());
         h.assertTrue(result.content().contains("#"), result.content());

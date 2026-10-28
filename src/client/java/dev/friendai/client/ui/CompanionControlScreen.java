@@ -58,17 +58,24 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     public void added() {
         CompanionClientState.reset();
         CompanionRequests.send(RequestType.SUBSCRIBE);
-        if(selected==memory)CompanionRequests.send(RequestType.MEMORY_OPEN);
-        if(selected==skills||selected==memory)SkillsTab.open();
+        if (selected == memory) CompanionRequests.send(RequestType.MEMORY_OPEN);
+        if (selected == skills || selected == memory) SkillsTab.open();
     }
 
     @Override
     public void removed() {
         CompanionRequests.send(RequestType.UNSUBSCRIBE);
-        CompanionRequests.skills("close","{}");
-        CompanionRequests.trade(dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
-                CompanionClientState.tradeView().map(view -> view.queryId().toString()).orElse("00000000-0000-0000-0000-000000000000"),
-                "", "{}", 0, 0, "");
+        CompanionRequests.skills("close", "{}");
+        CompanionRequests.trade(
+                dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                CompanionClientState.tradeView()
+                        .map(view -> view.queryId().toString())
+                        .orElse("00000000-0000-0000-0000-000000000000"),
+                "",
+                "{}",
+                0,
+                0,
+                "");
         if (selected == memory) {
             CompanionRequests.send(RequestType.MEMORY_CLOSE);
         }
@@ -108,7 +115,10 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
 
     /** What the built widgets depend on; a change means the layout has to be rebuilt. */
     private String layoutKey() {
-        return operator() + "|" + CompanionClientState.snapshot().map(s -> String.valueOf(s.toolNames())).orElse("");
+        return operator() + "|"
+                + CompanionClientState.snapshot()
+                        .map(s -> String.valueOf(s.toolNames()))
+                        .orElse("");
     }
 
     private List<Entry> visibleTabs() {
@@ -134,12 +144,20 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (selected == places) {
             CompanionRequests.send(RequestType.PLACES_CLOSE);
         }
-        if (selected == traders) CompanionRequests.trade(dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
-                CompanionClientState.tradeView().map(view -> view.queryId().toString()).orElse("00000000-0000-0000-0000-000000000000"),
-                "", "{}", 0, 0, "");
-        if(selected==skills)CompanionRequests.skills("close","{}");
+        if (selected == traders)
+            CompanionRequests.trade(
+                    dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                    CompanionClientState.tradeView()
+                            .map(view -> view.queryId().toString())
+                            .orElse("00000000-0000-0000-0000-000000000000"),
+                    "",
+                    "{}",
+                    0,
+                    0,
+                    "");
+        if (selected == skills) CompanionRequests.skills("close", "{}");
         selected = entry;
-        if(entry==skills)SkillsTab.open();
+        if (entry == skills) SkillsTab.open();
         if (entry == memory) {
             SkillsTab.open();
             CompanionRequests.send(RequestType.MEMORY_OPEN);
@@ -167,8 +185,15 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             Entry entry = shownTabs.get(i);
             boolean operatorEntry = operatorStart >= 0 && i >= operatorStart;
             Component label = Component.translatable(entry.titleKey());
-            FlatButton button = new FlatButton(0, 0, rail.box().width(), rail.entryHeight(), label,
-                    operatorEntry ? Ui.PURPLE : 0, () -> select(entry)).asTab(entry == selected);
+            FlatButton button = new FlatButton(
+                            0,
+                            0,
+                            rail.box().width(),
+                            rail.entryHeight(),
+                            label,
+                            operatorEntry ? Ui.PURPLE : 0,
+                            () -> select(entry))
+                    .asTab(entry == selected);
             button.setTooltip(Tooltip.create(label));
             railButtons.add(addRenderableWidget(button));
         }
@@ -179,8 +204,13 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         selected.tab().init(this, content.x(), content.y(), content.width(), content.height());
         SideNavLayout.Rect window = layout.window();
         addRenderableWidget(new FlatButton(
-                window.x() + window.width() / 2 - DONE_WIDTH / 2, height - DONE_HEIGHT - 8, DONE_WIDTH,
-                DONE_HEIGHT, CommonComponents.GUI_DONE, 0, this::onClose));
+                window.x() + window.width() / 2 - DONE_WIDTH / 2,
+                height - DONE_HEIGHT - 8,
+                DONE_WIDTH,
+                DONE_HEIGHT,
+                CommonComponents.GUI_DONE,
+                0,
+                this::onClose));
     }
 
     /**
@@ -199,7 +229,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             button.setX(slot.x());
             int y = slot.y() - railScroll;
             button.setY(y);
-            button.setHitTest(y >= rail.box().y() && y + button.getHeight() <= rail.box().bottom());
+            button.setHitTest(
+                    y >= rail.box().y() && y + button.getHeight() <= rail.box().bottom());
         }
     }
 
@@ -238,7 +269,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (layout != null && layout.rail().maxScroll() > 0 && inside(layout.rail().box(), mouseX, mouseY)) {
+        if (layout != null
+                && layout.rail().maxScroll() > 0
+                && inside(layout.rail().box(), mouseX, mouseY)) {
             setFocused(null);
             railScroll -= (int) Math.round(scrollY * RAIL_STEP);
             positionRail();
@@ -279,7 +312,11 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
                 continue;
             }
             if (railButtons.contains(renderable)) {
-                g.enableScissor(rail.box().x(), rail.box().y(), rail.box().right(), rail.box().bottom());
+                g.enableScissor(
+                        rail.box().x(),
+                        rail.box().y(),
+                        rail.box().right(),
+                        rail.box().bottom());
                 renderable.extractRenderState(g, mouseX, mouseY, partialTick);
                 g.disableScissor();
             } else {

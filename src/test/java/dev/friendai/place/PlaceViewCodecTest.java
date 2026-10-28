@@ -74,12 +74,13 @@ class PlaceViewCodecTest {
 
     @Test
     void errorStatusSurvives() {
-        PlaceView view = viewWith(
-                0, Optional.of(MenuStatus.error("friendai.menu.places.error.name_taken", "home")));
+        PlaceView view = viewWith(0, Optional.of(MenuStatus.error("friendai.menu.places.error.name_taken", "home")));
         PlaceView decoded = PlaceViewCodec.decode(PlaceViewCodec.encode(view));
         assertTrue(decoded.status().isPresent());
         assertEquals(false, decoded.status().get().ok());
-        assertEquals("friendai.menu.places.error.name_taken", decoded.status().get().message().key());
+        assertEquals(
+                "friendai.menu.places.error.name_taken",
+                decoded.status().get().message().key());
         assertEquals(List.of("home"), decoded.status().get().message().args());
     }
 
@@ -105,9 +106,7 @@ class PlaceViewCodecTest {
     @Test
     void truncatedDataFails() {
         byte[] data = PlaceViewCodec.encode(viewWith(2, Optional.empty()));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PlaceViewCodec.decode(Arrays.copyOf(data, data.length / 2)));
+        assertThrows(IllegalArgumentException.class, () -> PlaceViewCodec.decode(Arrays.copyOf(data, data.length / 2)));
     }
 
     @Test
@@ -128,8 +127,19 @@ class PlaceViewCodecTest {
         List<PlaceView.Row> rows = new ArrayList<>();
         for (int i = 1; i <= PlaceViewCodec.MAX_PLACES + 1; i++) {
             rows.add(new PlaceView.Row(
-                    i, "p" + i, "friendai.menu.place.kind.house", "", OVERWORLD, 0, 64, 0, 8, 0, 0,
-                    "friendai.menu.place.source.manual", ""));
+                    i,
+                    "p" + i,
+                    "friendai.menu.place.kind.house",
+                    "",
+                    OVERWORLD,
+                    0,
+                    64,
+                    0,
+                    8,
+                    0,
+                    0,
+                    "friendai.menu.place.source.manual",
+                    ""));
         }
         byte[] data = PlaceViewCodec.encode(new PlaceView(true, rows, Optional.empty()));
         assertThrows(IllegalArgumentException.class, () -> PlaceViewCodec.decode(data));

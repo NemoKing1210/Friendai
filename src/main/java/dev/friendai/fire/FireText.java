@@ -37,15 +37,13 @@ public final class FireText {
 
     private static String describe(ExtinguishStep step) {
         return switch (step) {
-            case ExtinguishStep.PlaceWater water -> "pour a water bucket at " + at(water.pos())
-                    + " and take the water back";
-            case ExtinguishStep.DouseCampfire campfire -> "pour water on the campfire at "
-                    + at(campfire.pos());
-            case ExtinguishStep.RecoverBucket bucket -> "take the source back with an empty bucket at "
-                    + at(bucket.pos());
+            case ExtinguishStep.PlaceWater water ->
+                "pour a water bucket at " + at(water.pos()) + " and take the water back";
+            case ExtinguishStep.DouseCampfire campfire -> "pour water on the campfire at " + at(campfire.pos());
+            case ExtinguishStep.RecoverBucket bucket ->
+                "take the source back with an empty bucket at " + at(bucket.pos());
             case ExtinguishStep.EnterWater water -> "step into the water at " + at(water.pos());
-            case ExtinguishStep.StandInPowderSnow snow -> "place powder snow at " + at(snow.pos())
-                    + " and stand in it";
+            case ExtinguishStep.StandInPowderSnow snow -> "place powder snow at " + at(snow.pos()) + " and stand in it";
             case ExtinguishStep.BreakFire fire -> "break the fire at " + at(fire.pos()) + " by hand";
             case ExtinguishStep.GiveUp giveUp -> "give up: " + giveUp.reason();
         };

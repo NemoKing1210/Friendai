@@ -64,11 +64,14 @@ public class MenuHandsTests {
         c.syncExperience();
         AbstractContainerMenu menu = c.hands().openMenu(blockPos(h, 166));
         h.assertTrue(menu != null, "the menu did not open");
-        h.assertTrue(c.hands().player().experienceLevel == 30,
+        h.assertTrue(
+                c.hands().player().experienceLevel == 30,
                 "fake player level was " + c.hands().player().experienceLevel);
         c.hands().player().experienceLevel = 27;
         c.hands().closeMenu();
-        h.assertTrue(c.experience().level() == 27, "companion level was " + c.experience().level());
+        h.assertTrue(
+                c.experience().level() == 27,
+                "companion level was " + c.experience().level());
         h.assertTrue(c.syncedXpLevel() == 27, "synced level was " + c.syncedXpLevel());
         h.succeed();
     }
@@ -95,7 +98,8 @@ public class MenuHandsTests {
         CompanionEntity c = setup(h, 210, Blocks.ENCHANTING_TABLE);
         c.experience().load(50);
         c.hands().closeMenu();
-        h.assertTrue(c.experience().points() == 50, "points were " + c.experience().points());
+        h.assertTrue(
+                c.experience().points() == 50, "points were " + c.experience().points());
         h.succeed();
     }
 }

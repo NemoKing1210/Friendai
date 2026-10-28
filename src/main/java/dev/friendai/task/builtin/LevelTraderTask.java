@@ -21,27 +21,41 @@ public final class LevelTraderTask implements Task {
     private String reason = "";
 
     public LevelTraderTask(UUID trader, int targetLevel, List<TradeOrder> authorizedOrders) {
-        if (trader == null || targetLevel < 2 || targetLevel > 5 || authorizedOrders == null
-                || authorizedOrders.isEmpty() || authorizedOrders.size() > 64
+        if (trader == null
+                || targetLevel < 2
+                || targetLevel > 5
+                || authorizedOrders == null
+                || authorizedOrders.isEmpty()
+                || authorizedOrders.size() > 64
                 || authorizedOrders.stream().anyMatch(order -> order == null || !trader.equals(order.trader()))
-                || new HashSet<>(authorizedOrders.stream().map(TradeOrder::orderId).toList()).size() != authorizedOrders.size()) {
-            throw new IllegalArgumentException("leveling needs a trader, target level 2..5 and 1..64 authorized offers");
+                || new HashSet<>(authorizedOrders.stream()
+                                        .map(TradeOrder::orderId)
+                                        .toList())
+                                .size()
+                        != authorizedOrders.size()) {
+            throw new IllegalArgumentException(
+                    "leveling needs a trader, target level 2..5 and 1..64 authorized offers");
         }
         this.trader = trader;
         this.targetLevel = targetLevel;
         this.orders = List.copyOf(authorizedOrders);
     }
 
-    @Override public String type() { return "level_trader"; }
+    @Override
+    public String type() {
+        return "level_trader";
+    }
 
-    @Override public void start(TaskContext context) {
+    @Override
+    public void start(TaskContext context) {
         index = 0;
         current = null;
         terminal = null;
         reason = "";
     }
 
-    @Override public TaskStatus tick(TaskContext context) {
+    @Override
+    public TaskStatus tick(TaskContext context) {
         if (terminal != null) return terminal;
         Entity entity = context.level().getEntity(trader);
         if (!(entity instanceof Villager villager) || !villager.isAlive()) {
@@ -51,8 +65,10 @@ public final class LevelTraderTask implements Task {
             return finish(TaskStatus.SUCCESS, "target level reached; no filler trades were made");
         }
         if (current == null) {
-            if (index >= orders.size()) return finish(TaskStatus.FAILED,
-                    "allowed offers or shared spending budget ended before target level " + targetLevel);
+            if (index >= orders.size())
+                return finish(
+                        TaskStatus.FAILED,
+                        "allowed offers or shared spending budget ended before target level " + targetLevel);
             current = new TradeTask(orders.get(index));
             current.start(context);
         }
@@ -73,14 +89,20 @@ public final class LevelTraderTask implements Task {
         return status;
     }
 
-    @Override public void stop(TaskContext context) {
+    @Override
+    public void stop(TaskContext context) {
         if (current != null) current.stop(context);
         current = null;
         if (terminal == null) finish(TaskStatus.FAILED, "villager leveling stopped before completion");
     }
 
-    @Override public String describe() { return "level selected villager " + trader + " to " + targetLevel; }
-    @Override public String resultSummary() {
+    @Override
+    public String describe() {
+        return "level selected villager " + trader + " to " + targetLevel;
+    }
+
+    @Override
+    public String resultSummary() {
         String text = "trader=" + trader + "; target_level=" + targetLevel + "; authorized_offers=" + orders.size()
                 + "; completed_offer_orders=" + index + (reason.isBlank() ? "" : "; result=" + reason);
         return text.length() <= 600 ? text : text.substring(0, 597) + "...";

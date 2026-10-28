@@ -21,7 +21,8 @@ public final class ErrorMessages {
                 return UserMessage.of("friendai.error.llm.bad_request", e.getMessage());
             }
             // Built from parts so LangFilesTest does not mistake a key prefix for a full key.
-            return UserMessage.of(String.join(".", "friendai", "error", "llm", e.kind().name().toLowerCase()));
+            return UserMessage.of(
+                    String.join(".", "friendai", "error", "llm", e.kind().name().toLowerCase()));
         }
         if (t instanceof ConfigException e) {
             return UserMessage.of("friendai.error.config", e.userMessage());

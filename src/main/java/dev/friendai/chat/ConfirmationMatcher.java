@@ -16,8 +16,24 @@ public final class ConfirmationMatcher {
     }
 
     private static final Set<String> YES = Set.of(
-            "yes", "yeah", "yep", "sure", "ok", "okay", "confirm", "confirmed", "do it",
-            "да", "ага", "угу", "конечно", "подтверждаю", "подтвердить", "давай", "хорошо", "ок");
+            "yes",
+            "yeah",
+            "yep",
+            "sure",
+            "ok",
+            "okay",
+            "confirm",
+            "confirmed",
+            "do it",
+            "да",
+            "ага",
+            "угу",
+            "конечно",
+            "подтверждаю",
+            "подтвердить",
+            "давай",
+            "хорошо",
+            "ок");
     private static final Set<String> NO =
             Set.of("no", "nope", "cancel", "don't", "do not", "нет", "не надо", "отмена", "отменить", "не");
     private static final String WORD_CHARS = "[\\p{L}\\p{N}_]";
@@ -52,8 +68,7 @@ public final class ConfirmationMatcher {
 
     /** "Friendai, да" → "да"; leaves the text alone when the name is not the first word. */
     private static String stripLeadingName(String text, String name) {
-        Pattern leadingName =
-                Pattern.compile("^" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")[\\s,:!]*");
+        Pattern leadingName = Pattern.compile("^" + Pattern.quote(name) + "(?!" + WORD_CHARS + ")[\\s,:!]*");
         return leadingName.matcher(text).replaceFirst("");
     }
 

@@ -23,6 +23,7 @@ public final class HungerWatcher {
     public static final int DEFAULT_COOL_DOWN_TICKS = 1_200;
     /** What the brain hears when the companion decides to feed itself. */
     public static final String AUTO_QUEST_NOTICE = "starving: going to get food myself";
+
     public static final String GET_FOOD_TOOL = "get_food";
 
     private static final int STAGE_ONE = 10;
@@ -36,6 +37,7 @@ public final class HungerWatcher {
 
     /** The deepest stage announced so far: 0 above 10, 3 at 3 or less. */
     private int lastStage;
+
     private boolean pending;
     private int waitStartTick;
     private int readyAtTick;
@@ -73,7 +75,9 @@ public final class HungerWatcher {
         boolean hasFood = hasSafeFood();
 
         if (questRunning
-                && !runner.current().map(task -> task.type().equals(GET_FOOD_TOOL)).orElse(false)) {
+                && !runner.current()
+                        .map(task -> task.type().equals(GET_FOOD_TOOL))
+                        .orElse(false)) {
             // The quest is over: wait out the cool-down, or a new stage entry, before another.
             questRunning = false;
             pending = true;
@@ -105,8 +109,12 @@ public final class HungerWatcher {
             // Never start two food quests at once, including one explicitly requested by the brain.
             return;
         }
-        if (!questRunning && stage >= STAGE_THREE && !hasFood
-                && now - waitStartTick >= autoDelayTicks && now >= readyAtTick && !peaceful()) {
+        if (!questRunning
+                && stage >= STAGE_THREE
+                && !hasFood
+                && now - waitStartTick >= autoDelayTicks
+                && now >= readyAtTick
+                && !peaceful()) {
             pending = false;
             questRunning = true;
             runner.interrupt(new GetFoodTask(2), GET_FOOD_TOOL);

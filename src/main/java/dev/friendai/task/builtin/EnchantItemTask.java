@@ -87,12 +87,13 @@ public final class EnchantItemTask extends MenuBlockTask {
             return TaskStatus.FAILED;
         }
         ItemStack result = menu.getSlot(ITEM_SLOT).getItem();
-        summary = "enchanted " + describe(result) + " for " + option + " level" + (option == 1 ? "" : "s")
-                + " and " + option + " lapis: " + enchantmentList(result);
+        summary = "enchanted " + describe(result) + " for " + option + " level" + (option == 1 ? "" : "s") + " and "
+                + option + " lapis: " + enchantmentList(result);
         return TaskStatus.SUCCESS;
     }
 
-    private static final ItemMatcher LAPIS = ItemMatcher.parse("minecraft:lapis_lazuli").orElseThrow();
+    private static final ItemMatcher LAPIS =
+            ItemMatcher.parse("minecraft:lapis_lazuli").orElseThrow();
 
     private static String describe(ItemStack stack) {
         return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
@@ -100,8 +101,9 @@ public final class EnchantItemTask extends MenuBlockTask {
 
     private static String enchantmentList(ItemStack stack) {
         List<String> names = new ArrayList<>();
-        EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet().forEach(entry -> names.add(
-                entry.getKey().getRegisteredName() + " " + entry.getIntValue()));
+        EnchantmentHelper.getEnchantmentsForCrafting(stack)
+                .entrySet()
+                .forEach(entry -> names.add(entry.getKey().getRegisteredName() + " " + entry.getIntValue()));
         return names.isEmpty() ? "no enchantments" : String.join(", ", names);
     }
 }

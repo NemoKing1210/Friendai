@@ -12,16 +12,18 @@ import java.util.Set;
 /** Plain-data checks shared by mining goals and mining-specific edge policies. */
 public final class MiningSafety {
 
-    private static final int[][] NEIGHBORS = {
-            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
-    };
+    private static final int[][] NEIGHBORS = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
     private MiningSafety() {}
 
     /** Whether a target may be extracted from this stance without removing its feet, head, or support. */
     public static boolean canBreak(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
-        if (target.equals(stance.pos()) || target.equals(stance.head()) || target.equals(stance.support())
-                || protectedSupports.contains(target) || !safeNode(view, stance) || !safeTarget(view, target)) {
+        if (target.equals(stance.pos())
+                || target.equals(stance.head())
+                || target.equals(stance.support())
+                || protectedSupports.contains(target)
+                || !safeNode(view, stance)
+                || !safeTarget(view, target)) {
             return false;
         }
         // Keep a full block between the entity's nominal cell and a floor resource: the live footprint can extend
@@ -35,9 +37,13 @@ public final class MiningSafety {
 
     /** A supported approach cell may still need its feet or head cleared by the final planned edge. */
     public static boolean canApproach(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
-        if (target.equals(stance.pos()) || target.equals(stance.head()) || target.equals(stance.support())
-                || protectedSupports.contains(target) || !view.at(stance.support()).supports()
-                || view.at(stance.support()).kind() == Cell.Kind.UNLOADED || !safeTarget(view, target)) {
+        if (target.equals(stance.pos())
+                || target.equals(stance.head())
+                || target.equals(stance.support())
+                || protectedSupports.contains(target)
+                || !view.at(stance.support()).supports()
+                || view.at(stance.support()).kind() == Cell.Kind.UNLOADED
+                || !safeTarget(view, target)) {
             return false;
         }
         if (target.y() == stance.y() - 1
@@ -54,14 +60,19 @@ public final class MiningSafety {
 
     private static boolean safeTarget(CellView view, Pos target) {
         Cell targetCell = view.at(target);
-        if (targetCell.kind() == Cell.Kind.UNLOADED || targetCell.hazard() || targetCell.falls()
-                || targetCell.kind() == Cell.Kind.WATER || targetCell.kind() == Cell.Kind.LAVA) {
+        if (targetCell.kind() == Cell.Kind.UNLOADED
+                || targetCell.hazard()
+                || targetCell.falls()
+                || targetCell.kind() == Cell.Kind.WATER
+                || targetCell.kind() == Cell.Kind.LAVA) {
             return false;
         }
         for (int[] d : NEIGHBORS) {
             Cell neighbor = view.at(target.x() + d[0], target.y() + d[1], target.z() + d[2]);
-            if (neighbor.kind() == Cell.Kind.UNLOADED || neighbor.kind() == Cell.Kind.WATER
-                    || neighbor.kind() == Cell.Kind.LAVA || neighbor.falls()) {
+            if (neighbor.kind() == Cell.Kind.UNLOADED
+                    || neighbor.kind() == Cell.Kind.WATER
+                    || neighbor.kind() == Cell.Kind.LAVA
+                    || neighbor.falls()) {
                 return false;
             }
         }
@@ -83,12 +94,14 @@ public final class MiningSafety {
             return false;
         }
         // A one-block descent is reversible only if its inverse ascent has clear feet and head cells.
-        if (dy < 0 && (!projected.at(step.from().pos()).free()
-                || !projected.at(step.from().head()).free())) {
+        if (dy < 0
+                && (!projected.at(step.from().pos()).free()
+                        || !projected.at(step.from().head()).free())) {
             return false;
         }
         for (Pos block : step.breaks()) {
-            if (!view.at(block).breakable() || block.equals(step.from().support())
+            if (!view.at(block).breakable()
+                    || block.equals(step.from().support())
                     || block.equals(step.to().support())) {
                 return false;
             }
@@ -110,8 +123,11 @@ public final class MiningSafety {
         Cell feet = view.at(node.pos());
         Cell head = view.at(node.head());
         Cell support = view.at(node.support());
-        return feet.kind() != Cell.Kind.WATER && feet.free()
-                && head.kind() != Cell.Kind.WATER && head.free()
-                && support.supports() && support.kind() != Cell.Kind.UNLOADED;
+        return feet.kind() != Cell.Kind.WATER
+                && feet.free()
+                && head.kind() != Cell.Kind.WATER
+                && head.free()
+                && support.supports()
+                && support.kind() != Cell.Kind.UNLOADED;
     }
 }

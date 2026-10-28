@@ -47,21 +47,32 @@ public final class QueuePolicy {
 
     public static PlanStatus planStatus(JobQueue queue, long id) {
         List<Job> jobs = queue.jobsOfPlan(id);
-        if (jobs.isEmpty()) return queue.plan(id).filter(p -> p.definition() != null && p.cursor() != null)
-                .map(p -> p.cursor().stack().isEmpty() ? PlanStatus.FAILED : PlanStatus.ACTIVE).orElse(PlanStatus.FAILED);
+        if (jobs.isEmpty())
+            return queue.plan(id)
+                    .filter(p -> p.definition() != null && p.cursor() != null)
+                    .map(p -> p.cursor().stack().isEmpty() ? PlanStatus.FAILED : PlanStatus.ACTIVE)
+                    .orElse(PlanStatus.FAILED);
         return status(queue, jobs);
     }
 
     /** The status of every plan, computed in one pass over the jobs. */
     public static Map<Long, PlanStatus> statuses(JobQueue queue) {
         Map<Long, List<Job>> byPlan = new HashMap<>();
-        for (Job job : queue.jobs()) if (job.planId() != 0) byPlan.computeIfAbsent(job.planId(), id -> new ArrayList<>()).add(job);
+        for (Job job : queue.jobs())
+            if (job.planId() != 0)
+                byPlan.computeIfAbsent(job.planId(), id -> new ArrayList<>()).add(job);
         Map<Long, PlanStatus> result = new HashMap<>();
         byPlan.forEach((id, jobs) -> result.put(id, status(queue, jobs)));
-        for (PlanRecord plan : queue.plans()) if (!result.containsKey(plan.id())) {
-            result.put(plan.id(), plan.definition() != null && plan.cursor() != null && !plan.cursor().stack().isEmpty()
-                    ? PlanStatus.ACTIVE : PlanStatus.FAILED);
-        }
+        for (PlanRecord plan : queue.plans())
+            if (!result.containsKey(plan.id())) {
+                result.put(
+                        plan.id(),
+                        plan.definition() != null
+                                        && plan.cursor() != null
+                                        && !plan.cursor().stack().isEmpty()
+                                ? PlanStatus.ACTIVE
+                                : PlanStatus.FAILED);
+            }
         return result;
     }
 
@@ -69,33 +80,43 @@ public final class QueuePolicy {
         if (jobs.isEmpty()) return PlanStatus.FAILED;
         boolean allTerminal = true;
         for (Job job : jobs) {
-            if (job.state() == JobState.FAILED && job.onFailure() == FailurePolicy.ASK) return PlanStatus.NEEDS_DECISION;
-            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) return PlanStatus.NEEDS_DECISION;
+            if (job.state() == JobState.FAILED && job.onFailure() == FailurePolicy.ASK)
+                return PlanStatus.NEEDS_DECISION;
+            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result()))
+                return PlanStatus.NEEDS_DECISION;
             if (!JobQueue.terminal(job)) allTerminal = false;
         }
         if (allTerminal) {
             return jobs.stream().anyMatch(j -> j.state() == JobState.FAILED || j.state() == JobState.CANCELLED)
-                    ? PlanStatus.FAILED : PlanStatus.DONE;
+                    ? PlanStatus.FAILED
+                    : PlanStatus.DONE;
         }
         // A pending job behind a failed, skipped or cancelled step can never run unless somebody repairs the plan.
         for (Job job : jobs) {
             if (job.state() != JobState.PENDING) continue;
             for (long dependency : job.after()) {
                 Job other = queue.job(dependency).orElse(null);
-                if (other == null || (JobQueue.terminal(other) && other.state() != JobState.DONE)) return PlanStatus.NEEDS_DECISION;
+                if (other == null || (JobQueue.terminal(other) && other.state() != JobState.DONE))
+                    return PlanStatus.NEEDS_DECISION;
             }
         }
         return PlanStatus.ACTIVE;
     }
 
     public static String notReadyReason(JobQueue queue, Job job, GuardFacts facts) {
-        if (job.planId() != 0 && planStatus(queue, job.planId()) == PlanStatus.NEEDS_DECISION) return "plan waits for your decision";
+        if (job.planId() != 0 && planStatus(queue, job.planId()) == PlanStatus.NEEDS_DECISION)
+            return "plan waits for your decision";
         if (job.retryAtTick() > queue.clock()) return "retries in " + (job.retryAtTick() - queue.clock()) + " ticks";
         for (long id : job.after()) {
             Job other = queue.job(id).orElse(null);
-            if (other == null || other.state() != JobState.DONE) return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
+            if (other == null || other.state() != JobState.DONE)
+                return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
         }
-        return job.guards().stream().filter(g -> !g.holds(facts)).findFirst().map(g -> "waits for " + g.describe()).orElse("pending");
+        return job.guards().stream()
+                .filter(g -> !g.holds(facts))
+                .findFirst()
+                .map(g -> "waits for " + g.describe())
+                .orElse("pending");
     }
 
     private static String stateWord(Job job) {
@@ -107,7 +128,9 @@ public final class QueuePolicy {
         };
     }
 
-    public static String summaryReason(JobQueue q, Job j, GuardFacts f) { return notReadyReason(q, j, f).replace("waits for ", "needs "); }
+    public static String summaryReason(JobQueue q, Job j, GuardFacts f) {
+        return notReadyReason(q, j, f).replace("waits for ", "needs ");
+    }
 
     public static QueueSnapshot snapshot(JobQueue queue, GuardFacts facts) {
         Map<Long, PlanStatus> statuses = statuses(queue);

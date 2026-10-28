@@ -22,7 +22,11 @@ public final class LlmPlanner implements Planner {
     private final int maxTotal;
 
     public LlmPlanner(
-            Supplier<LlmGateway> gateway, UnaryOperator<String> redact, int timeoutSec, int maxSteps, int maxArgs,
+            Supplier<LlmGateway> gateway,
+            UnaryOperator<String> redact,
+            int timeoutSec,
+            int maxSteps,
+            int maxArgs,
             int maxTotal) {
         this.gateway = gateway;
         this.redact = redact;
@@ -46,8 +50,7 @@ public final class LlmPlanner implements Planner {
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(new PlannerException("planner request failed"));
         }
-        return request
-                .orTimeout(timeoutSec, TimeUnit.SECONDS)
+        return request.orTimeout(timeoutSec, TimeUnit.SECONDS)
                 .handle((response, error) -> {
                     if (error != null || response == null) {
                         throw new PlannerException("planner request failed");
@@ -55,10 +58,11 @@ public final class LlmPlanner implements Planner {
                     return response.text();
                 })
                 .thenCompose(text -> {
-                    PlannerParser.Parsed parsed = PlannerParser.parse(
-                            text, input.schemas(), input.allTools(), maxSteps, maxArgs, maxTotal);
+                    PlannerParser.Parsed parsed =
+                            PlannerParser.parse(text, input.schemas(), input.allTools(), maxSteps, maxArgs, maxTotal);
                     if (parsed.ok()) {
-                        return CompletableFuture.completedFuture(parsed.proposal().get());
+                        return CompletableFuture.completedFuture(
+                                parsed.proposal().get());
                     }
                     if (number >= 2) {
                         return CompletableFuture.<PlanProposal>failedFuture(new PlannerException(

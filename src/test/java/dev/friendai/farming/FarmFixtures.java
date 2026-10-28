@@ -25,7 +25,8 @@ public final class FarmFixtures {
                 new CropInfo("minecraft:wheat", WHEAT_SEEDS, WHEAT, 7, Soil.FARMLAND, 0, wheatSeedYield, 1.0),
                 new CropInfo("minecraft:carrots", CARROT, CARROT, 7, Soil.FARMLAND, 3, 1.0, 1.0),
                 new CropInfo("minecraft:potatoes", POTATO, POTATO, 7, Soil.FARMLAND, 1, 1.0, 1.0),
-                new CropInfo("minecraft:beetroots", BEETROOT_SEEDS, "minecraft:beetroot", 3, Soil.FARMLAND, 1, 1.0, 1.0),
+                new CropInfo(
+                        "minecraft:beetroots", BEETROOT_SEEDS, "minecraft:beetroot", 3, Soil.FARMLAND, 1, 1.0, 1.0),
                 new CropInfo("minecraft:nether_wart", NETHER_WART, NETHER_WART, 3, Soil.SOUL_SAND, 0, 1.0, 1.0)));
     }
 
@@ -68,7 +69,7 @@ public final class FarmFixtures {
             case 'g' -> new FieldCell(dx, 0, dz, CellKind.GROWING, "minecraft:wheat", null, 3, null);
             case 'k' -> new FieldCell(dx, 0, dz, CellKind.GROWING, "minecraft:carrots", null, 3, null);
             case '1', '2', '3', '4', '5', '6' ->
-                    new FieldCell(dx, 0, dz, CellKind.GROWING, "minecraft:wheat", null, symbol - '0', null);
+                new FieldCell(dx, 0, dz, CellKind.GROWING, "minecraft:wheat", null, symbol - '0', null);
             case '.' -> new FieldCell(dx, 0, dz, CellKind.EMPTY_SOIL, null, null, 0, Soil.FARMLAND);
             case 'S' -> new FieldCell(dx, 0, dz, CellKind.EMPTY_SOIL, null, null, 0, Soil.SOUL_SAND);
             case 't' -> new FieldCell(dx, 0, dz, CellKind.TILLABLE, null, null, 0, null);

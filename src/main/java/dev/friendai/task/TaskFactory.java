@@ -43,7 +43,8 @@ public final class TaskFactory {
         if (saved.startsWith("goto:")) {
             try {
                 String[] p = saved.substring(5).split(",");
-                return Optional.of(new GoToTask(new Vec3(Double.parseDouble(p[0]), Double.parseDouble(p[1]), Double.parseDouble(p[2]))));
+                return Optional.of(new GoToTask(
+                        new Vec3(Double.parseDouble(p[0]), Double.parseDouble(p[1]), Double.parseDouble(p[2]))));
             } catch (RuntimeException e) {
                 return Optional.empty();
             }

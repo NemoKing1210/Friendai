@@ -25,9 +25,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(NearestAttackableTargetGoal.class)
 public abstract class NearestAttackableTargetGoalMixin {
-    @Shadow @Final protected Class<? extends LivingEntity> targetType;
-    @Shadow @Final protected TargetingConditions targetConditions;
-    @Shadow protected LivingEntity target;
+    @Shadow
+    @Final
+    protected Class<? extends LivingEntity> targetType;
+
+    @Shadow
+    @Final
+    protected TargetingConditions targetConditions;
+
+    @Shadow
+    protected LivingEntity target;
 
     @Inject(method = "findTarget", at = @At("TAIL"))
     private void friendai$considerCompanionAsPlayer(CallbackInfo ci) {
@@ -42,8 +49,8 @@ public abstract class NearestAttackableTargetGoalMixin {
         AABB area = mob.getBoundingBox().inflate(range);
         CompanionEntity companion;
         try {
-            companion = level.getNearestEntity(CompanionEntity.class, this.targetConditions, mob,
-                    mob.getX(), mob.getEyeY(), mob.getZ(), area);
+            companion = level.getNearestEntity(
+                    CompanionEntity.class, this.targetConditions, mob, mob.getX(), mob.getEyeY(), mob.getZ(), area);
         } catch (ClassCastException e) {
             // A goal's selector may assume the target really is a Player; that goal then stays player-only.
             return;

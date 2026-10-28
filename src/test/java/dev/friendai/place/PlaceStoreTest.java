@@ -19,7 +19,8 @@ import org.junit.jupiter.api.io.TempDir;
 class PlaceStoreTest {
     private static final String OVERWORLD = "minecraft:overworld";
 
-    @TempDir Path temp;
+    @TempDir
+    Path temp;
 
     @Test
     void corruptFileIsBackedUpAndTheBookStartsEmpty() throws IOException {
@@ -113,8 +114,7 @@ class PlaceStoreTest {
     }
 
     private static PlaceValues values(String name, PlaceKind kind, Pos pos, Set<String> aliases) {
-        return new PlaceValues(
-                name, kind, "", OVERWORLD, pos, 8, aliases, PlaceSource.MANUAL, null, "");
+        return new PlaceValues(name, kind, "", OVERWORLD, pos, 8, aliases, PlaceSource.MANUAL, null, "");
     }
 
     private static final class ManualExecutor implements Executor {

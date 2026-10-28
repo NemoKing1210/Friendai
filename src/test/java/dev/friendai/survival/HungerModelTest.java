@@ -13,8 +13,13 @@ class HungerModelTest {
         return model;
     }
 
-    private static void tick(HungerModel model, int times, Difficulty difficulty,
-            boolean naturalRegeneration, float health, float maxHealth) {
+    private static void tick(
+            HungerModel model,
+            int times,
+            Difficulty difficulty,
+            boolean naturalRegeneration,
+            float health,
+            float maxHealth) {
         for (int i = 0; i < times; i++) {
             model.tick(difficulty, naturalRegeneration, health, maxHealth);
         }

@@ -66,7 +66,9 @@ public final class IntentVocabulary {
 
     public boolean startsWithQuestionMarker(String lowerText, List<String> tokens) {
         for (String marker : questionMarkers) {
-            if (marker.contains(" ") ? lowerText.startsWith(marker) : (!tokens.isEmpty() && tokens.get(0).equals(marker))) {
+            if (marker.contains(" ")
+                    ? lowerText.startsWith(marker)
+                    : (!tokens.isEmpty() && tokens.get(0).equals(marker))) {
                 return true;
             }
         }

@@ -18,8 +18,7 @@ public final class PlaceNamer {
      * The first free automatic name for {@code kind} in {@code dimension}. Throws {@link IllegalArgumentException}
      * when all 999 suffixes are taken, which the caller may treat as "skip this place".
      */
-    public static String autoName(
-            PlaceRegistry registry, String dimension, PlaceKind kind, String label) {
+    public static String autoName(PlaceRegistry registry, String dimension, PlaceKind kind, String label) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(kind, "kind");
         String dim = requireDimension(dimension);
@@ -36,8 +35,8 @@ public final class PlaceNamer {
                 return candidate;
             }
         }
-        throw new IllegalArgumentException("There is no free "
-                + kind.name().toLowerCase(Locale.ROOT) + " name left in " + dim + "; forget a place first.");
+        throw new IllegalArgumentException("There is no free " + kind.name().toLowerCase(Locale.ROOT) + " name left in "
+                + dim + "; forget a place first.");
     }
 
     private static String base(PlaceKind kind, String label) {

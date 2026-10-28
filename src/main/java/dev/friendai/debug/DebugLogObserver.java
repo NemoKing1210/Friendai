@@ -31,23 +31,37 @@ public final class DebugLogObserver implements BrainObserver {
 
     @Override
     public void onToolCall(ToolCall call) {
-        log.add(LogKind.TOOL_CALL, call.name() + (call.name().equals("manage_skill")||call.name().equals("use_skill") ? " [instruction fields omitted]" : " " + call.rawArguments()));
+        log.add(
+                LogKind.TOOL_CALL,
+                call.name()
+                        + (call.name().equals("manage_skill") || call.name().equals("use_skill")
+                                ? " [instruction fields omitted]"
+                                : " " + call.rawArguments()));
     }
 
     @Override
     public void onToolResult(ToolCall call, ToolResult result) {
-        log.add(LogKind.TOOL_RESULT, call.name() + ": " + (result.error() ? "ERROR " : "")
-                + (call.name().equals("manage_skill")||call.name().equals("use_skill") ? "[instruction fields omitted]" : result.content()));
+        log.add(
+                LogKind.TOOL_RESULT,
+                call.name() + ": " + (result.error() ? "ERROR " : "")
+                        + (call.name().equals("manage_skill") || call.name().equals("use_skill")
+                                ? "[instruction fields omitted]"
+                                : result.content()));
     }
 
     @Override
-    public void onInstructions(java.util.List<String> ids,int chars,int promptChars,boolean overrun) {
-        log.add(LogKind.TOOL_RESULT,"Instructions: " + ids + "; characters=" + chars + "; prompt=" + promptChars
-                + "; estimated instruction tokens=" + ((chars+3)/4) + "; mandatory overrun=" + overrun);
+    public void onInstructions(java.util.List<String> ids, int chars, int promptChars, boolean overrun) {
+        log.add(
+                LogKind.TOOL_RESULT,
+                "Instructions: " + ids + "; characters=" + chars + "; prompt=" + promptChars
+                        + "; estimated instruction tokens=" + ((chars + 3) / 4) + "; mandatory overrun=" + overrun);
     }
-    @Override public void onUsage(dev.friendai.llm.model.Usage usage) {
-        log.add(LogKind.TOOL_RESULT,"Provider token usage: " + usage);
+
+    @Override
+    public void onUsage(dev.friendai.llm.model.Usage usage) {
+        log.add(LogKind.TOOL_RESULT, "Provider token usage: " + usage);
     }
+
     @Override
     public void onError(Throwable error) {
         log.add(LogKind.ERROR, error.toString());

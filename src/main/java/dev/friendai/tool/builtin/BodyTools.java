@@ -33,7 +33,8 @@ final class BodyTools {
     private BodyTools() {}
 
     static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        registry.register(ToolKit.instantTool("look_at",
+        registry.register(ToolKit.instantTool(
+                "look_at",
                 "Turn your head toward something and keep looking at it for a while, without stopping what you are doing. "
                         + "Name the target (owner, a player's name, or an animal/mob type such as cow), give x, y, z, "
                         + "or give only pitch to look up (negative) or down (positive).",
@@ -43,7 +44,11 @@ final class BodyTools {
                         .number("y", "Look at this Y coordinate")
                         .number("z", "Look at this Z coordinate")
                         .number("pitch", "Head pitch in degrees: -90 straight up, 0 level, 90 straight down")
-                        .integer("ticks", "How long to keep looking, in ticks (20 per second); default 100", 1, MAX_LOOK_TICKS)
+                        .integer(
+                                "ticks",
+                                "How long to keep looking, in ticks (20 per second); default 100",
+                                1,
+                                MAX_LOOK_TICKS)
                         .build(),
                 guarded((c, a) -> {
                     Gaze gaze = gaze(c, a);
@@ -52,7 +57,8 @@ final class BodyTools {
                     applyLookNow(c, gaze.point());
                     return ToolResult.ok("looking at " + gaze.label() + " for " + ticks / 20.0 + " seconds");
                 })));
-        registry.register(ToolKit.instantTool("point_at",
+        registry.register(ToolKit.instantTool(
+                "point_at",
                 "Point something out to the player: look at it and swing your arm toward it. "
                         + "Name the target (owner, a player's name, an animal/mob type) or give x, y, z.",
                 SchemaBuilder.object()
@@ -71,16 +77,30 @@ final class BodyTools {
                     c.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                     return ToolResult.ok("pointing at " + gaze.label());
                 })));
-        ToolKit.add(registry, defs, new TaskToolDef("turn",
-                "Turn on the spot without walking: to a side (left, right, around), to a compass direction, "
-                        + "or by an exact number of degrees (positive is to the right).",
-                SchemaBuilder.object()
-                        .enumeration("direction", "Where to turn",
-                                "left", "right", "around", "north", "south", "east", "west")
-                        .number("degrees", "Turn by this many degrees instead; positive right, negative left")
-                        .build(),
-                BodyTools::turn, true));
-        registry.register(ToolKit.instantTool("sneak",
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "turn",
+                        "Turn on the spot without walking: to a side (left, right, around), to a compass direction, "
+                                + "or by an exact number of degrees (positive is to the right).",
+                        SchemaBuilder.object()
+                                .enumeration(
+                                        "direction",
+                                        "Where to turn",
+                                        "left",
+                                        "right",
+                                        "around",
+                                        "north",
+                                        "south",
+                                        "east",
+                                        "west")
+                                .number("degrees", "Turn by this many degrees instead; positive right, negative left")
+                                .build(),
+                        BodyTools::turn,
+                        true));
+        registry.register(ToolKit.instantTool(
+                "sneak",
                 "Crouch (sneak) or stand up straight. While crouched you walk more slowly and quietly and do not sprint; "
                         + "it stays on until you turn it off, or until the given time runs out.",
                 SchemaBuilder.object()
@@ -94,41 +114,55 @@ final class BodyTools {
                     c.body().setSneaking(on, ticks);
                     return ToolResult.ok(on ? "crouching" : "standing up straight");
                 }));
-        ToolKit.add(registry, defs, new TaskToolDef("emote",
-                "Make a short gesture: wave (greeting), nod (agree), shake_head (disagree), jump_for_joy, bow, spin.",
-                SchemaBuilder.object()
-                        .enumeration("kind", "The gesture", labels())
-                        .required("kind")
-                        .build(),
-                BodyTools::emote, true));
-        ToolKit.add(registry, defs, new TaskToolDef("sit",
-                "Sit down (a low crouch) and stay put until you are told to stand or get another task.",
-                SchemaBuilder.object().build(), (c, a) -> new SitTask(), false,
-                new TaskToolDef.QueueTraits(true, null)));
-        registry.register(ToolKit.instantTool("stand",
-                "Stand up from sitting or crouching.",
-                (c, a) -> {
-                    boolean wasSitting = c.body().sitting();
-                    if (c.taskRunner().current().map(t -> t instanceof SitTask).orElse(false)) {
-                        c.taskRunner().stop("stand up");
-                    }
-                    c.body().setSitting(false);
-                    c.body().setSneaking(false, 0);
-                    return ToolResult.ok(wasSitting ? "stood up" : "standing");
-                }));
-        ToolKit.add(registry, defs, new TaskToolDef("wait",
-                "Do nothing for a number of seconds. Use it between the steps of a queue when something has to settle.",
-                SchemaBuilder.object()
-                        .number("seconds", "How long to wait, from 0.5 to 60")
-                        .required("seconds")
-                        .build(),
-                (c, a) -> {
-                    double seconds = Math.max(0.5, Math.min(60.0, a.get("seconds").getAsDouble()));
-                    return new WaitTask((int) Math.round(seconds * 20.0));
-                }, true));
-        registry.register(ToolKit.instantTool("swap_hands",
-                "Swap what you hold in your main hand with what is in your off hand.",
-                (c, a) -> {
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "emote",
+                        "Make a short gesture: wave (greeting), nod (agree), shake_head (disagree), jump_for_joy, bow, spin.",
+                        SchemaBuilder.object()
+                                .enumeration("kind", "The gesture", labels())
+                                .required("kind")
+                                .build(),
+                        BodyTools::emote,
+                        true));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "sit",
+                        "Sit down (a low crouch) and stay put until you are told to stand or get another task.",
+                        SchemaBuilder.object().build(),
+                        (c, a) -> new SitTask(),
+                        false,
+                        new TaskToolDef.QueueTraits(true, null)));
+        registry.register(ToolKit.instantTool("stand", "Stand up from sitting or crouching.", (c, a) -> {
+            boolean wasSitting = c.body().sitting();
+            if (c.taskRunner().current().map(t -> t instanceof SitTask).orElse(false)) {
+                c.taskRunner().stop("stand up");
+            }
+            c.body().setSitting(false);
+            c.body().setSneaking(false, 0);
+            return ToolResult.ok(wasSitting ? "stood up" : "standing");
+        }));
+        ToolKit.add(
+                registry,
+                defs,
+                new TaskToolDef(
+                        "wait",
+                        "Do nothing for a number of seconds. Use it between the steps of a queue when something has to settle.",
+                        SchemaBuilder.object()
+                                .number("seconds", "How long to wait, from 0.5 to 60")
+                                .required("seconds")
+                                .build(),
+                        (c, a) -> {
+                            double seconds = Math.max(
+                                    0.5, Math.min(60.0, a.get("seconds").getAsDouble()));
+                            return new WaitTask((int) Math.round(seconds * 20.0));
+                        },
+                        true));
+        registry.register(ToolKit.instantTool(
+                "swap_hands", "Swap what you hold in your main hand with what is in your off hand.", (c, a) -> {
                     ItemStack main = c.getItemBySlot(EquipmentSlot.MAINHAND).copy();
                     ItemStack off = c.getItemBySlot(EquipmentSlot.OFFHAND).copy();
                     if (main.isEmpty() && off.isEmpty()) {
@@ -138,7 +172,8 @@ final class BodyTools {
                     c.setItemSlot(EquipmentSlot.OFFHAND, main);
                     return ToolResult.ok("swapped hands. " + c.equipmentText());
                 }));
-        registry.register(ToolKit.instantTool("set_idle_behavior",
+        registry.register(ToolKit.instantTool(
+                "set_idle_behavior",
                 "Choose how you behave while idle beside the owner: idle_look makes you glance at them now and then; "
                         + "idle_gestures lets you make small gestures such as a nod on your own (off by default).",
                 SchemaBuilder.object()
@@ -155,10 +190,11 @@ final class BodyTools {
                     if (a.has("idle_gestures")) {
                         c.body().setIdleGestures(a.get("idle_gestures").getAsBoolean());
                     }
-                    return ToolResult.ok("idle look: " + (c.body().idleLook() ? "on" : "off")
-                            + ", idle gestures: " + (c.body().idleGestures() ? "on" : "off"));
+                    return ToolResult.ok("idle look: " + (c.body().idleLook() ? "on" : "off") + ", idle gestures: "
+                            + (c.body().idleGestures() ? "on" : "off"));
                 }));
-        registry.register(ToolKit.instantTool("set_follow_distance",
+        registry.register(ToolKit.instantTool(
+                "set_follow_distance",
                 "Set how close you keep to the owner while following, in blocks (1 hugging them, 8 giving them room).",
                 SchemaBuilder.object()
                         .number("blocks", "Distance in blocks, from 1 to 8")
@@ -180,16 +216,21 @@ final class BodyTools {
             if (entity == null) {
                 throw new IllegalArgumentException("I can't see any " + name);
             }
-            return new Gaze(() -> entity.isAlive() && !entity.isRemoved() ? entity.getEyePosition() : null,
+            return new Gaze(
+                    () -> entity.isAlive() && !entity.isRemoved() ? entity.getEyePosition() : null,
                     EntityTargets.label(entity));
         }
         if (a.has("x") || a.has("y") || a.has("z")) {
             if (!(a.has("x") && a.has("y") && a.has("z"))) {
                 throw new IllegalArgumentException("give all of x, y, z");
             }
-            Vec3 fixed = new Vec3(a.get("x").getAsDouble(), a.get("y").getAsDouble(), a.get("z").getAsDouble());
-            return new Gaze(() -> fixed, (int) Math.floor(fixed.x) + " " + (int) Math.floor(fixed.y) + " "
-                    + (int) Math.floor(fixed.z));
+            Vec3 fixed = new Vec3(
+                    a.get("x").getAsDouble(),
+                    a.get("y").getAsDouble(),
+                    a.get("z").getAsDouble());
+            return new Gaze(
+                    () -> fixed,
+                    (int) Math.floor(fixed.x) + " " + (int) Math.floor(fixed.y) + " " + (int) Math.floor(fixed.z));
         }
         if (a.has("pitch")) {
             double pitch = Math.max(-90.0, Math.min(90.0, a.get("pitch").getAsDouble()));
@@ -225,16 +266,18 @@ final class BodyTools {
             case "left" -> TurnTask.by(-90.0f);
             case "right" -> TurnTask.by(90.0f);
             case "around" -> TurnTask.by(180.0f);
-            default -> TurnTask.toYaw(
-                    Facing.compass(direction).orElseThrow(() -> new IllegalArgumentException("unknown direction: " + direction)),
-                    direction);
+            default ->
+                TurnTask.toYaw(
+                        Facing.compass(direction)
+                                .orElseThrow(() -> new IllegalArgumentException("unknown direction: " + direction)),
+                        direction);
         };
     }
 
     private static Task emote(CompanionEntity c, JsonObject a) {
         String kind = a.get("kind").getAsString();
-        return new EmoteTask(Emotes.Kind.parse(kind)
-                .orElseThrow(() -> new IllegalArgumentException("unknown gesture: " + kind)));
+        return new EmoteTask(
+                Emotes.Kind.parse(kind).orElseThrow(() -> new IllegalArgumentException("unknown gesture: " + kind)));
     }
 
     private static String[] labels() {

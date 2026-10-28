@@ -32,14 +32,31 @@ class OllamaProtocolTest {
     void toWire() {
         ToolCall call = new ToolCall("c", "go_to", json("{\"x\":1}"), "{\"x\":1}", null);
         JsonObject w = protocol.toWire(new LlmRequest(
-                "llama", "SYS",
-                List.of(Message.user("go"), Message.assistant("", List.of(call)), Message.toolResult("c", "go_to", "ok")),
-                List.of(), null, 1024));
+                "llama",
+                "SYS",
+                List.of(
+                        Message.user("go"),
+                        Message.assistant("", List.of(call)),
+                        Message.toolResult("c", "go_to", "ok")),
+                List.of(),
+                null,
+                1024));
         assertFalse(w.get("stream").getAsBoolean());
-        assertEquals("system", w.getAsJsonArray("messages").get(0).getAsJsonObject().get("role").getAsString());
+        assertEquals(
+                "system",
+                w.getAsJsonArray("messages")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("role")
+                        .getAsString());
         assertEquals(1024, w.getAsJsonObject("options").get("num_predict").getAsInt());
-        JsonObject fn = w.getAsJsonArray("messages").get(2).getAsJsonObject()
-                .getAsJsonArray("tool_calls").get(0).getAsJsonObject().getAsJsonObject("function");
+        JsonObject fn = w.getAsJsonArray("messages")
+                .get(2)
+                .getAsJsonObject()
+                .getAsJsonArray("tool_calls")
+                .get(0)
+                .getAsJsonObject()
+                .getAsJsonObject("function");
         assertTrue(fn.get("arguments").isJsonObject());
         assertEquals(1, fn.getAsJsonObject("arguments").get("x").getAsInt());
         JsonObject tool = w.getAsJsonArray("messages").get(3).getAsJsonObject();
@@ -67,7 +84,9 @@ class OllamaProtocolTest {
             server.enqueue(200, "{\"message\":{\"role\":\"assistant\",\"content\":\"hi\"},\"done_reason\":\"stop\"}");
             server.enqueue(200, "{\"models\":[{\"name\":\"llama3\"}]}");
             Endpoint endpoint = new Endpoint(server.baseUrl(), "", AuthStyle.NONE);
-            protocol.complete(endpoint, new LlmRequest("llama", "SYS", List.of(Message.user("hi")), List.of(), null, 64)).get();
+            protocol.complete(
+                            endpoint, new LlmRequest("llama", "SYS", List.of(Message.user("hi")), List.of(), null, 64))
+                    .get();
             assertEquals(List.of("llama3"), protocol.listModels(endpoint).get());
             assertEquals("/api/chat", server.requests().get(0).path());
             assertEquals("/api/tags", server.requests().get(1).path());

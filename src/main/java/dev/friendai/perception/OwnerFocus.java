@@ -24,7 +24,12 @@ public record OwnerFocus(
         int armor,
         String bodyState) {
 
-    public enum Visibility { VISIBLE, OUT_OF_SIGHT, OTHER_DIMENSION, OFFLINE }
+    public enum Visibility {
+        VISIBLE,
+        OUT_OF_SIGHT,
+        OTHER_DIMENSION,
+        OFFLINE
+    }
 
     public static OwnerFocus visible(
             String label,
@@ -40,8 +45,21 @@ public record OwnerFocus(
             int food,
             int armor,
             String bodyState) {
-        return new OwnerFocus(label, Visibility.VISIBLE, distance, position, standingOn, lookingAt, holding,
-                relative, facing, health, maxHealth, food, armor, bodyState);
+        return new OwnerFocus(
+                label,
+                Visibility.VISIBLE,
+                distance,
+                position,
+                standingOn,
+                lookingAt,
+                holding,
+                relative,
+                facing,
+                health,
+                maxHealth,
+                food,
+                armor,
+                bodyState);
     }
 
     public static OwnerFocus unavailable(String label, Visibility visibility, double distance) {
@@ -52,19 +70,21 @@ public record OwnerFocus(
         return switch (visibility) {
             case OFFLINE -> label + ": offline";
             case OTHER_DIMENSION -> label + ": in another dimension";
-            case OUT_OF_SIGHT -> label + ": " + blocksAway()
-                    + ", out of sight (I can't tell where they stand or look)";
-            case VISIBLE -> label + ": " + blocksAway() + ", in view"
-                    + (relative == null ? "" : " (" + relative + " of you)")
-                    + (facing == null ? "" : ", " + facing)
-                    + "\n  at: " + position
-                    + "\n  standing on: " + standingOn
-                    + "\n  looking at: " + lookingAt
-                    + "\n  holding: " + holding
-                    + (bodyState == null ? "" : "\n  health: " + PerceptionSnapshot.number(health) + "/"
-                            + PerceptionSnapshot.number(maxHealth)
-                            + ", food " + food + "/" + HungerModel.MAX_FOOD + ", armor " + armor
-                            + "\n  body: " + bodyState);
+            case OUT_OF_SIGHT -> label + ": " + blocksAway() + ", out of sight (I can't tell where they stand or look)";
+            case VISIBLE ->
+                label + ": " + blocksAway() + ", in view"
+                        + (relative == null ? "" : " (" + relative + " of you)")
+                        + (facing == null ? "" : ", " + facing)
+                        + "\n  at: " + position
+                        + "\n  standing on: " + standingOn
+                        + "\n  looking at: " + lookingAt
+                        + "\n  holding: " + holding
+                        + (bodyState == null
+                                ? ""
+                                : "\n  health: " + PerceptionSnapshot.number(health) + "/"
+                                        + PerceptionSnapshot.number(maxHealth)
+                                        + ", food " + food + "/" + HungerModel.MAX_FOOD + ", armor " + armor
+                                        + "\n  body: " + bodyState);
         };
     }
 

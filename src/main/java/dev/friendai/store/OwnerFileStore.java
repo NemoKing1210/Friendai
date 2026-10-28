@@ -39,15 +39,20 @@ public final class OwnerFileStore<T> implements AutoCloseable {
     private final Map<UUID, Long> failedRevision = new HashMap<>();
     private final Set<UUID> pending = new HashSet<>();
     private long lastFlush;
-    private java.util.function.Function<UUID,String> fileNames = id -> id + ".json";
+    private java.util.function.Function<UUID, String> fileNames = id -> id + ".json";
     private final Set<UUID> unsupported = new HashSet<>();
 
     public OwnerFileStore(Path dir, StoreCodec<T> codec, Executor writer, LongSupplier clock, boolean waitForWrites) {
         this(dir, codec, writer, null, clock, waitForWrites);
     }
 
-    private OwnerFileStore(Path dir, StoreCodec<T> codec, Executor writer, ExecutorService ownedWriter,
-                           LongSupplier clock, boolean waitForWrites) {
+    private OwnerFileStore(
+            Path dir,
+            StoreCodec<T> codec,
+            Executor writer,
+            ExecutorService ownedWriter,
+            LongSupplier clock,
+            boolean waitForWrites) {
         this.dir = dir;
         this.codec = codec;
         this.writer = writer;
@@ -66,8 +71,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         return new OwnerFileStore<>(dir, codec, writer, writer, System::currentTimeMillis, true);
     }
 
-    public static <T> OwnerFileStore<T> withWriterThread(Path dir, StoreCodec<T> codec,
-            java.util.function.Function<UUID,String> fileNames) {
+    public static <T> OwnerFileStore<T> withWriterThread(
+            Path dir, StoreCodec<T> codec, java.util.function.Function<UUID, String> fileNames) {
         OwnerFileStore<T> store = withWriterThread(dir, codec);
         store.fileNames = java.util.Objects.requireNonNull(fileNames);
         return store;
@@ -107,7 +112,9 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         queueDirty();
     }
 
-    public void flushIfDue() { flushIfDue(clock.getAsLong()); }
+    public void flushIfDue() {
+        flushIfDue(clock.getAsLong());
+    }
 
     /** Schedules the latest snapshot of every dirty owner. Stores waiting for writes block until settled. */
     public void flushAll() {
@@ -138,7 +145,9 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         }
     }
 
-    private T fresh() { return codec.load(null); }
+    private T fresh() {
+        return codec.load(null);
+    }
 
     private T adopt(UUID owner, T value, long revision) {
         values.put(owner, value);
@@ -151,7 +160,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             UUID owner = entry.getKey();
             T value = entry.getValue();
             long revision = codec.revision(value);
-            if (revision == savedRevision.getOrDefault(owner, 0L) || pending.contains(owner)
+            if (revision == savedRevision.getOrDefault(owner, 0L)
+                    || pending.contains(owner)
                     || failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision) continue;
             String json = codec.save(value);
             pending.add(owner);
@@ -170,7 +180,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         try {
             Path target = file(owner);
             Files.createDirectories(target.toAbsolutePath().getParent());
-            Path temporary = Files.createTempFile(target.toAbsolutePath().getParent(), target.getFileName().toString(), ".tmp");
+            Path temporary = Files.createTempFile(
+                    target.toAbsolutePath().getParent(), target.getFileName().toString(), ".tmp");
             try {
                 Files.writeString(temporary, json, StandardCharsets.UTF_8);
                 try {
@@ -218,7 +229,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
 
     private Path file(UUID owner) {
         String name = fileNames.apply(owner);
-        if (name == null || !name.matches("[a-zA-Z0-9-]+\\.json")) throw new IllegalArgumentException("Invalid store filename.");
+        if (name == null || !name.matches("[a-zA-Z0-9-]+\\.json"))
+            throw new IllegalArgumentException("Invalid store filename.");
         return dir.resolve(name);
     }
 
@@ -229,7 +241,10 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         } catch (IOException e) {
             LOGGER.warn("Could not back up broken owner file {}", file, e);
         }
-        LOGGER.warn("Owner file {} is invalid ({}); starting empty and keeping the original at {}",
-                file, cause.getMessage(), backup);
+        LOGGER.warn(
+                "Owner file {} is invalid ({}); starting empty and keeping the original at {}",
+                file,
+                cause.getMessage(),
+                backup);
     }
 }

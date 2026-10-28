@@ -73,8 +73,13 @@ public final class GiveItemsTask implements Task {
 
     private static void drop(TaskContext c, ServerPlayer owner, ItemStack stack) {
         var companion = c.companion();
-        ItemEntity entity = new ItemEntity(c.level(), companion.getX(), companion.getEyeY() - 0.3, companion.getZ(), stack);
-        Vec3 toOwner = owner.position().add(0, 1.0, 0).subtract(entity.position()).normalize().scale(0.3);
+        ItemEntity entity =
+                new ItemEntity(c.level(), companion.getX(), companion.getEyeY() - 0.3, companion.getZ(), stack);
+        Vec3 toOwner = owner.position()
+                .add(0, 1.0, 0)
+                .subtract(entity.position())
+                .normalize()
+                .scale(0.3);
         entity.setDeltaMovement(toOwner);
         entity.setPickUpDelay(10);
         c.level().addFreshEntity(entity);

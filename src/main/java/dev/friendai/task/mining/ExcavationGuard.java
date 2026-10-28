@@ -29,9 +29,7 @@ import net.minecraft.world.phys.Vec3;
 /** Fresh, mining-scoped world checks for proposed excavation and movement. */
 public final class ExcavationGuard implements PathExecutionGuard {
 
-    private static final int[][] NEIGHBORS = {
-            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
-    };
+    private static final int[][] NEIGHBORS = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
     private final MiningBounds bounds;
     private final Set<Pos> protectedSupports;
@@ -45,15 +43,22 @@ public final class ExcavationGuard implements PathExecutionGuard {
     public boolean allowBreak(TaskContext context, PathStep step, Pos pos) {
         CompanionEntity companion = context.companion();
         BlockPos blockPos = minecraft(pos);
-        if (!bounds.contains(pos) || protectedSupports.contains(pos) || supportsFootprint(companion, blockPos)
-                || !context.level().hasChunkAt(blockPos) || !companion.hands().canInteract(blockPos)) {
+        if (!bounds.contains(pos)
+                || protectedSupports.contains(pos)
+                || supportsFootprint(companion, blockPos)
+                || !context.level().hasChunkAt(blockPos)
+                || !companion.hands().canInteract(blockPos)) {
             return false;
         }
         BlockState state = context.level().getBlockState(blockPos);
-        if (state.isAir() || state.getDestroySpeed(context.level(), blockPos) < 0 || unsafeExposure(context.level(), blockPos)) {
+        if (state.isAir()
+                || state.getDestroySpeed(context.level(), blockPos) < 0
+                || unsafeExposure(context.level(), blockPos)) {
             return false;
         }
-        return new LevelCellView(companion, TaskSettings.pathing, CostModel.DEFAULTS).at(pos).breakable();
+        return new LevelCellView(companion, TaskSettings.pathing, CostModel.DEFAULTS)
+                .at(pos)
+                .breakable();
     }
 
     @Override
@@ -64,8 +69,14 @@ public final class ExcavationGuard implements PathExecutionGuard {
             return false;
         }
         CellView view = planningView(context, TaskSettings.pathing);
-        PathStep alreadyExcavated = new PathStep(step.from(), step.to(), step.move(), java.util.List.of(),
-                java.util.List.of(), step.cost(), step.headUnderwater());
+        PathStep alreadyExcavated = new PathStep(
+                step.from(),
+                step.to(),
+                step.move(),
+                java.util.List.of(),
+                java.util.List.of(),
+                step.cost(),
+                step.headUnderwater());
         return MiningSafety.reversible(view, alreadyExcavated);
     }
 
@@ -75,8 +86,11 @@ public final class ExcavationGuard implements PathExecutionGuard {
         ServerLevel level = context.level();
         Pos targetPos = plain(target);
         BlockState state = level.getBlockState(target);
-        if (!bounds.contains(targetPos) || state.isAir() || state.getDestroySpeed(level, target) < 0
-                || !level.hasChunkAt(target) || !companion.hands().canInteract(target)
+        if (!bounds.contains(targetPos)
+                || state.isAir()
+                || state.getDestroySpeed(level, target) < 0
+                || !level.hasChunkAt(target)
+                || !companion.hands().canInteract(target)
                 || supportsFootprint(companion, target)) {
             return false;
         }
@@ -136,7 +150,8 @@ public final class ExcavationGuard implements PathExecutionGuard {
                 return true;
             }
             BlockState state = level.getBlockState(neighbor);
-            if (state.getFluidState().is(FluidTags.WATER) || state.getFluidState().is(FluidTags.LAVA)
+            if (state.getFluidState().is(FluidTags.WATER)
+                    || state.getFluidState().is(FluidTags.LAVA)
                     || state.getBlock() instanceof FallingBlock) {
                 return true;
             }
@@ -147,8 +162,10 @@ public final class ExcavationGuard implements PathExecutionGuard {
     private static boolean supportsFootprint(CompanionEntity companion, BlockPos pos) {
         AABB box = companion.getBoundingBox();
         return Math.abs(box.minY - (pos.getY() + 1.0)) < 0.2
-                && box.maxX > pos.getX() && box.minX < pos.getX() + 1.0
-                && box.maxZ > pos.getZ() && box.minZ < pos.getZ() + 1.0;
+                && box.maxX > pos.getX()
+                && box.minX < pos.getX() + 1.0
+                && box.maxZ > pos.getZ()
+                && box.minZ < pos.getZ() + 1.0;
     }
 
     private static boolean hasCorrectTool(CompanionEntity companion, BlockState state) {

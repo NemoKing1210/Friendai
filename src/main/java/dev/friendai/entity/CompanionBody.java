@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 public final class CompanionBody {
     /** Shortest and longest distance the companion may keep from its owner while following. */
     public static final double MIN_FOLLOW_DISTANCE = 1.0;
+
     public static final double MAX_FOLLOW_DISTANCE = 8.0;
     public static final double DEFAULT_FOLLOW_DISTANCE = 3.0;
 
@@ -27,10 +28,14 @@ public final class CompanionBody {
     private boolean sneaking;
     /** Ticks of crouching left; negative while the crouch is open-ended. */
     private int sneakTicks;
+
     private boolean sitting;
     private boolean crouchApplied;
     private int lookTicks;
-    @Nullable private Supplier<Vec3> lookTarget;
+
+    @Nullable
+    private Supplier<Vec3> lookTarget;
+
     private boolean idleLook = true;
     private boolean idleGestures;
     private double followDistance = DEFAULT_FOLLOW_DISTANCE;

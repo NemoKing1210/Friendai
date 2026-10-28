@@ -30,7 +30,8 @@ class YandexTtsProtocolTest {
 
     @Test
     void theResolvedKeyNeverAppearsInTheRequest() {
-        PreparedRequest r = new YandexTtsProtocol().prepare(tts("ya-secret-123", "alena", 1.0, "ru-RU", "folder"), "Hi");
+        PreparedRequest r =
+                new YandexTtsProtocol().prepare(tts("ya-secret-123", "alena", 1.0, "ru-RU", "folder"), "Hi");
 
         assertFalse(r.uri().toString().contains("ya-secret-123"));
         assertFalse(new String(r.body(), StandardCharsets.UTF_8).contains("ya-secret-123"));
@@ -39,9 +40,11 @@ class YandexTtsProtocolTest {
 
     @Test
     void aMissingLanguageIsReported() {
-        UserFacingException e = assertThrows(UserFacingException.class,
+        UserFacingException e = assertThrows(
+                UserFacingException.class,
                 () -> new YandexTtsProtocol().prepare(tts("ya", "alena", 1.0, "", "folder"), "Hi"));
-        assertEquals("friendai.voice.error.unsupported_language", e.userMessage().key());
+        assertEquals(
+                "friendai.voice.error.unsupported_language", e.userMessage().key());
     }
 
     @Test
@@ -53,13 +56,22 @@ class YandexTtsProtocolTest {
 
     @Test
     void anEmptyBodyIsReported() {
-        UserFacingException e = assertThrows(UserFacingException.class,
+        UserFacingException e = assertThrows(
+                UserFacingException.class,
                 () -> new YandexTtsProtocol().parse(new byte[0], tts("ya", "alena", 1.0, "ru-RU", null)));
         assertEquals("friendai.voice.tts.error.failed", e.userMessage().key());
     }
 
     private static ResolvedTts tts(String key, String voice, double speed, String language, String folderId) {
-        return new ResolvedTts("yandex", "yandex_tts", "https://tts.api.cloud.yandex.net",
-                key, null, voice, language, folderId, speed);
+        return new ResolvedTts(
+                "yandex",
+                "yandex_tts",
+                "https://tts.api.cloud.yandex.net",
+                key,
+                null,
+                voice,
+                language,
+                folderId,
+                speed);
     }
 }

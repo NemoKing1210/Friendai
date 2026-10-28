@@ -29,7 +29,9 @@ public final class MiningPathPolicy implements PathPolicy {
 
     @Override
     public Optional<PathStep> prepare(CellView ignored, PathStep step) {
-        if (!bounds.contains(step.from().pos()) || !bounds.contains(step.to().pos()) || !step.places().isEmpty()) {
+        if (!bounds.contains(step.from().pos())
+                || !bounds.contains(step.to().pos())
+                || !step.places().isEmpty()) {
             return Optional.empty();
         }
         LinkedHashSet<Pos> breaks = new LinkedHashSet<>(step.breaks());
@@ -50,8 +52,14 @@ public final class MiningPathPolicy implements PathPolicy {
                 cost += view.at(block).breakTicks() + costs.breakExtra();
             }
         }
-        PathStep prepared = new PathStep(step.from(), step.to(), step.move(), new ArrayList<>(breaks),
-                step.places(), cost, step.headUnderwater());
+        PathStep prepared = new PathStep(
+                step.from(),
+                step.to(),
+                step.move(),
+                new ArrayList<>(breaks),
+                step.places(),
+                cost,
+                step.headUnderwater());
         CellView projectedSource = (x, y, z) -> {
             Pos pos = new Pos(x, y, z);
             Cell cell = view.at(x, y, z);

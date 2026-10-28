@@ -45,9 +45,13 @@ public final class PauseMenuButton {
         }
         Rect spot = PauseRowPlacement.place(icons, screenWidth, SIZE);
         boolean supported = CompanionRequests.serverSupported();
-        Component label = Component.translatable(supported ? "friendai.menu.button" : "friendai.menu.button_unavailable");
+        Component label =
+                Component.translatable(supported ? "friendai.menu.button" : "friendai.menu.button_unavailable");
         SpriteIconButton button = SpriteIconButton.builder(
-                        label, b -> net.minecraft.client.Minecraft.getInstance().setScreenAndShow(new CompanionControlScreen(pause)), true)
+                        label,
+                        b -> net.minecraft.client.Minecraft.getInstance()
+                                .setScreenAndShow(new CompanionControlScreen(pause)),
+                        true)
                 .width(spot.width())
                 .sprite(FriendaiMod.id("companion"), SPRITE_SIZE, SPRITE_SIZE)
                 .withTootip()

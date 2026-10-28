@@ -39,7 +39,10 @@ class ToolRegistryTest {
 
             @Override
             public JsonObject schema() {
-                return SchemaBuilder.object().integer("count", "How many", 1, 10).required("count").build();
+                return SchemaBuilder.object()
+                        .integer("count", "How many", 1, 10)
+                        .required("count")
+                        .build();
             }
 
             @Override
@@ -67,7 +70,10 @@ class ToolRegistryTest {
 
             @Override
             public JsonObject schema() {
-                return SchemaBuilder.object().integer("count", "How many", 1, 10).required("count").build();
+                return SchemaBuilder.object()
+                        .integer("count", "How many", 1, 10)
+                        .required("count")
+                        .build();
             }
 
             @Override
@@ -101,7 +107,10 @@ class ToolRegistryTest {
 
             @Override
             public JsonObject schema() {
-                return SchemaBuilder.object().integer("count", "How many", 1, 10).required("count").build();
+                return SchemaBuilder.object()
+                        .integer("count", "How many", 1, 10)
+                        .required("count")
+                        .build();
             }
 
             @Override
@@ -116,7 +125,8 @@ class ToolRegistryTest {
 
             @Override
             public ToolResult execute(String ctx, Caller caller, JsonObject args) {
-                return ToolResult.ok(caller.uuid() + "/" + caller.name() + "/" + caller.access().label());
+                return ToolResult.ok(caller.uuid() + "/" + caller.name() + "/"
+                        + caller.access().label());
             }
         };
     }
@@ -127,7 +137,8 @@ class ToolRegistryTest {
 
     @Test
     void specsListRegisteredTools() {
-        ToolRegistry<String> r = new ToolRegistry<String>().register(tool("a", false)).register(tool("b", false));
+        ToolRegistry<String> r =
+                new ToolRegistry<String>().register(tool("a", false)).register(tool("b", false));
         assertEquals(List.of("a", "b"), r.specs().stream().map(s -> s.name()).toList());
         assertEquals("Test tool a", r.specs().get(0).description());
     }
@@ -166,15 +177,23 @@ class ToolRegistryTest {
 
     @Test
     void guestSeesOnlyGuestTools() {
-        var r = new ToolRegistry<String>().register(tool("chat", false, AccessLevel.GUEST)).register(tool("act", false));
-        assertEquals(List.of("chat"), r.specs(AccessLevel.GUEST).stream().map(s -> s.name()).toList());
-        assertEquals(List.of("chat", "act"), r.specs(AccessLevel.TRUSTED).stream().map(s -> s.name()).toList());
-        assertEquals(List.of("chat", "act"), r.specs().stream().map(s -> s.name()).toList());
+        var r = new ToolRegistry<String>()
+                .register(tool("chat", false, AccessLevel.GUEST))
+                .register(tool("act", false));
+        assertEquals(
+                List.of("chat"),
+                r.specs(AccessLevel.GUEST).stream().map(s -> s.name()).toList());
+        assertEquals(
+                List.of("chat", "act"),
+                r.specs(AccessLevel.TRUSTED).stream().map(s -> s.name()).toList());
+        assertEquals(
+                List.of("chat", "act"), r.specs().stream().map(s -> s.name()).toList());
     }
 
     @Test
     void forbiddenCallIsAnErrorResultAndDoesNotRun() {
-        ToolExecutor ex = new ToolRegistry<String>().register(tool("act", false)).bind("c");
+        ToolExecutor ex =
+                new ToolRegistry<String>().register(tool("act", false)).bind("c");
         ToolResult res = ex.execute(call("act", "{\"count\":1}"), AccessLevel.GUEST);
         assertTrue(res.error());
         assertEquals("Tool act is not available to this speaker (guest).", res.content());
@@ -189,18 +208,25 @@ class ToolRegistryTest {
 
     @Test
     void defaultExecuteActsAsOwner() {
-        ToolExecutor ex = new ToolRegistry<String>().register(tool("act", false)).bind("c");
+        ToolExecutor ex =
+                new ToolRegistry<String>().register(tool("act", false)).bind("c");
         assertFalse(ex.execute(call("act", "{\"count\":1}")).error());
     }
 
     @Test
     void disabledToolIsHiddenAndRefused() {
         boolean[] on = {false};
-        ToolExecutor ex = new ToolRegistry<String>().register(toggled("note", () -> on[0])).bind("c");
+        ToolExecutor ex = new ToolRegistry<String>()
+                .register(toggled("note", () -> on[0]))
+                .bind("c");
         assertTrue(ex.specs(AccessLevel.OWNER).isEmpty());
-        assertEquals("Tool note is disabled.", ex.execute(call("note", "{\"count\":1}")).content());
+        assertEquals(
+                "Tool note is disabled.",
+                ex.execute(call("note", "{\"count\":1}")).content());
         on[0] = true;
-        assertEquals(List.of("note"), ex.specs(AccessLevel.OWNER).stream().map(s -> s.name()).toList());
+        assertEquals(
+                List.of("note"),
+                ex.specs(AccessLevel.OWNER).stream().map(s -> s.name()).toList());
     }
 
     @Test

@@ -27,8 +27,15 @@ public final class KeepPolicy {
      * @param foodPoints hunger points of one item, zero when it is not food
      * @param blockPrice the bridging price of one block, negative when it is not a usable block
      */
-    public record Slot(int index, String itemId, Set<String> tags, int count, String toolKind, int tierOrdinal,
-                       int foodPoints, double blockPrice) {
+    public record Slot(
+            int index,
+            String itemId,
+            Set<String> tags,
+            int count,
+            String toolKind,
+            int tierOrdinal,
+            int foodPoints,
+            double blockPrice) {
         public Slot {
             tags = tags == null ? Set.of() : Set.copyOf(tags);
             toolKind = toolKind == null ? "" : toolKind;

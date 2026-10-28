@@ -12,8 +12,8 @@ public final class TreeText {
     }
 
     /** Trees nearest first, then log structures, with the evidence scope named. */
-    public static String toolListing(List<TreeSummary> trees, List<TreeSummary> structures, int radius,
-            String provenance) {
+    public static String toolListing(
+            List<TreeSummary> trees, List<TreeSummary> structures, int radius, String provenance) {
         String listing = toolListing(trees, structures, radius);
         return provenance == null || provenance.isBlank() ? listing : provenance + ": " + listing;
     }
@@ -27,7 +27,9 @@ public final class TreeText {
                     : "no trees" + within + "; nearest " + structures.get(0).toListing();
         }
         StringBuilder sb = new StringBuilder();
-        sb.append(trees.size() == 1 ? "1 tree" : trees.size() + " trees").append(within).append(": ");
+        sb.append(trees.size() == 1 ? "1 tree" : trees.size() + " trees")
+                .append(within)
+                .append(": ");
         sb.append(trees.stream().map(TreeSummary::toListing).collect(Collectors.joining("; ")));
         if (!structures.isEmpty()) {
             sb.append("; also ")

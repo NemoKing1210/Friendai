@@ -87,7 +87,8 @@ public final class FailureHandler {
         if (goal.isPresent()) {
             var unmet = board.unmet(goal.get().id(), facts);
             if (!unmet.isEmpty()) {
-                parts.add("unmet: " + String.join("; ", unmet.stream().map(c -> c.text()).toList()));
+                parts.add("unmet: "
+                        + String.join("; ", unmet.stream().map(c -> c.text()).toList()));
             } else if (!goal.get().criteria().isEmpty()) {
                 parts.add("all criteria confirmed: call finish_goal");
             }

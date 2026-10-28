@@ -27,8 +27,13 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Immutable version-1 persistence data. Runtime actor identity and active references are excluded. */
-public record TradeFile(int version, long revision, List<TraderRecord> traders,
-                        List<TradeProgress> history, Set<UUID> pinned, List<BarterProgress> barterHistory) {
+public record TradeFile(
+        int version,
+        long revision,
+        List<TraderRecord> traders,
+        List<TradeProgress> history,
+        Set<UUID> pinned,
+        List<BarterProgress> barterHistory) {
     public static final int VERSION = 1;
     public static final int MAX_TRADERS = 256;
     public static final int MAX_OFFERS_PER_TRADER = 64;
@@ -40,8 +45,14 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     private static final Gson GSON = new GsonBuilder().create();
 
     public TradeFile {
-        if (version != VERSION || revision < 0 || traders == null || traders.size() > MAX_TRADERS
-                || history == null || history.size() > MAX_HISTORY || pinned == null || pinned.size() > MAX_TRADERS) {
+        if (version != VERSION
+                || revision < 0
+                || traders == null
+                || traders.size() > MAX_TRADERS
+                || history == null
+                || history.size() > MAX_HISTORY
+                || pinned == null
+                || pinned.size() > MAX_TRADERS) {
             throw new IllegalArgumentException("invalid or oversized trade file");
         }
         if (barterHistory == null) barterHistory = List.of(); // Format-1 files predating barter history remain valid.
@@ -57,7 +68,8 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         if (!ids.containsAll(pinned)) throw new IllegalArgumentException("pin refers to unknown trader");
         var orders = new HashSet<UUID>();
         for (var progress : history) {
-            if (progress == null || !orders.add(progress.orderId())) throw new IllegalArgumentException("duplicate order UUID");
+            if (progress == null || !orders.add(progress.orderId()))
+                throw new IllegalArgumentException("duplicate order UUID");
         }
         traders = List.copyOf(traders);
         history = List.copyOf(history);
@@ -65,8 +77,8 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         barterHistory = List.copyOf(barterHistory);
     }
 
-    public TradeFile(int version, long revision, List<TraderRecord> traders,
-                     List<TradeProgress> history, Set<UUID> pinned) {
+    public TradeFile(
+            int version, long revision, List<TraderRecord> traders, List<TradeProgress> history, Set<UUID> pinned) {
         this(version, revision, traders, history, pinned, List.of());
     }
 
@@ -74,8 +86,12 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     public static byte[] write(TradeFile file) {
         if (file == null) throw new IllegalArgumentException("trade file must not be null");
         var output = new BoundedOutputStream(MAX_FILE_BYTES);
-        try (JsonWriter writer = new JsonWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8.newEncoder()
-                .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)))) {
+        try (JsonWriter writer = new JsonWriter(new OutputStreamWriter(
+                output,
+                StandardCharsets.UTF_8
+                        .newEncoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)))) {
             writer.setIndent("  ");
             writer.setSerializeNulls(true);
             GSON.getAdapter(TradeFile.class).write(writer, file);
@@ -94,8 +110,12 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         }
         final String json;
         try {
-            json = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
+            json = StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
         } catch (CharacterCodingException e) {
             throw new IllegalArgumentException("trade file is not valid UTF-8", e);
         }
@@ -150,8 +170,12 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         int end = index;
         while (end < json.length()) {
             char current = json.charAt(end);
-            if (current == ',' || current == '}' || current == ' ' || current == '\t'
-                    || current == '\r' || current == '\n') break;
+            if (current == ','
+                    || current == '}'
+                    || current == ' '
+                    || current == '\t'
+                    || current == '\r'
+                    || current == '\n') break;
             end++;
         }
         if (end == index) throw new IllegalArgumentException("trade file version must be numeric");
@@ -226,8 +250,12 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         int end = start;
         while (end < text.length()) {
             char current = text.charAt(end);
-            if (current == ',' || current == '}' || current == ' ' || current == '\t'
-                    || current == '\r' || current == '\n') break;
+            if (current == ','
+                    || current == '}'
+                    || current == ' '
+                    || current == '\t'
+                    || current == '\r'
+                    || current == '\n') break;
             end++;
         }
         if (end == start) throw new IllegalArgumentException("invalid trade file value");
@@ -235,8 +263,18 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     }
 
     private enum Shape {
-        OTHER, ROOT_OBJECT, TRADERS, TRADER_OBJECT, OFFERS, OFFER_OBJECT, INPUTS,
-        HISTORY, PROGRESS_OBJECT, RECEIVED, PINNED, SPENT_OBJECT
+        OTHER,
+        ROOT_OBJECT,
+        TRADERS,
+        TRADER_OBJECT,
+        OFFERS,
+        OFFER_OBJECT,
+        INPUTS,
+        HISTORY,
+        PROGRESS_OBJECT,
+        RECEIVED,
+        PINNED,
+        SPENT_OBJECT
     }
 
     private static final class ParseState {
@@ -262,7 +300,8 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
         }
     }
 
-    private static JsonElement readJson(JsonReader reader, int depth, Shape shape, ParseState state) throws IOException {
+    private static JsonElement readJson(JsonReader reader, int depth, Shape shape, ParseState state)
+            throws IOException {
         state.consumeNode();
         return switch (reader.peek()) {
             case BEGIN_OBJECT -> {
@@ -311,19 +350,21 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
 
     private static Shape childShape(Shape parent, String key) {
         return switch (parent) {
-            case ROOT_OBJECT -> switch (key) {
-                case "traders" -> Shape.TRADERS;
-                case "history" -> Shape.HISTORY;
-                case "pinned" -> Shape.PINNED;
-                default -> Shape.OTHER;
-            };
+            case ROOT_OBJECT ->
+                switch (key) {
+                    case "traders" -> Shape.TRADERS;
+                    case "history" -> Shape.HISTORY;
+                    case "pinned" -> Shape.PINNED;
+                    default -> Shape.OTHER;
+                };
             case TRADER_OBJECT -> key.equals("offers") ? Shape.OFFERS : Shape.OTHER;
             case OFFER_OBJECT -> key.equals("baseInputs") || key.equals("effectiveInputs") ? Shape.INPUTS : Shape.OTHER;
-            case PROGRESS_OBJECT -> switch (key) {
-                case "received" -> Shape.RECEIVED;
-                case "spent" -> Shape.SPENT_OBJECT;
-                default -> Shape.OTHER;
-            };
+            case PROGRESS_OBJECT ->
+                switch (key) {
+                    case "received" -> Shape.RECEIVED;
+                    case "spent" -> Shape.SPENT_OBJECT;
+                    default -> Shape.OTHER;
+                };
             default -> Shape.OTHER;
         };
     }
@@ -371,30 +412,46 @@ public record TradeFile(int version, long revision, List<TraderRecord> traders,
     /** Identifies a well-formed file from a newer mod before corruption recovery can copy it. */
     public static final class UnsupportedVersionException extends IllegalArgumentException {
         private final int version;
+
         public UnsupportedVersionException(int version) {
             super("unsupported trade file version " + version);
             this.version = version;
         }
-        public int version() { return version; }
+
+        public int version() {
+            return version;
+        }
     }
 
     /** Raised before the bounded writer stores a byte beyond the on-disk cap. */
     public static final class EncodedSizeExceeded extends RuntimeException {
-        private EncodedSizeExceeded() { super("encoded trade file exceeds 8 MiB"); }
+        private EncodedSizeExceeded() {
+            super("encoded trade file exceeds 8 MiB");
+        }
     }
 
     private static final class BoundedOutputStream extends OutputStream {
         private final int maxBytes;
         private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        private BoundedOutputStream(int maxBytes) { this.maxBytes = maxBytes; }
-        @Override public void write(int value) {
+
+        private BoundedOutputStream(int maxBytes) {
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public void write(int value) {
             if (buffer.size() >= maxBytes) throw new EncodedSizeExceeded();
             buffer.write(value);
         }
-        @Override public void write(byte[] bytes, int offset, int length) {
+
+        @Override
+        public void write(byte[] bytes, int offset, int length) {
             if (length > maxBytes - buffer.size()) throw new EncodedSizeExceeded();
             buffer.write(bytes, offset, length);
         }
-        private byte[] toByteArray() { return buffer.toByteArray(); }
+
+        private byte[] toByteArray() {
+            return buffer.toByteArray();
+        }
     }
 }

@@ -138,8 +138,7 @@ public final class FuelPolicy {
             return new LootContext.Builder(params.create(LootContextParamSets.CONTAINER_PROCESS))
                     .create(Optional.empty());
         }
-        return new LootContext.Builder(params
-                        .withParameter(LootContextParams.TOOL, ItemStack.EMPTY)
+        return new LootContext.Builder(params.withParameter(LootContextParams.TOOL, ItemStack.EMPTY)
                         .create(LootContextParamSets.BLOCK))
                 .create(Optional.empty());
     }

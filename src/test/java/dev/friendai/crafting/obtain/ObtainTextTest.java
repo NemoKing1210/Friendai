@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.crafting.obtain.Source.Hunt;
-import dev.friendai.crafting.obtain.Source.Mine;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -33,37 +31,56 @@ class ObtainTextTest {
 
     @Test
     void missingTextExploreOff() {
-        assertEquals("missing: 1 × minecraft:diamond (exploring is off)",
+        assertEquals(
+                "missing: 1 × minecraft:diamond (exploring is off)",
                 ObtainText.missingText(Map.of("minecraft:diamond", 1), true));
-        assertEquals("can't get 1 minecraft:diamond here: missing: 1 × minecraft:diamond (exploring is off)",
-                "can't get 1 minecraft:diamond here: "
-                        + ObtainText.missingText(Map.of("minecraft:diamond", 1), true));
-        assertFalse(ObtainText.missingText(Map.of("minecraft:diamond", 1), false).contains("exploring"));
+        assertEquals(
+                "can't get 1 minecraft:diamond here: missing: 1 × minecraft:diamond (exploring is off)",
+                "can't get 1 minecraft:diamond here: " + ObtainText.missingText(Map.of("minecraft:diamond", 1), true));
+        assertFalse(
+                ObtainText.missingText(Map.of("minecraft:diamond", 1), false).contains("exploring"));
     }
 
     @Test
     void stepTexts() {
-        assertEquals("take 3 × minecraft:iron_ingot", ObtainText.stepText(new ObtainStep.Take("minecraft:iron_ingot", 3)));
-        assertEquals("craft minecraft:stone_pickaxe", ObtainText.stepText(new ObtainStep.Craft("minecraft:stone_pickaxe", 1)));
+        assertEquals(
+                "take 3 × minecraft:iron_ingot", ObtainText.stepText(new ObtainStep.Take("minecraft:iron_ingot", 3)));
+        assertEquals(
+                "craft minecraft:stone_pickaxe",
+                ObtainText.stepText(new ObtainStep.Craft("minecraft:stone_pickaxe", 1)));
         assertEquals("craft 4 × minecraft:torch", ObtainText.stepText(new ObtainStep.Craft("minecraft:torch", 4)));
-        assertEquals("smelt 3 × minecraft:raw_iron", ObtainText.stepText(new ObtainStep.Smelt("minecraft:raw_iron", 3, "minecraft:iron_ingot")));
-        assertEquals("mine 3 × minecraft:iron_ore", ObtainText.stepText(new ObtainStep.Mine("minecraft:iron_ore", 3, new ToolNeed(ToolKind.PICKAXE, Tier.STONE))));
-        assertEquals("visit remembered site 41 for minecraft:iron_ore",
+        assertEquals(
+                "smelt 3 × minecraft:raw_iron",
+                ObtainText.stepText(new ObtainStep.Smelt("minecraft:raw_iron", 3, "minecraft:iron_ingot")));
+        assertEquals(
+                "mine 3 × minecraft:iron_ore",
+                ObtainText.stepText(
+                        new ObtainStep.Mine("minecraft:iron_ore", 3, new ToolNeed(ToolKind.PICKAXE, Tier.STONE))));
+        assertEquals(
+                "visit remembered site 41 for minecraft:iron_ore",
                 ObtainText.stepText(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")));
         assertEquals("hunt 2 × minecraft:cow", ObtainText.stepText(new ObtainStep.Hunt("minecraft:cow", 2)));
         assertEquals("harvest 4 × minecraft:wheat", ObtainText.stepText(new ObtainStep.Harvest(4, "minecraft:wheat")));
         assertEquals("shear 1 × minecraft:sheep", ObtainText.stepText(new ObtainStep.Shear("minecraft:sheep", 1)));
         assertEquals("milk 1 bucket", ObtainText.stepText(new ObtainStep.Milk(1)));
         assertEquals("milk 2 buckets", ObtainText.stepText(new ObtainStep.Milk(2)));
-        assertEquals("explore down to Y 16 for minecraft:iron_ore", ObtainText.stepText(new ObtainStep.Explore("minecraft:iron_ore", true, 16)));
-        assertEquals("explore up to 64 blocks around for #minecraft:logs", ObtainText.stepText(new ObtainStep.Explore("#minecraft:logs", false, 0)));
+        assertEquals(
+                "explore down to Y 16 for minecraft:iron_ore",
+                ObtainText.stepText(new ObtainStep.Explore("minecraft:iron_ore", true, 16)));
+        assertEquals(
+                "explore up to 64 blocks around for #minecraft:logs",
+                ObtainText.stepText(new ObtainStep.Explore("#minecraft:logs", false, 0)));
     }
 
     @Test
     void conditionalPlanExplainsVerificationBoundary() {
-        ObtainPlan plan = new ObtainPlan(List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")),
-                Map.of("minecraft:raw_iron", 2), 1, true);
-        assertEquals("to get 2 minecraft:iron_ingot: conditional prefix visit remembered site 41 for minecraft:iron_ore"
+        ObtainPlan plan = new ObtainPlan(
+                List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")),
+                Map.of("minecraft:raw_iron", 2),
+                1,
+                true);
+        assertEquals(
+                "to get 2 minecraft:iron_ingot: conditional prefix visit remembered site 41 for minecraft:iron_ore"
                         + "; verify the remembered source, then replan; unresolved: missing: 2 × minecraft:raw_iron",
                 ObtainText.planText(plan, "minecraft:iron_ingot", 2));
     }

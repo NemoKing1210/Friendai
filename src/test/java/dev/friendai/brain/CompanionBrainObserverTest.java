@@ -78,7 +78,8 @@ class CompanionBrainObserverTest {
     }
 
     private static BrainEvent said(String text) {
-        return new BrainEvent.PlayerSaid(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", text, BrainEvent.Source.CHAT);
+        return new BrainEvent.PlayerSaid(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve", text, BrainEvent.Source.CHAT);
     }
 
     @Test
@@ -104,12 +105,7 @@ class CompanionBrainObserverTest {
         gateway.enqueue(text("done"));
         brain.post(said("stay"));
         assertEquals(
-                List.of(
-                        "event:[Steve]: stay",
-                        "text:thinking",
-                        "call:stay",
-                        "result:stay:ok stay",
-                        "text:done"),
+                List.of("event:[Steve]: stay", "text:thinking", "call:stay", "result:stay:ok stay", "text:done"),
                 recorder.calls);
     }
 
@@ -117,7 +113,8 @@ class CompanionBrainObserverTest {
     void reportsErrorOnGatewayFailure() {
         gateway.enqueueFailure(new IllegalStateException("boom"));
         brain.post(said("hi"));
-        assertEquals(1, recorder.calls.stream().filter(c -> c.startsWith("error:")).count());
+        assertEquals(
+                1, recorder.calls.stream().filter(c -> c.startsWith("error:")).count());
         assertTrue(recorder.calls.contains("error:boom"));
     }
 

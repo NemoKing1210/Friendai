@@ -80,8 +80,8 @@ public final class AnvilItemTask extends MenuBlockTask {
 
         ItemStack result = menu.getSlot(RESULT_SLOT).getItem();
         if (result.isEmpty()) {
-            summary = "the anvil can't do anything with " + left.label()
-                    + (right == null ? "" : " and " + right.label());
+            summary =
+                    "the anvil can't do anything with " + left.label() + (right == null ? "" : " and " + right.label());
             return TaskStatus.FAILED;
         }
         int cost = menu.getCost();

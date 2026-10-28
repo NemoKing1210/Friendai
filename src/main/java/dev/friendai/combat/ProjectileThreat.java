@@ -9,15 +9,25 @@ public final class ProjectileThreat {
 
     /** Current projectile position and velocity, with its collision radius. */
     public record Facts(
-            double x, double y, double z,
-            double velocityX, double velocityY, double velocityZ,
+            double x,
+            double y,
+            double z,
+            double velocityX,
+            double velocityY,
+            double velocityZ,
             double radius,
             boolean frontal,
             String type) {
         public static Facts of(
-                double x, double y, double z,
-                double vx, double vy, double vz,
-                double radius, boolean frontal, String type) {
+                double x,
+                double y,
+                double z,
+                double vx,
+                double vy,
+                double vz,
+                double radius,
+                boolean frontal,
+                String type) {
             return new Facts(x, y, z, vx, vy, vz, Math.max(0.0, radius), frontal, type == null ? "" : type);
         }
     }
@@ -25,8 +35,7 @@ public final class ProjectileThreat {
     /** An axis-aligned box around the companion, inflated by the projectile radius by the caller if desired. */
     public record EntityBounds(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
         public static EntityBounds around(double x, double y, double z, double halfWidth, double height) {
-            return new EntityBounds(
-                    x - halfWidth, y, z - halfWidth, x + halfWidth, y + height, z + halfWidth);
+            return new EntityBounds(x - halfWidth, y, z - halfWidth, x + halfWidth, y + height, z + halfWidth);
         }
 
         public EntityBounds inflate(double amount) {

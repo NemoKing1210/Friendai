@@ -75,8 +75,13 @@ public final class PcmConverter {
      * samples only: a trailing odd byte in the slice is ignored.
      */
     public static byte[] toStereoRamped(
-            byte[] pcm16le, int offset, int length,
-            double leftStart, double rightStart, double leftEnd, double rightEnd) {
+            byte[] pcm16le,
+            int offset,
+            int length,
+            double leftStart,
+            double rightStart,
+            double leftEnd,
+            double rightEnd) {
         int start = Math.max(0, offset);
         int end = Math.min(pcm16le.length, start + Math.max(0, length));
         int usable = (end - start) & ~1;

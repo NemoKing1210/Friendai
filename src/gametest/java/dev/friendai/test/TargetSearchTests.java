@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.knowledge.search.ResourceSearchProfile;
@@ -65,13 +64,17 @@ public final class TargetSearchTests {
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
         args.addProperty("heading", "east");
-        var started = tools().bind(companion).execute(new ToolCall("test", "search_resource", args, args.toString(), null),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        new ToolCall("test", "search_resource", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
         int startX = companion.blockPosition().getX();
         h.succeedWhen(() -> {
-            String choice = result.debug.stream().filter(line -> line.startsWith("search chose"))
-                    .findFirst().orElse(null);
+            String choice = result.debug.stream()
+                    .filter(line -> line.startsWith("search chose"))
+                    .findFirst()
+                    .orElse(null);
             h.assertTrue(choice != null, "search should choose a frontier; debug: " + result.debug);
             java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("search chose (-?\\d+) (-?\\d+)")
                     .matcher(choice);
@@ -94,8 +97,10 @@ public final class TargetSearchTests {
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
-        var started = tools().bind(companion).execute(new ToolCall("test", "search_resource", args, args.toString(), null),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        new ToolCall("test", "search_resource", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
         int[] step = {0};
         BlockPos[] held = {null};
@@ -105,17 +110,25 @@ public final class TargetSearchTests {
                 Vec3 far = h.absoluteVec(new Vec3(80, 2, 80));
                 owner.teleportTo(far.x, far.y, far.z);
             } else if (step[0] == 24) {
-                String summary = companion.taskRunner().current().map(task -> task.resultSummary()).orElse("");
+                String summary = companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary())
+                        .orElse("");
                 h.assertTrue(summary.contains("waiting for the owner"), "expected a wait, got: " + summary);
                 held[0] = companion.blockPosition();
             } else if (step[0] > 24 && step[0] < 30) {
-                h.assertTrue(companion.blockPosition().equals(held[0]),
-                        "the companion moved while waiting for the owner");
+                h.assertTrue(
+                        companion.blockPosition().equals(held[0]), "the companion moved while waiting for the owner");
             } else if (step[0] == 30) {
                 Vec3 near = h.absoluteVec(new Vec3(4, 2, 4));
                 owner.teleportTo(near.x, near.y, near.z);
             } else if (step[0] >= 40) {
-                String summary = companion.taskRunner().current().map(task -> task.resultSummary()).orElse("");
+                String summary = companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.resultSummary())
+                        .orElse("");
                 h.assertTrue(!summary.contains("waiting for the owner"), "did not resume: " + summary);
                 companion.taskRunner().stop("test cleanup");
             }
@@ -130,13 +143,21 @@ public final class TargetSearchTests {
         companion.setOwner(owner.getUUID());
         String dimension = h.getLevel().dimension().identifier().toString();
         long now = h.getLevel().getServer().overworld().getGameTime();
-        var session = new SearchSession(UUID.randomUUID(), dimension, "biome:minecraft:the_void",
-                new Pos(2, 2, 2), new SearchSession.Limits(32, 128, 160, 32), now);
+        var session = new SearchSession(
+                UUID.randomUUID(),
+                dimension,
+                "biome:minecraft:the_void",
+                new Pos(2, 2, 2),
+                new SearchSession.Limits(32, 128, 160, 32),
+                now);
         var target = new TargetKind.Biome("minecraft:the_void", 32);
-        var profile = new ResourceSearchProfile("biome:minecraft:the_void", Set.of(dimension), OptionalInt.empty(),
+        var profile = new ResourceSearchProfile(
+                "biome:minecraft:the_void",
+                Set.of(dimension),
+                OptionalInt.empty(),
                 Set.of(ResourceSearchProfile.Strategy.SURFACE));
-        var driver = new ResourceSearchDriver(session, target, profile, 32, false,
-                ResourceSearchProfile.Strategy.SURFACE, null, null, null);
+        var driver = new ResourceSearchDriver(
+                session, target, profile, 32, false, ResourceSearchProfile.Strategy.SURFACE, null, null, null);
         Result result = new Result();
         TaskRunner runner = new TaskRunner(companion, () -> 600, () -> false);
         runner.setListener(result);
@@ -145,7 +166,8 @@ public final class TargetSearchTests {
             runner.tick();
             h.assertTrue(result.status != null, "search should stop inside its budget");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("no directly visible") || result.summary.contains("budget"),
+            h.assertTrue(
+                    result.summary.contains("no directly visible") || result.summary.contains("budget"),
                     "failure must name the reason: " + result.summary);
         });
     }
@@ -160,14 +182,17 @@ public final class TargetSearchTests {
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
-        tools().bind(companion).execute(new ToolCall("test", "search_resource", args, args.toString(), null),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        tools().bind(companion)
+                .execute(
+                        new ToolCall("test", "search_resource", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         String saved = companion.taskRunner().current().orElseThrow().saveData();
         h.assertTrue(saved != null && saved.startsWith(SearchResourceTask.SAVE_PREFIX), "save format: " + saved);
         SearchResourceTask restored = SearchResourceTask.restore(saved);
         h.assertTrue(restored != null, "a v2 search must restore");
         h.assertTrue(restored.describe().contains("#minecraft:logs"), restored.describe());
-        h.assertTrue(SearchResourceTask.restore("resource_session:v1:deadbeef") == null,
+        h.assertTrue(
+                SearchResourceTask.restore("resource_session:v1:deadbeef") == null,
                 "the old interruption marker must not restore");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
@@ -184,11 +209,16 @@ public final class TargetSearchTests {
         h.assertTrue(GameTestSupport.observeVisible(h, companion, bell), "the bell must be in sight");
         Result result = new Result();
         companion.taskRunner().setListener(result);
-        var started = tools().bind(companion).execute(targetCall("structure", "village"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        targetCall("structure", "village"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
-        String biome = h.getLevel().getBiome(companion.blockPosition()).unwrapKey()
-                .map(key -> key.identifier().toString()).orElseThrow();
+        String biome = h.getLevel()
+                .getBiome(companion.blockPosition())
+                .unwrapKey()
+                .map(key -> key.identifier().toString())
+                .orElseThrow();
         Result biomeResult = new Result();
         boolean[] biomeStarted = {false};
         h.succeedWhen(() -> {
@@ -198,12 +228,15 @@ public final class TargetSearchTests {
                 h.assertTrue(result.summary.contains("found"), result.summary);
                 biomeStarted[0] = true;
                 companion.taskRunner().setListener(biomeResult);
-                var biomeStart = tools().bind(companion).execute(targetCall("biome", biome),
-                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+                var biomeStart = tools().bind(companion)
+                        .execute(
+                                targetCall("biome", biome),
+                                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
                 h.assertTrue(!biomeStart.error(), biomeStart.content());
                 return;
             }
-            h.assertTrue(biomeResult.status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    biomeResult.status == TaskStatus.SUCCESS,
                     "biome status " + biomeResult.status + " " + biomeResult.summary);
         });
     }
@@ -215,16 +248,27 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         BlockPos at = companion.blockPosition();
-        PlaceService.remember(companion,
+        PlaceService.remember(
+                companion,
                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER),
-                new PlaceValues("camp", PlaceKind.HOUSE, "", h.getLevel().dimension().identifier().toString(),
-                        new Pos(at.getX(), at.getY(), at.getZ()), 8, Set.of(), PlaceSource.MANUAL,
-                        owner.getUUID(), ""),
+                new PlaceValues(
+                        "camp",
+                        PlaceKind.HOUSE,
+                        "",
+                        h.getLevel().dimension().identifier().toString(),
+                        new Pos(at.getX(), at.getY(), at.getZ()),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        owner.getUUID(),
+                        ""),
                 h.getLevel().getServer().overworld().getGameTime());
         Result result = new Result();
         companion.taskRunner().setListener(result);
-        var started = tools().bind(companion).execute(targetCall("place", "camp"),
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        var started = tools().bind(companion)
+                .execute(
+                        targetCall("place", "camp"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
         h.succeedWhen(() -> {
             h.assertTrue(result.status != null, "place search should finish");

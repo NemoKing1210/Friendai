@@ -21,8 +21,7 @@ class ClientConfigMigrationTest {
         Path file = dir.resolve("friendai-client.json");
         Files.writeString(file, old);
         ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
+                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, ClientConfig::migrate);
         return store.load();
     }
 
@@ -38,8 +37,12 @@ class ClientConfigMigrationTest {
         assertEquals("Mic", c.voice.stt.inputDevice);
         assertEquals(10, c.voice.stt.maxRecordSec);
         assertFalse(c.voice.tts.enabled);
-        assertEquals(3, JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
-                .getAsJsonObject().get("version").getAsInt());
+        assertEquals(
+                3,
+                JsonParser.parseString(Files.readString(dir.resolve("friendai-client.json")))
+                        .getAsJsonObject()
+                        .get("version")
+                        .getAsInt());
     }
 
     @Test
@@ -106,7 +109,8 @@ class ClientConfigMigrationTest {
         JsonObject tts = voice.getAsJsonObject("tts");
         assertTrue(voice.get("customVoiceFlag").getAsBoolean());
         assertEquals(7, tts.get("extra").getAsInt());
-        assertEquals("ru_RU-irina-medium", tts.getAsJsonObject("local").get("voice").getAsString());
+        assertEquals(
+                "ru_RU-irina-medium", tts.getAsJsonObject("local").get("voice").getAsString());
         assertFalse(voice.has("whisperModel"));
         assertEquals("auto", tts.get("language").getAsString());
     }
@@ -114,8 +118,7 @@ class ClientConfigMigrationTest {
     @Test
     void version3IsNotMigrated() {
         JsonObject json = JsonParser.parseString("""
-            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""")
-                .getAsJsonObject();
+            {"version":3,"voice":{"stt":{"provider":"openai"},"tts":{"provider":"yandex"}}}""").getAsJsonObject();
         assertSame(json, ClientConfig.migrate(json, 3));
     }
 }

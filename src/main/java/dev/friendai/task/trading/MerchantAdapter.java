@@ -2,8 +2,8 @@ package dev.friendai.task.trading;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.interact.CompanionHands;
-import dev.friendai.trading.TradeBook;
 import dev.friendai.trading.TradeAuthority;
+import dev.friendai.trading.TradeBook;
 import dev.friendai.trading.TradeOrder;
 import dev.friendai.trading.TradeStore;
 import dev.friendai.trading.TraderRecord;
@@ -49,8 +49,8 @@ public final class MerchantAdapter {
             MerchantMenu menu = hands.openMerchant(target);
             if (menu == null || merchant.getTradingPlayer() != hands.player()) return Optional.empty();
             MerchantOffers offers = merchant.getOffers();
-            TraderRecord verified = TraderAdapters.verified(target, offers, actor, nowTick,
-                    ((ServerLevel) companion.level()).registryAccess());
+            TraderRecord verified = TraderAdapters.verified(
+                    target, offers, actor, nowTick, ((ServerLevel) companion.level()).registryAccess());
             if (!book.observe(verified)) return Optional.empty();
             return book.trader(target.getUUID());
         } finally {
@@ -66,9 +66,11 @@ public final class MerchantAdapter {
      * Opens only the exact remembered merchant and quote actor. This method rereads the loaded entity's complete
      * offer list and semantic ref before returning a session; it never opens by remembered list index.
      */
-    public MerchantSession openSession(CompanionEntity companion, Entity target, TradeOrder order,
-                                       TradeAuthority authority, long nowTick) {
-        if (order == null || authority == null || !validPair(companion, target, nowTick)
+    public MerchantSession openSession(
+            CompanionEntity companion, Entity target, TradeOrder order, TradeAuthority authority, long nowTick) {
+        if (order == null
+                || authority == null
+                || !validPair(companion, target, nowTick)
                 || !(target instanceof Merchant merchant)) {
             throw new IllegalStateException("merchant or trade order is unavailable");
         }
@@ -85,11 +87,11 @@ public final class MerchantAdapter {
         book.activatePricingActor(actor);
         TraderRecord remembered = book.trader(order.trader())
                 .orElseThrow(() -> new IllegalStateException("merchant has not been inspected"));
-        if (authority.progress(order.orderId()).isEmpty()
-                && remembered.revision() != order.observationRevision()) {
+        if (authority.progress(order.orderId()).isEmpty() && remembered.revision() != order.observationRevision()) {
             throw new IllegalStateException("merchant observation changed after order authorization");
         }
-        if (TraderAdapters.quoteForActor(book, order.trader(), order.offerRef(), actor).isEmpty()) {
+        if (TraderAdapters.quoteForActor(book, order.trader(), order.offerRef(), actor)
+                .isEmpty()) {
             throw new IllegalStateException("offer quote is stale or belongs to another pricing actor");
         }
         if (merchant.getTradingPlayer() != null) {
@@ -110,26 +112,36 @@ public final class MerchantAdapter {
                 throw new IllegalStateException("merchant menu could not be acquired");
             }
 
-            List<dev.friendai.trading.TradeOffer> live = TraderAdapters.offers(merchant.getOffers(), actor, nowTick,
-                    ((ServerLevel) companion.level()).registryAccess());
-            long matches = live.stream().filter(offer -> offer.ref().equals(order.offerRef())).count();
+            List<dev.friendai.trading.TradeOffer> live = TraderAdapters.offers(
+                    merchant.getOffers(), actor, nowTick, ((ServerLevel) companion.level()).registryAccess());
+            long matches = live.stream()
+                    .filter(offer -> offer.ref().equals(order.offerRef()))
+                    .count();
             if (matches != 1) throw new IllegalStateException("selected offer disappeared or is ambiguous");
-            var selected = live.stream().filter(offer -> offer.ref().equals(order.offerRef())).findFirst().orElseThrow();
-            long semanticMatches = live.stream().filter(offer -> offer.baseInputs().equals(selected.baseInputs())
-                    && offer.output().equals(selected.output())).count();
-            if (semanticMatches != 1) throw new IllegalStateException("selected offer became ambiguous after reordering");
-            if (live.stream().filter(offer -> offer.ref().equals(order.offerRef()))
+            var selected = live.stream()
+                    .filter(offer -> offer.ref().equals(order.offerRef()))
+                    .findFirst()
+                    .orElseThrow();
+            long semanticMatches = live.stream()
+                    .filter(offer -> offer.baseInputs().equals(selected.baseInputs())
+                            && offer.output().equals(selected.output()))
+                    .count();
+            if (semanticMatches != 1)
+                throw new IllegalStateException("selected offer became ambiguous after reordering");
+            if (live.stream()
+                    .filter(offer -> offer.ref().equals(order.offerRef()))
                     .anyMatch(offer -> !actor.equals(offer.pricingActor()))) {
                 throw new IllegalStateException("live offer was priced for another actor");
             }
 
-            MerchantSession session = new MerchantSession(companion, target, merchant, menu, order, authority,
-                    book, leases, guard, nowTick, actor);
+            MerchantSession session = new MerchantSession(
+                    companion, target, merchant, menu, order, authority, book, leases, guard, nowTick, actor);
             guard.register(session);
             registered = true;
             return session;
         } finally {
-            // A failed setup must release only its own acquired state; hands.closeMenu is safe if vanilla ownership changed.
+            // A failed setup must release only its own acquired state; hands.closeMenu is safe if vanilla ownership
+            // changed.
             if (!registered) {
                 try {
                     hands.closeMenu();
@@ -145,8 +157,13 @@ public final class MerchantAdapter {
     }
 
     private static boolean validPair(CompanionEntity companion, Entity target, long nowTick) {
-        return companion != null && target != null && nowTick >= 0 && companion.isAlive() && target.isAlive()
-                && !companion.level().isClientSide() && companion.level() instanceof ServerLevel
+        return companion != null
+                && target != null
+                && nowTick >= 0
+                && companion.isAlive()
+                && target.isAlive()
+                && !companion.level().isClientSide()
+                && companion.level() instanceof ServerLevel
                 && companion.level() == target.level();
     }
 

@@ -61,19 +61,25 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(items, row * 9 + col, CompanionInventoryLayout.columnX(col),
+                addSlot(new Slot(
+                        items,
+                        row * 9 + col,
+                        CompanionInventoryLayout.columnX(col),
                         CompanionInventoryLayout.rowY(CompanionInventoryLayout.ITEMS_Y, row)));
             }
         }
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, 9 + row * 9 + col, CompanionInventoryLayout.columnX(col),
+                addSlot(new Slot(
+                        playerInventory,
+                        9 + row * 9 + col,
+                        CompanionInventoryLayout.columnX(col),
                         CompanionInventoryLayout.rowY(CompanionInventoryLayout.PLAYER_Y, row)));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, CompanionInventoryLayout.columnX(col),
-                    CompanionInventoryLayout.HOTBAR_Y));
+            addSlot(new Slot(
+                    playerInventory, col, CompanionInventoryLayout.columnX(col), CompanionInventoryLayout.HOTBAR_Y));
         }
     }
 

@@ -117,15 +117,19 @@ public class TrustTests {
         ToolResult result = runTool(owner.player(), "trust_player", "{\"name\":\"" + targetName + "\"}");
 
         h.assertTrue(!result.error(), "result was " + result.content());
-        h.assertTrue(result.content().startsWith("asked the owner to confirm (request #"),
-                "result was " + result.content());
+        h.assertTrue(
+                result.content().startsWith("asked the owner to confirm (request #"), "result was " + result.content());
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        h.assertTrue(!state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+        h.assertTrue(
+                !state.memory()
+                        .book(owner.player().getUUID())
+                        .isTrusted(target.player().getUUID()),
                 "trust must not change before the owner confirms");
         List<Component> messages = drainMessages(owner.channel());
-        h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.ask.add")),
-                "owner got " + messages);
-        h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.button.confirm")),
+        h.assertTrue(
+                messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.ask.add")), "owner got " + messages);
+        h.assertTrue(
+                messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.button.confirm")),
                 "owner got " + messages);
         h.assertTrue(state.trust().current(owner.player().getUUID()).isPresent(), "a request should be open");
         h.succeed();
@@ -137,7 +141,8 @@ public class TrustTests {
         summon(owner.player());
         String missing = unique("Zed");
         ToolResult result = runTool(owner.player(), "trust_player", "{\"name\":\"" + missing + "\"}");
-        h.assertTrue(result.error() && result.content().equals("I don't know a player called " + missing),
+        h.assertTrue(
+                result.error() && result.content().equals("I don't know a player called " + missing),
                 "result was " + result.content());
         h.succeed();
     }
@@ -153,7 +158,8 @@ public class TrustTests {
 
         ToolResult result = runTool(owner.player(), "trust_player", "{\"name\":\"" + targetName + "\"}");
 
-        h.assertTrue(!result.error() && result.content().equals(targetName + " is already trusted"),
+        h.assertTrue(
+                !result.error() && result.content().equals(targetName + " is already trusted"),
                 "result was " + result.content());
         h.assertTrue(state.trust().current(owner.player().getUUID()).isEmpty(), "no request should open");
         h.succeed();
@@ -167,10 +173,10 @@ public class TrustTests {
         List<String> owner = FriendaiTools.create(() -> 32).specs(AccessLevel.OWNER).stream()
                 .map(ToolSpec::name)
                 .toList();
-        h.assertTrue(!trusted.contains("trust_player") && !trusted.contains("untrust_player"),
+        h.assertTrue(
+                !trusted.contains("trust_player") && !trusted.contains("untrust_player"),
                 "trusted tools were " + trusted);
-        h.assertTrue(owner.contains("trust_player") && owner.contains("untrust_player"),
-                "owner tools were " + owner);
+        h.assertTrue(owner.contains("trust_player") && owner.contains("untrust_player"), "owner tools were " + owner);
         h.succeed();
     }
 
@@ -183,8 +189,7 @@ public class TrustTests {
     /** A test-private confirmation queue, so a synthetic future tick cannot expire another test's request. */
     private static TrustConfirmations isolated(GameTestHelper h) {
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        return new TrustConfirmations(
-                h.getLevel().getServer(), state.memory(), state.brains(), state::config);
+        return new TrustConfirmations(h.getLevel().getServer(), state.memory(), state.brains(), state::config);
     }
 
     @GameTest(maxTicks = 3600)
@@ -199,7 +204,9 @@ public class TrustTests {
 
         h.assertTrue(state.trust().answer(owner.player(), "да"), "да should confirm");
         h.assertTrue(
-                state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                state.memory()
+                        .book(owner.player().getUUID())
+                        .isTrusted(target.player().getUUID()),
                 "the target should be trusted");
         h.succeedWhen(() -> h.assertTrue(
                 recorder.contains("[event] the owner confirmed: " + name + " is now trusted"),
@@ -218,7 +225,9 @@ public class TrustTests {
 
         h.assertTrue(state.trust().answer(owner.player(), "нет"), "нет should cancel");
         h.assertTrue(
-                !state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                !state.memory()
+                        .book(owner.player().getUUID())
+                        .isTrusted(target.player().getUUID()),
                 "the target must not become trusted");
         h.assertTrue(state.trust().current(owner.player().getUUID()).isEmpty(), "the request is gone");
         h.succeedWhen(() -> h.assertTrue(
@@ -232,10 +241,14 @@ public class TrustTests {
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        state.trust().request(owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+        state.trust()
+                .request(
+                        owner.player(),
+                        target.player().getUUID(),
+                        target.player().getName().getString(),
+                        true);
 
-        h.assertTrue(!state.trust().answer(owner.player(), "да, и принеси дерево"),
-                "a sentence is not a confirmation");
+        h.assertTrue(!state.trust().answer(owner.player(), "да, и принеси дерево"), "a sentence is not a confirmation");
         h.assertTrue(state.trust().current(owner.player().getUUID()).isPresent(), "the request stays open");
         h.succeed();
     }
@@ -247,7 +260,12 @@ public class TrustTests {
         Mock other = mockPlayerNamed(h, unique("other"), 4, 2, 4);
         summon(owner.player());
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
-        state.trust().request(owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+        state.trust()
+                .request(
+                        owner.player(),
+                        target.player().getUUID(),
+                        target.player().getName().getString(),
+                        true);
 
         h.assertTrue(!state.trust().answer(other.player(), "yes"), "another player's yes must be ignored");
         h.assertTrue(state.trust().current(owner.player().getUUID()).isPresent(), "the owner's request stays open");
@@ -263,8 +281,7 @@ public class TrustTests {
 
         h.assertTrue(!state.trust().answer(owner.player(), "да"), "nothing to confirm");
         ChatRouter.onChat(owner.player(), "Friendai, да");
-        h.succeedWhen(
-                () -> h.assertTrue(recorder.contains("]: да"), "requests were " + recorder.requests));
+        h.succeedWhen(() -> h.assertTrue(recorder.contains("]: да"), "requests were " + recorder.requests));
     }
 
     @GameTest(maxTicks = 100)
@@ -301,7 +318,8 @@ public class TrustTests {
 
         h.getLevel().getServer().getPlayerList().remove(target.player());
         h.assertTrue(state.trust().answer(owner.player(), "yes"), "yes should still confirm");
-        h.assertTrue(state.memory().book(owner.player().getUUID()).isTrusted(targetId),
+        h.assertTrue(
+                state.memory().book(owner.player().getUUID()).isTrusted(targetId),
                 "trust is applied by UUID even after the target left");
         h.succeed();
     }
@@ -317,11 +335,14 @@ public class TrustTests {
         state.memory().book(owner.player().getUUID()).setTrusted(target.player().getUUID(), name, true, 0);
 
         ToolResult result = runTool(owner.player(), "untrust_player", "{\"name\":\"" + name + "\"}");
-        h.assertTrue(!result.error() && result.content().startsWith("asked the owner to confirm (request #"),
+        h.assertTrue(
+                !result.error() && result.content().startsWith("asked the owner to confirm (request #"),
                 "result was " + result.content());
         h.assertTrue(state.trust().answer(owner.player(), "yes"), "yes should confirm");
         h.assertTrue(
-                !state.memory().book(owner.player().getUUID()).isTrusted(target.player().getUUID()),
+                !state.memory()
+                        .book(owner.player().getUUID())
+                        .isTrusted(target.player().getUUID()),
                 "the target should no longer be trusted");
         h.succeed();
     }
@@ -342,7 +363,8 @@ public class TrustTests {
 
         h.assertTrue(confirmations.current(owner.player().getUUID()).isEmpty(), "the request should be gone");
         List<Component> messages = drainMessages(owner.channel());
-        h.assertTrue(messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.expired")), "owner got " + messages);
+        h.assertTrue(
+                messages.stream().anyMatch(m -> containsKey(m, "friendai.trust.expired")), "owner got " + messages);
         h.succeedWhen(() -> h.assertTrue(
                 recorder.contains("[event] the trust request for " + name + " expired"),
                 "requests were " + recorder.requests));
@@ -356,7 +378,10 @@ public class TrustTests {
         Recorder recorder = gateway(h, owner.player());
         TrustConfirmations confirmations = isolated(h);
         confirmations.request(
-                owner.player(), target.player().getUUID(), target.player().getName().getString(), true);
+                owner.player(),
+                target.player().getUUID(),
+                target.player().getName().getString(),
+                true);
         h.getLevel().getServer().getPlayerList().remove(owner.player());
 
         confirmations.tick(System.currentTimeMillis() + 61_000);

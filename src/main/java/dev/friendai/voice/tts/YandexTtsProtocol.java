@@ -40,8 +40,11 @@ public final class YandexTtsProtocol implements TtsProtocol {
             body.append(entry.getKey()).append('=').append(encode(entry.getValue()));
         }
         URI uri = OpenAiTtsProtocol.join(settings.baseUrl(), "/speech/v1/tts:synthesize");
-        return new PreparedRequest(uri, VoiceAuth.YANDEX.headers(settings.apiKey()),
-                body.toString().getBytes(StandardCharsets.UTF_8), "application/x-www-form-urlencoded");
+        return new PreparedRequest(
+                uri,
+                VoiceAuth.YANDEX.headers(settings.apiKey()),
+                body.toString().getBytes(StandardCharsets.UTF_8),
+                "application/x-www-form-urlencoded");
     }
 
     @Override

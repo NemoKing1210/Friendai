@@ -64,18 +64,22 @@ class PotionPolicyTest {
     @Test
     void consumptionBudgetAndCooldownAreRespected() {
         PotionFacts cooling = new PotionFacts(true, false, false, 100, 0, 1, true, false, 2);
-        assertEquals(PotionDecision.Reason.COOLDOWN,
+        assertEquals(
+                PotionDecision.Reason.COOLDOWN,
                 PotionPolicy.evaluate(cooling, enemySnapshot(), ENABLED).reason());
 
         PotionFacts spent = new PotionFacts(true, false, false, 100, 0, 1, true, true, 0);
-        assertEquals(PotionDecision.Reason.BUDGET,
+        assertEquals(
+                PotionDecision.Reason.BUDGET,
                 PotionPolicy.evaluate(spent, enemySnapshot(), ENABLED).reason());
 
         PotionFacts unsafe = new PotionFacts(true, false, false, 100, 0, 1, false, true, 2);
-        assertEquals(PotionDecision.Reason.UNSAFE_IMPACT,
+        assertEquals(
+                PotionDecision.Reason.UNSAFE_IMPACT,
                 PotionPolicy.evaluate(unsafe, enemySnapshot(), ENABLED).reason());
 
-        assertTrue(PotionPolicy.evaluate(harmful(0, 1), enemySnapshot(), ENABLED).allowed());
+        assertTrue(
+                PotionPolicy.evaluate(harmful(0, 1), enemySnapshot(), ENABLED).allowed());
     }
 
     @Test

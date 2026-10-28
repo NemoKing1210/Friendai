@@ -14,15 +14,21 @@ public final class FlyToTask implements Task {
     private String summary = "";
 
     public FlyToTask(Vec3 target) {
-        if (target == null || !Double.isFinite(target.x) || !Double.isFinite(target.y) || !Double.isFinite(target.z)
-                || Math.abs(target.x) > 30_000_000 || Math.abs(target.z) > 30_000_000) {
+        if (target == null
+                || !Double.isFinite(target.x)
+                || !Double.isFinite(target.y)
+                || !Double.isFinite(target.z)
+                || Math.abs(target.x) > 30_000_000
+                || Math.abs(target.z) > 30_000_000) {
             throw new IllegalArgumentException("flight target must be finite and inside the world border range");
         }
         this.target = target;
     }
 
     @Override
-    public String type() { return "fly_to"; }
+    public String type() {
+        return "fly_to";
+    }
 
     @Override
     public void start(TaskContext context) {
@@ -50,15 +56,23 @@ public final class FlyToTask implements Task {
     }
 
     @Override
-    public String describe() { return "flying to " + coords(); }
+    public String describe() {
+        return "flying to " + coords();
+    }
 
     @Override
-    public String resultSummary() { return summary; }
+    public String resultSummary() {
+        return summary;
+    }
 
-    public String navigationDebug() { return navigator.debugStatus(); }
+    public String navigationDebug() {
+        return navigator.debugStatus();
+    }
 
     @Override
-    public String saveData() { return null; }
+    public String saveData() {
+        return null;
+    }
 
     private String coords() {
         return String.format(Locale.ROOT, "%.1f %.1f %.1f", target.x, target.y, target.z);

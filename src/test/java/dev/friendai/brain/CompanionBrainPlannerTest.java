@@ -8,17 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
+import dev.friendai.agent.recover.FailureHandler;
+import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.PlanDefinition;
 import dev.friendai.queue.PlanNode;
 import dev.friendai.queue.QueuedStep;
-import dev.friendai.queue.GuardAction;
-import com.google.gson.JsonObject;
-import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
@@ -50,6 +50,7 @@ class CompanionBrainPlannerTest {
         public boolean ownsPlan(long planId) {
             return owned;
         }
+
         CompletableFuture<PlanProposal> answer = CompletableFuture.completedFuture(proposal());
         ToolResult applyResult = ToolResult.ok("plan #5 added: 1 jobs");
 
@@ -76,8 +77,8 @@ class CompanionBrainPlannerTest {
     }
 
     private static PlanProposal proposal() {
-        PlanDefinition plan = new PlanDefinition(List.of(new PlanNode.Action(new QueuedStep("noop", new JsonObject(),
-                null, List.of(), GuardAction.WAIT, null, 1, List.of()))));
+        PlanDefinition plan = new PlanDefinition(List.of(new PlanNode.Action(
+                new QueuedStep("noop", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of()))));
         return new PlanProposal(plan, new JsonArray(), "gather first, then build", "a finished house");
     }
 
@@ -203,7 +204,13 @@ class CompanionBrainPlannerTest {
     void failedPlanEventConsultsThePlannerBeforeTheModelAnswers() {
         activeGoal();
         gateway.enqueue(text("[silent]"));
-        brain.post(new BrainEvent.PlanBlocked(5, "house", 7, "build_structure", "missing materials", 3,
+        brain.post(new BrainEvent.PlanBlocked(
+                5,
+                "house",
+                7,
+                "build_structure",
+                "missing materials",
+                3,
                 "diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot"));
         assertEquals(1, port.failures.size());
         assertTrue(port.failures.get(0).contains("missing materials"), port.failures.get(0));
@@ -215,8 +222,8 @@ class CompanionBrainPlannerTest {
     void spentBudgetSkipsThePlannerAndAsksThePlayer() {
         activeGoal();
         gateway.enqueue(text("I am stuck, can you help?"));
-        brain.post(new BrainEvent.PlanBlocked(5, "house", 7, "build_structure", "can't reach 1 2 3", 3,
-                FailureHandler.BUDGET_SPENT));
+        brain.post(new BrainEvent.PlanBlocked(
+                5, "house", 7, "build_structure", "can't reach 1 2 3", 3, FailureHandler.BUDGET_SPENT));
         assertTrue(port.failures.isEmpty(), "no replans left");
         assertEquals(List.of("I am stuck, can you help?"), speaker.said);
     }

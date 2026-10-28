@@ -3,17 +3,17 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.mining.MiningBounds;
+import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Node;
 import dev.friendai.pathing.PathStep;
-import dev.friendai.pathing.Move;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.MineBlocksTask;
-import dev.friendai.task.mining.BreakAction;
 import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.mining.BreakAction;
 import dev.friendai.task.mining.ExcavationGuard;
 import dev.friendai.task.nav.Sight;
 import java.util.List;
@@ -21,8 +21,8 @@ import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.VineBlock;
 
@@ -48,7 +48,8 @@ public class MiningTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
 
-        BreakAction.State state = new BreakAction(support).tick(new TaskContext(companion, h.getLevel()), block -> true);
+        BreakAction.State state =
+                new BreakAction(support).tick(new TaskContext(companion, h.getLevel()), block -> true);
 
         h.assertTrue(state == BreakAction.State.BLOCKED, "occupied support was not refused: " + state);
         h.assertTrue(h.getLevel().getBlockState(support).is(Blocks.STONE), "occupied support was destroyed");
@@ -83,10 +84,12 @@ public class MiningTests {
         h.setBlock(new BlockPos(3, 2, 2), Blocks.DIAMOND_ORE);
         ExcavationGuard guard = guard(companion, h);
 
-        h.assertFalse(guard.allowTarget(new TaskContext(companion, h.getLevel()), target),
+        h.assertFalse(
+                guard.allowTarget(new TaskContext(companion, h.getLevel()), target),
                 "ore extraction accepted without a tool that drops ore");
         companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
-        h.assertTrue(guard.allowTarget(new TaskContext(companion, h.getLevel()), target),
+        h.assertTrue(
+                guard.allowTarget(new TaskContext(companion, h.getLevel()), target),
                 "suitable ore tool was not accepted");
         h.succeed();
     }
@@ -98,12 +101,22 @@ public class MiningTests {
         BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
         h.setBlock(new BlockPos(4, 2, 2), Blocks.STONE);
         h.setBlock(new BlockPos(5, 2, 2), Blocks.WATER);
-        PathStep step = new PathStep(new Node(target.getX() - 1, target.getY(), target.getZ()),
-                new Node(target.getX(), target.getY(), target.getZ()), Move.DIG,
-                List.of(new Pos(target.getX(), target.getY(), target.getZ())), List.of(), 1, 0);
+        PathStep step = new PathStep(
+                new Node(target.getX() - 1, target.getY(), target.getZ()),
+                new Node(target.getX(), target.getY(), target.getZ()),
+                Move.DIG,
+                List.of(new Pos(target.getX(), target.getY(), target.getZ())),
+                List.of(),
+                1,
+                0);
 
-        h.assertFalse(guard(companion, h).allowBreak(new TaskContext(companion, h.getLevel()), step,
-                new Pos(target.getX(), target.getY(), target.getZ())), "corridor break next to water was allowed");
+        h.assertFalse(
+                guard(companion, h)
+                        .allowBreak(
+                                new TaskContext(companion, h.getLevel()),
+                                step,
+                                new Pos(target.getX(), target.getY(), target.getZ())),
+                "corridor break next to water was allowed");
         h.assertTrue(h.getLevel().getBlockState(target).is(Blocks.STONE), "corridor block changed");
         h.succeed();
     }
@@ -115,7 +128,8 @@ public class MiningTests {
         h.setBlock(new BlockPos(3, 3, 2), Blocks.VINE.defaultBlockState().setValue(VineBlock.EAST, true));
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos log = h.absolutePos(new BlockPos(4, 3, 2));
-        h.assertTrue(Sight.firstBlockOnRay(h.getLevel(), companion, log) == null,
+        h.assertTrue(
+                Sight.firstBlockOnRay(h.getLevel(), companion, log) == null,
                 "a vine has no collision and must not be a sight obstruction");
         h.succeed();
     }
@@ -127,25 +141,28 @@ public class MiningTests {
         h.setBlock(4, 0, 4, Blocks.STONE);
         h.setBlock(ore, Blocks.DIAMOND_ORE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
                 "diamond ore below the companion should be directly visible");
         companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8),
-                "mine_blocks");
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8), "mine_blocks");
 
         h.succeedWhen(() -> {
             runner.tick();
             if (outcome.status != TaskStatus.SUCCESS || companion.inventory().countItem(Items.DIAMOND) < 1) {
                 return;
             }
-            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
                     "mining did not finish: " + outcome.status + " " + outcome.summary);
             h.assertTrue(h.getLevel().getBlockState(h.absolutePos(ore)).isAir(), "ore support was not extracted");
             h.assertTrue(companion.inventory().countItem(Items.DIAMOND) >= 1, "ore drop was not collected");
-            h.assertFalse(companion.blockPosition().equals(h.absolutePos(ore).above()),
+            h.assertFalse(
+                    companion.blockPosition().equals(h.absolutePos(ore).above()),
                     "companion stayed on the ore support while mining it");
         });
     }
@@ -156,22 +173,25 @@ public class MiningTests {
         BlockPos ore = new BlockPos(5, 2, 3);
         h.setBlock(ore, Blocks.DIAMOND_ORE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 3);
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
                 "diamond ore should be directly visible");
-        companion.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, Items.IRON_PICKAXE.getDefaultInstance());
+        companion.setItemSlot(
+                net.minecraft.world.entity.EquipmentSlot.MAINHAND, Items.IRON_PICKAXE.getDefaultInstance());
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             companion.inventory().setItem(i, new ItemStack(Items.COBBLESTONE, 64));
         }
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8),
-                "mine_blocks");
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8), "mine_blocks");
 
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(outcome.status == TaskStatus.FAILED, "full inventory did not stop mining");
-            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(ore)).is(Blocks.DIAMOND_ORE),
+            h.assertTrue(
+                    h.getLevel().getBlockState(h.absolutePos(ore)).is(Blocks.DIAMOND_ORE),
                     "ore was destroyed before checking room for drops");
             h.assertTrue(outcome.summary.contains("inventory full"), "failure did not report full inventory");
         });
@@ -183,20 +203,22 @@ public class MiningTests {
         BlockPos stone = new BlockPos(4, 2, 2);
         h.setBlock(stone, Blocks.STONE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)),
                 "the stone should be directly visible");
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8),
-                "mine_blocks");
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(outcome.status != null, "mining should finish");
             h.assertTrue(outcome.status == TaskStatus.FAILED, "status " + outcome.status + " " + outcome.summary);
-            h.assertTrue(outcome.summary.contains("no suitable tool"),
+            h.assertTrue(
+                    outcome.summary.contains("no suitable tool"),
                     "the refusal must name the missing tool: " + outcome.summary);
-            h.assertTrue(h.getLevel().getBlockState(h.absolutePos(stone)).is(Blocks.STONE),
+            h.assertTrue(
+                    h.getLevel().getBlockState(h.absolutePos(stone)).is(Blocks.STONE),
                     "stone must not be destroyed without a pickaxe");
         });
     }
@@ -211,18 +233,19 @@ public class MiningTests {
                 for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
             }
         }
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(4, 122, 6))),
                 "the initial exposed stone should be visible");
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 20, 16),
-                "mine_blocks");
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 20, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
-                    "hill stone mining did not finish: " + outcome.status + " " + outcome.summary
-                            + ", cobblestone=" + companion.inventory().countItem(Items.COBBLESTONE));
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "hill stone mining did not finish: " + outcome.status + " " + outcome.summary + ", cobblestone="
+                            + companion.inventory().countItem(Items.COBBLESTONE));
         });
     }
 
@@ -238,16 +261,17 @@ public class MiningTests {
         }
         BlockPos ore = new BlockPos(4, 127, 6);
         h.setBlock(ore, Blocks.IRON_ORE);
-        h.assertTrue(GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(ore)),
                 "the iron ore high on the hill face should be directly visible");
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16),
-                "mine_blocks");
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
                     "iron was not mined: " + outcome.status + " " + outcome.summary + ", at "
                             + companion.blockPosition().toShortString());
         });
@@ -268,21 +292,25 @@ public class MiningTests {
         h.setBlock(ore, Blocks.IRON_ORE);
         BlockPos absOre = h.absolutePos(ore);
         BlockPos at = companion.blockPosition();
-        dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer()).resources().observe(companion,
-                new dev.friendai.knowledge.ResourceObservation("minecraft:iron_ore",
-                        new dev.friendai.knowledge.ResourceObservation.Location(
-                                h.getLevel().dimension().identifier().toString(),
-                                new Pos(absOre.getX(), absOre.getY(), absOre.getZ())),
-                        new Pos(at.getX(), at.getY(), at.getZ()),
-                        h.getLevel().getServer().overworld().getGameTime()));
+        dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
+                .resources()
+                .observe(
+                        companion,
+                        new dev.friendai.knowledge.ResourceObservation(
+                                "minecraft:iron_ore",
+                                new dev.friendai.knowledge.ResourceObservation.Location(
+                                        h.getLevel().dimension().identifier().toString(),
+                                        new Pos(absOre.getX(), absOre.getY(), absOre.getZ())),
+                                new Pos(at.getX(), at.getY(), at.getZ()),
+                                h.getLevel().getServer().overworld().getGameTime()));
         Outcome outcome = new Outcome();
         TaskRunner runner = new TaskRunner(companion, () -> 300, () -> false);
         runner.setListener(outcome);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16),
-                "mine_blocks");
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(outcome.status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
                     "iron was not mined: " + outcome.status + " " + outcome.summary + ", at "
                             + companion.blockPosition().toShortString());
         });
@@ -325,9 +353,15 @@ public class MiningTests {
     }
 
     private static long cobbleDrops(GameTestHelper h) {
-        return h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
-                new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(0, 0, 0))).inflate(16),
-                e -> e.getItem().is(Items.COBBLESTONE)).stream().mapToLong(e -> e.getItem().getCount()).sum();
+        return h
+                .getLevel()
+                .getEntitiesOfClass(
+                        net.minecraft.world.entity.item.ItemEntity.class,
+                        new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(0, 0, 0))).inflate(16),
+                        e -> e.getItem().is(Items.COBBLESTONE))
+                .stream()
+                .mapToLong(e -> e.getItem().getCount())
+                .sum();
     }
 
     private static ExcavationGuard guard(CompanionEntity companion, GameTestHelper h) {

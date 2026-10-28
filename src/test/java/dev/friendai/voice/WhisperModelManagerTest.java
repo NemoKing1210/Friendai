@@ -34,7 +34,8 @@ class WhisperModelManagerTest {
     void setUp() throws Exception {
         server = new MockHttpServer();
         byte[] bytes = CONTENT.getBytes(StandardCharsets.UTF_8);
-        String sha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        String sha =
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         spec = new ModelSpec("ggml-test.bin", bytes.length, sha);
         manager = new WhisperModelManager(dir, HttpClient.newHttpClient(), server.baseUrl());
     }
@@ -59,7 +60,8 @@ class WhisperModelManagerTest {
     @Test
     void corruptDownloadDeletedAndFails() {
         server.enqueue(200, "pretend this is a speech modeX");
-        ExecutionException e = assertThrows(ExecutionException.class, () -> manager.download(spec, p -> {}).get());
+        ExecutionException e = assertThrows(
+                ExecutionException.class, () -> manager.download(spec, p -> {}).get());
         UserFacingException cause = (UserFacingException) e.getCause();
         assertEquals("friendai.voice.error.model_corrupt", cause.userMessage().key());
         assertFalse(Files.exists(dir.resolve("ggml-test.bin.part")));
@@ -77,7 +79,8 @@ class WhisperModelManagerTest {
     @Test
     void httpErrorFailsWithoutLeavingFiles() {
         server.enqueue(404, "{}");
-        assertThrows(ExecutionException.class, () -> manager.download(spec, p -> {}).get());
+        assertThrows(
+                ExecutionException.class, () -> manager.download(spec, p -> {}).get());
         assertFalse(Files.exists(dir.resolve("ggml-test.bin")));
     }
 

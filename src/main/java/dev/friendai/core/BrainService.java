@@ -1,5 +1,8 @@
 package dev.friendai.core;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
 import dev.friendai.brain.AccessResolver;
 import dev.friendai.brain.BrainEvent;
@@ -10,22 +13,21 @@ import dev.friendai.brain.Persona;
 import dev.friendai.brain.Speaker;
 import dev.friendai.chat.CompanionSpeaker;
 import dev.friendai.config.ConfigException;
-import dev.friendai.config.ServerConfig;
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import dev.friendai.config.SecretResolver;
+import dev.friendai.config.ServerConfig;
 import dev.friendai.debug.DebugLog;
 import dev.friendai.debug.DebugLogObserver;
 import dev.friendai.debug.DebugService;
 import dev.friendai.debug.LogKind;
 import dev.friendai.debug.SecretRedactor;
 import dev.friendai.debug.TaskRecord;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.llm.LlmClient;
+import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.llm.provider.ProviderRegistry;
 import dev.friendai.memory.AutoProfile;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
@@ -34,40 +36,37 @@ import dev.friendai.memory.MemoryStore;
 import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceText;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.ToolResult;
-import dev.friendai.tool.builtin.MemoryAccess;
-import java.util.ArrayList;
-import java.util.List;
-import dev.friendai.llm.http.HttpTransport;
-import dev.friendai.llm.provider.ProviderRegistry;
+import dev.friendai.queue.Job;
+import dev.friendai.queue.JobState;
+import dev.friendai.queue.PlanNode;
+import dev.friendai.queue.PlanRecord;
+import dev.friendai.queue.QueueSave;
+import dev.friendai.queue.QueueTradeScope;
+import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskSettings;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.plan.StepFactory;
-import dev.friendai.task.plan.PlanStepFactory;
-import dev.friendai.queue.QueueTradeScope;
-import dev.friendai.trading.TradeAuthority;
-import dev.friendai.trading.TradePromptSummary;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanNode;
-import dev.friendai.queue.PlanRecord;
-import dev.friendai.queue.QueuedStep;
-import dev.friendai.queue.QueueSave;
-import dev.friendai.task.TaskSettings;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanSave;
+import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.SequenceTask;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.TaskToolDef;
+import dev.friendai.task.plan.StepFactory;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolRegistry;
+import dev.friendai.tool.ToolResult;
+import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.tool.builtin.MemoryAccess;
+import dev.friendai.tool.builtin.TaskToolDef;
+import dev.friendai.trading.TradeAuthority;
+import dev.friendai.trading.TradePromptSummary;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -91,8 +90,10 @@ public final class BrainService {
     private final ToolRegistry<CompanionEntity> tools;
     /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
     private final Map<String, TaskToolDef> planTools;
+
     private final Map<String, TaskToolDef> taskTools;
-    private final DebugService debug = new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
+    private final DebugService debug =
+            new DebugService(SecretRedactor.of(this::configuredSecrets), System::currentTimeMillis);
     private final FreeTimeDriver freeTime;
 
     private final Map<UUID, dev.friendai.agent.plan.Planner> plannerOverrides = new HashMap<>();
@@ -101,12 +102,14 @@ public final class BrainService {
     private final Map<UUID, Integer> nudgeStreak = new HashMap<>();
     /** How the companion learns the owner's language: seeded from the book, fed only by the owner's own messages. */
     private final Map<UUID, dev.friendai.text.LanguageMemory> ownerLanguages = new HashMap<>();
+
     private long lastAgentCheck;
     private final UnaryOperator<String> plannerRedactor = SecretRedactor.of(this::configuredSecrets);
     private ServerConfig config;
     private LlmGateway current;
     /** The model that drafts plans when {@code agent.planner} names a profile; null means the main one. */
     private LlmGateway plannerGateway;
+
     private String activeModel = "";
     private String activeProvider = "";
 
@@ -114,22 +117,23 @@ public final class BrainService {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
-        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> this.config.tasks.mineSearchRadius, () -> this.config.tasks.treeSearchRadius, new MemoryAccess() {
-            @Override
-            public boolean enabled() {
-                return config != null && config.memory.enabled;
-            }
+        FriendaiTools.Builtins builtins = FriendaiTools.build(
+                () -> this.config.tasks.mineSearchRadius, () -> this.config.tasks.treeSearchRadius, new MemoryAccess() {
+                    @Override
+                    public boolean enabled() {
+                        return config != null && config.memory.enabled;
+                    }
 
-            @Override
-            public MemoryLimits limits() {
-                return config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
-            }
+                    @Override
+                    public MemoryLimits limits() {
+                        return config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
+                    }
 
-            @Override
-            public MemoryBook book(UUID owner) {
-                return memory.book(owner);
-            }
-        });
+                    @Override
+                    public MemoryBook book(UUID owner) {
+                        return memory.book(owner);
+                    }
+                });
         this.tools = builtins.registry();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
@@ -143,16 +147,30 @@ public final class BrainService {
     }
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
-    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input) {
-        return propose(owner,input,false);
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+            UUID owner, dev.friendai.agent.plan.PlannerInput input) {
+        return propose(owner, input, false);
     }
-    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(UUID owner, dev.friendai.agent.plan.PlannerInput input,boolean autonomous) {
-        var companion=CompanionManager.get(server).find(owner);
-        String task=companion.map(c->c.taskRunner().currentToolName()).orElse("");
-        boolean combat=companion.map(c->c.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE).orElse(false);
-        var session = FriendaiServerState.get(server).skills().begin(owner,new Caller(owner,"",AccessLevel.OWNER),
-                input.goal().text(),dev.friendai.brain.TurnKind.EVENT,task,autonomous,true,combat);
-        return plannerFor(owner).propose(input.withInstructions(session.sections(),config.agent.promptBudget));
+
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+            UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous) {
+        var companion = CompanionManager.get(server).find(owner);
+        String task = companion.map(c -> c.taskRunner().currentToolName()).orElse("");
+        boolean combat = companion
+                .map(c -> c.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE)
+                .orElse(false);
+        var session = FriendaiServerState.get(server)
+                .skills()
+                .begin(
+                        owner,
+                        new Caller(owner, "", AccessLevel.OWNER),
+                        input.goal().text(),
+                        dev.friendai.brain.TurnKind.EVENT,
+                        task,
+                        autonomous,
+                        true,
+                        combat);
+        return plannerFor(owner).propose(input.withInstructions(session.sections(), config.agent.promptBudget));
     }
 
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
@@ -299,8 +317,10 @@ public final class BrainService {
     private void observeOwnerProfile(UUID owner, String name, String text) {
         MemoryBook book = memory.book(owner);
         book.ensurePlayer(owner, name);
-        dev.friendai.text.LanguageMemory tracker = ownerLanguages.computeIfAbsent(owner,
-                id -> dev.friendai.text.LanguageMemory.startingAt(book.ownerLanguage(id).orElse(null)));
+        dev.friendai.text.LanguageMemory tracker = ownerLanguages.computeIfAbsent(
+                owner,
+                id -> dev.friendai.text.LanguageMemory.startingAt(
+                        book.ownerLanguage(id).orElse(null)));
         tracker.observe(dev.friendai.text.LanguageDetector.detect(text))
                 .ifPresent(language -> book.setOwnerLanguage(owner, language));
         if (config == null || !config.memory.enabled) {
@@ -308,8 +328,8 @@ public final class BrainService {
         }
         long now = System.currentTimeMillis();
         MemoryLimits limits = config.memory.limits();
-        book.ownerLanguage(owner).ifPresent(language ->
-                AutoProfile.syncLanguage(book, owner, name, language, now, limits));
+        book.ownerLanguage(owner)
+                .ifPresent(language -> AutoProfile.syncLanguage(book, owner, name, language, now, limits));
         AutoProfile.record(book, owner, name, text, now, limits);
     }
 
@@ -334,15 +354,20 @@ public final class BrainService {
     }
 
     public dev.friendai.skill.SkillPromptSession skillSession(UUID owner) {
-        Entry entry=entries.get(owner);
-        return entry==null?dev.friendai.skill.SkillPromptSession.NONE:entry.brain().skillSession();
+        Entry entry = entries.get(owner);
+        return entry == null
+                ? dev.friendai.skill.SkillPromptSession.NONE
+                : entry.brain().skillSession();
     }
+
     public dev.friendai.skill.TeachingContext teachingContext(UUID owner) {
-        Entry entry=entries.get(owner);
-        return entry==null?null:entry.brain().teachingContext();
+        Entry entry = entries.get(owner);
+        return entry == null ? null : entry.brain().teachingContext();
     }
-    public void skillOutcome(UUID owner,String id,dev.friendai.skill.TeachingContext.OutcomeKind kind,String summary) {
-        if(config.skills.enabled)post(owner,new BrainEvent.SkillOutcome(id,kind,summary));
+
+    public void skillOutcome(
+            UUID owner, String id, dev.friendai.skill.TeachingContext.OutcomeKind kind, String summary) {
+        if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
     }
 
     public void cancel(UUID owner) {
@@ -396,7 +421,9 @@ public final class BrainService {
             else restoredQueue.cancel(job.id(), "trading authority expired after restart");
         }
         for (PlanRecord plan : restoredQueue.plans()) {
-            if (plan.cursor() != null && plan.definition() != null && structuredPlanNeedsFreshAuthority(plan.definition().nodes())) {
+            if (plan.cursor() != null
+                    && plan.definition() != null
+                    && structuredPlanNeedsFreshAuthority(plan.definition().nodes())) {
                 expiredPlans.add(plan.id());
             }
         }
@@ -410,7 +437,9 @@ public final class BrainService {
         for (Job job : restoredQueue.jobs()) {
             TaskToolDef def = taskTools.get(job.tool());
             if (def == null) {
-                if (job.state() == JobState.PENDING || job.state() == JobState.RUNNING || job.state() == JobState.FAILED) {
+                if (job.state() == JobState.PENDING
+                        || job.state() == JobState.RUNNING
+                        || job.state() == JobState.FAILED) {
                     decoded.get().queue().markMissingTool(job.id());
                     FriendaiMod.LOGGER.warn("Queued tool {} is unavailable after reload", job.tool());
                 }
@@ -418,10 +447,15 @@ public final class BrainService {
             }
             JsonObject args = job.args().deepCopy();
             UUID principal = job.principal();
-            factories.put(job.id(), ctx -> def.callerFactory() == null
-                    ? def.factory().create(ctx.companion(), args.deepCopy())
-                    : def.callerFactory().create(ctx.companion(), currentCaller(ctx.companion().ownerUuid(), principal),
-                            args.deepCopy()));
+            factories.put(
+                    job.id(),
+                    ctx -> def.callerFactory() == null
+                            ? def.factory().create(ctx.companion(), args.deepCopy())
+                            : def.callerFactory()
+                                    .create(
+                                            ctx.companion(),
+                                            currentCaller(ctx.companion().ownerUuid(), principal),
+                                            args.deepCopy()));
         }
         for (PlanRecord plan : restoredQueue.plans()) {
             if (plan.cursor() == null || plan.definition() == null) continue;
@@ -432,15 +466,21 @@ public final class BrainService {
                 TaskToolDef def = entry.getValue();
                 if (def == null || !def.plannable()) continue;
                 byTool.put(entry.getKey(), new PlanStepFactory() {
-                    @Override public Task create(dev.friendai.task.TaskContext ctx, QueuedStep step) {
+                    @Override
+                    public Task create(dev.friendai.task.TaskContext ctx, QueuedStep step) {
                         JsonObject args = step.args();
                         Caller caller = currentCaller(ctx.companion().ownerUuid(), step.principal())
                                 .withTradingScope(QueueTradeScope.read(args));
-                        return def.callerFactory() == null ? def.factory().create(ctx.companion(), args)
+                        return def.callerFactory() == null
+                                ? def.factory().create(ctx.companion(), args)
                                 : def.callerFactory().create(ctx.companion(), caller, args);
                     }
-                    @Override public boolean authorized(dev.friendai.task.TaskContext ctx, QueuedStep step) {
-                        return currentCaller(ctx.companion().ownerUuid(), step.principal()).access().allows(def.minAccess());
+
+                    @Override
+                    public boolean authorized(dev.friendai.task.TaskContext ctx, QueuedStep step) {
+                        return currentCaller(ctx.companion().ownerUuid(), step.principal())
+                                .access()
+                                .allows(def.minAccess());
                     }
                 });
             }
@@ -449,7 +489,10 @@ public final class BrainService {
         companion.taskRunner().restoreQueue(decoded.get(), factories, planFactories);
         for (Job job : companion.taskRunner().queue().jobs()) {
             if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
-                companion.taskRunner().notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool() + " is no longer available");
+                companion
+                        .taskRunner()
+                        .notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool()
+                                + " is no longer available");
             }
         }
     }
@@ -457,16 +500,19 @@ public final class BrainService {
     /** Reconstructs a caller from current owner/trust data; queue saves never carry an access level. */
     private Caller currentCaller(UUID owner, UUID principal) {
         if (principal == null) return new Caller(null, "", AccessLevel.GUEST);
-        AccessLevel access = principal.equals(owner) ? AccessLevel.OWNER
+        AccessLevel access = principal.equals(owner)
+                ? AccessLevel.OWNER
                 : owner != null && memory.book(owner).isTrusted(principal) ? AccessLevel.TRUSTED : AccessLevel.GUEST;
         return new Caller(principal, "", access);
     }
 
     private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDef> result) {
         for (PlanNode node : nodes) {
-            if (node instanceof PlanNode.Action action) result.put(action.step().tool(), taskTools.get(action.step().tool()));
+            if (node instanceof PlanNode.Action action)
+                result.put(action.step().tool(), taskTools.get(action.step().tool()));
             else if (node instanceof PlanNode.Conditional conditional) {
-                collectPlanTools(conditional.thenNodes(), result); collectPlanTools(conditional.elseNodes(), result);
+                collectPlanTools(conditional.thenNodes(), result);
+                collectPlanTools(conditional.elseNodes(), result);
             } else collectPlanTools(((PlanNode.Repeat) node).body(), result);
         }
     }
@@ -475,14 +521,15 @@ public final class BrainService {
         for (PlanNode node : nodes) {
             if (node instanceof PlanNode.Action action) {
                 TaskToolDef def = taskTools.get(action.step().tool());
-                if (QueueTradeScope.requiresFreshAuthority(action.step().args(), def != null && def.queueTraits().requiresTradingScope())) return true;
+                if (QueueTradeScope.requiresFreshAuthority(
+                        action.step().args(), def != null && def.queueTraits().requiresTradingScope())) return true;
             } else if (node instanceof PlanNode.Conditional conditional) {
-                if (structuredPlanNeedsFreshAuthority(conditional.thenNodes()) || structuredPlanNeedsFreshAuthority(conditional.elseNodes())) return true;
+                if (structuredPlanNeedsFreshAuthority(conditional.thenNodes())
+                        || structuredPlanNeedsFreshAuthority(conditional.elseNodes())) return true;
             } else if (structuredPlanNeedsFreshAuthority(((PlanNode.Repeat) node).body())) return true;
         }
         return false;
     }
-
 
     /**
      * Rebuilds a plan saved with the world. The steps come from this server's tools, so a plan is only resumed when
@@ -515,8 +562,8 @@ public final class BrainService {
         Task active = data.active() == null || !(companion.level() instanceof ServerLevel level)
                 ? null
                 : TaskFactory.restore(data.active(), level).orElse(null);
-        return Optional.of(SequenceTask.resumed(data.goal(), entries, data.index(), data.done(), active,
-                () -> TaskSettings.taskTimeoutSec * 20));
+        return Optional.of(SequenceTask.resumed(
+                data.goal(), entries, data.index(), data.done(), active, () -> TaskSettings.taskTimeoutSec * 20));
     }
 
     public void tick() {
@@ -547,7 +594,10 @@ public final class BrainService {
             // Free time needs the task listener a brain installs, even before the owner has said anything.
             Entry brain = freeTime.state(owner).on() ? entryFor(owner).orElse(null) : entries.get(owner);
             try {
-                freeTime.tick(owner, companion, brain != null && brain.brain().isThinking(),
+                freeTime.tick(
+                        owner,
+                        companion,
+                        brain != null && brain.brain().isThinking(),
                         primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
                         wall);
             } catch (RuntimeException e) {
@@ -562,8 +612,7 @@ public final class BrainService {
             }
             var board = goals.board(owner);
             var primary = board.primary();
-            boolean active = primary.isPresent()
-                    && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
+            boolean active = primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
             long last = lastGoalTick.computeIfAbsent(owner, id -> now);
             boolean idle = queueIdleOrBlocked(companion);
             if (!idle) {
@@ -577,8 +626,10 @@ public final class BrainService {
                     active,
                     idle,
                     companion.owner().isPresent(),
-                    companion.taskRunner().paused() || companion.taskRunner().suspended()
-                            || companion.isSleeping() || companion.getTarget() != null,
+                    companion.taskRunner().paused()
+                            || companion.taskRunner().suspended()
+                            || companion.isSleeping()
+                            || companion.getTarget() != null,
                     entry.getValue().brain().isThinking(),
                     now,
                     last,
@@ -593,9 +644,13 @@ public final class BrainService {
                 nudgeStreak.merge(owner, 1, Integer::sum);
                 var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
                 guard.refresh();
-                post(owner, new BrainEvent.GoalTick(primary.get().text(),
-                        board.unmet(primary.get().id(), guard).stream()
-                                .map(dev.friendai.agent.goal.Criterion::text).toList()));
+                post(
+                        owner,
+                        new BrainEvent.GoalTick(
+                                primary.get().text(),
+                                board.unmet(primary.get().id(), guard).stream()
+                                        .map(dev.friendai.agent.goal.Criterion::text)
+                                        .toList()));
             }
         }
     }
@@ -610,8 +665,8 @@ public final class BrainService {
         if (queue.active().isPresent()) {
             return false;
         }
-        boolean directWork = queue.jobs().stream()
-                .anyMatch(job -> job.planId() == 0 && !dev.friendai.queue.JobQueue.terminal(job));
+        boolean directWork =
+                queue.jobs().stream().anyMatch(job -> job.planId() == 0 && !dev.friendai.queue.JobQueue.terminal(job));
         boolean planMoving = queue.plans().stream()
                 .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.queue.PlanStatus.ACTIVE);
         return !directWork && !planMoving;
@@ -632,7 +687,10 @@ public final class BrainService {
 
         @Override
         public boolean ownsPlan(long planId) {
-            return FriendaiServerState.get(server).goals().board(owner).primary()
+            return FriendaiServerState.get(server)
+                    .goals()
+                    .board(owner)
+                    .primary()
                     .map(goal -> goal.planId() == planId)
                     .orElse(false);
         }
@@ -654,14 +712,18 @@ public final class BrainService {
             });
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            String queue = dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), facts, null, 20, false);
+            String queue =
+                    dev.friendai.queue.QueueText.show(companion.taskRunner().queue(), facts, null, 20, false);
             return Optional.of(new dev.friendai.agent.plan.PlannerInput(
                     primary.get(),
                     new CompanionPerception(companion).describe(caller),
                     digest.toString(),
                     PlaceText.planner(
                             config.places.enabled && caller.access().allows(AccessLevel.TRUSTED)
-                                    ? FriendaiServerState.get(server).places().book(owner).all()
+                                    ? FriendaiServerState.get(server)
+                                            .places()
+                                            .book(owner)
+                                            .all()
                                     : List.of(),
                             config.places.plannerLimit),
                     Optional.of(queue),
@@ -672,8 +734,9 @@ public final class BrainService {
         }
 
         @Override
-        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(dev.friendai.agent.plan.PlannerInput input) {
-            return BrainService.this.propose(owner,input);
+        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+                dev.friendai.agent.plan.PlannerInput input) {
+            return BrainService.this.propose(owner, input);
         }
 
         @Override
@@ -682,8 +745,13 @@ public final class BrainService {
             var board = goals.board(owner);
             var primary = board.primary();
             var executor = tools.bind(companion);
-            if (primary.isPresent() && primary.get().planId() != 0
-                    && companion.taskRunner().queue().plan(primary.get().planId()).isPresent()) {
+            if (primary.isPresent()
+                    && primary.get().planId() != 0
+                    && companion
+                            .taskRunner()
+                            .queue()
+                            .plan(primary.get().planId())
+                            .isPresent()) {
                 long oldPlan = primary.get().planId();
                 // Unlink first and silence the plan's end event: cancelling must not count as a failure.
                 board.linkPlan(primary.get().id(), 0);
@@ -696,14 +764,15 @@ public final class BrainService {
             // queue_add links a new plan only to a goal that has none.
             primary.ifPresent(goal -> board.linkPlan(goal.id(), 0));
             JsonObject add = new JsonObject();
-            add.addProperty("goal", primary.map(dev.friendai.agent.goal.Goal::text).orElse("planned work"));
+            add.addProperty(
+                    "goal", primary.map(dev.friendai.agent.goal.Goal::text).orElse("planned work"));
             // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
             add.add("steps", proposal.stepsJson());
-            ToolResult result = executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
+            ToolResult result =
+                    executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
             goals.save(owner);
             return result;
         }
-
     }
 
     /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
@@ -744,8 +813,12 @@ public final class BrainService {
         String extra(boolean success, long planId, String tool, String text) {
             try {
                 dev.friendai.agent.verify.WorldSnapshot after = OutcomeFacts.snapshot(companion);
-                String factsLine = dev.friendai.agent.verify.OutcomeChecker
-                        .check(last, after, success, java.util.List.of(), new dev.friendai.task.queue.CompanionGuardFacts(companion))
+                String factsLine = dev.friendai.agent.verify.OutcomeChecker.check(
+                                last,
+                                after,
+                                success,
+                                java.util.List.of(),
+                                new dev.friendai.task.queue.CompanionGuardFacts(companion))
                         .factsLine();
                 last = after;
                 var goals = FriendaiServerState.get(server).goals();
@@ -761,8 +834,14 @@ public final class BrainService {
                 }
                 goals.save(owner);
                 for (var prior : priorGoals) {
-                    if (board.find(prior.id()).isEmpty()) skillOutcome(owner,"goal:"+prior.id(),
-                            success?dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS:dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,text);
+                    if (board.find(prior.id()).isEmpty())
+                        skillOutcome(
+                                owner,
+                                "goal:" + prior.id(),
+                                success
+                                        ? dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                                        : dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,
+                                text);
                 }
                 return extra;
             } catch (RuntimeException e) {
@@ -789,7 +868,8 @@ public final class BrainService {
                 if (refused.isPresent()) {
                     return ToolResult.error(refused.get());
                 }
-                if (caller != null && caller.access() == AccessLevel.OWNER
+                if (caller != null
+                        && caller.access() == AccessLevel.OWNER
                         && ("stop".equals(call.name()) || "follow_player".equals(call.name()))) {
                     // End free time first, so its plan is released, not recorded as a failed shift.
                     freeTime.stop(owner, "owner asked to " + call.name().replace('_', ' '));
@@ -809,8 +889,10 @@ public final class BrainService {
                 companion::getUUID,
                 () -> config.chat.hearingRadius);
         // With the owner away (free time can keep working) the companion has nobody to talk to.
-        Speaker effective = speakerWrappers.getOrDefault(owner, s -> s).apply(
-                new dev.friendai.brain.OwnerPresentSpeaker(speaker, () -> companion.owner().isPresent()));
+        Speaker effective = speakerWrappers
+                .getOrDefault(owner, s -> s)
+                .apply(new dev.friendai.brain.OwnerPresentSpeaker(
+                        speaker, () -> companion.owner().isPresent()));
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
@@ -828,22 +910,33 @@ public final class BrainService {
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
-                caller -> config.memory.enabled
-                        ? MemoryPromptRenderer.render(memory.book(owner), owner, caller)
-                        : "");
+                caller -> config.memory.enabled ? MemoryPromptRenderer.render(memory.book(owner), owner, caller) : "");
         brain.setTradingTurnPort(tradeAuthority(owner));
         brain.setTradingPromptSource((caller, request) -> {
-            if (caller.access() != AccessLevel.OWNER || !owner.equals(caller.uuid())
+            if (caller.access() != AccessLevel.OWNER
+                    || !owner.equals(caller.uuid())
                     || !(companion.level() instanceof ServerLevel level)) return "";
             var book = FriendaiServerState.get(server).trading().book(owner);
             var tradingConfig = FriendaiServerState.get(server).config().tasks.trading;
-            return TradePromptSummary.render(book, companion.hands().player().getUUID(), request,
-                    level.getServer().overworld().getGameTime(), tradingConfig.quoteFreshTicks,
+            return TradePromptSummary.render(
+                    book,
+                    companion.hands().player().getUUID(),
+                    request,
+                    level.getServer().overworld().getGameTime(),
+                    tradingConfig.quoteFreshTicks,
                     tradingConfig.locationFreshTicks);
         });
-        brain.setSkillSource((caller,message,turn) -> FriendaiServerState.get(server).skills().begin(owner,caller,message,turn,
-                companion.taskRunner().currentToolName(),brain.isSkillFreeTimeTurn(),false,
-                companion.combatController().state()!=dev.friendai.task.combat.CombatController.State.IDLE));
+        brain.setSkillSource((caller, message, turn) -> FriendaiServerState.get(server)
+                .skills()
+                .begin(
+                        owner,
+                        caller,
+                        message,
+                        turn,
+                        companion.taskRunner().currentToolName(),
+                        brain.isSkillFreeTimeTurn(),
+                        false,
+                        companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         java.util.Set<Long> replaced = new java.util.HashSet<>();
         brain.setPlannerPort(new GamePlannerPort(owner, companion, replaced));
@@ -854,12 +947,9 @@ public final class BrainService {
                 config.agent.goalTickSec,
                 config.agent.promptBudget,
                 config.agent.plannerTimeoutSec));
-        brain.setPlaceSource(caller -> config.places.enabled
-                ? PlaceService.promptBlock(companion, caller)
-                : "");
-        brain.setPlacedSource(caller -> config.places.enabled
-                ? dev.friendai.placed.PlacedService.promptBlock(companion, caller)
-                : "");
+        brain.setPlaceSource(caller -> config.places.enabled ? PlaceService.promptBlock(companion, caller) : "");
+        brain.setPlacedSource(caller ->
+                config.places.enabled ? dev.friendai.placed.PlacedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {
             var board = FriendaiServerState.get(server).goals().board(owner);
             var primary = board.primary();
@@ -867,8 +957,14 @@ public final class BrainService {
             if (primary.isPresent() && primary.get().planId() != 0) {
                 long planId = primary.get().planId();
                 plan = companion.taskRunner().queue().plan(planId).isPresent()
-                        ? "plan #" + planId + " " + companion.taskRunner().queue().planStatus(planId).name()
-                                .toLowerCase(java.util.Locale.ROOT).replace('_', ' ')
+                        ? "plan #" + planId + " "
+                                + companion
+                                        .taskRunner()
+                                        .queue()
+                                        .planStatus(planId)
+                                        .name()
+                                        .toLowerCase(java.util.Locale.ROOT)
+                                        .replace('_', ' ')
                         : "plan #" + planId + " is no longer queued";
             }
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
@@ -879,11 +975,13 @@ public final class BrainService {
         companion.taskRunner().setListener(new TaskListener() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
-                debug.historyOf(owner).add(new TaskRecord(
-                        id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
+                debug.historyOf(owner)
+                        .add(new TaskRecord(
+                                id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
                 boolean ok = status == TaskStatus.SUCCESS;
-                post(owner, new BrainEvent.TaskFinished(id, toolName, ok, summary,
-                        agent.extra(ok, 0, toolName, summary)));
+                post(
+                        owner,
+                        new BrainEvent.TaskFinished(id, toolName, ok, summary, agent.extra(ok, 0, toolName, summary)));
             }
 
             @Override
@@ -895,8 +993,12 @@ public final class BrainService {
             @Override
             public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
                 if (planId != 0) { // direct jobs are recorded through onFinished/onCancelled
-                    debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName,
-                            status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
+                    debug.historyOf(owner)
+                            .add(new TaskRecord(
+                                    (int) jobId,
+                                    toolName,
+                                    status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED",
+                                    summary));
                 }
             }
 
@@ -905,17 +1007,28 @@ public final class BrainService {
                 if (replaced.remove(planId) || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
                     return;
                 }
-                post(owner, new BrainEvent.PlanFinished(planId, goal, success, summary,
-                        agent.extra(success, planId, goal, summary)));
+                post(
+                        owner,
+                        new BrainEvent.PlanFinished(
+                                planId, goal, success, summary, agent.extra(success, planId, goal, summary)));
             }
 
             @Override
-            public void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
+            public void onPlanBlocked(
+                    long planId, String goal, long jobId, String toolName, String reason, int remaining) {
                 if (replaced.contains(planId) || freeTime.onPlanEnded(owner, companion, planId, false, reason)) {
                     return;
                 }
-                post(owner, new BrainEvent.PlanBlocked(planId, goal, jobId, toolName, reason, remaining,
-                        agent.extra(false, planId, toolName, reason)));
+                post(
+                        owner,
+                        new BrainEvent.PlanBlocked(
+                                planId,
+                                goal,
+                                jobId,
+                                toolName,
+                                reason,
+                                remaining,
+                                agent.extra(false, planId, toolName, reason)));
             }
 
             @Override
@@ -957,13 +1070,13 @@ public final class BrainService {
 
     private boolean spendingJob(Job job) {
         TaskToolDef def = taskTools.get(job.tool());
-        return QueueTradeScope.requiresFreshAuthority(job.args(),
-                def != null && def.queueTraits().requiresTradingScope());
+        return QueueTradeScope.requiresFreshAuthority(
+                job.args(), def != null && def.queueTraits().requiresTradingScope());
     }
 
     private boolean spendingPlanStep(PlanSave.Step step) {
         TaskToolDef def = planTools.get(step.tool());
-        return QueueTradeScope.requiresFreshAuthority(step.args(),
-                def != null && def.queueTraits().requiresTradingScope());
+        return QueueTradeScope.requiresFreshAuthority(
+                step.args(), def != null && def.queueTraits().requiresTradingScope());
     }
 }

@@ -29,8 +29,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +75,7 @@ public final class CompanionBrain {
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
+
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
     private BiFunction<Caller, String, String> tradingPromptSource = (caller, text) -> "";
 
@@ -93,11 +94,13 @@ public final class CompanionBrain {
     private long lastOwnerAtMillis;
     /** What the player just heard, newest first: an event turn repeats none of it. */
     private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
+
     private Set<String> turnToolNames = Set.of();
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
     private final ToolCatalog catalog = ToolCatalog.defaults();
     /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
     private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
+
     private RouteDecision decision = new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), false, "none");
 
     private static final class SpokenLine {
@@ -219,15 +222,27 @@ public final class CompanionBrain {
     }
 
     private dev.friendai.skill.TeachingContext teachingContext;
-    public dev.friendai.skill.TeachingContext teachingContext() { return thinking ? teachingContext : null; }
+
+    public dev.friendai.skill.TeachingContext teachingContext() {
+        return thinking ? teachingContext : null;
+    }
 
     private boolean skillFreeTimeTurn;
-    public boolean isSkillFreeTimeTurn() { return skillFreeTimeTurn; }
+
+    public boolean isSkillFreeTimeTurn() {
+        return skillFreeTimeTurn;
+    }
 
     private SkillSource skillSource = SkillSource.NONE;
     private dev.friendai.skill.SkillPromptSession skillSession = dev.friendai.skill.SkillPromptSession.NONE;
-    public void setSkillSource(SkillSource source) { skillSource = java.util.Objects.requireNonNull(source); }
-    public dev.friendai.skill.SkillPromptSession skillSession() { return skillSession; }
+
+    public void setSkillSource(SkillSource source) {
+        skillSource = java.util.Objects.requireNonNull(source);
+    }
+
+    public dev.friendai.skill.SkillPromptSession skillSession() {
+        return skillSession;
+    }
 
     public void setPlannerPort(PlannerPort plannerPort) {
         this.plannerPort = java.util.Objects.requireNonNull(plannerPort);
@@ -256,19 +271,34 @@ public final class CompanionBrain {
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
-                catalog.hints(agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
+                catalog.hints(
+                        agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
                         decision.mode() == TurnMode.CHAT),
-                placeSource.describe(turnCaller), placedSource.describe(turnCaller), note, safeTradingPrompt(), skillSession.sections(), a -> {
+                placeSource.describe(turnCaller),
+                placedSource.describe(turnCaller),
+                note,
+                safeTradingPrompt(),
+                skillSession.sections(),
+                a -> {
                     skillSession.recordAssembly(a.keptSectionIds());
-                    var ids = a.keptSectionIds().stream().filter(id -> id.startsWith("skill:")).toList();
-                    int chars = skillSession.sections().stream().filter(section -> ids.contains(section.id()))
-                            .mapToInt(section -> ((dev.friendai.skill.SkillPromptSection)section).text().length()+1).sum();
-                    observe(o -> o.onInstructions(skillSession.versionedIds(ids), chars, a.text().length(), a.mandatoryOverrun()));
+                    var ids = a.keptSectionIds().stream()
+                            .filter(id -> id.startsWith("skill:"))
+                            .toList();
+                    int chars = skillSession.sections().stream()
+                            .filter(section -> ids.contains(section.id()))
+                            .mapToInt(section -> ((dev.friendai.skill.SkillPromptSection) section)
+                                            .text()
+                                            .length()
+                                    + 1)
+                            .sum();
+                    observe(o -> o.onInstructions(
+                            skillSession.versionedIds(ids), chars, a.text().length(), a.mandatoryOverrun()));
                 });
     }
 
     private String safeTradingPrompt() {
-        if (turnCaller == null || turnCaller.access() != AccessLevel.OWNER
+        if (turnCaller == null
+                || turnCaller.access() != AccessLevel.OWNER
                 || !turnCaller.uuid().equals(access.owner())) return "";
         try {
             return tradingPromptSource.apply(turnCaller, String.join("\n", turnPlayerTexts));
@@ -299,10 +329,12 @@ public final class CompanionBrain {
         if (wait > 0) {
             if (!cooldownScheduled) {
                 cooldownScheduled = true;
-                scheduler.schedule(() -> {
-                    cooldownScheduled = false;
-                    maybeStartTurn();
-                }, wait);
+                scheduler.schedule(
+                        () -> {
+                            cooldownScheduled = false;
+                            maybeStartTurn();
+                        },
+                        wait);
             }
             return;
         }
@@ -330,8 +362,9 @@ public final class CompanionBrain {
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
         Caller candidateCaller = new Caller(principal, name == null ? "" : name, level);
-        boolean ownerInitiated = batch.stream().anyMatch(event -> event instanceof BrainEvent.PlayerSaid said
-                && said.playerUuid().equals(access.owner()));
+        boolean ownerInitiated = batch.stream()
+                .anyMatch(event -> event instanceof BrainEvent.PlayerSaid said
+                        && said.playerUuid().equals(access.owner()));
         List<Long> troubledPlans = batch.stream()
                 .map(CompanionBrain::troubledPlanId)
                 .filter(id -> id >= 0)
@@ -346,25 +379,33 @@ public final class CompanionBrain {
                 0));
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.
-        turnCaller = tradingTurnPort.begin(candidateCaller,
-                ownerInitiated && decision.mode() != TurnMode.CHAT
+        turnCaller = tradingTurnPort.begin(
+                candidateCaller,
+                ownerInitiated
+                        && decision.mode() != TurnMode.CHAT
                         && decision.groups().contains(ToolGroup.TRADING)
                         && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
-        skillFreeTimeTurn = batch.stream().anyMatch(e -> e instanceof BrainEvent.FreeTimeShift
-                || (e instanceof BrainEvent.SkillOutcome outcome && (outcome.kind()==dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_SUCCESS || outcome.kind()==dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_FAILURE)));
+        skillFreeTimeTurn = batch.stream()
+                .anyMatch(e -> e instanceof BrainEvent.FreeTimeShift
+                        || (e instanceof BrainEvent.SkillOutcome outcome
+                                && (outcome.kind() == dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_SUCCESS
+                                        || outcome.kind()
+                                                == dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_FAILURE)));
         skillSession = skillSource.begin(turnCaller, String.join("\n", turnPlayerTexts), turnKind);
         teachingContext = null;
         if (turnPlayerTexts.isEmpty() && batch.stream().noneMatch(e -> e instanceof BrainEvent.FreeTimeShift)) {
-            batch.stream().filter(e -> e instanceof BrainEvent.SkillOutcome).map(e -> (BrainEvent.SkillOutcome)e)
-                    .findFirst().ifPresent(e -> teachingContext = new dev.friendai.skill.TeachingContext(access.owner(),e.outcomeId(),generation,e.kind()));
+            batch.stream()
+                    .filter(e -> e instanceof BrainEvent.SkillOutcome)
+                    .map(e -> (BrainEvent.SkillOutcome) e)
+                    .findFirst()
+                    .ifPresent(e -> teachingContext = new dev.friendai.skill.TeachingContext(
+                            access.owner(), e.outcomeId(), generation, e.kind()));
         }
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
         speaker.thinking(true);
-        String lines = batch.stream()
-                .map(event -> event.toPromptLine(level))
-                .collect(Collectors.joining("\n"));
+        String lines = batch.stream().map(event -> event.toPromptLine(level)).collect(Collectors.joining("\n"));
         for (BrainEvent event : batch) {
             observe(o -> o.onEvent(event));
         }
@@ -373,7 +414,9 @@ public final class CompanionBrain {
         plannedThisTurn = false;
         plannerNote = "";
         // A failed plan that still has replans left is worked out by the planner before the model answers.
-        if (decision.mode() == TurnMode.RECOVERY && decision.wantPlanner() && ownsTroubledPlan
+        if (decision.mode() == TurnMode.RECOVERY
+                && decision.wantPlanner()
+                && ownsTroubledPlan
                 && !lines.contains(BUDGET_SPENT)) {
             plan(generation, lines);
         } else {
@@ -410,7 +453,9 @@ public final class CompanionBrain {
                 return;
             }
             if (error != null || proposal == null) {
-                LOGGER.info("Planner gave no plan: {}", error == null ? "empty" : error.getClass().getSimpleName());
+                LOGGER.info(
+                        "Planner gave no plan: {}",
+                        error == null ? "empty" : error.getClass().getSimpleName());
                 plannerNote = "no plan was drafted (the planner is unavailable); work out the next step yourself";
             } else {
                 ToolResult applied;
@@ -422,7 +467,9 @@ public final class CompanionBrain {
                 plannerNote = applied.error()
                         ? "the planner's plan could not be queued (" + applied.content() + "); plan it yourself"
                         : "a plan was queued (" + applied.content() + "): " + proposal.rationale()
-                                + (proposal.expectedOutcome().isBlank() ? "" : "; expected: " + proposal.expectedOutcome());
+                                + (proposal.expectedOutcome().isBlank()
+                                        ? ""
+                                        : "; expected: " + proposal.expectedOutcome());
             }
             requestStep(gen);
         }));
@@ -440,7 +487,8 @@ public final class CompanionBrain {
         CompletableFuture<LlmResponse> future;
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access()).stream()
-                    .filter(spec -> !spec.name().equals("manage_skill") || teachingContext != null).toList();
+                    .filter(spec -> !spec.name().equals("manage_skill") || teachingContext != null)
+                    .toList();
             Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
             List<ToolSpec> sent = catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
             // ReplyGuard sanitizes internal names across the full registry, even when routing hid a schema.
@@ -455,7 +503,8 @@ public final class CompanionBrain {
     }
 
     private void onResponse(int gen, LlmResponse response, Throwable error) {
-        if (gen == generation && response != null && response.usage() != null) observe(o -> o.onUsage(response.usage()));
+        if (gen == generation && response != null && response.usage() != null)
+            observe(o -> o.onUsage(response.usage()));
         if (gen != generation) {
             return;
         }
@@ -472,8 +521,7 @@ public final class CompanionBrain {
         }
         String spoken = null;
         if (!raw.isBlank()) {
-            Optional<String> guarded =
-                    ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
+            Optional<String> guarded = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
             if (guarded.isPresent()) {
                 spoken = guarded.get();
                 speaker.say(spoken, turnCaller.uuid());
@@ -519,8 +567,11 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
-        if (goalSet && !queuedByModel && !plannedThisTurn
-                && decision.mode() == TurnMode.GOAL && decision.wantPlanner()) {
+        if (goalSet
+                && !queuedByModel
+                && !plannedThisTurn
+                && decision.mode() == TurnMode.GOAL
+                && decision.wantPlanner()) {
             plan(gen, "");
             return;
         }
@@ -532,7 +583,8 @@ public final class CompanionBrain {
         if (event instanceof BrainEvent.PlanBlocked blocked) {
             return blocked.planId();
         }
-        if (event instanceof BrainEvent.PlanFinished finished && !finished.success()
+        if (event instanceof BrainEvent.PlanFinished finished
+                && !finished.success()
                 && !FailureHandler.isCancellation(finished.summary())) {
             return finished.planId();
         }
@@ -541,9 +593,11 @@ public final class CompanionBrain {
 
     /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */
     private ToolResult requestTools(ToolCall call) {
-        String wanted = call.arguments() != null && call.arguments().has("group")
-                && call.arguments().get("group").isJsonPrimitive()
-                ? call.arguments().get("group").getAsString() : "";
+        String wanted = call.arguments() != null
+                        && call.arguments().has("group")
+                        && call.arguments().get("group").isJsonPrimitive()
+                ? call.arguments().get("group").getAsString()
+                : "";
         Optional<ToolGroup> group = ToolGroup.parse(wanted).filter(g -> g != ToolGroup.CORE);
         if (group.isEmpty()) {
             String valid = java.util.Arrays.stream(ToolGroup.values())

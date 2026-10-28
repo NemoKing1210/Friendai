@@ -16,8 +16,8 @@ import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.InventoryOps;
-import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.nav.Approach;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,11 +33,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
-import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.entity.CampfireBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -57,7 +57,17 @@ public final class SmeltTask implements Task {
     /** How long a taken-back station gets to land and leave its pickup delay before the next one. */
     private static final int SETTLE_TICKS = 20;
 
-    private enum Phase { CRAFT_STATION, SEEK_SPOT, APPROACH_SPOT, PLACE_STATION, APPROACH_STATION, LOAD, WAIT, LEAVING, DONE }
+    private enum Phase {
+        CRAFT_STATION,
+        SEEK_SPOT,
+        APPROACH_SPOT,
+        PLACE_STATION,
+        APPROACH_STATION,
+        LOAD,
+        WAIT,
+        LEAVING,
+        DONE
+    }
 
     private record Target(BlockPos pos, AbstractFurnaceBlockEntity furnace, boolean placedByMe) {}
 
@@ -98,6 +108,7 @@ public final class SmeltTask implements Task {
     private BlockBreaker breaker;
     /** The wait for a taken-back station's drop to land, ticked before moving on to the next one. */
     private DropSettle settle;
+
     private int loadedCount;
     private int stationsLoaded;
     private String outputId;
@@ -208,12 +219,19 @@ public final class SmeltTask implements Task {
             return target(pendingStations.get(targetIndex), DebugAction.SMELT, "Load furnace");
         }
         if (phase == Phase.LOAD && targets.isEmpty() && !pendingStations.isEmpty()) {
-            return pendingStations.stream().map(pos -> new DebugTarget(pos.getX(), pos.getY(), pos.getZ(),
-                    DebugAction.SMELT, "Load furnace")).toList();
+            return pendingStations.stream()
+                    .map(pos -> new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.SMELT, "Load furnace"))
+                    .toList();
         }
         if ((phase == Phase.LOAD || phase == Phase.WAIT) && !targets.isEmpty()) {
-            return targets.stream().map(station -> new DebugTarget(station.pos().getX(), station.pos().getY(),
-                    station.pos().getZ(), DebugAction.SMELT, "Smelt " + input.label())).toList();
+            return targets.stream()
+                    .map(station -> new DebugTarget(
+                            station.pos().getX(),
+                            station.pos().getY(),
+                            station.pos().getZ(),
+                            DebugAction.SMELT,
+                            "Smelt " + input.label()))
+                    .toList();
         }
         return List.of();
     }
@@ -546,9 +564,8 @@ public final class SmeltTask implements Task {
             summary = "couldn't place a " + noun + ": the block did not appear at " + coords(spot);
             return TaskStatus.FAILED;
         }
-        AbstractFurnaceBlockEntity furnace = c.level().getBlockEntity(spot) instanceof AbstractFurnaceBlockEntity be
-                ? be
-                : null;
+        AbstractFurnaceBlockEntity furnace =
+                c.level().getBlockEntity(spot) instanceof AbstractFurnaceBlockEntity be ? be : null;
         targets.add(new Target(spot, furnace, true));
         spot = null;
         phase = Phase.LOAD;
@@ -745,7 +762,9 @@ public final class SmeltTask implements Task {
         String inputId = idOf(firstOfShare);
         Recipe recipe = recipeOn(kind, inputId);
         String output = recipe == null ? inputId : recipe.output();
-        c.companion().furnaceJobs().add(new FurnaceJob(target.pos(), kind, inputId, output, loaded, target.placedByMe()));
+        c.companion()
+                .furnaceJobs()
+                .add(new FurnaceJob(target.pos(), kind, inputId, output, loaded, target.placedByMe()));
     }
 
     private TaskStatus finishLoadAndLeave(int loadedTotal, int stations) {
@@ -842,8 +861,7 @@ public final class SmeltTask implements Task {
             boolean lit = state.hasProperty(AbstractFurnaceBlock.LIT) && state.getValue(AbstractFurnaceBlock.LIT);
             if (!lit && furnace.getItem(1).isEmpty()) {
                 int needed = input.getCount() * ticksFor(idOf(input));
-                FuelPolicy.FuelPick pick =
-                        FuelPolicy.pick(c.companion(), c.level(), target.pos(), needed, fuel);
+                FuelPolicy.FuelPick pick = FuelPolicy.pick(c.companion(), c.level(), target.pos(), needed, fuel);
                 if (pick.stacks().isEmpty()) {
                     summary = "ran out of fuel; " + collected + " " + outputName() + " collected, "
                             + input.getCount() + " " + idOf(input) + " still in the " + kind.noun() + " at "
@@ -862,8 +880,8 @@ public final class SmeltTask implements Task {
         }
         if (allDone) {
             takeBackFuel(c);
-            waitSummaryBase = "smelted " + loadedCount + " " + input.label() + " into " + collected + " "
-                    + outputName() + " in " + stationsLoaded + " " + plural(stationsLoaded);
+            waitSummaryBase = "smelted " + loadedCount + " " + input.label() + " into " + collected + " " + outputName()
+                    + " in " + stationsLoaded + " " + plural(stationsLoaded);
             if (fuelNote != null) {
                 waitSummaryBase += "; " + fuelNote;
             }
@@ -933,8 +951,8 @@ public final class SmeltTask implements Task {
                 return TaskStatus.RUNNING;
             }
         } else {
-            stationNotes.add("placed a " + kind.noun() + " at " + coords(pos)
-                    + " but couldn't take it back: " + reason(state));
+            stationNotes.add(
+                    "placed a " + kind.noun() + " at " + coords(pos) + " but couldn't take it back: " + reason(state));
         }
         takeBackIndex++;
         return TaskStatus.RUNNING;

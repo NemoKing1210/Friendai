@@ -15,14 +15,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Prediction;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MerchantMenu;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.level.GameType;
@@ -212,8 +212,11 @@ public final class CompanionHands {
      */
     public @Nullable MerchantMenu openMerchant(Entity target) {
         FakePlayer hands = handsPlayer();
-        if (!(target instanceof Merchant merchant) || target.level() != level() || !target.isAlive()
-                || merchant.getTradingPlayer() != null || hands.containerMenu != hands.inventoryMenu
+        if (!(target instanceof Merchant merchant)
+                || target.level() != level()
+                || !target.isAlive()
+                || merchant.getTradingPlayer() != null
+                || hands.containerMenu != hands.inventoryMenu
                 || !canInteract(target.blockPosition())) {
             return null;
         }
@@ -228,8 +231,13 @@ public final class CompanionHands {
         try {
             hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
             // The Fabric callback normally lives in the network handler, which these server-side hands bypass.
-            InteractionResult event = UseEntityCallback.EVENT.invoker()
-                    .interact(hands, level(), InteractionHand.MAIN_HAND, target,
+            InteractionResult event = UseEntityCallback.EVENT
+                    .invoker()
+                    .interact(
+                            hands,
+                            level(),
+                            InteractionHand.MAIN_HAND,
+                            target,
                             new EntityHitResult(target, target.position().add(0.0, target.getBbHeight() * 0.5, 0.0)));
             if (event != InteractionResult.PASS) {
                 return null;
@@ -321,7 +329,8 @@ public final class CompanionHands {
     private FakePlayer handsPlayer() {
         ServerLevel level = level();
         if (player == null || player.level() != level) {
-            UUID uuid = UUID.nameUUIDFromBytes(("friendai-hands:" + companion.getUUID()).getBytes(StandardCharsets.UTF_8));
+            UUID uuid =
+                    UUID.nameUUIDFromBytes(("friendai-hands:" + companion.getUUID()).getBytes(StandardCharsets.UTF_8));
             player = FakePlayer.get(level, new GameProfile(uuid, "Friendai"));
         }
         return player;

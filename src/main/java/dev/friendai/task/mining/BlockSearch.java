@@ -70,8 +70,8 @@ public final class BlockSearch {
      * {@code min(radius, 16)} vertically around {@code origin}, nearest first (ties by x, then y, then z).
      * Skips unloaded chunks, blacklisted positions and blocks with a negative destroy speed.
      */
-    public static List<BlockPos> nearestN(ServerLevel level, BlockPos origin, int radius, BlockMatcher matcher,
-            Set<BlockPos> blacklist, int limit) {
+    public static List<BlockPos> nearestN(
+            ServerLevel level, BlockPos origin, int radius, BlockMatcher matcher, Set<BlockPos> blacklist, int limit) {
         Comparator<BlockPos> order = Comparator.<BlockPos>comparingDouble(origin::distSqr)
                 .thenComparingInt(BlockPos::getX)
                 .thenComparingInt(BlockPos::getY)

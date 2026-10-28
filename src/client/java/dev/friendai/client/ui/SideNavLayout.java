@@ -19,6 +19,7 @@ final class SideNavLayout {
     static final int WINDOW_TOP = 24;
     /** Space below the window for the Done button: 8 above it, 20 high, 8 to the screen edge. */
     static final int BOTTOM_RESERVE = 36;
+
     static final int PAD = 8;
 
     static final int RAIL_WIDTH = 124;
@@ -35,6 +36,7 @@ final class SideNavLayout {
     static final int COMPACT_ENTRY_GAP = 1;
     /** The last compression step before the rail scrolls: ten entries and their separator fit the smallest window. */
     static final int MIN_ENTRY_HEIGHT = 14;
+
     static final int MIN_ENTRY_GAP = 1;
     static final int SEPARATOR = 6;
     static final int COMPACT_SEPARATOR = 4;
@@ -82,8 +84,8 @@ final class SideNavLayout {
         }
         int contentWidth = Math.max(1, windowWidth - 2 * PAD - railWidth - GAP);
         Rect railBox = new Rect(windowX + PAD, WINDOW_TOP + PAD, railWidth, Math.max(1, windowHeight - 2 * PAD));
-        Rect content = new Rect(railBox.right() + GAP, WINDOW_TOP + PAD, contentWidth,
-                Math.max(1, windowHeight - 2 * PAD));
+        Rect content =
+                new Rect(railBox.right() + GAP, WINDOW_TOP + PAD, contentWidth, Math.max(1, windowHeight - 2 * PAD));
 
         boolean grouped = operatorStart >= 0 && operatorStart < entryCount;
         int entryHeight = ENTRY_HEIGHT;

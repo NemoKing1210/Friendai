@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.creative.CreativeAction;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
@@ -38,7 +38,8 @@ public final class PlaceBlockTask implements Task {
     public PlaceBlockTask(BlockItem item, BlockPos target) {
         this.item = item;
         this.target = target;
-        this.matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString()).orElseThrow();
+        this.matcher = ItemMatcher.parse(BuiltInRegistries.ITEM.getKey(item).toString())
+                .orElseThrow();
     }
 
     /** Where the block ended up after a success, or null. */
@@ -58,9 +59,10 @@ public final class PlaceBlockTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         BlockPos destination = spot != null ? spot : target;
-        return destination == null ? List.of()
-                : List.of(new DebugTarget(destination.getX(), destination.getY(), destination.getZ(),
-                        DebugAction.PLACE, itemId()));
+        return destination == null
+                ? List.of()
+                : List.of(new DebugTarget(
+                        destination.getX(), destination.getY(), destination.getZ(), DebugAction.PLACE, itemId()));
     }
 
     @Override
@@ -110,8 +112,7 @@ public final class PlaceBlockTask implements Task {
             case MOVING -> {
                 return TaskStatus.RUNNING;
             }
-            case IN_REACH -> {
-            }
+            case IN_REACH -> {}
         }
 
         Optional<String> problem = PlaceSpot.problem(c.level(), spot, companion);

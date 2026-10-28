@@ -20,10 +20,12 @@ public final class TtsClient {
     }
 
     public static TtsClient withBuiltins(VoiceHttp http) {
-        return new TtsClient(http, Map.of(
-                OpenAiTtsProtocol.ID, new OpenAiTtsProtocol(),
-                ElevenLabsTtsProtocol.ID, new ElevenLabsTtsProtocol(),
-                YandexTtsProtocol.ID, new YandexTtsProtocol()));
+        return new TtsClient(
+                http,
+                Map.of(
+                        OpenAiTtsProtocol.ID, new OpenAiTtsProtocol(),
+                        ElevenLabsTtsProtocol.ID, new ElevenLabsTtsProtocol(),
+                        YandexTtsProtocol.ID, new YandexTtsProtocol()));
     }
 
     public CompletableFuture<PcmAudio> synthesize(ResolvedTts settings, String text) {
@@ -37,9 +39,10 @@ public final class TtsClient {
             request = protocol.prepare(settings, text);
         } catch (RuntimeException e) {
             // A malformed base URL or voice id throws here; the player sees one synthesis failure.
-            return CompletableFuture.failedFuture(e instanceof UserFacingException userFacing
-                    ? userFacing
-                    : new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
+            return CompletableFuture.failedFuture(
+                    e instanceof UserFacingException userFacing
+                            ? userFacing
+                            : new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
         }
         return http.postBytes(request).thenApply(body -> protocol.parse(body, settings));
     }

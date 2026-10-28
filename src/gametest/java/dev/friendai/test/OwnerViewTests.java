@@ -68,9 +68,10 @@ public class OwnerViewTests {
         ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
         CompanionEntity companion = companionFor(h, owner);
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(companion);
-        var call = new dev.friendai.llm.model.ToolCall("1", "player_view", new com.google.gson.JsonObject(), "{}", null);
-        var result = tools.execute(call, new dev.friendai.tool.Caller(
-                owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+        var call =
+                new dev.friendai.llm.model.ToolCall("1", "player_view", new com.google.gson.JsonObject(), "{}", null);
+        var result = tools.execute(
+                call, new dev.friendai.tool.Caller(owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), "error: " + result.content());
         h.assertTrue(result.content().contains("looking at: block oak_log at"), "content: " + result.content());
         h.succeed();
@@ -196,8 +197,7 @@ public class OwnerViewTests {
         OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
         h.assertTrue(focus.health() == 14f, "health: " + focus.health());
         h.assertTrue(focus.food() == 17, "food: " + focus.food());
-        h.assertTrue(focus.toPromptText().contains("health: 14/20, food 17/20, armor "),
-                focus.toPromptText());
+        h.assertTrue(focus.toPromptText().contains("health: 14/20, food 17/20, armor "), focus.toPromptText());
         h.succeed();
     }
 
@@ -221,13 +221,11 @@ public class OwnerViewTests {
         ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
         CompanionEntity companion = companionFor(h, owner);
         OwnerFocus withoutTool = OwnerFocusBuilder.of(companion, owner.getUUID());
-        h.assertTrue(withoutTool.lookingAt().contains("needs a proper tool (you have none)"),
-                withoutTool.lookingAt());
+        h.assertTrue(withoutTool.lookingAt().contains("needs a proper tool (you have none)"), withoutTool.lookingAt());
 
         companion.inventory().addItem(new ItemStack(Items.IRON_PICKAXE));
         OwnerFocus withTool = OwnerFocusBuilder.of(companion, owner.getUUID());
-        h.assertTrue(withTool.lookingAt().contains("you have iron_pickaxe"),
-                withTool.lookingAt());
+        h.assertTrue(withTool.lookingAt().contains("you have iron_pickaxe"), withTool.lookingAt());
         h.succeed();
     }
 

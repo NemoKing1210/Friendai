@@ -69,9 +69,15 @@ class ProviderRegistryTest {
 
     @Test
     void goSendsStableSessionHeaderAndOwnUserAgent() {
-        Map<String, String> first = registry.resolve(profile("opencode_go", "kimi-k3", null, null)).endpoint().extraHeaders();
-        Map<String, String> second = registry.resolve(profile("opencode_go", "claude-haiku-5-5", null, null)).endpoint().extraHeaders();
-        Map<String, String> models = registry.resolveModels(profile("opencode_go", "kimi-k3", null, null)).endpoint().extraHeaders();
+        Map<String, String> first = registry.resolve(profile("opencode_go", "kimi-k3", null, null))
+                .endpoint()
+                .extraHeaders();
+        Map<String, String> second = registry.resolve(profile("opencode_go", "claude-haiku-5-5", null, null))
+                .endpoint()
+                .extraHeaders();
+        Map<String, String> models = registry.resolveModels(profile("opencode_go", "kimi-k3", null, null))
+                .endpoint()
+                .extraHeaders();
         assertTrue(!first.get("x-opencode-session").isBlank());
         assertEquals(first.get("x-opencode-session"), second.get("x-opencode-session"));
         assertEquals(first.get("x-opencode-session"), models.get("x-opencode-session"));
@@ -80,7 +86,10 @@ class ProviderRegistryTest {
 
     @Test
     void otherProvidersSendNoExtraHeaders() {
-        assertTrue(registry.resolve(profile("opencode_zen", "kimi-k3", null, null)).endpoint().extraHeaders().isEmpty());
+        assertTrue(registry.resolve(profile("opencode_zen", "kimi-k3", null, null))
+                .endpoint()
+                .extraHeaders()
+                .isEmpty());
     }
 
     private void assertGo(String model, String protocol, String baseUrl) {
@@ -104,7 +113,8 @@ class ProviderRegistryTest {
 
     @Test
     void routingOverrideWins() {
-        Route r = registry.resolve(profile("opencode_zen", "claude-x", null, List.of(new RoutingRule("*", "openai_chat", null))));
+        Route r = registry.resolve(
+                profile("opencode_zen", "claude-x", null, List.of(new RoutingRule("*", "openai_chat", null))));
         assertEquals("openai_chat", r.protocol().id());
     }
 
@@ -116,15 +126,15 @@ class ProviderRegistryTest {
 
     @Test
     void compatWithoutBaseUrlFails() {
-        ConfigException e = assertThrows(ConfigException.class,
-                () -> registry.resolve(profile("openai_compat", "m", null, null)));
+        ConfigException e =
+                assertThrows(ConfigException.class, () -> registry.resolve(profile("openai_compat", "m", null, null)));
         assertEquals(UserMessage.of("friendai.error.config.needs_base_url", "openai_compat"), e.userMessage());
     }
 
     @Test
     void unknownProviderFails() {
-        ConfigException e = assertThrows(ConfigException.class,
-                () -> registry.resolve(profile("nope", "m", null, null)));
+        ConfigException e =
+                assertThrows(ConfigException.class, () -> registry.resolve(profile("nope", "m", null, null)));
         assertEquals("friendai.error.config.unknown_provider", e.userMessage().key());
     }
 

@@ -24,7 +24,8 @@ class SearchStatsTest {
         SearchStats stats = new SearchStats();
         stats.record("structure:minecraft:village", true, 20, 200, 0);
         SearchStats restored = SearchStats.fromJson(stats.toJson());
-        assertEquals(stats.counters("structure:minecraft:village").finds(),
+        assertEquals(
+                stats.counters("structure:minecraft:village").finds(),
                 restored.counters("structure:minecraft:village").finds());
         assertTrue(restored.summary().contains("finds"));
     }

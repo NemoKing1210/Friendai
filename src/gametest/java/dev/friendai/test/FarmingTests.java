@@ -1,8 +1,8 @@
 package dev.friendai.test;
 
+import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.debug.DebugAction;
 import dev.friendai.farming.CellKind;
 import dev.friendai.farming.FarmSnapshot;
 import dev.friendai.farming.FieldCell;
@@ -100,12 +100,18 @@ public class FarmingTests {
         int[] mature = {0, 1, 2, 3};
         int[] immature = {4, 5, 6, 7};
         for (int index : mature) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
         }
         for (int index : immature) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.CropBlock.AGE, 3));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 3));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
@@ -131,16 +137,21 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         BlockPos crop = h.absolutePos(new BlockPos(5, 2, 5));
         h.setBlock(new BlockPos(5, 1, 5), Blocks.FARMLAND);
-        h.setBlock(new BlockPos(5, 2, 5), Blocks.WHEAT.defaultBlockState()
-                .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+        h.setBlock(
+                new BlockPos(5, 2, 5),
+                Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 1));
         FarmTask task = new FarmTask(crop, 1, null, false);
         TaskContext context = new TaskContext(c, h.getLevel());
         task.start(context);
         task.tick(context);
-        h.assertTrue(task.debugTargets().stream().anyMatch(target -> target.action() == DebugAction.HARVEST
-                && target.x() == crop.getX() && target.y() == crop.getY() && target.z() == crop.getZ()),
+        h.assertTrue(
+                task.debugTargets().stream()
+                        .anyMatch(target -> target.action() == DebugAction.HARVEST
+                                && target.x() == crop.getX()
+                                && target.y() == crop.getY()
+                                && target.z() == crop.getZ()),
                 "the selected mature crop should be shown as the active harvest target");
         h.succeed();
     }
@@ -150,8 +161,11 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         BlockPos[] ring = plot(h);
         for (int index = 0; index < 4; index++) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         FarmPass pass = pass(h, 5, 2, 5, false);
@@ -170,8 +184,11 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         BlockPos[] ring = plot(h);
         for (int index = 0; index < 4; index++) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         FarmPass pass = pass(h, 5, 2, 5, false);
@@ -182,8 +199,10 @@ public class FarmingTests {
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
             h.assertValueEqual(pass.report().replanted(), 3, "one plot lost its farmland");
-            h.assertTrue(h.getBlockState(new BlockPos(gone.getX(), 1, gone.getZ())).is(Blocks.DIRT), "dirt stays");
-            h.assertTrue(h.getBlockState(new BlockPos(gone.getX(), 2, gone.getZ())).isAir(), "nothing planted on dirt");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(gone.getX(), 1, gone.getZ())).is(Blocks.DIRT), "dirt stays");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(gone.getX(), 2, gone.getZ())).isAir(), "nothing planted on dirt");
         });
     }
 
@@ -192,8 +211,11 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(4, 1, 4, Blocks.FARMLAND);
         h.setBlock(5, 1, 4, Blocks.FARMLAND);
-        h.setBlock(4, 2, 4, Blocks.ATTACHED_MELON_STEM.defaultBlockState()
-                .setValue(AttachedStemBlock.FACING, Direction.EAST));
+        h.setBlock(
+                4,
+                2,
+                4,
+                Blocks.ATTACHED_MELON_STEM.defaultBlockState().setValue(AttachedStemBlock.FACING, Direction.EAST));
         h.setBlock(5, 2, 4, Blocks.MELON);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         FarmPass pass = pass(h, 5, 2, 4, false);
@@ -201,8 +223,10 @@ public class FarmingTests {
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
             h.assertTrue(h.getBlockState(new BlockPos(5, 2, 4)).isAir(), "melon harvested");
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.MELON_STEM)
-                    || h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.ATTACHED_MELON_STEM), "stem remains");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.MELON_STEM)
+                            || h.getBlockState(new BlockPos(4, 2, 4)).is(Blocks.ATTACHED_MELON_STEM),
+                    "stem remains");
             h.assertTrue(c.inventory().countItem(Items.MELON_SLICE) > 0, "melon slices collected");
         });
     }
@@ -232,19 +256,33 @@ public class FarmingTests {
     public void harvestsSweetBerries(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(4, 1, 4, Blocks.DIRT);
-        h.setBlock(4, 2, 4, Blocks.SWEET_BERRY_BUSH.defaultBlockState()
-                .setValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE, 3));
+        h.setBlock(
+                4,
+                2,
+                4,
+                Blocks.SWEET_BERRY_BUSH
+                        .defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE, 3));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         FarmPass pass = pass(h, 4, 2, 4, false);
         TaskContext ctx = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
             int berries = c.inventory().countItem(Items.SWEET_BERRIES);
-            h.assertTrue(berries > 0, "the berries the bush dropped must be collected: " + pass.report().harvested());
-            h.assertValueEqual(pass.report().harvested().get("minecraft:sweet_berries"), berries,
-                    "the report counts the berries the companion took " + pass.report().harvested());
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 4)).getValue(
-                    net.minecraft.world.level.block.SweetBerryBushBlock.AGE) < 3, "the bush was picked");
+            h.assertTrue(
+                    berries > 0,
+                    "the berries the bush dropped must be collected: "
+                            + pass.report().harvested());
+            h.assertValueEqual(
+                    pass.report().harvested().get("minecraft:sweet_berries"),
+                    berries,
+                    "the report counts the berries the companion took "
+                            + pass.report().harvested());
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 4))
+                                    .getValue(net.minecraft.world.level.block.SweetBerryBushBlock.AGE)
+                            < 3,
+                    "the bush was picked");
         });
     }
 
@@ -314,7 +352,9 @@ public class FarmingTests {
         TaskContext ctx = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
-            h.assertTrue(pass.report().text(8).endsWith("; no hoe to till with"), "text was " + pass.report().text(8));
+            h.assertTrue(
+                    pass.report().text(8).endsWith("; no hoe to till with"),
+                    "text was " + pass.report().text(8));
         });
     }
 
@@ -324,10 +364,14 @@ public class FarmingTests {
         harvested.put("minecraft:wheat", 24);
         harvested.put("minecraft:melon_slice", 3);
         FarmReport report = new FarmReport(harvested, 20, 8, 8, 0, false);
-        h.assertValueEqual(report.text(8),
-                "harvested 24 minecraft:wheat, 3 minecraft:melon_slice; replanted 20; planted 8 new; tilled 8", "report text");
-        h.assertValueEqual(new FarmReport(Map.of(), 0, 0, 0, 0, false).text(8),
-                "nothing to harvest or plant within 8 blocks", "empty report text");
+        h.assertValueEqual(
+                report.text(8),
+                "harvested 24 minecraft:wheat, 3 minecraft:melon_slice; replanted 20; planted 8 new; tilled 8",
+                "report text");
+        h.assertValueEqual(
+                new FarmReport(Map.of(), 0, 0, 0, 0, false).text(8),
+                "nothing to harvest or plant within 8 blocks",
+                "empty report text");
         h.succeed();
     }
 
@@ -377,7 +421,8 @@ public class FarmingTests {
         wheatPlot(h, 4, 4, 5, 5, 7);
         h.setBlock(10, 2, 10, Blocks.CHEST);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "harvest chest should be directly visible");
         Result result = new Result();
         TaskRunner runner = runner(c, result);
@@ -403,7 +448,8 @@ public class FarmingTests {
         }
         chest.setChanged();
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "full harvest chest should be directly visible");
         Result result = new Result();
         c.taskRunner().setListener(result);
@@ -490,7 +536,9 @@ public class FarmingTests {
         TaskContext ctx = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
-            h.assertTrue(pass.report().harvested().isEmpty(), "harvested " + pass.report().harvested());
+            h.assertTrue(
+                    pass.report().harvested().isEmpty(),
+                    "harvested " + pass.report().harvested());
             BlockState wheat = h.getBlockState(new BlockPos(4, 261, 4));
             h.assertTrue(wheat.is(Blocks.WHEAT) && wheat.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + wheat);
         });
@@ -516,7 +564,8 @@ public class FarmingTests {
             BlockState first = h.getBlockState(new BlockPos(4, 281, 4));
             BlockState second = h.getBlockState(new BlockPos(5, 281, 4));
             h.assertTrue(first.is(Blocks.WHEAT) && first.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + first);
-            h.assertTrue(second.is(Blocks.WHEAT) && second.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + second);
+            h.assertTrue(
+                    second.is(Blocks.WHEAT) && second.getValue(CropBlock.AGE) == 7, "wheat untouched, was " + second);
         });
     }
 
@@ -524,29 +573,45 @@ public class FarmingTests {
     public void snapshotClassifiesField(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos[] ring = plot(h);
-        h.setBlock(ring[0].getX(), 2, ring[0].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
-        h.setBlock(ring[1].getX(), 2, ring[1].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
+        h.setBlock(
+                ring[0].getX(),
+                2,
+                ring[0].getZ(),
+                Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        h.setBlock(
+                ring[1].getX(),
+                2,
+                ring[1].getZ(),
+                Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 3));
         h.setBlock(8, 1, 5, Blocks.DIRT);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 2));
         c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
         BlockPos center = h.absolutePos(new BlockPos(5, 2, 5));
-        FarmSnapshot snapshot = FarmSnapshotBuilder.build(new TaskContext(c, h.getLevel()), center, 8, java.util.Set.of());
+        FarmSnapshot snapshot =
+                FarmSnapshotBuilder.build(new TaskContext(c, h.getLevel()), center, 8, java.util.Set.of());
 
-        List<FieldCell> ripe = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.RIPE).toList();
+        List<FieldCell> ripe = snapshot.cells().stream()
+                .filter(cell -> cell.kind() == CellKind.RIPE)
+                .toList();
         h.assertValueEqual(ripe.size(), 1, "ripe cells " + ripe);
         h.assertValueEqual(ripe.get(0).seed(), "minecraft:wheat_seeds", "ripe seed");
         h.assertValueEqual(ripe.get(0).crop(), "minecraft:wheat", "ripe crop");
         h.assertValueEqual(ripe.get(0).dx(), ring[0].getX() - 5, "ripe dx relative to the centre");
         h.assertValueEqual(ripe.get(0).dy(), 0, "ripe dy relative to the centre");
         h.assertValueEqual(ripe.get(0).dz(), ring[0].getZ() - 5, "ripe dz relative to the centre");
-        List<FieldCell> growing = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.GROWING).toList();
+        List<FieldCell> growing = snapshot.cells().stream()
+                .filter(cell -> cell.kind() == CellKind.GROWING)
+                .toList();
         h.assertValueEqual(growing.size(), 1, "growing cells " + growing);
         h.assertValueEqual(growing.get(0).age(), 3, "growing age");
-        h.assertTrue(snapshot.cells().stream()
-                .anyMatch(cell -> cell.kind() == CellKind.EMPTY_SOIL && cell.soil() == Soil.FARMLAND),
+        h.assertTrue(
+                snapshot.cells().stream()
+                        .anyMatch(cell -> cell.kind() == CellKind.EMPTY_SOIL && cell.soil() == Soil.FARMLAND),
                 "an empty farmland cell");
-        List<FieldCell> tillable = snapshot.cells().stream().filter(cell -> cell.kind() == CellKind.TILLABLE).toList();
+        List<FieldCell> tillable = snapshot.cells().stream()
+                .filter(cell -> cell.kind() == CellKind.TILLABLE)
+                .toList();
         h.assertValueEqual(tillable.size(), 1, "tillable cells " + tillable);
         h.assertValueEqual(tillable.get(0).dx(), 3, "tillable dx");
         h.assertTrue(snapshot.hasHoe(), "hoe carried");
@@ -559,7 +624,11 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         BlockPos[] ring = plot(h);
         for (int index : new int[] {0, 1}) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
@@ -584,7 +653,11 @@ public class FarmingTests {
         GameTestSupport.platform(h, 16);
         BlockPos[] ring = plot(h);
         for (int index : new int[] {0, 1, 2}) {
-            h.setBlock(ring[index].getX(), 2, ring[index].getZ(), Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+            h.setBlock(
+                    ring[index].getX(),
+                    2,
+                    ring[index].getZ(),
+                    Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
@@ -594,7 +667,9 @@ public class FarmingTests {
         TaskContext ctx = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
-            h.assertTrue(pass.report().harvested().isEmpty(), "harvested " + pass.report().harvested());
+            h.assertTrue(
+                    pass.report().harvested().isEmpty(),
+                    "harvested " + pass.report().harvested());
             h.assertValueEqual(age(h, ring[0].getX(), 2, ring[0].getZ()), 7, "crop untouched");
         });
     }
@@ -615,7 +690,8 @@ public class FarmingTests {
         h.succeedWhen(() -> {
             h.assertTrue(pass.tick(ctx), "pass not done yet");
             for (int x = 4; x <= 7; x++) {
-                h.assertTrue(h.getBlockState(new BlockPos(x, 2, 4)).is(Blocks.BEETROOTS),
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 2, 4)).is(Blocks.BEETROOTS),
                         "beetroots at x=" + x + ", was " + h.getBlockState(new BlockPos(x, 2, 4)));
             }
         });
@@ -663,15 +739,23 @@ public class FarmingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 3));
         BlockPos center = h.absolutePos(new BlockPos(5, 2, 4));
-        String json = "{\"radius\":4,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}";
-        dev.friendai.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c).execute(
-                new dev.friendai.llm.model.ToolCall("1", "plan_farm",
-                        com.google.gson.JsonParser.parseString(json).getAsJsonObject(), json, null),
-                dev.friendai.tool.AccessLevel.OWNER);
+        String json =
+                "{\"radius\":4,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}";
+        dev.friendai.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32)
+                .bind(c)
+                .execute(
+                        new dev.friendai.llm.model.ToolCall(
+                                "1",
+                                "plan_farm",
+                                com.google.gson.JsonParser.parseString(json).getAsJsonObject(),
+                                json,
+                                null),
+                        dev.friendai.tool.AccessLevel.OWNER);
         h.assertTrue(!r.error() && r.content().contains("harvest"), "result was " + r.content());
         h.assertValueEqual(age(h, 5, 2, 4), 7, "crop still ripe");
         h.assertValueEqual(c.inventory().countItem(Items.WHEAT_SEEDS), 3, "inventory unchanged");
-        h.assertTrue(c.taskRunner().current().filter(t -> t.type().equals("farm")).isEmpty(), "no farm task started");
+        h.assertTrue(
+                c.taskRunner().current().filter(t -> t.type().equals("farm")).isEmpty(), "no farm task started");
         h.succeed();
     }
 }

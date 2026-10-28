@@ -15,14 +15,19 @@ import org.junit.jupiter.api.Test;
 class TargetKindTest {
     private static final Pos HERE = new Pos(0, 64, 0);
 
-    private static TargetKind.CandidateFacts facts(Set<String> visible, Set<String> known, Set<String> entities,
-            Set<String> places, String biome) {
+    private static TargetKind.CandidateFacts facts(
+            Set<String> visible, Set<String> known, Set<String> entities, Set<String> places, String biome) {
         return new TargetKind.CandidateFacts(HERE, "minecraft:overworld", biome, visible, known, entities, places);
     }
 
     private static TargetKind.BlockFamily logs() {
-        return new TargetKind.BlockFamily("#minecraft:logs", Set.of("minecraft:oak_log", "minecraft:birch_log"),
-                new ResourceSearchProfile("#minecraft:logs", Set.of("minecraft:overworld"), OptionalInt.empty(),
+        return new TargetKind.BlockFamily(
+                "#minecraft:logs",
+                Set.of("minecraft:oak_log", "minecraft:birch_log"),
+                new ResourceSearchProfile(
+                        "#minecraft:logs",
+                        Set.of("minecraft:overworld"),
+                        OptionalInt.empty(),
                         Set.of(ResourceSearchProfile.Strategy.SURFACE)));
     }
 
@@ -39,25 +44,35 @@ class TargetKindTest {
         var once = new TargetKind.Structure("minecraft:village", village.markers(), village.minimum(), 64);
         assertTrue(once.matches(facts(Set.of("minecraft:bell"), Set.of(), Set.of(), Set.of(), "")));
 
-        var both = new TargetKind.Structure("minecraft:woodland_mansion", Set.of("minecraft:dark_oak_planks",
-                "minecraft:birch_planks"), 2, 64);
+        var both = new TargetKind.Structure(
+                "minecraft:woodland_mansion", Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), 2, 64);
         assertFalse(both.matches(facts(Set.of("minecraft:dark_oak_planks"), Set.of(), Set.of(), Set.of(), "")));
-        assertTrue(both.matches(facts(Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"),
-                Set.of(), Set.of(), Set.of(), "")));
+        assertTrue(both.matches(facts(
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), Set.of(), Set.of(), Set.of(), "")));
     }
 
     @Test
     void structureMarkersMustStandInOneCluster() {
-        var mansion = new TargetKind.Structure("minecraft:woodland_mansion",
-                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), 2, 64);
-        var far = new TargetKind.CandidateFacts(HERE, "minecraft:overworld", "",
-                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), Set.of(), Set.of(), Set.of(),
-                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks",
-                        new Pos(100, 64, 0), "minecraft:birch_planks"));
-        var near = new TargetKind.CandidateFacts(HERE, "minecraft:overworld", "",
-                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), Set.of(), Set.of(), Set.of(),
-                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks",
-                        new Pos(8, 64, 0), "minecraft:birch_planks"));
+        var mansion = new TargetKind.Structure(
+                "minecraft:woodland_mansion", Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"), 2, 64);
+        var far = new TargetKind.CandidateFacts(
+                HERE,
+                "minecraft:overworld",
+                "",
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"),
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks", new Pos(100, 64, 0), "minecraft:birch_planks"));
+        var near = new TargetKind.CandidateFacts(
+                HERE,
+                "minecraft:overworld",
+                "",
+                Set.of("minecraft:dark_oak_planks", "minecraft:birch_planks"),
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Map.of(new Pos(0, 64, 0), "minecraft:dark_oak_planks", new Pos(8, 64, 0), "minecraft:birch_planks"));
         assertFalse(mansion.matches(far));
         assertTrue(mansion.matches(near));
     }
@@ -85,10 +100,17 @@ class TargetKindTest {
 
     @Test
     void roundTripPreservesEveryKind() {
-        TargetKind[] kinds = {logs(), new TargetKind.Structure("minecraft:village",
-                StructureMarkers.get("minecraft:village").orElseThrow().markers(), 1, 64),
-                new TargetKind.Biome("minecraft:forest", 64), new TargetKind.Entity("minecraft:villager", 32),
-                new TargetKind.Place("Home", "minecraft:overworld", 32)};
+        TargetKind[] kinds = {
+            logs(),
+            new TargetKind.Structure(
+                    "minecraft:village",
+                    StructureMarkers.get("minecraft:village").orElseThrow().markers(),
+                    1,
+                    64),
+            new TargetKind.Biome("minecraft:forest", 64),
+            new TargetKind.Entity("minecraft:villager", 32),
+            new TargetKind.Place("Home", "minecraft:overworld", 32)
+        };
         for (TargetKind kind : kinds) {
             TargetKind restored = TargetKind.parse(kind.toJson());
             assertEquals(kind.kind(), restored.kind());

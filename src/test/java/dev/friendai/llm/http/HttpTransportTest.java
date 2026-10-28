@@ -56,7 +56,8 @@ class HttpTransportTest {
     @Test
     void postsJsonAndParsesResponse() throws Exception {
         server.enqueue(200, "{\"ok\":true}");
-        JsonObject result = transport.postJson(uri(), Map.of(), body("{\"a\":1}")).get();
+        JsonObject result =
+                transport.postJson(uri(), Map.of(), body("{\"a\":1}")).get();
         assertTrue(result.get("ok").getAsBoolean());
         MockHttpServer.RecordedRequest r = server.requests().get(0);
         assertEquals("{\"a\":1}", r.body());
@@ -129,8 +130,8 @@ class HttpTransportTest {
     @Test
     void errorMessageNeverContainsApiKey() {
         server.enqueue(401, "{\"error\":{\"message\":\"Incorrect API key provided: sk-secret-123456\"}}");
-        LlmException e = failure(transport.postJson(
-                uri(), Map.of("Authorization", "Bearer sk-secret-123456"), body("{}")));
+        LlmException e =
+                failure(transport.postJson(uri(), Map.of("Authorization", "Bearer sk-secret-123456"), body("{}")));
         assertFalse(e.getMessage().contains("sk-secret-123456"));
         assertTrue(e.getMessage().contains("401"));
     }

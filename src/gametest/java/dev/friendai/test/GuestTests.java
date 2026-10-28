@@ -38,7 +38,8 @@ public class GuestTests {
         @Override
         public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
             requests.add(new Request(
-                    new ArrayList<>(messages), tools.stream().map(ToolSpec::name).toList()));
+                    new ArrayList<>(messages),
+                    tools.stream().map(ToolSpec::name).toList()));
             LlmResponse next = responses.poll();
             return next == null
                     ? CompletableFuture.failedFuture(new IllegalStateException("script exhausted"))
@@ -98,7 +99,8 @@ public class GuestTests {
             h.assertTrue(said.said.contains("Hello"), "said " + said.said);
             h.assertTrue(!script.requests.isEmpty(), "no LLM request yet");
             Request first = script.requests.get(0);
-            h.assertTrue(lastUser(first.messages()).text().contains("(guest)]: "),
+            h.assertTrue(
+                    lastUser(first.messages()).text().contains("(guest)]: "),
                     "user line was " + lastUser(first.messages()).text());
             h.assertTrue(
                     first.tools().equals(List.of("look_around", "remember", "forget", "recall")),
@@ -156,41 +158,53 @@ public class GuestTests {
         var server = h.getLevel().getServer();
         FriendaiServerState state = FriendaiServerState.get(server);
         var brains = state.brains();
-        brains.setGatewayOverride(owner.getUUID(), (system, messages, tools) -> CompletableFuture.completedFuture(
-                new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        brains.setGatewayOverride(
+                owner.getUUID(),
+                (system, messages, tools) -> CompletableFuture.completedFuture(
+                        new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
         CompanionManager.get(server).summon(owner);
         var book = state.memory().book(owner.getUUID());
         String russian = "Привет! Расскажи мне, пожалуйста, как построить дом из дерева.";
-        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
-                guest.getUUID(),
-                guest.getName().getString(),
-                "Call me Boss. I like redstone.",
-                BrainEvent.Source.CHAT));
+        brains.post(
+                owner.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        guest.getUUID(),
+                        guest.getName().getString(),
+                        "Call me Boss. I like redstone.",
+                        BrainEvent.Source.CHAT));
         h.assertTrue(
                 book.allFacts().stream().noneMatch(f -> f.text().startsWith("Prefers to be called")),
                 "a guest set the owner's address: " + book.allFacts());
         h.assertTrue(
                 book.allFacts().stream().noneMatch(f -> f.text().equals("Likes redstone.")),
                 "a guest set the owner's preference: " + book.allFacts());
-        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
-                guest.getUUID(), guest.getName().getString(), russian, BrainEvent.Source.CHAT));
+        brains.post(
+                owner.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        guest.getUUID(), guest.getName().getString(), russian, BrainEvent.Source.CHAT));
         h.assertTrue(book.ownerLanguage(owner.getUUID()).isEmpty(), "a guest set the owner's language");
-        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
-                owner.getUUID(), owner.getName().getString(), russian, BrainEvent.Source.CHAT));
-        h.assertTrue(book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
+        brains.post(
+                owner.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        owner.getUUID(), owner.getName().getString(), russian, BrainEvent.Source.CHAT));
+        h.assertTrue(
+                book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
                 "the owner's own message did not set the language: " + book.ownerLanguage(owner.getUUID()));
         h.assertTrue(
                 book.allFacts().stream().anyMatch(f -> f.text().equals("Writes in Russian.")),
                 "the learned language was not mirrored into the profile: " + book.allFacts());
         // A two-word reply in another language is not evidence either: the stored language keeps saying Russian.
-        brains.post(owner.getUUID(), new BrainEvent.PlayerSaid(
-                owner.getUUID(), owner.getName().getString(), "ok thanks", BrainEvent.Source.CHAT));
+        brains.post(
+                owner.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        owner.getUUID(), owner.getName().getString(), "ok thanks", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
-            h.assertTrue(book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
+            h.assertTrue(
+                    book.ownerLanguage(owner.getUUID()).equals(java.util.Optional.of("Russian")),
                     "a short English reply flipped the language: " + book.ownerLanguage(owner.getUUID()));
             String prompt = brains.currentPrompt(owner.getUUID()).orElse("");
-            h.assertTrue(prompt.contains("usually writes in Russian"),
-                    "the prompt lost the learned language: " + prompt);
+            h.assertTrue(
+                    prompt.contains("usually writes in Russian"), "the prompt lost the learned language: " + prompt);
         });
     }
 }

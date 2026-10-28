@@ -101,7 +101,10 @@ public final class MoveGenerator {
             boolean walkableGap = standable(view, new Node(gap.x(), gap.y(), gap.z()))
                     && view.at(gap).kind() != Cell.Kind.WATER;
             // A swimming companion has no footing for a running jump: it swims out instead of leaping onto a bank.
-            if (!swimming && !walkableGap && enterable(view.at(gap)) && enterable(view.at(gap.offset(0, 1, 0)))
+            if (!swimming
+                    && !walkableGap
+                    && enterable(view.at(gap))
+                    && enterable(view.at(gap.offset(0, 1, 0)))
                     && enterable(view.at(gap.offset(0, 2, 0)))) {
                 emit(from, landing, Move.JUMP_GAP, costs.walk() + costs.jump(), 0, out);
             }
@@ -218,19 +221,31 @@ public final class MoveGenerator {
         for (int[] d : DIRECTIONS) {
             swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]), headUnderwater, out);
             for (int dy = -1; dy <= 1; dy += 2) {
-                swimTo(from, new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]), headUnderwater,
-                        costs.swim() * Math.sqrt(2.0), out);
+                swimTo(
+                        from,
+                        new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]),
+                        headUnderwater,
+                        costs.swim() * Math.sqrt(2.0),
+                        out);
             }
         }
         for (int[] d : DIAGONALS) {
             if (!cornersClear(from, d)) {
                 continue;
             }
-            swimTo(from, new Node(from.x() + d[0], from.y(), from.z() + d[1]),
-                    headUnderwater, costs.swim() * Math.sqrt(2.0), out);
+            swimTo(
+                    from,
+                    new Node(from.x() + d[0], from.y(), from.z() + d[1]),
+                    headUnderwater,
+                    costs.swim() * Math.sqrt(2.0),
+                    out);
             for (int dy = -1; dy <= 1; dy += 2) {
-                swimTo(from, new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]), headUnderwater,
-                        costs.swim() * Math.sqrt(3.0), out);
+                swimTo(
+                        from,
+                        new Node(from.x() + d[0], from.y() + dy, from.z() + d[1]),
+                        headUnderwater,
+                        costs.swim() * Math.sqrt(3.0),
+                        out);
             }
         }
         swimTo(from, new Node(from.x(), from.y() + 1, from.z()), headUnderwater, out);
@@ -251,8 +266,13 @@ public final class MoveGenerator {
         }
         // Swimming with the head under is slower and harder to steer than floating along the surface, and it
         // spends breath, so a route on the surface wins a tie.
-        emit(from, to, Move.SWIM, headInWater ? cost * SUBMERGED_FACTOR : cost,
-                headInWater ? headUnderwater + 1 : 0, out);
+        emit(
+                from,
+                to,
+                Move.SWIM,
+                headInWater ? cost * SUBMERGED_FACTOR : cost,
+                headInWater ? headUnderwater + 1 : 0,
+                out);
     }
 
     private void climb(Node from, Consumer<PathStep> out) {
@@ -416,7 +436,8 @@ public final class MoveGenerator {
     private boolean standsAfter(Node to, List<Pos> breaks, List<Pos> places) {
         boolean footOk = enterable(view.at(to.pos())) || breaks.contains(to.pos());
         boolean headOk = enterable(view.at(to.head())) || breaks.contains(to.head());
-        boolean supported = places.contains(to.support()) || view.at(to.support()).supports();
+        boolean supported =
+                places.contains(to.support()) || view.at(to.support()).supports();
         boolean water = view.at(to.pos()).kind() == Cell.Kind.WATER && !breaks.contains(to.pos());
         return footOk && headOk && (supported || water);
     }

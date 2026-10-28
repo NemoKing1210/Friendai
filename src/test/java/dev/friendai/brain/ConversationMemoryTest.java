@@ -56,7 +56,9 @@ class ConversationMemoryTest {
         assertEquals(Role.USER, snap.get(0).role(), "limit " + limit + ": history must start with USER");
         for (int i = 0; i < snap.size(); i++) {
             Message m = snap.get(i);
-            if (m.role() == Role.ASSISTANT && !m.toolCalls().isEmpty() && i + m.toolCalls().size() < snap.size() + 1) {
+            if (m.role() == Role.ASSISTANT
+                    && !m.toolCalls().isEmpty()
+                    && i + m.toolCalls().size() < snap.size() + 1) {
                 Set<String> expected = new HashSet<>();
                 m.toolCalls().forEach(c -> expected.add(c.id()));
                 Set<String> found = new HashSet<>();
@@ -65,7 +67,8 @@ class ConversationMemoryTest {
                 }
                 // A call group at the very tail may still be waiting for results; anything earlier must be complete.
                 boolean atTail = i + 1 + found.size() == snap.size();
-                assertTrue(atTail || found.equals(expected), "limit " + limit + ": call group at " + i + " lost results");
+                assertTrue(
+                        atTail || found.equals(expected), "limit " + limit + ": call group at " + i + " lost results");
             }
         }
     }

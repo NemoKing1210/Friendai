@@ -1,7 +1,7 @@
 package dev.friendai.memory;
 
-import java.util.Locale;
 import java.util.IllformedLocaleException;
+import java.util.Locale;
 
 /** Explicit owner preferences, never included in another caller's prompt. */
 public record OwnerProfile(String language, String address) {

@@ -131,8 +131,12 @@ class SideNavLayoutTest {
                     assertTrue(window.x() >= 0, where);
                     assertTrue(window.right() <= width, where);
                     assertTrue(window.bottom() <= height, where);
-                    assertEquals(rail.box().right() + SideNavLayout.GAP, layout.content().x(), where);
-                    assertEquals(window.y() + SideNavLayout.PAD, layout.content().y(), where);
+                    assertEquals(
+                            rail.box().right() + SideNavLayout.GAP,
+                            layout.content().x(),
+                            where);
+                    assertEquals(
+                            window.y() + SideNavLayout.PAD, layout.content().y(), where);
                     assertTrue(layout.content().right() <= window.right() - SideNavLayout.PAD, where);
                     assertTrue(layout.content().height() > 0, where);
                     assertEquals(count, rail.slots().size(), where);
@@ -144,7 +148,10 @@ class SideNavLayoutTest {
                         assertTrue(slot.y() + slot.height() <= rail.box().y() + rail.contentHeight(), where);
                     }
                     if (rail.maxScroll() == 0) {
-                        assertTrue(rail.slots().getLast().y() + rail.entryHeight() <= rail.box().bottom(), where);
+                        assertTrue(
+                                rail.slots().getLast().y() + rail.entryHeight()
+                                        <= rail.box().bottom(),
+                                where);
                     }
                     assertTrue(rail.contentHeight() - rail.box().height() <= rail.maxScroll(), where);
                 }

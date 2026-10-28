@@ -70,7 +70,8 @@ public class PaceTests {
         Vec3 start = c.position();
         h.onEachTick(() -> h.assertFalse(c.isSprinting(), "sprinted in walk mode"));
         h.runAfterDelay(100, () -> {
-            h.assertTrue(c.position().distanceTo(start) > 5.0, "the companion barely moved, so the test proves nothing");
+            h.assertTrue(
+                    c.position().distanceTo(start) > 5.0, "the companion barely moved, so the test proves nothing");
             h.succeed();
         });
     }
@@ -146,7 +147,9 @@ public class PaceTests {
             h.assertTrue(walkerTicks[0] >= 0 && runnerTicks[0] >= 0, "not both there yet");
             System.out.println("PaceTests runIsFasterThanWalk ticks for " + distance + " blocks: walk=" + walkerTicks[0]
                     + " run=" + runnerTicks[0]);
-            h.assertTrue(walkerTicks[0] >= runnerTicks[0] * 1.2, "walk took " + walkerTicks[0] + " ticks, run " + runnerTicks[0]);
+            h.assertTrue(
+                    walkerTicks[0] >= runnerTicks[0] * 1.2,
+                    "walk took " + walkerTicks[0] + " ticks, run " + runnerTicks[0]);
         });
     }
 
@@ -154,7 +157,8 @@ public class PaceTests {
     public void paceModeSurvivesSave(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         a.setPaceMode(PaceMode.RUN);
-        TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        TagValueOutput out = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         a.saveWithoutId(out);
         CompoundTag tag = out.buildResult();
 
@@ -196,11 +200,13 @@ public class PaceTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
         String ok = "{\"mode\":\"run\"}";
-        ToolResult r = tools.execute(new ToolCall("1", "set_pace", JsonParser.parseString(ok).getAsJsonObject(), ok, null));
+        ToolResult r = tools.execute(
+                new ToolCall("1", "set_pace", JsonParser.parseString(ok).getAsJsonObject(), ok, null));
         h.assertTrue(!r.error() && r.content().equals("pace: run"), "result was " + r.content());
         h.assertTrue(c.paceMode() == PaceMode.RUN, "mode was " + c.paceMode());
         String bad = "{\"mode\":\"sprint\"}";
-        ToolResult e = tools.execute(new ToolCall("2", "set_pace", JsonParser.parseString(bad).getAsJsonObject(), bad, null));
+        ToolResult e = tools.execute(
+                new ToolCall("2", "set_pace", JsonParser.parseString(bad).getAsJsonObject(), bad, null));
         h.assertTrue(e.error(), "a bad mode should be an error, was " + e.content());
         h.assertTrue(c.paceMode() == PaceMode.RUN, "a bad mode changed the pace to " + c.paceMode());
         h.succeed();

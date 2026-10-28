@@ -38,7 +38,9 @@ class RecoveryAdvisorTest {
     void noOreInRadiusIsResourceNotFoundWithSearchRemedy() {
         Diagnosis d = advisor.diagnose("fish", "no open water nearby", Set.of());
         assertEquals(FailureKind.RESOURCE_NOT_FOUND, d.kind());
-        assertTrue(d.remedies().stream().anyMatch(r -> r.startsWith("search_resource")), d.remedies().toString());
+        assertTrue(
+                d.remedies().stream().anyMatch(r -> r.startsWith("search_resource")),
+                d.remedies().toString());
     }
 
     @Test
@@ -51,7 +53,9 @@ class RecoveryAdvisorTest {
 
     @Test
     void remedyAlreadyTriedIsNotSuggestedAgainAndEscalates() {
-        Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot",
+        Diagnosis d = advisor.diagnose(
+                "build_structure",
+                "missing materials: 3 × minecraft:iron_ingot",
                 Set.of("obtain_item minecraft:iron_ingot"));
         assertTrue(d.remedies().isEmpty());
         assertTrue(d.needsPlayer(), "with every remedy tried only the player can help");
@@ -73,6 +77,8 @@ class RecoveryAdvisorTest {
     @Test
     void diagnosisLineIsReadable() {
         Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
-        assertEquals("diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot", d.line());
+        assertEquals(
+                "diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot",
+                d.line());
     }
 }

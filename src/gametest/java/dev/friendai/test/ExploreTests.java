@@ -1,7 +1,7 @@
 package dev.friendai.test;
 
-import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.knowledge.ResourceObservation;
@@ -48,23 +48,32 @@ public final class ExploreTests {
         state.applyConfig(config);
         state.observations().unregister(companion);
         // Remembered but outside the recent window: only ExploreTask can turn this into a recent sighting.
-        state.resources().observe(companion,
-                new ResourceObservation("minecraft:acacia_log",
-                        new ResourceObservation.Location(level.dimension().identifier().toString(),
-                                new Pos(log.getX(), log.getY(), log.getZ())),
-                        new Pos(2, 2, 2), level.getServer().overworld().getGameTime() - 300));
-        h.assertTrue(state.resources().confirmedRecent(companion, 16).isEmpty(),
+        state.resources()
+                .observe(
+                        companion,
+                        new ResourceObservation(
+                                "minecraft:acacia_log",
+                                new ResourceObservation.Location(
+                                        level.dimension().identifier().toString(),
+                                        new Pos(log.getX(), log.getY(), log.getZ())),
+                                new Pos(2, 2, 2),
+                                level.getServer().overworld().getGameTime() - 300));
+        h.assertTrue(
+                state.resources().confirmedRecent(companion, 16).isEmpty(),
                 "the fixture must be remembered, not recent");
 
         Result result = new Result();
         TaskRunner runner = new TaskRunner(companion, () -> 200, () -> false);
         runner.setListener(result);
-        runner.start(new ExploreTask(BlockMatcher.parse("#minecraft:logs").orElseThrow(),
-                false, 0, 16, 128, 600), "explore");
+        runner.start(
+                new ExploreTask(BlockMatcher.parse("#minecraft:logs").orElseThrow(), false, 0, 16, 128, 600),
+                "explore");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
         WorldFacts world = WorldScan.scan(level, companion, 16, false, false);
-        h.assertValueEqual(world.blocksNearby().getOrDefault("minecraft:acacia_log", 0), 1,
+        h.assertValueEqual(
+                world.blocksNearby().getOrDefault("minecraft:acacia_log", 0),
+                1,
                 "the explored log should be recorded as a recent sighting");
         config.tasks.resources.observationRadius = oldRadius;
         state.applyConfig(config);

@@ -53,10 +53,12 @@ class FreeTimeServiceTest {
     void beginShiftIncrementsIdsAndClearsAwaiting() {
         service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
         assertTrue(service.awaitChoice(OWNER).awaitingChoice());
-        Shift first = service.beginShift(OWNER, "a", List.of("c"), "w", NeedKind.STOCK, false, 1, 2).shift();
+        Shift first = service.beginShift(OWNER, "a", List.of("c"), "w", NeedKind.STOCK, false, 1, 2)
+                .shift();
         assertFalse(service.state(OWNER).awaitingChoice());
         service.finishShift(OWNER, true, "ok", 3);
-        Shift second = service.beginShift(OWNER, "b", List.of(), "", NeedKind.FARM, true, 4, 5).shift();
+        Shift second = service.beginShift(OWNER, "b", List.of(), "", NeedKind.FARM, true, 4, 5)
+                .shift();
         assertEquals(first.id() + 1, second.id());
         assertEquals(42, service.linkPlan(OWNER, 42).shift().planId());
     }
@@ -69,7 +71,9 @@ class FreeTimeServiceTest {
         service.beginShift(OWNER, "b", List.of(), "", NeedKind.FARM, false, 4, 5);
         FreeTime state = service.finishShift(OWNER, false, "second", 6);
         assertNull(state.shift());
-        assertEquals(List.of("b", "a"), state.history().stream().map(ShiftRecord::goal).toList());
+        assertEquals(
+                List.of("b", "a"),
+                state.history().stream().map(ShiftRecord::goal).toList());
     }
 
     @Test
@@ -93,13 +97,18 @@ class FreeTimeServiceTest {
     @Test
     void cooldownStored() {
         service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
-        assertEquals(900L, service.cooldown(OWNER, NeedKind.UNLOAD, 900).cooldownUntil().get(NeedKind.UNLOAD));
+        assertEquals(
+                900L,
+                service.cooldown(OWNER, NeedKind.UNLOAD, 900).cooldownUntil().get(NeedKind.UNLOAD));
     }
 
     @Test
     void updateSavesAnyChange() {
         service.update(OWNER, s -> AwaySummary.add(s, "hello"));
-        assertEquals(List.of("hello"),
-                FreeTimeSave.decode(books.get(OWNER).freeTime().orElseThrow()).orElseThrow().away());
+        assertEquals(
+                List.of("hello"),
+                FreeTimeSave.decode(books.get(OWNER).freeTime().orElseThrow())
+                        .orElseThrow()
+                        .away());
     }
 }

@@ -30,17 +30,20 @@ final class MemoryTools {
                 "Store a durable fact: a name, a preference, a place with coordinates, a promise. Not for small talk.",
                 SchemaBuilder.object()
                         .string("subject", "'me' (the current speaker), 'owner', 'world', or a player name")
-                        .enumeration(
-                                "category", "Fact category", "PROFILE", "PREFERENCE", "PLACE", "PROMISE", "NOTE")
+                        .enumeration("category", "Fact category", "PROFILE", "PREFERENCE", "PLACE", "PROMISE", "NOTE")
                         .string("text", "One short sentence")
                         .required("subject", "category", "text")
                         .build(),
                 AccessLevel.GUEST,
                 memory::enabled,
-                (companion, caller, args) -> run(memory, companion, caller, actions -> actions.remember(
-                        args.get("subject").getAsString(),
-                        args.get("category").getAsString(),
-                        args.get("text").getAsString()))));
+                (companion, caller, args) -> run(
+                        memory,
+                        companion,
+                        caller,
+                        actions -> actions.remember(
+                                args.get("subject").getAsString(),
+                                args.get("category").getAsString(),
+                                args.get("text").getAsString()))));
 
         registry.register(ToolKit.callerTool(
                 "forget",
@@ -51,8 +54,11 @@ final class MemoryTools {
                         .build(),
                 AccessLevel.GUEST,
                 memory::enabled,
-                (companion, caller, args) ->
-                        run(memory, companion, caller, actions -> actions.forget(args.get("id").getAsInt()))));
+                (companion, caller, args) -> run(
+                        memory,
+                        companion,
+                        caller,
+                        actions -> actions.forget(args.get("id").getAsInt()))));
 
         registry.register(ToolKit.callerTool(
                 "recall",
@@ -64,11 +70,13 @@ final class MemoryTools {
                 AccessLevel.GUEST,
                 memory::enabled,
                 (companion, caller, args) -> run(
-                        memory, companion, caller, actions -> actions.recall(args.get("player").getAsString()))));
+                        memory,
+                        companion,
+                        caller,
+                        actions -> actions.recall(args.get("player").getAsString()))));
     }
 
-    private static ToolResult run(
-            MemoryAccess memory, CompanionEntity companion, Caller caller, Action action) {
+    private static ToolResult run(MemoryAccess memory, CompanionEntity companion, Caller caller, Action action) {
         try {
             return ToolResult.ok(action.run(actions(memory, companion, caller)));
         } catch (IllegalArgumentException e) {
@@ -79,12 +87,7 @@ final class MemoryTools {
     private static MemoryActions actions(MemoryAccess memory, CompanionEntity companion, Caller caller) {
         UUID owner = companion.ownerUuid();
         return new MemoryActions(
-                memory.book(owner),
-                owner,
-                caller,
-                memory.limits(),
-                System.currentTimeMillis(),
-                directory(companion));
+                memory.book(owner), owner, caller, memory.limits(), System.currentTimeMillis(), directory(companion));
     }
 
     private static PlayerDirectory directory(CompanionEntity companion) {

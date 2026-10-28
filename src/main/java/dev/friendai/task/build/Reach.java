@@ -26,8 +26,7 @@ public final class Reach {
     private Reach() {}
 
     /** The first spec with no standing spot within reach, or null when every block can be reached. */
-    public static BlockPos firstOutOfReach(
-            ServerLevel level, List<Placement.PlacedSpec> specs, BlockPos origin) {
+    public static BlockPos firstOutOfReach(ServerLevel level, List<Placement.PlacedSpec> specs, BlockPos origin) {
         Set<BlockPos> planned = new HashSet<>();
         for (Placement.PlacedSpec spec : specs) {
             if (!spec.wanted().isAir()) {
@@ -73,7 +72,8 @@ public final class Reach {
     }
 
     private static boolean free(ServerLevel level, BlockPos pos) {
-        return level.getBlockState(pos).isAir() && level.getBlockState(pos.above()).isAir();
+        return level.getBlockState(pos).isAir()
+                && level.getBlockState(pos.above()).isAir();
     }
 
     /** A block the companion can stand on: planned and not air, or world ground. */

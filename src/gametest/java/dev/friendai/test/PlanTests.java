@@ -3,9 +3,9 @@ package dev.friendai.test;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.llm.model.ToolCall;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -23,11 +23,11 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.world.Container;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.item.Items;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class PlanTests {
@@ -61,7 +61,8 @@ public class PlanTests {
     }
 
     private static PlanEntry drop(String item, int count) {
-        return new PlanEntry("drop_items", c -> new DropItemsTask(ItemMatcher.parse(item).orElseThrow(), count));
+        return new PlanEntry(
+                "drop_items", c -> new DropItemsTask(ItemMatcher.parse(item).orElseThrow(), count));
     }
 
     /** A step that never finishes, so the plan's stop and timeout paths can be checked. */
@@ -143,11 +144,16 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.CALCITE, 2));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new SequenceTask("clean up", List.of(drop("minecraft:tuff", 3), drop("minecraft:calcite", 2)), () -> 300), "run_plan");
+        runner.start(
+                new SequenceTask(
+                        "clean up", List.of(drop("minecraft:tuff", 3), drop("minecraft:calcite", 2)), () -> 300),
+                "run_plan");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("plan \"clean up\" done: 1) dropped 3 minecraft:tuff; 2) dropped 2 minecraft:calcite"),
+            h.assertTrue(
+                    result.summary.equals(
+                            "plan \"clean up\" done: 1) dropped 3 minecraft:tuff; 2) dropped 2 minecraft:calcite"),
                     "summary was " + result.summary);
         });
     }
@@ -159,13 +165,21 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.BLACKSTONE, 4));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new SequenceTask(null, List.of(
-                drop("minecraft:basalt", 1), drop("minecraft:smooth_basalt", 1), drop("minecraft:blackstone", 4)), () -> 300), "run_plan");
+        runner.start(
+                new SequenceTask(
+                        null,
+                        List.of(
+                                drop("minecraft:basalt", 1),
+                                drop("minecraft:smooth_basalt", 1),
+                                drop("minecraft:blackstone", 4)),
+                        () -> 300),
+                "run_plan");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed yet: " + result.status);
-            h.assertTrue(result.summary.equals(
-                    "plan stopped at step 2/3 (drop_items): I don't have minecraft:smooth_basalt; done before: 1) dropped 1 minecraft:basalt"),
+            h.assertTrue(
+                    result.summary.equals(
+                            "plan stopped at step 2/3 (drop_items): I don't have minecraft:smooth_basalt; done before: 1) dropped 1 minecraft:basalt"),
                     "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.BLACKSTONE) == 4, "step 3 must not run");
         });
@@ -182,7 +196,8 @@ public class PlanTests {
         runner.start(new SequenceTask(null, List.of(broken), () -> 300), "run_plan");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
-        h.assertTrue(result.summary.equals("plan stopped at step 1/1 (drop_items): unknown item: x:y; done before: nothing"),
+        h.assertTrue(
+                result.summary.equals("plan stopped at step 1/1 (drop_items): unknown item: x:y; done before: nothing"),
                 "summary was " + result.summary);
         h.succeed();
     }
@@ -193,10 +208,13 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.ANDESITE, 1));
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        runner.start(new SequenceTask(null, List.of(new PlanEntry("fake", ctx -> new Throwing())), () -> 300), "run_plan");
+        runner.start(
+                new SequenceTask(null, List.of(new PlanEntry("fake", ctx -> new Throwing())), () -> 300), "run_plan");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail");
-        h.assertTrue(result.summary.endsWith("(fake): task crashed: IllegalStateException; done before: nothing"), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.endsWith("(fake): task crashed: IllegalStateException; done before: nothing"),
+                "summary was " + result.summary);
         runner.start(new DropItemsTask(ItemMatcher.parse("minecraft:andesite").orElseThrow(), 1), "drop_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.SUCCESS, "the runner must keep working, got " + result.summary);
@@ -228,7 +246,8 @@ public class PlanTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not yet: " + result.status);
-            h.assertTrue(result.summary.equals("plan \"t\" stopped at step 1/1 (fake): timed out; done before: nothing"),
+            h.assertTrue(
+                    result.summary.equals("plan \"t\" stopped at step 1/1 (fake): timed out; done before: nothing"),
                     "summary was " + result.summary);
             h.assertTrue(fake.stopped, "the timed-out step must be stopped");
         });
@@ -239,8 +258,12 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         TaskRunner runner = runner(c, result);
-        SequenceTask plan = new SequenceTask("g", List.of(
-                new PlanEntry("fake", ctx -> new NeverEnding(true)), new PlanEntry("fake", ctx -> new NeverEnding(true))), () -> 300);
+        SequenceTask plan = new SequenceTask(
+                "g",
+                List.of(
+                        new PlanEntry("fake", ctx -> new NeverEnding(true)),
+                        new PlanEntry("fake", ctx -> new NeverEnding(true))),
+                () -> 300);
         runner.start(plan, "run_plan");
         runner.tick();
         h.assertTrue(plan.describe().equals("plan \"g\" step 1/2: waiting"), "describe was " + plan.describe());
@@ -255,9 +278,11 @@ public class PlanTests {
         Result result = new Result();
         c.taskRunner().setListener(result);
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
-        String json = "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
-                + "{\"tool\":\"pickup_items\",\"args\":\"{\\\"radius\\\":3}\"}]}";
-        ToolResult started = tools.execute(new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        String json =
+                "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
+                        + "{\"tool\":\"pickup_items\",\"args\":\"{\\\"radius\\\":3}\"}]}";
+        ToolResult started = tools.execute(
+                new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -276,10 +301,29 @@ public class PlanTests {
         String json = "{\"goal\":\"drop twice\",\"steps\":["
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"}]}";
-        JsonObject dropArgs = JsonParser.parseString("{\"item\":\"minecraft:mud_bricks\",\"count\":1}").getAsJsonObject();
-        c.taskRunner().start(new SequenceTask("drop twice", List.of(
-                new PlanEntry("drop_items", dropArgs, ctx -> new DropItemsTask(ItemMatcher.parse("minecraft:mud_bricks").orElseThrow(), 1)),
-                new PlanEntry("drop_items", dropArgs, ctx -> new DropItemsTask(ItemMatcher.parse("minecraft:mud_bricks").orElseThrow(), 1))), () -> 300), "run_plan");
+        JsonObject dropArgs = JsonParser.parseString("{\"item\":\"minecraft:mud_bricks\",\"count\":1}")
+                .getAsJsonObject();
+        c.taskRunner()
+                .start(
+                        new SequenceTask(
+                                "drop twice",
+                                List.of(
+                                        new PlanEntry(
+                                                "drop_items",
+                                                dropArgs,
+                                                ctx -> new DropItemsTask(
+                                                        ItemMatcher.parse("minecraft:mud_bricks")
+                                                                .orElseThrow(),
+                                                        1)),
+                                        new PlanEntry(
+                                                "drop_items",
+                                                dropArgs,
+                                                ctx -> new DropItemsTask(
+                                                        ItemMatcher.parse("minecraft:mud_bricks")
+                                                                .orElseThrow(),
+                                                        1))),
+                                () -> 300),
+                        "run_plan");
         String[] saved = {null};
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -288,12 +332,15 @@ public class PlanTests {
                 saved[0] = c.taskRunner().current().orElseThrow().saveData();
                 h.assertTrue(saved[0] != null && saved[0].startsWith("plan:"), "saved was " + saved[0]);
                 Task restored = FriendaiServerState.get(h.getLevel().getServer())
-                        .brains().restorePlan(c, saved[0]).orElseThrow();
+                        .brains()
+                        .restorePlan(c, saved[0])
+                        .orElseThrow();
                 h.assertTrue(saved[0].equals(restored.saveData()), "the plan must survive the round trip");
                 c.taskRunner().start(restored, "run_plan");
             }
             h.assertTrue(saved[0] != null, "the first step never finished");
-            h.assertTrue(result.status == TaskStatus.SUCCESS,
+            h.assertTrue(
+                    result.status == TaskStatus.SUCCESS,
                     "restored plan did not finish: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.MUD_BRICKS), 0, "mud bricks left");
         });
@@ -312,7 +359,8 @@ public class PlanTests {
         }
         h.setBlock(4, 241, 2, Blocks.BLAST_FURNACE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 241, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 241, 2))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 241, 2))),
                 "blast furnace should be directly visible");
         c.inventory().addItem(new ItemStack(Items.RAW_IRON));
         c.inventory().addItem(new ItemStack(Items.COAL));
@@ -324,7 +372,8 @@ public class PlanTests {
                 + "\\\"count\\\":1,\\\"station\\\":\\\"blast_furnace\\\",\\\"wait\\\":true}\"},"
                 + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:iron_nugget\\\","
                 + "\\\"count\\\":9}\"}]}";
-        ToolResult started = tools.execute(new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        ToolResult started = tools.execute(
+                new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -376,7 +425,9 @@ public class PlanTests {
             for (int dx = -4; dx <= 4 && !found; dx++) {
                 for (int dz = -4; dz <= 4 && !found; dz++) {
                     for (int dy = -1; dy <= 1 && !found; dy++) {
-                        if (h.getLevel().getBlockState(c.blockPosition().offset(dx, dy, dz)).is(Blocks.CRAFTING_TABLE)) {
+                        if (h.getLevel()
+                                .getBlockState(c.blockPosition().offset(dx, dy, dz))
+                                .is(Blocks.CRAFTING_TABLE)) {
                             found = true;
                         }
                     }

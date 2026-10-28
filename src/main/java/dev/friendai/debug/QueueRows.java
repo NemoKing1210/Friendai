@@ -45,10 +45,15 @@ public final class QueueRows {
             } else if (job.state() == JobState.RUNNING && runningDescription != null && !runningDescription.isBlank()) {
                 note = runningDescription;
             }
-            String goal = job.planId() == 0 ? "" : queue.plan(job.planId()).map(p -> p.goal()).orElse("");
+            String goal = job.planId() == 0
+                    ? ""
+                    : queue.plan(job.planId()).map(p -> p.goal()).orElse("");
             PlanStatus status = job.planId() == 0 ? null : statuses.get(job.planId());
             if (job.planId() > 0) {
-                String progress = queue.plan(job.planId()).filter(p -> p.cursor() != null).map(QueueText::planProgress).orElse("");
+                String progress = queue.plan(job.planId())
+                        .filter(p -> p.cursor() != null)
+                        .map(QueueText::planProgress)
+                        .orElse("");
                 if (!progress.isBlank()) note = note == null || note.isBlank() ? progress : note + "; " + progress;
             }
             rows.add(new QueueRow(
@@ -69,9 +74,19 @@ public final class QueueRows {
             if (rows.size() >= MAX_ROWS) break;
             if (plan.cursor() == null || !queue.jobsOfPlan(plan.id()).isEmpty()) continue;
             PlanStatus status = statuses.get(plan.id());
-            rows.add(new QueueRow(0, plan.id(), plan.goal(), status == null ? "" : status.name().toLowerCase(java.util.Locale.ROOT),
-                    "Conditional plan", "", "active", QueueText.truncate(QueueText.planProgress(plan), MAX_NOTE),
-                    List.of(), 0, 0, plan.priority()));
+            rows.add(new QueueRow(
+                    0,
+                    plan.id(),
+                    plan.goal(),
+                    status == null ? "" : status.name().toLowerCase(java.util.Locale.ROOT),
+                    "Conditional plan",
+                    "",
+                    "active",
+                    QueueText.truncate(QueueText.planProgress(plan), MAX_NOTE),
+                    List.of(),
+                    0,
+                    0,
+                    plan.priority()));
         }
         return rows;
     }

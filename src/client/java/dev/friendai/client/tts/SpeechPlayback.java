@@ -65,8 +65,10 @@ public final class SpeechPlayback {
         AudioFormat mono = new AudioFormat(clip.sampleRate(), 16, 1, true, false);
         SourceDataLine opened;
         try {
-            opened = open(spatial == null ? mono : new AudioFormat(clip.sampleRate(), 16, 2, true, false),
-                    deviceName, blockSamples * (spatial == null ? 2 : 4) * BUFFER_BLOCKS);
+            opened = open(
+                    spatial == null ? mono : new AudioFormat(clip.sampleRate(), 16, 2, true, false),
+                    deviceName,
+                    blockSamples * (spatial == null ? 2 : 4) * BUFFER_BLOCKS);
         } catch (LineUnavailableException | IllegalArgumentException e) {
             if (spatial == null) {
                 throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.playback"));
@@ -131,8 +133,7 @@ public final class SpeechPlayback {
                     } else {
                         double nextLeft = mix.left() * volume;
                         double nextRight = mix.right() * volume;
-                        block = PcmConverter.toStereoRamped(
-                                pcm, offset, length, left, right, nextLeft, nextRight);
+                        block = PcmConverter.toStereoRamped(pcm, offset, length, left, right, nextLeft, nextRight);
                         left = nextLeft;
                         right = nextRight;
                     }

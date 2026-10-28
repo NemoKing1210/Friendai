@@ -60,11 +60,14 @@ public class ClearTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
                     "grass at 3,2,2: " + h.getBlockState(new BlockPos(3, 2, 2)));
-            h.assertTrue(h.getBlockState(new BlockPos(4, 2, 3)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(4, 2, 3)).isAir(),
                     "grass at 4,2,3: " + h.getBlockState(new BlockPos(4, 2, 3)));
-            h.assertTrue(h.getBlockState(new BlockPos(2, 2, 4)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(2, 2, 4)).isAir(),
                     "snow at 2,2,4: " + h.getBlockState(new BlockPos(2, 2, 4)));
             h.assertTrue(result.summary.contains("vegetation"), result.summary);
             h.assertTrue(result.summary.contains("snow"), result.summary);
@@ -85,8 +88,7 @@ public class ClearTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).is(Blocks.OAK_PLANKS),
-                    "the protected block must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).is(Blocks.OAK_PLANKS), "the protected block must stay");
             h.assertTrue(result.summary.contains("protected"), result.summary);
         });
     }
@@ -104,10 +106,10 @@ public class ClearTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 3)).isAir(),
                     "water at 3,2,3: " + h.getBlockState(new BlockPos(3, 2, 3)));
-            h.assertTrue(companion.inventory().countItem(Items.WATER_BUCKET) == 1,
-                    "a water bucket must come back");
+            h.assertTrue(companion.inventory().countItem(Items.WATER_BUCKET) == 1, "a water bucket must come back");
             h.assertTrue(result.summary.contains("water"), result.summary);
         });
     }
@@ -124,8 +126,8 @@ public class ClearTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.WATER),
-                    "the water must stay without a bucket");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 3)).is(Blocks.WATER), "the water must stay without a bucket");
             h.assertTrue(result.summary.contains("no empty bucket"), result.summary);
         });
     }
@@ -159,7 +161,8 @@ public class ClearTests {
             runner.tick();
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
                     "the stray block at 3,2,2: " + h.getBlockState(new BlockPos(3, 2, 2)));
             h.assertTrue(result.summary.contains("1 block"), result.summary);
         });

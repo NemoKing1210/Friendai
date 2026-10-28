@@ -12,7 +12,8 @@ public final class TradeText {
                 .map(input -> input.count() + " " + input.itemId() + " predicate=" + input.predicateJson())
                 .collect(Collectors.joining(" + "));
         return describe(match.trader()) + "; " + offer.ref() + ": " + inputs + " -> "
-                + offer.output().count() + " " + offer.output().itemId() + " components=" + offer.output().componentsJson()
+                + offer.output().count() + " " + offer.output().itemId() + " components="
+                + offer.output().componentsJson()
                 + "; quote=" + (match.quoteStale() ? "stale" : "current (live validation required)")
                 + "; position=" + (match.positionStale() ? "stale last seen" : "last seen")
                 + "; stock=" + (offer.exhausted() ? "exhausted" : (offer.maxUses() - offer.uses()) + " remaining")

@@ -41,8 +41,7 @@ class PathSteeringTest {
 
     @Test
     void turnsAtMostThirtyDegreesTowardAReversal() {
-        List<PathStep> steps = List.of(step(0, 2, 0, 0, 2, -1, Move.WALK),
-                step(0, 2, -1, 0, 2, -2, Move.WALK));
+        List<PathStep> steps = List.of(step(0, 2, 0, 0, 2, -1, Move.WALK), step(0, 2, -1, 0, 2, -2, Move.WALK));
         float yaw = PathSteering.yaw(steps, 0, 0.5, 0.5, 0.0f, false);
         assertEquals(30.0f, Facing.difference(yaw, 0.0f), 1e-4);
     }
@@ -56,7 +55,8 @@ class PathSteeringTest {
 
     @Test
     void stopsAtACornerInsteadOfCuttingIt() {
-        List<PathStep> steps = List.of(step(0, 2, 0, 1, 2, 0, Move.WALK),
+        List<PathStep> steps = List.of(
+                step(0, 2, 0, 1, 2, 0, Move.WALK),
                 step(1, 2, 0, 1, 2, 1, Move.WALK),
                 step(1, 2, 1, 1, 2, 2, Move.WALK));
         // A 1.5-block look-ahead would land halfway up the north leg; the corner node wins.
@@ -65,7 +65,8 @@ class PathSteeringTest {
 
     @Test
     void holdsTheHeadingWhenTheCurrentNodeIsBehind() {
-        List<PathStep> steps = List.of(step(0, 2, 0, 1, 2, 0, Move.WALK),
+        List<PathStep> steps = List.of(
+                step(0, 2, 0, 1, 2, 0, Move.WALK),
                 step(1, 2, 0, 2, 2, 0, Move.WALK),
                 step(2, 2, 0, 3, 2, 0, Move.WALK));
         // Node 1 is only 0.2 blocks away and behind the body: there is no direction to aim at, so it keeps east.

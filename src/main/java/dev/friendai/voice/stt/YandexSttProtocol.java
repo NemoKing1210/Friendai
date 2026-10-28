@@ -27,14 +27,19 @@ public final class YandexSttProtocol implements SttProtocol {
         }
         query.append("&lang=").append(encode(settings.language()));
         URI uri = OpenAiSttProtocol.join(settings.baseUrl(), "/speech/v1/stt:recognize");
-        return new PreparedRequest(URI.create(uri + query.toString()), VoiceAuth.YANDEX.headers(settings.apiKey()),
-                pcm16k, "application/octet-stream");
+        return new PreparedRequest(
+                URI.create(uri + query.toString()),
+                VoiceAuth.YANDEX.headers(settings.apiKey()),
+                pcm16k,
+                "application/octet-stream");
     }
 
     @Override
     public String parse(JsonObject response) {
         JsonElement result = response == null ? null : response.get("result");
-        if (result == null || !result.isJsonPrimitive() || !result.getAsJsonPrimitive().isString()
+        if (result == null
+                || !result.isJsonPrimitive()
+                || !result.getAsJsonPrimitive().isString()
                 || result.getAsString().isBlank()) {
             throw failed();
         }

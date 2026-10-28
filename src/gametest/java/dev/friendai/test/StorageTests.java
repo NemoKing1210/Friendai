@@ -58,7 +58,8 @@ public class StorageTests {
     }
 
     private static Container mergedAt(GameTestHelper h, int x, int y, int z) {
-        return ContainerAccess.at(h.getLevel(), h.absolutePos(new BlockPos(x, y, z))).orElseThrow();
+        return ContainerAccess.at(h.getLevel(), h.absolutePos(new BlockPos(x, y, z)))
+                .orElseThrow();
     }
 
     private static StoreItemsTask store(ItemMatcher matcher, int count, GameTestHelper h, int x, int y, int z) {
@@ -90,12 +91,18 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("stored 64 minecraft:andesite, 10 minecraft:diorite in minecraft:barrel at "
-                    + coords(target)), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("stored 64 minecraft:andesite, 10 minecraft:diorite in minecraft:barrel at "
+                            + coords(target)),
+                    "summary was " + result.summary);
             h.assertTrue(c.inventory().isEmpty(), "the inventory must be empty");
             Container barrel = containerAt(h, 6, 2, 6);
-            h.assertTrue(barrel.getItem(0).is(Items.ANDESITE) && barrel.getItem(0).getCount() == 64, "slot 0 was " + barrel.getItem(0));
-            h.assertTrue(barrel.getItem(1).is(Items.DIORITE) && barrel.getItem(1).getCount() == 10, "slot 1 was " + barrel.getItem(1));
+            h.assertTrue(
+                    barrel.getItem(0).is(Items.ANDESITE) && barrel.getItem(0).getCount() == 64,
+                    "slot 0 was " + barrel.getItem(0));
+            h.assertTrue(
+                    barrel.getItem(1).is(Items.DIORITE) && barrel.getItem(1).getCount() == 10,
+                    "slot 1 was " + barrel.getItem(1));
         });
     }
 
@@ -114,18 +121,23 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("stored 5 minecraft:orange_wool, 3 minecraft:cyan_wool in minecraft:chest at "
-                    + coords(target)), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("stored 5 minecraft:orange_wool, 3 minecraft:cyan_wool in minecraft:chest at "
+                            + coords(target)),
+                    "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.GRANITE) == 4, "granite must stay");
             Container chest = containerAt(h, 6, 2, 6);
-            h.assertTrue(chest.getItem(0).is(Items.WOOL.orange()) && chest.getItem(1).is(Items.WOOL.cyan()), "wool must be stored");
+            h.assertTrue(
+                    chest.getItem(0).is(Items.WOOL.orange()) && chest.getItem(1).is(Items.WOOL.cyan()),
+                    "wool must be stored");
         });
     }
 
     @GameTest(maxTicks = 600)
     public void storeFillsDoubleChest(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        BlockState left = Blocks.CHEST.defaultBlockState()
+        BlockState left = Blocks.CHEST
+                .defaultBlockState()
                 .setValue(ChestBlock.FACING, Direction.NORTH)
                 .setValue(ChestBlock.TYPE, ChestType.LEFT);
         h.setBlock(6, 2, 6, left);
@@ -145,7 +157,9 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.startsWith("stored 1728 minecraft:cobbled_deepslate"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("stored 1728 minecraft:cobbled_deepslate"),
+                    "summary was " + result.summary);
             h.assertTrue(c.inventory().isEmpty(), "the inventory must be empty");
             int dirtSlots = 0;
             int deepslateSlots = 0;
@@ -178,8 +192,10 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("stored 64 minecraft:polished_andesite in minecraft:barrel at "
-                    + coords(target) + "; the barrel is full"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("stored 64 minecraft:polished_andesite in minecraft:barrel at "
+                            + coords(target) + "; the barrel is full"),
+                    "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.POLISHED_ANDESITE) == 64, "one stack must stay");
         });
     }
@@ -198,7 +214,9 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("the barrel at " + coords(target) + " is full"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("the barrel at " + coords(target) + " is full"),
+                    "summary was " + result.summary);
         });
     }
 
@@ -214,7 +232,9 @@ public class StorageTests {
         runner.start(store(null, Integer.MAX_VALUE, h, 6, 2, 6), "store_items");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
-        h.assertTrue(result.summary.equals("there is no chest, barrel or other storage at " + coords(target)), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.equals("there is no chest, barrel or other storage at " + coords(target)),
+                "summary was " + result.summary);
         h.succeed();
     }
 
@@ -253,7 +273,8 @@ public class StorageTests {
             ItemStack first = chest.getItem(0);
             ItemStack second = chest.getItem(1);
             h.assertTrue(first.is(Items.IRON_SHOVEL) && second.is(Items.IRON_SHOVEL), "both shovels must be stored");
-            h.assertTrue(first.get(DataComponents.CUSTOM_NAME) != null || second.get(DataComponents.CUSTOM_NAME) != null,
+            h.assertTrue(
+                    first.get(DataComponents.CUSTOM_NAME) != null || second.get(DataComponents.CUSTOM_NAME) != null,
                     "the name must survive");
             h.assertTrue(first.getCount() == 1 && second.getCount() == 1, "they must stay separate stacks");
         });
@@ -296,7 +317,8 @@ public class StorageTests {
             }
             h.assertTrue(ticks[0] >= 4, "waiting for the block change");
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("there is no chest, barrel or other storage at " + coords(target)),
+            h.assertTrue(
+                    result.summary.equals("there is no chest, barrel or other storage at " + coords(target)),
                     "summary was " + result.summary);
         });
     }
@@ -306,7 +328,8 @@ public class StorageTests {
         GameTestSupport.platform(h, 16);
         h.setBlock(12, 2, 3, Blocks.CHEST);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 3))),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 3))),
                 "first chest should be directly visible");
         c.inventory().addItem(new ItemStack(Items.DIRT, 5));
         Result result = new Result();
@@ -321,13 +344,15 @@ public class StorageTests {
 
         BlockPos secondChest = new BlockPos(5, 2, 5);
         h.setBlock(secondChest, Blocks.CHEST);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(secondChest)),
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(secondChest)),
                 "second chest should be directly visible");
         runner.start(store(null, Integer.MAX_VALUE, h, 5, 2, 5), "store_items");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(ChestBlockEntity.getOpenCount(h.getLevel(), h.absolutePos(new BlockPos(5, 2, 5))) == 0,
+            h.assertTrue(
+                    ChestBlockEntity.getOpenCount(h.getLevel(), h.absolutePos(new BlockPos(5, 2, 5))) == 0,
                     "the lid must be closed");
         });
     }
@@ -346,10 +371,13 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("took 12 minecraft:iron_nugget from minecraft:chest at " + coords(target)),
+            h.assertTrue(
+                    result.summary.equals("took 12 minecraft:iron_nugget from minecraft:chest at " + coords(target)),
                     "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.IRON_NUGGET) == 12, "must take 12");
-            h.assertTrue(chest.getItem(0).getCount() == 8, "8 must stay, have " + chest.getItem(0).getCount());
+            h.assertTrue(
+                    chest.getItem(0).getCount() == 8,
+                    "8 must stay, have " + chest.getItem(0).getCount());
         });
     }
 
@@ -367,8 +395,10 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("took only 5 of 12 minecraft:gold_nugget from minecraft:chest at "
-                    + coords(target) + " (that was all it had)"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("took only 5 of 12 minecraft:gold_nugget from minecraft:chest at "
+                            + coords(target) + " (that was all it had)"),
+                    "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.GOLD_NUGGET) == 5, "must take 5");
         });
     }
@@ -388,7 +418,8 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("took 3 minecraft:lapis_lazuli from minecraft:chest at " + coords(far)),
+            h.assertTrue(
+                    result.summary.equals("took 3 minecraft:lapis_lazuli from minecraft:chest at " + coords(far)),
                     "summary was " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.LAPIS_LAZULI) == 3, "must take 3");
         });
@@ -426,7 +457,8 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("the chest at " + coords(target) + " has no minecraft:quartz"),
+            h.assertTrue(
+                    result.summary.equals("the chest at " + coords(target) + " has no minecraft:quartz"),
                     "summary was " + result.summary);
         });
     }
@@ -447,8 +479,10 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("minecraft:barrel at " + coords(target)
-                    + " holds: cobblestone×84, iron_ingot×12 (3 of 27 slots used)"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("minecraft:barrel at " + coords(target)
+                            + " holds: cobblestone×84, iron_ingot×12 (3 of 27 slots used)"),
+                    "summary was " + result.summary);
         });
     }
 
@@ -464,7 +498,8 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("minecraft:chest at " + coords(target) + " is empty"),
+            h.assertTrue(
+                    result.summary.equals("minecraft:chest at " + coords(target) + " is empty"),
                     "summary was " + result.summary);
         });
     }
@@ -475,10 +510,28 @@ public class StorageTests {
         h.setBlock(6, 2, 6, Blocks.CHEST);
         Container chest = containerAt(h, 6, 2, 6);
         net.minecraft.world.item.Item[] items = {
-            Items.COBBLESTONE, Items.DIRT, Items.GRANITE, Items.DIORITE, Items.ANDESITE, Items.STONE,
-            Items.OAK_LOG, Items.BIRCH_LOG, Items.SAND, Items.GRAVEL, Items.COAL, Items.IRON_INGOT,
-            Items.GOLD_INGOT, Items.COPPER_INGOT, Items.DIAMOND, Items.EMERALD, Items.REDSTONE,
-            Items.LAPIS_LAZULI, Items.QUARTZ, Items.CLAY_BALL, Items.BRICK, Items.FLINT
+            Items.COBBLESTONE,
+            Items.DIRT,
+            Items.GRANITE,
+            Items.DIORITE,
+            Items.ANDESITE,
+            Items.STONE,
+            Items.OAK_LOG,
+            Items.BIRCH_LOG,
+            Items.SAND,
+            Items.GRAVEL,
+            Items.COAL,
+            Items.IRON_INGOT,
+            Items.GOLD_INGOT,
+            Items.COPPER_INGOT,
+            Items.DIAMOND,
+            Items.EMERALD,
+            Items.REDSTONE,
+            Items.LAPIS_LAZULI,
+            Items.QUARTZ,
+            Items.CLAY_BALL,
+            Items.BRICK,
+            Items.FLINT
         };
         for (int i = 0; i < items.length; i++) {
             chest.setItem(i, new ItemStack(items[i], 1));
@@ -491,7 +544,9 @@ public class StorageTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.endsWith("… and 2 more kinds (22 of 27 slots used)"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.endsWith("… and 2 more kinds (22 of 27 slots used)"),
+                    "summary was " + result.summary);
         });
     }
 
@@ -516,9 +571,9 @@ public class StorageTests {
                 }
             }
             h.assertTrue(opened[0] && stopped[0], "waiting for the lid to open");
-            h.assertTrue(ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
-                    "the lid must close on stop, openers "
-                            + ChestBlockEntity.getOpenCount(h.getLevel(), target));
+            h.assertTrue(
+                    ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
+                    "the lid must close on stop, openers " + ChestBlockEntity.getOpenCount(h.getLevel(), target));
         });
     }
 }

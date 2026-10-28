@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonParser;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 
 class GeneratorsTest {
@@ -69,11 +68,13 @@ class GeneratorsTest {
                   "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone",
                   "roof": "minecraft:oak_stairs", "torches": true }
                 """);
-        long torches = house.blocks().stream().filter(b -> b.state().contains("torch")).count();
+        long torches =
+                house.blocks().stream().filter(b -> b.state().contains("torch")).count();
         assertEquals(4, torches, "two torches per floor");
         for (BlockSpec spec : house.blocks()) {
             if (spec.state().contains("torch")) {
-                assertTrue(spec.state().startsWith("minecraft:wall_torch[facing="),
+                assertTrue(
+                        spec.state().startsWith("minecraft:wall_torch[facing="),
                         "a torch above the ground floor needs a wall: " + spec.state());
             }
         }
@@ -139,7 +140,8 @@ class GeneratorsTest {
                 { "type": "tower", "size": 5, "height": 6, "walls": "minecraft:stone_bricks", "ladder": true }
                 """);
         assertEquals("minecraft:stone_bricks", stateAt(tower, 0, 3, 0));
-        assertTrue(stateAt(tower, 2, 3, 1).startsWith("minecraft:ladder[facing=south]"), "ladder inside the north wall");
+        assertTrue(
+                stateAt(tower, 2, 3, 1).startsWith("minecraft:ladder[facing=south]"), "ladder inside the north wall");
         assertTrue(has(tower, 0, 6, 0), "crenellation on the top edge");
         assertFalse(has(tower, 1, 6, 0), "crenellations alternate");
     }
@@ -203,7 +205,9 @@ class GeneratorsTest {
 
     @Test
     void unknownType() {
-        assertEquals(List.of("unknown type 'castle'"), generate("{ \"type\": \"castle\" }").errors());
+        assertEquals(
+                List.of("unknown type 'castle'"),
+                generate("{ \"type\": \"castle\" }").errors());
     }
 
     @Test

@@ -15,35 +15,56 @@ import org.junit.jupiter.api.Test;
 class PathOptimalityTest {
     @Test
     void pointPathsMatchDijkstra() {
-        assertOptimal("flat", new GridCellView("########", "........", "........"), new Node(1, 1, 0), point(7.5, 1, 0.5), 0);
+        assertOptimal(
+                "flat", new GridCellView("########", "........", "........"), new Node(1, 1, 0), point(7.5, 1, 0.5), 0);
         assertOptimal("wall with opening", wallGrid(10, 6, 5, 5, 'p'), new Node(1, 1, 0), point(8.5, 1, 0.5), 0);
         assertOptimal("wall to dig", wallGrid(10, 6, 5, 5, '#'), new Node(1, 1, 0), point(8.5, 1, 0.5), 0);
         assertOptimal("pit with material", pit(2, 3), new Node(1, 1, 0), point(8.5, 1, 0.5), 3);
-        assertOptimal("step up",
+        assertOptimal(
+                "step up",
                 new GridCellView("######", "..####", "......", "......"),
-                new Node(1, 1, 0), point(3.5, 2, 0.5), 0);
-        assertOptimal("ladder",
+                new Node(1, 1, 0),
+                point(3.5, 2, 0.5),
+                0);
+        assertOptimal(
+                "ladder",
                 new GridCellView("#####", "..H..", "..H..", "..H..", ".....", "....."),
-                new Node(1, 1, 0), point(2.5, 4, 0.5), 0);
+                new Node(1, 1, 0),
+                point(2.5, 4, 0.5),
+                0);
     }
 
     @Test
     void reachPathsMatchDijkstra() {
         GridCellView view = wallGrid(10, 6, 5, 5, '#');
-        assertOptimal("reach", view, new Node(1, 1, 0),
-                new GoalReach(List.of(new Pos(8, 1, 0)), 2, 1.62), 0);
+        assertOptimal("reach", view, new Node(1, 1, 0), new GoalReach(List.of(new Pos(8, 1, 0)), 2, 1.62), 0);
     }
 
     @Test
     void waterSlabsAndDiagonalLedgesMatchDijkstra() {
-        assertOptimal("water", new GridCellView("########/########/########",
-                "...~~~../...~~~../...~~~..", "...~~~../...~~~../...~~~..", "......../......../........"),
-                new Node(1, 1, 1), point(7.5, 1, 1.5), 0);
-        assertOptimal("slab", new GridCellView("########", "...__...", "........", "........"),
-                new Node(1, 1, 0), point(4.5, 2, 0.5), 0);
-        assertOptimal("diagonal ledge", new GridCellView("####/####/####/####",
-                "..../..../..##/..##", "..../..../..../....", "..../..../..../...."),
-                new Node(1, 1, 1), point(3.5, 2, 3.5), 0);
+        assertOptimal(
+                "water",
+                new GridCellView(
+                        "########/########/########",
+                        "...~~~../...~~~../...~~~..",
+                        "...~~~../...~~~../...~~~..",
+                        "......../......../........"),
+                new Node(1, 1, 1),
+                point(7.5, 1, 1.5),
+                0);
+        assertOptimal(
+                "slab",
+                new GridCellView("########", "...__...", "........", "........"),
+                new Node(1, 1, 0),
+                point(4.5, 2, 0.5),
+                0);
+        assertOptimal(
+                "diagonal ledge",
+                new GridCellView(
+                        "####/####/####/####", "..../..../..##/..##", "..../..../..../....", "..../..../..../...."),
+                new Node(1, 1, 1),
+                point(3.5, 2, 3.5),
+                0);
     }
 
     @Test
@@ -64,8 +85,12 @@ class PathOptimalityTest {
             String air = String.join("/", Collections.nCopies(6, "........"));
             GridCellView view = new GridCellView(floor, obstacles.toString(), obstacles.toString(), air);
             assertOptimal("point seed " + sample, view, new Node(0, 1, 0), point(7.5, 1, 5.5), 0);
-            assertOptimal("reach seed " + sample, view, new Node(0, 1, 0),
-                    new GoalReach(List.of(new Pos(7, 1, 5)), 2, 1.62), 0);
+            assertOptimal(
+                    "reach seed " + sample,
+                    view,
+                    new Node(0, 1, 0),
+                    new GoalReach(List.of(new Pos(7, 1, 5)), 2, 1.62),
+                    0);
         }
     }
 
@@ -75,8 +100,9 @@ class PathOptimalityTest {
 
     private static void assertOptimal(String label, GridCellView view, Node start, PathGoal goal, int placeable) {
         double expected = dijkstra(view, start, goal, placeable);
-        SearchResult result = new PathSearch(view, CostModel.DEFAULTS, goal, start,
-                new SearchOptions(100_000, 64, placeable, 1)).step(Long.MAX_VALUE, System::nanoTime);
+        SearchResult result = new PathSearch(
+                        view, CostModel.DEFAULTS, goal, start, new SearchOptions(100_000, 64, placeable, 1))
+                .step(Long.MAX_VALUE, System::nanoTime);
         assertEquals(SearchResult.Status.FOUND, result.status(), label);
         assertEquals(expected, result.path().cost(), 1e-9, label);
     }

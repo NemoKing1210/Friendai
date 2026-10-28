@@ -4,11 +4,29 @@ import dev.friendai.pathing.Pos;
 import java.util.Objects;
 import java.util.Set;
 
-public record ResourceSite(long id, String family, String dimension, Set<Pos> members, Pos representative,
-                           Pos approach, long firstSeen, long lastSeen, Availability availability,
-                           RouteStatus routeStatus, boolean approximate) {
-    public enum Availability { OBSERVED, STALE, DEPLETED }
-    public enum RouteStatus { UNKNOWN, REACHABLE, TEMPORARILY_UNREACHABLE }
+public record ResourceSite(
+        long id,
+        String family,
+        String dimension,
+        Set<Pos> members,
+        Pos representative,
+        Pos approach,
+        long firstSeen,
+        long lastSeen,
+        Availability availability,
+        RouteStatus routeStatus,
+        boolean approximate) {
+    public enum Availability {
+        OBSERVED,
+        STALE,
+        DEPLETED
+    }
+
+    public enum RouteStatus {
+        UNKNOWN,
+        REACHABLE,
+        TEMPORARILY_UNREACHABLE
+    }
 
     public ResourceSite {
         if (id < 1) throw new IllegalArgumentException("id must be positive");

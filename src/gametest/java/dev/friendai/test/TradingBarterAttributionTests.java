@@ -47,24 +47,32 @@ public final class TradingBarterAttributionTests {
         ItemEntity unrelated = new ItemEntity(h.getLevel(), 7, 2, 2, new ItemStack(Items.BREAD));
         unrelated.setThrower(otherPiglin);
         h.getLevel().addFreshEntity(unrelated);
-        h.assertTrue(adapter.payOne(companion, piglin.getUUID(), attempt), "vanilla piglin interaction did not accept one gold ingot");
-        h.assertTrue(companion.inventory().countItem(Items.GOLD_INGOT) == 1,
-                "payment did not consume exactly one ingot");
-        h.assertTrue(!tracker.outputs(attempt).isEmpty(),
+        h.assertTrue(
+                adapter.payOne(companion, piglin.getUUID(), attempt),
+                "vanilla piglin interaction did not accept one gold ingot");
+        h.assertTrue(
+                companion.inventory().countItem(Items.GOLD_INGOT) == 1, "payment did not consume exactly one ingot");
+        h.assertTrue(
+                !tracker.outputs(attempt).isEmpty(),
                 "vanilla interaction did not synchronously emit and attribute its barter response");
         piglin.setNoAi(false);
 
         class AwaitBarter implements Runnable {
             private final long deadline = started + 2_400;
-            @Override public void run() {
+
+            @Override
+            public void run() {
                 var outputIds = tracker.outputs(attempt);
                 if (!outputIds.isEmpty()) {
-                    h.assertTrue(outputIds.stream().noneMatch(id -> id.equals(before.getUUID()) || id.equals(unrelated.getUUID())),
+                    h.assertTrue(
+                            outputIds.stream()
+                                    .noneMatch(id -> id.equals(before.getUUID()) || id.equals(unrelated.getUUID())),
                             "pre-existing or another piglin's item was attributed");
                     for (UUID outputId : outputIds) {
                         Entity output = h.getLevel().getEntity(outputId);
                         h.assertTrue(output instanceof ItemEntity, "tracked output entity disappeared or changed type");
-                        h.assertTrue(((ItemEntity) output).getOwner() == piglin,
+                        h.assertTrue(
+                                ((ItemEntity) output).getOwner() == piglin,
                                 "tracked output was not owned by the exact piglin");
                     }
                     tracker.finish(attempt);

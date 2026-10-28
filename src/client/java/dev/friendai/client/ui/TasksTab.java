@@ -76,11 +76,13 @@ final class TasksTab implements MenuTab {
     }
 
     private static void addChain(List<Block> blocks, Font font, List<QueueRow> rows, int width) {
-        blocks.add(new Block(12, (g, x, y, w) ->
-                Ui.heading(g, font, Component.translatable("friendai.menu.chain"), x, y, w)));
+        blocks.add(new Block(
+                12, (g, x, y, w) -> Ui.heading(g, font, Component.translatable("friendai.menu.chain"), x, y, w)));
         if (rows.isEmpty()) {
-            blocks.add(new Block(14, (g, x, y, w) ->
-                    Ui.text(g, font, Component.translatable("friendai.menu.activity.idle"), x + 2, y + 2, Ui.DIM)));
+            blocks.add(new Block(
+                    14,
+                    (g, x, y, w) -> Ui.text(
+                            g, font, Component.translatable("friendai.menu.activity.idle"), x + 2, y + 2, Ui.DIM)));
             return;
         }
         int index = 0;
@@ -98,15 +100,24 @@ final class TasksTab implements MenuTab {
             index = end;
         }
         if (rows.size() >= QueueRows.MAX_ROWS) {
-            blocks.add(new Block(14, (g, x, y, w) -> Ui.text(g, font,
-                    Component.translatable("friendai.menu.chain.more", QueueRows.MAX_ROWS), x + 2, y + 2, Ui.DIM)));
+            blocks.add(new Block(
+                    14,
+                    (g, x, y, w) -> Ui.text(
+                            g,
+                            font,
+                            Component.translatable("friendai.menu.chain.more", QueueRows.MAX_ROWS),
+                            x + 2,
+                            y + 2,
+                            Ui.DIM)));
         }
     }
 
     private static Block groupHeader(Font font, List<QueueRow> group) {
         QueueRow first = group.getFirst();
         boolean direct = first.planId() == 0;
-        long done = group.stream().filter(r -> r.state().equals("done") || r.state().equals("skipped")).count();
+        long done = group.stream()
+                .filter(r -> r.state().equals("done") || r.state().equals("skipped"))
+                .count();
         int color = direct ? Ui.ACCENT : planColor(first.planStatus());
         return new Block(26, (g, x, y, w) -> {
             Ui.card(g, x, y, w, 26);
@@ -120,8 +131,15 @@ final class TasksTab implements MenuTab {
                 badgeWidth = Ui.badgeWidth(font, status.getString());
                 Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
             }
-            Ui.text(g, font, Ui.clip(font, title.getString(), w - badgeWidth - 2 * PAD - 6), x + PAD + 2, y + 5, Ui.TEXT);
-            String progress = Component.translatable("friendai.menu.chain.progress", done, group.size()).getString();
+            Ui.text(
+                    g,
+                    font,
+                    Ui.clip(font, title.getString(), w - badgeWidth - 2 * PAD - 6),
+                    x + PAD + 2,
+                    y + 5,
+                    Ui.TEXT);
+            String progress = Component.translatable("friendai.menu.chain.progress", done, group.size())
+                    .getString();
             Ui.text(g, font, progress, x + PAD + 2, y + 15, Ui.DIM);
             int barX = x + PAD + 2 + font.width(progress) + 6;
             Ui.bar(g, barX, y + 16, Math.max(10, x + w - PAD - barX), 5, done / (float) group.size(), color);
@@ -150,7 +168,13 @@ final class TasksTab implements MenuTab {
             Ui.badge(g, font, state.getString(), x + w - badgeWidth - 5, y + 3, color);
             Ui.text(g, font, "#" + row.id(), tx, y + 5, Ui.DIM);
             int idWidth = font.width("#" + row.id()) + 5;
-            Ui.text(g, font, Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14), tx + idWidth, y + 5, Ui.TEXT);
+            Ui.text(
+                    g,
+                    font,
+                    Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14),
+                    tx + idWidth,
+                    y + 5,
+                    Ui.TEXT);
             int lineY = y + 18;
             if (hasArgs) {
                 Ui.text(g, font, Ui.clip(font, row.args(), textWidth), tx, lineY, Ui.DIM);
@@ -176,20 +200,24 @@ final class TasksTab implements MenuTab {
                 }
                 ids.append('#').append(id);
             }
-            parts.add(Component.translatable("friendai.menu.chain.after", ids.toString()).getString());
+            parts.add(Component.translatable("friendai.menu.chain.after", ids.toString())
+                    .getString());
         }
         if (row.attempts() > 0 && row.maxAttempts() > 1) {
-            parts.add(Component.translatable("friendai.menu.chain.attempt", row.attempts(), row.maxAttempts()).getString());
+            parts.add(Component.translatable("friendai.menu.chain.attempt", row.attempts(), row.maxAttempts())
+                    .getString());
         }
         return String.join("  ·  ", parts);
     }
 
     private static void addHistory(List<Block> blocks, Font font, List<TaskRecord> records, int width) {
-        blocks.add(new Block(12, (g, x, y, w) ->
-                Ui.heading(g, font, Component.translatable("friendai.menu.history"), x, y, w)));
+        blocks.add(new Block(
+                12, (g, x, y, w) -> Ui.heading(g, font, Component.translatable("friendai.menu.history"), x, y, w)));
         if (records.isEmpty()) {
-            blocks.add(new Block(14, (g, x, y, w) ->
-                    Ui.text(g, font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
+            blocks.add(new Block(
+                    14,
+                    (g, x, y, w) -> Ui.text(
+                            g, font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
             return;
         }
         for (TaskRecord record : records) {
@@ -200,8 +228,15 @@ final class TasksTab implements MenuTab {
         }
     }
 
-    private static void drawRecord(GuiGraphicsExtractor g, Font font, TaskRecord r, List<FormattedCharSequence> summary,
-            int x, int y, int w, int h) {
+    private static void drawRecord(
+            GuiGraphicsExtractor g,
+            Font font,
+            TaskRecord r,
+            List<FormattedCharSequence> summary,
+            int x,
+            int y,
+            int w,
+            int h) {
         int color = historyColor(r.status());
         Ui.card(g, x, y, w, h);
         g.fill(x, y, x + 3, y + h, color);
@@ -211,7 +246,13 @@ final class TasksTab implements MenuTab {
         Component status = Component.translatable(historyKey(r.status()));
         int badgeWidth = Ui.badgeWidth(font, status.getString());
         Ui.badge(g, font, status.getString(), x + w - badgeWidth - 5, y + 3, color);
-        Ui.text(g, font, Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8), textX + idWidth, y + 5, Ui.TEXT);
+        Ui.text(
+                g,
+                font,
+                Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8),
+                textX + idWidth,
+                y + 5,
+                Ui.TEXT);
         int lineY = y + 18;
         for (FormattedCharSequence line : summary) {
             Ui.text(g, font, line, textX, lineY, Ui.DIM);

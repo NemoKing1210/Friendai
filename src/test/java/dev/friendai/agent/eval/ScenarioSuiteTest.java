@@ -24,10 +24,11 @@ class ScenarioSuiteTest {
         }
         assertTrue(!files.isEmpty(), "no scenarios found in " + dir);
         Gson gson = new Gson();
-        return files.stream().map(file -> DynamicTest.dynamicTest(file.getFileName().toString(), () -> {
-            Scenario scenario = gson.fromJson(Files.readString(file, StandardCharsets.UTF_8), Scenario.class);
-            ScenarioRunner.Result result = ScenarioRunner.run(scenario);
-            assertTrue(result.passed(), scenario.name() + ": " + result.failures());
-        }));
+        return files.stream()
+                .map(file -> DynamicTest.dynamicTest(file.getFileName().toString(), () -> {
+                    Scenario scenario = gson.fromJson(Files.readString(file, StandardCharsets.UTF_8), Scenario.class);
+                    ScenarioRunner.Result result = ScenarioRunner.run(scenario);
+                    assertTrue(result.passed(), scenario.name() + ": " + result.failures());
+                }));
     }
 }

@@ -1,19 +1,18 @@
 package dev.friendai.tool.builtin;
 
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.pathing.Pos;
 import dev.friendai.perception.AreaMapBuilder;
 import dev.friendai.perception.OwnerFocusBuilder;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionSnapshot;
 import dev.friendai.perception.TreeSummary;
 import dev.friendai.perception.TreeText;
-import dev.friendai.pathing.Pos;
 import dev.friendai.placed.PlacedQuery;
 import dev.friendai.placed.PlacedService;
 import dev.friendai.placed.PlacedText;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.TreeFinder;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
@@ -40,14 +39,17 @@ final class InfoTools {
             List<TaskToolDef> defs,
             IntSupplier mineRadius,
             IntSupplier treeRadius) {
-        registry.register(ToolKit.callerTool("find_trees",
+        registry.register(ToolKit.callerTool(
+                "find_trees",
                 "List trees recently seen or remembered with their kind, height, log count, distance and direction; "
                         + "a remembered tree is not guaranteed to still be there. A log structure has no leaves and "
                         + "is not felled automatically. Use it to choose a tree before fell_tree.",
                 SchemaBuilder.object()
                         .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
-                        .string("near", "Search around the speaker (me, default), yourself (self), or a "
-                                + "remembered place (place:<name>)")
+                        .string(
+                                "near",
+                                "Search around the speaker (me, default), yourself (self), or a "
+                                        + "remembered place (place:<name>)")
                         .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                         .integer("y", "Block y coordinate to search around instead of near", -64, 320)
                         .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
@@ -63,7 +65,8 @@ final class InfoTools {
                             : null;
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
                     int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
-                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    var resources =
+                            FriendaiServerState.get(c.level().getServer()).resources();
                     // Observations are stored relative to the companion, while this query may be centred on the
                     // speaking player. Expand only the evidence lookup; TreeFinder still applies the requested
                     // radius around origin, and this does not inspect the world for unseen blocks.
@@ -72,15 +75,20 @@ final class InfoTools {
                     var observedIds = resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024).entrySet().stream()
                             .filter(entry -> {
                                 var id = Identifier.tryParse(entry.getValue());
-                                return id != null && BuiltInRegistries.BLOCK.containsKey(id)
-                                        && logs.test(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
-                            }).collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+                                return id != null
+                                        && BuiltInRegistries.BLOCK.containsKey(id)
+                                        && logs.test(BuiltInRegistries.BLOCK
+                                                .getValue(id)
+                                                .defaultBlockState());
+                            })
+                            .collect(java.util.stream.Collectors.toMap(
+                                    java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
                     BlockMatcher leavesMatcher = ToolKit.parseBlockMatcher("#minecraft:leaves");
                     Set<BlockPos> leaves = resources.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024).stream()
                             .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                             .collect(java.util.stream.Collectors.toUnmodifiableSet());
-                    List<TreeFinder.TreeInfo> found = TreeFinder.findObserved((ServerLevel) c.level(), origin,
-                            observedIds, leaves, limit);
+                    List<TreeFinder.TreeInfo> found =
+                            TreeFinder.findObserved((ServerLevel) c.level(), origin, observedIds, leaves, limit);
                     List<TreeSummary> trees = found.stream()
                             .filter(t -> t.kind() != TreeFinder.Kind.LOG_STRUCTURE)
                             .map(TreeFinder.TreeInfo::summary)
@@ -89,12 +97,16 @@ final class InfoTools {
                             .filter(t -> t.kind() == TreeFinder.Kind.LOG_STRUCTURE)
                             .map(TreeFinder.TreeInfo::summary)
                             .toList();
-                    return ToolResult.ok(TreeText.toolListing(trees, structures, radius, "recently seen or remembered"));
+                    return ToolResult.ok(
+                            TreeText.toolListing(trees, structures, radius, "recently seen or remembered"));
                 }));
-        registry.register(ToolKit.instantTool("look_around", "Describe the surroundings in detail.",
+        registry.register(ToolKit.instantTool(
+                "look_around",
+                "Describe the surroundings in detail.",
                 AccessLevel.GUEST,
                 (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText() + hintLine(c))));
-        registry.register(ToolKit.instantTool("find_blocks",
+        registry.register(ToolKit.instantTool(
+                "find_blocks",
                 "List directly observed or remembered blocks of a given id or #tag with coordinates. Results are "
                         + "observations, not a survey of unseen terrain.",
                 SchemaBuilder.object()
@@ -104,28 +116,37 @@ final class InfoTools {
                         .required("block")
                         .build(),
                 (c, a) -> {
-                    BlockMatcher matcher = ToolKit.parseBlockMatcher(a.get("block").getAsString());
+                    BlockMatcher matcher =
+                            ToolKit.parseBlockMatcher(a.get("block").getAsString());
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : mineRadius.getAsInt();
                     int limit = a.has("limit") ? a.get("limit").getAsInt() : 5;
-                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    var resources =
+                            FriendaiServerState.get(c.level().getServer()).resources();
                     List<BlockPos> found = resources.knownOrVisible(c, matcher, radius, limit);
                     if (found.isEmpty()) {
                         return ToolResult.ok("no " + matcher.label() + " within " + radius + " blocks");
                     }
-                    StringBuilder text = new StringBuilder(found.size() + " observed/remembered " + matcher.label()
-                            + " nearest first: ");
+                    StringBuilder text = new StringBuilder(
+                            found.size() + " observed/remembered " + matcher.label() + " nearest first: ");
                     for (int i = 0; i < found.size(); i++) {
                         BlockPos p = found.get(i);
                         if (i > 0) {
                             text.append(", ");
                         }
                         double distance = Math.sqrt(Vec3.atCenterOf(p).distanceToSqr(c.position()));
-                        text.append(p.getX()).append(' ').append(p.getY()).append(' ').append(p.getZ())
-                                .append(" (").append(String.format(Locale.ROOT, "%.1f", distance)).append(" blocks)");
+                        text.append(p.getX())
+                                .append(' ')
+                                .append(p.getY())
+                                .append(' ')
+                                .append(p.getZ())
+                                .append(" (")
+                                .append(String.format(Locale.ROOT, "%.1f", distance))
+                                .append(" blocks)");
                     }
                     return ToolResult.ok(text.toString());
                 }));
-        registry.register(ToolKit.instantTool("find_placed",
+        registry.register(ToolKit.instantTool(
+                "find_placed",
                 "List blocks you placed that are still in the world, nearest first, with coordinates, distance "
                         + "and what placed them. Use it when the player asks what you just placed or tells you to "
                         + "take those blocks back; mine_blocks, pickup_items and store_items take placed:true.",
@@ -143,18 +164,23 @@ final class InfoTools {
                     PlacedQuery.Result result = PlacedService.find(c, matcher, radius, limit);
                     BlockPos here = c.blockPosition();
                     return ToolResult.ok(PlacedText.listing(
-                            result, matcher == null ? null : matcher.label(), radius,
+                            result,
+                            matcher == null ? null : matcher.label(),
+                            radius,
                             new Pos(here.getX(), here.getY(), here.getZ())));
                 }));
-        registry.register(ToolKit.callerTool("player_view",
+        registry.register(ToolKit.callerTool(
+                "player_view",
                 "Where the player who is talking to you stands and what they are looking at or standing on, "
                         + "right now. Use it when they say 'this block', 'the one I'm looking at' or 'where I stand', "
                         + "especially after they may have moved.",
                 SchemaBuilder.object().build(),
                 AccessLevel.TRUSTED,
                 () -> true,
-                (c, caller, a) -> ToolResult.ok(OwnerFocusBuilder.of(c, caller.uuid()).toPromptText())));
-        registry.register(ToolKit.callerTool("describe_block",
+                (c, caller, a) ->
+                        ToolResult.ok(OwnerFocusBuilder.of(c, caller.uuid()).toPromptText())));
+        registry.register(ToolKit.callerTool(
+                "describe_block",
                 "Facts about a block: id, hardness, whether it can be dug by hand or needs a proper tool "
                         + "(and whether you have one), plus the light level there. Omit x, y and z to describe the "
                         + "block the speaker is looking at.",
@@ -174,10 +200,12 @@ final class InfoTools {
                     if (pos == null) {
                         return ToolResult.error("no block in view; pass x, y and z");
                     }
-                    var resources = FriendaiServerState.get(c.level().getServer()).resources();
+                    var resources =
+                            FriendaiServerState.get(c.level().getServer()).resources();
                     if (asked.isPresent() && !resources.currentlyVisible(c, pos)) {
                         Optional<String> remembered = resources.rememberedBlockId(c, pos);
-                        if (remembered.isEmpty()) return ToolResult.ok("unknown at " + pos.getX() + " " + pos.getY() + " " + pos.getZ());
+                        if (remembered.isEmpty())
+                            return ToolResult.ok("unknown at " + pos.getX() + " " + pos.getY() + " " + pos.getZ());
                         return ToolResult.ok("historically observed " + remembered.get() + " at " + pos.getX() + " "
                                 + pos.getY() + " " + pos.getZ() + "; current contents are unknown until seen again");
                     }
@@ -201,10 +229,11 @@ final class InfoTools {
                         return ToolResult.ok(facts + ", can be dug by hand; light " + light);
                     }
                     String tool = OwnerFocusBuilder.toolFor(c, state);
-                    return ToolResult.ok(facts + ", needs a proper tool (you have "
-                            + (tool == null ? "none" : tool) + "); light " + light);
+                    return ToolResult.ok(facts + ", needs a proper tool (you have " + (tool == null ? "none" : tool)
+                            + "); light " + light);
                 }));
-        registry.register(ToolKit.callerTool("survey_area",
+        registry.register(ToolKit.callerTool(
+                "survey_area",
                 "Draw a top-down map of the area at your eye level. Legend: @ you, O the speaker, Z hostile, "
                         + "# solid, ~ water, ^ lava or fire, . air, ? unloaded chunk. Use it to find a way around "
                         + "walls or to see where a threat stands.",
@@ -215,15 +244,21 @@ final class InfoTools {
                 () -> true,
                 (c, caller, a) -> {
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : 8;
-                    return ToolResult.ok(AreaMapBuilder.of(c, caller.uuid(), radius,
-                            FriendaiServerState.get(c.level().getServer()).resources()) + hintLine(c));
+                    return ToolResult.ok(AreaMapBuilder.of(
+                                    c,
+                                    caller.uuid(),
+                                    radius,
+                                    FriendaiServerState.get(c.level().getServer())
+                                            .resources())
+                            + hintLine(c));
                 }));
     }
 
     private static String hintLine(CompanionEntity companion) {
         if (companion.ownerUuid() == null || companion.level().getServer() == null) return "";
         long now = companion.level().getServer().overworld().getGameTime();
-        return FriendaiServerState.get(companion.level().getServer()).searchHints()
+        return FriendaiServerState.get(companion.level().getServer())
+                .searchHints()
                 .get(companion.ownerUuid(), now)
                 .map(hint -> "\nsearch hint: " + hint.describe(now))
                 .orElse("\nsearch hint: none");

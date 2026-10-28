@@ -10,7 +10,6 @@ import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
-import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;
@@ -30,12 +29,19 @@ public final class TradingRefreshTests {
         var villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
 
-        ToolResult result = run(tools, "refresh_trades",
+        ToolResult result = run(
+                tools,
+                "refresh_trades",
                 "{\"traders\":[\"" + villager.getUUID() + "\"]}",
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER));
 
         h.assertFalse(result.error(), "explicit owner refresh was rejected: " + result.content());
-        h.assertTrue(companion.taskRunner().current().map(task -> task.type().equals("refresh_trades")).orElse(false),
+        h.assertTrue(
+                companion
+                        .taskRunner()
+                        .current()
+                        .map(task -> task.type().equals("refresh_trades"))
+                        .orElse(false),
                 "owner request did not start the bounded refresh task");
         h.succeed();
     }

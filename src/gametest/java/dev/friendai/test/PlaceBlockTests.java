@@ -60,7 +60,9 @@ public class PlaceBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("placed minecraft:smooth_stone at " + coords(target)), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("placed minecraft:smooth_stone at " + coords(target)),
+                    "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(8, 2, 3)).is(Blocks.SMOOTH_STONE), "block must be placed");
             h.assertTrue(c.inventory().countItem(Items.SMOOTH_STONE) == 0, "the item must be used");
             h.assertTrue(task.placedAt().equals(target), "placedAt was " + task.placedAt());
@@ -79,7 +81,8 @@ public class PlaceBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 3)).getValue(AbstractFurnaceBlock.FACING) == Direction.WEST,
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 2, 3)).getValue(AbstractFurnaceBlock.FACING) == Direction.WEST,
                     "facing was " + h.getBlockState(new BlockPos(8, 2, 3)).getValue(AbstractFurnaceBlock.FACING));
         });
     }
@@ -100,10 +103,13 @@ public class PlaceBlockTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             BlockPos placed = task.placedAt();
-            h.assertTrue(h.getLevel().getBlockState(placed).is(Blocks.CRAFTING_TABLE), "table must be placed at " + placed);
+            h.assertTrue(
+                    h.getLevel().getBlockState(placed).is(Blocks.CRAFTING_TABLE), "table must be placed at " + placed);
             h.assertTrue(Math.sqrt(start.distSqr(placed)) <= 4.0, "placed too far away: " + placed);
             h.assertTrue(!placed.equals(c.blockPosition()), "must not place inside itself");
-            h.assertTrue(!placed.equals(owner.blockPosition()) && !placed.equals(owner.blockPosition().above()),
+            h.assertTrue(
+                    !placed.equals(owner.blockPosition())
+                            && !placed.equals(owner.blockPosition().above()),
                     "must not place in the owner's cell");
             h.assertTrue(!h.getLevel().getBlockState(placed.below()).isAir(), "needs a floor below");
         });
@@ -121,7 +127,9 @@ public class PlaceBlockTests {
         runner.start(place(Items.MUD_BRICKS, target), "place_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
-        h.assertTrue(result.summary.equals(coords(target) + " is occupied by minecraft:bricks"), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.equals(coords(target) + " is occupied by minecraft:bricks"),
+                "summary was " + result.summary);
         h.succeed();
     }
 
@@ -136,7 +144,9 @@ public class PlaceBlockTests {
         runner.start(place(Items.END_STONE, target), "place_block");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
-        h.assertTrue(result.summary.equals("nothing to place against at " + coords(target)), "summary was " + result.summary);
+        h.assertTrue(
+                result.summary.equals("nothing to place against at " + coords(target)),
+                "summary was " + result.summary);
         h.succeed();
     }
 
@@ -183,8 +193,11 @@ public class PlaceBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("couldn't place minecraft:sugar_cane at " + coords(target)), "summary was " + result.summary);
-            h.assertTrue(c.inventory().countItem(Items.SUGAR_CANE) == 1,
+            h.assertTrue(
+                    result.summary.equals("couldn't place minecraft:sugar_cane at " + coords(target)),
+                    "summary was " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(Items.SUGAR_CANE) == 1,
                     "item must come back, have " + c.inventory().countItem(Items.SUGAR_CANE));
             h.assertTrue(c.hands().player().getInventory().isEmpty(), "the fake player inventory must be empty");
         });
@@ -207,7 +220,9 @@ public class PlaceBlockTests {
             }
             h.assertTrue(ticks[0] >= 4, "waiting for the block change");
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals(coords(target) + " is occupied by minecraft:nether_bricks"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals(coords(target) + " is occupied by minecraft:nether_bricks"),
+                    "summary was " + result.summary);
         });
     }
 
@@ -224,8 +239,11 @@ public class PlaceBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("placed minecraft:torch at " + coords(target)), "summary was " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(8, 3, 4)).is(Blocks.WALL_TORCH),
+            h.assertTrue(
+                    result.summary.equals("placed minecraft:torch at " + coords(target)),
+                    "summary was " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 3, 4)).is(Blocks.WALL_TORCH),
                     "wall torch expected, got " + h.getBlockState(new BlockPos(8, 3, 4)));
             h.assertTrue(c.inventory().countItem(Items.TORCH) == 0, "the torch must be consumed");
         });

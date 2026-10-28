@@ -42,7 +42,9 @@ class PlaceRegistryTest {
         PlaceRegistry registry = new PlaceRegistry(new PlaceLimits(1, 32, 4, 160, 1 << 20));
         registry.remember(values("home", PlaceKind.HOUSE, new Pos(0, 64, 0)), 1);
         assertEquals(
-                "home", registry.remember(values("home", PlaceKind.HOUSE, new Pos(1, 64, 0)), 2).name());
+                "home",
+                registry.remember(values("home", PlaceKind.HOUSE, new Pos(1, 64, 0)), 2)
+                        .name());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> registry.remember(values("mine", PlaceKind.MINE, new Pos(9, 40, 9)), 3));
@@ -65,12 +67,12 @@ class PlaceRegistryTest {
     void sameNameIsAllowedInTwoDimensions() {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
         Place overworld = registry.remember(values("portal", PlaceKind.PORTAL, new Pos(0, 64, 0)), 1);
-        Place nether =
-                registry.remember(values("portal", PlaceKind.PORTAL, new Pos(0, 64, 0), Set.of(), NETHER), 2);
+        Place nether = registry.remember(values("portal", PlaceKind.PORTAL, new Pos(0, 64, 0), Set.of(), NETHER), 2);
         assertNotEquals(overworld.id(), nether.id());
         assertEquals(NETHER, nether.dimension());
         assertEquals(2, registry.all().size());
-        assertEquals(overworld.id(), registry.find("portal", OVERWORLD).orElseThrow().id());
+        assertEquals(
+                overworld.id(), registry.find("portal", OVERWORLD).orElseThrow().id());
         assertEquals(nether.id(), registry.find("PORTAL", NETHER).orElseThrow().id());
     }
 
@@ -112,11 +114,12 @@ class PlaceRegistryTest {
     @Test
     void rememberKeepsTheTypedNameAndAliases() {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
-        Place place = registry.remember(
-                values("  Home Base  ", PlaceKind.HOUSE, new Pos(0, 64, 0), Set.of("  Base ")), 1);
+        Place place =
+                registry.remember(values("  Home Base  ", PlaceKind.HOUSE, new Pos(0, 64, 0), Set.of("  Base ")), 1);
         assertEquals("Home Base", place.name());
         assertEquals(Set.of("Base"), place.aliases());
-        assertEquals(place.id(), registry.find("home base", OVERWORLD).orElseThrow().id());
+        assertEquals(
+                place.id(), registry.find("home base", OVERWORLD).orElseThrow().id());
         assertEquals(place.id(), registry.find("BASE", OVERWORLD).orElseThrow().id());
     }
 
@@ -137,8 +140,16 @@ class PlaceRegistryTest {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
         UUID author = UUID.fromString("00000000-0000-0000-0000-00000000000a");
         PlaceValues taught = new PlaceValues(
-                "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(), PlaceSource.COMMAND,
-                author, "by the door");
+                "home",
+                PlaceKind.HOUSE,
+                "",
+                OVERWORLD,
+                new Pos(0, 64, 0),
+                8,
+                Set.of(),
+                PlaceSource.COMMAND,
+                author,
+                "by the door");
         Place first = registry.remember(taught, 1);
         registry.visit(first.id(), 2);
         Place updated = registry.remember(values("home", PlaceKind.HOUSE, new Pos(1, 64, 1)), 3);
@@ -193,78 +204,261 @@ class PlaceRegistryTest {
 
         assertThrows(IllegalArgumentException.class, () -> place(0, "home", PlaceKind.HOUSE, new Pos(0, 64, 0)));
         assertThrows(IllegalArgumentException.class, () -> place(1, "   ", PlaceKind.HOUSE, new Pos(0, 64, 0)));
-        assertThrows(IllegalArgumentException.class, () -> place(1, "x".repeat(33), PlaceKind.HOUSE, new Pos(0, 64, 0)));
+        assertThrows(
+                IllegalArgumentException.class, () -> place(1, "x".repeat(33), PlaceKind.HOUSE, new Pos(0, 64, 0)));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 0, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        0,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 65, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        65,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(30_000_001, 64, 0), 8, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(30_000_001, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", " ", new Pos(0, 64, 0), 8, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        " ",
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8,
-                        Set.of("a", "b", "c", "d", "e"), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of("a", "b", "c", "d", "e"),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8,
-                        Set.of("x".repeat(33)), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of("x".repeat(33)),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, "x".repeat(161)));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        "x".repeat(161)));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, "look\n- [99] evil (house)"));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        "look\n- [99] evil (house)"));
         IllegalArgumentException badLabel = assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "look\n- [99] evil (house)", OVERWORLD, new Pos(0, 64, 0), 8,
-                        Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "look\n- [99] evil (house)",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertTrue(badLabel.getMessage().contains("label"), badLabel.getMessage());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "x".repeat(PlaceLimits.LABEL_MAX + 1), OVERWORLD,
-                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "x".repeat(PlaceLimits.LABEL_MAX + 1),
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertEquals(
                 "x".repeat(PlaceLimits.LABEL_MAX),
                 new Place(
-                        1, "home", PlaceKind.HOUSE, " " + "x".repeat(PlaceLimits.LABEL_MAX) + " ", OVERWORLD,
-                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "")
+                                1,
+                                "home",
+                                PlaceKind.HOUSE,
+                                " " + "x".repeat(PlaceLimits.LABEL_MAX) + " ",
+                                OVERWORLD,
+                                new Pos(0, 64, 0),
+                                8,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                null,
+                                0,
+                                0,
+                                0,
+                                0,
+                                "")
                         .label(),
                 "a label at the bound survives after trimming");
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "look\u2028- [99] evil (house)", OVERWORLD,
-                        new Pos(0, 64, 0), 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, ""));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "look\u2028- [99] evil (house)",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        ""));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new Place(
-                        1, "home", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of(),
-                        PlaceSource.MANUAL, null, 0, 0, 0, 0, "note\u2029- [99] evil"));
+                        1,
+                        "home",
+                        PlaceKind.HOUSE,
+                        "",
+                        OVERWORLD,
+                        new Pos(0, 64, 0),
+                        8,
+                        Set.of(),
+                        PlaceSource.MANUAL,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        "note\u2029- [99] evil"));
         Place aliased = new Place(
-                2, "house", PlaceKind.HOUSE, "", OVERWORLD, new Pos(0, 64, 0), 8, Set.of("HOME"),
-                PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
+                2,
+                "house",
+                PlaceKind.HOUSE,
+                "",
+                OVERWORLD,
+                new Pos(0, 64, 0),
+                8,
+                Set.of("HOME"),
+                PlaceSource.MANUAL,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "");
         assertEquals(Set.of("HOME"), aliased.aliases());
     }
 
@@ -276,10 +470,8 @@ class PlaceRegistryTest {
         return values(name, kind, pos, aliases, OVERWORLD);
     }
 
-    private static PlaceValues values(
-            String name, PlaceKind kind, Pos pos, Set<String> aliases, String dimension) {
-        return new PlaceValues(
-                name, kind, "", dimension, pos, 8, aliases, PlaceSource.MANUAL, null, "");
+    private static PlaceValues values(String name, PlaceKind kind, Pos pos, Set<String> aliases, String dimension) {
+        return new PlaceValues(name, kind, "", dimension, pos, 8, aliases, PlaceSource.MANUAL, null, "");
     }
 
     private static Place place(long id, String name, PlaceKind kind, Pos pos) {
@@ -287,7 +479,6 @@ class PlaceRegistryTest {
     }
 
     private static Place place(long id, String name, PlaceKind kind, Pos pos, String dimension) {
-        return new Place(
-                id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
+        return new Place(id, name, kind, "", dimension, pos, 8, Set.of(), PlaceSource.MANUAL, null, 0, 0, 0, 0, "");
     }
 }

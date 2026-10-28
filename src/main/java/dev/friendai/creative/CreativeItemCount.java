@@ -26,10 +26,10 @@ public final class CreativeItemCount {
     /** Capacity of {@code emptySlots} and partially filled compatible slots, saturating rather than overflowing. */
     public static long capacity(long emptySlots, int maxStackSize, long compatibleRoom) {
         if (emptySlots < 0 || maxStackSize < 1 || compatibleRoom < 0) {
-            throw new IllegalArgumentException("inventory capacity inputs must be non-negative and stack size positive");
+            throw new IllegalArgumentException(
+                    "inventory capacity inputs must be non-negative and stack size positive");
         }
-        long emptyCapacity = emptySlots > Long.MAX_VALUE / maxStackSize
-                ? Long.MAX_VALUE : emptySlots * maxStackSize;
+        long emptyCapacity = emptySlots > Long.MAX_VALUE / maxStackSize ? Long.MAX_VALUE : emptySlots * maxStackSize;
         if (Long.MAX_VALUE - emptyCapacity < compatibleRoom) {
             return Long.MAX_VALUE;
         }

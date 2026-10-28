@@ -13,9 +13,12 @@ public record SkinS2CPayload(String hash, boolean slim, byte[] png) implements C
     public static final CustomPacketPayload.Type<SkinS2CPayload> TYPE =
             new CustomPacketPayload.Type<>(FriendaiMod.id("skin"));
     public static final StreamCodec<RegistryFriendlyByteBuf, SkinS2CPayload> CODEC = StreamCodec.composite(
-            ByteBufCodecs.stringUtf8(SkinHash.LENGTH * 4), SkinS2CPayload::hash,
-            ByteBufCodecs.BOOL, SkinS2CPayload::slim,
-            ByteBufCodecs.byteArray(SkinImage.MAX_CANONICAL), SkinS2CPayload::png,
+            ByteBufCodecs.stringUtf8(SkinHash.LENGTH * 4),
+            SkinS2CPayload::hash,
+            ByteBufCodecs.BOOL,
+            SkinS2CPayload::slim,
+            ByteBufCodecs.byteArray(SkinImage.MAX_CANONICAL),
+            SkinS2CPayload::png,
             SkinS2CPayload::new);
 
     @Override

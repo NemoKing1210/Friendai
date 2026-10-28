@@ -14,7 +14,9 @@ public record Outcome(boolean success, List<Fact> facts, List<String> unmetCrite
 
     /** The {@code facts:} suffix for an event line, or empty when there is nothing to say. */
     public String factsLine() {
-        return facts.isEmpty() ? "" : "facts: " + String.join(", ", facts.stream().map(Fact::text).toList());
+        return facts.isEmpty()
+                ? ""
+                : "facts: " + String.join(", ", facts.stream().map(Fact::text).toList());
     }
 
     /** The {@code unmet:} suffix for an event line, or empty when nothing is outstanding. */

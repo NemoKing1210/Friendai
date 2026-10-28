@@ -21,6 +21,7 @@ public final class PickupItemsTask implements Task {
     private final @Nullable ItemMatcher filter;
     /** When true, the round is centred on the nearest block the companion placed, not on the companion. */
     private final boolean nearPlaced;
+
     private DropCollector collector;
     private Vec3 origin;
     private String summary = "";
@@ -84,8 +85,11 @@ public final class PickupItemsTask implements Task {
     /** Whether something this task wanted is left on the ground only because there is no room for it. */
     private boolean remainsBecauseFull(TaskContext c) {
         CompanionEntity companion = c.companion();
-        return c.level()
-                .getEntitiesOfClass(ItemEntity.class, new AABB(origin, origin).inflate(radius),
+        return c
+                .level()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        new AABB(origin, origin).inflate(radius),
                         e -> companion.canCollect(e) && (filter == null || filter.test(e.getItem())))
                 .stream()
                 .anyMatch(e -> !companion.inventory().canAddItem(e.getItem()));

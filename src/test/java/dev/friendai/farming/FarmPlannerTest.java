@@ -19,17 +19,20 @@ class FarmPlannerTest {
     void harvestsRipeCellsWithReplantPairs() {
         FarmSnapshot snapshot = FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), "RRR");
         List<FieldCell> c = snapshot.cells();
-        assertEquals(List.of(
-                new FarmStep.Harvest(c.get(0)), new FarmStep.Replant(c.get(0), WHEAT_SEEDS),
-                new FarmStep.Harvest(c.get(1)), new FarmStep.Replant(c.get(1), WHEAT_SEEDS),
-                new FarmStep.Harvest(c.get(2)), new FarmStep.Replant(c.get(2), WHEAT_SEEDS)),
+        assertEquals(
+                List.of(
+                        new FarmStep.Harvest(c.get(0)), new FarmStep.Replant(c.get(0), WHEAT_SEEDS),
+                        new FarmStep.Harvest(c.get(1)), new FarmStep.Replant(c.get(1), WHEAT_SEEDS),
+                        new FarmStep.Harvest(c.get(2)), new FarmStep.Replant(c.get(2), WHEAT_SEEDS)),
                 plan(snapshot).steps());
     }
 
     @Test
     void fruitIsHarvestedButNotReplanted() {
         FarmSnapshot snapshot = FarmFixtures.field(Map.of(), "F");
-        assertEquals(List.of(new FarmStep.Harvest(snapshot.cells().get(0))), plan(snapshot).steps());
+        assertEquals(
+                List.of(new FarmStep.Harvest(snapshot.cells().get(0))),
+                plan(snapshot).steps());
     }
 
     @Test
@@ -41,7 +44,8 @@ class FarmPlannerTest {
                 visited.add(new int[] {harvest.cell().dx(), harvest.cell().dz()});
             }
         }
-        assertEquals(List.of("0,0", "1,0", "1,1", "0,1", "0,2", "1,2"),
+        assertEquals(
+                List.of("0,0", "1,0", "1,1", "0,1", "0,2", "1,2"),
                 visited.stream().map(p -> p[0] + "," + p[1]).toList());
     }
 
@@ -73,12 +77,17 @@ class FarmPlannerTest {
     }
 
     private static List<FarmStep.Sow> sows(FarmPlan plan) {
-        return plan.steps().stream().filter(FarmStep.Sow.class::isInstance).map(FarmStep.Sow.class::cast).toList();
+        return plan.steps().stream()
+                .filter(FarmStep.Sow.class::isInstance)
+                .map(FarmStep.Sow.class::cast)
+                .toList();
     }
 
     private static List<FarmStep.NeedSeeds> needs(FarmPlan plan) {
-        return plan.steps().stream().filter(FarmStep.NeedSeeds.class::isInstance)
-                .map(FarmStep.NeedSeeds.class::cast).toList();
+        return plan.steps().stream()
+                .filter(FarmStep.NeedSeeds.class::isInstance)
+                .map(FarmStep.NeedSeeds.class::cast)
+                .toList();
     }
 
     private static long count(FarmPlan plan, Class<? extends FarmStep> type) {
@@ -123,13 +132,13 @@ class FarmPlannerTest {
     void explicitCropWins() {
         Map<String, Integer> seeds = Map.of(WHEAT_SEEDS, 3, FarmFixtures.CARROT, 3);
         FarmSnapshot field = FarmFixtures.field(seeds, ".");
-        FarmPlan carrots = FarmPlanner.plan(field, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512),
-                FarmFixtures.book());
+        FarmPlan carrots =
+                FarmPlanner.plan(field, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512), FarmFixtures.book());
         assertEquals(FarmFixtures.CARROT, sows(carrots).get(0).seed());
 
         FarmSnapshot onlyWheat = FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), ".");
-        FarmPlan missing = FarmPlanner.plan(onlyWheat, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512),
-                FarmFixtures.book());
+        FarmPlan missing = FarmPlanner.plan(
+                onlyWheat, new FarmGoal(FarmFixtures.CARROT, false, false, 0, 512), FarmFixtures.book());
         assertEquals(1, missing.unsown());
         assertEquals(List.of(new FarmStep.NeedSeeds(FarmFixtures.CARROT, 1)), needs(missing));
     }
@@ -162,15 +171,18 @@ class FarmPlannerTest {
 
     @Test
     void replantShortageIsReported() {
-        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(), "R"), FarmGoal.defaults(), FarmFixtures.book(0.0));
+        FarmPlan plan =
+                FarmPlanner.plan(FarmFixtures.field(Map.of(), "R"), FarmGoal.defaults(), FarmFixtures.book(0.0));
         assertEquals(1, count(plan, FarmStep.Replant.class));
         assertEquals(List.of(new FarmStep.NeedSeeds(WHEAT_SEEDS, 1)), needs(plan));
     }
 
     @Test
     void reserveBlocksSowingNotReplanting() {
-        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(WHEAT_SEEDS, 2), "R."),
-                new FarmGoal(null, false, false, 2, 512), FarmFixtures.book());
+        FarmPlan plan = FarmPlanner.plan(
+                FarmFixtures.field(Map.of(WHEAT_SEEDS, 2), "R."),
+                new FarmGoal(null, false, false, 2, 512),
+                FarmFixtures.book());
         assertEquals(1, count(plan, FarmStep.Replant.class));
         assertTrue(sows(plan).isEmpty());
         assertEquals(1, plan.unsown());
@@ -178,7 +190,8 @@ class FarmPlannerTest {
 
     @Test
     void usesExpectedHarvestSeedsForSowing() {
-        FarmPlan plan = FarmPlanner.plan(FarmFixtures.field(Map.of(), "R."), FarmGoal.defaults(), FarmFixtures.book(3.0));
+        FarmPlan plan =
+                FarmPlanner.plan(FarmFixtures.field(Map.of(), "R."), FarmGoal.defaults(), FarmFixtures.book(3.0));
         assertEquals(1, count(plan, FarmStep.Replant.class));
         assertEquals(1, sows(plan).size());
         assertEquals(0, plan.unsown());
@@ -205,8 +218,7 @@ class FarmPlannerTest {
 
     @Test
     void tillCapIs16() {
-        FarmSnapshot field = FarmFixtures.withHoe(
-                FarmFixtures.field(Map.of(WHEAT_SEEDS, 20), "t".repeat(20)), true);
+        FarmSnapshot field = FarmFixtures.withHoe(FarmFixtures.field(Map.of(WHEAT_SEEDS, 20), "t".repeat(20)), true);
         assertEquals(16, count(plan(field, true, false), FarmStep.Till.class));
     }
 
@@ -238,11 +250,11 @@ class FarmPlannerTest {
 
     @Test
     void stepOrderIsHarvestSowTillBonemeal() {
-        FarmSnapshot field = FarmFixtures.withBoneMeal(FarmFixtures.withHoe(
-                FarmFixtures.field(Map.of(WHEAT_SEEDS, 9), "R.t3"), true), 1);
+        FarmSnapshot field = FarmFixtures.withBoneMeal(
+                FarmFixtures.withHoe(FarmFixtures.field(Map.of(WHEAT_SEEDS, 9), "R.t3"), true), 1);
         List<FarmStep> steps = plan(field, true, true).steps();
-        List<Class<?>> order = List.of(FarmStep.Harvest.class, FarmStep.Sow.class, FarmStep.Till.class,
-                FarmStep.Bonemeal.class);
+        List<Class<?>> order =
+                List.of(FarmStep.Harvest.class, FarmStep.Sow.class, FarmStep.Till.class, FarmStep.Bonemeal.class);
         int last = -1;
         for (Class<?> type : order) {
             int first = -1;

@@ -22,8 +22,8 @@ import dev.friendai.trading.TradeBudget;
 import dev.friendai.trading.TradeOrder;
 import dev.friendai.trading.TradeProgress;
 import dev.friendai.trading.TraderRecord;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -41,24 +41,43 @@ import net.minecraft.world.level.block.Blocks;
 
 /** Tick-driven trader tasks keep the exact UUID, authority and one-transaction session boundary. */
 public final class TradingTaskTests {
-    private record Fixture(CompanionEntity companion, Villager villager,
-                           net.minecraft.server.level.ServerPlayer owner,
-                           FriendaiServerState state, MerchantAdapter adapter,
-                           TradeAuthority authority, TradeOrder order) {
-        TaskContext context() { return new TaskContext(companion, (net.minecraft.server.level.ServerLevel) companion.level()); }
+    private record Fixture(
+            CompanionEntity companion,
+            Villager villager,
+            net.minecraft.server.level.ServerPlayer owner,
+            FriendaiServerState state,
+            MerchantAdapter adapter,
+            TradeAuthority authority,
+            TradeOrder order) {
+        TaskContext context() {
+            return new TaskContext(companion, (net.minecraft.server.level.ServerLevel) companion.level());
+        }
 
         void clean() {
             companion.hands().closeMenu();
         }
     }
 
-    private static Fixture setup(GameTestHelper h, String label, int outputCount, int desired,
-                                 int emeraldCap, boolean allowPartial, boolean allowOvershoot) {
+    private static Fixture setup(
+            GameTestHelper h,
+            String label,
+            int outputCount,
+            int desired,
+            int emeraldCap,
+            boolean allowPartial,
+            boolean allowOvershoot) {
         return setup(h, label, outputCount, desired, emeraldCap, allowPartial, allowOvershoot, 100);
     }
 
-    private static Fixture setup(GameTestHelper h, String label, int outputCount, int desired,
-                                 int emeraldCap, boolean allowPartial, boolean allowOvershoot, long deadlineOffset) {
+    private static Fixture setup(
+            GameTestHelper h,
+            String label,
+            int outputCount,
+            int desired,
+            int emeraldCap,
+            boolean allowPartial,
+            boolean allowOvershoot,
+            long deadlineOffset) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setNoAi(true);
@@ -66,34 +85,59 @@ public final class TradingTaskTests {
         companion.setOwner(owner.getUUID());
         Villager villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
         villager.setNoAi(true);
-        villager.setVillagerData(villager.getVillagerData()
-                .withProfession(h.getLevel().registryAccess(), VillagerProfession.LIBRARIAN));
+        villager.setVillagerData(
+                villager.getVillagerData().withProfession(h.getLevel().registryAccess(), VillagerProfession.LIBRARIAN));
         villager.setOffers(new MerchantOffers());
-        villager.getOffers().add(new MerchantOffer(new ItemCost(Items.EMERALD, 1),
-                new ItemStack(Items.BREAD, outputCount), 8, 4, 0.05F));
+        villager.getOffers()
+                .add(new MerchantOffer(
+                        new ItemCost(Items.EMERALD, 1), new ItemStack(Items.BREAD, outputCount), 8, 4, 0.05F));
         companion.inventory().setItem(0, new ItemStack(Items.EMERALD, emeraldCap));
 
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
         MerchantAdapter adapter = state.merchantAdapter();
-        TraderRecord quote = adapter.inspect(companion, villager, h.getLevel().getGameTime()).orElseThrow();
+        TraderRecord quote =
+                adapter.inspect(companion, villager, h.getLevel().getGameTime()).orElseThrow();
         TradeAuthority authority = state.brains().tradeAuthorityFor(owner.getUUID());
         Caller caller = authority.begin(new Caller(owner.getUUID(), "owner", AccessLevel.OWNER), true);
-        TradeOrder requested = new TradeOrder(UUID.randomUUID(), owner.getUUID(), caller.tradingScope(),
-                villager.getUUID(), quote.offers().getFirst().ref(), quote.revision(), desired,
+        TradeOrder requested = new TradeOrder(
+                UUID.randomUUID(),
+                owner.getUUID(),
+                caller.tradingScope(),
+                villager.getUUID(),
+                quote.offers().getFirst().ref(),
+                quote.revision(),
+                desired,
                 new TradeBudget(Map.of("minecraft:emerald", emeraldCap), Map.of(), Map.of()),
-                Set.of(), allowOvershoot, allowPartial, h.getLevel().getGameTime() + deadlineOffset);
+                Set.of(),
+                allowOvershoot,
+                allowPartial,
+                h.getLevel().getGameTime() + deadlineOffset);
         TradeOrder order = authority.authorize(caller, requested);
         return new Fixture(companion, villager, owner, state, adapter, authority, order);
     }
 
-    private static TradeOrder authorizeFreshQuote(Fixture f, int desired, int emeraldCap,
-                                                   boolean allowPartial, boolean allowOvershoot) {
-        TraderRecord current = f.state().trading().book(f.order().owner()).trader(f.order().trader()).orElseThrow();
-        Caller caller = new Caller(f.owner().getUUID(), "owner", AccessLevel.OWNER, f.order().scopeId());
-        TradeOrder requested = new TradeOrder(UUID.randomUUID(), f.owner().getUUID(), f.order().scopeId(),
-                f.order().trader(), current.offers().getFirst().ref(), current.revision(), desired,
+    private static TradeOrder authorizeFreshQuote(
+            Fixture f, int desired, int emeraldCap, boolean allowPartial, boolean allowOvershoot) {
+        TraderRecord current = f.state()
+                .trading()
+                .book(f.order().owner())
+                .trader(f.order().trader())
+                .orElseThrow();
+        Caller caller = new Caller(
+                f.owner().getUUID(), "owner", AccessLevel.OWNER, f.order().scopeId());
+        TradeOrder requested = new TradeOrder(
+                UUID.randomUUID(),
+                f.owner().getUUID(),
+                f.order().scopeId(),
+                f.order().trader(),
+                current.offers().getFirst().ref(),
+                current.revision(),
+                desired,
                 new TradeBudget(Map.of("minecraft:emerald", emeraldCap), Map.of(), Map.of()),
-                Set.of(), allowOvershoot, allowPartial, f.order().deadlineTick());
+                Set.of(),
+                allowOvershoot,
+                allowPartial,
+                f.order().deadlineTick());
         return f.authority().authorize(caller, requested);
     }
 
@@ -105,7 +149,9 @@ public final class TradingTaskTests {
         try {
             inspect.start(f.context());
             TaskStatus inspected = inspect.tick(f.context());
-            h.assertTrue(inspected == TaskStatus.SUCCESS, "nearby exact trader was not inspected: " + inspect.resultSummary());
+            h.assertTrue(
+                    inspected == TaskStatus.SUCCESS,
+                    "nearby exact trader was not inspected: " + inspect.resultSummary());
             assertClosed(h, f);
 
             TradeOrder refreshedOrder = authorizeFreshQuote(f, 3, 1, false, false);
@@ -113,12 +159,19 @@ public final class TradingTaskTests {
             trade.start(f.context());
             TaskStatus status = trade.tick(f.context());
             h.assertTrue(status == TaskStatus.SUCCESS, "valid order did not finish: " + trade.resultSummary());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1,
                     "task did not execute exactly one vanilla offer use");
-            h.assertTrue(count(f.companion(), Items.EMERALD) == 0 && count(f.companion(), Items.BREAD) == 3,
+            h.assertTrue(
+                    count(f.companion(), Items.EMERALD) == 0 && count(f.companion(), Items.BREAD) == 3,
                     "task did not conserve the exact payment and output stacks");
-            h.assertTrue(f.authority().progress(refreshedOrder.orderId()).orElseThrow().state()
-                    == TradeProgress.State.COMPLETED, "authority did not record completion");
+            h.assertTrue(
+                    f.authority()
+                                    .progress(refreshedOrder.orderId())
+                                    .orElseThrow()
+                                    .state()
+                            == TradeProgress.State.COMPLETED,
+                    "authority did not record completion");
             assertClosed(h, f);
             h.succeed();
         } finally {
@@ -134,12 +187,18 @@ public final class TradingTaskTests {
         try {
             task.start(f.context());
             TaskStatus status = task.tick(f.context());
-            h.assertTrue(status == TaskStatus.RUNNING, "level task did not run the one authorized offer: " + task.resultSummary());
+            h.assertTrue(
+                    status == TaskStatus.RUNNING,
+                    "level task did not run the one authorized offer: " + task.resultSummary());
             status = task.tick(f.context());
-            h.assertTrue(status == TaskStatus.SUCCESS, "real merchant XP did not reach level 2: " + task.resultSummary());
+            h.assertTrue(
+                    status == TaskStatus.SUCCESS, "real merchant XP did not reach level 2: " + task.resultSummary());
             h.assertTrue(f.villager().getVillagerData().level() == 2, "villager did not advance to level 2");
-            h.assertTrue(f.villager().getVillagerXp() == 12, "vanilla merchant XP was not awarded: " + f.villager().getVillagerXp());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1,
+            h.assertTrue(
+                    f.villager().getVillagerXp() == 12,
+                    "vanilla merchant XP was not awarded: " + f.villager().getVillagerXp());
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1,
                     "level task bought an extra or filler trade after reaching its target");
             h.succeed();
         } finally {
@@ -155,8 +214,10 @@ public final class TradingTaskTests {
             task.start(f.context());
             TaskStatus status = task.tick(f.context());
             h.assertTrue(status == TaskStatus.FAILED, "batch overshoot was not denied");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 2 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 2
+                            && count(f.companion(), Items.BREAD) == 0,
                     "overshoot denial changed payment, output or stock");
             assertClosed(h, f);
             h.succeed();
@@ -172,18 +233,22 @@ public final class TradingTaskTests {
         try {
             task.start(f.context());
             TaskStatus first = task.tick(f.context());
-            h.assertTrue(first == TaskStatus.RUNNING,
+            h.assertTrue(
+                    first == TaskStatus.RUNNING,
                     "overshoot-enabled order did not yield after its first fill: " + task.resultSummary());
             TaskStatus second = task.tick(f.context());
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(second == TaskStatus.SUCCESS && progress.state() == TradeProgress.State.COMPLETED,
+            h.assertTrue(
+                    second == TaskStatus.SUCCESS && progress.state() == TradeProgress.State.COMPLETED,
                     "overshoot-enabled order did not complete after the second fill: " + task.resultSummary());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 2
-                    && count(f.companion(), Items.BREAD) == 6
-                    && count(f.companion(), Items.EMERALD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 2
+                            && count(f.companion(), Items.BREAD) == 6
+                            && count(f.companion(), Items.EMERALD) == 0,
                     "allowOvershoot did not execute exactly two real vanilla fills");
-            h.assertTrue(progress.received().getFirst().count() == 6
-                    && progress.spent().equals(Map.of("minecraft:emerald", 2)),
+            h.assertTrue(
+                    progress.received().getFirst().count() == 6
+                            && progress.spent().equals(Map.of("minecraft:emerald", 2)),
                     "overshoot progress did not record the actual output and payment");
             assertClosed(h, f);
             h.succeed();
@@ -198,22 +263,40 @@ public final class TradingTaskTests {
         TradeTask task = new TradeTask(f.order());
         task.start(f.context());
         TaskStatus first = task.tick(f.context());
-        h.assertTrue(first == TaskStatus.RUNNING, "partial order did not yield after its first fill: " + task.resultSummary());
-        h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1
-                && count(f.companion(), Items.BREAD) == 3, "first partial receipt was not genuine");
+        h.assertTrue(
+                first == TaskStatus.RUNNING,
+                "partial order did not yield after its first fill: " + task.resultSummary());
+        h.assertTrue(
+                f.villager().getOffers().getFirst().getUses() == 1 && count(f.companion(), Items.BREAD) == 3,
+                "first partial receipt was not genuine");
 
         h.runAfterDelay(1, () -> {
             TaskStatus second = task.tick(f.context());
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
             h.assertTrue(second == TaskStatus.SUCCESS, "allowed short order should finish with a partial result");
-            var selected = f.state().trading().book(f.order().owner()).trader(f.order().trader()).orElseThrow()
-                    .offers().stream().filter(offer -> offer.ref().equals(f.order().offerRef())).findFirst().orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.PARTIAL
-                    && progress.receivedCount(selected.output().itemId(), selected.output().componentsJson()) == 3
-                    && progress.spent().equals(Map.of("minecraft:emerald", 1)),
+            var selected = f
+                    .state()
+                    .trading()
+                    .book(f.order().owner())
+                    .trader(f.order().trader())
+                    .orElseThrow()
+                    .offers()
+                    .stream()
+                    .filter(offer -> offer.ref().equals(f.order().offerRef()))
+                    .findFirst()
+                    .orElseThrow();
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.PARTIAL
+                            && progress.receivedCount(
+                                            selected.output().itemId(),
+                                            selected.output().componentsJson())
+                                    == 3
+                            && progress.spent().equals(Map.of("minecraft:emerald", 1)),
                     "partial result did not preserve its actual exact receipt and spend: " + progress);
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1
-                    && count(f.companion(), Items.EMERALD) == 0 && count(f.companion(), Items.BREAD) == 3,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1
+                            && count(f.companion(), Items.EMERALD) == 0
+                            && count(f.companion(), Items.BREAD) == 3,
                     "budget denial replayed or refunded the first transaction");
             assertClosed(h, f);
             h.succeed();
@@ -227,16 +310,20 @@ public final class TradingTaskTests {
         TradeTask task = new TradeTask(f.order());
         try {
             task.start(f.context());
-            h.assertTrue(task.tick(f.context()) == TaskStatus.RUNNING,
+            h.assertTrue(
+                    task.tick(f.context()) == TaskStatus.RUNNING,
                     "first allowed transaction did not leave the task running");
             task.stop(f.context());
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.PARTIAL
-                    && progress.received().getFirst().count() == 3
-                    && progress.spent().equals(Map.of("minecraft:emerald", 1)),
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.PARTIAL
+                            && progress.received().getFirst().count() == 3
+                            && progress.spent().equals(Map.of("minecraft:emerald", 1)),
                     "stop lost or refunded a completed transaction");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 3,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 3,
                     "stop changed the completed vanilla transaction");
             assertClosed(h, f);
             h.succeed();
@@ -253,16 +340,22 @@ public final class TradingTaskTests {
             stopped.start(f.context());
             stopped.stop(f.context());
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.INTERRUPTED
-                    && progress.completedTrades() == 0 && progress.spent().isEmpty() && progress.received().isEmpty(),
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.INTERRUPTED
+                            && progress.completedTrades() == 0
+                            && progress.spent().isEmpty()
+                            && progress.received().isEmpty(),
                     "pre-payment stop did not terminalize the authorized order without inventing progress");
 
             TradeTask replay = new TradeTask(f.order());
             replay.start(f.context());
-            h.assertTrue(replay.tick(f.context()) == TaskStatus.FAILED,
+            h.assertTrue(
+                    replay.tick(f.context()) == TaskStatus.FAILED,
                     "a stopped same-order task was replayed through the shared authority");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "pre-payment stop/replay changed inventory or merchant stock");
             assertClosed(h, f);
             h.succeed();
@@ -281,14 +374,14 @@ public final class TradingTaskTests {
             runner.start(task, "trade_item");
             runner.setPaused(true);
             runner.tick();
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0 && count(f.companion(), Items.EMERALD) == 1,
                     "paused runner started a merchant transaction");
             runner.setPaused(false);
             runner.stopWithoutCleanup("companion dismissed");
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.INTERRUPTED
-                    && progress.completedTrades() == 0,
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.INTERRUPTED && progress.completedTrades() == 0,
                     "dismissal before payment left an authorized order replayable");
             assertClosed(h, f);
             h.succeed();
@@ -304,27 +397,34 @@ public final class TradingTaskTests {
         TaskRunner runner = f.companion().taskRunner();
         JsonObject args = new JsonObject();
         args.addProperty("_trade_scope", f.order().scopeId().toString());
-        QueuedStep step = new QueuedStep("trade_item", args, null, List.of(), GuardAction.WAIT,
-                FailurePolicy.ASK, 1, List.of());
+        QueuedStep step =
+                new QueuedStep("trade_item", args, null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
         long job = runner.enqueue(step, context -> trade);
         try {
             runner.tick();
-            TradeProgress afterFill = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(afterFill.state() == TradeProgress.State.RUNNING && afterFill.completedTrades() == 1,
+            TradeProgress afterFill =
+                    f.authority().progress(f.order().orderId()).orElseThrow();
+            h.assertTrue(
+                    afterFill.state() == TradeProgress.State.RUNNING && afterFill.completedTrades() == 1,
                     "queued trade did not reach the post-payment active state");
 
             runner.start(new StayTask(), "stay");
             runner.cancelJob(job, "cancel frozen trade");
-            TradeProgress cancelled = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(cancelled.state() == TradeProgress.State.PARTIAL
-                    && cancelled.completedTrades() == 1 && cancelled.received().getFirst().count() == 3,
+            TradeProgress cancelled =
+                    f.authority().progress(f.order().orderId()).orElseThrow();
+            h.assertTrue(
+                    cancelled.state() == TradeProgress.State.PARTIAL
+                            && cancelled.completedTrades() == 1
+                            && cancelled.received().getFirst().count() == 3,
                     "discarding a frozen task did not terminalize its real partial progress");
 
             TradeTask replay = new TradeTask(f.order());
             replay.start(f.context());
             replay.tick(f.context());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 3,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 3,
                     "cancelled frozen order replayed its paid merchant transaction");
             assertClosed(h, f);
             h.succeed();
@@ -342,11 +442,14 @@ public final class TradingTaskTests {
         try {
             h.assertTrue(otherDimension != null, "test server did not load the nether");
             task.start(f.context());
-            TaskContext wrongDimension = new TaskContext(f.companion(), otherDimension, f.companion().taskRunner());
+            TaskContext wrongDimension =
+                    new TaskContext(f.companion(), otherDimension, f.companion().taskRunner());
             TaskStatus status = task.tick(wrongDimension);
             h.assertTrue(status == TaskStatus.FAILED, "task continued in a different level context");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "dimension mismatch changed inventory or stock");
             h.succeed();
         } finally {
@@ -363,8 +466,10 @@ public final class TradingTaskTests {
             task.start(f.context());
             TaskStatus status = task.tick(f.context());
             h.assertTrue(status == TaskStatus.FAILED, "known insufficient budget was not rejected");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "known infeasible order spent payment before rejection");
             assertClosed(h, f);
             h.succeed();
@@ -385,8 +490,10 @@ public final class TradingTaskTests {
             task.start(f.context());
             TaskStatus status = task.tick(f.context());
             h.assertTrue(status == TaskStatus.FAILED, "full output inventory was not rejected");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 2 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 2
+                            && count(f.companion(), Items.BREAD) == 0,
                     "full inventory changed payment or merchant stock");
             assertClosed(h, f);
             h.succeed();
@@ -403,8 +510,10 @@ public final class TradingTaskTests {
         h.runAfterDelay(2, () -> {
             TaskStatus status = task.tick(f.context());
             h.assertTrue(status == TaskStatus.FAILED, "expired order continued after its deadline");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "expired order changed payment or merchant stock");
             assertClosed(h, f);
             h.succeed();
@@ -421,8 +530,10 @@ public final class TradingTaskTests {
             f.villager().setHealth(0.0F);
             TaskStatus status = task.tick(f.context());
             h.assertTrue(status == TaskStatus.FAILED, "dead exact merchant did not fail the trade task");
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "dead merchant changed stock or payment");
             assertClosed(h, f);
             h.succeed();
@@ -441,12 +552,16 @@ public final class TradingTaskTests {
         f.companion().taskRunner().start(task, "trade_item");
         h.runAfterDelay(240, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.COMPLETED,
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.COMPLETED,
                     "task did not navigate to exact merchant: " + task.resultSummary());
-            h.assertTrue(h.getBlockState(new BlockPos(7, 2, 2)).is(Blocks.STONE)
-                    && h.getBlockState(new BlockPos(7, 3, 2)).is(Blocks.STONE),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(7, 2, 2)).is(Blocks.STONE)
+                            && h.getBlockState(new BlockPos(7, 3, 2)).is(Blocks.STONE),
                     "trader approach changed blocks instead of walking around");
-            h.assertTrue(count(f.companion(), Items.BREAD) == 1 && f.villager().getOffers().getFirst().getUses() == 1,
+            h.assertTrue(
+                    count(f.companion(), Items.BREAD) == 1
+                            && f.villager().getOffers().getFirst().getUses() == 1,
                     "navigation did not complete one vanilla transaction");
             h.succeed();
             f.clean();
@@ -462,10 +577,11 @@ public final class TradingTaskTests {
         h.runAfterDelay(8, () -> f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(10.5, 2, 4.5))));
         h.runAfterDelay(100, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElseThrow();
-            h.assertTrue(progress.state() == TradeProgress.State.COMPLETED,
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.COMPLETED,
                     "task did not follow the bound merchant's updated position: " + task.resultSummary());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 1
-                    && count(f.companion(), Items.BREAD) == 1,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 1 && count(f.companion(), Items.BREAD) == 1,
                     "movement changed the bound merchant or skipped its vanilla transaction");
             assertClosed(h, f);
             h.succeed();
@@ -495,15 +611,20 @@ public final class TradingTaskTests {
         f.companion().taskRunner().start(task, "trade_item");
         h.runAfterDelay(145, () -> {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElse(null);
-            h.assertTrue(progress != null,
+            h.assertTrue(
+                    progress != null,
                     "sealed route did not terminalize by its order deadline: " + task.resultSummary());
-            h.assertTrue(progress.state() == TradeProgress.State.FAILED,
+            h.assertTrue(
+                    progress.state() == TradeProgress.State.FAILED,
                     "sealed merchant task did not fail at its bounded deadline: " + task.resultSummary());
-            h.assertTrue(f.villager().getOffers().getFirst().getUses() == 0
-                    && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+            h.assertTrue(
+                    f.villager().getOffers().getFirst().getUses() == 0
+                            && count(f.companion(), Items.EMERALD) == 1
+                            && count(f.companion(), Items.BREAD) == 0,
                     "unreachable merchant changed stock or payment");
-            h.assertTrue(h.getBlockState(new BlockPos(8, 2, -2)).is(Blocks.BEDROCK)
-                    && h.getBlockState(new BlockPos(16, 5, 7)).is(Blocks.BEDROCK),
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 2, -2)).is(Blocks.BEDROCK)
+                            && h.getBlockState(new BlockPos(16, 5, 7)).is(Blocks.BEDROCK),
                     "trader navigation changed the sealed terrain");
             assertClosed(h, f);
             h.succeed();
@@ -517,22 +638,27 @@ public final class TradingTaskTests {
         Villager substitute = h.spawn(EntityTypes.VILLAGER, 3, 2, 3);
         substitute.setNoAi(true);
         substitute.setOffers(new MerchantOffers());
-        substitute.getOffers().add(new MerchantOffer(new ItemCost(Items.EMERALD, 1),
-                new ItemStack(Items.BREAD), 8, 4, 0.05F));
+        substitute
+                .getOffers()
+                .add(new MerchantOffer(new ItemCost(Items.EMERALD, 1), new ItemStack(Items.BREAD), 8, 4, 0.05F));
         f.villager().discard();
         TradeTask task = new TradeTask(f.order());
         task.start(f.context());
         TaskStatus waiting = task.tick(f.context());
         h.assertTrue(waiting == TaskStatus.RUNNING, "task did not wait at the bound merchant's last known location");
-        h.assertTrue(substitute.getOffers().getFirst().getUses() == 0
-                && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+        h.assertTrue(
+                substitute.getOffers().getFirst().getUses() == 0
+                        && count(f.companion(), Items.EMERALD) == 1
+                        && count(f.companion(), Items.BREAD) == 0,
                 "UUID hint caused a trade against the nearby replacement merchant");
         h.runAfterDelay(101, () -> {
             try {
                 TaskStatus expired = task.tick(f.context());
                 h.assertTrue(expired == TaskStatus.FAILED, "missing exact trader did not fail at its bound deadline");
-                h.assertTrue(substitute.getOffers().getFirst().getUses() == 0
-                        && count(f.companion(), Items.EMERALD) == 1 && count(f.companion(), Items.BREAD) == 0,
+                h.assertTrue(
+                        substitute.getOffers().getFirst().getUses() == 0
+                                && count(f.companion(), Items.EMERALD) == 1
+                                && count(f.companion(), Items.BREAD) == 0,
                         "expired UUID hint changed payment, output or substitute stock");
                 assertClosed(h, f);
                 h.succeed();
@@ -568,11 +694,14 @@ public final class TradingTaskTests {
     private static void assertClosed(GameTestHelper h, Fixture f) {
         h.assertTrue(f.villager().getTradingPlayer() == null, "task left the merchant menu open");
         UUID probe = UUID.randomUUID();
-        boolean free = f.state().merchantLeases().acquire(f.order().trader(), probe,
-                f.context().level().getGameTime());
+        boolean free = f.state()
+                .merchantLeases()
+                .acquire(f.order().trader(), probe, f.context().level().getGameTime());
         if (free) f.state().merchantLeases().release(f.order().trader(), probe);
         h.assertTrue(free, "task left a merchant lease held");
-        h.assertTrue(f.companion().hands().player().containerMenu == f.companion().hands().player().inventoryMenu,
+        h.assertTrue(
+                f.companion().hands().player().containerMenu
+                        == f.companion().hands().player().inventoryMenu,
                 "task left the companion fake-player menu open");
     }
 }

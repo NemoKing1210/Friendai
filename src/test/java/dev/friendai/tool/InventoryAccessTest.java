@@ -8,12 +8,14 @@ class InventoryAccessTest {
     @Test
     void allowsTheOwnerCloseBy() {
         assertEquals(InventoryAccess.Denial.NONE, InventoryAccess.check(true, true, true, 2.0));
-        assertEquals(InventoryAccess.Denial.NONE, InventoryAccess.check(true, true, true, InventoryAccess.MAX_DISTANCE));
+        assertEquals(
+                InventoryAccess.Denial.NONE, InventoryAccess.check(true, true, true, InventoryAccess.MAX_DISTANCE));
     }
 
     @Test
     void rejectsBeyondTheReach() {
-        assertEquals(InventoryAccess.Denial.TOO_FAR,
+        assertEquals(
+                InventoryAccess.Denial.TOO_FAR,
                 InventoryAccess.check(true, true, true, InventoryAccess.MAX_DISTANCE + 0.01));
     }
 

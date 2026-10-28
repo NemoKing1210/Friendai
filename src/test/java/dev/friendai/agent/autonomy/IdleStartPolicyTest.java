@@ -13,8 +13,16 @@ class IdleStartPolicyTest {
     private static final long NOW = 10_000_000;
     private static final long FIVE_MIN = 5 * 60_000;
 
-    private static boolean start(FreeTime state, AutonomySettings s, Autonomy ceiling, boolean goal, boolean idle,
-                                 boolean combat, boolean online, long lastOwner, long lastEnd) {
+    private static boolean start(
+            FreeTime state,
+            AutonomySettings s,
+            Autonomy ceiling,
+            boolean goal,
+            boolean idle,
+            boolean combat,
+            boolean online,
+            long lastOwner,
+            long lastEnd) {
         return IdleStartPolicy.shouldStart(state, s, ceiling, goal, idle, combat, online, NOW, lastOwner, lastEnd);
     }
 
@@ -30,8 +38,8 @@ class IdleStartPolicyTest {
 
     @Test
     void notWhenAlreadyOn() {
-        var on = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(), List.of(), Map.of(),
-                List.of());
+        var on = new FreeTime(
+                true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(), List.of(), Map.of(), List.of());
         assertFalse(start(on, S, Autonomy.ASSISTIVE, false, true, false, true, 0, 0));
     }
 

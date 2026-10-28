@@ -11,12 +11,11 @@ public final class SpeechKeybind {
     private SpeechKeybind() {}
 
     public static void register() {
-        KeyMapping key = KeyMappingHelper.registerKeyMapping(
-                new KeyMapping(
-                        "key.friendai.stop_speaking",
-                        InputConstants.Type.KEYBOARD,
-                        InputConstants.UNKNOWN.getValue(),
-                        ClientKeys.category()));
+        KeyMapping key = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.friendai.stop_speaking",
+                InputConstants.Type.KEYBOARD,
+                InputConstants.UNKNOWN.getValue(),
+                ClientKeys.category()));
         ClientTickEvents.END_CLIENT_TICK.register(minecraft -> {
             while (key.consumeClick()) {
                 SpeechRuntime.stop();

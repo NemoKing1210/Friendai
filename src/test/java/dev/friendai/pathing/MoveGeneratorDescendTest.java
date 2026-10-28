@@ -15,8 +15,7 @@ class MoveGeneratorDescendTest {
 
     private static List<PathStep> stepsFrom(GridCellView view, Node from) {
         List<PathStep> steps = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0))
-                .neighbours(from, 0, 0, 0, steps::add);
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 0, steps::add);
         return steps;
     }
 
@@ -57,7 +56,8 @@ class MoveGeneratorDescendTest {
         assertNotNull(entry);
         assertEquals(Move.DESCEND, entry.move());
         assertEquals(COSTS.walk() + COSTS.fall(), entry.cost(), 1e-9);
-        assertNull(stepTo(stepsFrom(view, new Node(0, 6, 0)), 1, 1, 0),
+        assertNull(
+                stepTo(stepsFrom(view, new Node(0, 6, 0)), 1, 1, 0),
                 "landed under the water instead of on its surface");
     }
 

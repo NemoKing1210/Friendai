@@ -15,8 +15,8 @@ class VoiceConfigTest {
     void resolvesCloudKeyFromEnvironment() {
         ClientConfig c = ClientConfig.defaults();
         c.voice.stt.provider = "openai";
-        ResolvedStt r = VoiceConfig.resolveStt(c.voice.stt, "en_us",
-                name -> name.equals("OPENAI_API_KEY") ? "sk-1" : null);
+        ResolvedStt r =
+                VoiceConfig.resolveStt(c.voice.stt, "en_us", name -> name.equals("OPENAI_API_KEY") ? "sk-1" : null);
         assertEquals("openai", r.providerId());
         assertEquals("openai_transcriptions", r.protocol());
         assertEquals("sk-1", r.apiKey());
@@ -95,7 +95,8 @@ class VoiceConfigTest {
         assertFalse(ru.hasKey());
         assertEquals("", ru.language());
 
-        assertEquals("en_US-lessac-medium",
+        assertEquals(
+                "en_US-lessac-medium",
                 VoiceConfig.resolveTts(c.voice.tts, "en_us", name -> null).voice());
     }
 
@@ -119,11 +120,17 @@ class VoiceConfigTest {
         c.validate();
         c.voice.tts.provider = "yandex";
         c.voice.tts.cloud.get("yandex").apiKey = "ya";
-        assertEquals("ru-RU", VoiceConfig.resolveTts(c.voice.tts, "ru_ru", name -> null).language());
-        assertEquals("en-US", VoiceConfig.resolveTts(c.voice.tts, "de_de", name -> null).language());
+        assertEquals(
+                "ru-RU",
+                VoiceConfig.resolveTts(c.voice.tts, "ru_ru", name -> null).language());
+        assertEquals(
+                "en-US",
+                VoiceConfig.resolveTts(c.voice.tts, "de_de", name -> null).language());
 
         c.voice.tts.cloud.get("yandex").language = "kk-KK";
-        assertEquals("kk-KK", VoiceConfig.resolveTts(c.voice.tts, "ru_ru", name -> null).language());
+        assertEquals(
+                "kk-KK",
+                VoiceConfig.resolveTts(c.voice.tts, "ru_ru", name -> null).language());
     }
 
     @Test
@@ -148,8 +155,12 @@ class VoiceConfigTest {
         ClientConfig c = ClientConfig.defaults();
         c.voice.stt.provider = "nope";
         c.voice.tts.provider = "nope";
-        assertEquals("local", VoiceConfig.resolveStt(c.voice.stt, "en_us", name -> null).providerId());
-        assertEquals("local", VoiceConfig.resolveTts(c.voice.tts, "en_us", name -> null).providerId());
+        assertEquals(
+                "local",
+                VoiceConfig.resolveStt(c.voice.stt, "en_us", name -> null).providerId());
+        assertEquals(
+                "local",
+                VoiceConfig.resolveTts(c.voice.tts, "en_us", name -> null).providerId());
     }
 
     @Test

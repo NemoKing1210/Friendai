@@ -31,7 +31,8 @@ public final class CraftText {
         }
         StringJoiner steps = new StringJoiner(", then ");
         for (CraftStep step : plan.steps()) {
-            steps.add(step.recipe().output() + " (" + step.times() + "×) " + step.recipe().station().phrase());
+            steps.add(step.recipe().output() + " (" + step.times() + "×) "
+                    + step.recipe().station().phrase());
         }
         return header + ": craft " + steps;
     }
@@ -45,7 +46,8 @@ public final class CraftText {
         String from = groups.entrySet().stream()
                 .map(entry -> entry.getValue() + " × " + entry.getKey())
                 .collect(Collectors.joining(", "));
-        String base = recipe.output() + " ×" + recipe.outputCount() + " " + recipe.station().phrase();
+        String base = recipe.output() + " ×" + recipe.outputCount() + " "
+                + recipe.station().phrase();
         if (recipe.cookTicks() > 0) {
             base += " (" + seconds(recipe.cookTicks()) + " s)";
         }

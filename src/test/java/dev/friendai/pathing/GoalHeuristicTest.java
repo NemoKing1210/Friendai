@@ -18,8 +18,7 @@ class GoalHeuristicTest {
                 new GridCellView("########", "...H....", "........"),
                 new GridCellView("########", "..#.....", "..#....."),
                 new GridCellView("########", ".._.....", "........"),
-                new GridCellView(
-                        "########", "........", "........", "........", "........", "........"));
+                new GridCellView("########", "........", "........", "........", "........", "........"));
     }
 
     @Test
@@ -46,7 +45,8 @@ class GoalHeuristicTest {
                                 new GoalPoint(x + 3.5, y + 3, z + 0.5, 0.5, 0.5),
                                 new GoalPoint(x + 3.5, y - 3, z + 0.5, 0.5, 0.5))) {
                             for (PathStep step : steps) {
-                                assertTrue(goal.heuristic(from, COSTS) - goal.heuristic(step.to(), COSTS)
+                                assertTrue(
+                                        goal.heuristic(from, COSTS) - goal.heuristic(step.to(), COSTS)
                                                 <= step.cost() + 1e-9,
                                         "h(" + from + ") - h(" + step.to() + ") > " + step.cost());
                             }
@@ -69,8 +69,8 @@ class GoalHeuristicTest {
         GridCellView view = maps().get(0);
         MoveGenerator moves = new MoveGenerator(view, COSTS, reach);
         for (PathStep step : steps(moves, new Node(2, 1, 0))) {
-            assertTrue(reach.heuristic(new Node(2, 1, 0), COSTS) - reach.heuristic(step.to(), COSTS)
-                            <= step.cost() + 1e-9,
+            assertTrue(
+                    reach.heuristic(new Node(2, 1, 0), COSTS) - reach.heuristic(step.to(), COSTS) <= step.cost() + 1e-9,
                     "reach heuristic is not consistent");
         }
     }
@@ -94,8 +94,7 @@ class GoalHeuristicTest {
         for (CostModel costs : models) {
             List<GridCellView> views = new ArrayList<>(maps());
             views.add(new GridCellView("###/###/###", "~~~/~~~/~~~", "~~~/~~~/~~~", ".../.../..."));
-            views.add(new GridCellView("###/###/###", ".../.../...", "###/###/##.",
-                    ".../.../...", ".../.../..."));
+            views.add(new GridCellView("###/###/###", ".../.../...", "###/###/##.", ".../.../...", ".../.../..."));
             for (GridCellView view : views) {
                 MoveGenerator moves = new MoveGenerator(view, costs, new GoalPoint(99, 99, 99, 0, 0), 0);
                 for (int x = 0; x < view.width(); x++) {
@@ -109,7 +108,8 @@ class GoalHeuristicTest {
                                         : new GoalPoint(x + 20.5, y + dy, z + 20.5, 0.5, 0.5);
                                 for (PathStep step : steps) {
                                     double reduction = goal.heuristic(from, costs) - goal.heuristic(step.to(), costs);
-                                    assertTrue(reduction <= step.cost() + 1e-9,
+                                    assertTrue(
+                                            reduction <= step.cost() + 1e-9,
                                             () -> goal + " overestimates " + step + " with " + costs);
                                 }
                             }

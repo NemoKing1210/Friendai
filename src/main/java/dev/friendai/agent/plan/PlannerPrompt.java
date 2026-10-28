@@ -25,10 +25,21 @@ public final class PlannerPrompt {
     }
 
     public static String system(PlannerInput input) {
-        var protocol = new dev.friendai.skill.SkillPromptSection("planner-protocol",system(),Integer.MAX_VALUE);
-        var context = new dev.friendai.agent.prompt.TurnContext(new dev.friendai.brain.Persona("","","auto"),"",null,"",
-                dev.friendai.brain.TurnKind.EVENT,"",java.util.List.of(),"","","",input.instructions());
-        return new dev.friendai.agent.prompt.PromptAssembler(java.util.List.of(protocol),input.promptBudget()).assemble(context);
+        var protocol = new dev.friendai.skill.SkillPromptSection("planner-protocol", system(), Integer.MAX_VALUE);
+        var context = new dev.friendai.agent.prompt.TurnContext(
+                new dev.friendai.brain.Persona("", "", "auto"),
+                "",
+                null,
+                "",
+                dev.friendai.brain.TurnKind.EVENT,
+                "",
+                java.util.List.of(),
+                "",
+                "",
+                "",
+                input.instructions());
+        return new dev.friendai.agent.prompt.PromptAssembler(java.util.List.of(protocol), input.promptBudget())
+                .assemble(context);
     }
 
     /** @param redact removes configured secrets from the text before it leaves the server */
@@ -44,7 +55,8 @@ public final class PlannerPrompt {
         if (!in.knowledge().isBlank()) {
             out.append("Known places and resources:\n").append(in.knowledge()).append('\n');
         }
-        in.queueState().ifPresent(queue -> out.append("Current queue:\n").append(queue).append('\n'));
+        in.queueState()
+                .ifPresent(queue -> out.append("Current queue:\n").append(queue).append('\n'));
         if (!in.lessons().isEmpty()) {
             out.append("Lessons so far:\n");
             in.lessons().forEach(l -> out.append("- ").append(l).append('\n'));

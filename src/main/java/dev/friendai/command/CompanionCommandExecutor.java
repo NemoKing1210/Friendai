@@ -21,8 +21,12 @@ public final class CompanionCommandExecutor {
     private CompanionCommandExecutor() {}
 
     public static Result execute(MinecraftServer server, CompanionEntity companion, ServerPlayer owner, String raw) {
-        if (server == null || companion == null || owner == null || owner.level().getServer() != server
-                || companion.level().getServer() != server || companion.ownerUuid() == null
+        if (server == null
+                || companion == null
+                || owner == null
+                || owner.level().getServer() != server
+                || companion.level().getServer() != server
+                || companion.ownerUuid() == null
                 || !companion.ownerUuid().equals(owner.getUUID())
                 || server.getPlayerList().getPlayer(owner.getUUID()) != owner) {
             return new Result(false, "the owner must be online in this server");
@@ -30,7 +34,8 @@ public final class CompanionCommandExecutor {
         if (!Operators.isOperator(owner) || !Commands.LEVEL_GAMEMASTERS.check(owner.permissions())) {
             return new Result(false, "the owner does not have permission to run commands");
         }
-        CreativeCommandPolicy.Decision decision = CreativeCommandPolicy.evaluate(raw, owner.getName().getString());
+        CreativeCommandPolicy.Decision decision =
+                CreativeCommandPolicy.evaluate(raw, owner.getName().getString());
         if (!decision.allowed()) return new Result(false, decision.reason());
 
         BoundedOutput output = new BoundedOutput();
@@ -59,7 +64,8 @@ public final class CompanionCommandExecutor {
     private static String boundedError(String message) {
         if (message == null || message.isBlank()) return "command syntax or execution failed";
         return message.length() <= CreativeCommandPolicy.maxFeedbackChars()
-                ? message : message.substring(0, CreativeCommandPolicy.maxFeedbackChars() - 1) + "…";
+                ? message
+                : message.substring(0, CreativeCommandPolicy.maxFeedbackChars() - 1) + "…";
     }
 
     private static final class BoundedOutput implements CommandSource {
@@ -78,7 +84,8 @@ public final class CompanionCommandExecutor {
                     break;
                 }
                 int remaining = CreativeCommandPolicy.maxFeedbackChars() - chars;
-                String bounded = line.length() <= remaining ? line : line.substring(0, Math.max(0, remaining - 1)) + "…";
+                String bounded =
+                        line.length() <= remaining ? line : line.substring(0, Math.max(0, remaining - 1)) + "…";
                 lines.add(bounded);
                 chars += bounded.length();
                 if (bounded.length() < line.length()) {
@@ -88,9 +95,20 @@ public final class CompanionCommandExecutor {
             }
         }
 
-        @Override public boolean acceptsSuccess() { return true; }
-        @Override public boolean acceptsFailure() { return true; }
-        @Override public boolean shouldInformAdmins() { return false; }
+        @Override
+        public boolean acceptsSuccess() {
+            return true;
+        }
+
+        @Override
+        public boolean acceptsFailure() {
+            return true;
+        }
+
+        @Override
+        public boolean shouldInformAdmins() {
+            return false;
+        }
 
         private String text() {
             return String.join("\n", lines);

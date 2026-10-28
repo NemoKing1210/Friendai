@@ -55,7 +55,7 @@ public final class MerchantLeases {
     public synchronized List<Lease> expire(long tick) {
         if (tick < 0) return List.of();
         var expired = new ArrayList<Lease>();
-        for (var iterator = byTrader.entrySet().iterator(); iterator.hasNext();) {
+        for (var iterator = byTrader.entrySet().iterator(); iterator.hasNext(); ) {
             Lease lease = iterator.next().getValue();
             if (tick >= lease.lastRenewedTick() && tick - lease.lastRenewedTick() > MAX_IDLE_TICKS) {
                 expired.add(lease);
@@ -72,8 +72,7 @@ public final class MerchantLeases {
 
     private void expireOne(UUID trader, long tick) {
         Lease lease = byTrader.get(trader);
-        if (lease != null && tick >= lease.lastRenewedTick()
-                && tick - lease.lastRenewedTick() > MAX_IDLE_TICKS) {
+        if (lease != null && tick >= lease.lastRenewedTick() && tick - lease.lastRenewedTick() > MAX_IDLE_TICKS) {
             byTrader.remove(trader);
         }
     }

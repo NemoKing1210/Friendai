@@ -30,8 +30,8 @@ class MiningStairHeadroomTest {
         Node start = new Node(1, 2, 2);
         MiningGoal goal = new MiningGoal(List.of(ore), 1.5, 1.62, Set.of(), Set.of(), true);
         MiningPathPolicy policy = new MiningPathPolicy(view, new MiningBounds(start, 12), Set.of(), CostModel.DEFAULTS);
-        PathSearch search = new PathSearch(view, CostModel.DEFAULTS, goal, start,
-                new SearchOptions(20_000, 12, 0, 1), policy);
+        PathSearch search =
+                new PathSearch(view, CostModel.DEFAULTS, goal, start, new SearchOptions(20_000, 12, 0, 1), policy);
 
         SearchResult result = search.step(Long.MAX_VALUE, () -> 0L);
 
@@ -41,11 +41,13 @@ class MiningStairHeadroomTest {
         for (PathStep step : path.steps()) {
             dug.addAll(step.breaks());
             CellView after = (x, y, z) -> dug.contains(new Pos(x, y, z)) ? Cell.AIR : view.at(x, y, z);
-            assertTrue(MoveGenerator.standable(after, step.to()),
+            assertTrue(
+                    MoveGenerator.standable(after, step.to()),
                     "node " + step.to() + " is not standable after " + step.move() + " breaks " + step.breaks());
             if (step.to().y() > step.from().y()) {
                 Pos aboveHead = step.from().pos().offset(0, 2, 0);
-                assertTrue(after.at(aboveHead.x(), aboveHead.y(), aboveHead.z()).free(),
+                assertTrue(
+                        after.at(aboveHead.x(), aboveHead.y(), aboveHead.z()).free(),
                         "no room to jump out of " + step.from() + " for " + step.move());
             }
         }
@@ -58,8 +60,8 @@ class MiningStairHeadroomTest {
         Node start = new Node(2, 11, 2);
         MiningGoal goal = new MiningGoal(List.of(ore), 1.5, 1.62, Set.of(), Set.of(), true);
         MiningPathPolicy policy = new MiningPathPolicy(view, new MiningBounds(start, 12), Set.of(), CostModel.DEFAULTS);
-        PathSearch search = new PathSearch(view, CostModel.DEFAULTS, goal, start,
-                new SearchOptions(20_000, 12, 0, 1), policy);
+        PathSearch search =
+                new PathSearch(view, CostModel.DEFAULTS, goal, start, new SearchOptions(20_000, 12, 0, 1), policy);
 
         SearchResult result = search.step(Long.MAX_VALUE, () -> 0L);
 
@@ -67,15 +69,24 @@ class MiningStairHeadroomTest {
         Set<Pos> dug = new HashSet<>();
         StringBuilder trace = new StringBuilder();
         for (PathStep step : result.path().steps()) {
-            trace.append(step.move()).append(' ').append(step.from()).append("->").append(step.to())
-                    .append(" breaks ").append(step.breaks()).append('\n');
+            trace.append(step.move())
+                    .append(' ')
+                    .append(step.from())
+                    .append("->")
+                    .append(step.to())
+                    .append(" breaks ")
+                    .append(step.breaks())
+                    .append('\n');
         }
         for (PathStep step : result.path().steps()) {
             dug.addAll(step.breaks());
             CellView after = (x, y, z) -> dug.contains(new Pos(x, y, z)) ? Cell.AIR : view.at(x, y, z);
             assertTrue(MoveGenerator.standable(after, step.to()), trace.toString());
-            assertTrue(after.at(step.from().x(), step.from().y() + 2, step.from().z()).free()
-                    || step.to().y() < step.from().y(), trace.toString());
+            assertTrue(
+                    after.at(step.from().x(), step.from().y() + 2, step.from().z())
+                                    .free()
+                            || step.to().y() < step.from().y(),
+                    trace.toString());
         }
     }
 

@@ -7,12 +7,7 @@ import java.util.List;
  * {@code replies} are the scripted model responses in order.
  */
 public record Scenario(
-        String name,
-        String access,
-        String playerSays,
-        String event,
-        List<Reply> replies,
-        Expectations expect) {
+        String name, String access, String playerSays, String event, List<Reply> replies, Expectations expect) {
 
     /** One scripted model response: optional text plus tool calls by name. */
     public record Reply(String text, List<String> tools) {}

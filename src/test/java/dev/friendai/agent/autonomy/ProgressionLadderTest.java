@@ -20,7 +20,11 @@ class ProgressionLadderTest {
     @Test
     void stoneStageListsMissing() {
         LadderView view = ProgressionLadder.evaluate(Facts.base()
-                .pickaxe(Tier.WOOD).craftingTable().stock(StockKind.LOGS, 20).stock(StockKind.COAL, 4).build());
+                .pickaxe(Tier.WOOD)
+                .craftingTable()
+                .stock(StockKind.LOGS, 20)
+                .stock(StockKind.COAL, 4)
+                .build());
         assertEquals("STONE", view.stage());
         assertTrue(view.missingGear().contains("stone pickaxe"));
         assertTrue(view.missingGear().contains("furnace"));
@@ -32,7 +36,11 @@ class ProgressionLadderTest {
     @Test
     void missingStockIsCountedPerKind() {
         var missing = ProgressionLadder.missingStock(Facts.base()
-                .pickaxe(Tier.WOOD).craftingTable().stock(StockKind.LOGS, 16).stock(StockKind.COBBLE, 4).build());
+                .pickaxe(Tier.WOOD)
+                .craftingTable()
+                .stock(StockKind.LOGS, 16)
+                .stock(StockKind.COBBLE, 4)
+                .build());
         assertEquals(28, missing.get(StockKind.COBBLE));
         assertEquals(16, missing.get(StockKind.COAL));
         assertEquals(32, missing.get(StockKind.TORCHES));
@@ -42,7 +50,10 @@ class ProgressionLadderTest {
     @Test
     void betterToolsCountForLowerStages() {
         LadderView view = ProgressionLadder.evaluate(Facts.base()
-                .pickaxe(Tier.IRON).craftingTable().stock(StockKind.LOGS, 16).build());
+                .pickaxe(Tier.IRON)
+                .craftingTable()
+                .stock(StockKind.LOGS, 16)
+                .build());
         assertEquals("STONE", view.stage());
         assertTrue(view.missingGear().stream().noneMatch(m -> m.contains("pickaxe")));
     }
@@ -50,9 +61,17 @@ class ProgressionLadderTest {
     @Test
     void ironStageNeedsArmorAndShield() {
         LadderView view = ProgressionLadder.evaluate(Facts.base()
-                .pickaxe(Tier.STONE).axe(Tier.STONE).sword(Tier.STONE).craftingTable().furnace()
-                .stock(StockKind.LOGS, 16).stock(StockKind.COBBLE, 32).stock(StockKind.COAL, 16)
-                .stock(StockKind.TORCHES, 32).armor(Tier.IRON, 1).build());
+                .pickaxe(Tier.STONE)
+                .axe(Tier.STONE)
+                .sword(Tier.STONE)
+                .craftingTable()
+                .furnace()
+                .stock(StockKind.LOGS, 16)
+                .stock(StockKind.COBBLE, 32)
+                .stock(StockKind.COAL, 16)
+                .stock(StockKind.TORCHES, 32)
+                .armor(Tier.IRON, 1)
+                .build());
         assertEquals("IRON", view.stage());
         assertTrue(view.missingGear().contains("iron pickaxe"));
         assertTrue(view.missingGear().contains("iron armor 1/2 pieces"));
@@ -70,7 +89,10 @@ class ProgressionLadderTest {
 
     @Test
     void stagesAreData() {
-        assertEquals(List.of("WOOD", "STONE", "IRON", "DIAMOND"),
-                ProgressionLadder.STAGES.stream().map(ProgressionLadder.Stage::name).toList());
+        assertEquals(
+                List.of("WOOD", "STONE", "IRON", "DIAMOND"),
+                ProgressionLadder.STAGES.stream()
+                        .map(ProgressionLadder.Stage::name)
+                        .toList());
     }
 }

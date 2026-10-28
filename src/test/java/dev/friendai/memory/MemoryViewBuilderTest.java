@@ -35,8 +35,7 @@ class MemoryViewBuilderTest {
     }
 
     private MemoryView.PersonaView personaFor(String serverDefault) {
-        return MemoryViewBuilder.build(
-                        book, O, "Steve", List.of(), true, L, Optional.empty(), serverDefault)
+        return MemoryViewBuilder.build(book, O, "Steve", List.of(), true, L, Optional.empty(), serverDefault)
                 .persona();
     }
 
@@ -64,17 +63,24 @@ class MemoryViewBuilderTest {
         book.addFact(Subject.player(ZED), Category.NOTE, "z", O, "Steve", 0, L);
         book.setTrusted(AMY, "Amy", true, 1);
         MemoryView view = build(List.of(new PlayerRef(BOB, "Bob")), true, Optional.empty());
+        assertEquals(List.of(O.toString(), "world", AMY.toString(), BOB.toString(), ZED.toString()), keys(view));
         assertEquals(
-                List.of(O.toString(), "world", AMY.toString(), BOB.toString(), ZED.toString()), keys(view));
-        assertEquals(List.of("Steve", "", "Amy", "Bob", "zed"), view.groups().stream().map(MemoryView.Group::name).toList());
+                List.of("Steve", "", "Amy", "Bob", "zed"),
+                view.groups().stream().map(MemoryView.Group::name).toList());
     }
 
     @Test
     void ownerListedOnceEvenIfOnline() {
         book.setTrusted(AMY, "Amy", true, 1);
         MemoryView view = build(List.of(new PlayerRef(O, "Steve"), new PlayerRef(AMY, "Amy")), true, Optional.empty());
-        assertEquals(1, view.groups().stream().filter(g -> g.role() == MemoryView.Role.OWNER).count());
-        assertEquals(keys(view), view.groups().stream().map(MemoryView.Group::key).distinct().toList());
+        assertEquals(
+                1,
+                view.groups().stream()
+                        .filter(g -> g.role() == MemoryView.Role.OWNER)
+                        .count());
+        assertEquals(
+                keys(view),
+                view.groups().stream().map(MemoryView.Group::key).distinct().toList());
         assertTrue(group(view, O).online());
         assertEquals("Steve", group(view, O).name());
     }
@@ -103,12 +109,18 @@ class MemoryViewBuilderTest {
         book.addFact(Subject.player(ZED), Category.NOTE, "z", O, "Steve", 0, L);
         book.addFact(Subject.player(O), Category.PROFILE, "p", ZED, "zed", 0, L);
         MemoryView view = build(List.of(), true, Optional.empty());
-        MemoryView.FactRow own = view.facts().stream().filter(f -> f.text().equals("z")).findFirst().orElseThrow();
-        MemoryView.FactRow foreign =
-                view.facts().stream().filter(f -> f.text().equals("p")).findFirst().orElseThrow();
+        MemoryView.FactRow own = view.facts().stream()
+                .filter(f -> f.text().equals("z"))
+                .findFirst()
+                .orElseThrow();
+        MemoryView.FactRow foreign = view.facts().stream()
+                .filter(f -> f.text().equals("p"))
+                .findFirst()
+                .orElseThrow();
         assertEquals("", own.authorName());
         assertEquals("zed", foreign.authorName());
-        assertEquals(List.of(1, 2), view.facts().stream().map(MemoryView.FactRow::id).toList());
+        assertEquals(
+                List.of(1, 2), view.facts().stream().map(MemoryView.FactRow::id).toList());
     }
 
     @Test
@@ -124,7 +136,8 @@ class MemoryViewBuilderTest {
     @Test
     void statusIsCarried() {
         MenuStatus status = MenuStatus.ok("friendai.menu.memory.status.cleared", 3);
-        assertEquals(Optional.of(status), build(List.of(), true, Optional.of(status)).status());
+        assertEquals(
+                Optional.of(status), build(List.of(), true, Optional.of(status)).status());
     }
 
     @Test
@@ -146,7 +159,9 @@ class MemoryViewBuilderTest {
     void factRowsCarryTheGroupKeyAndCategory() {
         book.addFact(Subject.WORLD, Category.PLACE, "Base", O, "Steve", 0, L);
         MemoryView view = build(List.of(), true, Optional.empty());
-        assertEquals(new MemoryView.FactRow(1, "world", Category.PLACE, "Base", ""), view.facts().get(0));
+        assertEquals(
+                new MemoryView.FactRow(1, "world", Category.PLACE, "Base", ""),
+                view.facts().get(0));
     }
 
     @Test

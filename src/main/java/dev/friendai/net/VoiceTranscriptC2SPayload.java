@@ -11,7 +11,9 @@ public record VoiceTranscriptC2SPayload(String text) implements CustomPacketPayl
     public static final CustomPacketPayload.Type<VoiceTranscriptC2SPayload> TYPE =
             new CustomPacketPayload.Type<>(FriendaiMod.id("voice_transcript"));
     public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, VoiceTranscriptC2SPayload> CODEC =
-            ByteBufCodecs.stringUtf8(MAX_CHARS).map(VoiceTranscriptC2SPayload::new, VoiceTranscriptC2SPayload::text).cast();
+            ByteBufCodecs.stringUtf8(MAX_CHARS)
+                    .map(VoiceTranscriptC2SPayload::new, VoiceTranscriptC2SPayload::text)
+                    .cast();
 
     @Override
     public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {

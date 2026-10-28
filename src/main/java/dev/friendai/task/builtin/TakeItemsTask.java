@@ -94,15 +94,13 @@ public final class TakeItemsTask extends ContainerTaskBase {
         inventory.setChanged();
 
         if (taken == 0) {
-            summary = full
-                    ? "my inventory is full"
-                    : "the " + prose + " at " + coords() + " has no " + matcher.label();
+            summary = full ? "my inventory is full" : "the " + prose + " at " + coords() + " has no " + matcher.label();
             return TaskStatus.FAILED;
         }
         if (taken < wanted) {
             String reason = full ? "my inventory is full" : "that was all it had";
-            summary = "took only " + taken + " of " + wanted + " " + matcher.label() + " from " + containerId
-                    + " at " + coords() + " (" + reason + ")";
+            summary = "took only " + taken + " of " + wanted + " " + matcher.label() + " from " + containerId + " at "
+                    + coords() + " (" + reason + ")";
         } else {
             summary = "took " + taken + " " + matcher.label() + " from " + containerId + " at " + coords();
         }

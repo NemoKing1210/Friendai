@@ -57,8 +57,12 @@ public final class FirePlanner {
      * unreachable one) is left alone and the rest are still put out. Only when nothing at all can be done does the
      * plan give up, with the first reason it met.
      */
-    private static void planArea(FireTarget.Area area, FireFacts facts, List<BurningCell> cells,
-            List<ExtinguishStep> steps, List<String> notes) {
+    private static void planArea(
+            FireTarget.Area area,
+            FireFacts facts,
+            List<BurningCell> cells,
+            List<ExtinguishStep> steps,
+            List<String> notes) {
         List<ExtinguishStep> work = new ArrayList<>();
         String refusal = null;
         for (Pos pos : area.cells()) {
@@ -130,8 +134,8 @@ public final class FirePlanner {
         steps.add(new ExtinguishStep.RecoverBucket(facts.waterCell()));
     }
 
-    private static void planBlock(Pos pos, FireFacts facts, List<BurningCell> cells,
-            List<ExtinguishStep> steps, List<String> notes) {
+    private static void planBlock(
+            Pos pos, FireFacts facts, List<BurningCell> cells, List<ExtinguishStep> steps, List<String> notes) {
         BurningCell cell = find(cells, pos);
         if (cell == null) {
             steps.add(new ExtinguishStep.GiveUp(ALREADY_OUT));
@@ -157,9 +161,7 @@ public final class FirePlanner {
         }
         boolean water = facts.waterBuckets() > 0 && !facts.nether() && rails.waterSafe();
         if (water) {
-            steps.add(campfire
-                    ? new ExtinguishStep.DouseCampfire(pos)
-                    : new ExtinguishStep.PlaceWater(pos));
+            steps.add(campfire ? new ExtinguishStep.DouseCampfire(pos) : new ExtinguishStep.PlaceWater(pos));
             steps.add(new ExtinguishStep.RecoverBucket(pos));
             return;
         }

@@ -52,6 +52,7 @@ public class ClientConfig {
         public boolean speakGuests = false;
         /** Replies come from the companion's position; off plays them centred at full volume. */
         public boolean spatial = true;
+
         public String outputDevice = null;
         public LocalTts local = new LocalTts();
         public Map<String, CloudSettings> cloud = new LinkedHashMap<>();
@@ -60,6 +61,7 @@ public class ClientConfig {
     public static class LocalTts {
         /** Null means the language default voice. */
         public String voice = null;
+
         public double speed = 1.0;
     }
 
@@ -120,9 +122,8 @@ public class ClientConfig {
         addIfMissing(stt, "provider", SttPresets.LOCAL);
         addIfMissing(stt, "language", "auto");
         addIfMissing(stt, "maxRecordSec", 30);
-        JsonObject local = stt.has("local") && stt.get("local").isJsonObject()
-                ? stt.getAsJsonObject("local")
-                : new JsonObject();
+        JsonObject local =
+                stt.has("local") && stt.get("local").isJsonObject() ? stt.getAsJsonObject("local") : new JsonObject();
         addIfMissing(local, "model", "base");
         stt.add("local", local);
         addIfMissing(stt, "cloud", new JsonObject());
@@ -181,9 +182,8 @@ public class ClientConfig {
         addIfMissing(tts, "volume", 1.0);
         addIfMissing(tts, "maxChars", 300);
         addIfMissing(tts, "speakGuests", false);
-        JsonObject local = tts.has("local") && tts.get("local").isJsonObject()
-                ? tts.getAsJsonObject("local")
-                : new JsonObject();
+        JsonObject local =
+                tts.has("local") && tts.get("local").isJsonObject() ? tts.getAsJsonObject("local") : new JsonObject();
         stripVoicePrefix(local);
         addIfMissing(local, "speed", 1.0);
         tts.add("local", local);

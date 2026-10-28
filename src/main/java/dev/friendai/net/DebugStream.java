@@ -36,7 +36,8 @@ public final class DebugStream {
     /** A client opened the companion menu: subscribe it, pause that player's companion and send the first snapshot. */
     public static void openMenu(ServerPlayer player) {
         FriendaiServerState.get(player.level().getServer()).brains().debug().subscribe(player.getUUID());
-        CompanionManager.get(player.level().getServer()).find(player.getUUID())
+        CompanionManager.get(player.level().getServer())
+                .find(player.getUUID())
                 .ifPresent(companion -> companion.addMenuViewer());
         sendNow(player);
     }
@@ -52,7 +53,8 @@ public final class DebugStream {
 
     /** Sends a snapshot now, if the player has the menu open. */
     public static void sendNow(ServerPlayer player) {
-        DebugService debug = FriendaiServerState.get(player.level().getServer()).brains().debug();
+        DebugService debug =
+                FriendaiServerState.get(player.level().getServer()).brains().debug();
         if (debug.subscribers().contains(player.getUUID())) {
             send(player);
         }
@@ -63,7 +65,8 @@ public final class DebugStream {
     }
 
     private static void send(ServerPlayer player) {
-        DebugService debug = FriendaiServerState.get(player.level().getServer()).brains().debug();
+        DebugService debug =
+                FriendaiServerState.get(player.level().getServer()).brains().debug();
         UUID owner = player.getUUID();
         CompanionSnapshot snapshot = SnapshotBuilder.build(player, debug.lastSent(owner));
         List<LogEntry> log = snapshot.newLog();

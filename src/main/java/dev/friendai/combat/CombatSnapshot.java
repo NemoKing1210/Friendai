@@ -36,8 +36,25 @@ public record CombatSnapshot(Self self, Target target, Options options) {
             boolean rangedWindup) {
         /** No shield, no bow, no potion and no immediate danger. */
         public static Self bare(double healthFraction) {
-            return new Self(healthFraction, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, 0, false);
+            return new Self(
+                    healthFraction,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    0,
+                    false);
         }
     }
 

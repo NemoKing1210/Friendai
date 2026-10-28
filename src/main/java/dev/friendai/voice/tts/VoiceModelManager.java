@@ -2,8 +2,8 @@ package dev.friendai.voice.tts;
 
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
-import java.io.IOException;
 import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -79,14 +79,16 @@ public final class VoiceModelManager {
         if (isInstalled(model)) {
             return CompletableFuture.completedFuture(dir(model));
         }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(model.url())).GET().build();
-        return http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()).thenApplyAsync(response -> {
-            if (response.statusCode() != 200) {
-                closeQuietly(response.body());
-                throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.network"));
-            }
-            return save(model, response.body(), stage);
-        });
+        HttpRequest request =
+                HttpRequest.newBuilder(URI.create(model.url())).GET().build();
+        return http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
+                .thenApplyAsync(response -> {
+                    if (response.statusCode() != 200) {
+                        closeQuietly(response.body());
+                        throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.network"));
+                    }
+                    return save(model, response.body(), stage);
+                });
     }
 
     private Path save(VoiceModel model, InputStream body, DownloadStage stage) {
@@ -97,8 +99,8 @@ public final class VoiceModelManager {
             Files.createDirectories(dir);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             long total = 0;
-            try (OutputStream out = Files.newOutputStream(
-                    part, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            try (OutputStream out =
+                    Files.newOutputStream(part, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 byte[] buffer = new byte[64 * 1024];
                 int n;
                 while ((n = in.read(buffer)) > 0) {
@@ -108,7 +110,8 @@ public final class VoiceModelManager {
                     stage.downloading(Math.min(1.0, (double) total / Math.max(1L, model.size())));
                 }
             }
-            if (total != model.size() || !HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(model.sha256())) {
+            if (total != model.size()
+                    || !HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(model.sha256())) {
                 throw corrupt();
             }
             Files.move(part, archive, StandardCopyOption.REPLACE_EXISTING);
@@ -128,8 +131,7 @@ public final class VoiceModelManager {
         }
     }
 
-    private static void extract(VoiceModel model, Path archive, Path partDir, DownloadStage stage)
-            throws IOException {
+    private static void extract(VoiceModel model, Path archive, Path partDir, DownloadStage stage) throws IOException {
         Files.createDirectories(partDir);
         long archiveSize = Math.max(1L, Files.size(archive));
         try (CountingInputStream in = new CountingInputStream(Files.newInputStream(archive));
@@ -164,8 +166,8 @@ public final class VoiceModelManager {
                     Files.createDirectories(target);
                 } else {
                     Files.createDirectories(target.getParent());
-                    try (OutputStream out = Files.newOutputStream(target, StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING)) {
+                    try (OutputStream out = Files.newOutputStream(
+                            target, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
                         int n;
                         while ((n = tar.read(buffer)) > 0) {
                             out.write(buffer, 0, n);

@@ -13,8 +13,8 @@ import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -26,6 +26,7 @@ public final class HuntTask implements Task {
     private final int radius;
     /** The owner asked for this hunt by name, so villagers and golems are fair game (see {@link Threats}). */
     private final boolean ownerOrdered;
+
     private final Set<UUID> skipped = new HashSet<>();
     private final Set<UUID> unreachable = new HashSet<>();
 
@@ -98,15 +99,23 @@ public final class HuntTask implements Task {
 
     private LivingEntity nearest(TaskContext c) {
         CompanionEntity companion = c.companion();
-        List<LivingEntity> nearby = c.level().getEntitiesOfClass(
-                LivingEntity.class,
-                new AABB(origin, origin).inflate(radius),
-                entity -> entity.isAlive() && !entity.isRemoved() && matcher.test(entity.getType()));
+        List<LivingEntity> nearby = c.level()
+                .getEntitiesOfClass(
+                        LivingEntity.class,
+                        new AABB(origin, origin).inflate(radius),
+                        entity -> entity.isAlive() && !entity.isRemoved() && matcher.test(entity.getType()));
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity : nearby) {
-            if (c.level().clip(new ClipContext(companion.getEyePosition(), entity.getBoundingBox().getCenter(),
-                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion)).getType() != HitResult.Type.MISS) continue;
+            if (c.level()
+                            .clip(new ClipContext(
+                                    companion.getEyePosition(),
+                                    entity.getBoundingBox().getCenter(),
+                                    ClipContext.Block.COLLIDER,
+                                    ClipContext.Fluid.NONE,
+                                    companion))
+                            .getType()
+                    != HitResult.Type.MISS) continue;
             if (Threats.isProtected(entity, companion, ownerOrdered)) {
                 skipped.add(entity.getUUID());
                 continue;

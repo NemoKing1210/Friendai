@@ -29,10 +29,12 @@ class ShiftOutcomeTest {
 
     @Test
     void failureAddsLessonAndCooldown() {
-        ShiftOutcome.Result r = ShiftOutcome.of(SHIFT, false, "no pickaxe", "STONE", "STONE",
-                "missing tool: craft a stone pickaxe first", 1000, S);
+        ShiftOutcome.Result r = ShiftOutcome.of(
+                SHIFT, false, "no pickaxe", "STONE", "STONE", "missing tool: craft a stone pickaxe first", 1000, S);
         assertFalse(r.record().success());
-        assertEquals("mine iron: missing tool: craft a stone pickaxe first", r.lesson().orElseThrow());
+        assertEquals(
+                "mine iron: missing tool: craft a stone pickaxe first",
+                r.lesson().orElseThrow());
         assertEquals(1000 + 10 * 60_000L, r.cooldownUntil().orElseThrow());
     }
 

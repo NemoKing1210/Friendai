@@ -19,6 +19,8 @@ public interface BrainObserver {
     default void onToolResult(ToolCall call, ToolResult result) {}
 
     default void onInstructions(java.util.List<String> ids, int chars, int promptChars, boolean mandatoryOverrun) {}
+
     default void onUsage(dev.friendai.llm.model.Usage usage) {}
+
     default void onError(Throwable error) {}
 }

@@ -23,6 +23,7 @@ public final class TradeBook {
     private final Map<UUID, Integer> retained = new HashMap<>();
     private UUID pricingActor;
     private long revision;
+
     private record OfferIdentity(List<TradeCost> inputs, TradeItem output) {
         static OfferIdentity of(TradeOffer offer) {
             return new OfferIdentity(offer.baseInputs(), offer.output());
@@ -53,9 +54,11 @@ public final class TradeBook {
     public boolean observe(TraderRecord observation) {
         Objects.requireNonNull(observation);
         var old = traders.get(observation.id());
-        if (old != null && (observation.lastSeen() < old.lastSeen()
-                || (observation.status() == TraderRecord.Status.VERIFIED
-                    && observation.offersSeen() >= 0 && observation.offersSeen() < old.offersSeen()))) {
+        if (old != null
+                && (observation.lastSeen() < old.lastSeen()
+                        || (observation.status() == TraderRecord.Status.VERIFIED
+                                && observation.offersSeen() >= 0
+                                && observation.offersSeen() < old.offersSeen()))) {
             throw new IllegalArgumentException("backward trader observation");
         }
         boolean complete = observation.status() == TraderRecord.Status.VERIFIED && observation.offersSeen() >= 0;
@@ -63,16 +66,31 @@ public final class TradeBook {
         long offersSeen = complete ? observation.offersSeen() : old == null ? -1 : old.offersSeen();
         validateFingerprints(old, offers);
         long firstSeen = old == null ? observation.firstSeen() : Math.min(old.firstSeen(), observation.firstSeen());
-        var next = stableOffers(new TraderRecord(observation.id(), observation.entityType(), observation.dimension(),
-                observation.x(), observation.y(), observation.z(), observation.label(), observation.profession(),
-                observation.level(), firstSeen, observation.lastSeen(), offersSeen,
-                Math.incrementExact(old == null ? 0 : old.revision()), observation.status(), offers));
-        int totalOffers = traders.values().stream().mapToInt(t -> t.offers().size()).sum()
-                - (old == null ? 0 : old.offers().size()) + next.offers().size();
+        var next = stableOffers(new TraderRecord(
+                observation.id(),
+                observation.entityType(),
+                observation.dimension(),
+                observation.x(),
+                observation.y(),
+                observation.z(),
+                observation.label(),
+                observation.profession(),
+                observation.level(),
+                firstSeen,
+                observation.lastSeen(),
+                offersSeen,
+                Math.incrementExact(old == null ? 0 : old.revision()),
+                observation.status(),
+                offers));
+        int totalOffers =
+                traders.values().stream().mapToInt(t -> t.offers().size()).sum()
+                        - (old == null ? 0 : old.offers().size())
+                        + next.offers().size();
         int totalTraders = traders.size() + (old == null ? 1 : 0);
         var candidates = traders.values().stream()
                 .filter(t -> !t.id().equals(next.id()) && !pinned.contains(t.id()) && !retained.containsKey(t.id()))
-                .sorted(Comparator.comparingLong(TraderRecord::lastSeen).thenComparing(TraderRecord::id)).toList();
+                .sorted(Comparator.comparingLong(TraderRecord::lastSeen).thenComparing(TraderRecord::id))
+                .toList();
         var evict = new ArrayList<UUID>();
         for (var candidate : candidates) {
             if (totalOffers <= TradeFile.MAX_TOTAL_OFFERS && totalTraders <= TradeFile.MAX_TRADERS) break;
@@ -103,9 +121,22 @@ public final class TradeBook {
 
     private static TraderRecord stableOffers(TraderRecord trader) {
         validateFingerprints(null, trader.offers());
-        return new TraderRecord(trader.id(), trader.entityType(), trader.dimension(), trader.x(), trader.y(), trader.z(),
-                trader.label(), trader.profession(), trader.level(), trader.firstSeen(), trader.lastSeen(), trader.offersSeen(),
-                trader.revision(), trader.status(), trader.offers().stream().map(TradeOffer::withStableRef).toList());
+        return new TraderRecord(
+                trader.id(),
+                trader.entityType(),
+                trader.dimension(),
+                trader.x(),
+                trader.y(),
+                trader.z(),
+                trader.label(),
+                trader.profession(),
+                trader.level(),
+                trader.firstSeen(),
+                trader.lastSeen(),
+                trader.offersSeen(),
+                trader.revision(),
+                trader.status(),
+                trader.offers().stream().map(TradeOffer::withStableRef).toList());
     }
 
     public Optional<TraderRecord> trader(UUID id) {
@@ -123,8 +154,10 @@ public final class TradeBook {
     public Optional<TradeOffer> resolveOffer(UUID traderId, String ref) {
         var trader = traders.get(traderId);
         if (trader == null) return Optional.empty();
-        return trader.offers().stream().filter(offer -> offer.ref().equals(ref))
-                .filter(offer -> !ambiguous(trader, offer)).findFirst();
+        return trader.offers().stream()
+                .filter(offer -> offer.ref().equals(ref))
+                .filter(offer -> !ambiguous(trader, offer))
+                .findFirst();
     }
 
     public List<TradeQuery.Match> query(TradeQuery query, long nowTick) {
@@ -133,7 +166,8 @@ public final class TradeBook {
 
     public List<TradeQuery.Match> query(TradeQuery query, long nowTick, long quoteFreshTicks, long locationFreshTicks) {
         Objects.requireNonNull(query);
-        if (quoteFreshTicks < 1 || locationFreshTicks < 1) throw new IllegalArgumentException("freshness windows must be positive");
+        if (quoteFreshTicks < 1 || locationFreshTicks < 1)
+            throw new IllegalArgumentException("freshness windows must be positive");
         var matches = new ArrayList<TradeQuery.Match>();
         for (var trader : traders.values()) {
             boolean positionStale = stale(nowTick, trader.lastSeen(), locationFreshTicks);
@@ -144,18 +178,27 @@ public final class TradeBook {
                 boolean quoteStale = trader.status() != TraderRecord.Status.VERIFIED
                         || !offer.pricingActor().equals(pricingActor)
                         || stale(nowTick, offer.observedTick(), quoteFreshTicks);
-                matches.add(new TradeQuery.Match(trader, offer, quoteStale, positionStale, duplicates.get(OfferIdentity.of(offer)) > 1));
+                matches.add(new TradeQuery.Match(
+                        trader, offer, quoteStale, positionStale, duplicates.get(OfferIdentity.of(offer)) > 1));
             }
         }
-        return matches.stream().sorted(Comparator.comparing(TradeQuery.Match::quoteStale)
-                        .thenComparing(m -> m.offer().exhausted()).thenComparing(TradeQuery.Match::positionStale)
-                        .thenComparing(m -> m.trader().id()).thenComparing(m -> m.offer().fingerprint()))
-                .limit(query.limit()).toList();
+        return matches.stream()
+                .sorted(Comparator.comparing(TradeQuery.Match::quoteStale)
+                        .thenComparing(m -> m.offer().exhausted())
+                        .thenComparing(TradeQuery.Match::positionStale)
+                        .thenComparing(m -> m.trader().id())
+                        .thenComparing(m -> m.offer().fingerprint()))
+                .limit(query.limit())
+                .toList();
     }
 
     private static boolean ambiguous(TraderRecord trader, TradeOffer selected) {
         var identity = OfferIdentity.of(selected);
-        return trader.offers().stream().filter(offer -> OfferIdentity.of(offer).equals(identity)).limit(2).count() > 1;
+        return trader.offers().stream()
+                        .filter(offer -> OfferIdentity.of(offer).equals(identity))
+                        .limit(2)
+                        .count()
+                > 1;
     }
 
     private static boolean stale(long now, long observed, long lifetime) {
@@ -230,7 +273,8 @@ public final class TradeBook {
                 .filter(entry -> entry.getValue().state() != TradeProgress.State.AUTHORIZED
                         && entry.getValue().state() != TradeProgress.State.RUNNING)
                 .findFirst();
-        if (!history.containsKey(progress.orderId()) && history.size() >= TradeFile.MAX_HISTORY
+        if (!history.containsKey(progress.orderId())
+                && history.size() >= TradeFile.MAX_HISTORY
                 && terminalToEvict.isEmpty()) {
             throw new IllegalStateException("trade history capacity is occupied by active orders");
         }
@@ -246,15 +290,17 @@ public final class TradeBook {
         Objects.requireNonNull(progress);
         BarterProgress previous = barterHistory.get(progress.orderId());
         if (progress.equals(previous)) return;
-        if (previous != null && (progress.goldAccepted() < previous.goldAccepted()
-                || !progress.emittedItems().containsAll(previous.emittedItems())
-                || progress.collected().size() < previous.collected().size()
-                || (previous.terminal() && !progress.terminal()))) {
+        if (previous != null
+                && (progress.goldAccepted() < previous.goldAccepted()
+                        || !progress.emittedItems().containsAll(previous.emittedItems())
+                        || progress.collected().size() < previous.collected().size()
+                        || (previous.terminal() && !progress.terminal()))) {
             throw new IllegalArgumentException("barter history cannot move backward");
         }
         var terminalToEvict = barterHistory.entrySet().stream()
                 .filter(entry -> !entry.getKey().equals(progress.orderId()))
-                .filter(entry -> entry.getValue().terminal()).findFirst();
+                .filter(entry -> entry.getValue().terminal())
+                .findFirst();
         if (previous == null && barterHistory.size() >= TradeFile.MAX_HISTORY && terminalToEvict.isEmpty()) {
             throw new IllegalStateException("barter history capacity is occupied by active orders");
         }
@@ -275,9 +321,15 @@ public final class TradeBook {
     }
 
     public TradeFile snapshot() {
-        return new TradeFile(TradeFile.VERSION, revision,
-                traders.values().stream().sorted(Comparator.comparing(TraderRecord::id)).toList(),
-                List.copyOf(history.values()), pinned, List.copyOf(barterHistory.values()));
+        return new TradeFile(
+                TradeFile.VERSION,
+                revision,
+                traders.values().stream()
+                        .sorted(Comparator.comparing(TraderRecord::id))
+                        .toList(),
+                List.copyOf(history.values()),
+                pinned,
+                List.copyOf(barterHistory.values()));
     }
 
     private void changed() {

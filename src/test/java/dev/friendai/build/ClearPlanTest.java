@@ -20,12 +20,14 @@ class ClearPlanTest {
                 cell(3, 1, 0, ClearKind.VEGETATION),
                 cell(4, 5, 0, ClearKind.VEGETATION));
         ClearPlan plan = ClearPlan.of(candidates, Set.of(), 10);
-        assertEquals(List.of(
-                cell(4, 5, 0, ClearKind.VEGETATION),
-                cell(3, 1, 0, ClearKind.VEGETATION),
-                cell(2, 9, 0, ClearKind.SNOW),
-                cell(1, 2, 0, ClearKind.BLOCK),
-                cell(0, 5, 0, ClearKind.WATER)), plan.cells());
+        assertEquals(
+                List.of(
+                        cell(4, 5, 0, ClearKind.VEGETATION),
+                        cell(3, 1, 0, ClearKind.VEGETATION),
+                        cell(2, 9, 0, ClearKind.SNOW),
+                        cell(1, 2, 0, ClearKind.BLOCK),
+                        cell(0, 5, 0, ClearKind.WATER)),
+                plan.cells());
         assertEquals(0, plan.skipped());
     }
 
@@ -50,8 +52,7 @@ class ClearPlanTest {
                 cell(3, 2, 0, ClearKind.VEGETATION),
                 cell(4, 1, 0, ClearKind.VEGETATION));
         ClearPlan plan = ClearPlan.of(candidates, Set.of(), 2);
-        assertEquals(List.of(cell(0, 5, 0, ClearKind.VEGETATION), cell(1, 4, 0, ClearKind.VEGETATION)),
-                plan.cells());
+        assertEquals(List.of(cell(0, 5, 0, ClearKind.VEGETATION), cell(1, 4, 0, ClearKind.VEGETATION)), plan.cells());
         assertEquals(3, plan.skipped());
     }
 

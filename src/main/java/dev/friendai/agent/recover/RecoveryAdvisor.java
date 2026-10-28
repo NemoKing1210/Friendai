@@ -12,29 +12,63 @@ import java.util.regex.Pattern;
  * wins and anything unmatched is {@link FailureKind#UNKNOWN} with no advice, so the model is never misled.
  */
 public final class RecoveryAdvisor {
-    private record Rule(Pattern pattern, FailureKind kind, int detailGroup, String detailPrefix, List<String> remedies) {}
+    private record Rule(
+            Pattern pattern, FailureKind kind, int detailGroup, String detailPrefix, List<String> remedies) {}
 
     private static final String TIMES = "×";
 
     private static final List<Rule> RULES = List.of(
-            new Rule(Pattern.compile("missing materials: (?:(\\d+) " + TIMES + " )?([a-z0-9_:./-]+)"),
-                    FailureKind.MISSING_ITEM, 0, "missing ", List.of("obtain_item {item}")),
-            new Rule(Pattern.compile("missing (hoe|axe|pickaxe|shovel|sword|shears|bucket|rod|fishing rod)"),
-                    FailureKind.NO_TOOL, 1, "no ", List.of("obtain_item for a {1}", "craft_item for a {1}")),
-            new Rule(Pattern.compile("is protected|not allowed|forbidden"),
-                    FailureKind.FORBIDDEN, 0, "protected area", List.of()),
-            new Rule(Pattern.compile("creeper|zombie|skeleton|spider|lava|drown|burning|too dangerous|health too low|low health"),
-                    FailureKind.DANGER, 0, "danger nearby", List.of("retreat and eat or rest, then retry")),
-            new Rule(Pattern.compile("can't craft ([a-z0-9_:./ -]+)"),
-                    FailureKind.MISSING_ITEM, 1, "cannot craft ", List.of("get_recipe for it, then obtain_item for the missing ingredients")),
-            new Rule(Pattern.compile("can't reach|couldn't reach|couldn't get back|no path|unreachable|can't scaffold"),
-                    FailureKind.UNREACHABLE, 0, "target not reachable", List.of("go_to a closer open spot first", "try a different target")),
-            new Rule(Pattern.compile("no (?:growing crops|furnace|beehive|cows or goats|open water|dark spots|storage container|"
-                            + "known storage container|directly visible|unvisited local frontier|observed entrance|block source)"),
-                    FailureKind.RESOURCE_NOT_FOUND, 0, "nothing suitable nearby",
+            new Rule(
+                    Pattern.compile("missing materials: (?:(\\d+) " + TIMES + " )?([a-z0-9_:./-]+)"),
+                    FailureKind.MISSING_ITEM,
+                    0,
+                    "missing ",
+                    List.of("obtain_item {item}")),
+            new Rule(
+                    Pattern.compile("missing (hoe|axe|pickaxe|shovel|sword|shears|bucket|rod|fishing rod)"),
+                    FailureKind.NO_TOOL,
+                    1,
+                    "no ",
+                    List.of("obtain_item for a {1}", "craft_item for a {1}")),
+            new Rule(
+                    Pattern.compile("is protected|not allowed|forbidden"),
+                    FailureKind.FORBIDDEN,
+                    0,
+                    "protected area",
+                    List.of()),
+            new Rule(
+                    Pattern.compile(
+                            "creeper|zombie|skeleton|spider|lava|drown|burning|too dangerous|health too low|low health"),
+                    FailureKind.DANGER,
+                    0,
+                    "danger nearby",
+                    List.of("retreat and eat or rest, then retry")),
+            new Rule(
+                    Pattern.compile("can't craft ([a-z0-9_:./ -]+)"),
+                    FailureKind.MISSING_ITEM,
+                    1,
+                    "cannot craft ",
+                    List.of("get_recipe for it, then obtain_item for the missing ingredients")),
+            new Rule(
+                    Pattern.compile("can't reach|couldn't reach|couldn't get back|no path|unreachable|can't scaffold"),
+                    FailureKind.UNREACHABLE,
+                    0,
+                    "target not reachable",
+                    List.of("go_to a closer open spot first", "try a different target")),
+            new Rule(
+                    Pattern.compile(
+                            "no (?:growing crops|furnace|beehive|cows or goats|open water|dark spots|storage container|"
+                                    + "known storage container|directly visible|unvisited local frontier|observed entrance|block source)"),
+                    FailureKind.RESOURCE_NOT_FOUND,
+                    0,
+                    "nothing suitable nearby",
                     List.of("search_resource for the material", "move to another area and look_around")),
-            new Rule(Pattern.compile("can't get ([a-z0-9_:./ -]+)"),
-                    FailureKind.RESOURCE_NOT_FOUND, 1, "cannot get ", List.of("search_resource for it", "plan_obtain to see what it needs")));
+            new Rule(
+                    Pattern.compile("can't get ([a-z0-9_:./ -]+)"),
+                    FailureKind.RESOURCE_NOT_FOUND,
+                    1,
+                    "cannot get ",
+                    List.of("search_resource for it", "plan_obtain to see what it needs")));
 
     /**
      * @param tool the tool that failed (kept for future rules; no rule depends on it yet)
@@ -48,8 +82,10 @@ public final class RecoveryAdvisor {
             if (!m.find()) {
                 continue;
             }
-            String detail = rule.detailPrefix() + (rule.detailGroup() > 0 && m.group(rule.detailGroup()) != null
-                    ? m.group(rule.detailGroup()).strip() : "");
+            String detail = rule.detailPrefix()
+                    + (rule.detailGroup() > 0 && m.group(rule.detailGroup()) != null
+                            ? m.group(rule.detailGroup()).strip()
+                            : "");
             if (rule.kind() == FailureKind.MISSING_ITEM && rule.detailGroup() == 0) {
                 String count = m.group(1) == null ? "1" : m.group(1);
                 detail = "missing " + count + " " + m.group(2);

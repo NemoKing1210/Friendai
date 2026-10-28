@@ -26,8 +26,12 @@ import net.minecraft.world.phys.AABB;
 public final class StructureSnapshotBuilder {
     private StructureSnapshotBuilder() {}
 
-    public static StructureSnapshot build(ServerLevel level, CompanionEntity companion, SpecialStructure structure,
-            StructureSite site, int maxNearbySpawned) {
+    public static StructureSnapshot build(
+            ServerLevel level,
+            CompanionEntity companion,
+            SpecialStructure structure,
+            StructureSite site,
+            int maxNearbySpawned) {
         Set<Offset> correct = new HashSet<>();
         Set<BlockPos> correctPositions = new HashSet<>();
         boolean protectedArea = false;
@@ -56,19 +60,34 @@ public final class StructureSnapshotBuilder {
             free &= state.isAir() || state.canBeReplaced();
         }
         boolean entityInFootprint = !level.getEntitiesOfClass(
-                LivingEntity.class, box, e -> e == companion || e instanceof Player).isEmpty();
+                        LivingEntity.class, box, e -> e == companion || e instanceof Player)
+                .isEmpty();
 
         int nearby = 0;
         boolean present = false;
         switch (structure.outcome()) {
-            case Outcome.EntitySpawned o -> nearby = level.getEntitiesOfClass(
-                    Entity.class, box.inflate(o.radius()),
-                    e -> e.isAlive() && BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString()
-                            .equals(o.entityType())).size();
+            case Outcome.EntitySpawned o ->
+                nearby = level.getEntitiesOfClass(
+                                Entity.class,
+                                box.inflate(o.radius()),
+                                e -> e.isAlive()
+                                        && BuiltInRegistries.ENTITY_TYPE
+                                                .getKey(e.getType())
+                                                .toString()
+                                                .equals(o.entityType()))
+                        .size();
             case Outcome.BlocksPresent o -> present = countBlocks(level, box, o.state()) >= o.minCount();
         }
-        return new StructureSnapshot(free, entityInFootprint, protectedArea,
-                level.dimension() == Level.END, correct, present, nearby, maxNearbySpawned, bag(companion));
+        return new StructureSnapshot(
+                free,
+                entityInFootprint,
+                protectedArea,
+                level.dimension() == Level.END,
+                correct,
+                present,
+                nearby,
+                maxNearbySpawned,
+                bag(companion));
     }
 
     /** How many positions in the box hold the block of {@code state}. */

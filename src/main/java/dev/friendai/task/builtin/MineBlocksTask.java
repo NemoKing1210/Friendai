@@ -1,5 +1,10 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.core.Components;
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
+import dev.friendai.mining.MiningBounds;
+import dev.friendai.pathing.Node;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.PlaceAutoRegistration;
 import dev.friendai.place.PlaceCandidate;
@@ -10,25 +15,19 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.MiningSession;
 import dev.friendai.task.mining.TemporaryBlockCleanup;
 import dev.friendai.task.nav.PlacementLedger;
-import dev.friendai.mining.MiningBounds;
-import dev.friendai.pathing.Node;
-import dev.friendai.core.Components;
-import dev.friendai.debug.DebugAction;
-import dev.friendai.debug.DebugTarget;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Finds, walks to, breaks N blocks of a kind and sweeps up what they drop. */
@@ -53,11 +52,13 @@ public final class MineBlocksTask implements Task {
     private DropCollector sweep;
     /** Blocks placed to pillar or bridge to a block; removed before the task reports a result. */
     private final PlacementLedger placements = new PlacementLedger();
+
     private TemporaryBlockCleanup cleanup;
     private TaskStatus pendingStatus;
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
     private BlockPos lastBroken;
+
     private BlockPos pendingObservation;
     private int observationWaitTicks;
     private String summary = "";
@@ -121,8 +122,8 @@ public final class MineBlocksTask implements Task {
     @Override
     public void start(TaskContext c) {
         dimension = c.level().dimension().identifier().toString();
-        autoMinBlocks = dev.friendai.core.FriendaiServerState.get(c.level().getServer())
-                .config().places.autoMineMinBlocks;
+        autoMinBlocks =
+                dev.friendai.core.FriendaiServerState.get(c.level().getServer()).config().places.autoMineMinBlocks;
     }
 
     @Override
@@ -160,13 +161,16 @@ public final class MineBlocksTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (miningSessionActive) {
-            if (miningSession.target() != null && "extract".equals(miningSession.phase())
+            if (miningSession.target() != null
+                    && "extract".equals(miningSession.phase())
                     && !hasRoomForDrops(c, miningSession.target())) {
                 miningSession.stop(c);
                 miningSessionActive = false;
                 summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
-                c.owner().ifPresent(player -> player.sendSystemMessage(
-                        Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+                c.owner()
+                        .ifPresent(player -> player.sendSystemMessage(
+                                Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")),
+                                true));
                 return TaskStatus.FAILED;
             }
             return tickMiningSession(c);
@@ -249,8 +253,8 @@ public final class MineBlocksTask implements Task {
         }
         List<BlockPos> candidates;
         if (placedOnly) {
-            candidates = new ArrayList<>(PlacedService.candidates(
-                    c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
+            candidates = new ArrayList<>(
+                    PlacedService.candidates(c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
             candidates.removeIf(this::excluded);
         } else {
             candidates = treeCandidates(c);
@@ -259,11 +263,14 @@ public final class MineBlocksTask implements Task {
                     // The tree is finished: pick its drops up before going anywhere else.
                     return TaskStatus.RUNNING;
                 }
-                var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
-                int evidenceRadius = origin == null ? radius
+                var evidence = dev.friendai.core.FriendaiServerState.get(
+                                c.level().getServer())
+                        .resources();
+                int evidenceRadius = origin == null
+                        ? radius
                         : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
-                candidates = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, evidenceRadius,
-                        evidenceLimit(origin == null ? CANDIDATES : 64)));
+                candidates = new ArrayList<>(evidence.knownOrVisible(
+                        c.companion(), matcher, evidenceRadius, evidenceLimit(origin == null ? CANDIDATES : 64)));
                 candidates.removeIf(this::excluded);
                 if (origin != null) {
                     double radiusSquared = (double) radius * radius;
@@ -291,8 +298,10 @@ public final class MineBlocksTask implements Task {
         if (candidates.isEmpty()) {
             if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
                 if (observationWaitTicks++ == 0) {
-                    var observer = dev.friendai.core.FriendaiServerState.get(c.level().getServer())
-                            .observations().observer(c.companion());
+                    var observer = dev.friendai.core.FriendaiServerState.get(
+                                    c.level().getServer())
+                            .observations()
+                            .observer(c.companion());
                     for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
                         observer.inspect(pendingObservation.relative(side));
                     }
@@ -321,15 +330,18 @@ public final class MineBlocksTask implements Task {
             breaker = new BlockBreaker(candidates, matcher::test, true, false, true, false, placements);
             return TaskStatus.RUNNING;
         }
-        boolean logs = candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
+        boolean logs =
+                candidates.stream().allMatch(pos -> c.level().getBlockState(pos).is(BlockTags.LOGS));
         if (!logs) {
             if (placedOnly) {
                 // A corridor planner may break blocks outside the ledger. A placed-only job uses the plain
                 // breaker instead: no unplaced block is ever broken to reach a recorded one.
                 if (!hasRoomForDrops(c, candidates.get(0))) {
                     summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
-                    c.owner().ifPresent(player -> player.sendSystemMessage(
-                            Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+                    c.owner()
+                            .ifPresent(player -> player.sendSystemMessage(
+                                    Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")),
+                                    true));
                     return TaskStatus.FAILED;
                 }
                 breaker = new BlockBreaker(candidates, matcher::test, true, true, false, false, placements);
@@ -337,8 +349,11 @@ public final class MineBlocksTask implements Task {
             }
             if (miningSession == null) {
                 BlockPos start = origin != null ? origin : c.companion().blockPosition();
-                miningSession = new MiningSession(c.companion(), new MiningBounds(
-                        new Node(start.getX(), start.getY(), start.getZ()), radius), 128, 6_000);
+                miningSession = new MiningSession(
+                        c.companion(),
+                        new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), radius),
+                        128,
+                        6_000);
             }
             miningSession.setTargets(candidates, matcher::test);
             miningSessionActive = true;
@@ -347,8 +362,9 @@ public final class MineBlocksTask implements Task {
         // Tree felling keeps its existing placement route and connected-log behavior.
         if (!hasRoomForDrops(c, candidates.get(0))) {
             summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
-            c.owner().ifPresent(player -> player.sendSystemMessage(
-                    Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+            c.owner()
+                    .ifPresent(player -> player.sendSystemMessage(
+                            Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
             return TaskStatus.FAILED;
         }
         breaker = new BlockBreaker(candidates, matcher::test, true, true, !placedOnly, false, placements);
@@ -359,7 +375,7 @@ public final class MineBlocksTask implements Task {
     private static String failureText(dev.friendai.text.UserMessage failure) {
         return switch (failure.key()) {
             case "friendai.mining.no_tool" ->
-                    "no suitable tool to collect the block; get the right tool first (obtain_item plans the chain)";
+                "no suitable tool to collect the block; get the right tool first (obtain_item plans the chain)";
             case "friendai.mining.unsafe_support" -> "the block supports the companion or its route";
             case "friendai.mining.unsafe_passage" -> "the passage is unsafe to excavate";
             case "friendai.mining.unreachable" -> "the resource cannot be reached safely";
@@ -378,9 +394,10 @@ public final class MineBlocksTask implements Task {
                 tool = candidate;
             }
         }
-        List<ItemStack> drops = Block.getDrops(state, c.level(), pos, c.level().getBlockEntity(pos),
-                c.companion(), tool);
-        SimpleContainer projected = new SimpleContainer(c.companion().inventory().getContainerSize());
+        List<ItemStack> drops =
+                Block.getDrops(state, c.level(), pos, c.level().getBlockEntity(pos), c.companion(), tool);
+        SimpleContainer projected =
+                new SimpleContainer(c.companion().inventory().getContainerSize());
         for (int i = 0; i < projected.getContainerSize(); i++) {
             projected.setItem(i, c.companion().inventory().getItem(i).copy());
         }
@@ -404,7 +421,7 @@ public final class MineBlocksTask implements Task {
             lastBroken = null;
             return false;
         }
-        sweep =new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
+        sweep = new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
         lastBroken = null;
         return true;
     }
@@ -421,9 +438,10 @@ public final class MineBlocksTask implements Task {
         for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
             seeds.add(lastBroken.relative(side));
         }
-        var evidence = dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
-        List<BlockPos> result = new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius,
-                evidenceLimit(CANDIDATES)));
+        var evidence =
+                dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        List<BlockPos> result =
+                new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, evidenceLimit(CANDIDATES)));
         result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));
         result.removeIf(this::excluded);
         return result.size() <= CANDIDATES ? result : new ArrayList<>(result.subList(0, CANDIDATES));

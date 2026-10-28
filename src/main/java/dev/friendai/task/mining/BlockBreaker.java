@@ -1,16 +1,16 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.MoveHelper;
 import dev.friendai.task.nav.PlacementLedger;
-import net.minecraft.world.phys.Vec3;
-import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.Sight;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Walks to one of the blocks it was given and breaks the one it reached. The drop falls to the ground where a
@@ -22,9 +22,19 @@ import net.minecraft.world.level.block.state.BlockState;
  * no view, the companion steps to a free cell nearby that has one.
  */
 public final class BlockBreaker {
-    public enum State { WORKING, BROKEN, GONE, UNREACHABLE, PROTECTED, OUT_OF_SIGHT }
+    public enum State {
+        WORKING,
+        BROKEN,
+        GONE,
+        UNREACHABLE,
+        PROTECTED,
+        OUT_OF_SIGHT
+    }
 
-    private enum Phase { WALK, BREAK }
+    private enum Phase {
+        WALK,
+        BREAK
+    }
 
     /** How many blocks one target may have dug away before it is given up as hidden. */
     private static final int MAX_DUG = 12;
@@ -38,19 +48,23 @@ public final class BlockBreaker {
     private final boolean digToTarget;
     /** Whether the breaker may remove a temporary block directly beneath the companion. */
     private final boolean allowBreakingSupport;
+
     private final Approach approach;
     /** A precise stance goal: interaction reach alone does not put the eyes around the obstruction. */
     private MoveHelper viewApproach;
+
     private Vec3 viewPoint;
     private boolean viewFailed;
 
     /** The candidate the companion reached and is working on, or null before it reached one. */
     private BlockPos target;
+
     private int settleTicks;
     private Phase phase = Phase.WALK;
     private BreakAction action;
     /** The block hiding the target that is being dug away right now, and how many were dug for this target. */
     private BlockPos digging;
+
     private BreakAction digAction;
     private int dug;
 
@@ -68,8 +82,8 @@ public final class BlockBreaker {
     }
 
     /** A cleanup-only variant that may remove the temporary block the companion is standing on. */
-    public BlockBreaker(BlockPos target, Predicate<BlockState> stillValid, boolean requireSight,
-            boolean allowBreakingSupport) {
+    public BlockBreaker(
+            BlockPos target, Predicate<BlockState> stillValid, boolean requireSight, boolean allowBreakingSupport) {
         this(List.of(target), stillValid, requireSight, false, false, allowBreakingSupport);
     }
 
@@ -95,14 +109,23 @@ public final class BlockBreaker {
      *     {@link State#OUT_OF_SIGHT}. Mining a kind of block means getting it, so {@code mine_blocks} asks for this;
      *     breaking one block the player named keeps the plain line-of-sight rule.
      */
-    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
-            boolean mayPlace, boolean digToTarget) {
+    public BlockBreaker(
+            Collection<BlockPos> candidates,
+            Predicate<BlockState> stillValid,
+            boolean requireSight,
+            boolean mayPlace,
+            boolean digToTarget) {
         this(candidates, stillValid, requireSight, mayPlace, digToTarget, false);
     }
 
     /** Full constructor; support breaking is reserved for cleanup of a block the companion itself placed. */
-    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
-            boolean mayPlace, boolean digToTarget, boolean allowBreakingSupport) {
+    public BlockBreaker(
+            Collection<BlockPos> candidates,
+            Predicate<BlockState> stillValid,
+            boolean requireSight,
+            boolean mayPlace,
+            boolean digToTarget,
+            boolean allowBreakingSupport) {
         this(candidates, stillValid, requireSight, mayPlace, digToTarget, allowBreakingSupport, null);
     }
 
@@ -110,8 +133,14 @@ public final class BlockBreaker {
      * @param ledger records the blocks a pillaring or bridging route places, so the caller can remove them when the
      *     job ends; null when the route must not build or its placements are meant to stay.
      */
-    public BlockBreaker(Collection<BlockPos> candidates, Predicate<BlockState> stillValid, boolean requireSight,
-            boolean mayPlace, boolean digToTarget, boolean allowBreakingSupport, PlacementLedger ledger) {
+    public BlockBreaker(
+            Collection<BlockPos> candidates,
+            Predicate<BlockState> stillValid,
+            boolean requireSight,
+            boolean mayPlace,
+            boolean digToTarget,
+            boolean allowBreakingSupport,
+            PlacementLedger ledger) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
@@ -229,7 +258,8 @@ public final class BlockBreaker {
         }
         var companion = c.companion();
         BlockPos obstruction = Sight.firstBlockOnRay(c.level(), companion, target);
-        if (obstruction == null || c.level().getBlockState(obstruction).getDestroySpeed(c.level(), obstruction) < 0
+        if (obstruction == null
+                || c.level().getBlockState(obstruction).getDestroySpeed(c.level(), obstruction) < 0
                 || !companion.hands().canInteract(obstruction)) {
             return false;
         }

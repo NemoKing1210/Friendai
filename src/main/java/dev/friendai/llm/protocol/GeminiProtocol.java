@@ -145,7 +145,8 @@ public final class GeminiProtocol implements LlmProtocol {
 
     public LlmResponse fromWire(JsonObject o) {
         JsonArray candidates = ProtocolSupport.arr(o, "candidates");
-        JsonObject candidate = candidates.isEmpty() ? new JsonObject() : candidates.get(0).getAsJsonObject();
+        JsonObject candidate =
+                candidates.isEmpty() ? new JsonObject() : candidates.get(0).getAsJsonObject();
         JsonObject content = ProtocolSupport.obj(candidate, "content");
         StringBuilder text = new StringBuilder();
         List<ToolCall> calls = new ArrayList<>();
@@ -187,6 +188,8 @@ public final class GeminiProtocol implements LlmProtocol {
                 text.toString(),
                 calls,
                 stop,
-                new Usage(ProtocolSupport.intOr(usage, "promptTokenCount", 0), ProtocolSupport.intOr(usage, "candidatesTokenCount", 0)));
+                new Usage(
+                        ProtocolSupport.intOr(usage, "promptTokenCount", 0),
+                        ProtocolSupport.intOr(usage, "candidatesTokenCount", 0)));
     }
 }

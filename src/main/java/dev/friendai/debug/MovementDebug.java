@@ -37,8 +37,14 @@ public record MovementDebug(
     public static final int MAX_UPCOMING_STEPS = 2;
 
     /** Retained for callers that only provide the original movement view. */
-    public MovementDebug(int companionId, int stepIndex, List<Segment> route, List<Cell> breaks,
-            List<Cell> places, List<Cell> goalCells, List<String> lines) {
+    public MovementDebug(
+            int companionId,
+            int stepIndex,
+            List<Segment> route,
+            List<Cell> breaks,
+            List<Cell> places,
+            List<Cell> goalCells,
+            List<String> lines) {
         this(companionId, stepIndex, route, breaks, places, goalCells, lines, List.of(), List.of());
     }
 
@@ -48,8 +54,8 @@ public record MovementDebug(
     public record Cell(int x, int y, int z) {}
 
     /** Combines task actions with path obstacles, keeping first-seen order and exact duplicates out. */
-    public static List<DebugTarget> combineTargets(List<DebugTarget> taskTargets,
-            List<Cell> routeBreaks, List<Cell> routePlaces) {
+    public static List<DebugTarget> combineTargets(
+            List<DebugTarget> taskTargets, List<Cell> routeBreaks, List<Cell> routePlaces) {
         Set<DebugTarget> seen = new LinkedHashSet<>();
         List<DebugTarget> result = new ArrayList<>(MAX_TARGETS);
         if (taskTargets != null) {
@@ -152,8 +158,14 @@ public record MovementDebug(
             }
             List<Segment> route = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
-                route.add(new Segment(in.readInt(), in.readInt(), in.readInt(),
-                        in.readInt(), in.readInt(), in.readInt(), in.readUnsignedByte()));
+                route.add(new Segment(
+                        in.readInt(),
+                        in.readInt(),
+                        in.readInt(),
+                        in.readInt(),
+                        in.readInt(),
+                        in.readInt(),
+                        in.readUnsignedByte()));
             }
             List<Cell> breaks = readCells(in);
             List<Cell> places = readCells(in);
@@ -175,8 +187,8 @@ public record MovementDebug(
             if (in.available() > 0) {
                 throw new IllegalArgumentException("trailing bytes");
             }
-            return new MovementDebug(companionId, stepIndex, route, breaks, places, goalCells, lines,
-                    targets, upcomingSteps);
+            return new MovementDebug(
+                    companionId, stepIndex, route, breaks, places, goalCells, lines, targets, upcomingSteps);
         } catch (IOException e) {
             throw new IllegalArgumentException("truncated movement debug", e);
         }

@@ -19,12 +19,35 @@ class FailureHandlerTest {
 
     private static GuardFacts logs(int count) {
         return new GuardFacts() {
-            @Override public int countItems(String id) { return count; }
-            @Override public int emptySlots() { return 5; }
-            @Override public float healthFraction() { return 1f; }
-            @Override public int ownerDistance() { return 0; }
-            @Override public int countBlocks(String id, int radius) { return 0; }
-            @Override public String dimension() { return "minecraft:overworld"; }
+            @Override
+            public int countItems(String id) {
+                return count;
+            }
+
+            @Override
+            public int emptySlots() {
+                return 5;
+            }
+
+            @Override
+            public float healthFraction() {
+                return 1f;
+            }
+
+            @Override
+            public int ownerDistance() {
+                return 0;
+            }
+
+            @Override
+            public int countBlocks(String id, int radius) {
+                return 0;
+            }
+
+            @Override
+            public String dimension() {
+                return "minecraft:overworld";
+            }
         };
     }
 
@@ -40,7 +63,10 @@ class FailureHandlerTest {
         GoalBoard board = boardWithPlan(3, 7);
         String extra = handler.onFailure(board, 7, "build_structure", MISSING, "facts: -3 minecraft:cobblestone");
         assertTrue(extra.contains("facts: -3 minecraft:cobblestone"), extra);
-        assertTrue(extra.contains("diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot"), extra);
+        assertTrue(
+                extra.contains(
+                        "diagnosis: MISSING_ITEM missing 3 minecraft:iron_ingot; try: obtain_item minecraft:iron_ingot"),
+                extra);
         assertFalse(extra.contains("replan budget spent"), extra);
     }
 
@@ -80,7 +106,8 @@ class FailureHandlerTest {
         GoalBoard board = boardWithPlan(1, 7);
         for (String text : new String[] {"stopped by request", "cancelled by the LLM", "Cancelled", "stopped"}) {
             assertTrue(FailureHandler.isCancellation(text), text);
-            assertEquals("facts: -1 minecraft:stick",
+            assertEquals(
+                    "facts: -1 minecraft:stick",
                     handler.onFailure(board, 7, "plan", text, "facts: -1 minecraft:stick"));
         }
         assertEquals(0, board.primary().orElseThrow().replans());
@@ -102,11 +129,16 @@ class FailureHandlerTest {
     @Test
     void successListsUnmetCriteriaOrConfirmsAll() {
         GoalBoard board = new GoalBoard(3, 3);
-        long id = board.set("wood",
-                List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))), false, 1)
-                .value().id();
+        long id = board.set(
+                        "wood",
+                        List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
+                        false,
+                        1)
+                .value()
+                .id();
         board.linkPlan(id, 9);
-        assertEquals("facts: +5 minecraft:oak_log; unmet: 12 logs",
+        assertEquals(
+                "facts: +5 minecraft:oak_log; unmet: 12 logs",
                 handler.onSuccess(board, 9, "facts: +5 minecraft:oak_log", logs(5)));
         assertEquals("all criteria confirmed: call finish_goal", handler.onSuccess(board, 9, "", logs(12)));
     }

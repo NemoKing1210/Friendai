@@ -74,8 +74,8 @@ public final class HttpTransport {
                     }
                     if (failure.kind().retryable() && attempt < maxRetries) {
                         long delayMs = backoffBase.toMillis() << attempt;
-                        return CompletableFuture
-                                .supplyAsync(() -> null, CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS))
+                        return CompletableFuture.supplyAsync(
+                                        () -> null, CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS))
                                 .thenCompose(ignored -> execute(request, secrets, attempt + 1));
                     }
                     return CompletableFuture.<JsonObject>failedFuture(failure);
@@ -95,9 +95,11 @@ public final class HttpTransport {
             return new LlmException(LlmErrorKind.TIMEOUT, "Request timed out");
         }
         if (t instanceof IOException) {
-            return new LlmException(LlmErrorKind.NETWORK, "Network error: " + t.getClass().getSimpleName());
+            return new LlmException(
+                    LlmErrorKind.NETWORK, "Network error: " + t.getClass().getSimpleName());
         }
-        return new LlmException(LlmErrorKind.NETWORK, "Request failed: " + t.getClass().getSimpleName());
+        return new LlmException(
+                LlmErrorKind.NETWORK, "Request failed: " + t.getClass().getSimpleName());
     }
 
     private static LlmException mapStatus(int status, String body, List<String> secrets) {

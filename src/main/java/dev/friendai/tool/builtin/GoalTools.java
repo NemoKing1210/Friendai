@@ -26,7 +26,8 @@ final class GoalTools {
 
     static void register(ToolRegistry<CompanionEntity> registry) {
         JsonObject text = criterionSchema();
-        registry.register(ToolKit.callerTool("set_goal",
+        registry.register(ToolKit.callerTool(
+                "set_goal",
                 "Record what you are working toward so it survives plans, failures and restarts. Use it for a "
                         + "multi-step objective, not for a single action. Each criterion has a short text; add a "
                         + "type with its fields (for example type has_item, item minecraft:oak_log, count 12) when "
@@ -36,8 +37,11 @@ final class GoalTools {
                         .string("text", "The goal in one short sentence")
                         .array("criteria", "How you will know it is done", text, 0, 6)
                         .bool("background", "Add as a background goal instead of the primary one")
-                        .required("text").build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                        .required("text")
+                        .build(),
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
                     GoalResult<Goal> result = board.set(
                             args.get("text").getAsString(),
                             criteria(args),
@@ -45,42 +49,58 @@ final class GoalTools {
                             c.level().getGameTime());
                     return result.ok() ? describe("set", result.value()) : ToolResult.error(result.error());
                 })));
-        registry.register(ToolKit.callerTool("update_goal",
+        registry.register(ToolKit.callerTool(
+                "update_goal",
                 "Change a goal's text, criteria or status (active or blocked). Use finish_goal to end it.",
                 SchemaBuilder.object()
                         .integer("id", "Goal id")
                         .string("text", "New goal sentence")
                         .array("criteria", "Replacement criteria", text, 0, 6)
                         .enumeration("status", "New status", "active", "blocked")
-                        .required("id").build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
-                    Optional<List<Criterion>> criteria = args.has("criteria")
-                            ? Optional.of(criteria(args)) : Optional.empty();
+                        .required("id")
+                        .build(),
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                    Optional<List<Criterion>> criteria =
+                            args.has("criteria") ? Optional.of(criteria(args)) : Optional.empty();
                     Optional<GoalStatus> status = args.has("status")
-                            ? Optional.of(GoalStatus.valueOf(args.get("status").getAsString().toUpperCase(java.util.Locale.ROOT)))
+                            ? Optional.of(GoalStatus.valueOf(
+                                    args.get("status").getAsString().toUpperCase(java.util.Locale.ROOT)))
                             : Optional.empty();
                     GoalResult<Goal> result = board.update(
                             args.get("id").getAsLong(),
                             args.has("text") ? Optional.of(args.get("text").getAsString()) : Optional.empty(),
-                            criteria, status);
+                            criteria,
+                            status);
                     return result.ok() ? describe("updated", result.value()) : ToolResult.error(result.error());
                 })));
-        registry.register(ToolKit.callerTool("finish_goal",
+        registry.register(ToolKit.callerTool(
+                "finish_goal",
                 "End a goal: done:true when its criteria are met, done:false to abandon it. Give a short reason.",
                 SchemaBuilder.object()
                         .integer("id", "Goal id")
                         .bool("done", "True if achieved, false if abandoned")
                         .string("reason", "Why it ended")
-                        .required("id", "done").build(),
-                AccessLevel.OWNER, () -> true, (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
+                        .required("id", "done")
+                        .build(),
+                AccessLevel.OWNER,
+                () -> true,
+                (c, caller, args) -> withBoard(c, (owner, goals, board) -> {
                     GoalResult<Goal> result = board.finish(
                             args.get("id").getAsLong(),
                             args.get("done").getAsBoolean(),
                             args.has("reason") ? args.get("reason").getAsString() : "");
                     if (result.ok() && c.level() instanceof net.minecraft.server.level.ServerLevel level) {
-                        FriendaiServerState.get(level.getServer()).brains().skillOutcome(owner,"goal:"+result.value().id(),
-                                args.get("done").getAsBoolean()?dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
-                                        :dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,result.value().text());
+                        FriendaiServerState.get(level.getServer())
+                                .brains()
+                                .skillOutcome(
+                                        owner,
+                                        "goal:" + result.value().id(),
+                                        args.get("done").getAsBoolean()
+                                                ? dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                                                : dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,
+                                        result.value().text());
                     }
                     return result.ok() ? describe("finished", result.value()) : ToolResult.error(result.error());
                 })));
@@ -93,7 +113,8 @@ final class GoalTools {
             return;
         }
         GoalService goals = FriendaiServerState.get(level.getServer()).goals();
-        goals.board(owner).primary()
+        goals.board(owner)
+                .primary()
                 .filter(g -> g.status() == GoalStatus.ACTIVE && g.planId() == 0)
                 .ifPresent(g -> {
                     goals.board(owner).linkPlan(g.id(), planId);
@@ -149,7 +170,8 @@ final class GoalTools {
     /** An object with a valid guard {@code type} keeps its check; otherwise only its text counts. */
     static Criterion parseCriterion(JsonObject object) {
         String text = object.has("text") && object.get("text").isJsonPrimitive()
-                ? object.get("text").getAsString().strip() : "";
+                ? object.get("text").getAsString().strip()
+                : "";
         Optional<Guard> guard = object.has("type") ? Guard.parse(object) : Optional.empty();
         if (text.isEmpty() && guard.isPresent()) {
             text = guard.get().describe();
@@ -158,7 +180,8 @@ final class GoalTools {
     }
 
     private static ToolResult describe(String verb, Goal goal) {
-        return ToolResult.ok("goal #" + goal.id() + " " + verb + ": " + goal.text()
-                + (goal.background() ? " (background)" : "") + " [" + goal.status().name().toLowerCase(java.util.Locale.ROOT) + "]");
+        return ToolResult.ok(
+                "goal #" + goal.id() + " " + verb + ": " + goal.text() + (goal.background() ? " (background)" : "")
+                        + " [" + goal.status().name().toLowerCase(java.util.Locale.ROOT) + "]");
     }
 }

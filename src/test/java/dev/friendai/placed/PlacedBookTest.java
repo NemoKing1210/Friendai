@@ -73,9 +73,9 @@ class PlacedBookTest {
         book.record(block(9, "minecraft:oak_log", 1));
         book.record(block(2, "minecraft:oak_log", 2));
         book.record(block(5, "minecraft:oak_log", 3));
-        PlacedQuery.Result result = PlacedQuery.find(
-                book, OVERWORLD, new Pos(0, 64, 0), 10, entry -> true, 2);
-        assertEquals(List.of(2, 5), result.entries().stream().map(b -> b.pos().x()).toList());
+        PlacedQuery.Result result = PlacedQuery.find(book, OVERWORLD, new Pos(0, 64, 0), 10, entry -> true, 2);
+        assertEquals(
+                List.of(2, 5), result.entries().stream().map(b -> b.pos().x()).toList());
         assertEquals(3, result.total());
         assertTrue(result.truncated());
     }
@@ -85,11 +85,9 @@ class PlacedBookTest {
         PlacedBook book = new PlacedBook(PlacedLimits.DEFAULTS);
         book.record(block(2, "minecraft:oak_log", 1));
         book.record(block(40, "minecraft:oak_log", 2));
-        book.record(new PlacedBlock("minecraft:the_nether", new Pos(3, 64, 0),
-                "minecraft:oak_log", 3, "place_block"));
+        book.record(new PlacedBlock("minecraft:the_nether", new Pos(3, 64, 0), "minecraft:oak_log", 3, "place_block"));
         PlacedQuery.Result result = PlacedQuery.find(
-                book, OVERWORLD, new Pos(0, 64, 0), 10,
-                entry -> entry.blockId().equals("minecraft:oak_log"), 8);
+                book, OVERWORLD, new Pos(0, 64, 0), 10, entry -> entry.blockId().equals("minecraft:oak_log"), 8);
         assertEquals(1, result.total());
         assertEquals(2, result.entries().getFirst().pos().x());
     }

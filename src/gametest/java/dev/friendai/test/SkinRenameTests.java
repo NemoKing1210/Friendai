@@ -1,6 +1,12 @@
 package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.debug.RequestType;
+import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
+import dev.friendai.net.CompanionRequestC2SPayload;
+import dev.friendai.net.CompanionRequestHandler;
+import dev.friendai.net.RateLimiter;
 import dev.friendai.net.SkinHandler;
 import dev.friendai.net.SkinRequestC2SPayload;
 import dev.friendai.net.SkinS2CPayload;
@@ -14,12 +20,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
-import dev.friendai.debug.RequestType;
-import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
-import dev.friendai.net.CompanionRequestC2SPayload;
-import dev.friendai.net.CompanionRequestHandler;
-import dev.friendai.net.RateLimiter;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -49,7 +49,8 @@ public class SkinRenameTests {
     @GameTest
     public void rename_request_updates_book_and_entity(GameTestHelper h) {
         ServerPlayer owner = owner(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
 
         rename(owner, "  Alex   Jr ");
 
@@ -61,7 +62,8 @@ public class SkinRenameTests {
     @GameTest
     public void rename_blank_is_rejected(GameTestHelper h) {
         ServerPlayer owner = owner(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         rename(owner, "Mira");
 
         rename(owner, "   ");
@@ -141,7 +143,8 @@ public class SkinRenameTests {
     @GameTest
     public void skin_upload_sets_entity_hash_and_persists(GameTestHelper h) {
         ServerPlayer owner = skinOwner(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         byte[] png = skinPng(10);
 
         SkinHandler.upload(owner, new SkinUploadC2SPayload(true, png));
@@ -156,7 +159,8 @@ public class SkinRenameTests {
     @GameTest
     public void skin_upload_invalid_png_is_rejected(GameTestHelper h) {
         ServerPlayer owner = skinOwner(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(20)));
         String before = companion.getSkinHash();
 
@@ -174,7 +178,10 @@ public class SkinRenameTests {
         SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(25)));
 
         h.assertTrue(
-                FriendaiServerState.get(h.getLevel().getServer()).skins().load(owner.getUUID()).isEmpty(),
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .skins()
+                        .load(owner.getUUID())
+                        .isEmpty(),
                 "nothing is stored when the player has no companion");
         h.succeed();
     }
@@ -182,14 +189,18 @@ public class SkinRenameTests {
     @GameTest
     public void skin_reset_clears_hash_and_store(GameTestHelper h) {
         ServerPlayer owner = skinOwner(h);
-        CompanionEntity companion = CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
         SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(30)));
 
         SkinHandler.upload(owner, new SkinUploadC2SPayload(false, new byte[0]));
 
         h.assertTrue(companion.getSkinHash().isEmpty(), "the hash is cleared");
         h.assertTrue(
-                FriendaiServerState.get(h.getLevel().getServer()).skins().load(owner.getUUID()).isEmpty(),
+                FriendaiServerState.get(h.getLevel().getServer())
+                        .skins()
+                        .load(owner.getUUID())
+                        .isEmpty(),
                 "the stored skin is removed");
         h.succeed();
     }
@@ -219,7 +230,8 @@ public class SkinRenameTests {
 
         SkinHandler.request(viewer, new SkinRequestC2SPayload(hash));
 
-        var sent = SENT.stream().filter(s -> s.player().equals(viewer.getUUID())).toList();
+        var sent =
+                SENT.stream().filter(s -> s.player().equals(viewer.getUUID())).toList();
         h.assertTrue(sent.size() == 1, "exactly one skin is sent");
         h.assertTrue(hash.equals(sent.get(0).payload().hash()), "it carries the requested hash");
         h.assertTrue(sent.get(0).payload().slim(), "it carries the slim flag");

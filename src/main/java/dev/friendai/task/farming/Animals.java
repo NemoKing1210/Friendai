@@ -20,10 +20,12 @@ public final class Animals {
     /** Animals of a type near a point that the companion may touch, nearest first. */
     public static List<Animal> nearby(
             ServerLevel level, CompanionEntity companion, Vec3 center, int radius, Predicate<EntityType<?>> type) {
-        return level.getEntitiesOfClass(
+        return level
+                .getEntitiesOfClass(
                         Animal.class,
                         new AABB(center, center).inflate(radius),
-                        animal -> animal.isAlive() && !animal.isRemoved()
+                        animal -> animal.isAlive()
+                                && !animal.isRemoved()
                                 && type.test(animal.getType())
                                 && !Threats.isProtected(animal, companion))
                 .stream()
@@ -34,10 +36,12 @@ public final class Animals {
     /** How many animals of a type near a point belong to someone else or are named. */
     public static int protectedCount(
             ServerLevel level, CompanionEntity companion, Vec3 center, int radius, Predicate<EntityType<?>> type) {
-        return (int) level.getEntitiesOfClass(
+        return (int) level
+                .getEntitiesOfClass(
                         Animal.class,
                         new AABB(center, center).inflate(radius),
-                        animal -> animal.isAlive() && !animal.isRemoved()
+                        animal -> animal.isAlive()
+                                && !animal.isRemoved()
                                 && type.test(animal.getType())
                                 && Threats.isProtected(animal, companion))
                 .stream()
@@ -46,12 +50,12 @@ public final class Animals {
 
     /** Adult animals of a type near a point, including other people's pets (they still count towards the limit). */
     public static int adults(ServerLevel level, Vec3 center, int radius, EntityType<?> type) {
-        return (int) level.getEntitiesOfClass(
+        return (int) level
+                .getEntitiesOfClass(
                         Animal.class,
                         new AABB(center, center).inflate(radius),
-                        animal -> animal.isAlive() && !animal.isRemoved()
-                                && animal.getType() == type
-                                && !animal.isBaby())
+                        animal ->
+                                animal.isAlive() && !animal.isRemoved() && animal.getType() == type && !animal.isBaby())
                 .stream()
                 .count();
     }

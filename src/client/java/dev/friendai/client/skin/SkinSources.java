@@ -7,12 +7,12 @@ import dev.friendai.skin.SkinImage;
 import dev.friendai.text.UserFacingException;
 import dev.friendai.text.UserMessage;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -63,21 +63,24 @@ public final class SkinSources {
     }
 
     private static void async(Consumer<Outcome> done, Job job) {
-        Thread worker = new Thread(() -> {
-            Outcome outcome;
-            try {
-                outcome = job.run();
-            } catch (UserFacingException e) {
-                outcome = new Outcome(null, Component.translatable(e.userMessage().key()));
-            } catch (IOException | RuntimeException e) {
-                FriendaiMod.LOGGER.warn("Reading a skin failed: {}", e.getMessage());
-                outcome = failed(SkinFetcher.NETWORK);
-            }
-            if (outcome != null) {
-                Outcome result = outcome;
-                Minecraft.getInstance().execute(() -> done.accept(result));
-            }
-        }, "friendai-skin-source");
+        Thread worker = new Thread(
+                () -> {
+                    Outcome outcome;
+                    try {
+                        outcome = job.run();
+                    } catch (UserFacingException e) {
+                        outcome = new Outcome(
+                                null, Component.translatable(e.userMessage().key()));
+                    } catch (IOException | RuntimeException e) {
+                        FriendaiMod.LOGGER.warn("Reading a skin failed: {}", e.getMessage());
+                        outcome = failed(SkinFetcher.NETWORK);
+                    }
+                    if (outcome != null) {
+                        Outcome result = outcome;
+                        Minecraft.getInstance().execute(() -> done.accept(result));
+                    }
+                },
+                "friendai-skin-source");
         worker.setDaemon(true);
         worker.start();
     }
@@ -104,8 +107,10 @@ public final class SkinSources {
      * when the player cancels and throws {@link UserFacingException} when no dialog program exists.
      */
     private static Path chooseFile() throws IOException {
-        String title = Component.translatable("friendai.menu.appearance.dialog_title").getString();
-        String filter = Component.translatable("friendai.menu.appearance.dialog_filter").getString();
+        String title =
+                Component.translatable("friendai.menu.appearance.dialog_title").getString();
+        String filter =
+                Component.translatable("friendai.menu.appearance.dialog_filter").getString();
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         List<List<String>> candidates;
         if (os.contains("win")) {
