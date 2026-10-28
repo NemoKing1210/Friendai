@@ -62,13 +62,17 @@ final class GameTestSupport {
         }
     }
 
-    /** A stone floor at y=1 with clear air above it, {@code size} blocks on each side. */
+    /**
+     * A stone floor at y=1 with clear air above it, {@code size} blocks on each side. The clear band reaches y=8
+     * because the GameTest framework caps the default arena with a barrier layer there; a tree that grows through it
+     * would otherwise climb into a wall.
+     */
     static void platform(GameTestHelper h, int size) {
         keepLoaded(h, -4, -4, size + 4, size + 4);
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
                 h.setBlock(x, 1, z, Blocks.STONE);
-                for (int y = 2; y <= 6; y++) {
+                for (int y = 2; y <= 8; y++) {
                     h.setBlock(x, y, z, Blocks.AIR);
                 }
             }

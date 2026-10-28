@@ -58,6 +58,8 @@ public final class Scaffold {
     private List<BlockPos> removal;
     private int removalIndex;
     private BlockBreaker breaker;
+    /** The block being taken out from under the feet, one step at a time. */
+    private BlockBreaker descentBreaker;
 
     public Scaffold(CompanionEntity companion) {
         this.companion = companion;
@@ -97,6 +99,18 @@ public final class Scaffold {
 
     public boolean canScaffold(TaskContext context) {
         return canScaffold() || context.canUseCreativeAction(CreativeAction.FREE_MATERIALS);
+    }
+
+    /**
+     * How many more scaffold blocks the companion can spend: the surplus dirt plus the surplus cobblestone, or an
+     * effectively unlimited number when the run may use creative materials. A task that only checks
+     * {@link #canScaffold()} starts a ten-block climb with one block in the bag and fails halfway.
+     */
+    public int available(TaskContext context) {
+        if (context.canUseCreativeAction(CreativeAction.FREE_MATERIALS)) {
+            return Integer.MAX_VALUE / 4;
+        }
+        return surplus(Items.DIRT) + surplus(Items.COBBLESTONE);
     }
 
     /** The blocks this scaffold placed and that are expected to be removed again. */
@@ -188,10 +202,18 @@ public final class Scaffold {
      * column is blocked, a block has no support face or the inventory has no scaffolding left.
      */
     public State pillarTo(int y) {
-        return pillarTo(new TaskContext(companion, level()), y);
+        return pillarTo(new TaskContext(companion, level()), y, MAX_PILLAR);
     }
 
     public State pillarTo(TaskContext context, int y) {
+        return pillarTo(context, y, MAX_PILLAR);
+    }
+
+    /**
+     * Climbs to {@code y} with at most {@code maxPillar} blocks above where the climb started. The tree skill passes
+     * its own cap: a tall tree is the one case where more than {@link #MAX_PILLAR} is worth the material.
+     */
+    public State pillarTo(TaskContext context, int y, int maxPillar) {
         failure = "";
         ServerLevel level = level();
         if (pillarPhase == Pillar.JUMPING) {
@@ -242,8 +264,8 @@ public final class Scaffold {
             climbZ = feet.getZ();
             climbBaseY = feet.getY();
         }
-        if (y - climbBaseY > MAX_PILLAR) {
-            failure = "a scaffold taller than " + MAX_PILLAR + " blocks isn't possible";
+        if (y - climbBaseY > maxPillar) {
+            failure = "a scaffold taller than " + maxPillar + " blocks isn't possible";
             return State.FAILED;
         }
         BlockPos up = feet.above();
@@ -265,6 +287,75 @@ public final class Scaffold {
         companion.getNavigation().stop();
         companion.getJumpControl().jump();
         return State.CLIMBING;
+    }
+
+    /**
+     * Descends by taking the recorded column apart under its feet: the block under the feet is broken, the companion
+     * falls a single block onto the next, and the loop repeats until the feet reach {@code feetY} or the block below
+     * is no longer this scaffold's. It never breaks the last support into a longer fall; a missing landing is a
+     * failure, not a drop.
+     */
+    public State descendTo(TaskContext context, int feetY) {
+        return descend(context, feetY);
+    }
+
+    /** Takes the whole remaining column down under the feet, however far the ground is. */
+    public State takeDown(TaskContext context) {
+        return descend(context, Integer.MIN_VALUE);
+    }
+
+    private State descend(TaskContext context, int feetY) {
+        failure = "";
+        ServerLevel level = level();
+        if (descentBreaker != null) {
+            switch (descentBreaker.tick(context)) {
+                case WORKING -> {
+                    return State.CLIMBING;
+                }
+                case BROKEN, GONE -> {
+                    descentBreaker = null;
+                    return State.CLIMBING;
+                }
+                case UNREACHABLE -> {
+                    descentBreaker = null;
+                    failure = "couldn't reach the scaffold under my feet";
+                    return State.FAILED;
+                }
+                case PROTECTED -> {
+                    descentBreaker = null;
+                    failure = "the scaffold under my feet is protected";
+                    return State.FAILED;
+                }
+                case OUT_OF_SIGHT -> {
+                    descentBreaker = null;
+                    return State.CLIMBING;
+                }
+            }
+        }
+        if (companion.blockPosition().getY() <= feetY) {
+            return State.READY;
+        }
+        if (!companion.onGround()) {
+            return State.CLIMBING;
+        }
+        BlockPos support = companion.blockPosition().below();
+        if (!stillScaffold(level, support)) {
+            return State.READY;
+        }
+        BlockPos landing = support.below();
+        boolean grounded = level.hasChunkAt(landing)
+                && (!level.getBlockState(landing).getCollisionShape(level, landing).isEmpty()
+                        || stillScaffold(level, landing));
+        if (!grounded) {
+            failure = "there is nothing to land on under the scaffold at " + coords(support);
+            return State.FAILED;
+        }
+        descentBreaker = new BlockBreaker(support, state -> stillScaffold(level, support), false, true);
+        return State.CLIMBING;
+    }
+
+    private boolean stillScaffold(ServerLevel level, BlockPos pos) {
+        return placed.contains(pos) && level.hasChunkAt(pos) && isScaffold(level.getBlockState(pos));
     }
 
     private void resetPillar() {
@@ -353,6 +444,10 @@ public final class Scaffold {
         if (breaker != null) {
             breaker.stop(new TaskContext(companion, level()));
             breaker = null;
+        }
+        if (descentBreaker != null) {
+            descentBreaker.stop(new TaskContext(companion, level()));
+            descentBreaker = null;
         }
         climbing = false;
         resetPillar();

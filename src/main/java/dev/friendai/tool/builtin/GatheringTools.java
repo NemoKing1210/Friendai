@@ -43,13 +43,15 @@ final class GatheringTools {
                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
                 .integer("z", "Block z coordinate to search around instead of near", -30000000, 30000000)
                 .integer("radius", "Search radius in blocks", 4, 64)
-                .integer("limit", "Cut at most this many logs and stop; omit to fell the whole tree", 1, 256)
+                .integer("limit", "Cut at most this many logs, from the top down, and stop; the trunk stays. "
+                        + "Omit to fell the whole tree", 1, 256)
                 .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
                 .build();
-        String fellDescription = "Fell one whole tree from the lowest log up and collect the logs. Picks the "
-                + "nearest real tree (leaves, or the leftovers of one) around the speaker or yourself; if no tree "
-                + "is in view it looks around for a bounded time and starts when one is seen. A log structure such "
-                + "as a cabin is never felled unless its block id is named. Use find_trees when the choice matters.";
+        String fellDescription = "Fell one whole tree: climb beside the trunk once and cut from the crown down, so "
+                + "the logs and drops fall to the foot where they are collected. Picks the nearest real tree "
+                + "(leaves, or the leftovers of one) around the speaker or yourself; if no tree is in view it looks "
+                + "around for a bounded time and starts when one is seen. A log structure such as a cabin is never "
+                + "felled unless its block id is named. Use find_trees when the choice matters.";
         ToolKit.addCaller(registry, defs,
                 new TaskToolDef("fell_tree", fellDescription, fellSchema,
                         (c, a) -> createFellTask(c, new Caller(null, "", AccessLevel.TRUSTED), a, treeRadius), true,

@@ -69,7 +69,11 @@ public class TreeFellingTests {
     }
 
     private static TaskRunner start(CompanionEntity c, Result result, FellTreeTask task) {
-        TaskRunner runner = new TaskRunner(c, () -> 300, () -> false);
+        return start(c, result, task, 300);
+    }
+
+    private static TaskRunner start(CompanionEntity c, Result result, FellTreeTask task, int timeoutSec) {
+        TaskRunner runner = new TaskRunner(c, () -> timeoutSec, () -> false);
         runner.setListener(result);
         runner.start(task, "fell_tree");
         return runner;
@@ -77,6 +81,67 @@ public class TreeFellingTests {
 
     private static BlockMatcher oak() {
         return BlockMatcher.parse("minecraft:oak_log").orElseThrow();
+    }
+
+    /** Counts dirt in the arena: the only dirt there is scaffold this task placed. */
+    private static int dirtLeft(GameTestHelper h) {
+        int left = 0;
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 2; y <= 30; y++) {
+                    if (h.getBlockState(new BlockPos(x, y, z)).is(Blocks.DIRT)) {
+                        left++;
+                    }
+                }
+            }
+        }
+        return left;
+    }
+
+    @GameTest(maxTicks = 7000)
+    public void tallDarkOakFallsFromTheCrown(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        java.util.List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 21; y++) {
+            for (int x = 8; x <= 9; x++) {
+                for (int z = 8; z <= 9; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    h.setBlock(p, Blocks.DARK_OAK_LOG);
+                    logs.add(p);
+                }
+            }
+        }
+        for (int x = 6; x <= 11; x++) {
+            for (int z = 6; z <= 11; z++) {
+                BlockPos p = new BlockPos(x, 22, z);
+                if (h.getBlockState(p).isAir()) {
+                    h.setBlock(p, Blocks.DARK_OAK_LEAVES.defaultBlockState()
+                            .setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
+        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo("dark_oak_log", absolute, absolute.get(0), 20,
+                TreeFinder.Kind.STANDING_TREE, 8.0, "south-east");
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(tree,
+                BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, true), 300);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p);
+            }
+            h.assertTrue(result.summary.contains("80 of 80"), "summary " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.DARK_OAK_LOG), 80, "drops");
+            h.assertValueEqual(dirtLeft(h), 0, "scaffold left in the world");
+            h.assertTrue(c.blockPosition().getY() <= h.absolutePos(new BlockPos(0, 3, 0)).getY(),
+                    "ended on the ground: " + c.blockPosition() + " origin " + h.absolutePos(BlockPos.ZERO)
+                            + " below " + h.getLevel().getBlockState(c.blockPosition().below()));
+        });
     }
 
     @GameTest(maxTicks = 1600)
@@ -113,7 +178,7 @@ public class TreeFellingTests {
         leaf(h, 12, 10, 11);
         leaf(h, 12, 10, 13);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
-        c.inventory().addItem(new ItemStack(Items.OAK_LOG, 8));
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
         TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 12, 12), oak(), 0, false));
         h.succeedWhen(() -> {
@@ -131,31 +196,26 @@ public class TreeFellingTests {
             }
             h.assertTrue(left.isEmpty(),
                     "oak logs left at:" + left + "; summary " + result.summary);
+            h.assertValueEqual(dirtLeft(h), 0, "scaffold left in the world; summary " + result.summary);
         });
     }
 
     @GameTest(maxTicks = 4000)
-    public void startsAtTheLowestLog(GameTestHelper h) {
+    public void startsAtTheTopLog(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         for (int y = 2; y <= 10; y++) {
             h.setBlock(new BlockPos(8, y, 8), Blocks.OAK_LOG);
         }
         leaf(h, 7, 10, 8);
-        for (int x = 5; x <= 7; x++) {
-            for (int z = 5; z <= 9; z++) {
-                h.setBlock(new BlockPos(x, 8, z), Blocks.STONE);
-            }
-        }
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 9, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
-        c.inventory().addItem(new ItemStack(Items.BREAD, 4));
         Result result = new Result();
         TaskRunner runner = start(c, result, new FellTreeTask(treeAt(h, 8, 8), oak(), 1, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 8)).isAir(), "the bottom log must be the one cut");
-            h.assertTrue(h.getBlockState(new BlockPos(8, 10, 8)).is(Blocks.OAK_LOG), "the top log must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(8, 10, 8)).isAir(), "the top log must be the one cut");
+            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 8)).is(Blocks.OAK_LOG), "the bottom log must stay");
         });
     }
 
@@ -172,9 +232,9 @@ public class TreeFellingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the first log must be cut");
-            h.assertTrue(h.getBlockState(new BlockPos(6, 3, 6)).isAir(), "the second log must be cut");
-            h.assertTrue(h.getBlockState(new BlockPos(6, 4, 6)).is(Blocks.OAK_LOG), "the rest must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 6, 6)).isAir(), "the top log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).isAir(), "the second log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).is(Blocks.OAK_LOG), "the rest must stay");
             h.assertTrue(result.summary.contains("(limit)"), "summary " + result.summary);
         });
     }
@@ -211,7 +271,7 @@ public class TreeFellingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("could not be reached"), "summary " + result.summary);
+            h.assertTrue(result.summary.contains("protected"), "summary " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).is(Blocks.OAK_LOG), "the protected log must stay");
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the reachable logs must be cut");
         });
@@ -429,32 +489,23 @@ public class TreeFellingTests {
     @GameTest(maxTicks = 1600)
     public void acaciaTreeIsFelledCompletely(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        int[][] logs = {{6, 2, 6}, {6, 3, 6}, {7, 3, 6}, {7, 4, 6}, {5, 3, 6}, {5, 4, 6}};
-        for (int[] p : logs) h.setBlock(new BlockPos(p[0], p[1], p[2]), Blocks.ACACIA_LOG);
-        for (int x = 4; x <= 8; x++) {
-            for (int z = 5; z <= 7; z++) {
-                BlockPos leaf = new BlockPos(x, 5, z);
-                if (h.getBlockState(leaf).isAir()) {
-                    h.setBlock(leaf, Blocks.ACACIA_LEAVES.defaultBlockState()
-                            .setValue(LeavesBlock.PERSISTENT, true));
-                }
-            }
+        int[][] logs = {{6, 2, 9}, {6, 3, 9}, {7, 3, 9}, {7, 4, 9}, {5, 3, 9}, {5, 4, 9}};
+        List<BlockPos> cells = new java.util.ArrayList<>();
+        for (int[] p : logs) {
+            h.setBlock(new BlockPos(p[0], p[1], p[2]), Blocks.ACACIA_LOG);
+            cells.add(new BlockPos(p[0], p[1], p[2]));
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
-                "acacia base should be directly visible");
-        var tools = FriendaiTools.create(() -> 32).bind(c);
-        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
-        boolean[] started = {false};
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(info(h, cells, "acacia_log", 3),
+                BlockMatcher.parse("minecraft:acacia_log").orElseThrow(), 0, true), 300);
         h.succeedWhen(() -> {
-            if (!started[0]) {
-                started[0] = true;
-                ToolResult result = run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":16}");
-                h.assertTrue(!result.error(), result.content());
-            }
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             for (int[] p : logs) {
                 h.assertTrue(h.getBlockState(new BlockPos(p[0], p[1], p[2])).isAir(),
-                        "log left at " + p[0] + "," + p[1] + "," + p[2]);
+                        "log left at " + p[0] + "," + p[1] + "," + p[2] + "; " + result.summary);
             }
             h.assertValueEqual(c.inventory().countItem(Items.ACACIA_LOG), 6, "acacia drops");
         });
@@ -475,4 +526,131 @@ public class TreeFellingTests {
             h.assertTrue(result.content().contains("acacia_log"), result.content());
         });
     }
+
+    private static TreeFinder.TreeInfo info(GameTestHelper h, List<BlockPos> logs, String type, int height) {
+        List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
+        return new TreeFinder.TreeInfo(type, absolute, absolute.get(0), height, TreeFinder.Kind.STANDING_TREE,
+                8.0, "south-east");
+    }
+
+    @GameTest(maxTicks = 5000)
+    public void branchingJungleGiantFallsFromTheCrown(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 17; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.JUNGLE_LOG);
+            logs.add(new BlockPos(6, y, 6));
+        }
+        h.setBlock(new BlockPos(5, 14, 6), Blocks.JUNGLE_LOG);
+        logs.add(new BlockPos(5, 14, 6));
+        h.setBlock(new BlockPos(7, 13, 6), Blocks.JUNGLE_LOG);
+        logs.add(new BlockPos(7, 13, 6));
+        for (int x = 4; x <= 8; x++) {
+            for (int z = 4; z <= 8; z++) {
+                for (int y = 15; y <= 18; y++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    if (h.getBlockState(p).isAir()) {
+                        h.setBlock(p, Blocks.JUNGLE_LEAVES.defaultBlockState()
+                                .setValue(LeavesBlock.PERSISTENT, true));
+                    }
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 32));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(info(h, logs, "jungle_log", 16),
+                BlockMatcher.parse("minecraft:jungle_log").orElseThrow(), 0, true), 300);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; summary " + result.summary);
+            }
+            h.assertValueEqual(c.inventory().countItem(Items.JUNGLE_LOG), logs.size(), "drops");
+            h.assertValueEqual(dirtLeft(h), 0, "scaffold left in the world");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void refusesATreeTallerThanItsScaffold(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 40; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+            logs.add(new BlockPos(6, y, 6));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        TaskRunner runner = new TaskRunner(c, () -> 60, () -> false);
+        runner.setListener(result);
+        runner.start(new FellTreeTask(info(h, logs, "oak_log", 39), oak(), 0, false), "fell_tree");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("more than the 32"), "summary " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 40, 6)).is(Blocks.OAK_LOG), "nothing may be cut");
+            h.assertValueEqual(dirtLeft(h), 0, "a refused climb must not place a block");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void refusesWithoutScaffoldMaterial(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 20; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+            logs.add(new BlockPos(6, y, 6));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        TaskRunner runner = new TaskRunner(c, () -> 60, () -> false);
+        runner.setListener(result);
+        runner.start(new FellTreeTask(info(h, logs, "oak_log", 19), oak(), 0, false), "fell_tree");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("dirt or cobblestone"), "summary " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 20, 6)).is(Blocks.OAK_LOG), "nothing may be cut");
+            h.assertValueEqual(dirtLeft(h), 0, "an empty bag must not place a block");
+        });
+    }
+
+    @GameTest(maxTicks = 6000)
+    public void cancelledFellingTakesItsScaffoldDown(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 13; y++) {
+            for (int x = 8; x <= 9; x++) {
+                for (int z = 8; z <= 9; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    h.setBlock(p, Blocks.DARK_OAK_LOG);
+                    logs.add(p);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        TaskRunner runner = start(c, result, new FellTreeTask(info(h, logs, "dark_oak_log", 12),
+                BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, false), 300);
+        boolean[] cancelled = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!cancelled[0] && dirtLeft(h) >= 3) {
+                runner.stop("test cancel");
+                cancelled[0] = true;
+            }
+            if (!cancelled[0]) {
+                h.assertTrue(false, "waiting for the climb to start");
+            }
+            h.assertValueEqual(dirtLeft(h), 0, "a cancelled felling left its column in the world");
+        });
+    }
+
 }
