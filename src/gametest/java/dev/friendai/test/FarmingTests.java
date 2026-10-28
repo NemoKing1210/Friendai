@@ -743,16 +743,16 @@ public class FarmingTests {
         BlockPos center = h.absolutePos(new BlockPos(5, 2, 4));
         String json =
                 "{\"radius\":4,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}";
-        dev.friendai.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32)
+        dev.friendai.execution.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32)
                 .bind(c)
                 .execute(
-                        new dev.friendai.llm.model.ToolCall(
+                        new dev.friendai.agent.llm.model.ToolCall(
                                 "1",
                                 "plan_farm",
                                 com.google.gson.JsonParser.parseString(json).getAsJsonObject(),
                                 json,
                                 null),
-                        dev.friendai.tool.AccessLevel.OWNER);
+                        dev.friendai.execution.tool.AccessLevel.OWNER);
         h.assertTrue(!r.error() && r.content().contains("harvest"), "result was " + r.content());
         h.assertValueEqual(age(h, 5, 2, 4), 7, "crop still ripe");
         h.assertValueEqual(c.inventory().countItem(Items.WHEAT_SEEDS), 3, "inventory unchanged");

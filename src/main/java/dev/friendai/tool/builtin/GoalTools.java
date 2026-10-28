@@ -10,11 +10,11 @@ import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.queue.Guard;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
+import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -98,8 +98,10 @@ final class GoalTools {
                                         owner,
                                         "goal:" + result.value().id(),
                                         args.get("done").getAsBoolean()
-                                                ? dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
-                                                : dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,
+                                                ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind
+                                                        .GOAL_SUCCESS
+                                                : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind
+                                                        .GOAL_FAILURE,
                                         result.value().text());
                     }
                     return result.ok() ? describe("finished", result.value()) : ToolResult.error(result.error());

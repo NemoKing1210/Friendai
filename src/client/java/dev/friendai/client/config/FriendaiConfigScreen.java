@@ -1,6 +1,10 @@
 package dev.friendai.client.config;
 
-import dev.friendai.brain.ErrorMessages;
+import dev.friendai.agent.llm.provider.AuthStyle;
+import dev.friendai.agent.llm.provider.LlmProfile;
+import dev.friendai.agent.llm.provider.ProviderPreset;
+import dev.friendai.agent.llm.provider.ProviderRegistry;
+import dev.friendai.agent.turn.ErrorMessages;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.tts.SpeechPlayback;
 import dev.friendai.client.tts.SpeechRuntime;
@@ -15,13 +19,9 @@ import dev.friendai.config.ServerConfig;
 import dev.friendai.config.VoiceDraft;
 import dev.friendai.core.Components;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
-import dev.friendai.llm.provider.AuthStyle;
-import dev.friendai.llm.provider.LlmProfile;
-import dev.friendai.llm.provider.ProviderPreset;
-import dev.friendai.llm.provider.ProviderRegistry;
-import dev.friendai.text.UserMessage;
 import dev.friendai.voice.CloudField;
 import dev.friendai.voice.PcmConverter;
 import dev.friendai.voice.VoiceErrors;

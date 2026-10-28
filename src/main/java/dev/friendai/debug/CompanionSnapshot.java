@@ -1,5 +1,7 @@
 package dev.friendai.debug;
 
+import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.foundation.diagnostics.LogEntry;
 import java.util.List;
 
 /**

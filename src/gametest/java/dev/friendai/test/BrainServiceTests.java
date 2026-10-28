@@ -2,24 +2,25 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.brain.BrainEvent;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.Role;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.route.IntentVocabulary;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.Role;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.text.UserMessage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +78,14 @@ public class BrainServiceTests {
 
         @Override
         public void error(UserMessage message) {}
+    }
+
+    @GameTest
+    public void packagedIntentVocabularyLoadsBothLanguages(GameTestHelper h) {
+        IntentVocabulary vocabulary = IntentVocabulary.load();
+        h.assertTrue(vocabulary.startsWithQuestionMarker("what is nearby?", List.of("what")), "English intents loaded");
+        h.assertTrue(vocabulary.startsWithQuestionMarker("что рядом?", List.of("что")), "Russian intents loaded");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 100)

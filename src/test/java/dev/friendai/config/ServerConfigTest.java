@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.llm.provider.LlmProfile;
+import dev.friendai.agent.llm.provider.LlmProfile;
+import dev.friendai.foundation.diagnostics.ConfigException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -234,13 +234,20 @@ tasks.register('verifyModArtifact') {
 	doLast {
 		def artifact = modJarArtifact.get().asFile
 		def requiredEngineClasses = [
-				'dev/friendai/text/UserMessage.class',
-				'dev/friendai/text/UserFacingException.class',
-				'dev/friendai/text/LanguageDetector.class',
-				'dev/friendai/text/LanguageMemory.class'
+				'dev/friendai/foundation/text/UserMessage.class',
+				'dev/friendai/foundation/text/UserFacingException.class',
+				'dev/friendai/foundation/text/LanguageDetector.class',
+				'dev/friendai/foundation/text/LanguageMemory.class',
+				'dev/friendai/foundation/limits/RateLimiter.class',
+				'dev/friendai/execution/queue/JobQueue.class',
+				'dev/friendai/execution/tool/ToolRegistry.class',
+				'dev/friendai/agent/turn/CompanionBrain.class',
+				'dev/friendai/agent/llm/protocol/OpenAiChatProtocol.class'
 		] as Set
+		def requiredEngineResources = ['agent/intents_en.json', 'agent/intents_ru.json'] as Set
 		def engineCopies = []
 		def engineClassEntries = [] as Set
+		def engineResourceEntries = [] as Set
 
 		new java.util.zip.ZipFile(artifact).withCloseable { modArchive ->
 			def metadataEntry = modArchive.getEntry('fabric.mod.json')
@@ -258,17 +265,23 @@ tasks.register('verifyModArtifact') {
 					throw new GradleException("Nested jar metadata points to a missing entry: ${nestedPath}")
 				}
 				def foundClasses = [] as Set
+				def foundResources = [] as Set
 				new java.util.jar.JarInputStream(modArchive.getInputStream(nestedEntry)).withCloseable { nested ->
 					java.util.jar.JarEntry entry
 					while ((entry = nested.nextJarEntry) != null) {
-						if (!entry.isDirectory() && entry.name.endsWith('.class')) {
-							foundClasses.add(entry.name)
+						if (!entry.isDirectory()) {
+							if (entry.name.endsWith('.class')) {
+								foundClasses.add(entry.name)
+							} else {
+								foundResources.add(entry.name)
+							}
 						}
 					}
 				}
 				if (!requiredEngineClasses.intersect(foundClasses).isEmpty()) {
 					engineCopies.add(nestedPath)
 					engineClassEntries = foundClasses
+					engineResourceEntries = foundResources
 				}
 			}
 			if (engineCopies.size() != 1) {
@@ -277,6 +290,10 @@ tasks.register('verifyModArtifact') {
 			def duplicateClasses = engineClassEntries.findAll { modArchive.getEntry(it) != null }
 			if (!duplicateClasses.isEmpty()) {
 				throw new GradleException("Engine classes are duplicated in the outer mod jar: ${duplicateClasses}")
+			}
+			def missingEngineResources = requiredEngineResources - engineResourceEntries
+			if (!missingEngineResources.isEmpty()) {
+				throw new GradleException("Engine artifact is missing required resources: ${missingEngineResources}")
 			}
 		}
 
@@ -312,8 +329,10 @@ tasks.register('verifyModArtifact') {
 
 		def runtimeUrls = productionRuntime.files.collect { it.toURI().toURL() } as URL[]
 		new java.net.URLClassLoader(runtimeUrls, null).withCloseable { resourceLoader ->
-			if (resourceLoader.getResource('agent/intents_en.json') == null) {
-				throw new GradleException('Production resource lookup failed for agent/intents_en.json')
+			requiredEngineResources.each { resource ->
+				if (resourceLoader.getResource(resource) == null) {
+					throw new GradleException("Production resource lookup failed for ${resource}")
+				}
 			}
 		}
 	}

@@ -2,21 +2,21 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.goal.GoalStatus;
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.LogEntry;
-import dev.friendai.debug.LogKind;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.Usage;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -52,7 +52,7 @@ public class RecoveryTests {
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
-        brains.post(player.getUUID(), new dev.friendai.brain.BrainEvent.WorldNotice("test"));
+        brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
         ToolResult r = call(c, owner, "queue_add", FAILING_PLAN);
@@ -77,7 +77,7 @@ public class RecoveryTests {
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
-        brains.post(player.getUUID(), new dev.friendai.brain.BrainEvent.WorldNotice("test"));
+        brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
         h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "queue_add");

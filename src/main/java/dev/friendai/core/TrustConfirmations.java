@@ -1,6 +1,6 @@
 package dev.friendai.core;
 
-import dev.friendai.brain.BrainEvent;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.chat.ConfirmationMatcher;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionManager;

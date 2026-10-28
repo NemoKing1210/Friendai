@@ -6,7 +6,7 @@ import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.ClientKeys;
 import dev.friendai.config.ClientConfig;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
 import dev.friendai.voice.VoiceErrors;
 import java.util.function.Consumer;

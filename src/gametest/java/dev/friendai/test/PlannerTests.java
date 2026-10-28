@@ -3,19 +3,19 @@ package dev.friendai.test;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanProposal;
-import dev.friendai.brain.BrainEvent;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.Usage;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -34,7 +34,7 @@ public class PlannerTests {
     private static final String IN_PLACE = "I could not work out a plan; I will stay here.";
 
     /** Records what the companion says, as the player would hear it. */
-    private static final class Said implements dev.friendai.brain.Speaker {
+    private static final class Said implements dev.friendai.agent.turn.Speaker {
         final List<String> said = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
         @Override
@@ -46,7 +46,7 @@ public class PlannerTests {
         public void thinking(boolean on) {}
 
         @Override
-        public void error(dev.friendai.text.UserMessage message) {}
+        public void error(dev.friendai.foundation.text.UserMessage message) {}
     }
 
     private static ToolResult call(CompanionEntity c, Caller caller, String name, String json) {
@@ -62,10 +62,18 @@ public class PlannerTests {
             JsonObject step = new JsonObject();
             step.addProperty("tool", "jump");
             steps.add(step);
-            var action = new dev.friendai.queue.QueuedStep(
-                    "jump", new JsonObject(), null, List.of(), dev.friendai.queue.GuardAction.WAIT, null, 1, List.of());
+            var action = new dev.friendai.execution.queue.QueuedStep(
+                    "jump",
+                    new JsonObject(),
+                    null,
+                    List.of(),
+                    dev.friendai.execution.queue.GuardAction.WAIT,
+                    null,
+                    1,
+                    List.of());
             return CompletableFuture.completedFuture(new PlanProposal(
-                    new dev.friendai.queue.PlanDefinition(List.of(new dev.friendai.queue.PlanNode.Action(action))),
+                    new dev.friendai.execution.queue.PlanDefinition(
+                            List.of(new dev.friendai.execution.queue.PlanNode.Action(action))),
                     steps,
                     "hop first",
                     "it hopped"));
@@ -119,11 +127,11 @@ public class PlannerTests {
         brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
             requests.incrementAndGet();
             seen.add(messages.get(messages.size() - 1).text());
-            return CompletableFuture.completedFuture(new dev.friendai.llm.model.LlmResponse(
+            return CompletableFuture.completedFuture(new dev.friendai.agent.llm.model.LlmResponse(
                     "[silent]",
                     List.of(),
-                    dev.friendai.llm.model.StopReason.END,
-                    new dev.friendai.llm.model.Usage(0, 0)));
+                    dev.friendai.agent.llm.model.StopReason.END,
+                    new dev.friendai.agent.llm.model.Usage(0, 0)));
         });
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
@@ -173,7 +181,7 @@ public class PlannerTests {
             h.assertTrue(
                     c.executionCoordinator().queue().plan(firstPlan).isEmpty()
                             || c.executionCoordinator().queue().jobsOfPlan(firstPlan).stream()
-                                    .allMatch(j -> dev.friendai.queue.JobQueue.terminal(j)),
+                                    .allMatch(j -> dev.friendai.execution.queue.JobQueue.terminal(j)),
                     "the old plan no longer runs");
         });
     }
@@ -247,7 +255,8 @@ public class PlannerTests {
             var queue = c.executionCoordinator().queue();
             var remainingPlan = queue.plan(planId).orElse(null);
             h.assertTrue(
-                    remainingPlan != null && queue.planStatus(planId) == dev.friendai.queue.PlanStatus.NEEDS_DECISION,
+                    remainingPlan != null
+                            && queue.planStatus(planId) == dev.friendai.execution.queue.PlanStatus.NEEDS_DECISION,
                     "the failed plan is waiting for a decision: plan=" + remainingPlan);
             h.assertTrue(
                     remainingPlan != null
@@ -258,7 +267,7 @@ public class PlannerTests {
                             && remainingPlan.cursor().stack().getLast().nextIndex() == 1
                             && remainingPlan.definition().nodes().size() == 2
                             && remainingPlan.definition().nodes().get(1)
-                                    instanceof dev.friendai.queue.PlanNode.Action action
+                                    instanceof dev.friendai.execution.queue.PlanNode.Action action
                             && action.step().tool().equals("jump"),
                     "the structured plan continuation for jump was lost: " + remainingPlan);
         });

@@ -2,7 +2,7 @@ package dev.friendai.menu;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.tool.InventoryAccess;
+import dev.friendai.execution.tool.InventoryAccess;
 import java.util.Objects;
 import java.util.OptionalInt;
 import net.fabricmc.fabric.api.menu.v1.ExtendedMenuProvider;

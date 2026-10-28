@@ -1,11 +1,11 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.task.builtin.AnvilItemTask;
 import dev.friendai.task.builtin.EnchantItemTask;
 import dev.friendai.task.builtin.GrindstoneItemTask;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
 import java.util.List;
 
 /** Skills that spend the companion's experience levels at vanilla menu blocks. */

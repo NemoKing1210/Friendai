@@ -1,13 +1,13 @@
 package dev.friendai.test;
 
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
 import dev.friendai.net.VoiceTranscriptHandler;
 import java.util.ArrayList;
 import java.util.Collections;

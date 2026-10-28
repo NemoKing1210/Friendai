@@ -165,10 +165,12 @@ public class PerceptionTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
                 "wall should be directly visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
-        var call =
-                new dev.friendai.llm.model.ToolCall("1", "survey_area", new com.google.gson.JsonObject(), "{}", null);
+        var call = new dev.friendai.agent.llm.model.ToolCall(
+                "1", "survey_area", new com.google.gson.JsonObject(), "{}", null);
         var result = tools.execute(
-                call, new dev.friendai.tool.Caller(owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                call,
+                new dev.friendai.execution.tool.Caller(
+                        owner.getUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("@"), result.content());
         h.assertTrue(result.content().contains("#"), result.content());

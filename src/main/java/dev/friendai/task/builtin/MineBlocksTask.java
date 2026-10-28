@@ -221,7 +221,8 @@ public final class MineBlocksTask implements Task {
                 summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
                 c.owner()
                         .ifPresent(player -> player.sendSystemMessage(
-                                Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")),
+                                Components.of(
+                                        dev.friendai.foundation.text.UserMessage.of("friendai.mining.inventory_full")),
                                 true));
                 return TaskStatus.FAILED;
             }
@@ -410,7 +411,8 @@ public final class MineBlocksTask implements Task {
                     summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
                     c.owner()
                             .ifPresent(player -> player.sendSystemMessage(
-                                    Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")),
+                                    Components.of(dev.friendai.foundation.text.UserMessage.of(
+                                            "friendai.mining.inventory_full")),
                                     true));
                     return TaskStatus.FAILED;
                 }
@@ -434,7 +436,9 @@ public final class MineBlocksTask implements Task {
             summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
             c.owner()
                     .ifPresent(player -> player.sendSystemMessage(
-                            Components.of(dev.friendai.text.UserMessage.of("friendai.mining.inventory_full")), true));
+                            Components.of(
+                                    dev.friendai.foundation.text.UserMessage.of("friendai.mining.inventory_full")),
+                            true));
             return TaskStatus.FAILED;
         }
         breaker = new BlockBreaker(candidates, matcher::test, true, true, !placedOnly, false, placements);
@@ -442,7 +446,7 @@ public final class MineBlocksTask implements Task {
     }
 
     /** The player sees a translated message; the model needs an English sentence it can act on. */
-    private static String failureText(dev.friendai.text.UserMessage failure) {
+    private static String failureText(dev.friendai.foundation.text.UserMessage failure) {
         return switch (failure.key()) {
             case "friendai.mining.no_tool" ->
                 "no suitable tool to collect the block; get the right tool first (obtain_item plans the chain)";

@@ -1,13 +1,13 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.fire.FireTarget;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.builtin.ExtinguishFireTask;
 import dev.friendai.task.fire.FireScan;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
 import java.util.List;
 import java.util.Locale;
 

@@ -2,10 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.perception.PerceptionBuilder;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.QueuedStep;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
@@ -80,7 +80,8 @@ public class HungerTests {
                                     .orElse("none"));
             h.assertTrue(c.executionCoordinator().queue().jobCount() == 1, "the queued job was dropped");
             h.assertTrue(
-                    c.executionCoordinator().queue().jobs().getFirst().state() == dev.friendai.queue.JobState.RUNNING,
+                    c.executionCoordinator().queue().jobs().getFirst().state()
+                            == dev.friendai.execution.queue.JobState.RUNNING,
                     "the queued job did not return to RUNNING");
         });
     }

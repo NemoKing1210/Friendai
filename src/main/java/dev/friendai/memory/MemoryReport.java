@@ -1,6 +1,6 @@
 package dev.friendai.memory;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

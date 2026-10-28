@@ -1,19 +1,19 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FellTreeTask;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.TreeFinder;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

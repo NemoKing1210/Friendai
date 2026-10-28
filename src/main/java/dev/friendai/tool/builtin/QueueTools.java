@@ -7,28 +7,28 @@ import com.google.gson.JsonParser;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.Guard;
-import dev.friendai.queue.PlanCodec;
-import dev.friendai.queue.PlanDefinition;
-import dev.friendai.queue.PlanNode;
-import dev.friendai.queue.PlanOptions;
-import dev.friendai.queue.QueueOptimizer;
-import dev.friendai.queue.QueueText;
-import dev.friendai.queue.QueueTradeScope;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.PlanCodec;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueOptimizer;
+import dev.friendai.execution.queue.QueueText;
+import dev.friendai.execution.queue.QueueTradeScope;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.ArgValidator;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.QueueParser;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.ArgValidator;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.QueueParser;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +38,9 @@ import net.minecraft.server.level.ServerLevel;
 
 /** LLM-facing queue operations. */
 final class QueueTools {
-    static final String TRADING_SCOPE_ARG = dev.friendai.queue.QueueTradeScope.ARG;
-    private static final dev.friendai.queue.QueueLimits LIMITS = dev.friendai.queue.QueueLimits.DEFAULTS;
+    static final String TRADING_SCOPE_ARG = dev.friendai.execution.queue.QueueTradeScope.ARG;
+    private static final dev.friendai.execution.queue.QueueLimits LIMITS =
+            dev.friendai.execution.queue.QueueLimits.DEFAULTS;
 
     private QueueTools() {}
 
@@ -258,7 +259,7 @@ final class QueueTools {
                             registerFactories(
                                     c,
                                     c.executionCoordinator().queue().jobsOfPlan(planId).stream()
-                                            .map(dev.friendai.queue.Job::id)
+                                            .map(dev.friendai.execution.queue.Job::id)
                                             .toList(),
                                     allowed,
                                     caller.uuid());
@@ -683,7 +684,7 @@ final class QueueTools {
     }
 
     private static final class JobData {
-        static void validateTool(dev.friendai.queue.Job job, Map<String, TaskToolDef> all, Caller caller) {
+        static void validateTool(dev.friendai.execution.queue.Job job, Map<String, TaskToolDef> all, Caller caller) {
             if (job == null) throw new IllegalArgumentException("unknown job");
             TaskToolDef def = all.get(job.tool());
             if (def == null) throw new IllegalArgumentException("job #" + job.id() + "'s tool is no longer available");

@@ -2,8 +2,8 @@ package dev.friendai.trading;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.trading.TradeProgress.State;
 import java.util.List;
 import java.util.Map;

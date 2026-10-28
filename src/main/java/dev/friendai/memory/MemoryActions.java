@@ -1,7 +1,7 @@
 package dev.friendai.memory;
 
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

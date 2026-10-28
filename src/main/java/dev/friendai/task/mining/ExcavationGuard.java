@@ -1,6 +1,7 @@
 package dev.friendai.task.mining;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.mining.MiningSafety;
 import dev.friendai.pathing.Cell;
@@ -14,7 +15,6 @@ import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.LevelCellView;
 import dev.friendai.task.nav.PathExecutionGuard;
 import dev.friendai.task.nav.Sight;
-import dev.friendai.text.UserMessage;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

@@ -3,6 +3,8 @@ package dev.friendai.test;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.placed.PlacedBlock;
 import dev.friendai.placed.PlacedBook;
 import dev.friendai.placed.PlacedService;
@@ -14,8 +16,6 @@ import dev.friendai.task.builtin.PickupItemsTask;
 import dev.friendai.task.builtin.StoreItemsTask;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -103,7 +103,8 @@ public class PlacedBlockTests {
         Caller ownerCaller = new Caller(owner, "Steve", AccessLevel.OWNER);
         var args = new com.google.gson.JsonObject();
         var listed = tools.execute(
-                new dev.friendai.llm.model.ToolCall("1", "find_placed", args, args.toString(), null), ownerCaller);
+                new dev.friendai.agent.llm.model.ToolCall("1", "find_placed", args, args.toString(), null),
+                ownerCaller);
         h.assertTrue(!listed.error(), "error: " + listed.content());
         h.assertTrue(listed.content().contains("minecraft:oak_log"), listed.content());
         h.assertTrue(listed.content().contains("minecraft:chest"), listed.content());
@@ -114,11 +115,12 @@ public class PlacedBlockTests {
         var near = new com.google.gson.JsonObject();
         near.addProperty("radius", 1);
         var none = tools.execute(
-                new dev.friendai.llm.model.ToolCall("2", "find_placed", near, near.toString(), null), ownerCaller);
+                new dev.friendai.agent.llm.model.ToolCall("2", "find_placed", near, near.toString(), null),
+                ownerCaller);
         h.assertTrue(none.content().equals("no blocks you placed within 1 blocks"), none.content());
 
         var guest = tools.execute(
-                new dev.friendai.llm.model.ToolCall("3", "find_placed", args, args.toString(), null),
+                new dev.friendai.agent.llm.model.ToolCall("3", "find_placed", args, args.toString(), null),
                 new Caller(UUID.randomUUID(), "Gus", AccessLevel.GUEST));
         h.assertTrue(guest.error(), "a guest must not read the owner's placements");
         h.assertTrue(guest.content().contains("not available"), guest.content());

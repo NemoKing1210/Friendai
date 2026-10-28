@@ -1,11 +1,11 @@
 package dev.friendai.server.agent;
 
-import dev.friendai.brain.PerceptionSource;
+import dev.friendai.agent.turn.PerceptionSource;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionContext;
-import dev.friendai.tool.Caller;
 import java.util.function.Supplier;
 
 /** The brain's view of one companion's world, including where the speaker stands and looks. */

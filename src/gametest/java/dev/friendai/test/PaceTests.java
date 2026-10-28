@@ -1,14 +1,14 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

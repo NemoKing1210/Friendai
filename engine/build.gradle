@@ -25,6 +25,9 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
+	api 'com.google.code.gson:gson:2.14.0'
+	api 'org.slf4j:slf4j-api:2.0.17'
+
 	testImplementation "org.junit.jupiter:junit-jupiter:5.11.+"
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

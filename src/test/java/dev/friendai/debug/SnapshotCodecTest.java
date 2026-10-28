@@ -3,6 +3,9 @@ package dev.friendai.debug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;

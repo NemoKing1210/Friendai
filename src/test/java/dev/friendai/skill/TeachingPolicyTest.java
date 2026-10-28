@@ -2,7 +2,8 @@ package dev.friendai.skill;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.friendai.tool.*;
+import dev.friendai.execution.tool.*;
+import dev.friendai.foundation.teaching.TeachingContext;
 import java.nio.file.Path;
 import java.util.*;
 import org.junit.jupiter.api.Test;

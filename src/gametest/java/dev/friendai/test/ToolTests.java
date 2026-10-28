@@ -4,22 +4,22 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.memory.CompanionName;
 import dev.friendai.perception.PerceptionContext;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.combat.Food;
 import dev.friendai.task.cooking.FurnaceJob;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
@@ -481,9 +481,10 @@ public class ToolTests {
 
     @GameTest
     public void guestSeesOnlyLookAround(GameTestHelper h) {
-        List<String> names = FriendaiTools.create(() -> 32).specs(dev.friendai.tool.AccessLevel.GUEST).stream()
-                .map(ToolSpec::name)
-                .toList();
+        List<String> names =
+                FriendaiTools.create(() -> 32).specs(dev.friendai.execution.tool.AccessLevel.GUEST).stream()
+                        .map(ToolSpec::name)
+                        .toList();
         h.assertTrue(names.equals(List.of("look_around")), "names were " + names);
         h.succeed();
     }
@@ -1081,7 +1082,7 @@ public class ToolTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall(
+        var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
                 "describe_block",
                 com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
@@ -1089,16 +1090,16 @@ public class ToolTests {
                 null);
         var result = tools.execute(
                 call,
-                new dev.friendai.tool.Caller(
-                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                new dev.friendai.execution.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("needs a proper tool (you have none)"), result.content());
 
         c.inventory().addItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         var withTool = tools.execute(
                 call,
-                new dev.friendai.tool.Caller(
-                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                new dev.friendai.execution.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(withTool.content().contains("you have iron_pickaxe"), withTool.content());
         h.succeed();
     }
@@ -1110,7 +1111,7 @@ public class ToolTests {
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(4, 2, 4));
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall(
+        var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
                 "describe_block",
                 com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
@@ -1118,8 +1119,8 @@ public class ToolTests {
                 null);
         var result = tools.execute(
                 call,
-                new dev.friendai.tool.Caller(
-                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                new dev.friendai.execution.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("unknown at "), result.content());
         h.succeed();
@@ -1137,7 +1138,7 @@ public class ToolTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall(
+        var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
                 "describe_block",
                 com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
@@ -1145,8 +1146,8 @@ public class ToolTests {
                 null);
         var result = tools.execute(
                 call,
-                new dev.friendai.tool.Caller(
-                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                new dev.friendai.execution.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("you have iron_pickaxe"), result.content());
         h.succeed();
@@ -1161,7 +1162,7 @@ public class ToolTests {
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "bedrock fixture should be visible");
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
-        var call = new dev.friendai.llm.model.ToolCall(
+        var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
                 "describe_block",
                 com.google.gson.JsonParser.parseString(args).getAsJsonObject(),
@@ -1169,8 +1170,8 @@ public class ToolTests {
                 null);
         var result = tools.execute(
                 call,
-                new dev.friendai.tool.Caller(
-                        java.util.UUID.randomUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                new dev.friendai.execution.tool.Caller(
+                        java.util.UUID.randomUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(result.content().contains("cannot be broken"), result.content());
         h.succeed();
     }

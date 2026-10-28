@@ -1,19 +1,19 @@
 package dev.friendai.test;
 
 import com.mojang.authlib.GameProfile;
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.ToolResult;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;

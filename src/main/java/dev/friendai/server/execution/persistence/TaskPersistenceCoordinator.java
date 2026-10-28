@@ -2,12 +2,12 @@ package dev.friendai.server.execution.persistence;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanRecord;
+import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.knowledge.search.SearchLedger;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanRecord;
-import dev.friendai.queue.QueueSave;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;

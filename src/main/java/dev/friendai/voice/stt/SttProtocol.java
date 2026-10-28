@@ -12,7 +12,7 @@ public interface SttProtocol {
     /**
      * Extracts the transcript from the provider answer.
      *
-     * @throws dev.friendai.text.UserFacingException when the answer carries no usable text
+     * @throws dev.friendai.foundation.text.UserFacingException when the answer carries no usable text
      */
     String parse(JsonObject response);
 }

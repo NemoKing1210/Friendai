@@ -1,7 +1,7 @@
 package dev.friendai.place;
 
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.memory.MenuStatus;
-import dev.friendai.text.UserMessage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

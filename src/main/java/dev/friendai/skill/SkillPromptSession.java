@@ -1,12 +1,14 @@
 package dev.friendai.skill;
 
 import dev.friendai.agent.prompt.PromptSection;
-import dev.friendai.brain.Persona;
-import dev.friendai.tool.*;
+import dev.friendai.agent.prompt.SkillPromptSection;
+import dev.friendai.agent.turn.Persona;
+import dev.friendai.agent.turn.SkillTurnSession;
+import dev.friendai.execution.tool.*;
 import java.util.*;
 
 /** One immutable book snapshot with bounded explicit tool activations. */
-public final class SkillPromptSession {
+public final class SkillPromptSession implements SkillTurnSession {
     public static final SkillPromptSession NONE = new SkillPromptSession(List.of(), null, 0, 0);
     private final List<InstructionSkill> snapshot;
     private final SkillContext context;

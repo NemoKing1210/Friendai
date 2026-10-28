@@ -1,6 +1,6 @@
 package dev.friendai.core;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import net.minecraft.network.chat.Component;
 
 public final class Components {

@@ -1,20 +1,20 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
-import dev.friendai.brain.BrainEvent;
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.Usage;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ public class GoalTickTests {
 
         @Override
         public CompletableFuture<LlmResponse> complete(
-                String system, List<Message> messages, List<dev.friendai.llm.model.ToolSpec> tools) {
+                String system, List<Message> messages, List<dev.friendai.agent.llm.model.ToolSpec> tools) {
             messages.forEach(m -> userLines.add(m.text()));
             return CompletableFuture.completedFuture(
                     new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));

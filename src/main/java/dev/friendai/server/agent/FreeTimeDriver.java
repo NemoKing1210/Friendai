@@ -24,18 +24,18 @@ import dev.friendai.agent.autonomy.ShiftBudget;
 import dev.friendai.agent.autonomy.ShiftInputs;
 import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
-import dev.friendai.brain.AgentSettings.Autonomy;
+import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.place.PlaceStore;
-import dev.friendai.queue.JobQueue;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.text.UserMessage;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.TaskToolDef;
 import java.util.HashMap;
@@ -267,7 +267,7 @@ public final class FreeTimeDriver {
         }
         if (companion.executionCoordinator().queue().plan(planId).isPresent()
                 && companion.executionCoordinator().queue().planStatus(planId)
-                        != dev.friendai.queue.PlanStatus.ACTIVE) {
+                        != dev.friendai.execution.queue.PlanStatus.ACTIVE) {
             // a stuck plan: free time does not wait for a decision, it gives up on the shift
             released.add(planId);
             companion.executionCoordinator().cancelPlan(planId, "free time gave up");
@@ -300,8 +300,8 @@ public final class FreeTimeDriver {
                 owner,
                 "shift:" + planId,
                 success
-                        ? dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_SUCCESS
-                        : dev.friendai.skill.TeachingContext.OutcomeKind.SHIFT_FAILURE,
+                        ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.SHIFT_SUCCESS
+                        : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.SHIFT_FAILURE,
                 summary);
         outcome.cooldownUntil().ifPresent(until -> service().cooldown(owner, shift.need(), until));
         if (success) {
@@ -562,7 +562,7 @@ public final class FreeTimeDriver {
         budget(owner).record(nowMillis);
         brains.post(
                 owner,
-                new dev.friendai.brain.BrainEvent.FreeTimeShift(
+                new dev.friendai.agent.turn.BrainEvent.FreeTimeShift(
                         agenda,
                         ProgressionLadder.evaluate(f).line(),
                         FreeTimeText.recent(state),
@@ -696,7 +696,7 @@ public final class FreeTimeDriver {
                 digest.toString(),
                 dev.friendai.place.PlaceText.planner(
                         cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
-                Optional.of(dev.friendai.queue.QueueText.show(
+                Optional.of(dev.friendai.execution.queue.QueueText.show(
                         companion.executionCoordinator().queue(), guard, null, 20, false)),
                 state.lessons(),
                 "",

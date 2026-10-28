@@ -2,8 +2,8 @@ package dev.friendai.voice;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.text.UserFacingException;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserFacingException;
+import dev.friendai.foundation.text.UserMessage;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;

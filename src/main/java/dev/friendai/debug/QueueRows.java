@@ -1,13 +1,13 @@
 package dev.friendai.debug;
 
-import dev.friendai.queue.GuardFacts;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanStatus;
-import dev.friendai.queue.QueuePolicy;
-import dev.friendai.queue.QueueSnapshot;
-import dev.friendai.queue.QueueText;
+import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanStatus;
+import dev.friendai.execution.queue.QueuePolicy;
+import dev.friendai.execution.queue.QueueSnapshot;
+import dev.friendai.execution.queue.QueueText;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

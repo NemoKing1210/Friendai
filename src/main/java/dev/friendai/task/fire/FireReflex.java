@@ -3,9 +3,9 @@ package dev.friendai.task.fire;
 import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.fire.FireTarget;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.builtin.ExtinguishFireTask;
-import dev.friendai.text.UserMessage;
 import java.util.Optional;
 import net.minecraft.server.level.ServerPlayer;
 

@@ -2,12 +2,12 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.task.builtin.ClearAreaTask;
 import dev.friendai.task.builtin.LightAreaTask;
 import dev.friendai.task.builtin.PlaceBlockTask;
 import dev.friendai.task.builtin.UseBlockTask;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

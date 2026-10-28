@@ -5,26 +5,30 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.brain.AccessResolver;
-import dev.friendai.brain.BrainEvent;
-import dev.friendai.brain.BrainSettings;
-import dev.friendai.brain.CompanionBrain;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.brain.Persona;
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.turn.AccessResolver;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.BrainSettings;
+import dev.friendai.agent.turn.CompanionBrain;
+import dev.friendai.agent.turn.DebugLogObserver;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.Persona;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.chat.CompanionSpeaker;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.OutcomeFacts;
 import dev.friendai.core.SkillService;
-import dev.friendai.debug.DebugLog;
-import dev.friendai.debug.DebugLogObserver;
 import dev.friendai.debug.DebugService;
-import dev.friendai.debug.LogKind;
-import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
+import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.foundation.diagnostics.DebugLog;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.MemoryPromptRenderer;
@@ -39,10 +43,6 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.MemoryAccess;
 import dev.friendai.tool.builtin.TaskToolDef;
@@ -164,7 +164,7 @@ public final class CompanionSessions implements AutoCloseable {
                 owner,
                 new Caller(owner, "", AccessLevel.OWNER),
                 input.goal().text(),
-                dev.friendai.brain.TurnKind.EVENT,
+                dev.friendai.agent.turn.TurnKind.EVENT,
                 task,
                 autonomous,
                 true,
@@ -309,18 +309,18 @@ public final class CompanionSessions implements AutoCloseable {
         return Optional.of(session);
     }
 
-    public dev.friendai.skill.SkillPromptSession skillSession(UUID owner) {
+    public dev.friendai.agent.turn.SkillTurnSession skillSession(UUID owner) {
         CompanionSession session = sessions.get(owner);
-        return session == null ? dev.friendai.skill.SkillPromptSession.NONE : session.skillSession();
+        return session == null ? dev.friendai.agent.turn.SkillTurnSession.NONE : session.skillSession();
     }
 
-    public dev.friendai.skill.TeachingContext teachingContext(UUID owner) {
+    public dev.friendai.foundation.teaching.TeachingContext teachingContext(UUID owner) {
         CompanionSession session = sessions.get(owner);
         return session == null ? null : session.teachingContext();
     }
 
     public void skillOutcome(
-            UUID owner, String id, dev.friendai.skill.TeachingContext.OutcomeKind kind, String summary) {
+            UUID owner, String id, dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind, String summary) {
         if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
     }
 
@@ -400,9 +400,9 @@ public final class CompanionSessions implements AutoCloseable {
             return;
         }
         lastAgentCheck = now;
-        dev.friendai.brain.AgentSettings.Autonomy autonomy =
-                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy);
-        if (autonomy == dev.friendai.brain.AgentSettings.Autonomy.PASSIVE) {
+        dev.friendai.agent.turn.AgentSettings.Autonomy autonomy =
+                dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy);
+        if (autonomy == dev.friendai.agent.turn.AgentSettings.Autonomy.PASSIVE) {
             return;
         }
         long wall = FreeTimeDriver.now();
@@ -492,15 +492,15 @@ public final class CompanionSessions implements AutoCloseable {
         if (queue.active().isPresent()) {
             return false;
         }
-        boolean directWork =
-                queue.jobs().stream().anyMatch(job -> job.planId() == 0 && !dev.friendai.queue.JobQueue.terminal(job));
+        boolean directWork = queue.jobs().stream()
+                .anyMatch(job -> job.planId() == 0 && !dev.friendai.execution.queue.JobQueue.terminal(job));
         boolean planMoving = queue.plans().stream()
-                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.queue.PlanStatus.ACTIVE);
+                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.execution.queue.PlanStatus.ACTIVE);
         return !directWork && !planMoving;
     }
 
     /** Lets one companion's brain consult the planner and queue what it proposes. */
-    private final class GamePlannerPort implements dev.friendai.brain.PlannerPort {
+    private final class GamePlannerPort implements dev.friendai.agent.turn.PlannerPort {
         private final UUID owner;
         private final CompanionEntity companion;
         /** Plans the planner cancels itself; their end is not news and must not trigger another replan. */
@@ -537,7 +537,7 @@ public final class CompanionSessions implements AutoCloseable {
             });
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            String queue = dev.friendai.queue.QueueText.show(
+            String queue = dev.friendai.execution.queue.QueueText.show(
                     companion.executionCoordinator().queue(), facts, null, 20, false);
             return Optional.of(new dev.friendai.agent.plan.PlannerInput(
                     primary.get(),
@@ -660,8 +660,8 @@ public final class CompanionSessions implements AutoCloseable {
                                 owner,
                                 "goal:" + prior.id(),
                                 success
-                                        ? dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_SUCCESS
-                                        : dev.friendai.skill.TeachingContext.OutcomeKind.GOAL_FAILURE,
+                                        ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                                        : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE,
                                 text);
                 }
                 return extra;
@@ -673,8 +673,9 @@ public final class CompanionSessions implements AutoCloseable {
     }
 
     /** An owner's stop or follow order also ends free time: both mean "leave your own work". */
-    private dev.friendai.tool.ToolExecutor endsFreeTime(UUID owner, dev.friendai.tool.ToolExecutor inner) {
-        return new dev.friendai.tool.ToolExecutor() {
+    private dev.friendai.execution.tool.ToolExecutor endsFreeTime(
+            UUID owner, dev.friendai.execution.tool.ToolExecutor inner) {
+        return new dev.friendai.execution.tool.ToolExecutor() {
             @Override
             public List<ToolSpec> specs(AccessLevel access) {
                 return inner.specs(access);
@@ -712,7 +713,7 @@ public final class CompanionSessions implements AutoCloseable {
                 () -> config.chat.hearingRadius);
         // With the owner away (free time can keep working) the companion has nobody to talk to.
         Speaker effective = session.speakerWrapper()
-                .apply(new dev.friendai.brain.OwnerPresentSpeaker(
+                .apply(new dev.friendai.agent.turn.OwnerPresentSpeaker(
                         speaker, () -> companion.owner().isPresent()));
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
@@ -758,9 +759,9 @@ public final class CompanionSessions implements AutoCloseable {
                 companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         brain.setPlannerPort(new GamePlannerPort(owner, companion, session.replacedPlans()));
-        brain.setAgentSettings(() -> new dev.friendai.brain.AgentSettings(
+        brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,
-                dev.friendai.brain.AgentSettings.Autonomy.parse(config.agent.autonomy),
+                dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy),
                 config.agent.maxReplans,
                 config.agent.goalTickSec,
                 config.agent.promptBudget,

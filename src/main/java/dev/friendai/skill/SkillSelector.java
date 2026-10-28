@@ -1,6 +1,6 @@
 package dev.friendai.skill;
 
-import dev.friendai.tool.AccessLevel;
+import dev.friendai.execution.tool.AccessLevel;
 import java.text.Normalizer;
 import java.util.*;
 

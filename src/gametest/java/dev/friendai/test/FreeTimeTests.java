@@ -2,16 +2,16 @@ package dev.friendai.test;
 
 import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.autonomy.AutonomySettings;
-import dev.friendai.brain.BrainEvent;
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceService;
@@ -189,20 +189,20 @@ public class FreeTimeTests {
         CompanionEntity c = companion(h);
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        var stay = new dev.friendai.queue.QueuedStep(
+        var stay = new dev.friendai.execution.queue.QueuedStep(
                 "stay",
                 new com.google.gson.JsonObject(),
                 null,
                 java.util.List.of(),
-                dev.friendai.queue.GuardAction.WAIT,
-                dev.friendai.queue.FailurePolicy.ASK,
+                dev.friendai.execution.queue.GuardAction.WAIT,
+                dev.friendai.execution.queue.FailurePolicy.ASK,
                 1,
                 java.util.List.of());
         long plan = runner.enqueuePlan(
                 "free time",
                 java.util.List.of(stay),
                 java.util.List.of(ctx -> new dev.friendai.task.builtin.StayTask()),
-                new dev.friendai.queue.PlanOptions(-10, dev.friendai.queue.FailurePolicy.ASK, 0));
+                new dev.friendai.execution.queue.PlanOptions(-10, dev.friendai.execution.queue.FailurePolicy.ASK, 0));
         runner.markAutonomousPlan(plan);
         runner.tick();
         h.assertTrue(runner.autonomousActive(), "the free-time job runs");
@@ -227,7 +227,8 @@ public class FreeTimeTests {
                         "{\"goal\":\"g\",\"priority\":-10,\"steps\":[{\"tool\":\"stay\"},{\"tool\":\"attack_player\","
                                 + "\"args\":\"{\\\"player\\\":\\\"x\\\"}\"}]}")
                 .getAsJsonObject();
-        var caller = new dev.friendai.tool.Caller(c.ownerUuid(), "owner", dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(
+                c.ownerUuid(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER);
         var refused = dev.friendai.tool.builtin.FriendaiTools.addPlan(
                 c, caller, args, builtins.plannable(), false, Set.of("attack_player"));
         h.assertTrue(refused.error(), "a denied step must be refused: " + refused.content());
@@ -300,7 +301,8 @@ public class FreeTimeTests {
     private static long shiftPlan(GameTestHelper h, CompanionEntity c, String steps) {
         var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
                 () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
-        var caller = new dev.friendai.tool.Caller(c.ownerUuid(), "", dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(
+                c.ownerUuid(), "", dev.friendai.execution.tool.AccessLevel.OWNER);
         var result = dev.friendai.tool.builtin.FriendaiTools.addPlan(
                 c,
                 caller,
@@ -313,7 +315,7 @@ public class FreeTimeTests {
                 Set.of());
         h.assertTrue(!result.error(), result.content());
         long plan = c.executionCoordinator().queue().plans().stream()
-                .mapToLong(dev.friendai.queue.PlanRecord::id)
+                .mapToLong(dev.friendai.execution.queue.PlanRecord::id)
                 .max()
                 .orElseThrow();
         c.executionCoordinator().markAutonomousPlan(plan);
@@ -380,7 +382,7 @@ public class FreeTimeTests {
         CompanionEntity c = registered(h, owner);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
-        var caller = new dev.friendai.tool.Caller(owner, "", dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(owner, "", dev.friendai.execution.tool.AccessLevel.OWNER);
         var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
                 () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
         dev.friendai.tool.builtin.FriendaiTools.addPlan(
@@ -392,14 +394,15 @@ public class FreeTimeTests {
                 true,
                 Set.of());
         long ownerPlan = c.executionCoordinator().queue().plans().stream()
-                .mapToLong(dev.friendai.queue.PlanRecord::id)
+                .mapToLong(dev.friendai.execution.queue.PlanRecord::id)
                 .max()
                 .orElseThrow();
         driver(h).stop(owner, "owner asked to stop");
         h.assertTrue(!driver(h).state(owner).on(), "free time is off");
         h.assertTrue(
                 c.executionCoordinator().queue().plan(plan).isEmpty()
-                        || c.executionCoordinator().queue().planStatus(plan) != dev.friendai.queue.PlanStatus.ACTIVE,
+                        || c.executionCoordinator().queue().planStatus(plan)
+                                != dev.friendai.execution.queue.PlanStatus.ACTIVE,
                 "the shift plan is cancelled");
         h.assertTrue(c.executionCoordinator().queue().plan(ownerPlan).isPresent(), "the owner plan is untouched");
         h.assertValueEqual(driver(h).state(owner).history().get(0).summary(), "owner asked to stop", "record");
@@ -503,18 +506,19 @@ public class FreeTimeTests {
     }
 
     private static dev.friendai.agent.plan.PlanProposal jumpPlan() {
-        var step = new dev.friendai.queue.QueuedStep(
+        var step = new dev.friendai.execution.queue.QueuedStep(
                 "jump",
                 new com.google.gson.JsonObject(),
                 null,
                 java.util.List.of(),
-                dev.friendai.queue.GuardAction.WAIT,
+                dev.friendai.execution.queue.GuardAction.WAIT,
                 null,
                 1,
                 java.util.List.of());
         return new dev.friendai.agent.plan.PlanProposal(
-                new dev.friendai.queue.PlanDefinition(java.util.List.of(
-                        new dev.friendai.queue.PlanNode.Action(step), new dev.friendai.queue.PlanNode.Action(step))),
+                new dev.friendai.execution.queue.PlanDefinition(java.util.List.of(
+                        new dev.friendai.execution.queue.PlanNode.Action(step),
+                        new dev.friendai.execution.queue.PlanNode.Action(step))),
                 com.google.gson.JsonParser.parseString(
                                 "[{\"tool\":\"jump\",\"args\":\"{}\"},{\"tool\":\"jump\"," + "\"args\":\"{}\"}]")
                         .getAsJsonArray(),
@@ -806,13 +810,13 @@ public class FreeTimeTests {
 
     private static BreakTask breakIn(CompanionEntity c, BlockPos pos, boolean autonomous) {
         BreakTask task = new BreakTask(pos);
-        var step = new dev.friendai.queue.QueuedStep(
+        var step = new dev.friendai.execution.queue.QueuedStep(
                 "break_test",
                 new com.google.gson.JsonObject(),
                 null,
                 java.util.List.of(),
-                dev.friendai.queue.GuardAction.WAIT,
-                dev.friendai.queue.FailurePolicy.STOP_PLAN,
+                dev.friendai.execution.queue.GuardAction.WAIT,
+                dev.friendai.execution.queue.FailurePolicy.STOP_PLAN,
                 1,
                 java.util.List.of());
         long plan = c.executionCoordinator()
@@ -820,8 +824,8 @@ public class FreeTimeTests {
                         "break",
                         java.util.List.of(step),
                         java.util.List.of(ctx -> task),
-                        new dev.friendai.queue.PlanOptions(
-                                autonomous ? -10 : 0, dev.friendai.queue.FailurePolicy.STOP_PLAN, 0));
+                        new dev.friendai.execution.queue.PlanOptions(
+                                autonomous ? -10 : 0, dev.friendai.execution.queue.FailurePolicy.STOP_PLAN, 0));
         if (autonomous) {
             c.executionCoordinator().markAutonomousPlan(plan);
         }
@@ -1182,7 +1186,7 @@ public class FreeTimeTests {
         CompanionEntity c = registered(h, owner);
         var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
                 () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
-        var caller = new dev.friendai.tool.Caller(owner, "", dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(owner, "", dev.friendai.execution.tool.AccessLevel.OWNER);
         dev.friendai.tool.builtin.FriendaiTools.addPlan(
                 c,
                 caller,

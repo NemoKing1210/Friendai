@@ -2,13 +2,13 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.task.builtin.CheckContainerTask;
 import dev.friendai.task.builtin.DepositTask;
 import dev.friendai.task.builtin.StoreItemsTask;
 import dev.friendai.task.builtin.TakeItemsTask;
 import dev.friendai.task.inventory.ItemMatcher;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
 import java.util.List;
 
 /** Storage: moving items between the inventory and containers. */

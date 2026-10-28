@@ -1,13 +1,13 @@
 package dev.friendai.server.agent;
 
 import dev.friendai.agent.plan.Planner;
-import dev.friendai.brain.CompanionBrain;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.turn.CompanionBrain;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.SkillTurnSession;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.memory.MemoryBook;
-import dev.friendai.skill.SkillPromptSession;
-import dev.friendai.skill.TeachingContext;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -42,8 +42,8 @@ public final class CompanionSession {
         return brain != null && brain.isThinking();
     }
 
-    public SkillPromptSession skillSession() {
-        return brain == null ? SkillPromptSession.NONE : brain.skillSession();
+    public SkillTurnSession skillSession() {
+        return brain == null ? SkillTurnSession.NONE : brain.skillSession();
     }
 
     public TeachingContext teachingContext() {

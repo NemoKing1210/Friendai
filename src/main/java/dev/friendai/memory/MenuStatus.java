@@ -1,6 +1,6 @@
 package dev.friendai.memory;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 
 /** The result of one memory menu action: a success or an error message for the status line. */
 public record MenuStatus(boolean ok, UserMessage message) {

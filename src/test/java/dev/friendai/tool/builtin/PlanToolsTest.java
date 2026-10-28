@@ -5,17 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.PlanOptions;
-import dev.friendai.queue.QueueLimits;
-import dev.friendai.queue.QueuedStep;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

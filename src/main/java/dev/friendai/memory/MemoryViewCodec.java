@@ -1,6 +1,6 @@
 package dev.friendai.memory;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

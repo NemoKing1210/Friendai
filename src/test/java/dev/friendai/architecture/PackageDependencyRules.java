@@ -14,7 +14,13 @@ final class PackageDependencyRules {
             "dev.friendai.server.runtime.ServerRuntimeFactory",
             "dev.friendai.server.runtime.ServerTickPipeline");
     private static final List<String> PURE_PACKAGES = List.of(
-            "dev.friendai.brain", "dev.friendai.config", "dev.friendai.llm", "dev.friendai.text", "dev.friendai.voice");
+            "dev.friendai.agent",
+            "dev.friendai.config",
+            "dev.friendai.execution.queue",
+            "dev.friendai.execution.tool",
+            "dev.friendai.foundation",
+            "dev.friendai.llm",
+            "dev.friendai.voice");
     private static final Comparator<Violation> VIOLATION_ORDER = Comparator.comparing(Violation::ruleId)
             .thenComparing(Violation::sourceClass)
             .thenComparing(Violation::targetClass);
@@ -66,7 +72,9 @@ final class PackageDependencyRules {
             if (isUnder(source, "dev.friendai.features") && isFeatureAdapter(source, target)) {
                 add(violations, "feature-to-server", edge);
             }
-            if (isUnder(source, "dev.friendai.agent") && isAgentAdapter(target)) {
+            if (isUnder(source, "dev.friendai.agent")
+                    && !isUnder(source, "dev.friendai.agent.llm.protocol")
+                    && isAgentAdapter(target)) {
                 add(violations, "agent-direction", edge);
             }
             if (isUnder(source, "dev.friendai.server") && isUnder(target, "dev.friendai.client")) {
@@ -83,7 +91,8 @@ final class PackageDependencyRules {
             if (isUnder(source, "dev.friendai.presentation") && isPresentationAdapter(target)) {
                 add(violations, "presentation-to-adapter", edge);
             }
-            if (isUnder(source, "dev.friendai.protocol") && isProtocolForbidden(target)) {
+            if ((isUnder(source, "dev.friendai.protocol") || isUnder(source, "dev.friendai.agent.llm.protocol"))
+                    && isProtocolForbidden(target)) {
                 add(violations, "protocol-direction", edge);
             }
             // Runtime construction and tick orchestration intentionally own the transitional state graph.
@@ -113,8 +122,7 @@ final class PackageDependencyRules {
         if (isUnder(className, "dev.friendai.tool.builtin")) {
             return false;
         }
-        return PURE_PACKAGES.stream().anyMatch(prefix -> isUnder(className, prefix))
-                || isUnder(className, "dev.friendai.tool");
+        return PURE_PACKAGES.stream().anyMatch(prefix -> isUnder(className, prefix));
     }
 
     private static boolean isPlatformPackage(String className) {

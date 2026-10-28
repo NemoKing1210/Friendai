@@ -2,11 +2,12 @@ package dev.friendai.config;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.autonomy.AutonomySettings;
-import dev.friendai.llm.provider.LlmProfile;
-import dev.friendai.llm.provider.RoutingRule;
+import dev.friendai.agent.llm.provider.LlmProfile;
+import dev.friendai.agent.llm.provider.RoutingRule;
+import dev.friendai.foundation.diagnostics.ConfigException;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.pathing.PathingConfig;
-import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

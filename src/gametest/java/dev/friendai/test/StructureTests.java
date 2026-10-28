@@ -1,9 +1,12 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.structure.Offset;
 import dev.friendai.structure.SpecialStructure;
@@ -15,9 +18,6 @@ import dev.friendai.task.builtin.SpecialStructureTask;
 import dev.friendai.task.structure.StructureIndex;
 import dev.friendai.task.structure.StructureSite;
 import dev.friendai.task.structure.StructureSnapshotBuilder;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

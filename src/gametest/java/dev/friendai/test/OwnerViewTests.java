@@ -68,10 +68,12 @@ public class OwnerViewTests {
         ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
         CompanionEntity companion = companionFor(h, owner);
         var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(companion);
-        var call =
-                new dev.friendai.llm.model.ToolCall("1", "player_view", new com.google.gson.JsonObject(), "{}", null);
+        var call = new dev.friendai.agent.llm.model.ToolCall(
+                "1", "player_view", new com.google.gson.JsonObject(), "{}", null);
         var result = tools.execute(
-                call, new dev.friendai.tool.Caller(owner.getUUID(), "owner", dev.friendai.tool.AccessLevel.OWNER));
+                call,
+                new dev.friendai.execution.tool.Caller(
+                        owner.getUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER));
         h.assertTrue(!result.error(), "error: " + result.content());
         h.assertTrue(result.content().contains("looking at: block oak_log at"), "content: " + result.content());
         h.succeed();

@@ -2,27 +2,27 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanOptions;
-import dev.friendai.queue.PlanStatus;
-import dev.friendai.queue.QueueSave;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.PlanStatus;
+import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.StayTask;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Map;
@@ -141,7 +141,7 @@ public final class QueueTests {
         h.assertTrue(restored.executionCoordinator().queue().jobCount() == 1, "queued job did not restore");
         h.assertTrue(
                 restored.executionCoordinator().queue().jobs().getFirst().state()
-                        == dev.friendai.queue.JobState.RUNNING,
+                        == dev.friendai.execution.queue.JobState.RUNNING,
                 "active job state did not restore");
         h.assertTrue(
                 restored.executionCoordinator()

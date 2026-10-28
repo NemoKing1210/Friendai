@@ -2,9 +2,9 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import java.util.Arrays;
 import java.util.Locale;
 

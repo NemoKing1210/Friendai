@@ -2,6 +2,8 @@ package dev.friendai.debug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import java.util.EnumSet;
 import java.util.List;
 import org.junit.jupiter.api.Test;

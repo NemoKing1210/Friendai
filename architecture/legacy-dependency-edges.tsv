@@ -1,4 +1,5 @@
 # ruleId	sourceClass	targetClass	taskId
+feature-to-server	dev.friendai.features.trading.minecraft.TraderRefreshService	dev.friendai.server.execution.ExecutionCoordinator	16
 legacy-server-state-lookup	dev.friendai.chat.ChatRouter	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.chat.CompanionRouting	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.client.config.FriendaiConfigScreen	dev.friendai.core.FriendaiServerState	14
@@ -24,6 +25,7 @@ legacy-server-state-lookup	dev.friendai.net.TradeViewStream	dev.friendai.core.Fr
 legacy-server-state-lookup	dev.friendai.net.VoiceTranscriptHandler	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.place.PlaceService	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.placed.PlacedService	dev.friendai.core.FriendaiServerState	11
+legacy-server-state-lookup	dev.friendai.server.companion.persistence.CompanionBodyCodec	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.task.autonomy.PlaceGuard	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.builtin.BarterTask	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.builtin.ExploreTask	dev.friendai.core.FriendaiServerState	11
@@ -46,7 +48,6 @@ legacy-server-state-lookup	dev.friendai.task.nav.ResourceJourney	dev.friendai.co
 legacy-server-state-lookup	dev.friendai.task.obtain.ResourceSearchDriver	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.obtain.SearchTargets	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.task.obtain.WorldScan	dev.friendai.core.FriendaiServerState	11
-legacy-server-state-lookup	dev.friendai.task.TaskRunner	dev.friendai.core.FriendaiServerState	8
 legacy-server-state-lookup	dev.friendai.tool.builtin.FreeTimeTools	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.tool.builtin.GatheringTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.GoalTools	dev.friendai.core.FriendaiServerState	11

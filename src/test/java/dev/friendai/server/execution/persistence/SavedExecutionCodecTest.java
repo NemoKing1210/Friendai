@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.QueueLimits;
-import dev.friendai.queue.QueueSave;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.task.TaskState;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ class SavedExecutionCodecTest {
                                 FailurePolicy.ASK,
                                 1,
                                 List.of())),
-                        dev.friendai.queue.PlanOptions.DEFAULT)
+                        dev.friendai.execution.queue.PlanOptions.DEFAULT)
                 .planId();
         long active = queue.jobsOfPlan(plan).getFirst().id();
         queue.markRunning(active);

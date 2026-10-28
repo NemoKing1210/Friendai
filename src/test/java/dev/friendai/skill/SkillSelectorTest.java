@@ -2,8 +2,9 @@ package dev.friendai.skill;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import dev.friendai.agent.prompt.SkillPromptSection;
+import dev.friendai.execution.tool.*;
 import dev.friendai.memory.*;
-import dev.friendai.tool.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +13,7 @@ class SkillSelectorTest {
     void learnedLanguageSurvivesProfileAssemblyAndExplicitPreferenceWins() {
         var context = context(AccessLevel.OWNER, "hello");
         var session = new SkillPromptSession(List.of(), context, 24000, 2400);
-        var base = new dev.friendai.brain.Persona("F", "Guide", "auto", "Russian");
+        var base = new dev.friendai.agent.turn.Persona("F", "Guide", "auto", "Russian");
         assertEquals("Russian", session.persona(base).ownerLanguage());
         var explicit = new SkillContext(
                 context.caller(),
@@ -25,7 +26,7 @@ class SkillSelectorTest {
         var overridden = new SkillPromptSession(List.of(), explicit, 24000, 2400).persona(base);
         assertEquals("en", overridden.language());
         assertEquals("Russian", overridden.ownerLanguage());
-        String guest = dev.friendai.brain.PromptBuilder.system(
+        String guest = dev.friendai.agent.turn.PromptBuilder.system(
                 base, "", context(AccessLevel.GUEST, "").caller());
         assertFalse(guest.contains("The owner usually writes in Russian"));
     }
@@ -151,11 +152,11 @@ class SkillSelectorTest {
         var mandatory = new SkillPromptSection("mandatory", "M".repeat(300), Integer.MAX_VALUE);
         var instruction = new SkillPromptSection("skill:one", "Advice", 30);
         var ctx = new dev.friendai.agent.prompt.TurnContext(
-                new dev.friendai.brain.Persona("A", "B", "auto"),
+                new dev.friendai.agent.turn.Persona("A", "B", "auto"),
                 "",
                 context(AccessLevel.OWNER, "").caller(),
                 "",
-                dev.friendai.brain.TurnKind.PLAYER,
+                dev.friendai.agent.turn.TurnKind.PLAYER,
                 "",
                 List.of(),
                 "",

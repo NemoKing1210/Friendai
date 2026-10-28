@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.JsonObject;
+import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.testutil.MockHttpServer;
-import dev.friendai.text.UserFacingException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;

@@ -5,8 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.gson.JsonParser;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.SkillService;
+import dev.friendai.execution.tool.*;
+import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.memory.MemoryStore;
-import dev.friendai.tool.*;
 import java.nio.file.Path;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -28,28 +29,28 @@ class SkillTeachingActionsTest {
                     owner,
                     new Caller(owner, "Owner", AccessLevel.OWNER),
                     "hello",
-                    dev.friendai.brain.TurnKind.PLAYER,
+                    dev.friendai.agent.turn.TurnKind.PLAYER,
                     "",
                     false,
                     false);
             assertEquals(
                     "ru",
                     ownerTurn
-                            .persona(new dev.friendai.brain.Persona("F", "Guide", "AUTO"))
+                            .persona(new dev.friendai.agent.turn.Persona("F", "Guide", "AUTO"))
                             .language());
             assertTrue(ownerTurn.sections().isEmpty());
             var guestTurn = service.begin(
                     owner,
                     new Caller(UUID.randomUUID(), "Guest", AccessLevel.GUEST),
                     "hello",
-                    dev.friendai.brain.TurnKind.PLAYER,
+                    dev.friendai.agent.turn.TurnKind.PLAYER,
                     "",
                     false,
                     false);
             assertEquals(
                     "auto",
                     guestTurn
-                            .persona(new dev.friendai.brain.Persona("F", "Guide", "auto"))
+                            .persona(new dev.friendai.agent.turn.Persona("F", "Guide", "auto"))
                             .language());
         }
     }

@@ -3,7 +3,7 @@ package dev.friendai.client.ui;
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.QueueRow;
 import dev.friendai.debug.QueueRows;
-import dev.friendai.debug.TaskRecord;
+import dev.friendai.execution.history.TaskRecord;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;

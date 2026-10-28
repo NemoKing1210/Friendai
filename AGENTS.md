@@ -69,11 +69,11 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 
 | Path | What it is |
 |---|---|
-| `engine/src/main/java/dev/friendai/` | Game-independent Java library; no Minecraft, Fabric, optional UI or native audio dependency. |
-| `engine/src/test/java/dev/friendai/` | Pure engine unit tests; `engine/src/testFixtures/java/` holds reusable pure fakes. |
+| `engine/src/main/java/dev/friendai/` | Game-independent library: `foundation/` text, diagnostics and limits; `execution/` queue/tool contracts; `agent/` turn, planner, prompt, routing and LLM contracts. No Minecraft, Fabric, optional UI or native audio dependency. |
+| `engine/src/test/java/dev/friendai/` | Pure engine unit tests; `engine/src/testFixtures/java/` holds reusable pure fakes and scenario fixtures. |
 | `src/main/java/dev/friendai/` | Common + server code (the mod's `main` source set). |
 | `src/client/java/dev/friendai/client/` | Client-only code (Loom split source set). |
-| `src/test/java/dev/friendai/` | JUnit 5 unit tests and `testutil` fakes. |
+| `src/test/java/dev/friendai/` | JUnit 5 tests for root adapters and features; `testutil` holds root-only helpers. |
 | `src/gametest/java/dev/friendai/test/` | Fabric GameTests (a separate mod id, `friendai-gametest`). |
 | `src/main/resources/` | `fabric.mod.json`, `assets/friendai/lang/`, icon, GUI sprites. |
 | `src/gametest/resources/` | GameTest `fabric.mod.json` (entrypoints) and `data/.../structure/*.nbt`. |
@@ -100,7 +100,7 @@ Both files are part of the contract: add or move a package that either one names
 2. **A world skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in the matching `*Tools` group called from `FriendaiTools.build`, and adding a GameTest. The core does not change.
 3. **Several tool calls in one response** must run in order, and Anthropic/Gemini must receive all the results in **one** user message (otherwise HTTP 400). Covered by tests; keep them green.
 4. **History trimming** must never leave a tool result or a call without results at the head, and must never drop the turn in progress.
-5. **A late LLM response** after `stop`/dismiss/owner logout must be dropped silently (generation counter in `CompanionBrain`).
+5. **A late LLM response** after `stop`/dismiss/owner logout must be dropped silently (generation counter in engine `agent/turn/CompanionBrain`).
 6. **Malformed tool arguments** from the model must become an error `tool_result`, never an exception.
 7. **API keys** never appear in logs, chat, exception messages or `toString()`. Keys go in headers, never URLs.
 8. **Layer boundary.** Pure classes import neither `net.minecraft.*` nor `net.fabricmc.*` (see `ARCHITECTURE.md`, "Overview"). If you need a world fact, add it to a pure data type and fill it in a Minecraft adapter.
@@ -163,9 +163,9 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 **Keep the tests honest while batching.** A test written next to its implementation is still the specification, but a test that passes on the first run has proven nothing until you know it can fail. Write it against the current behavior when you can, or break the one line it guards and watch the red once, inside the same batch. Also watch for a failure that is not the one you are testing: a missing floor, a GameTest class absent from `fabric-gametest`, a fixture that throws, a test that fails on setup — each hides whether the behavior is right.
 
-- **TDD, batched.** Write the test before the implementation and keep it honest (see "Batch the loop" above), but do not run it alone after each edit. Unit tests use the fakes in `src/test/java/dev/friendai/testutil` — no mocking frameworks.
+- **TDD, batched.** Write the test before the implementation and keep it honest (see "Batch the loop" above), but do not run it alone after each edit. Reusable pure fakes live in `engine/src/testFixtures/java/dev/friendai/testutil`; root-only helpers stay in `src/test/java/dev/friendai/testutil`. No mocking frameworks.
 - **What a test must prove.** Behavior, boundaries, state transitions, precedence, error paths — nothing else. Do not pin translation wording, do not assert that a helper was called, do not let a fake echo its own input back, and do not re-pin incidental defaults. A test that only proves the code still says what it says is deleted with the change it guards.
-- **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView`), `RecordingSpeaker` (captures speech/errors/thinking).
+- **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView`, still root-side until pathing moves), `RecordingSpeaker` (captures speech/errors/thinking).
 - **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive a `TaskRunner` yourself inside `h.succeedWhen(() -> { runner.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
 - **Entities tick only in the chunk(s) the test structure covers.** A mob that walks or is knocked out of them freezes mid-step: it keeps its velocity, stops falling and stops taking damage, so a fight against it never lands another hit and a companion that walks out stops arriving. Arenas are wider than the 8x8 structure, so build them with `GameTestSupport.platform`/`platformAt`, which force-load every chunk they cover; add `GameTestSupport.enclose(h, y, size, height)` when a hurt or fleeing mob could run off the edge.
 - **GameTest runs are expensive; batch them.** Every `runGameTest` boots a Minecraft server, so do not repeat a filtered boot per test. While debugging one test, filter it: `./gradlew runGameTest -Dfabric-api.gametest.filter=friendai-gametest:<test_name>`; `build.gradle` forwards the property to the GameTest server. The value is one glob where `*` matches any text (`friendai-gametest:hunger_tests_*` runs the whole `HungerTests` class, 24 tests in about 50 s including the boot); there is no negation and no pattern list, so "everything except X" is not expressible. A full run takes about 9 minutes, mostly in the batches holding the long `BuildTests`; for a change in one area run that area's class glob first. Run the tests that cover the change when practical; a full `./gradlew runGameTest` is only needed when the change touches the game layer, and it is not a prerequisite for a commit. If a full run shows a failure in an unrelated, timing-sensitive test (the shared world makes a few rotate), re-run only that test filtered for a clean signal instead of repeating the whole suite.
@@ -373,4 +373,4 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 - **Station** — a crafting/cooking block the companion uses; a `StationLease` remembers one it placed.
 - **Perception** — the surroundings and owner focus rendered into prompt text.
 - **Snapshot** — the menu state built by `SnapshotBuilder` and sent to the client.
-- **Provider / preset / route / protocol** — where an LLM request goes and how it is encoded (`ProviderRegistry`, `llm/protocol`).
+- **Provider / preset / route / protocol** — where an LLM request goes and how it is encoded (engine `agent/llm/provider` and `agent/llm/protocol`; root `llm/http/HttpTransport` implements the engine `JsonHttpTransport` port).

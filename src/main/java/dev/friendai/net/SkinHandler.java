@@ -3,6 +3,7 @@ package dev.friendai.net;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.skin.SkinHash;
 import dev.friendai.skin.SkinImage;
 import java.util.Optional;

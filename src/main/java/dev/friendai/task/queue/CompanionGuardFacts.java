@@ -1,7 +1,7 @@
 package dev.friendai.task.queue;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.queue.GuardFacts;
+import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.HashMap;

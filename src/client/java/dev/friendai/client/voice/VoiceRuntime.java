@@ -1,7 +1,7 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.client.FriendaiClient;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.ResolvedStt;
 import dev.friendai.voice.VoiceConfig;
 import dev.friendai.voice.VoiceHttp;

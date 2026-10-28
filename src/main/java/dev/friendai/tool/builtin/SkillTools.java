@@ -2,7 +2,7 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.tool.*;
+import dev.friendai.execution.tool.*;
 import net.minecraft.server.level.ServerLevel;
 
 /** Instruction tools never execute their stored text or change the registry's permissions. */

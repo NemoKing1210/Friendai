@@ -1,5 +1,7 @@
 package dev.friendai.debug;
 
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;

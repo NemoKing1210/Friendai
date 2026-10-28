@@ -7,6 +7,7 @@ import dev.friendai.combat.CombatSettings;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.StationLease;
+import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
@@ -34,7 +35,6 @@ import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
 import dev.friendai.task.survival.HungerWatcher;
-import dev.friendai.tool.InventoryAccess;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -317,7 +317,7 @@ public class CompanionEntity extends PathfinderMob {
         return dev.friendai.agent.autonomy.DefaultActivityPolicy.shouldFollow(
                 state.freeTime().state(ownerUuid),
                 cfg.autonomy.toSettings(),
-                dev.friendai.brain.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
+                dev.friendai.agent.turn.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
                 followMode(),
                 executionCoordinator.busyWithOther() || executionCoordinator.ownerWorkQueued(),
                 inCombat);

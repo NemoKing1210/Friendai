@@ -1,7 +1,7 @@
 package dev.friendai.voice.stt;
 
-import dev.friendai.text.UserFacingException;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserFacingException;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.PreparedRequest;
 import dev.friendai.voice.ResolvedStt;
 import dev.friendai.voice.VoiceHttp;

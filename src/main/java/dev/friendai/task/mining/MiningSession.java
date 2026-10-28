@@ -2,6 +2,7 @@ package dev.friendai.task.mining;
 
 import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.mining.ExplorationPlanner;
 import dev.friendai.mining.MiningBounds;
 import dev.friendai.mining.MiningGoal;
@@ -21,7 +22,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.nav.Approach;
 import dev.friendai.task.nav.MaterialPicker;
 import dev.friendai.task.nav.PathExecutor;
-import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

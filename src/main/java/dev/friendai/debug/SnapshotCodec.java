@@ -1,5 +1,8 @@
 package dev.friendai.debug;
 
+import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

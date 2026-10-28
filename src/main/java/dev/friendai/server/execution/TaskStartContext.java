@@ -1,9 +1,9 @@
 package dev.friendai.server.execution;
 
 import dev.friendai.creative.CreativeActionContext;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
-import dev.friendai.tool.Caller;
 
 /** Captures the authenticated actor and runtime snapshot for one task start. */
 public record TaskStartContext(

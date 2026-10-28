@@ -5,7 +5,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

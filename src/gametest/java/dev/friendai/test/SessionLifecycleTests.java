@@ -2,25 +2,25 @@ package dev.friendai.test;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.Planner;
-import dev.friendai.brain.BrainEvent;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolCall;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.PlanDefinition;
-import dev.friendai.queue.PlanNode;
-import dev.friendai.queue.QueuedStep;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.trading.TradeBudget;
 import dev.friendai.trading.TradeOrder;
 import java.util.List;
@@ -40,7 +40,7 @@ public class SessionLifecycleTests {
 
         @Override
         public CompletableFuture<LlmResponse> complete(
-                String system, List<dev.friendai.llm.model.Message> messages, List<ToolSpec> tools) {
+                String system, List<dev.friendai.agent.llm.model.Message> messages, List<ToolSpec> tools) {
             return response;
         }
 
@@ -72,7 +72,7 @@ public class SessionLifecycleTests {
         }
 
         @Override
-        public void error(dev.friendai.text.UserMessage message) {
+        public void error(dev.friendai.foundation.text.UserMessage message) {
             delegate.error(message);
         }
     }

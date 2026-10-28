@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.llm.model.LlmErrorKind;
-import dev.friendai.llm.model.LlmException;
+import dev.friendai.agent.llm.model.LlmErrorKind;
+import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.testutil.MockHttpServer;
 import java.net.URI;
 import java.net.http.HttpClient;

@@ -1,14 +1,14 @@
 package dev.friendai.server.agent;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.config.ConfigException;
+import dev.friendai.agent.llm.provider.ProviderRegistry;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.config.SecretResolver;
 import dev.friendai.config.ServerConfig;
-import dev.friendai.debug.SecretRedactor;
+import dev.friendai.foundation.diagnostics.ConfigException;
+import dev.friendai.foundation.diagnostics.SecretRedactor;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
-import dev.friendai.llm.provider.ProviderRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;

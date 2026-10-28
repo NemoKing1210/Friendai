@@ -1,5 +1,7 @@
 package dev.friendai.debug;
 
+import dev.friendai.execution.history.TaskHistory;
+import dev.friendai.foundation.diagnostics.DebugLog;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;

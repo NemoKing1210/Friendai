@@ -3,7 +3,7 @@ package dev.friendai.memory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

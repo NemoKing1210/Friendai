@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.testutil.MockHttpServer;
-import dev.friendai.text.UserFacingException;
 import dev.friendai.voice.PcmAudio;
 import dev.friendai.voice.PreparedRequest;
 import dev.friendai.voice.ResolvedTts;

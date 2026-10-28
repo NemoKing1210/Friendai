@@ -1,9 +1,9 @@
 package dev.friendai.chat;
 
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.core.Components;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.net.CompanionSpeechS2CPayload;
-import dev.friendai.text.UserMessage;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;

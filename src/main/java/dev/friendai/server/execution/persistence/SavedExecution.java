@@ -1,6 +1,6 @@
 package dev.friendai.server.execution.persistence;
 
-import dev.friendai.queue.QueueSave;
+import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.task.TaskState;
 
 /** Typed in-memory form of one companion's durable queue and active task checkpoint. */

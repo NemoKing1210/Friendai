@@ -5,6 +5,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.knowledge.ResourceKnowledgeText;
 import dev.friendai.knowledge.ResourceQuery;
 import dev.friendai.knowledge.search.SearchHint;
@@ -14,10 +18,6 @@ import dev.friendai.perception.LandmarkScanner;
 import dev.friendai.task.builtin.SearchResourceTask;
 import dev.friendai.task.obtain.ResourceResolver;
 import dev.friendai.task.obtain.SearchTargets;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -134,7 +134,7 @@ final class ResourceTools {
     }
 
     private static SearchResourceTask callerFindTarget(
-            CompanionEntity companion, dev.friendai.tool.Caller caller, JsonObject args) {
+            CompanionEntity companion, dev.friendai.execution.tool.Caller caller, JsonObject args) {
         String scope = args.has("scope") && !args.get("scope").isJsonNull()
                 ? args.get("scope").getAsString()
                 : "local";
@@ -255,7 +255,7 @@ final class ResourceTools {
     }
 
     private static SearchResourceTask callerSearch(
-            CompanionEntity companion, dev.friendai.tool.Caller caller, JsonObject args) {
+            CompanionEntity companion, dev.friendai.execution.tool.Caller caller, JsonObject args) {
         String scope = args.has("scope") && !args.get("scope").isJsonNull()
                 ? args.get("scope").getAsString()
                 : "local";

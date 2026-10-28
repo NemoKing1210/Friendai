@@ -1,5 +1,6 @@
 package dev.friendai.crafting.obtain;
 
+import dev.friendai.foundation.item.Tier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

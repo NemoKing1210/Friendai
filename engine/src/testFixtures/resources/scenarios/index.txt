@@ -1,0 +1,14 @@
+budget_spent_asks_player.json
+complex_goal_sets_a_goal.json
+guest_cannot_act.json
+idle_nudge_asks_instead_of_acting.json
+missing_materials_recovers.json
+question_hides_action_tools.json
+request_tools_unlocks_mining.json
+set_goal_then_plan.json
+silent_event.json
+simple_follow.json
+trading_event_retry_cannot_create_budget.json
+trading_explicit_order_uses_bounded_tool.json
+trading_question_uses_knowledge_without_spending.json
+trading_stale_quote_requires_inspection.json

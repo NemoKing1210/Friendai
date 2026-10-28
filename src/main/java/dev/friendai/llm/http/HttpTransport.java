@@ -3,8 +3,9 @@ package dev.friendai.llm.http;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.llm.model.LlmErrorKind;
-import dev.friendai.llm.model.LlmException;
+import dev.friendai.agent.llm.JsonHttpTransport;
+import dev.friendai.agent.llm.model.LlmErrorKind;
+import dev.friendai.agent.llm.model.LlmException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /** JSON over HTTP with error mapping and retries. Never leaks API keys into exception messages. */
-public final class HttpTransport {
+public final class HttpTransport implements JsonHttpTransport {
     private static final Pattern KEY_LIKE = Pattern.compile("(sk|key|AIza)[-_A-Za-z0-9]{6,}");
     private static final int MAX_MESSAGE_CHARS = 200;
 

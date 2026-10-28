@@ -2,8 +2,8 @@ package dev.friendai.voice.stt;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.friendai.text.UserFacingException;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserFacingException;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.MultipartBody;
 import dev.friendai.voice.PreparedRequest;
 import dev.friendai.voice.ResolvedStt;

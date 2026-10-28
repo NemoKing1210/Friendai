@@ -3,8 +3,13 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.autonomy.FreeTime;
 import dev.friendai.agent.autonomy.NeedKind;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.brain.Speaker;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.chat.ChatRouter;
 import dev.friendai.combat.ProtectionPolicy;
 import dev.friendai.core.FriendaiServerState;
@@ -14,11 +19,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.StopReason;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.model.Usage;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.memory.Category;
 import dev.friendai.memory.MemoryLimits;
 import dev.friendai.memory.Subject;
@@ -28,14 +31,11 @@ import dev.friendai.perception.PerceptionContext;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.place.PlaceValues;
-import dev.friendai.queue.PlanOptions;
-import dev.friendai.queue.QueuedStep;
 import dev.friendai.server.agent.CompanionPerception;
 import dev.friendai.skin.SkinHash;
 import dev.friendai.survival.DeathRecord;
 import dev.friendai.task.builtin.StayTask;
 import dev.friendai.task.cooking.FurnaceJob;
-import dev.friendai.text.UserMessage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -256,7 +256,8 @@ public class CompanionDeathTests {
                     back.get().executionCoordinator().queue().jobCount() > 0, "the queued work should be restored");
             h.assertTrue(
                     back.get().executionCoordinator().queue().jobs().stream()
-                            .noneMatch(job -> dev.friendai.queue.Job.MISSING_TOOL_RESULT.equals(job.result())),
+                            .noneMatch(
+                                    job -> dev.friendai.execution.queue.Job.MISSING_TOOL_RESULT.equals(job.result())),
                     "the restored job must still name a known tool");
         });
     }

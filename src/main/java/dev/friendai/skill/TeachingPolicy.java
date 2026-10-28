@@ -1,6 +1,7 @@
 package dev.friendai.skill;
 
-import dev.friendai.tool.*;
+import dev.friendai.execution.tool.*;
+import dev.friendai.foundation.teaching.TeachingContext;
 
 /** Authorization is rechecked even if a model fabricates a hidden tool call. */
 public final class TeachingPolicy {

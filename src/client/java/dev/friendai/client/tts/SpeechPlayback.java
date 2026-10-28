@@ -1,7 +1,7 @@
 package dev.friendai.client.tts;
 
-import dev.friendai.text.UserFacingException;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserFacingException;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.PcmConverter;
 import dev.friendai.voice.SpatialAudio;
 import dev.friendai.voice.tts.PlaybackGate;

@@ -1,9 +1,10 @@
 package dev.friendai.net;
 
-import dev.friendai.brain.BrainEvent;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.chat.CompanionRouting;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.foundation.limits.RateLimiter;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;

@@ -1,6 +1,6 @@
 package dev.friendai.task.plan;
 
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 

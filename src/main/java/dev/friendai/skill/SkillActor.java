@@ -1,6 +1,6 @@
 package dev.friendai.skill;
 
-import dev.friendai.tool.Caller;
+import dev.friendai.execution.tool.Caller;
 import java.util.UUID;
 
 /** Authenticated context built by a server adapter. */

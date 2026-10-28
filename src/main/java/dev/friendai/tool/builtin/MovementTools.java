@@ -2,15 +2,15 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.movement.PaceMode;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.GoToTask;
 import dev.friendai.task.builtin.JumpTask;
 import dev.friendai.task.builtin.StayTask;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 

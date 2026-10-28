@@ -1,7 +1,7 @@
 package dev.friendai.debug;
 
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobState;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobState;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

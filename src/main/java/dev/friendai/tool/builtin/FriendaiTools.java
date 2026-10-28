@@ -1,8 +1,8 @@
 package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.perception.PerceptionContext;
-import dev.friendai.tool.ToolRegistry;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,9 +25,9 @@ public final class FriendaiTools {
      * not linked to the owner's goal when {@code linkGoal} is false, and any nested action using a {@code denied} tool
      * refuses the whole plan. Never throws for a bad plan.
      */
-    public static dev.friendai.tool.ToolResult addPlan(
+    public static dev.friendai.execution.tool.ToolResult addPlan(
             CompanionEntity companion,
-            dev.friendai.tool.Caller caller,
+            dev.friendai.execution.tool.Caller caller,
             com.google.gson.JsonObject args,
             Map<String, TaskToolDef> plannable,
             boolean linkGoal,

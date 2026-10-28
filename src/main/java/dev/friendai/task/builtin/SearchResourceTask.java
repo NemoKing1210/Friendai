@@ -1,8 +1,10 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.brain.BrainEvent;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.WorkSet;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.knowledge.search.AbandonPolicy;
 import dev.friendai.knowledge.search.EscortPolicy;
 import dev.friendai.knowledge.search.ResourceSearchProfile;
@@ -16,8 +18,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.obtain.ResourceSearchDriver;
 import dev.friendai.task.obtain.SearchTargets;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;

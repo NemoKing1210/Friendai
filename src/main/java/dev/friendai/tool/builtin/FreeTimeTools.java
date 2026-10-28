@@ -5,11 +5,11 @@ import dev.friendai.agent.autonomy.FreeTime;
 import dev.friendai.agent.autonomy.NeedKind;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.agent.FreeTimeDriver;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
 

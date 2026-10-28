@@ -4,13 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.Gson;
-import dev.friendai.brain.LlmGateway;
+import dev.friendai.agent.llm.provider.ProviderRegistry;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
-import dev.friendai.llm.provider.ProviderRegistry;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,7 +19,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
@@ -37,7 +35,7 @@ class LiveScenarioRunner {
 
     @Test
     @EnabledIfSystemProperty(named = "friendai.live", matches = "true")
-    void runAgainstTheConfiguredProvider() throws IOException, URISyntaxException {
+    void runAgainstTheConfiguredProvider() throws IOException {
         String configPath = System.getProperty("friendai.live.config");
         assertTrue(configPath != null && !configPath.isBlank(), "pass -Dfriendai.live.config=<server config>");
         Gson gson = new Gson();
@@ -50,18 +48,13 @@ class LiveScenarioRunner {
                 Duration.ofMillis(500));
         LlmGateway live = new LlmClient(ProviderRegistry.withBuiltins(transport), config.toLlmProfile(System::getenv));
 
-        Path dir = Path.of(LiveScenarioRunner.class.getResource("/scenarios").toURI());
-        List<Path> files;
-        try (Stream<Path> list = Files.list(dir)) {
-            files = list.filter(p -> p.toString().endsWith(".json")).sorted().toList();
-        }
+        List<Scenario> scenarios = ScenarioResources.loadAll();
         List<String> report = new ArrayList<>();
         report.add("# Live evaluation " + LocalDateTime.now());
         report.add("");
         report.add("| scenario | requests | tools | spoken | result |");
         report.add("|---|---|---|---|---|");
-        for (Path file : files) {
-            Scenario scenario = gson.fromJson(Files.readString(file, StandardCharsets.UTF_8), Scenario.class);
+        for (Scenario scenario : scenarios) {
             ScenarioRunner.Result result = ScenarioRunner.run(scenario, live);
             report.add("| " + scenario.name() + " | " + result.requests() + " | " + result.toolsCalled()
                     + " | " + String.join(" / ", result.spoken()).replace("|", "/") + " | "

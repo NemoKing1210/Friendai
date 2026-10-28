@@ -2,15 +2,15 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.InteractEntityTask;
 import dev.friendai.task.builtin.MountTask;
 import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.builtin.ThrowItemTask;
 import dev.friendai.task.interact.EntityTargets;
-import dev.friendai.tool.SchemaBuilder;
-import dev.friendai.tool.ToolRegistry;
-import dev.friendai.tool.ToolResult;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;

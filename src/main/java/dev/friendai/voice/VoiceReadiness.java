@@ -1,6 +1,6 @@
 package dev.friendai.voice;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.voice.stt.SttPresets;
 import dev.friendai.voice.tts.TtsPresets;
 

@@ -1,6 +1,6 @@
 package dev.friendai.client.voice;
 
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserMessage;
 
 /** What the voice pipeline is doing, for the HUD. */
 public final class VoiceState {

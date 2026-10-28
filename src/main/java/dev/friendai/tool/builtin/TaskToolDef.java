@@ -2,9 +2,9 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.task.Task;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
 
 /**
  * A built-in skill backed by a task: its LLM-facing metadata plus how to build the task for a call.

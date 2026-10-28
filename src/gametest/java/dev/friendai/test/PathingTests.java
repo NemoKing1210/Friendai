@@ -1,11 +1,11 @@
 package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.LogEntry;
-import dev.friendai.debug.LogKind;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.movement.Facing;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CostModel;

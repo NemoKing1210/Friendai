@@ -1,7 +1,7 @@
 package dev.friendai.test;
 
+import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.tools.ToolCatalog;
-import dev.friendai.llm.model.ToolSpec;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

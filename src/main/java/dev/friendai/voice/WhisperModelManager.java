@@ -1,7 +1,7 @@
 package dev.friendai.voice;
 
-import dev.friendai.text.UserFacingException;
-import dev.friendai.text.UserMessage;
+import dev.friendai.foundation.text.UserFacingException;
+import dev.friendai.foundation.text.UserMessage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

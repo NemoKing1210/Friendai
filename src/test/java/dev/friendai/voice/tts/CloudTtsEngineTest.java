@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.testutil.MockHttpServer;
-import dev.friendai.text.UserFacingException;
 import dev.friendai.voice.ResolvedTts;
 import dev.friendai.voice.VoiceHttp;
 import dev.friendai.voice.WavCodec;

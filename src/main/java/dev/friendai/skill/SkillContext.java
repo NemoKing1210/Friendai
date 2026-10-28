@@ -1,7 +1,7 @@
 package dev.friendai.skill;
 
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.memory.*;
-import dev.friendai.tool.Caller;
 import java.util.Set;
 
 /** Plain per-turn facts. No entity or server object can escape into a provider callback. */

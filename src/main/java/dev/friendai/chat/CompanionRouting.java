@@ -1,6 +1,6 @@
 package dev.friendai.chat;
 
-import dev.friendai.brain.BrainEvent;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;

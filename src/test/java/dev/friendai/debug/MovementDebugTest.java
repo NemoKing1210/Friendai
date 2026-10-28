@@ -4,12 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.JsonObject;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardAction;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.QueueLimits;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueuedStep;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

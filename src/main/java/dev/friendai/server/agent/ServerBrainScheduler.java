@@ -1,6 +1,6 @@
 package dev.friendai.server.agent;
 
-import dev.friendai.brain.BrainScheduler;
+import dev.friendai.agent.turn.BrainScheduler;
 import java.util.PriorityQueue;
 import net.minecraft.server.MinecraftServer;
 

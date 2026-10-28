@@ -2,11 +2,11 @@ package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.NearTarget;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceService;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.NearTarget;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

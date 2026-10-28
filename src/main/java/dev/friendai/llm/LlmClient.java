@@ -1,15 +1,15 @@
 package dev.friendai.llm;
 
 import com.google.gson.JsonObject;
-import dev.friendai.brain.LlmGateway;
-import dev.friendai.llm.model.LlmRequest;
-import dev.friendai.llm.model.LlmResponse;
-import dev.friendai.llm.model.Message;
-import dev.friendai.llm.model.ToolSpec;
-import dev.friendai.llm.provider.LlmProfile;
-import dev.friendai.llm.provider.ProviderRegistry;
-import dev.friendai.llm.provider.Route;
-import dev.friendai.text.UserMessage;
+import dev.friendai.agent.llm.model.LlmRequest;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.provider.LlmProfile;
+import dev.friendai.agent.llm.provider.ProviderRegistry;
+import dev.friendai.agent.llm.provider.Route;
+import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.foundation.text.UserMessage;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 

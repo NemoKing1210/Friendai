@@ -2,10 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.menu.CompanionInventoryLayout;
 import dev.friendai.menu.CompanionInventoryMenu;
 import dev.friendai.menu.FriendaiMenus;
-import dev.friendai.tool.InventoryAccess;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

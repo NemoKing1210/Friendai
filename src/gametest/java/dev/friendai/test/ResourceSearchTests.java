@@ -1,19 +1,19 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.knowledge.search.SearchSession;
-import dev.friendai.llm.model.ToolCall;
 import dev.friendai.pathing.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.MemoryAccess;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -164,7 +164,7 @@ public final class ResourceSearchTests {
                 .orElseThrow();
         var sessions = state.knowledge().book(owner.getUUID()).searchLedger().snapshot();
         h.assertTrue(
-                job.state() == dev.friendai.queue.JobState.CANCELLED,
+                job.state() == dev.friendai.execution.queue.JobState.CANCELLED,
                 "active resource search must be cancelled on restart");
         h.assertTrue(
                 restored.executionCoordinator().current().isEmpty(), "resource search must not resume automatically");

@@ -1,11 +1,12 @@
 package dev.friendai.core;
 
-import dev.friendai.brain.*;
+import dev.friendai.agent.turn.*;
 import dev.friendai.config.*;
-import dev.friendai.debug.SecretRedactor;
+import dev.friendai.execution.tool.*;
+import dev.friendai.foundation.diagnostics.SecretRedactor;
+import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.memory.*;
 import dev.friendai.skill.*;
-import dev.friendai.tool.*;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.*;

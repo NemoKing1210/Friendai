@@ -2,8 +2,8 @@ package dev.friendai.server.execution.persistence;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.queue.QueueLimits;
-import dev.friendai.queue.QueueSave;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.task.TaskState;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

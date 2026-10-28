@@ -53,7 +53,7 @@ class ArchitectureRulesTest {
     void forbiddenPackageDirectionsReportExactClassesAndAllowedViewsPass() {
         List<DependencyEdge> edges = List.of(
                 edge("dev.friendai.foundation.Text", "net.minecraft.world.level.Level"),
-                edge("dev.friendai.text.LanguageDetector", "net.fabricmc.api.ModInitializer"),
+                edge("dev.friendai.foundation.text.LanguageDetector", "net.fabricmc.api.ModInitializer"),
                 edge("dev.friendai.agent.turn.Agent", "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.server.ServerRuntime"),
                 edge("dev.friendai.features.navigation.Navigator", "net.minecraft.server.MinecraftServer"),
@@ -74,6 +74,9 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.protocol.companion.CompanionPayload",
                         "dev.friendai.presentation.companion.CompanionModel"),
+                edge(
+                        "dev.friendai.agent.llm.protocol.OpenAiChatProtocol",
+                        "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.client.config.SettingsScreen", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
                 edge(
                         "dev.friendai.presentation.companion.CompanionModel",
@@ -102,6 +105,10 @@ class ArchitectureRulesTest {
                                 "dev.friendai.foundation.Text",
                                 "net.minecraft.world.level.Level"),
                         violation(
+                                "foundation-direction",
+                                "dev.friendai.foundation.text.LanguageDetector",
+                                "net.fabricmc.api.ModInitializer"),
+                        violation(
                                 "legacy-server-state-lookup",
                                 "dev.friendai.server.LegacyCaller",
                                 "dev.friendai.core.FriendaiServerState"),
@@ -119,11 +126,19 @@ class ArchitectureRulesTest {
                                 "dev.friendai.server.runtime.ServerRuntime"),
                         violation(
                                 "protocol-direction",
+                                "dev.friendai.agent.llm.protocol.OpenAiChatProtocol",
+                                "dev.friendai.infrastructure.llm.HttpTransport"),
+                        violation(
+                                "protocol-direction",
                                 "dev.friendai.protocol.companion.CompanionPayload",
                                 "dev.friendai.presentation.companion.CompanionModel"),
                         violation(
                                 "pure-java-no-platform",
-                                "dev.friendai.text.LanguageDetector",
+                                "dev.friendai.foundation.Text",
+                                "net.minecraft.world.level.Level"),
+                        violation(
+                                "pure-java-no-platform",
+                                "dev.friendai.foundation.text.LanguageDetector",
                                 "net.fabricmc.api.ModInitializer"),
                         violation(
                                 "server-to-client",
@@ -234,7 +249,7 @@ class ArchitectureRulesTest {
                     "Missing GameTest entrypoint: " + className);
         }
         assertEquals(
-                91, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
+                92, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
 
         try (Stream<Path> files = Files.walk(PROJECT_ROOT.resolve("src/gametest/java"))) {
             for (Path file :

@@ -2,21 +2,21 @@ package dev.friendai.server.execution;
 
 import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.queue.FailurePolicy;
-import dev.friendai.queue.GuardFacts;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobQueue;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanCursor;
-import dev.friendai.queue.PlanDefinition;
-import dev.friendai.queue.PlanInterpreter;
-import dev.friendai.queue.PlanOptions;
-import dev.friendai.queue.PlanRecord;
-import dev.friendai.queue.PlanStatus;
-import dev.friendai.queue.QueuePolicy;
-import dev.friendai.queue.QueueSave;
-import dev.friendai.queue.QueueText;
-import dev.friendai.queue.QueuedStep;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanCursor;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanInterpreter;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.PlanRecord;
+import dev.friendai.execution.queue.PlanStatus;
+import dev.friendai.execution.queue.QueuePolicy;
+import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueueText;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.plan.PlanStepFactory;
@@ -280,8 +280,8 @@ public final class QueueDriver {
 
     public Job nextGuardSkip(GuardFacts facts) {
         for (Job job : queue.jobs()) {
-            if (job.state() != dev.friendai.queue.JobState.PENDING
-                    || job.onUnmet() != dev.friendai.queue.GuardAction.SKIP) continue;
+            if (job.state() != dev.friendai.execution.queue.JobState.PENDING
+                    || job.onUnmet() != dev.friendai.execution.queue.GuardAction.SKIP) continue;
             for (var guard : job.guards()) if (!guard.holds(facts)) return job;
         }
         return null;

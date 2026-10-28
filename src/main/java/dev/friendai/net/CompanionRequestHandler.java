@@ -6,6 +6,7 @@ import dev.friendai.debug.DebugAccess;
 import dev.friendai.debug.RequestType;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.CompanionRenamer;
+import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.memory.MemoryMenuActions;
 import dev.friendai.memory.MenuStatus;
 import dev.friendai.memory.PlayerRef;

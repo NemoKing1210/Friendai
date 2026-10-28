@@ -1,7 +1,7 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.LogEntry;
-import dev.friendai.debug.LogKind;
+import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.foundation.diagnostics.LogKind;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;

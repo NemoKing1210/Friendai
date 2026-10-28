@@ -1,15 +1,15 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.ToolCall;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.task.builtin.CreateItemsTask;
-import dev.friendai.tool.AccessLevel;
-import dev.friendai.tool.Caller;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

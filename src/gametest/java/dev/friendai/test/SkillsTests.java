@@ -1,13 +1,13 @@
 package dev.friendai.test;
 
 import com.google.gson.*;
-import dev.friendai.brain.*;
+import dev.friendai.agent.llm.model.*;
+import dev.friendai.agent.turn.*;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.llm.model.*;
+import dev.friendai.execution.tool.*;
 import dev.friendai.net.SkillRequestHandler;
 import dev.friendai.skill.*;
-import dev.friendai.tool.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

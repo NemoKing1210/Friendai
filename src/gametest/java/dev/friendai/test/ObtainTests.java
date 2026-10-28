@@ -1,14 +1,16 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.crafting.obtain.Source;
-import dev.friendai.crafting.obtain.Tier;
 import dev.friendai.crafting.obtain.ToolKind;
 import dev.friendai.crafting.obtain.ToolNeed;
 import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.llm.model.ToolCall;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -18,8 +20,6 @@ import dev.friendai.task.builtin.ObtainTask;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.obtain.DropIndex;
 import dev.friendai.task.obtain.WorldScan;
-import dev.friendai.tool.ToolExecutor;
-import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
@@ -49,8 +49,8 @@ public class ObtainTests {
         companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
         companion.inventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
         companion.inventory().setItem(2, new ItemStack(Items.STICK, 2));
-        var caller = new dev.friendai.tool.Caller(
-                owner.getUUID(), owner.getName().getString(), dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(
+                owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
         Result result = new Result();
         ExecutionCoordinator runner = obtain(
                 companion,
@@ -87,8 +87,8 @@ public class ObtainTests {
                     GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(6, y, 6))),
                     "the exposed stone face should be directly visible at y " + y);
         }
-        var caller = new dev.friendai.tool.Caller(
-                owner.getUUID(), owner.getName().getString(), dev.friendai.tool.AccessLevel.OWNER);
+        var caller = new dev.friendai.execution.tool.Caller(
+                owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
         Result result = new Result();
         ExecutionCoordinator runner = obtain(
                 companion,
