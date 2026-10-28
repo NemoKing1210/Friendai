@@ -62,6 +62,7 @@
 			"dev.friendai.test.ResourceObservationTests",
 			"dev.friendai.test.ResourceToolsTests",
 			"dev.friendai.test.ResourceSearchTests",
+			"dev.friendai.test.TargetSearchTests",
 			"dev.friendai.test.ResourceJourneyTests",
 			"dev.friendai.test.PaceTests",
 			"dev.friendai.test.TrustTests",

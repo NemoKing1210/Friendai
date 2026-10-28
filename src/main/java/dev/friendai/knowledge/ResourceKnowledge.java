@@ -202,7 +202,7 @@ public final class ResourceKnowledge {
                         observation.location().pos().x(), observation.location().pos().y(), observation.location().pos().z(),
                         observation.items(), observation.observedTick())).toList();
         return new KnowledgeFile(Math.max(logicalTick, searchLedger.logicalTick()), nextId, records, siteRecords, summaryRecords, aliases, containerRecords,
-                searchCoverage.toJson(), trails.toJson(), searchLedger.toJson());
+                searchCoverage.toJson(), trails.toJson(), searchLedger.toJson(), searchLedger.toStatsJson());
     }
 
     public static ResourceKnowledge restore(KnowledgeFile file, KnowledgeLimits limits) {
@@ -211,6 +211,7 @@ public final class ResourceKnowledge {
         book.logicalTick = file.logicalTick();
         book.searchCoverage = SearchCoverage.fromJson(file.coverage());
         book.searchLedger.restore(file.searchLedger());
+        book.searchLedger.restoreStats(file.searchStats());
         book.searchLedger.interruptActive();
         book.trails = TrailGraph.fromJson(file.trails());
         book.nextId = file.nextSiteId();

@@ -35,4 +35,13 @@ class TrailGraphTest {
         assertEquals(List.of(new Pos(0, 64, 0), new Pos(4, 64, 0), new Pos(4, 64, 4)),
                 graph.route("minecraft:overworld", new Pos(0, 64, 0), new Pos(4, 64, 4)));
     }
+
+    @Test
+    void nodeProximityIsDimensionScopedAndBounded() {
+        TrailGraph graph = new TrailGraph();
+        graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
+        assertTrue(graph.hasNodeNear("minecraft:overworld", new Pos(2, 64, 0), 4));
+        assertTrue(!graph.hasNodeNear("minecraft:overworld", new Pos(2, 64, 0), 1));
+        assertTrue(!graph.hasNodeNear("minecraft:the_nether", new Pos(2, 64, 0), 8));
+    }
 }

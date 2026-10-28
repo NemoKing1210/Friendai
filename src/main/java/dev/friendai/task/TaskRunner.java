@@ -440,28 +440,39 @@ public final class TaskRunner {
         if (decoded.activeJobId() > 0) {
             Job job = queue.job(decoded.activeJobId()).orElse(null);
             if (job != null && job.state() == JobState.RUNNING) {
-                if (interruptedSearch(job, decoded.activeTaskSave())) {
-                    interruptSearchLedger(decoded.activeTaskSave());
-                    queue.cancel(job.id(), "interrupted by restart");
-                } else {
-                    Task task = null;
-                    if (!decoded.activeTaskSave().isBlank()) {
-                        task = TaskFactory.restore(decoded.activeTaskSave(), (ServerLevel) companion.level()).orElse(null);
+                String save = decoded.activeTaskSave();
+                Task task = null;
+                boolean cancelled = false;
+                if (!save.isBlank()) task = TaskFactory.restore(save, (ServerLevel) companion.level()).orElse(null);
+                if (task == null && save.startsWith(dev.friendai.task.builtin.SearchResourceTask.SAVE_PREFIX)) {
+                    java.util.UUID owner = companion.ownerUuid();
+                    if (owner != null && owner.equals(job.principal())) {
+                        task = dev.friendai.task.builtin.SearchResourceTask.restore(save);
                     }
                     if (task == null) {
+                        interruptSearchLedger(save);
+                        queue.cancel(job.id(), "saved search could not be resumed");
+                        cancelled = true;
+                    }
+                }
+                if (task == null && !cancelled) {
+                    if (interruptedSearch(job, save)) {
+                        interruptSearchLedger(save);
+                        queue.cancel(job.id(), "interrupted by restart");
+                    } else {
                         StepFactory factory = factories.get(job.id());
                         if (factory != null) task = factory.create(context());
                     }
-                    if (task != null) {
-                        CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
-                        current = new Active((int) job.id(), job.id(), job.planId(), job.tool(), task, true, false,
-                                false, activeTicks, actionContext, job.creativeSensitive());
-                        try {
-                            task.start(context());
-                        } catch (RuntimeException e) {
-                            current = null;
-                            queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName());
-                        }
+                }
+                if (task != null) {
+                    CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
+                    current = new Active((int) job.id(), job.id(), job.planId(), job.tool(), task, true, false,
+                            false, activeTicks, actionContext, job.creativeSensitive());
+                    try {
+                        task.start(context());
+                    } catch (RuntimeException e) {
+                        current = null;
+                        queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName());
                     }
                 }
             }
@@ -473,7 +484,7 @@ public final class TaskRunner {
     private static boolean requiresFreshTradingAuthority(Job job) {
         return QueueTradeScope.requiresFreshAuthority(job.args(), false);
     }
-    private static boolean interruptedSearch(Job job,String save){if(save!=null&&save.startsWith("resource_session:v1:"))return true;if(job.tool().equals("search_resource"))return true;return job.tool().equals("obtain_item")&&job.args().has("explore")&&job.args().get("explore").getAsBoolean();}
+    private static boolean interruptedSearch(Job job,String save){if(save!=null&&save.startsWith("resource_session:v1:"))return true;if(job.tool().equals("search_resource")||job.tool().equals("find_target"))return true;return job.tool().equals("obtain_item")&&job.args().has("explore")&&job.args().get("explore").getAsBoolean();}
     private void interruptSearchLedger(String save){var owner=companion.ownerUuid();if(owner==null)return;var ledger=FriendaiServerState.get(((ServerLevel)companion.level()).getServer()).knowledge().book(owner).searchLedger();if(save!=null&&save.startsWith("resource_session:v1:")){try{ledger.interrupt(java.util.UUID.fromString(save.substring("resource_session:v1:".length())));return;}catch(IllegalArgumentException malformed){LOGGER.warn("Malformed saved resource session marker; interrupting active ledger sessions");}}ledger.interruptActive();}
     private void safeStop(Task task,TaskContext ctx){try{task.stop(ctx);}catch(RuntimeException e){LOGGER.warn("Task {} failed to stop",task.type(),e);}}
     private TaskContext context(){return new TaskContext(companion,(ServerLevel)companion.level(),this,current==null?null:current.creativeActionContext());}

@@ -6,9 +6,12 @@ import com.google.gson.Gson;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.knowledge.ResourceQuery;
+import dev.friendai.knowledge.search.SearchHint;
+import dev.friendai.knowledge.search.SearchPlanner;
 import dev.friendai.knowledge.ResourceKnowledgeText;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.obtain.ResourceResolver;
+import dev.friendai.task.obtain.SearchTargets;
 import dev.friendai.task.builtin.SearchResourceTask;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
@@ -16,6 +19,10 @@ import dev.friendai.tool.ToolRegistry;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.core.FriendaiServerState;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 
 /** Bounded queries over the owner's remembered resource evidence. */
@@ -47,6 +54,52 @@ final class ResourceTools {
                 ResourceTools::callerSearch);
         ToolKit.addCaller(registry, defs, search, (companion, caller, args) ->
                 ToolResult.error("resource search requires caller authorization"));
+
+        JsonObject targetSchema = SchemaBuilder.object()
+                .enumeration("kind", "What to find", "resource", "structure", "biome", "entity", "place")
+                .string("target", "Block id/tag or item for resource; structure id; biome id; entity id; place name")
+                .enumeration("strategy", "Permitted search strategy", "auto", "surface", "cave", "mine")
+                .enumeration("scope", "Search budget", "local", "expedition")
+                .enumeration("heading", "Initial compass heading", "north", "east", "south", "west")
+                .required("kind", "target")
+                .build();
+        TaskToolDef findTarget = new TaskToolDef("find_target",
+                "Find anything, not only materials: a block family or item source (resource), a generated "
+                        + "structure (village, fortress, monument, ancient_city, stronghold, trial_chambers, mineshaft, "
+                        + "ruined_portal, ...), a biome, a living entity, or a place from your place book. Uses visible "
+                        + "evidence and a bounded local or expedition budget; it never assumes an unseen location.",
+                targetSchema,
+                (companion, args) -> {
+                    SearchTargets.Resolution resolved = SearchTargets.resolve(companion,
+                            args.get("kind").getAsString(), args.get("target").getAsString());
+                    if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
+                    return new SearchResourceTask(resolved.kind(),
+                            args.has("strategy") ? args.get("strategy").getAsString() : "auto",
+                            args.has("scope") ? args.get("scope").getAsString() : "local",
+                            args.has("heading") ? args.get("heading").getAsString() : null, null);
+                },
+                true, AccessLevel.TRUSTED, TaskToolDef.QueueTraits.DEFAULT,
+                ResourceTools::callerFindTarget);
+        ToolKit.addCaller(registry, defs, findTarget, (companion, caller, args) ->
+                ToolResult.error("target search requires caller authorization"));
+
+        registry.register(ToolKit.instantTool("search_hint",
+                "Steer the next search without naming a waypoint: a direction, landmark, biome or rough area with "
+                        + "one line of evidence. The engine validates it (loaded, on land, not inside a protected "
+                        + "place) and only adds a bounded bonus to matching frontiers; it expires in about two "
+                        + "minutes. Use look_around or survey_area first, and never use it as a movement command.",
+                SchemaBuilder.object()
+                        .enumeration("direction", "Compass direction", "north", "east", "south", "west")
+                        .string("landmark", "Landmark you saw, such as a village bell")
+                        .string("biome", "Biome id, such as minecraft:forest")
+                        .integer("x", "Rough area x", -30_000_000, 30_000_000)
+                        .integer("z", "Rough area z", -30_000_000, 30_000_000)
+                        .integer("radius", "Rough area radius in blocks", 8, 2_048)
+                        .string("reason", "One-line evidence for this hint")
+                        .bool("clear", "Clear the current hint instead of setting one")
+                        .build(),
+                AccessLevel.TRUSTED,
+                ResourceTools::hint));
         registry.register(ToolKit.instantTool("known_resources",
                 "Query remembered resource sites for a block, block tag or item source. Results are historical evidence "
                         + "in the current dimension; they are not a guarantee that blocks or inventory remain there.",
@@ -59,6 +112,90 @@ final class ResourceTools {
                         .build(),
                 AccessLevel.TRUSTED,
                 (companion, args) -> query(companion, args)));
+    }
+
+    private static SearchResourceTask callerFindTarget(CompanionEntity companion, dev.friendai.tool.Caller caller,
+            JsonObject args) {
+        String scope = args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString() : "local";
+        if (!scope.equals("local") && !scope.equals("expedition"))
+            throw new IllegalArgumentException("scope must be local or expedition");
+        if (scope.equals("expedition")) {
+            var config = FriendaiServerState.get(((ServerLevel) companion.level()).getServer()).config();
+            if (caller.access() != AccessLevel.OWNER || !config.tasks.resources.allowExpeditions
+                    || !config.companion.chunkLoading.enabled)
+                throw new IllegalArgumentException("expeditions are disabled or owner-only");
+        }
+        SearchTargets.Resolution resolved = SearchTargets.resolve(companion,
+                args.get("kind").getAsString(), args.get("target").getAsString());
+        if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
+        return new SearchResourceTask(resolved.kind(),
+                args.has("strategy") ? args.get("strategy").getAsString() : "auto", scope,
+                args.has("heading") ? args.get("heading").getAsString() : null, caller);
+    }
+
+    private static ToolResult hint(CompanionEntity companion, JsonObject args) {
+        var owner = companion.ownerUuid();
+        if (owner == null) return ToolResult.error("search hints need an owner");
+        var state = FriendaiServerState.get(((ServerLevel) companion.level()).getServer());
+        long now = companion.level().getServer().overworld().getGameTime();
+        if (args.has("clear") && args.get("clear").getAsBoolean()) {
+            state.searchHints().clear(owner);
+            return ToolResult.ok("search hint cleared");
+        }
+        SearchPlanner.Heading direction = null;
+        if (args.has("direction") && !args.get("direction").isJsonNull()) {
+            direction = SearchPlanner.Heading.valueOf(args.get("direction").getAsString()
+                    .toUpperCase(java.util.Locale.ROOT));
+        }
+        String landmark = string(args, "landmark");
+        String biome = string(args, "biome");
+        if (biome != null) {
+            Identifier biomeId = Identifier.tryParse(biome);
+            if (biomeId == null || !((ServerLevel) companion.level()).registryAccess()
+                    .lookupOrThrow(Registries.BIOME)
+                    .containsKey(ResourceKey.create(Registries.BIOME, biomeId))) {
+                return ToolResult.error("unknown biome: " + biome);
+            }
+            biome = biomeId.toString();
+        }
+        String reason = string(args, "reason");
+        Pos origin = new Pos(companion.blockPosition().getX(), companion.blockPosition().getY(),
+                companion.blockPosition().getZ());
+        Pos area = args.has("x") && args.has("z")
+                ? new Pos(args.get("x").getAsInt(), origin.y(), args.get("z").getAsInt()) : null;
+        int areaRadius = args.has("radius") ? args.get("radius").getAsInt() : 64;
+        SearchHint hint;
+        try {
+            hint = SearchHint.create(direction, landmark, biome, area, areaRadius, reason, now);
+        } catch (IllegalArgumentException invalid) {
+            return ToolResult.error(invalid.getMessage());
+        }
+        Pos destination = area;
+        if (destination == null && direction != null) {
+            int d = 64;
+            destination = switch (direction) {
+                case NORTH -> new Pos(origin.x(), origin.y(), origin.z() - d);
+                case EAST -> new Pos(origin.x() + d, origin.y(), origin.z());
+                case SOUTH -> new Pos(origin.x(), origin.y(), origin.z() + d);
+                case WEST -> new Pos(origin.x() - d, origin.y(), origin.z());
+            };
+        }
+        if (destination != null) {
+            ServerLevel level = (ServerLevel) companion.level();
+            SearchHint.Validation validation = hint.validate(new SearchHint.ValidationFacts(
+                    level.hasChunkAt(new BlockPos(destination.x(), destination.y(), destination.z())),
+                    SearchTargets.landAt(level, destination),
+                    !SearchTargets.protectedAt(companion, destination),
+                    SearchTargets.inWorld(level, destination)), now);
+            if (!validation.accepted()) return ToolResult.error("search hint rejected: " + validation.reason());
+        }
+        state.searchHints().put(owner, hint);
+        return ToolResult.ok("search hint set: " + hint.describe(now));
+    }
+
+    private static String string(JsonObject args, String field) {
+        return args.has(field) && !args.get(field).isJsonNull() ? args.get(field).getAsString() : null;
     }
 
     private static SearchResourceTask callerSearch(CompanionEntity companion, dev.friendai.tool.Caller caller,

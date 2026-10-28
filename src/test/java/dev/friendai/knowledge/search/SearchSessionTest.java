@@ -75,4 +75,40 @@ class SearchSessionTest {
         assertEquals(800, session.snapshot().spentTicks());
         assertEquals(10, session.snapshot().spentTravelBlocks());
     }
+
+    @Test
+    void reloadResumesPlanningWithoutResettingSpentWork() {
+        SearchSession session = new SearchSession(UUID.randomUUID(), "minecraft:overworld", "iron",
+                new Pos(0, 64, 0), new SearchSession.Limits(64, 256, 2400, 128), 100);
+        session.accountWork(900, new Pos(10, 64, 0), 10, 2);
+        session.resumeAfterReload(1_000);
+
+        assertEquals(SearchSession.Phase.CHOOSE_FRONTIER, session.snapshot().phase());
+        assertEquals(800, session.snapshot().spentTicks());
+        assertEquals(10, session.snapshot().spentTravelBlocks());
+        assertEquals(2, session.snapshot().excavationBlocks());
+        assertEquals(1_000, session.snapshot().lastTick());
+    }
+
+    @Test
+    void reloadKeepsAWalkHomeAndNeverReopensAFinishedSession() {
+        SearchSession returning = new SearchSession(UUID.randomUUID(), "minecraft:overworld", "iron",
+                new Pos(0, 64, 0), new SearchSession.Limits(64, 256, 2400, 128), 0);
+        returning.advance(new SearchSession.Input(1, "minecraft:overworld", new Pos(0, 64, 0), true, false,
+                SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+        var frontier = new SearchPlanner.Frontier(new Pos(16, 64, 0), new Pos(16, 64, 0),
+                ResourceSearchProfile.Strategy.SURFACE, 1, 32);
+        returning.advance(new SearchSession.Input(2, "minecraft:overworld", new Pos(0, 64, 0), true, false,
+                SearchSession.LegOutcome.NONE, frontier, 0, 0, 0, 32));
+        returning.advance(new SearchSession.Input(10, "minecraft:overworld", new Pos(16, 64, 0), true, true,
+                SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+        returning.resumeAfterReload(20);
+        assertEquals(SearchSession.Phase.RETURN, returning.snapshot().phase());
+
+        returning.advance(new SearchSession.Input(30, "minecraft:overworld", new Pos(0, 64, 0), true, false,
+                SearchSession.LegOutcome.NONE, null, 16, 0, 0, 0));
+        assertEquals(SearchSession.Phase.COMPLETE, returning.snapshot().phase());
+        returning.resumeAfterReload(40);
+        assertEquals(SearchSession.Phase.COMPLETE, returning.snapshot().phase());
+    }
 }

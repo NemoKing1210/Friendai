@@ -93,7 +93,7 @@ final class InfoTools {
                 }));
         registry.register(ToolKit.instantTool("look_around", "Describe the surroundings in detail.",
                 AccessLevel.GUEST,
-                (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText())));
+                (c, a) -> ToolResult.ok(PerceptionBuilder.detailed(c).toPromptText() + hintLine(c))));
         registry.register(ToolKit.instantTool("find_blocks",
                 "List directly observed or remembered blocks of a given id or #tag with coordinates. Results are "
                         + "observations, not a survey of unseen terrain.",
@@ -216,8 +216,17 @@ final class InfoTools {
                 (c, caller, a) -> {
                     int radius = a.has("radius") ? a.get("radius").getAsInt() : 8;
                     return ToolResult.ok(AreaMapBuilder.of(c, caller.uuid(), radius,
-                            FriendaiServerState.get(c.level().getServer()).resources()));
+                            FriendaiServerState.get(c.level().getServer()).resources()) + hintLine(c));
                 }));
+    }
+
+    private static String hintLine(CompanionEntity companion) {
+        if (companion.ownerUuid() == null || companion.level().getServer() == null) return "";
+        long now = companion.level().getServer().overworld().getGameTime();
+        return FriendaiServerState.get(companion.level().getServer()).searchHints()
+                .get(companion.ownerUuid(), now)
+                .map(hint -> "\nsearch hint: " + hint.describe(now))
+                .orElse("\nsearch hint: none");
     }
 
     private static String shortName(Identifier id) {

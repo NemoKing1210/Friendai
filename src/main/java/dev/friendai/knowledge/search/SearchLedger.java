@@ -11,7 +11,28 @@ import java.util.UUID;
 public final class SearchLedger {
     public static final SearchSession.Limits LOCAL_DEFAULTS = new SearchSession.Limits(64, 256, 2_400, 128);
     private static final long REUSE_TICKS = 6_000;
+    private static final int MAX_ASKED = 512;
     private final Map<Key, SearchSession> sessions = new LinkedHashMap<>();
+    private final SearchStats stats = new SearchStats();
+    private final java.util.LinkedHashSet<String> askedGoals = new java.util.LinkedHashSet<>();
+
+    /** Per-kind counters; persisted with the ledger so the priors survive a reload. */
+    public SearchStats stats() { return stats; }
+
+    /** Marks that the owner was asked about this goal, so the search never asks twice for it. */
+    public synchronized void markAsked(UUID owner, String dimension, String goal) {
+        if (owner == null) return;
+        askedGoals.add(askedKey(owner, dimension, goal));
+        while (askedGoals.size() > MAX_ASKED) askedGoals.remove(askedGoals.iterator().next());
+    }
+
+    public synchronized boolean asked(UUID owner, String dimension, String goal) {
+        return owner != null && askedGoals.contains(askedKey(owner, dimension, goal));
+    }
+
+    private static String askedKey(UUID owner, String dimension, String goal) {
+        return owner + "|" + dimension + "|" + normalize(goal);
+    }
 
     public synchronized SearchSession acquire(UUID owner, String dimension, String goal, long now,
             SearchSession.Limits requested) {
@@ -64,6 +85,35 @@ public final class SearchLedger {
             row.addProperty("spent_ticks", s.spentTicks()); row.addProperty("excavated", s.excavationBlocks());
             row.addProperty("blocked", s.blockedLegs()); return row;
         }).toList();
+    }
+
+    public synchronized SearchSession session(UUID sessionId) {
+        if (sessionId == null) return null;
+        return sessions.values().stream()
+                .filter(session -> session.snapshot().id().equals(sessionId)).findFirst().orElse(null);
+    }
+
+    /** Stats and ask-once marks, stored beside the session rows in the knowledge file. */
+    public synchronized JsonObject toStatsJson() {
+        JsonObject json = new JsonObject();
+        json.add("counters", stats.toJson());
+        com.google.gson.JsonArray asked = new com.google.gson.JsonArray();
+        askedGoals.forEach(asked::add);
+        json.add("asked", asked);
+        return json;
+    }
+
+    public synchronized void restoreStats(JsonObject json) {
+        if (json == null) return;
+        if (json.has("counters") && json.get("counters").isJsonObject()) {
+            SearchStats restored = SearchStats.fromJson(json.get("counters").getAsJsonObject());
+            restored.kinds().forEach(kind -> stats.put(kind, restored.counters(kind)));
+        }
+        if (json.has("asked") && json.get("asked").isJsonArray()) {
+            for (var value : json.getAsJsonArray("asked")) {
+                if (value.isJsonPrimitive() && askedGoals.size() < MAX_ASKED) askedGoals.add(value.getAsString());
+            }
+        }
     }
 
     public synchronized void restore(java.util.List<JsonObject> rows) {

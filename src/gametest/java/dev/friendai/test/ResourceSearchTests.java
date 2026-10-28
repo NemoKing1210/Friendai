@@ -103,7 +103,7 @@ public final class ResourceSearchTests {
         h.assertTrue(session != null, "owner request should create a persisted search session");
         h.assertTrue(session.limits().radius() == 700 && session.limits().ticks() == 18_000,
                 "search must use server policy values, not arbitrary tool overrides");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v1:"))
+        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v2:"))
                 .orElse(false), "active search should carry a restart interruption marker");
         companion.taskRunner().stop("test cleanup");
         config.tasks.resources.allowExpeditions = oldExpeditions;
@@ -255,7 +255,7 @@ public final class ResourceSearchTests {
         SearchSession.Snapshot session = state.knowledge().book(owner.getUUID()).searchLedger().snapshot()
                 .stream().findFirst().orElse(null);
         h.assertTrue(session != null, "a permitted observed cave entrance should acquire a bounded session");
-        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v1:"))
+        h.assertTrue(companion.taskRunner().current().map(task -> task.saveData().startsWith("resource_session:v2:"))
                 .orElse(false), "the active cave search should carry the restart interruption marker");
         companion.taskRunner().stop("test cleanup");
         h.succeed();

@@ -114,7 +114,7 @@ public final class ToolCatalog {
                 "save_blueprint", "list_blueprints");
         group(metas, ToolGroup.STRUCTURE, Cost.HIGH, "build_special", "plan_special");
         group(metas, ToolGroup.INFO, Cost.LOW, "find_trees", "find_blocks", "find_placed", "player_view", "describe_block",
-                "survey_area");
+                "survey_area", "find_target", "search_hint");
         group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "go_to_place", "rename_place", "forget_place");
         group(metas, ToolGroup.TRUST, Cost.LOW, "trust_player", "untrust_player");
         group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name", "create_item", "fly_to", "execute_command");
@@ -135,6 +135,11 @@ public final class ToolCatalog {
         hint(metas, "find_placed",
                 "- Use find_placed when the player asks what you just placed or tells you to take those blocks back. "
                         + "mine_blocks, pickup_items and store_items take placed:true to act on your own placements.");
+        hint(metas, "find_target",
+                "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
+                        + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.");
+        hint(metas, "search_hint",
+                "- Use search_hint only after look_around or survey_area gave you evidence: a direction, landmark, biome or rough area with one line of reason. It steers the next search; it never issues a waypoint, and a bad hint costs one leg.");
         hint(metas, "obtain_item",
                 "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
                         + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.");

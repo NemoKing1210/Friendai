@@ -8,7 +8,7 @@ import java.util.Map;
 
 /** Versioned, registry-agnostic persistence DTO for one owner's spatial knowledge. */
 public final class KnowledgeFile {
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
 
     private int version = CURRENT_VERSION;
     private long logicalTick;
@@ -20,6 +20,7 @@ public final class KnowledgeFile {
     private List<JsonObject> coverage = new ArrayList<>();
     private List<JsonObject> trails = new ArrayList<>();
     private List<JsonObject> searchLedger = new ArrayList<>();
+    private JsonObject searchStats = new JsonObject();
     private List<ContainerRecord> containers = new ArrayList<>();
 
     public KnowledgeFile() {}
@@ -43,6 +44,14 @@ public final class KnowledgeFile {
     KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
                   List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers,
                   List<JsonObject> coverage, List<JsonObject> trails, List<JsonObject> searchLedger) {
+        this(logicalTick, nextSiteId, records, sites, summaries, aliases, containers, coverage, trails, searchLedger,
+                new JsonObject());
+    }
+
+    KnowledgeFile(long logicalTick, long nextSiteId, List<MemberRecord> records, List<SiteRecord> sites,
+                  List<SummaryRecord> summaries, Map<Long, Long> aliases, List<ContainerRecord> containers,
+                  List<JsonObject> coverage, List<JsonObject> trails, List<JsonObject> searchLedger,
+                  JsonObject searchStats) {
         this.logicalTick = logicalTick;
         this.nextSiteId = nextSiteId;
         this.records = new ArrayList<>(records);
@@ -53,6 +62,16 @@ public final class KnowledgeFile {
         this.coverage = new ArrayList<>(coverage);
         this.trails = new ArrayList<>(trails);
         this.searchLedger = new ArrayList<>(searchLedger);
+        this.searchStats = searchStats == null ? new JsonObject() : searchStats;
+    }
+
+    /** Upgrades an older file in place; a version this code does not know still fails validation. */
+    KnowledgeFile migrate() {
+        if (version == 1) {
+            version = CURRENT_VERSION;
+            if (searchStats == null) searchStats = new JsonObject();
+        }
+        return this;
     }
 
     public int version() { return version; }
@@ -65,12 +84,13 @@ public final class KnowledgeFile {
     public List<JsonObject> coverage() { return List.copyOf(coverage); }
     public List<JsonObject> trails() { return List.copyOf(trails); }
     public List<JsonObject> searchLedger() { return List.copyOf(searchLedger); }
+    public JsonObject searchStats() { return searchStats == null ? new JsonObject() : searchStats; }
     public List<ContainerRecord> containers() { return containers == null ? List.of() : List.copyOf(containers); }
 
     void validate(KnowledgeLimits limits) {
         if (version != CURRENT_VERSION) throw new IllegalArgumentException("unsupported knowledge version");
         if (logicalTick < 0 || nextSiteId < 1) throw new IllegalArgumentException("invalid knowledge clock or id");
-        if (records == null || sites == null || summaries == null || aliases == null || coverage == null || trails == null || searchLedger == null || containers == null) {
+        if (records == null || sites == null || summaries == null || aliases == null || coverage == null || trails == null || searchLedger == null || containers == null || searchStats == null) {
             throw new IllegalArgumentException("missing knowledge collections");
         }
         if (records.size() > limits.memberObservations() || records.size() > 16_384) {

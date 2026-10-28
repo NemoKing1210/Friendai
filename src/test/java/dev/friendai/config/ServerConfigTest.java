@@ -62,17 +62,37 @@ class ServerConfigTest {
         assertEquals(512, c.tasks.resources.expeditionRadius);
         assertEquals(12_000, c.tasks.resources.expeditionTicks);
         assertEquals(64, c.tasks.resources.observationRadius);
+        assertEquals(32, c.tasks.resources.ownerSightRadius);
+        assertEquals(48, c.tasks.resources.ownerHoldDistance);
+        assertEquals(24, c.tasks.resources.ownerResumeDistance);
         c.tasks.resources.localRadius = 1;
         c.tasks.resources.expeditionRadius = 1;
         c.tasks.resources.localTicks = 1;
         c.tasks.resources.expeditionTicks = 1;
         c.tasks.resources.observationRadius = 100;
+        c.tasks.resources.ownerSightRadius = 200;
+        c.tasks.resources.ownerHoldDistance = 1;
+        c.tasks.resources.ownerResumeDistance = 500;
         c.validate();
         assertEquals(16, c.tasks.resources.localRadius);
         assertEquals(16, c.tasks.resources.expeditionRadius);
         assertEquals(200, c.tasks.resources.localTicks);
         assertEquals(200, c.tasks.resources.expeditionTicks);
         assertEquals(64, c.tasks.resources.observationRadius);
+        assertEquals(128, c.tasks.resources.ownerSightRadius);
+        assertTrue(c.tasks.resources.ownerHoldDistance > c.tasks.resources.ownerSightRadius);
+        assertTrue(c.tasks.resources.ownerResumeDistance < c.tasks.resources.ownerHoldDistance);
+    }
+
+    @Test
+    void escortPolicyIsRepairedFromAnInvalidHandEditedConfig() {
+        ServerConfig.ResourceSection resources = new ServerConfig.ResourceSection();
+        resources.ownerSightRadius = 64;
+        resources.ownerHoldDistance = 1;
+        resources.ownerResumeDistance = 100;
+        var config = resources.escort();
+        assertTrue(config.holdDistance() > config.sightRadius());
+        assertTrue(config.resumeDistance() < config.holdDistance());
     }
 
     @Test

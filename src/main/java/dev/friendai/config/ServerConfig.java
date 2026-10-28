@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 13;
+    public static final int VERSION = 14;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -144,6 +144,18 @@ public class ServerConfig {
         public int expeditionRadius = 512;
         public int expeditionTicks = 12_000;
         public int observationRadius = 64;
+        public boolean waitForOwner = true;
+        public int ownerSightRadius = 32;
+        public int ownerHoldDistance = 48;
+        public int ownerResumeDistance = 24;
+
+        /** A validated escort policy; a hand-edited config that breaks the ordering is repaired here. */
+        public dev.friendai.knowledge.search.EscortPolicy.Config escort() {
+            int sight = Math.max(8, Math.min(128, ownerSightRadius));
+            int hold = Math.max(sight + 1, Math.min(512, ownerHoldDistance));
+            int resume = Math.max(1, Math.min(hold - 1, ownerResumeDistance));
+            return new dev.friendai.knowledge.search.EscortPolicy.Config(sight, hold, resume, waitForOwner);
+        }
     }
 
     public static class MemorySection {
@@ -225,6 +237,7 @@ public class ServerConfig {
      * Version 11 added the {@code places} section, whose field defaults fill in old files.
      * Version 12 added the {@code autonomy} section, whose field defaults fill in old files.
      * Trading settings use defaults when absent, including for older configurations.
+     * Version 14 added the search escort fields, whose defaults fill in old files.
      */
     public static JsonObject migrate(JsonObject json, int from) {
         if (from < 13 && json.has("companion") && json.get("companion").isJsonObject()) {
@@ -308,6 +321,12 @@ public class ServerConfig {
                 tasks.resources.expeditionTicks, tasks.resources.localTicks, 48_000);
         tasks.resources.observationRadius = clamp(problems, "tasks.resources.observationRadius",
                 tasks.resources.observationRadius, 4, 64);
+        tasks.resources.ownerSightRadius = clamp(problems, "tasks.resources.ownerSightRadius",
+                tasks.resources.ownerSightRadius, 8, 128);
+        tasks.resources.ownerHoldDistance = clamp(problems, "tasks.resources.ownerHoldDistance",
+                tasks.resources.ownerHoldDistance, tasks.resources.ownerSightRadius + 1, 512);
+        tasks.resources.ownerResumeDistance = clamp(problems, "tasks.resources.ownerResumeDistance",
+                tasks.resources.ownerResumeDistance, 1, tasks.resources.ownerHoldDistance - 1);
         if (tasks.trading == null) {
             tasks.trading = new TradingSection();
             problems.add("tasks.trading was missing");

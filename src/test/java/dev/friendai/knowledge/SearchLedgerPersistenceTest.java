@@ -35,4 +35,19 @@ class SearchLedgerPersistenceTest {
         assertEquals(10, resumed.snapshot().spentTicks());
         assertEquals(SearchSession.Phase.CHOOSE_FRONTIER, resumed.snapshot().phase());
     }
+
+    @Test
+    void statsAndAskOnceSurviveKnowledgeRoundTrip() {
+        UUID owner = UUID.randomUUID();
+        ResourceKnowledge original = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
+        original.searchLedger().stats().record("minecraft:iron_ore", true, 12, 240, 3);
+        original.searchLedger().markAsked(owner, "minecraft:overworld", "iron ore");
+
+        ResourceKnowledge restored = ResourceKnowledge.restore(original.snapshot(), KnowledgeLimits.DEFAULTS);
+
+        assertEquals(1, restored.searchLedger().stats().counters("minecraft:iron_ore").finds());
+        assertEquals(12, restored.searchLedger().stats().counters("minecraft:iron_ore").travelBlocks());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                restored.searchLedger().asked(owner, "minecraft:overworld", " IRON  ORE "));
+    }
 }

@@ -142,6 +142,18 @@ public final class SearchSession {
         lastTick = now;
         startedTick = Math.max(0, now - spentTicks);
     }
+
+    /**
+     * Resumes after a world reload: spent counters stay untouched, a return trip keeps walking home, and every
+     * other live phase re-plans from the current position. A finished or failed session stays finished.
+     */
+    public synchronized void resumeAfterReload(long now) {
+        if (now < 0) throw new IllegalArgumentException("tick must not be negative");
+        lastTick = Math.max(lastTick, now);
+        startedTick = Math.max(0, now - spentTicks);
+        if (phase == Phase.COMPLETE || phase == Phase.FAILED) return;
+        if (phase != Phase.RETURN) phase = Phase.CHOOSE_FRONTIER;
+    }
     public synchronized Snapshot snapshot() {
         return new Snapshot(id, dimension, goal, origin, limits, phase, startedTick, lastTick,
                 spentTravelBlocks, spentTicks, excavationBlocks, blockedLegs);

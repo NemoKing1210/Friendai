@@ -52,6 +52,7 @@ public final class KnowledgeStore implements AutoCloseable {
             if (json == null) return new ResourceKnowledge(limits);
             KnowledgeFile parsed = GSON.fromJson(json, KnowledgeFile.class);
             if (parsed == null) throw new IllegalArgumentException("empty knowledge file");
+            parsed.migrate();
             return ResourceKnowledge.restore(parsed, limits);
         }
 

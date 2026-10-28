@@ -87,6 +87,19 @@ public final class TrailGraph {
     public synchronized int nodeCount() { return nodes.size(); }
     public synchronized int edgeCount() { return edges.size(); }
 
+    /** True when a recorded trail node lies within {@code radius} of {@code pos} in this dimension. */
+    public synchronized boolean hasNodeNear(String dimension, Pos pos, double radius) {
+        if (dimension == null || pos == null || radius <= 0) return false;
+        double limit = radius * radius;
+        for (NodeKey key : nodes.keySet()) {
+            if (!key.dimension().equals(dimension)) continue;
+            Pos node = key.pos();
+            double dx = (double) node.x() - pos.x(), dy = (double) node.y() - pos.y(), dz = (double) node.z() - pos.z();
+            if (dx * dx + dy * dy + dz * dz <= limit) return true;
+        }
+        return false;
+    }
+
     public synchronized List<JsonObject> toJson() {
         return edges.values().stream().map(edge -> {
             JsonObject row = new JsonObject(); row.addProperty("id", edge.id()); row.addProperty("dimension", edge.dimension());

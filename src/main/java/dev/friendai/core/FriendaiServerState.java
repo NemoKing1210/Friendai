@@ -65,6 +65,8 @@ public final class FriendaiServerState {
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
     private final MemoryViewers placeViewers = new MemoryViewers();
+    private final dev.friendai.knowledge.search.SearchHintStore searchHints =
+            new dev.friendai.knowledge.search.SearchHintStore();
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
@@ -220,6 +222,9 @@ public final class FriendaiServerState {
     public MemoryViewers placeViewers() {
         return placeViewers;
     }
+
+    /** Per-owner search hints: short-lived model steering, never a waypoint. */
+    public dev.friendai.knowledge.search.SearchHintStore searchHints() { return searchHints; }
 
     /** Trust changes waiting for the owner's confirmation. */
     public TrustConfirmations trust() {

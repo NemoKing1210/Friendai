@@ -1,76 +1,143 @@
 package dev.friendai.task.builtin;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import dev.friendai.brain.BrainEvent;
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.knowledge.search.AbandonPolicy;
+import dev.friendai.knowledge.search.EscortPolicy;
 import dev.friendai.knowledge.search.ResourceSearchProfile;
+import dev.friendai.knowledge.search.SearchHint;
 import dev.friendai.knowledge.search.SearchSession;
+import dev.friendai.knowledge.search.TargetKind;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.mining.BlockMatcher;
-import dev.friendai.task.obtain.ResourceResolver;
 import dev.friendai.task.obtain.ResourceSearchDriver;
+import dev.friendai.task.obtain.SearchTargets;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
-import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Caller-scoped local resource search that uses direct sight and a persisted goal budget. */
+/** Caller-scoped search for one target kind; the engine is shared, only the target data differs. */
 public final class SearchResourceTask implements Task {
+    public static final String SAVE_PREFIX = "resource_session:v2:";
+
+    private final TargetKind fixedTarget;
     private final String resource;
     private final String requestedStrategy;
     private final String scope;
     private final String heading;
     private final Caller caller;
+    private final UUID restoreSession;
     private Task driver;
     private SearchSession session;
+    private TargetKind target;
+    private SearchHint hint;
+    private EscortPolicy escort;
     private String summary = "search has not started";
     private UUID ownerId;
+    private int radius;
+    private boolean ownerWasNear;
+    private boolean restored;
 
     public SearchResourceTask(String resource, String requestedStrategy, String scope, String heading, Caller caller) {
+        this(null, resource, requestedStrategy, scope, heading, caller, null, false);
+    }
+
+    public SearchResourceTask(TargetKind target, String requestedStrategy, String scope, String heading,
+            Caller caller) {
+        this(target, null, requestedStrategy, scope, heading, caller, null, false);
+    }
+
+    private SearchResourceTask(TargetKind target, String resource, String requestedStrategy, String scope,
+            String heading, Caller caller, UUID restoreSession, boolean restored) {
+        this.fixedTarget = target;
         this.resource = resource;
         this.requestedStrategy = requestedStrategy == null ? "auto" : requestedStrategy;
         this.scope = scope == null ? "local" : scope;
         this.heading = heading;
         this.caller = caller;
+        this.restoreSession = restoreSession;
+        this.restored = restored;
+    }
+
+    /** Rebuilds an owner-principal search after a reload; the ledger keeps every spent unit. */
+    public static SearchResourceTask restore(String saved) {
+        if (saved == null || !saved.startsWith(SAVE_PREFIX)) return null;
+        try {
+            String json = new String(Base64.getUrlDecoder().decode(saved.substring(SAVE_PREFIX.length())),
+                    StandardCharsets.UTF_8);
+            JsonObject payload = JsonParser.parseString(json).getAsJsonObject();
+            TargetKind kind = TargetKind.parse(payload.getAsJsonObject("target"));
+            UUID sessionId = payload.has("session") ? UUID.fromString(payload.get("session").getAsString()) : null;
+            return new SearchResourceTask(kind, null,
+                    payload.has("strategy") ? payload.get("strategy").getAsString() : "auto",
+                    payload.has("scope") ? payload.get("scope").getAsString() : "local",
+                    payload.has("heading") ? payload.get("heading").getAsString() : null,
+                    null, sessionId, true);
+        } catch (RuntimeException malformed) {
+            return null;
+        }
     }
 
     @Override public String type() { return "search_resource"; }
     @Override public boolean hasTimeout() { return false; }
 
-    @Override public void start(TaskContext context) {
+    @Override
+    public void start(TaskContext context) {
         var owner = context.companion().ownerUuid();
-        if (owner == null || caller == null || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal())
+        if (owner == null || (!restored && (caller == null || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal())))
             throw new IllegalArgumentException("resource search is unavailable to this caller");
         var serverState = FriendaiServerState.get(context.level().getServer());
         var policy = serverState.config().tasks.resources;
         if (!scope.equals("local") && !scope.equals("expedition"))
             throw new IllegalArgumentException("scope must be local or expedition");
         boolean expedition = scope.equals("expedition");
-        if (expedition && (caller.access() != AccessLevel.OWNER || !policy.allowExpeditions))
+        if (expedition && (caller == null || caller.access() != AccessLevel.OWNER || !policy.allowExpeditions)) {
+            if (restored) {
+                summary = "an expedition does not resume after a reload; ask again";
+                return;
+            }
             throw new IllegalArgumentException("expeditions are disabled or owner-only");
+        }
         if (expedition && !serverState.config().companion.chunkLoading.enabled)
             throw new IllegalArgumentException("expeditions require companion chunk loading to be enabled");
 
-        ResourceResolver.Resolution resolved = ResourceResolver.resolve(context.level(), resource);
-        if (!resolved.executable() || resolved.blockIds().isEmpty()) throw new IllegalArgumentException(resolved.reason());
-        String family = resolved.family();
-        ResourceSearchProfile profile = ResourceSearchProfile.builtin(family,
-                context.level().dimension().identifier().toString());
+        if (fixedTarget != null) {
+            target = fixedTarget;
+        } else {
+            SearchTargets.Resolution resolved = SearchTargets.resolve(context.companion(), "resource", resource);
+            if (!resolved.ok()) {
+                summary = resolved.error();
+                return;
+            }
+            target = resolved.kind();
+        }
+        String dimension = context.level().dimension().identifier().toString();
+        ResourceSearchProfile profile = profile(target, dimension);
         if (profile.strategies().isEmpty()) {
-            summary = "no search strategy for " + family + " in " + profile.dimensions();
+            summary = "no search strategy for " + target.label() + " in " + dimension;
             return;
         }
-        ResourceSearchProfile.Strategy strategy = chooseStrategy(profile);
-        if (!profile.allows(context.level().dimension().identifier().toString(), strategy)) {
+        ResourceSearchProfile.Strategy strategy = target instanceof TargetKind.BlockFamily
+                ? chooseStrategy(profile) : ResourceSearchProfile.Strategy.SURFACE;
+        if (!profile.allows(dimension, strategy)) {
             summary = "unsupported search strategy " + strategy.name().toLowerCase(java.util.Locale.ROOT)
-                    + " for " + profile.family();
+                    + " for " + target.label();
             return;
         }
         CaveEntranceObservation caveEntrance = null;
@@ -87,49 +154,170 @@ public final class SearchResourceTask implements Task {
             return;
         }
         boolean shallow = profile.shallowStone();
-        if (strategy == ResourceSearchProfile.Strategy.MINE && !miningReady(context, resolved.blockIds(), shallow)) {
+        Set<String> blockIds = target instanceof TargetKind.BlockFamily family ? family.blockIds() : Set.of();
+        if (strategy == ResourceSearchProfile.Strategy.MINE && !miningReady(context, blockIds, shallow)) {
             summary = shallow ? "not ready for shallow stone search: need a suitable pickaxe with 24 durability"
                     : "not ready for mining search: need a suitable durable pickaxe and 16 torches";
             return;
         }
 
-        int radius = expedition ? policy.expeditionRadius : policy.localRadius;
+        radius = expedition ? policy.expeditionRadius : policy.localRadius;
         int ticks = expedition ? policy.expeditionTicks : policy.localTicks;
         int excavationLimit = shallow ? 24 : 128;
         SearchSession.Limits requested = new SearchSession.Limits(radius, radius * 4.0, ticks, excavationLimit);
         Pos origin = position(context);
         long logicalTick = context.level().getServer().overworld().getGameTime();
-        session = serverState.knowledge().book(owner).searchLedger().acquire(owner,
-                context.level().dimension().identifier().toString(), family,
-                logicalTick, requested, origin);
-        session.clampLimits(requested);
-        driver = new ResourceSearchDriver(session, profile, resolved.blockIds(), radius, expedition, strategy, heading,
-                caveEntrance);
+        var ledger = serverState.knowledge().book(owner).searchLedger();
+        session = restoreSession == null ? null : ledger.session(restoreSession);
+        if (session != null && session.terminal()
+                && session.snapshot().phase() != SearchSession.Phase.INTERRUPTED) {
+            summary = "saved search already finished";
+            session = null;
+            return;
+        }
+        if (session != null) {
+            session.resumeAfterReload(logicalTick);
+            session.clampLimits(requested);
+            radius = session.snapshot().limits().radius();
+        } else {
+            session = ledger.acquire(owner, dimension, target.coverageKey(), logicalTick, requested, origin);
+            session.clampLimits(requested);
+        }
+        hint = serverState.searchHints().get(owner, logicalTick).orElse(null);
+        escort = new EscortPolicy(policy.escort());
+        driver = new ResourceSearchDriver(session, target, profile, radius, expedition, strategy, heading,
+                caveEntrance, hint);
         ownerId = owner;
         driver.start(context);
     }
 
-    @Override public TaskStatus tick(TaskContext context) {
+    @Override
+    public TaskStatus tick(TaskContext context) {
         if (driver == null || session == null) return TaskStatus.FAILED;
-        boolean ownerOnline = context.level().getServer().getPlayerList().getPlayer(ownerId) != null;
-        if (!ownerId.equals(context.companion().ownerUuid()) || !ownerOnline) {
+        ServerPlayer owner = context.level().getServer().getPlayerList().getPlayer(ownerId);
+        boolean ownerOnline = owner != null;
+        boolean autonomous = FriendaiServerState.get(context.level().getServer())
+                .freeTime().state(ownerId).shift() != null;
+        if (!ownerId.equals(context.companion().ownerUuid()) || (!ownerOnline && !autonomous)) {
             stop(context);
             session.interrupt();
             summary = "search interrupted because the owner is unavailable";
             return TaskStatus.FAILED;
         }
+        boolean sameDimension = ownerOnline && owner.level().dimension().identifier()
+                .equals(context.level().dimension().identifier());
+        boolean ownerInCurrentDimension = !ownerOnline || sameDimension;
+        var abandon = AbandonPolicy.check(new AbandonPolicy.Facts(
+                context.companion().getHealth(), context.companion().getMaxHealth(),
+                context.companion().hunger().food(), context.level().isDarkOutside(),
+                !context.level().canSeeSky(context.companion().blockPosition()), ownerOnline || autonomous,
+                ownerInCurrentDimension));
+        if (abandon.isPresent()) {
+            stop(context);
+            session.interrupt();
+            summary = abandon.get().text();
+            return TaskStatus.FAILED;
+        }
+        double ownerDistance = ownerOnline ? owner.position().distanceTo(context.companion().position())
+                : Double.MAX_VALUE;
+        String dimension = context.level().dimension().identifier().toString();
+        var ledger = FriendaiServerState.get(context.level().getServer()).knowledge()
+                .book(ownerId).searchLedger();
+        EscortPolicy.Decision decision = escort.decide(new EscortPolicy.Input(ownerOnline, autonomous,
+                sameDimension, ownerDistance, ownerWasNear, radius,
+                ledger.asked(ownerId, dimension, target.coverageKey())));
+        switch (decision.action()) {
+            case WAIT -> {
+                if (!(driver instanceof ResourceSearchDriver search)) return TaskStatus.FAILED;
+                if (!search.holding()) {
+                    search.holdForOwner(context, decision.message());
+                    context.companion().getLookControl().setLookAt(owner);
+                }
+                summary = search.resultSummary();
+                return TaskStatus.RUNNING;
+            }
+            case CAP_RADIUS -> {
+                resume();
+                clampRadius(decision.radiusCap());
+            }
+            case ASK_ONCE -> {
+                resume();
+                clampRadius(decision.radiusCap());
+                askOnce(serverState(context), decision.message(), dimension);
+            }
+            case AUTONOMOUS -> {
+                resume();
+                askOnce(serverState(context), decision.message(), dimension);
+            }
+            case NONE -> resume();
+        }
+        ownerWasNear = decision.action() == EscortPolicy.Action.WAIT
+                || (ownerOnline && ownerDistance <= escort.config().sightRadius());
         TaskStatus status = driver.tick(context);
         summary = driver.resultSummary();
         return status;
     }
 
-    @Override public void stop(TaskContext context) {
+    private void resume() {
+        if (driver instanceof ResourceSearchDriver search) search.resumeAfterOwner();
+    }
+
+    private void clampRadius(int cap) {
+        if (cap <= 0) return;
+        var snapshot = session.snapshot();
+        if (snapshot.limits().radius() <= cap) return;
+        session.clampLimits(new SearchSession.Limits(cap,
+                Math.min(snapshot.limits().travelBlocks(), cap * 4.0), snapshot.limits().ticks(),
+                snapshot.limits().excavationBlocks()));
+        radius = Math.min(radius, cap);
+    }
+
+    private void askOnce(FriendaiServerState state, String message, String dimension) {
+        if (message == null || message.isBlank()) return;
+        var ledger = state.knowledge().book(ownerId).searchLedger();
+        if (ledger.asked(ownerId, dimension, target.coverageKey())) return;
+        ledger.markAsked(ownerId, dimension, target.coverageKey());
+        state.brains().post(ownerId, new BrainEvent.WorldNotice(message));
+    }
+
+    private static FriendaiServerState serverState(TaskContext context) {
+        return FriendaiServerState.get(context.level().getServer());
+    }
+
+    @Override
+    public void stop(TaskContext context) {
         if (driver != null) driver.stop(context);
         if (session != null && !session.terminal()) session.interrupt();
     }
-    @Override public String describe() { return "searching locally for " + resource; }
+    @Override public String describe() {
+        TargetKind effective = target == null ? fixedTarget : target;
+        return "searching for " + (effective == null ? resource : effective.label());
+    }
     @Override public String resultSummary() { return summary; }
-    @Override public String saveData() { return session == null ? null : "resource_session:v1:" + session.snapshot().id(); }
+
+    @Override
+    public String saveData() {
+        if (session == null || target == null) return null;
+        try {
+            JsonObject payload = new JsonObject();
+            payload.add("target", target.toJson());
+            payload.addProperty("session", session.snapshot().id().toString());
+            payload.addProperty("strategy", requestedStrategy);
+            payload.addProperty("scope", scope);
+            if (heading != null) payload.addProperty("heading", heading);
+            String json = payload.toString();
+            return SAVE_PREFIX + Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(json.getBytes(StandardCharsets.UTF_8));
+        } catch (RuntimeException broken) {
+            return null;
+        }
+    }
+
+    private static ResourceSearchProfile profile(TargetKind target, String dimension) {
+        if (target instanceof TargetKind.BlockFamily family) return family.profile();
+        return new ResourceSearchProfile(target.coverageKey(), Set.of(dimension), OptionalInt.empty(),
+                Set.of(ResourceSearchProfile.Strategy.SURFACE));
+    }
 
     private ResourceSearchProfile.Strategy chooseStrategy(ResourceSearchProfile profile) {
         if (!requestedStrategy.equalsIgnoreCase("auto")) {
