@@ -3,6 +3,7 @@ package dev.friendai.task.builtin;
 import dev.friendai.pathing.Pos;
 import dev.friendai.place.PlaceAutoRegistration;
 import dev.friendai.place.PlaceCandidate;
+import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -174,6 +175,7 @@ public final class MineBlocksTask implements Task {
                 breaker = null;
                 mined++;
                 rememberFirst(lastBroken);
+                PlacedService.forget(c.companion(), lastBroken);
                 yield TaskStatus.RUNNING;
             }
             case GONE -> {
@@ -209,6 +211,7 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 mined++;
                 rememberFirst(lastBroken);
+                PlacedService.forget(c.companion(), lastBroken);
                 miningSessionActive = false;
                 yield TaskStatus.RUNNING;
             }

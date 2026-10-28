@@ -24,6 +24,7 @@
 			"dev.friendai.test.MiningTests",
 			"dev.friendai.test.InteractTests",
 			"dev.friendai.test.PlaceBlockTests",
+			"dev.friendai.test.PlacedBlockTests",
 			"dev.friendai.test.UseBlockTests",
 			"dev.friendai.test.LightAreaTests",
 			"dev.friendai.test.ClearTests",

@@ -2,6 +2,7 @@ package dev.friendai.task.interact;
 
 import com.mojang.authlib.GameProfile;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.placed.PlacedService;
 import dev.friendai.task.inventory.InventoryOps;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -21,6 +22,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.level.GameType;
@@ -85,8 +87,15 @@ public final class CompanionHands {
         ItemStack held = stack.copy();
         hands.setItemInHand(InteractionHand.MAIN_HAND, held);
         BlockHitResult hit = new BlockHitResult(hitPoint, face, against, false);
+        // Only a block item places a block; a hoe, a seed, a bucket or bonemeal changes the world without one.
+        BlockItem blockItem = stack.getItem() instanceof BlockItem item ? item : null;
+        BlockPos target = against.relative(face);
+        BlockState targetBefore = blockItem == null ? null : level.getBlockState(target);
+        BlockState againstBefore = blockItem == null ? null : level.getBlockState(against);
+        BlockState aboveBefore = blockItem == null ? null : level.getBlockState(target.above());
+        InteractionResult result;
         try {
-            return hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
+            result = hands.gameMode.useItemOn(hands, level, held, InteractionHand.MAIN_HAND, hit);
         } finally {
             if (returnRemainder) {
                 returnItems(hands);
@@ -95,6 +104,29 @@ public final class CompanionHands {
                 hands.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
             }
         }
+        if (blockItem != null) {
+            recordPlacement(level, target, targetBefore, blockItem);
+            recordPlacement(level, against, againstBefore, blockItem);
+            recordPlacement(level, target.above(), aboveBefore, blockItem);
+        }
+        return result;
+    }
+
+    /**
+     * Records a cell that now holds the placed block and did not before. Vanilla may place into the clicked
+     * replaceable cell or add a second half above the target, so the choke point checks all three candidates
+     * instead of assuming the clicked face is the answer.
+     */
+    private void recordPlacement(ServerLevel level, BlockPos pos, BlockState before, BlockItem item) {
+        BlockState after = level.getBlockState(pos);
+        if (after.getBlock() == item.getBlock() && before.getBlock() != item.getBlock()) {
+            PlacedService.record(companion, pos, after, placementSource());
+        }
+    }
+
+    private String placementSource() {
+        String tool = companion.taskRunner().currentToolName();
+        return tool == null || tool.isBlank() ? "direct" : tool;
     }
 
     /**
