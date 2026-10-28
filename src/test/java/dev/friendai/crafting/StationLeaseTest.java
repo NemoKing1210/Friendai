@@ -60,6 +60,24 @@ class StationLeaseTest {
     }
 
     @Test
+    void aSnapshotCarriesEveryLeaseWithItsDeadline() {
+        StationLease original = new StationLease();
+        original.keep(Station.CRAFTING_TABLE, TABLE, 100);
+        original.keep(Station.FURNACE, 0x99L, 200);
+
+        StationLease copy = new StationLease();
+        copy.restore(original.snapshot());
+
+        assertEquals(OptionalLong.of(TABLE), copy.held(Station.CRAFTING_TABLE, 300), "table keeps its deadline");
+        assertEquals(OptionalLong.of(0x99L), copy.held(Station.FURNACE, 300), "furnace keeps its deadline");
+        assertTrue(copy.due(100 + StationLease.GRACE_TICKS - 1).isEmpty(), "the copy is not due before its deadline");
+        assertEquals(
+                new StationLease.Due(Station.CRAFTING_TABLE, TABLE),
+                copy.due(100 + StationLease.GRACE_TICKS).orElseThrow(),
+                "the earlier lease is due first after the copy");
+    }
+
+    @Test
     void oneLeasePerStation() {
         StationLease lease = new StationLease();
         lease.keep(Station.CRAFTING_TABLE, 7L, 100);

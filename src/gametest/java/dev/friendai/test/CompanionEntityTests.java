@@ -281,19 +281,4 @@ public class CompanionEntityTests {
         h.assertValueEqual(b.combatSettings().pursuitLimitBlocks(), 48, "second pursuit changed");
         h.succeed();
     }
-
-    @GameTest
-    public void equipmentDropsOnDeath(GameTestHelper h) {
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        c.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
-        c.hurtServer(h.getLevel(), h.getLevel().damageSources().genericKill(), 1000.0F);
-        h.succeedWhen(() -> {
-            boolean found = h
-                    .getLevel()
-                    .getEntitiesOfClass(ItemEntity.class, c.getBoundingBox().inflate(6.0))
-                    .stream()
-                    .anyMatch(e -> e.getItem().is(Items.IRON_BOOTS));
-            h.assertTrue(found, "iron boots did not drop");
-        });
-    }
 }

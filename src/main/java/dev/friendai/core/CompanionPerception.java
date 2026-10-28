@@ -1,6 +1,7 @@
 package dev.friendai.core;
 
 import dev.friendai.brain.PerceptionSource;
+import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.tool.Caller;
@@ -15,12 +16,23 @@ public final class CompanionPerception implements PerceptionSource {
 
     @Override
     public String describe() {
-        return PerceptionBuilder.brief(companion, null).toPromptText();
+        return withLastDeath(PerceptionBuilder.brief(companion, null).toPromptText());
     }
 
     @Override
     public String describe(Caller caller) {
-        return PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid())
-                .toPromptText();
+        return withLastDeath(PerceptionBuilder.brief(companion, caller == null ? null : caller.uuid())
+                .toPromptText());
+    }
+
+    /** The one fact the model must be able to answer "what happened?" with, bounded to a single sentence. */
+    private String withLastDeath(String perception) {
+        var server = companion.level().getServer();
+        var owner = companion.ownerUuid();
+        if (server == null || owner == null) {
+            return perception;
+        }
+        String death = CompanionCarryData.get(server).lastDeathLine(owner);
+        return death.isEmpty() ? perception : perception + "\n" + death;
     }
 }

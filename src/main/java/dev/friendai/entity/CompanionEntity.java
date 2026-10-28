@@ -41,6 +41,7 @@ import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -50,6 +51,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -72,6 +74,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -104,6 +108,17 @@ public class CompanionEntity extends PathfinderMob {
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
+    /** The slots a death snapshot carries, in a stable order shared by save and restore. */
+    private static final EquipmentSlot[] CARRY_SLOTS = {
+        EquipmentSlot.FEET,
+        EquipmentSlot.LEGS,
+        EquipmentSlot.CHEST,
+        EquipmentSlot.HEAD,
+        EquipmentSlot.MAINHAND,
+        EquipmentSlot.OFFHAND
+    };
+
+    private static final Codec<List<ItemStack>> CARRY_EQUIPMENT = ItemStack.OPTIONAL_CODEC.listOf();
     /** Vanilla's starting saturation, used when an old save has no hunger fields. */
     private static final float STARTING_SATURATION = 5.0f;
     /** Vanilla exhaustion per block broken, per attack, per hit taken and per jump. */
@@ -1000,15 +1015,18 @@ public class CompanionEntity extends PathfinderMob {
 
     @Override
     protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
-        super.dropCustomDeathLoot(level, source, killedByPlayer);
-        dropInventory();
+        // The companion keeps what it carries through death; the replacement body is restored from
+        // captureCarry() and nothing is spawned here. See TODO item 20.
     }
 
     @Override
     public void die(DamageSource source) {
+        if (!level().isClientSide() && level() instanceof ServerLevel serverLevel && ownerUuid != null) {
+            // Capture while the body, the equipment and the queue are still intact.
+            CompanionManager.get(serverLevel.getServer()).onDeath(this, serverLevel, source);
+        }
         super.die(source);
         if (!level().isClientSide() && level() instanceof ServerLevel serverLevel) {
-            CompanionManager.get(serverLevel.getServer()).onDeath(this);
             owner().ifPresent(p -> p.sendSystemMessage(Component.translatable("friendai.companion.died", getName())));
         }
     }
@@ -1041,6 +1059,11 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid != null) {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
+        saveBody(output);
+    }
+
+    /** The persistent carry fields, shared by the world save and the death snapshot. */
+    private void saveBody(ValueOutput output) {
         inventory.storeAsItemList(output.list("Inventory", ItemStack.CODEC));
         output.putString("CombatSettings", combatSettings.encode());
         // Old builds still read the legacy label; new builds prefer CombatSettings when it is present.
@@ -1066,6 +1089,16 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
+    /** Writes what must survive death: the body plus the six equipment slots the superclass save covers. */
+    private void saveCarry(ValueOutput output) {
+        saveBody(output);
+        List<ItemStack> equipment = new ArrayList<>(CARRY_SLOTS.length);
+        for (EquipmentSlot slot : CARRY_SLOTS) {
+            equipment.add(getItemBySlot(slot));
+        }
+        output.store("CarryEquipment", CARRY_EQUIPMENT, equipment);
+    }
+
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
@@ -1075,6 +1108,11 @@ public class CompanionEntity extends PathfinderMob {
         setNoGravity(false);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         syncCreativeModePreference();
+        readBody(input);
+    }
+
+    /** The persistent carry fields; the superclass has already restored equipment on a world load. */
+    private void readBody(ValueInput input) {
         input.list("Inventory", ItemStack.CODEC).ifPresent(inventory::fromItemList);
         String savedSettings = input.getString("CombatSettings").orElse(null);
         this.combatSettings = savedSettings != null
@@ -1097,6 +1135,28 @@ public class CompanionEntity extends PathfinderMob {
                         .ifPresent(taskRunner::restore);
             }
         }
+    }
+
+    /** A copy of everything this body carries, for the respawn that replaces it. */
+    public CompoundTag captureCarry() {
+        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level().registryAccess());
+        saveCarry(output);
+        return output.buildResult();
+    }
+
+    /** Applies a capture from {@link #captureCarry()} to this fresh body. */
+    public void restoreCarry(CompoundTag carry) {
+        ValueInput input = TagValueInput.create(ProblemReporter.DISCARDING, level().registryAccess(), carry.copy());
+        readCarry(input);
+    }
+
+    private void readCarry(ValueInput input) {
+        readBody(input);
+        input.read("CarryEquipment", CARRY_EQUIPMENT).ifPresent(equipment -> {
+            for (int i = 0; i < CARRY_SLOTS.length && i < equipment.size(); i++) {
+                setItemSlot(CARRY_SLOTS[i], equipment.get(i));
+            }
+        });
     }
 
     /** Reads the chunked queue save, falling back to the single-string key written by older versions. */

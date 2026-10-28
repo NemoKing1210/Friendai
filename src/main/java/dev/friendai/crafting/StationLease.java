@@ -1,6 +1,7 @@
 package dev.friendai.crafting;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -19,6 +20,9 @@ public final class StationLease {
 
     /** A station whose grace ran out: the companion should take it back. */
     public record Due(Station station, long posKey) {}
+
+    /** One stored lease, used to carry the book across a companion death without touching the world. */
+    public record Kept(Station station, long posKey, long deadline) {}
 
     private record Held(long posKey, long deadline) {}
 
@@ -52,5 +56,25 @@ public final class StationLease {
 
     public boolean isEmpty() {
         return held.isEmpty();
+    }
+
+    /** Every lease in placement order, for carrying the book to a replacement companion. */
+    public List<Kept> snapshot() {
+        return held.entrySet().stream()
+                .map(entry -> new Kept(
+                        entry.getKey(),
+                        entry.getValue().posKey(),
+                        entry.getValue().deadline()))
+                .toList();
+    }
+
+    /** Replaces the book with {@code kept}; deadlines are absolute ticks, so a lease keeps its remaining grace. */
+    public void restore(List<Kept> kept) {
+        held.clear();
+        for (Kept lease : kept) {
+            if (lease != null && lease.station() != null) {
+                held.put(lease.station(), new Held(lease.posKey(), lease.deadline()));
+            }
+        }
     }
 }

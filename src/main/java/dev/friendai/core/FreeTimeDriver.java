@@ -315,6 +315,11 @@ public final class FreeTimeDriver {
 
     /** One owner's free time, once a second. */
     void tick(UUID owner, CompanionEntity companion, boolean brainThinking, boolean ownerGoalActive, long nowMillis) {
+        if (companion.isDeadOrDying()) {
+            // The body is between death and its replacement: its shift and plan are carried over, so free
+            // time must not read a zero-health corpse as an emergency and cancel what is being restored.
+            return;
+        }
         ServerConfig cfg = config.get();
         AutonomySettings s = cfg.autonomy.toSettings();
         Autonomy ceiling = Autonomy.parse(cfg.agent.autonomy);

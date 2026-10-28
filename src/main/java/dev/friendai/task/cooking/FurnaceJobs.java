@@ -30,6 +30,20 @@ public final class FurnaceJobs {
         return List.copyOf(jobs);
     }
 
+    /** Replaces the list, e.g. when a replacement companion inherits the furnaces of the dead one. */
+    public void restore(List<FurnaceJob> restored) {
+        jobs.clear();
+        notified.clear();
+        if (restored == null) {
+            return;
+        }
+        for (FurnaceJob job : restored) {
+            if (job != null) {
+                jobs.add(job);
+            }
+        }
+    }
+
     public void remove(BlockPos pos) {
         jobs.removeIf(job -> job.pos().equals(pos));
         notified.remove(pos);
