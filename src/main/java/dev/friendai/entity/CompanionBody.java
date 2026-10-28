@@ -112,6 +112,7 @@ public final class CompanionBody {
         sitting = false;
         sneakTicks = 0;
         releaseLook();
+        companion.facing().release();
         apply();
     }
 
@@ -125,7 +126,7 @@ public final class CompanionBody {
             if (target == null) {
                 releaseLook();
             } else {
-                companion.getLookControl().setLookAt(target.x, target.y, target.z);
+                companion.facing().lookAt(target, 2);
                 lookTicks--;
             }
         }

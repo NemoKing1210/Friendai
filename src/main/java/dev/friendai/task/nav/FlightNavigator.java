@@ -171,6 +171,8 @@ public final class FlightNavigator {
             lastMovementBlock = "swept body collides with a block or entity";
             return false;
         }
+        // Turn toward the leg before the body is moved, so the facing leads the movement instead of trailing it.
+        companion.facing().travel(movement);
         Vec3 before = companion.position();
         // The body-sized swept AABB was checked above. Place this small, validated step directly so ground-mob
         // collision resolution cannot clip a vertical step along a wall and leave the route oscillating in place.

@@ -13,6 +13,7 @@ import dev.friendai.combat.ShieldPolicy;
 import dev.friendai.combat.ThreatTable;
 import dev.friendai.combat.WeaponPolicy;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.movement.Facing;
 import dev.friendai.survival.HungerModel;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropCollector;
@@ -937,7 +938,7 @@ public final class CombatController {
             }
         }
 
-        companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
+        companion.facing().lookAt(enemy, 2);
         double distance = companion.distanceTo(enemy);
         double reach = meleeReach(enemy);
         boolean inReach = companion.isWithinMeleeAttackRange(enemy) || distance * distance <= 3.0625;
@@ -955,7 +956,7 @@ public final class CombatController {
                 cancelBow();
             }
             if (windup != null) {
-                companion.getLookControl().setLookAt(windup, 30.0F, 30.0F);
+                companion.facing().lookAt(windup, 2);
             } else if (incoming != null) {
                 face(incoming);
             }
@@ -1055,7 +1056,7 @@ public final class CombatController {
     private void tickRanged(ServerLevel level, LivingEntity enemy) {
         lowerShield();
         companion.getNavigation().stop();
-        companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
+        companion.facing().lookAt(enemy, 2);
         if (usingBow && !companion.getMainHandItem().is(Items.BOW)) {
             // The bow broke mid-draw: stop using the stale stack and fall back to melee.
             cancelBow();
@@ -1187,7 +1188,7 @@ public final class CombatController {
             // The arrow is already on top of the body: its direction is degenerate, keep the current facing.
             return;
         }
-        companion.getLookControl().setLookAt(projectile.x(), projectile.y(), projectile.z(), 30.0F, 30.0F);
+        companion.facing().lookAt(projectile.x(), projectile.y(), projectile.z(), 2);
     }
 
     /** The nearest projectile whose bounded path intersects the companion. */
@@ -1462,9 +1463,15 @@ public final class CombatController {
     }
 
     private void throwPotion(ServerLevel level, LivingEntity enemy, int slot, ItemStack stack) {
-        companion.getLookControl().setLookAt(enemy, 30.0F, 30.0F);
+        companion.facing().lookAt(enemy, 2);
+        Vec3 eye = companion.getEyePosition();
+        Vec3 target = enemy.getEyePosition();
+        double dx = target.x - eye.x;
+        double dy = target.y - eye.y;
+        double dz = target.z - eye.z;
         ThrownSplashPotion potion = new ThrownSplashPotion(level, companion, stack.copy());
-        potion.shootFromRotation(companion, companion.getXRot(), companion.getYRot(), -20.0F, 0.7F, 1.0F);
+        potion.shootFromRotation(
+                companion, Facing.pitchToward(dx, dy, dz), Facing.yawToward(dx, dz), -20.0F, 0.7F, 1.0F);
         level.addFreshEntity(potion);
         companion.inventory().removeItem(slot, 1);
         potionCooldown = POTION_COOLDOWN_TICKS;

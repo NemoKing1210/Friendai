@@ -250,7 +250,7 @@ final class BodyTools {
     private static void applyLookNow(CompanionEntity c, Supplier<Vec3> point) {
         Vec3 p = point.get();
         if (p != null) {
-            c.getLookControl().setLookAt(p.x, p.y, p.z);
+            c.facing().lookAt(p, 2);
         }
     }
 

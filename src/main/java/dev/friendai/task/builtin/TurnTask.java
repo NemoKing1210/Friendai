@@ -53,18 +53,12 @@ public final class TurnTask implements Task {
     public TaskStatus tick(TaskContext c) {
         CompanionEntity companion = c.companion();
         float yaw = Facing.stepToward(companion.getYRot(), target, STEP_DEGREES);
-        face(companion, yaw);
+        companion.facing().aimYaw(yaw, 2);
         if (Facing.difference(yaw, target) <= DONE_TOLERANCE) {
             summary = "now facing " + Facing.compassName(yaw);
             return TaskStatus.SUCCESS;
         }
         return TaskStatus.RUNNING;
-    }
-
-    static void face(CompanionEntity companion, float yaw) {
-        companion.setYRot(yaw);
-        companion.setYBodyRot(yaw);
-        companion.setYHeadRot(yaw);
     }
 
     @Override

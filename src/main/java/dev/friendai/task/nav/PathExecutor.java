@@ -378,11 +378,8 @@ public final class PathExecutor {
         boolean holding = climbing || (!companion.onGround() && step.move() == Move.DESCEND);
         float yaw =
                 PathSteering.yaw(path.steps(), index, companion.getX(), companion.getZ(), companion.getYRot(), holding);
-        if (yaw != companion.getYRot()) {
-            companion.setYRot(yaw);
-            companion.setYBodyRot(yaw);
-        }
-        double radians = Math.toRadians(companion.getYRot());
+        companion.facing().travelYaw(yaw);
+        double radians = Math.toRadians(yaw);
         companion
                 .getMoveControl()
                 .setWantedPosition(

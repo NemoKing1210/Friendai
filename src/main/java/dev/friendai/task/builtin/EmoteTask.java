@@ -7,7 +7,6 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.component.SwingAnimation;
-import net.minecraft.world.phys.Vec3;
 
 /** Plays a short scripted gesture: a wave, a nod, a bow. Leaves the posture as it found it. */
 public final class EmoteTask implements Task {
@@ -48,21 +47,7 @@ public final class EmoteTask implements Task {
             return TaskStatus.SUCCESS;
         }
         Emotes.Pose pose = Emotes.at(kind, tick++);
-        float yaw = baseYaw + pose.yawOffset();
-        if (kind == Emotes.Kind.SPIN) {
-            TurnTask.face(companion, yaw);
-        } else {
-            // The look control owns the head, so the gesture steers it by choosing a point to look at.
-            double yawRad = Math.toRadians(yaw);
-            double pitchRad = Math.toRadians(pose.pitch());
-            Vec3 eye = companion.getEyePosition();
-            companion
-                    .getLookControl()
-                    .setLookAt(
-                            eye.x - Math.sin(yawRad) * Math.cos(pitchRad) * 4.0,
-                            eye.y - Math.sin(pitchRad) * 4.0,
-                            eye.z + Math.cos(yawRad) * Math.cos(pitchRad) * 4.0);
-        }
+        companion.facing().aim(baseYaw + pose.yawOffset(), pose.pitch(), 2);
         if (pose.sneak() != companion.body().sneaking() && (pose.sneak() || touchedSneak)) {
             touchedSneak = true;
             companion.body().setSneaking(pose.sneak(), 0);

@@ -290,7 +290,7 @@ public final class SearchResourceTask implements Task {
                 if (!(driver instanceof ResourceSearchDriver search)) return TaskStatus.FAILED;
                 if (!search.holding()) {
                     search.holdForOwner(context, decision.message());
-                    context.companion().getLookControl().setLookAt(owner);
+                    context.companion().facing().lookAt(owner, 2);
                 }
                 summary = search.resultSummary();
                 return TaskStatus.RUNNING;

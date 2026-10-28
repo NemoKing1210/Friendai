@@ -810,7 +810,7 @@ public final class SmeltTask implements Task {
             }
             waitApproach = null;
         } else {
-            c.companion().getLookControl().setLookAt(center.x, center.y, center.z);
+            c.companion().facing().lookAt(center, 2);
         }
 
         if (waitTicks % WAIT_INTERVAL != 0) {

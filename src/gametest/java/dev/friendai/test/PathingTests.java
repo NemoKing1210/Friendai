@@ -7,6 +7,7 @@ import dev.friendai.debug.LogKind;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.movement.Facing;
 import dev.friendai.pathing.Cell;
 import dev.friendai.pathing.CostModel;
 import dev.friendai.pathing.GoalPoint;
@@ -863,6 +864,70 @@ public class PathingTests {
             // ticks. A pathing change that halves the effective speed fails here.
             h.assertTrue(arrivedAt[0] <= 200, "took " + arrivedAt[0] + " ticks for 32 blocks");
             h.assertFalse(navigator.lastSearch().isEmpty(), "the route must have been searched, not assumed");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void twoTurnWalkKeepsTheBodyOnThePath(GameTestHelper h) {
+        int base = 240;
+        GameTestSupport.platformAt(h, base, 24);
+        // A bedrock wall forces an east -> south -> east route: digging cannot pass it and the walker carries no
+        // blocks, so it must walk around the wall's end.
+        for (int z = 0; z <= 14; z++) {
+            for (int y = base + 1; y <= base + 4; y++) {
+                h.setBlock(10, y, z, Blocks.BEDROCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 2);
+        c.setYRot(0.0F);
+        c.setYHeadRot(0.0F);
+        Vec3 target = h.absoluteVec(new Vec3(18.5, base + 1, 2.5));
+        Navigator navigator = new Navigator(c, false);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        double[] lastX = {c.getX()};
+        double[] lastZ = {c.getZ()};
+        float[] lastTravel = {Float.NaN};
+        int[] stable = {0};
+        float[] maxError = {0.0F};
+        float[] maxHeadError = {0.0F};
+        float[] maxStep = {0.0F};
+        int[] samples = {0};
+        h.onEachTick(() -> {
+            float before = c.getYRot();
+            state[0] = navigator.tick(context);
+            maxStep[0] = Math.max(maxStep[0], Math.abs(net.minecraft.util.Mth.wrapDegrees(c.getYRot() - before)));
+            double dx = c.getX() - lastX[0];
+            double dz = c.getZ() - lastZ[0];
+            lastX[0] = c.getX();
+            lastZ[0] = c.getZ();
+            if (Math.hypot(dx, dz) > 0.02) {
+                float travel = Facing.yawToward(dx, dz);
+                if (!Float.isNaN(lastTravel[0])
+                        && Math.abs(net.minecraft.util.Mth.wrapDegrees(travel - lastTravel[0])) < 10.0F) {
+                    stable[0]++;
+                } else {
+                    stable[0] = 1;
+                }
+                lastTravel[0] = travel;
+                if (stable[0] >= 8) {
+                    maxError[0] =
+                            Math.max(maxError[0], Math.abs(net.minecraft.util.Mth.wrapDegrees(c.getYRot() - travel)));
+                    maxHeadError[0] = Math.max(
+                            maxHeadError[0], Math.abs(net.minecraft.util.Mth.wrapDegrees(c.getYHeadRot() - travel)));
+                    samples[0]++;
+                }
+            } else {
+                stable[0] = 0;
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "not arrived: " + state[0] + " at " + c.position());
+            h.assertTrue(maxStep[0] <= 31.0F, "turned " + maxStep[0] + " degrees in one tick");
+            h.assertTrue(samples[0] > 0, "the walk never held a steady direction");
+            h.assertTrue(maxError[0] <= 45.0F, "the body trailed the path by " + maxError[0] + " degrees");
+            h.assertTrue(maxHeadError[0] <= 45.0F, "the head trailed the path by " + maxHeadError[0] + " degrees");
         });
     }
 }
