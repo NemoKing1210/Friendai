@@ -1,6 +1,6 @@
 package dev.friendai.task.autonomy;
 
-import dev.friendai.place.Place;
+import dev.friendai.features.places.Place;
 import dev.friendai.task.TaskContext;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;

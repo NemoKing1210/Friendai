@@ -2,13 +2,13 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.crafting.Ingredient;
-import dev.friendai.crafting.Recipe;
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.crafting.Ingredient;
+import dev.friendai.features.crafting.Recipe;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

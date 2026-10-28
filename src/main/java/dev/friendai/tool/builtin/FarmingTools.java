@@ -8,7 +8,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.farming.FarmGoal;
 import dev.friendai.features.farming.FarmPlan;
 import dev.friendai.features.farming.FarmPlanner;
-import dev.friendai.place.Place;
+import dev.friendai.features.places.Place;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.builtin.BonemealTask;

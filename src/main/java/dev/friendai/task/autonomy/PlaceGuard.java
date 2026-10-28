@@ -2,8 +2,8 @@ package dev.friendai.task.autonomy;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.place.Place;
-import dev.friendai.place.PlaceKind;
+import dev.friendai.features.places.Place;
+import dev.friendai.features.places.PlaceKind;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.TaskContext;
 import java.util.Set;

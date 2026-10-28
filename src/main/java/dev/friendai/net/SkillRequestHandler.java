@@ -3,8 +3,8 @@ package dev.friendai.net;
 import com.google.gson.*;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.execution.tool.*;
-import dev.friendai.memory.*;
-import dev.friendai.skill.*;
+import dev.friendai.features.instructions.*;
+import dev.friendai.features.memory.*;
 import java.util.*;
 import net.minecraft.server.level.ServerPlayer;
 

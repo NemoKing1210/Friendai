@@ -7,7 +7,7 @@ import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueueSave;
-import dev.friendai.knowledge.search.SearchLedger;
+import dev.friendai.features.knowledge.search.SearchLedger;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;

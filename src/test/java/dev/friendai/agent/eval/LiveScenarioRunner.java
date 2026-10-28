@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.Gson;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
 import dev.friendai.agent.turn.LlmGateway;
-import dev.friendai.config.ServerConfig;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
 import java.io.IOException;

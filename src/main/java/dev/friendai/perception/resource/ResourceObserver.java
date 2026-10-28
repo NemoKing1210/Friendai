@@ -1,8 +1,8 @@
 package dev.friendai.perception.resource;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;

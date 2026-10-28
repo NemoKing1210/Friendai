@@ -2,7 +2,7 @@ package dev.friendai.client.ui;
 
 import com.google.gson.*;
 import dev.friendai.debug.RequestType;
-import dev.friendai.skill.*;
+import dev.friendai.features.instructions.*;
 import java.util.*;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.*;

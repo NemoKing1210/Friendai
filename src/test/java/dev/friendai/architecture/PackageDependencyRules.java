@@ -16,13 +16,24 @@ final class PackageDependencyRules {
     private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
             new FeatureDependency("mining", "navigation"),
             new FeatureDependency("fire", "navigation"),
-            new FeatureDependency("construction", "navigation"));
+            new FeatureDependency("construction", "navigation"),
+            new FeatureDependency("acquisition", "crafting"),
+            new FeatureDependency("acquisition", "navigation"),
+            new FeatureDependency("acquisition", "trading"),
+            new FeatureDependency("knowledge", "acquisition"),
+            new FeatureDependency("knowledge", "navigation"),
+            new FeatureDependency("places", "memory"),
+            new FeatureDependency("places", "navigation"),
+            new FeatureDependency("placements", "navigation"),
+            new FeatureDependency("instructions", "memory"));
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
             "dev.friendai.config",
             "dev.friendai.execution.queue",
             "dev.friendai.execution.tool",
             "dev.friendai.foundation",
+            "dev.friendai.infrastructure",
+            "dev.friendai.infrastructure",
             "dev.friendai.llm",
             "dev.friendai.voice");
     private static final Comparator<Violation> VIOLATION_ORDER = Comparator.comparing(Violation::ruleId)

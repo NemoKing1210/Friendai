@@ -1,8 +1,8 @@
 package dev.friendai.task.crafting;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;

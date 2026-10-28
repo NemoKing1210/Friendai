@@ -1,10 +1,10 @@
 package dev.friendai.server.agent;
 
+import dev.friendai.features.memory.AutoProfile;
+import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.foundation.text.LanguageDetector;
 import dev.friendai.foundation.text.LanguageMemory;
-import dev.friendai.memory.AutoProfile;
-import dev.friendai.memory.MemoryBook;
-import dev.friendai.memory.MemoryLimits;
 import java.util.Objects;
 import java.util.UUID;
 

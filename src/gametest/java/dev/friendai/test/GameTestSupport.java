@@ -2,8 +2,8 @@ package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.perception.resource.ResourceSight;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

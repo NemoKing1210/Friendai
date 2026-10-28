@@ -1,6 +1,9 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.trading.BarterOrder;
+import dev.friendai.features.trading.BarterProgress;
+import dev.friendai.features.trading.TradeItem;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -10,9 +13,6 @@ import dev.friendai.task.nav.Navigator;
 import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.trading.TradeItemCodec;
-import dev.friendai.trading.BarterOrder;
-import dev.friendai.trading.BarterProgress;
-import dev.friendai.trading.TradeItem;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -233,7 +233,7 @@ public final class BarterTask implements Task {
         return TaskStatus.RUNNING;
     }
 
-    private int collectedCount(dev.friendai.trading.TradeQuery query) {
+    private int collectedCount(dev.friendai.features.trading.TradeQuery query) {
         return progress().collectedCount(query);
     }
 

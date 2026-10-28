@@ -20,7 +20,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.navigation.movement.MovementOrders;
-import dev.friendai.place.PlaceCandidate;
+import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
 import dev.friendai.task.Task;

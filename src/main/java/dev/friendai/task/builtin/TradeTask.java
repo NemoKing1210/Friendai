@@ -1,16 +1,16 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.trading.TradeAuthority;
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TradeOrder;
+import dev.friendai.features.trading.TradeProgress;
+import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Navigator;
 import dev.friendai.task.trading.MerchantSession;
-import dev.friendai.trading.TradeAuthority;
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TradeOrder;
-import dev.friendai.trading.TradeProgress;
-import dev.friendai.trading.TraderRecord;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

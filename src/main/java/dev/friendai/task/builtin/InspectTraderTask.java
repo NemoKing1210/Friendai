@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Navigator;
-import dev.friendai.trading.TraderRecord;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;

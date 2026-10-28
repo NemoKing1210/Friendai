@@ -1,7 +1,7 @@
 package dev.friendai.client.ui;
 
 import com.google.gson.JsonObject;
-import dev.friendai.skill.*;
+import dev.friendai.features.instructions.*;
 import java.util.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

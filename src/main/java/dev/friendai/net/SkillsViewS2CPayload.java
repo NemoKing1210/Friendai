@@ -1,7 +1,7 @@
 package dev.friendai.net;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.skill.SkillViewCodec;
+import dev.friendai.features.instructions.SkillViewCodec;
 import net.minecraft.network.codec.*;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 

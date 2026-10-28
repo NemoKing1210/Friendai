@@ -1,7 +1,7 @@
 package dev.friendai.entity;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.config.ServerConfig;
+import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;

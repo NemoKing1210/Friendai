@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.config.ServerConfig;
+import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

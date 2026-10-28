@@ -1,7 +1,7 @@
 package dev.friendai.tool.builtin;
 
-import dev.friendai.memory.MemoryBook;
-import dev.friendai.memory.MemoryLimits;
+import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.MemoryLimits;
 import java.util.UUID;
 
 /** The tools' view of long-term memory: whether it is on, its limits, and the owner's book. */

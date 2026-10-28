@@ -2,14 +2,14 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.crafting.obtain.Source;
-import dev.friendai.crafting.obtain.ToolKind;
-import dev.friendai.crafting.obtain.ToolNeed;
-import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.Source;
+import dev.friendai.features.acquisition.ToolKind;
+import dev.friendai.features.acquisition.ToolNeed;
+import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
@@ -287,9 +287,9 @@ public class ObtainTests {
         state.resources()
                 .observe(
                         c,
-                        new dev.friendai.knowledge.ResourceObservation(
+                        new dev.friendai.features.knowledge.ResourceObservation(
                                 "minecraft:acacia_log",
-                                new dev.friendai.knowledge.ResourceObservation.Location(
+                                new dev.friendai.features.knowledge.ResourceObservation.Location(
                                         level.dimension().identifier().toString(),
                                         new dev.friendai.features.navigation.pathing.Pos(
                                                 log.getX(), log.getY(), log.getZ())),

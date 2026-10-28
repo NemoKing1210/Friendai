@@ -3,9 +3,9 @@ package dev.friendai.agent.turn;
 import static org.junit.jupiter.api.Assertions.*;
 
 import dev.friendai.execution.tool.*;
+import dev.friendai.features.instructions.*;
+import dev.friendai.features.memory.*;
 import dev.friendai.foundation.teaching.TeachingContext;
-import dev.friendai.memory.*;
-import dev.friendai.skill.*;
 import dev.friendai.testutil.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;

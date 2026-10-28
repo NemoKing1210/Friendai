@@ -1,10 +1,10 @@
 package dev.friendai.task.obtain;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.crafting.Station;
-import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.knowledge.ResourceKnowledge;
+import dev.friendai.features.acquisition.WorldFacts;
+import dev.friendai.features.crafting.Station;
+import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.farming.Crops;

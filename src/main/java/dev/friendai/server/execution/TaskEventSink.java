@@ -1,6 +1,6 @@
 package dev.friendai.server.execution;
 
-import dev.friendai.place.PlaceCandidate;
+import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.task.TaskStatus;
 
 /** Server-thread destination for task history, brain and world-book events. */

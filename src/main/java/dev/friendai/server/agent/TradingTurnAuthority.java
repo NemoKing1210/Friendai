@@ -1,8 +1,8 @@
 package dev.friendai.server.agent;
 
-import dev.friendai.agent.turn.TradingTurnPort;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.trading.TradeAuthority;
+import dev.friendai.features.trading.TradeAuthority;
+import dev.friendai.features.trading.TradingTurnPort;
 import java.util.Objects;
 import java.util.UUID;
 

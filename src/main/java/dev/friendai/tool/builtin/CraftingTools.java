@@ -1,15 +1,15 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
-import dev.friendai.crafting.CraftPlan;
-import dev.friendai.crafting.CraftPlanner;
-import dev.friendai.crafting.CraftText;
-import dev.friendai.crafting.Recipe;
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.crafting.CraftPlan;
+import dev.friendai.features.crafting.CraftPlanner;
+import dev.friendai.features.crafting.CraftText;
+import dev.friendai.features.crafting.Recipe;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.task.builtin.CraftTask;
 import dev.friendai.task.builtin.CraftTask.StationPolicy;
 import dev.friendai.task.crafting.RecipeIndex;

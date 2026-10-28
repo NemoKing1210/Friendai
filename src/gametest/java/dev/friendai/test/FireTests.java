@@ -1,8 +1,8 @@
 package dev.friendai.test;
 
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;

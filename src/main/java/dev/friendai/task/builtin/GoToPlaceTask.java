@@ -1,7 +1,7 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.place.Place;
+import dev.friendai.features.places.Place;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

@@ -1,12 +1,12 @@
 package dev.friendai.core;
 
 import dev.friendai.agent.turn.BrainEvent;
-import dev.friendai.chat.ConfirmationMatcher;
-import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.memory.MemoryStore;
-import dev.friendai.memory.PendingTrust;
-import dev.friendai.memory.TrustRequest;
+import dev.friendai.features.conversation.ConfirmationMatcher;
+import dev.friendai.features.memory.PendingTrust;
+import dev.friendai.features.memory.TrustRequest;
+import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.server.agent.CompanionSessions;
 import java.util.Optional;
 import java.util.UUID;

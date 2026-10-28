@@ -296,9 +296,9 @@ public class MiningTests {
                 .resources()
                 .observe(
                         companion,
-                        new dev.friendai.knowledge.ResourceObservation(
+                        new dev.friendai.features.knowledge.ResourceObservation(
                                 "minecraft:iron_ore",
-                                new dev.friendai.knowledge.ResourceObservation.Location(
+                                new dev.friendai.features.knowledge.ResourceObservation.Location(
                                         h.getLevel().dimension().identifier().toString(),
                                         new Pos(absOre.getX(), absOre.getY(), absOre.getZ())),
                                 new Pos(at.getX(), at.getY(), at.getZ()),

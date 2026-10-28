@@ -1,17 +1,17 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.crafting.obtain.Spiral;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.acquisition.Spiral;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

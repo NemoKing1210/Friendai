@@ -41,7 +41,7 @@ public final class CompanionManager {
     /** Furnaces and station leases are not saved by the entity; they cross a death in this session only. */
     private record TransientCarry(
             List<dev.friendai.task.cooking.FurnaceJob> furnaces,
-            List<dev.friendai.crafting.StationLease.Kept> leases) {}
+            List<dev.friendai.features.crafting.StationLease.Kept> leases) {}
 
     private final MinecraftServer server;
     private final Map<UUID, CompanionEntity> byOwner = new HashMap<>();

@@ -1,14 +1,14 @@
 package dev.friendai.perception.resource;
 
-import dev.friendai.crafting.obtain.ResourceCandidate;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.acquisition.ResourceCandidate;
+import dev.friendai.features.knowledge.ObservationWindow;
+import dev.friendai.features.knowledge.ResourceKnowledge;
+import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.ResourceQuery;
+import dev.friendai.features.knowledge.ResourceSite;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.KnowledgeStore;
-import dev.friendai.knowledge.ObservationWindow;
-import dev.friendai.knowledge.ResourceKnowledge;
-import dev.friendai.knowledge.ResourceObservation;
-import dev.friendai.knowledge.ResourceQuery;
-import dev.friendai.knowledge.ResourceSite;
+import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.task.mining.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -283,7 +283,7 @@ public final class ResourceCandidates {
                 .filter(record ->
                         record.dimension().equals(level.dimension().identifier().toString()))
                 .filter(record -> record.x() == pos.getX() && record.y() == pos.getY() && record.z() == pos.getZ())
-                .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
+                .map(dev.friendai.features.knowledge.KnowledgeFile.MemberRecord::blockId)
                 .findFirst();
     }
 
@@ -312,7 +312,7 @@ public final class ResourceCandidates {
         BlockPos origin = companion.blockPosition();
         Set<String> blockIds = book.snapshot().records().stream()
                 .filter(record -> record.dimension().equals(dimension))
-                .map(dev.friendai.knowledge.KnowledgeFile.MemberRecord::blockId)
+                .map(dev.friendai.features.knowledge.KnowledgeFile.MemberRecord::blockId)
                 .collect(java.util.stream.Collectors.toSet());
         Map<String, ResourceCandidate> result = new java.util.LinkedHashMap<>();
         long now = logicalTick(level);
@@ -375,9 +375,9 @@ public final class ResourceCandidates {
                 .orElse(null));
     }
 
-    public dev.friendai.knowledge.travel.TrailGraph trails(CompanionEntity companion) {
+    public dev.friendai.features.knowledge.travel.TrailGraph trails(CompanionEntity companion) {
         return companion.ownerUuid() == null
-                ? new dev.friendai.knowledge.travel.TrailGraph()
+                ? new dev.friendai.features.knowledge.travel.TrailGraph()
                 : knowledge.book(companion.ownerUuid()).trails();
     }
 

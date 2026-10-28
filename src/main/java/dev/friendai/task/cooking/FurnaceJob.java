@@ -1,6 +1,6 @@
 package dev.friendai.task.cooking;
 
-import dev.friendai.crafting.Station;
+import dev.friendai.features.crafting.Station;
 import net.minecraft.core.BlockPos;
 
 /** A furnace this companion loaded, remembered until the result is collected. */

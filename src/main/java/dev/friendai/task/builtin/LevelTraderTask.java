@@ -1,9 +1,9 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.features.trading.TradeOrder;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.trading.TradeOrder;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;

@@ -13,10 +13,10 @@ import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.place.PlaceKind;
+import dev.friendai.features.places.PlaceKind;
+import dev.friendai.features.places.PlaceSource;
+import dev.friendai.features.places.PlaceValues;
 import dev.friendai.place.PlaceService;
-import dev.friendai.place.PlaceSource;
-import dev.friendai.place.PlaceValues;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -629,8 +629,10 @@ public class FreeTimeTests {
         UUID owner = c.ownerUuid();
         var serverState = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
         var gson = new com.google.gson.Gson();
-        var originalConfig = gson.fromJson(gson.toJson(serverState.config()), dev.friendai.config.ServerConfig.class);
-        var shortWatchdogConfig = gson.fromJson(gson.toJson(originalConfig), dev.friendai.config.ServerConfig.class);
+        var originalConfig =
+                gson.fromJson(gson.toJson(serverState.config()), dev.friendai.infrastructure.config.ServerConfig.class);
+        var shortWatchdogConfig =
+                gson.fromJson(gson.toJson(originalConfig), dev.friendai.infrastructure.config.ServerConfig.class);
         shortWatchdogConfig.tasks.freeTimeWatchdogSec = 1;
         serverState.applyConfig(shortWatchdogConfig);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");

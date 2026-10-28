@@ -2,12 +2,12 @@ package dev.friendai.task.obtain;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.search.ResourceSearchProfile;
+import dev.friendai.features.knowledge.search.StructureMarkers;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.search.ResourceSearchProfile;
-import dev.friendai.knowledge.search.StructureMarkers;
-import dev.friendai.knowledge.search.TargetKind;
+import dev.friendai.features.places.Place;
 import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.place.Place;
 import dev.friendai.place.PlaceService;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.nav.Sight;

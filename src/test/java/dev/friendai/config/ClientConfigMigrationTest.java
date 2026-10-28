@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.infrastructure.config.ConfigStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -4,10 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.memory.Category;
-import dev.friendai.memory.MemoryLimits;
-import dev.friendai.memory.MemoryView;
-import dev.friendai.memory.MenuStatus;
+import dev.friendai.features.memory.Category;
+import dev.friendai.features.memory.MemoryLimits;
+import dev.friendai.features.memory.MemoryView;
+import dev.friendai.features.memory.MenuStatus;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

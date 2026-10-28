@@ -14,9 +14,11 @@ import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.config.ClientConfig;
-import dev.friendai.config.ConfigStore;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.memory.MemoryViewCodec;
+import dev.friendai.features.memory.MemoryViewCodec;
+import dev.friendai.features.places.PlaceViewCodec;
+import dev.friendai.features.trading.TradeViewCodec;
+import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.CompanionSnapshotS2CPayload;
 import dev.friendai.net.CompanionSpeechS2CPayload;
@@ -27,8 +29,6 @@ import dev.friendai.net.PromptS2CPayload;
 import dev.friendai.net.SkinS2CPayload;
 import dev.friendai.net.TradeViewS2CPayload;
 import dev.friendai.net.VoiceTranscriptC2SPayload;
-import dev.friendai.place.PlaceViewCodec;
-import dev.friendai.trading.TradeViewCodec;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -93,7 +93,7 @@ public class FriendaiClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(
                 dev.friendai.net.SkillsViewS2CPayload.TYPE,
                 (payload, context) -> context.client()
-                        .execute(() -> dev.friendai.skill.SkillViewCodec.decode(payload.data())
+                        .execute(() -> dev.friendai.features.instructions.SkillViewCodec.decode(payload.data())
                                 .ifPresent(CompanionClientState::onSkillsView)));
         ClientPlayNetworking.registerGlobalReceiver(
                 MemoryViewS2CPayload.TYPE,

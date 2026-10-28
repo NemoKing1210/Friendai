@@ -1,10 +1,11 @@
 package dev.friendai.chat;
 
 import dev.friendai.agent.turn.BrainEvent;
-import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.features.conversation.*;
+import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

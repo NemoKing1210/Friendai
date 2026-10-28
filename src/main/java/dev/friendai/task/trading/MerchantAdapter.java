@@ -1,12 +1,12 @@
 package dev.friendai.task.trading;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.trading.TradeAuthority;
+import dev.friendai.features.trading.TradeBook;
+import dev.friendai.features.trading.TradeOrder;
+import dev.friendai.features.trading.TraderRecord;
+import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.task.interact.CompanionHands;
-import dev.friendai.trading.TradeAuthority;
-import dev.friendai.trading.TradeBook;
-import dev.friendai.trading.TradeOrder;
-import dev.friendai.trading.TradeStore;
-import dev.friendai.trading.TraderRecord;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -112,7 +112,7 @@ public final class MerchantAdapter {
                 throw new IllegalStateException("merchant menu could not be acquired");
             }
 
-            List<dev.friendai.trading.TradeOffer> live = TraderAdapters.offers(
+            List<dev.friendai.features.trading.TradeOffer> live = TraderAdapters.offers(
                     merchant.getOffers(), actor, nowTick, ((ServerLevel) companion.level()).registryAccess());
             long matches = live.stream()
                     .filter(offer -> offer.ref().equals(order.offerRef()))

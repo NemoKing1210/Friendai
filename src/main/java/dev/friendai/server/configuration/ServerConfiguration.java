@@ -1,6 +1,6 @@
 package dev.friendai.server.configuration;
 
-import dev.friendai.config.ServerConfig;
+import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.List;
 import java.util.function.Consumer;
 

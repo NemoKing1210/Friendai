@@ -1,7 +1,7 @@
 package dev.friendai.task.mining;
 
-import dev.friendai.place.Place;
-import dev.friendai.place.PlaceKind;
+import dev.friendai.features.places.Place;
+import dev.friendai.features.places.PlaceKind;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.nav.LevelCellView;

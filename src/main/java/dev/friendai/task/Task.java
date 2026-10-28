@@ -2,7 +2,7 @@ package dev.friendai.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
-import dev.friendai.place.PlaceCandidate;
+import dev.friendai.features.places.PlaceCandidate;
 import java.util.List;
 
 /** A long-running activity of the companion. {@code describe()} and {@code resultSummary()} are English, LLM-facing. */

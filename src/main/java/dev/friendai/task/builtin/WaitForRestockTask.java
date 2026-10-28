@@ -1,11 +1,11 @@
 package dev.friendai.task.builtin;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TraderRecord;
 import java.util.UUID;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -137,7 +137,7 @@ public final class WaitForRestockTask implements Task {
         return current.observedTick() > previous.observedTick() && current.uses() < previous.uses();
     }
 
-    private dev.friendai.trading.TradeBook book(TaskContext context) {
+    private dev.friendai.features.trading.TradeBook book(TaskContext context) {
         return FriendaiServerState.get(context.level().getServer()).trading().book(ownerAtStart);
     }
 

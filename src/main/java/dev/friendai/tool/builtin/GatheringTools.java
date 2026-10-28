@@ -9,7 +9,7 @@ import dev.friendai.execution.tool.NearTarget;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.place.PlaceNames;
+import dev.friendai.features.places.PlaceNames;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.FellTreeSearchTask;
 import dev.friendai.task.builtin.FellTreeTask;

@@ -1,14 +1,14 @@
 package dev.friendai.task.trading;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.trading.TradeAuthority;
+import dev.friendai.features.trading.TradeItem;
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TradeOrder;
+import dev.friendai.features.trading.TradePolicy;
+import dev.friendai.features.trading.TradeProgress;
+import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.inventory.InventoryOps;
-import dev.friendai.trading.TradeAuthority;
-import dev.friendai.trading.TradeItem;
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TradeOrder;
-import dev.friendai.trading.TradePolicy;
-import dev.friendai.trading.TradeProgress;
-import dev.friendai.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,7 +59,7 @@ public final class MerchantSession implements AutoCloseable {
     private final MerchantMenu menu;
     private final TradeOrder order;
     private final TradeAuthority authority;
-    private final dev.friendai.trading.TradeBook book;
+    private final dev.friendai.features.trading.TradeBook book;
     private final MerchantLeases leases;
     private final TradeSessionGuard guard;
     private final long openedTick;
@@ -74,7 +74,7 @@ public final class MerchantSession implements AutoCloseable {
             MerchantMenu menu,
             TradeOrder order,
             TradeAuthority authority,
-            dev.friendai.trading.TradeBook book,
+            dev.friendai.features.trading.TradeBook book,
             MerchantLeases leases,
             TradeSessionGuard guard,
             long openedTick,
@@ -544,7 +544,7 @@ public final class MerchantSession implements AutoCloseable {
     /** Keeps offer observations and transaction history in the owner book without exposing registry objects. */
     private static final class TraderRecordRefresh {
         private static void refresh(
-                dev.friendai.trading.TradeBook book,
+                dev.friendai.features.trading.TradeBook book,
                 Entity target,
                 Merchant merchant,
                 UUID actor,

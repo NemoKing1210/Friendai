@@ -1,12 +1,14 @@
 package dev.friendai.core;
 
 import dev.friendai.agent.turn.*;
-import dev.friendai.config.*;
 import dev.friendai.execution.tool.*;
+import dev.friendai.features.instructions.*;
+import dev.friendai.features.memory.*;
 import dev.friendai.foundation.diagnostics.SecretRedactor;
 import dev.friendai.foundation.teaching.TeachingContext;
-import dev.friendai.memory.*;
-import dev.friendai.skill.*;
+import dev.friendai.infrastructure.config.*;
+import dev.friendai.infrastructure.persistence.instructions.SkillStore;
+import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.*;

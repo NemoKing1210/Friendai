@@ -69,9 +69,9 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 
 | Path | What it is |
 |---|---|
-| `engine/src/main/java/dev/friendai/` | Game-independent library: `foundation/` shared contracts; `execution/` queue/tool contracts; `agent/` turn/planning/LLM; `features/` pure navigation, mining, construction, farming, fire, combat, survival and creative policies. No Minecraft, Fabric, optional UI or native audio dependency. |
+| `engine/src/main/java/dev/friendai/` | Game-independent library: `foundation/` shared contracts; `execution/` queue/tool contracts; `agent/` turn/planning/LLM; `features/` pure policies and models; `infrastructure/` JVM configuration, appearance HTTP and persistence adapters. No Minecraft, Fabric, optional UI or native audio dependency. |
 | `engine/src/test/java/dev/friendai/` | Pure engine unit tests; `engine/src/testFixtures/java/` holds reusable pure fakes and scenario fixtures. |
-| `src/main/java/dev/friendai/` | Common + server code (the mod's `main` source set). |
+| `src/main/java/dev/friendai/` | Common + server code (the mod's `main` source set), including Minecraft/server adapters and `ClientConfig`/voice-facing configuration. |
 | `src/client/java/dev/friendai/client/` | Client-only code (Loom split source set). |
 | `src/test/java/dev/friendai/` | JUnit 5 tests for root adapters and features; `testutil` holds root-only helpers. |
 | `src/gametest/java/dev/friendai/test/` | Fabric GameTests (a separate mod id, `friendai-gametest`). |

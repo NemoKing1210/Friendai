@@ -1,10 +1,10 @@
 package dev.friendai.server.configuration;
 
-import dev.friendai.config.ServerConfig;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
-import dev.friendai.trading.TradingRuntimeSettings;
+import dev.friendai.features.trading.TradingRuntimeSettings;
+import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;

@@ -1,7 +1,7 @@
 package dev.friendai.debug;
 
-import dev.friendai.memory.MenuStatus;
-import dev.friendai.place.PlaceView;
+import dev.friendai.features.memory.MenuStatus;
+import dev.friendai.features.places.PlaceView;
 import java.util.List;
 import java.util.Optional;
 

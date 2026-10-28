@@ -2,6 +2,7 @@ package dev.friendai.chat;
 
 import dev.friendai.agent.turn.Speaker;
 import dev.friendai.core.Components;
+import dev.friendai.features.conversation.*;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import java.util.UUID;

@@ -1,9 +1,9 @@
 package dev.friendai.task.trading;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.trading.TradeBook;
-import dev.friendai.trading.TradeStore;
-import dev.friendai.trading.TraderRecord;
+import dev.friendai.features.trading.TradeBook;
+import dev.friendai.features.trading.TraderRecord;
+import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -55,7 +55,7 @@ public final class TraderObserver {
         var result = new java.util.ArrayList<TraderRecord>(Math.min(local.size(), 32));
         for (Entity entity : local.stream()
                 .sorted(Comparator.comparing(Entity::getUUID))
-                .limit(dev.friendai.trading.TradeFile.MAX_TRADERS)
+                .limit(dev.friendai.features.trading.TradeFile.MAX_TRADERS)
                 .toList()) {
             TraderRecord fact = TraderAdapters.presence(
                     entity, level.getServer().overworld().getGameTime());

@@ -1,11 +1,11 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;

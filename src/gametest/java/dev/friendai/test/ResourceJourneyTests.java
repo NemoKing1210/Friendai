@@ -4,8 +4,8 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.ExpeditionChunkHorizon;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -103,14 +103,14 @@ public final class ResourceJourneyTests {
         afterRestart.observations().register(companion);
         String dimension = h.getLevel().dimension().identifier().toString();
         var origin = companion.blockPosition();
-        var request = new dev.friendai.knowledge.ResourceQuery.Request(
+        var request = new dev.friendai.features.knowledge.ResourceQuery.Request(
                 java.util.Set.of("minecraft:coal_ore"),
                 dimension,
                 new Pos(origin.getX(), origin.getY(), origin.getZ()),
                 32,
                 5,
                 true);
-        var remembered = dev.friendai.knowledge.ResourceQuery.find(
+        var remembered = dev.friendai.features.knowledge.ResourceQuery.find(
                 afterRestart.knowledge().book(owner.getUUID()), request);
         h.assertTrue(!remembered.isEmpty(), "restart should restore the previously observed coal site");
         BlockPos rememberedOre = new BlockPos(
@@ -202,7 +202,7 @@ public final class ResourceJourneyTests {
         BlockPos start = h.absolutePos(new BlockPos(startX, 201, 2));
         int viewX = startX + 4;
         int oreX = startX + 18;
-        var unknownRequest = new dev.friendai.knowledge.ResourceQuery.Request(
+        var unknownRequest = new dev.friendai.features.knowledge.ResourceQuery.Request(
                 java.util.Set.of("minecraft:iron_ore"),
                 dimension,
                 new Pos(start.getX(), start.getY(), start.getZ()),
@@ -210,7 +210,8 @@ public final class ResourceJourneyTests {
                 5,
                 true);
         h.assertTrue(
-                dev.friendai.knowledge.ResourceQuery.find(state.knowledge().book(owner.getUUID()), unknownRequest)
+                dev.friendai.features.knowledge.ResourceQuery.find(
+                                state.knowledge().book(owner.getUUID()), unknownRequest)
                         .isEmpty(),
                 "iron must remain unknown before a direct sight ray");
 
@@ -228,8 +229,8 @@ public final class ResourceJourneyTests {
                 GameTestSupport.observeVisible(h, companion, ore), "iron ore should be learned only from direct sight");
         companion.teleportTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
 
-        var remembered =
-                dev.friendai.knowledge.ResourceQuery.find(state.knowledge().book(owner.getUUID()), unknownRequest);
+        var remembered = dev.friendai.features.knowledge.ResourceQuery.find(
+                state.knowledge().book(owner.getUUID()), unknownRequest);
         h.assertTrue(!remembered.isEmpty(), "direct sight should create a remembered cross-chunk iron site");
         Pos recordedApproach = remembered.getFirst().site().approach();
         h.assertTrue(
@@ -331,7 +332,7 @@ public final class ResourceJourneyTests {
                 !state.resources().plannerCandidates(companion, 20).isEmpty(),
                 "historical visible logs should become a resource candidate");
         var facts = dev.friendai.task.obtain.WorldScan.scan(h.getLevel(), companion, 32, false, true);
-        var plan = dev.friendai.crafting.obtain.ObtainPlanner.plan(
+        var plan = dev.friendai.features.acquisition.ObtainPlanner.plan(
                 "minecraft:oak_log",
                 2,
                 java.util.Map.of(),
@@ -340,9 +341,9 @@ public final class ResourceJourneyTests {
                 facts);
         h.assertTrue(
                 !plan.steps().isEmpty()
-                        && plan.steps().get(0) instanceof dev.friendai.crafting.obtain.ObtainStep.VisitResource,
+                        && plan.steps().get(0) instanceof dev.friendai.features.acquisition.ObtainStep.VisitResource,
                 "expected remembered visit plan, got "
-                        + dev.friendai.crafting.obtain.ObtainText.planText(plan, "minecraft:oak_log", 2));
+                        + dev.friendai.features.acquisition.ObtainText.planText(plan, "minecraft:oak_log", 2));
 
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 2400, () -> false);

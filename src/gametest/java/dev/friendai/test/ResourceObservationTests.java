@@ -1,12 +1,12 @@
 package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.crafting.Station;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
@@ -208,7 +208,7 @@ public class ResourceObservationTests {
                     h.getLevel().getServer(),
                     h.getLevel().getServer().overworld().getGameTime());
             BlockPos origin = companion.blockPosition();
-            var query = new dev.friendai.knowledge.ResourceQuery.Request(
+            var query = new dev.friendai.features.knowledge.ResourceQuery.Request(
                     java.util.Set.of("minecraft:coal_ore"),
                     h.getLevel().dimension().identifier().toString(),
                     pos(origin),
@@ -216,7 +216,7 @@ public class ResourceObservationTests {
                     20,
                     true);
             var book = state.knowledge().book(owner.getUUID());
-            var known = dev.friendai.knowledge.ResourceQuery.find(book, query);
+            var known = dev.friendai.features.knowledge.ResourceQuery.find(book, query);
             h.assertFalse(known.isEmpty(), "waiting for ordinary observation to record exposed coal");
             h.assertTrue(
                     state.sessions().brainOf(owner.getUUID()).isEmpty(),

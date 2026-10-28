@@ -1,7 +1,7 @@
 package dev.friendai.perception;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.HashMap;
 import java.util.Map;

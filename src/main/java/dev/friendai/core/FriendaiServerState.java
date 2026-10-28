@@ -2,36 +2,36 @@ package dev.friendai.core;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.config.ConfigStore;
-import dev.friendai.config.ServerConfig;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.knowledge.KnowledgeLimits;
-import dev.friendai.knowledge.KnowledgeStore;
-import dev.friendai.memory.MemoryStore;
-import dev.friendai.memory.MemoryViewers;
+import dev.friendai.features.knowledge.KnowledgeLimits;
+import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.placements.PlacedLimits;
+import dev.friendai.features.places.PlaceLimits;
+import dev.friendai.infrastructure.config.ConfigStore;
+import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.infrastructure.persistence.appearance.SkinStore;
+import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
+import dev.friendai.infrastructure.persistence.memory.MemoryStore;
+import dev.friendai.infrastructure.persistence.placements.PlacedStore;
+import dev.friendai.infrastructure.persistence.places.PlaceStore;
+import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.place.PlaceLimits;
-import dev.friendai.place.PlaceStore;
-import dev.friendai.placed.PlacedLimits;
-import dev.friendai.placed.PlacedStore;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.RuntimeResources;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
-import dev.friendai.skin.SkinStore;
 import dev.friendai.task.trading.BarterDropTracker;
 import dev.friendai.task.trading.MerchantAdapter;
 import dev.friendai.task.trading.MerchantLeases;
 import dev.friendai.task.trading.PiglinBarterAdapter;
 import dev.friendai.task.trading.TradeSessionGuard;
 import dev.friendai.task.trading.TraderObserver;
-import dev.friendai.trading.TradeStore;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;
@@ -65,8 +65,8 @@ public final class FriendaiServerState {
     private final ResourceCandidates resources;
     private final MemoryViewers memoryViewers = new MemoryViewers();
     private final MemoryViewers placeViewers = new MemoryViewers();
-    private final dev.friendai.knowledge.search.SearchHintStore searchHints =
-            new dev.friendai.knowledge.search.SearchHintStore();
+    private final dev.friendai.features.knowledge.search.SearchHintStore searchHints =
+            new dev.friendai.features.knowledge.search.SearchHintStore();
     private final TrustConfirmations trust;
     private ServerConfig config;
     private long lastTrustTick;
@@ -275,7 +275,7 @@ public final class FriendaiServerState {
     }
 
     /** Per-owner search hints: short-lived model steering, never a waypoint. */
-    public dev.friendai.knowledge.search.SearchHintStore searchHints() {
+    public dev.friendai.features.knowledge.search.SearchHintStore searchHints() {
         return searchHints;
     }
 

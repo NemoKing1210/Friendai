@@ -8,7 +8,7 @@ import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.StopScope;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.memory.CompanionName;
+import dev.friendai.features.memory.CompanionName;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
 import dev.friendai.task.combat.CombatController;

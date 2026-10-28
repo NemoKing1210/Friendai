@@ -1,7 +1,7 @@
 package dev.friendai.voice;
 
 import dev.friendai.config.ClientConfig;
-import dev.friendai.config.SecretResolver;
+import dev.friendai.infrastructure.config.SecretResolver;
 import dev.friendai.voice.stt.SttPresets;
 import dev.friendai.voice.tts.TtsPresets;
 import dev.friendai.voice.tts.VoiceModel;

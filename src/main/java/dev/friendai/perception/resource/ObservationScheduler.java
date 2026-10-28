@@ -1,8 +1,8 @@
 package dev.friendai.perception.resource;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.knowledge.KnowledgeLimits;
-import dev.friendai.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.KnowledgeLimits;
+import dev.friendai.features.knowledge.ResourceObservation;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;

@@ -1,8 +1,8 @@
 package dev.friendai.debug;
 
-import dev.friendai.memory.Category;
-import dev.friendai.memory.MemoryView;
-import dev.friendai.memory.MenuStatus;
+import dev.friendai.features.memory.Category;
+import dev.friendai.features.memory.MemoryView;
+import dev.friendai.features.memory.MenuStatus;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;

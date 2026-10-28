@@ -1,11 +1,11 @@
 package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.crafting.obtain.WorldFacts;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.acquisition.WorldFacts;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.ResourceObservation;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;

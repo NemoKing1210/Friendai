@@ -223,11 +223,13 @@ tasks.register('verifyModArtifact') {
 	def engineFixturesArtifact = engineFixturesJar.flatMap { it.archiveFile }
 	def engineMainClasses = project(':engine').sourceSets.main.output.classesDirs
 	def productionRuntime = sourceSets.main.runtimeClasspath
+	def engineSkillIndex = project(':engine').file('src/main/resources/assets/friendai/skills/index.json')
 
 	dependsOn modJar, engineJar, engineFixturesJar, ':engine:verifyEngineClasspath'
 	inputs.file(modJarArtifact)
 	inputs.file(engineJarArtifact)
 	inputs.file(engineFixturesArtifact)
+	inputs.file(engineSkillIndex)
 	inputs.files(engineMainClasses)
 	inputs.files(productionRuntime)
 
@@ -244,7 +246,22 @@ tasks.register('verifyModArtifact') {
 				'dev/friendai/agent/turn/CompanionBrain.class',
 				'dev/friendai/agent/llm/protocol/OpenAiChatProtocol.class'
 		] as Set
-		def requiredEngineResources = ['agent/intents_en.json', 'agent/intents_ru.json'] as Set
+		def requiredEngineResources = ['agent/intents_en.json', 'agent/intents_ru.json', 'assets/friendai/skills/index.json'] as Set
+		def skillIndex = new groovy.json.JsonSlurper().parse(engineSkillIndex)
+		if (!(skillIndex instanceof List)) {
+			throw new GradleException("Engine skill index must be a JSON array: ${engineSkillIndex}")
+		}
+		if (skillIndex.size() != 9) {
+			throw new GradleException("Engine skill index must contain 9 entries: ${engineSkillIndex}")
+		}
+		def skillIds = [] as Set
+		skillIndex.each { skill ->
+			def id = skill instanceof Map ? skill.id : null
+			if (!(id instanceof String) || !(id ==~ /[a-z-]{1,40}/) || !skillIds.add(id)) {
+				throw new GradleException("Engine skill index contains an invalid or duplicate id: ${id}")
+			}
+			requiredEngineResources.add("assets/friendai/skills/${id}.txt")
+		}
 		def engineCopies = []
 		def engineClassEntries = [] as Set
 		def engineResourceEntries = [] as Set

@@ -6,13 +6,13 @@ import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
+import dev.friendai.features.knowledge.search.ResourceSearchProfile;
+import dev.friendai.features.knowledge.search.SearchCoverage;
+import dev.friendai.features.knowledge.search.SearchHint;
+import dev.friendai.features.knowledge.search.SearchPlanner;
+import dev.friendai.features.knowledge.search.SearchSession;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.search.ResourceSearchProfile;
-import dev.friendai.knowledge.search.SearchCoverage;
-import dev.friendai.knowledge.search.SearchHint;
-import dev.friendai.knowledge.search.SearchPlanner;
-import dev.friendai.knowledge.search.SearchSession;
-import dev.friendai.knowledge.search.TargetKind;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -731,7 +731,7 @@ public final class ResourceSearchDriver implements Task {
     }
 
     private SearchPlanner.Frontier frontier(
-            TaskContext context, dev.friendai.knowledge.travel.TrailGraph trails, int x, int y, int z) {
+            TaskContext context, dev.friendai.features.knowledge.travel.TrailGraph trails, int x, int y, int z) {
         Pos point = new Pos(x, y, z);
         var terrain = SearchFrontierFacts.sample(context.companion(), origin, point, trails);
         return new SearchPlanner.Frontier(

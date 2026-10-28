@@ -1,8 +1,8 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.net.TradeRequestC2SPayload;
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TraderRecord;
 import java.util.UUID;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;

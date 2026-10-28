@@ -1,10 +1,10 @@
 package dev.friendai.task.builtin;
 
-import dev.friendai.crafting.Recipe;
-import dev.friendai.crafting.Station;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.crafting.Recipe;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

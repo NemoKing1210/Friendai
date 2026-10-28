@@ -1,7 +1,7 @@
 package dev.friendai.entity;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.memory.CompanionName;
+import dev.friendai.features.memory.CompanionName;
 import java.util.Optional;
 
 /** The one place a companion is renamed, shared by the {@code set_name} tool and the companion menu. */

@@ -13,6 +13,7 @@ import dev.friendai.architecture.PackageDependencyRules.Violation;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -57,12 +58,6 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.agent.turn.Agent", "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.server.ServerRuntime"),
                 edge("dev.friendai.features.navigation.Navigator", "net.minecraft.server.MinecraftServer"),
-                edge(
-                        "dev.friendai.features.trading.minecraft.TraderRefreshService",
-                        "net.minecraft.server.MinecraftServer"),
-                edge(
-                        "dev.friendai.features.trading.minecraft.TraderRefreshService",
-                        "dev.friendai.server.runtime.ServerRuntime"),
                 edge("dev.friendai.server.LegacyCaller", "dev.friendai.core.FriendaiServerState"),
                 edge("dev.friendai.server.runtime.ServerTickPipeline", "dev.friendai.core.FriendaiServerState"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.friendai.client.ui.CompanionScreen"),
@@ -96,10 +91,6 @@ class ArchitectureRulesTest {
                                 "feature-to-server",
                                 "dev.friendai.features.navigation.Navigator",
                                 "net.minecraft.server.MinecraftServer"),
-                        violation(
-                                "feature-to-server",
-                                "dev.friendai.features.trading.minecraft.TraderRefreshService",
-                                "dev.friendai.server.runtime.ServerRuntime"),
                         violation(
                                 "foundation-direction",
                                 "dev.friendai.foundation.Text",
@@ -149,18 +140,38 @@ class ArchitectureRulesTest {
 
     @Test
     void featureDependenciesRequireAnExplicitDirectedEdge() {
-        List<DependencyEdge> edges = List.of(
+        List<DependencyEdge> edges = new ArrayList<>(List.of(
                 edge(
                         "dev.friendai.features.mining.ExplorationPlanner",
                         "dev.friendai.features.navigation.pathing.PathStep"),
                 edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.features.navigation.pathing.Pos"),
-                edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"));
+                edge("dev.friendai.features.construction.BuildOrder", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.crafting.CraftPlan"),
+                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.trading.TradePlan"),
+                edge(
+                        "dev.friendai.features.knowledge.ResourceKnowledge",
+                        "dev.friendai.features.navigation.pathing.Pos"),
+                edge(
+                        "dev.friendai.features.knowledge.ResourceKnowledge",
+                        "dev.friendai.features.acquisition.OreDepths"),
+                edge("dev.friendai.features.places.Place", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
+                edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
+                edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"),
+                edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.acquisition.ObtainPlan")));
 
         assertEquals(
-                List.of(violation(
-                        "feature-dependency-not-allowed",
-                        "dev.friendai.features.combat.CombatPolicy",
-                        "dev.friendai.features.farming.FarmPlanner")),
+                List.of(
+                        violation(
+                                "feature-dependency-not-allowed",
+                                "dev.friendai.features.combat.CombatPolicy",
+                                "dev.friendai.features.farming.FarmPlanner"),
+                        violation(
+                                "feature-dependency-not-allowed",
+                                "dev.friendai.features.navigation.Navigator",
+                                "dev.friendai.features.acquisition.ObtainPlan")),
                 PackageDependencyRules.validate(edges));
     }
 

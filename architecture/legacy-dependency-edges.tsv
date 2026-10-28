@@ -1,5 +1,4 @@
 # ruleId	sourceClass	targetClass	taskId
-feature-to-server	dev.friendai.features.trading.minecraft.TraderRefreshService	dev.friendai.server.execution.ExecutionCoordinator	16
 legacy-server-state-lookup	dev.friendai.chat.ChatRouter	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.chat.CompanionRouting	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.client.config.FriendaiConfigScreen	dev.friendai.core.FriendaiServerState	14

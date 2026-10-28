@@ -25,7 +25,6 @@ import dev.friendai.agent.autonomy.ShiftInputs;
 import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
-import dev.friendai.config.ServerConfig;
 import dev.friendai.core.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -34,7 +33,8 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.place.PlaceStore;
+import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.tool.builtin.FriendaiTools;
 import dev.friendai.tool.builtin.TaskToolDef;
@@ -694,7 +694,7 @@ public final class FreeTimeDriver {
                 goal,
                 new CompanionPerception(companion, brains.perceptionContext()).describe(caller),
                 digest.toString(),
-                dev.friendai.place.PlaceText.planner(
+                dev.friendai.features.places.PlaceText.planner(
                         cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
                 Optional.of(dev.friendai.execution.queue.QueueText.show(
                         companion.executionCoordinator().queue(), guard, null, 20, false)),

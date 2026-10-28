@@ -3,7 +3,7 @@ package dev.friendai.server.runtime;
 import dev.friendai.FriendaiMod;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.features.trading.minecraft.TraderRefreshService;
+import dev.friendai.server.trading.TraderRefreshService;
 import net.minecraft.server.MinecraftServer;
 
 /** Builds one complete per-server runtime graph and closes partial construction on failure. */

@@ -1,9 +1,9 @@
 package dev.friendai.test;
 
 import dev.friendai.chat.CompanionSpeaker;
-import dev.friendai.chat.NameColor;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.conversation.NameColor;
 import dev.friendai.net.CompanionSpeechS2CPayload;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;

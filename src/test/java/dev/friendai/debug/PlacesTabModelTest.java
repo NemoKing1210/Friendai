@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.memory.MenuStatus;
-import dev.friendai.place.PlaceView;
+import dev.friendai.features.memory.MenuStatus;
+import dev.friendai.features.places.PlaceView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

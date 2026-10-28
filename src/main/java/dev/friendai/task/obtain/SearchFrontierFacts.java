@@ -1,9 +1,9 @@
 package dev.friendai.task.obtain;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.search.SearchPlanner;
+import dev.friendai.features.knowledge.travel.TrailGraph;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.knowledge.search.SearchPlanner;
-import dev.friendai.knowledge.travel.TrailGraph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;

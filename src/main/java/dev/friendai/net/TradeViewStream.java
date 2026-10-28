@@ -1,9 +1,9 @@
 package dev.friendai.net;
 
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TradeQuery;
-import dev.friendai.trading.TradeView;
-import dev.friendai.trading.TraderRecord;
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TradeQuery;
+import dev.friendai.features.trading.TradeView;
+import dev.friendai.features.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

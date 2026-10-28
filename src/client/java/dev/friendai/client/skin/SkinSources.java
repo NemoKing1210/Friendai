@@ -1,11 +1,11 @@
 package dev.friendai.client.skin;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.features.appearance.FetchedSkin;
+import dev.friendai.features.appearance.SkinImage;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.skin.FetchedSkin;
-import dev.friendai.skin.SkinFetcher;
-import dev.friendai.skin.SkinImage;
+import dev.friendai.infrastructure.appearance.SkinFetcher;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

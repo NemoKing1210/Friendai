@@ -1,12 +1,12 @@
 package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.memory.MemoryViewers;
-import dev.friendai.memory.MenuStatus;
-import dev.friendai.place.PlaceRegistry;
-import dev.friendai.place.PlaceView;
-import dev.friendai.place.PlaceViewBuilder;
-import dev.friendai.place.PlaceViewCodec;
+import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.memory.MenuStatus;
+import dev.friendai.features.places.PlaceRegistry;
+import dev.friendai.features.places.PlaceView;
+import dev.friendai.features.places.PlaceViewBuilder;
+import dev.friendai.features.places.PlaceViewCodec;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -82,7 +82,7 @@ public final class PlaceViewStream {
     private static void send(FriendaiServerState state, ServerPlayer player, Optional<MenuStatus> status) {
         UUID uuid = player.getUUID();
         PlaceRegistry book = state.places().book(uuid);
-        PlaceView view = PlaceViewBuilder.build(book, state.config().places, status);
+        PlaceView view = PlaceViewBuilder.build(book, state.config().places.enabled, status);
         if (ServerPlayNetworking.canSend(player, PlacesViewS2CPayload.TYPE)) {
             ServerPlayNetworking.send(
                     player,

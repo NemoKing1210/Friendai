@@ -2,10 +2,10 @@ package dev.friendai.client.skin;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.friendai.FriendaiMod;
+import dev.friendai.features.appearance.SkinHash;
+import dev.friendai.features.appearance.SkinImage;
 import dev.friendai.net.SkinRequestC2SPayload;
 import dev.friendai.net.SkinS2CPayload;
-import dev.friendai.skin.SkinHash;
-import dev.friendai.skin.SkinImage;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;

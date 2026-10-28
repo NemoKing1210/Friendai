@@ -3,11 +3,11 @@ package dev.friendai.server.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.memory.Category;
-import dev.friendai.memory.Fact;
-import dev.friendai.memory.MemoryBook;
-import dev.friendai.memory.MemoryLimits;
-import dev.friendai.memory.Subject;
+import dev.friendai.features.memory.Category;
+import dev.friendai.features.memory.Fact;
+import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.MemoryLimits;
+import dev.friendai.features.memory.Subject;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

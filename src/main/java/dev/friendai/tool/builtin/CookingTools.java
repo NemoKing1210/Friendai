@@ -1,10 +1,10 @@
 package dev.friendai.tool.builtin;
 
 import com.google.gson.JsonObject;
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.task.builtin.CollectSmeltedTask;
 import dev.friendai.task.builtin.CookFoodTask;
 import dev.friendai.task.builtin.CraftTask;

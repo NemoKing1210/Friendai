@@ -1,13 +1,13 @@
 package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.memory.MemoryBook;
-import dev.friendai.memory.MemoryView;
-import dev.friendai.memory.MemoryViewBuilder;
-import dev.friendai.memory.MemoryViewCodec;
-import dev.friendai.memory.MemoryViewers;
-import dev.friendai.memory.MenuStatus;
-import dev.friendai.memory.PlayerRef;
+import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.MemoryView;
+import dev.friendai.features.memory.MemoryViewBuilder;
+import dev.friendai.features.memory.MemoryViewCodec;
+import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.memory.MenuStatus;
+import dev.friendai.features.memory.PlayerRef;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

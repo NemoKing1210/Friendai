@@ -1,8 +1,8 @@
 package dev.friendai.task.obtain;
 
-import dev.friendai.crafting.Station;
-import dev.friendai.crafting.obtain.Source;
-import dev.friendai.knowledge.search.ResourceFamily;
+import dev.friendai.features.acquisition.Source;
+import dev.friendai.features.crafting.Station;
+import dev.friendai.features.knowledge.search.ResourceFamily;
 import dev.friendai.task.crafting.RecipeIndex;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;

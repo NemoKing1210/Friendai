@@ -1,10 +1,10 @@
 package dev.friendai.task.trading;
 
-import dev.friendai.trading.TradeBook;
-import dev.friendai.trading.TradeCost;
-import dev.friendai.trading.TradeItem;
-import dev.friendai.trading.TradeOffer;
-import dev.friendai.trading.TraderRecord;
+import dev.friendai.features.trading.TradeBook;
+import dev.friendai.features.trading.TradeCost;
+import dev.friendai.features.trading.TradeItem;
+import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TraderRecord;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

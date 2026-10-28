@@ -1,8 +1,8 @@
 package dev.friendai.net;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.skin.SkinHash;
-import dev.friendai.skin.SkinImage;
+import dev.friendai.features.appearance.SkinHash;
+import dev.friendai.features.appearance.SkinImage;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;

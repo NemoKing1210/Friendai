@@ -1,5 +1,6 @@
 package dev.friendai.chat;
 
+import dev.friendai.features.conversation.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 

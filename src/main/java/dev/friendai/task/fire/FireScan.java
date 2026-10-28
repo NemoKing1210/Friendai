@@ -1,7 +1,7 @@
 package dev.friendai.task.fire;
 
-import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.features.fire.BurningCell;
 import dev.friendai.features.fire.FireFacts;
 import dev.friendai.features.fire.FireTarget;

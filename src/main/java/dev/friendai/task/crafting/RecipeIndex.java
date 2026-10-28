@@ -1,9 +1,9 @@
 package dev.friendai.task.crafting;
 
-import dev.friendai.crafting.Ingredient;
-import dev.friendai.crafting.Recipe;
-import dev.friendai.crafting.RecipeBook;
-import dev.friendai.crafting.Station;
+import dev.friendai.features.crafting.Ingredient;
+import dev.friendai.features.crafting.Recipe;
+import dev.friendai.features.crafting.RecipeBook;
+import dev.friendai.features.crafting.Station;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

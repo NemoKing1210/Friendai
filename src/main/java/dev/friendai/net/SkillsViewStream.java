@@ -1,7 +1,7 @@
 package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.skill.*;
+import dev.friendai.features.instructions.*;
 import java.util.*;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
@@ -74,8 +74,8 @@ public final class SkillsViewStream {
                     0,
                     List.of(),
                     null,
-                    dev.friendai.memory.CompanionDescription.EMPTY,
-                    dev.friendai.memory.OwnerProfile.EMPTY,
+                    dev.friendai.features.memory.CompanionDescription.EMPTY,
+                    dev.friendai.features.memory.OwnerProfile.EMPTY,
                     "friendai.menu.skills.invalid",
                     false,
                     "");

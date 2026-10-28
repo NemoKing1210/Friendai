@@ -2,9 +2,9 @@ package dev.friendai.client.ui;
 
 import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.LogBuffer;
-import dev.friendai.memory.MemoryView;
-import dev.friendai.place.PlaceView;
-import dev.friendai.trading.TradeView;
+import dev.friendai.features.memory.MemoryView;
+import dev.friendai.features.places.PlaceView;
+import dev.friendai.features.trading.TradeView;
 import java.util.Optional;
 
 /** What the companion menu knows: the latest snapshot, the accumulated log and the last fetched prompt. */
@@ -76,22 +76,22 @@ public final class CompanionClientState {
         return snapshot == null || System.currentTimeMillis() - receivedAt > STALE_AFTER_MS;
     }
 
-    private static dev.friendai.skill.SkillView skillsView;
-    private static dev.friendai.skill.SkillView skillsResponse;
+    private static dev.friendai.features.instructions.SkillView skillsView;
+    private static dev.friendai.features.instructions.SkillView skillsResponse;
 
-    public static Optional<dev.friendai.skill.SkillView> skillsResponse() {
+    public static Optional<dev.friendai.features.instructions.SkillView> skillsResponse() {
         return Optional.ofNullable(skillsResponse);
     }
 
-    public static Optional<dev.friendai.skill.SkillView> skillsView() {
+    public static Optional<dev.friendai.features.instructions.SkillView> skillsView() {
         return Optional.ofNullable(skillsView);
     }
 
-    public static void onSkillsView(dev.friendai.skill.SkillView view) {
+    public static void onSkillsView(dev.friendai.features.instructions.SkillView view) {
         if (view.responseId() > 0 && (skillsResponse == null || view.responseId() >= skillsResponse.responseId()))
             skillsResponse = view;
         if (skillsView != null && view.detail() != null && view.rows().isEmpty() && view.page() == skillsView.page()) {
-            view = new dev.friendai.skill.SkillView(
+            view = new dev.friendai.features.instructions.SkillView(
                     view.enabled(),
                     view.revision(),
                     view.page(),

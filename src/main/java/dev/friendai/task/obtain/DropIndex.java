@@ -1,11 +1,11 @@
 package dev.friendai.task.obtain;
 
 import com.mojang.authlib.GameProfile;
-import dev.friendai.crafting.obtain.OreDepths;
-import dev.friendai.crafting.obtain.Source;
-import dev.friendai.crafting.obtain.SourceBook;
-import dev.friendai.crafting.obtain.ToolKind;
-import dev.friendai.crafting.obtain.ToolNeed;
+import dev.friendai.features.acquisition.OreDepths;
+import dev.friendai.features.acquisition.Source;
+import dev.friendai.features.acquisition.SourceBook;
+import dev.friendai.features.acquisition.ToolKind;
+import dev.friendai.features.acquisition.ToolNeed;
 import dev.friendai.foundation.item.Tier;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

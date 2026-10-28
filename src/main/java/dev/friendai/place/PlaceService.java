@@ -1,11 +1,12 @@
 package dev.friendai.place;
 
-import dev.friendai.config.ServerConfig;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.features.places.*;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.perception.RelativeDirection;
 import java.util.ArrayList;
 import java.util.List;

@@ -1,8 +1,8 @@
 package dev.friendai.net;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.trading.TradeView;
-import dev.friendai.trading.TradeViewCodec;
+import dev.friendai.features.trading.TradeView;
+import dev.friendai.features.trading.TradeViewCodec;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
