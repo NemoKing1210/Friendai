@@ -16,19 +16,19 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 ## Working from TODO.md
 
-`TODO.md` at the repo root is the list of work that was asked for but not started yet. Picking an item from it is a different entry point than "do this now":
+`TODO.md` at the repo root is the list of work that was asked for but not started yet; finished work lives in `TODO_ARCHIVE.md`, so the open list stays readable. Picking an item from it is a different entry point than "do this now":
 
 1. **Write a specification and then a plan before writing code**, unless the item is trivial (see below). The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to.
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
-3. Close the loop: when the item is done, tick it `[x]` and move it to the **Done** section of `TODO.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs.
+3. Close the loop: when the item is done, tick it `[x]` and move it to `TODO_ARCHIVE.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs. The archive is read-only history: never renumber an archived item and never reuse its number.
 
 **Pick a whole item, never a slice.** When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`. A sub-item is one slice of its parent, so picking it leaves the rest of the parent unattended and that number half-finished in the list, while the parent reads as still open. Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands. If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
 
 **Claim the item before you start it.** Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]`. That marker is the whole claim: **never add** a session name, a timestamp or an `**In progress**` line under the item, and do not ask another session to add one. Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
 
-**The claim is never a commit of its own.** Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]` and moves it to **Done**; for a task split into several commits, the final one). Do not make a `chore(todo): take task N` commit. The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
+**The claim is never a commit of its own.** Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]` and moves it to `TODO_ARCHIVE.md`; for a task split into several commits, the final one). Do not make a `chore(todo): take task N` commit. The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
 
-When the work ends: tick `[x]` and move the item to **Done**, in the commit that carries the change. When you stop or abandon it: restore `[ ]` and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
+When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the commit that carries the change. When you stop or abandon it: restore `[ ]` and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
 
 **When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
 
@@ -83,7 +83,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `test-builds/` | Exported test jars (`friendai-<version>.jar`). Git-ignored. |
 | `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local runtime/generated files. Git-ignored. |
 | `AGENTS.md`, `ARCHITECTURE.md` | The two halves of this guide: the rules every session loads, and the reference (packages, flows, persistence, protocol). See "Code map and flows". |
-| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the backlog of accepted work (see "Working from TODO.md"), commit rules. |
+| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `TODO_ARCHIVE.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the open backlog and its finished-item archive (see "Working from TODO.md"), commit rules. |
 
 ### Code map and flows
 
