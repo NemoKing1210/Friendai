@@ -6,6 +6,7 @@ import dev.friendai.build.Blueprint;
 import dev.friendai.build.BlueprintParser;
 import dev.friendai.build.ParseResult;
 import dev.friendai.build.PartKind;
+import dev.friendai.build.PlacementRefusal;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -42,6 +43,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -556,8 +558,180 @@ public class BuildTests {
         });
     }
 
+    @GameTest(maxTicks = 4000)
+    public void floorBuildsWhileStandingInTheMiddle(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        Blueprint floor =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(floor, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    result.status != null,
+                    "still running: " + runner.current().map(Task::debugStatus).orElse("none"));
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            for (int x = 4; x <= 6; x++) {
+                for (int z = 4; z <= 6; z++) {
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                            "missing floor at " + x + ",2," + z);
+                }
+            }
+            h.assertTrue(
+                    h.getLevel().getBlockState(companion.blockPosition()).isAir(),
+                    "the companion must not finish inside a block");
+            h.assertFalse(result.summary.contains("blocked by me"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void aCellUnderTheCompanionIsFilledAfterSteppingOut(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        Blueprint single =
+                generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    result.status != null,
+                    "still running: " + runner.current().map(Task::debugStatus).orElse("none"));
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.COBBLESTONE),
+                    "the cell the companion stood in must be filled");
+        });
+    }
+
+    @GameTest(maxTicks = 3000)
+    public void aZombieInTheCellIsWaitedOut(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        var zombie = h.spawn(EntityTypes.ZOMBIE, 5, 2, 5);
+        Blueprint single =
+                generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (++ticks[0] == 20) {
+                zombie.discard();
+            }
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.COBBLESTONE),
+                    "the cell must be filled once the zombie leaves");
+        });
+    }
+
+    @GameTest(maxTicks = 1000)
+    public void aPlayerOnTheSiteIsNamed(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        GameTestSupport.mockPlayerAt(h, 5, 2, 5);
+        Blueprint single =
+                generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(build(single, h, 5, 2, 5, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("minecraft:player"), "summary was " + result.summary);
+            h.assertFalse(result.summary.contains("couldn't place"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 1000)
+    public void aFailedBuildResumesAtItsOrigin(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        Blueprint single =
+                generator("{\"type\":\"platform\",\"width\":1,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        BuildTask task = new BuildTask(single, origin, Rotation.NONE, true, false);
+        String saved = task.saveData();
+        Result result = new Result();
+        TaskRunner runner = runner(companion, result);
+        runner.start(task, "build_structure");
+        boolean[] retrying = {false};
+        Result retried = new Result();
+        TaskRunner[] retryRunner = {null};
+        h.succeedWhen(() -> {
+            if (!retrying[0]) {
+                runner.tick();
+                if (result.status == null) {
+                    return;
+                }
+                h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+                BlueprintStore store = store(h);
+                BlueprintStore.InProgress record = store.findResumable(
+                                single,
+                                companion.ownerUuid(),
+                                h.getLevel().dimension().identifier().toString(),
+                                origin)
+                        .orElse(null);
+                h.assertTrue(record != null, "a failed build must leave a resumable record");
+                h.assertTrue(record.origin().equals(origin), "the record keeps the origin");
+                h.assertTrue(record.remaining().contains(origin), "the record knows the remaining cell");
+                h.setBlock(5, 2, 5, Blocks.AIR);
+                BuildTask resumed =
+                        (BuildTask) TaskFactory.restore(saved, h.getLevel()).orElseThrow();
+                retrying[0] = true;
+                retryRunner[0] = runner(companion, retried);
+                retryRunner[0].start(resumed, "build_structure");
+                return;
+            }
+            retryRunner[0].tick();
+            h.assertTrue(retried.status != null, "resume still running");
+            h.assertTrue(
+                    retried.status == TaskStatus.SUCCESS, "resume status " + retried.status + ": " + retried.summary);
+            h.assertTrue(
+                    !Files.exists(store(h).inProgressFile(buildId(saved))), "a finished resume deletes its record");
+        });
+    }
+
+    @GameTest
+    public void anOwnScaffoldIsNotASiteProblem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Blueprint three = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [ { "op": "box", "from": [0,0,0], "to": [2,0,0], "block": "C" } ]
+                }
+                """);
+        Placement.PlacedBlueprint placed =
+                Placement.of(three, h.absolutePos(new BlockPos(5, 2, 5)), Direction.SOUTH, companion);
+        BlockPos own = placed.specs().get(1).pos();
+        h.setBlock(6, 2, 5, Blocks.DIRT);
+        Site.SiteReport clean = Site.check(h.getLevel(), placed, companion, true, pos -> pos.equals(own));
+        check(clean.problems().isEmpty(), "an own block must not be a site problem: " + clean.problems());
+        h.setBlock(7, 2, 5, Blocks.CHEST);
+        Site.SiteReport blocked = Site.check(h.getLevel(), placed, companion, true, pos -> pos.equals(own));
+        check(
+                blocked.refusals().getFirst() instanceof PlacementRefusal.ForeignBlock,
+                "a foreign block is named: " + blocked.refusals());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 400)
-    public void cancelDeletesFile(GameTestHelper h) {
+    public void cancelKeepsTheRecord(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
@@ -572,8 +746,12 @@ public class BuildTests {
         BlueprintStore store = store(h);
         check(Files.exists(store.inProgressFile(buildId(saved))), "the file exists after the check");
         runner.stop("test");
-        check(!Files.exists(store.inProgressFile(buildId(saved))), "stop must delete the file");
-        check(TaskFactory.restore(saved, h.getLevel()).isEmpty(), "a cancelled build must not restore");
+        check(Files.exists(store.inProgressFile(buildId(saved))), "a cancelled build stays resumable");
+        BlueprintStore.InProgress loaded = store.loadInProgress(buildId(saved)).orElseThrow();
+        equal(h.absolutePos(new BlockPos(5, 2, 5)), loaded.origin(), "the resume record keeps the origin");
+        check(
+                TaskFactory.restore(saved, h.getLevel()).isPresent(),
+                "a cancelled build restores from its record instead of being forgotten");
         h.succeed();
     }
 
@@ -656,7 +834,12 @@ public class BuildTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 7, 2);
         Site.SiteReport report = site(h, companion, 5, 7, 5, "minecraft:cobblestone", true);
         String at = coords(h.absolutePos(new BlockPos(5, 7, 5)));
-        equal(List.of("the ground under " + at + " drops more than 4 blocks"), report.problems(), "problems");
+        check(
+                report.problems().size() == 1
+                        && report.problems().getFirst().contains(at)
+                        && report.problems().getFirst().contains("needs a block at"),
+                "problems were " + report.problems());
+        check(report.refusals().getFirst() instanceof PlacementRefusal.NoSupport, "cause was " + report.refusals());
         equal(4, report.foundation().size(), "foundation stops at four blocks");
         h.succeed();
     }
@@ -700,7 +883,11 @@ public class BuildTests {
         BlockPos target = h.absolutePos(new BlockPos(5, 2, 5));
         companion.hands().overrideProtection(pos -> pos.equals(target));
         Site.SiteReport report = site(h, companion, 5, 2, 5, "minecraft:cobblestone", true);
-        equal(List.of(coords(target) + " is protected"), report.problems(), "problems");
+        equal(
+                List.of(coords(target) + " is protected by the server (spawn protection or a world rule)"),
+                report.problems(),
+                "problems");
+        check(report.refusals().getFirst() instanceof PlacementRefusal.Protected, "cause was " + report.refusals());
         h.succeed();
     }
 
@@ -1138,7 +1325,7 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
             h.assertTrue(
-                    result.summary.startsWith("couldn't gather 4 × minecraft:gold_block: "),
+                    result.summary.startsWith("missing materials: minecraft:gold_block"),
                     "summary was " + result.summary);
             h.assertTrue(
                     result.summary.contains("can't get 4 minecraft:gold_block here:"),
@@ -1172,8 +1359,10 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.equals("missing materials: 9 × minecraft:dark_oak_planks"),
+                    result.summary.startsWith("missing materials: minecraft:dark_oak_planks"),
                     "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("need 9 × minecraft:dark_oak_planks"), "summary was " + result.summary);
             for (int x = 5; x <= 7; x++) {
                 for (int z = 5; z <= 7; z++) {
                     h.assertTrue(
@@ -1293,8 +1482,8 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.endsWith(
-                            "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
+                    result.summary.startsWith("can't reach ")
+                            && result.summary.contains("build height limit without scaffolding"),
                     "summary was " + result.summary);
         });
     }
@@ -1375,7 +1564,8 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.equals("I ran out of dirt or cobblestone for scaffolding"),
+                    result.summary.startsWith("missing materials: dirt or cobblestone")
+                            && result.summary.contains("ran out of dirt or cobblestone for scaffolding"),
                     "summary was " + result.summary);
             List<String> dirt = positionsOf(h, 16, 2, 15, Blocks.DIRT);
             List<String> cobblestone = positionsOf(h, 16, 2, 15, Blocks.COBBLESTONE);
@@ -1487,7 +1677,7 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.contains("it needs a block at " + coords(h.absolutePos(new BlockPos(4, 3, 7)))),
+                    result.summary.contains("needs a block at " + coords(h.absolutePos(new BlockPos(4, 3, 7)))),
                     "the missing wall cell must be named: " + result.summary);
             h.assertTrue(result.summary.contains("the blueprint does not provide"), "summary was " + result.summary);
             h.assertTrue(
@@ -1607,8 +1797,8 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.endsWith(
-                            "is out of reach (build height limit without scaffolding is 4 above standing ground)"),
+                    result.summary.startsWith("can't reach ")
+                            && result.summary.contains("build height limit without scaffolding"),
                     "summary was " + result.summary);
         });
     }
@@ -1807,7 +1997,9 @@ public class BuildTests {
             h.assertTrue(result.status != null, "still running");
             h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
             String at = coords(h.absolutePos(new BlockPos(9, 2, 5)));
-            h.assertTrue(result.summary.equals(at + " is taken by minecraft:glass"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("the site isn't clear: minecraft:glass at " + at),
+                    "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(9, 2, 5)).is(Blocks.GLASS), "the glass must stay");
         });
     }

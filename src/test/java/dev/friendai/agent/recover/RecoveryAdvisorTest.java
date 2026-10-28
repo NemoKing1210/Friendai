@@ -119,6 +119,51 @@ class RecoveryAdvisorTest {
     }
 
     @Test
+    void aBuildRefusalNamesItsCauseAndItsRecovery() {
+        Diagnosis own =
+                advisor.diagnose("build_structure", "4 65 -7 holds my own minecraft:dirt (attempt 2)", Set.of());
+        assertTrue(
+                own.remedies().contains("take minecraft:dirt back"),
+                own.remedies().toString());
+        assertTrue(
+                own.remedies().contains("resume the build at its origin"),
+                own.remedies().toString());
+        assertFalse(own.needsPlayer());
+
+        Diagnosis body = advisor.diagnose("build_structure", "4 65 -7 is where I am standing (attempt 3)", Set.of());
+        assertTrue(
+                body.remedies().getFirst().contains("step aside"),
+                body.remedies().toString());
+
+        Diagnosis mob = advisor.diagnose(
+                "build_structure", "4 65 -7 is in the way: minecraft:zombie stands there (attempt 2)", Set.of());
+        assertTrue(
+                mob.remedies().getFirst().contains("minecraft:zombie"),
+                mob.remedies().toString());
+
+        Diagnosis chest = advisor.diagnose(
+                "build_structure", "the site isn't clear: minecraft:chest at 4 65 -7 (attempt 0)", Set.of());
+        assertTrue(
+                chest.remedies().contains("clear minecraft:chest"),
+                chest.remedies().toString());
+    }
+
+    @Test
+    void aPlaceTellsABuildToBuildOutsideIt() {
+        Diagnosis d = advisor.diagnose("build_structure", "4 65 -7 is inside the house place \"home\" (r=8)", Set.of());
+        assertEquals(List.of("build outside home"), d.remedies());
+        assertFalse(d.needsPlayer());
+    }
+
+    @Test
+    void serverProtectionTellsABuildWhereToGoInstead() {
+        Diagnosis d = advisor.diagnose(
+                "build_structure", "4 65 -7 is protected by the server (spawn protection or a world rule)", Set.of());
+        assertEquals(List.of("build outside the server's protected area"), d.remedies());
+        assertFalse(d.needsPlayer());
+    }
+
+    @Test
     void diagnosisLineIsReadable() {
         Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
         assertEquals(

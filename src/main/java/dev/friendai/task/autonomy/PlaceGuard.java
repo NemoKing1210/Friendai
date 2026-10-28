@@ -54,6 +54,11 @@ public final class PlaceGuard {
 
     /** True when the box from {@code min} to {@code max} touches any known place in the companion's dimension. */
     public static boolean overlapsAnyPlace(CompanionEntity companion, BlockPos min, BlockPos max) {
+        return overlapping(companion, min, max) != null;
+    }
+
+    /** The first known place the box from {@code min} to {@code max} touches, or null. */
+    public static Place overlapping(CompanionEntity companion, BlockPos min, BlockPos max) {
         for (Place place : placesHere(companion)) {
             int r = place.radius();
             if (max.getX() >= place.anchor().x() - r
@@ -62,10 +67,10 @@ public final class PlaceGuard {
                     && min.getY() <= place.anchor().y() + place.above()
                     && max.getZ() >= place.anchor().z() - r
                     && min.getZ() <= place.anchor().z() + r) {
-                return true;
+                return place;
             }
         }
-        return false;
+        return null;
     }
 
     /** Whether the server protects places from free time. */

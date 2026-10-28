@@ -261,7 +261,7 @@ public final class ToolCatalog {
         hint(
                 metas,
                 "build_structure",
-                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, window, interior); pass parts to build only some of them.");
+                "- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, window, interior); pass parts to build only some of them. A failed build stays half built at its origin: call build_structure again without coordinates to resume it there instead of choosing a new place.");
         hint(
                 metas,
                 "clear_area",

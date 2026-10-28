@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BlueprintJson;
+import dev.friendai.build.PartKind;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -14,8 +15,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import net.minecraft.core.BlockPos;
@@ -34,16 +37,30 @@ public final class BlueprintStore {
     /** A saved blueprint without its blocks, for listings. */
     public record Entry(String name, int width, int height, int depth, Optional<UUID> author, long created) {}
 
-    /** Everything needed to resume a build: its blueprint, placement and the scaffold blocks already placed. */
+    /**
+     * Everything needed to resume a build: its blueprint, placement, the scaffold already placed, the parts it was
+     * asked for, the cells still wrong when the record was written, and who asked for it. Every field beyond
+     * {@code gather} is optional in the file, so a record from an older version still loads.
+     */
     public record InProgress(
             Blueprint blueprint,
             BlockPos origin,
             Rotation rotation,
             boolean clearSite,
             boolean gather,
-            List<BlockPos> scaffold) {
+            List<BlockPos> scaffold,
+            String id,
+            Set<PartKind> parts,
+            List<BlockPos> remaining,
+            String owner,
+            String dimension) {
         public InProgress {
             scaffold = List.copyOf(scaffold);
+            parts = Set.copyOf(parts);
+            remaining = List.copyOf(remaining);
+            id = id == null ? "" : id;
+            owner = owner == null ? "" : owner;
+            dimension = dimension == null ? "" : dimension;
         }
     }
 
@@ -97,6 +114,26 @@ public final class BlueprintStore {
             boolean clearSite,
             boolean gather,
             List<BlockPos> scaffold) {
+        saveInProgress(id, blueprint, origin, rotation, clearSite, gather, scaffold, Set.of(), List.of(), "", "");
+    }
+
+    /**
+     * Writes the whole state of a running build: the blueprint, where it stands, the scaffold already placed, the
+     * parts it was asked for, the cells still wrong and its owner. Atomic, like {@link #save}. The file is replaced on
+     * every call.
+     */
+    public void saveInProgress(
+            String id,
+            Blueprint blueprint,
+            BlockPos origin,
+            Rotation rotation,
+            boolean clearSite,
+            boolean gather,
+            List<BlockPos> scaffold,
+            Set<PartKind> parts,
+            List<BlockPos> remaining,
+            String owner,
+            String dimension) {
         if (!validBuildId(id)) {
             throw new IllegalArgumentException("bad build id");
         }
@@ -108,11 +145,19 @@ public final class BlueprintStore {
         root.addProperty("rotation", rotation.name());
         root.addProperty("clearSite", clearSite);
         root.addProperty("gather", gather);
-        JsonArray placed = new JsonArray();
-        for (BlockPos pos : scaffold) {
-            placed.add(numbers(pos.getX(), pos.getY(), pos.getZ()));
+        root.add("scaffold", positions(scaffold));
+        JsonArray partNames = new JsonArray();
+        for (PartKind kind : parts) {
+            partNames.add(kind.id());
         }
-        root.add("scaffold", placed);
+        root.add("parts", partNames);
+        root.add("remaining", positions(remaining));
+        if (owner != null && !owner.isBlank()) {
+            root.addProperty("owner", owner);
+        }
+        if (dimension != null && !dimension.isBlank()) {
+            root.addProperty("dimension", dimension);
+        }
         Path file = inProgressFile(id);
         try {
             Files.createDirectories(file.getParent());
@@ -120,6 +165,14 @@ public final class BlueprintStore {
         } catch (IOException e) {
             throw new UncheckedIOException("could not save the build in progress " + id, e);
         }
+    }
+
+    private static JsonArray positions(List<BlockPos> positions) {
+        JsonArray array = new JsonArray();
+        for (BlockPos pos : positions) {
+            array.add(numbers(pos.getX(), pos.getY(), pos.getZ()));
+        }
+        return array;
     }
 
     /** The state of a running build, or empty when the file is missing or broken. Never throws. */
@@ -146,18 +199,16 @@ public final class BlueprintStore {
             Rotation rotation = Rotation.valueOf(root.get("rotation").getAsString());
             boolean clearSite = root.get("clearSite").getAsBoolean();
             boolean gather = root.get("gather").getAsBoolean();
-            List<BlockPos> scaffold = new ArrayList<>();
-            JsonArray placed = root.getAsJsonArray("scaffold");
-            for (JsonElement element : placed) {
-                JsonArray entry = element.getAsJsonArray();
-                if (entry.size() != 3) {
-                    return Optional.empty();
+            List<BlockPos> scaffold = readPositions(root.getAsJsonArray("scaffold"));
+            Set<PartKind> parts = new HashSet<>();
+            if (root.has("parts")) {
+                for (JsonElement element : root.getAsJsonArray("parts")) {
+                    PartKind.parse(element.getAsString()).ifPresent(parts::add);
                 }
-                scaffold.add(new BlockPos(
-                        entry.get(0).getAsInt(),
-                        entry.get(1).getAsInt(),
-                        entry.get(2).getAsInt()));
             }
+            List<BlockPos> remaining = readPositions(root.getAsJsonArray("remaining"));
+            String owner = root.has("owner") ? root.get("owner").getAsString() : "";
+            String dimension = root.has("dimension") ? root.get("dimension").getAsString() : "";
             return Optional.of(new InProgress(
                     blueprint.get(),
                     new BlockPos(
@@ -167,10 +218,98 @@ public final class BlueprintStore {
                     rotation,
                     clearSite,
                     gather,
-                    scaffold));
+                    scaffold,
+                    id,
+                    parts,
+                    remaining,
+                    owner,
+                    dimension));
         } catch (IOException | RuntimeException e) {
             return Optional.empty();
         }
+    }
+
+    private static List<BlockPos> readPositions(JsonArray array) {
+        List<BlockPos> positions = new ArrayList<>();
+        if (array == null) {
+            return positions;
+        }
+        for (JsonElement element : array) {
+            JsonArray entry = element.getAsJsonArray();
+            if (entry.size() != 3) {
+                throw new IllegalArgumentException("bad position");
+            }
+            positions.add(new BlockPos(
+                    entry.get(0).getAsInt(),
+                    entry.get(1).getAsInt(),
+                    entry.get(2).getAsInt()));
+        }
+        return positions;
+    }
+
+    /**
+     * The newest resumable record for a blueprint, its owner and dimension, or empty. When {@code requestedOrigin} is
+     * given, only a record sited exactly there counts; a different explicit origin is a new build. An empty owner or
+     * dimension in the record matches any, so a record written before those fields existed can still be resumed.
+     */
+    public Optional<InProgress> findResumable(
+            Blueprint blueprint, UUID owner, String dimension, BlockPos requestedOrigin) {
+        if (blueprint == null || !Files.isDirectory(inProgressDir())) {
+            return Optional.empty();
+        }
+        String ownerId = owner == null ? "" : owner.toString();
+        List<Path> files = new ArrayList<>();
+        try (var stream = Files.list(inProgressDir())) {
+            stream.filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .forEach(files::add);
+        } catch (IOException e) {
+            return Optional.empty();
+        }
+        files.sort(Comparator.comparingLong(BlueprintStore::modified).reversed());
+        for (Path file : files) {
+            String name = file.getFileName().toString();
+            String id = name.substring(0, name.length() - ".json".length());
+            Optional<InProgress> loaded = loadInProgress(id);
+            if (loaded.isEmpty()) {
+                continue;
+            }
+            InProgress record = loaded.get();
+            if (!sameBlueprint(blueprint, record.blueprint())) {
+                continue;
+            }
+            if (!record.owner().isBlank()
+                    && !ownerId.isBlank()
+                    && !record.owner().equals(ownerId)) {
+                continue;
+            }
+            if (!record.dimension().isBlank()
+                    && dimension != null
+                    && !dimension.isBlank()
+                    && !record.dimension().equals(dimension)) {
+                continue;
+            }
+            if (requestedOrigin != null && !requestedOrigin.equals(record.origin())) {
+                continue;
+            }
+            return Optional.of(record);
+        }
+        return Optional.empty();
+    }
+
+    private static long modified(Path path) {
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            return 0L;
+        }
+    }
+
+    private static boolean sameBlueprint(Blueprint wanted, Blueprint found) {
+        return wanted.name().equals(found.name())
+                && wanted.width() == found.width()
+                && wanted.height() == found.height()
+                && wanted.depth() == found.depth()
+                && wanted.blocks().equals(found.blocks());
     }
 
     /** Removes the in-progress file of a build that ended or was cancelled. */

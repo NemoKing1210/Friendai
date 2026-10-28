@@ -71,6 +71,41 @@ public class StructureTests {
     }
 
     @GameTest
+    public void snapshot_sees_player_in_footprint(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        GameTestSupport.mockPlayerAt(h, 3, 2, 2);
+        StructureSnapshot snap = snapshot(h, c, "iron_golem", 4);
+        h.assertTrue(snap.entityInFootprint(), "the player stands in the footprint");
+        h.assertTrue(snap.blockers().contains("minecraft:player"), "blockers were " + snap.blockers());
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void player_on_site_waits_instead_of_failing(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.IRON_BLOCK, 4));
+        GameTestSupport.mockPlayerAt(h, 3, 2, 2);
+        Result result = new Result();
+        TaskRunner runner = runner(c, result);
+        runner.start(task(h, "iron_golem", 2, 2, 2), "special:iron_golem");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            ticks[0]++;
+            if (ticks[0] < 205) {
+                h.assertTrue(
+                        result.status == null,
+                        "must wait for the player, failed at tick " + ticks[0] + ": " + result.summary);
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("minecraft:player"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest
     public void snapshot_counts_nearby_golems(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);

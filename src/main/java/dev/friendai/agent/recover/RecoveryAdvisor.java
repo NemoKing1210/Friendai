@@ -41,6 +41,55 @@ public final class RecoveryAdvisor {
                     List.of("obtain_item for a {1}", "craft_item for a {1}"),
                     false),
             new Rule(
+                    Pattern.compile("the site isn't clear: ([a-z0-9_:./-]+)"),
+                    FailureKind.RESOURCE_NOT_FOUND,
+                    1,
+                    "site blocked by ",
+                    List.of("clear {1}", "build somewhere else"),
+                    false),
+            new Rule(
+                    Pattern.compile("holds my own ([a-z0-9_:./-]+)"),
+                    FailureKind.UNREACHABLE,
+                    1,
+                    "my own block ",
+                    List.of("take {1} back", "resume the build at its origin"),
+                    false),
+            new Rule(
+                    Pattern.compile("is where i am standing|is blocked by me"),
+                    FailureKind.UNREACHABLE,
+                    0,
+                    "the companion's own body",
+                    List.of("step aside, then resume the build at its origin"),
+                    false),
+            new Rule(
+                    Pattern.compile("is in the way: ([a-z0-9_:./-]+) stands there"),
+                    FailureKind.UNREACHABLE,
+                    1,
+                    "",
+                    List.of("wait for {1} to move, then retry the build", "resume the build at its origin"),
+                    false),
+            new Rule(
+                    Pattern.compile("needs a block at ([0-9 -]+)"),
+                    FailureKind.UNREACHABLE,
+                    1,
+                    "missing support at ",
+                    List.of("place the block at {1}, then retry", "resume the build at its origin"),
+                    false),
+            new Rule(
+                    Pattern.compile("has nothing to place .+ against"),
+                    FailureKind.UNREACHABLE,
+                    0,
+                    "nothing to click",
+                    List.of("place a neighbouring block first", "resume the build at its origin"),
+                    false),
+            new Rule(
+                    Pattern.compile("refused .+; the cell holds ([a-z0-9_:./-]+)"),
+                    FailureKind.RESOURCE_NOT_FOUND,
+                    1,
+                    "vanilla refused; the cell holds ",
+                    List.of("clear that cell", "resume the build at its origin"),
+                    false),
+            new Rule(
                     Pattern.compile("is inside the [a-z]+ place \"([^\"]+)\""),
                     FailureKind.RESOURCE_NOT_FOUND,
                     1,
@@ -157,10 +206,18 @@ public final class RecoveryAdvisor {
                     remedies.add(remedy);
                 }
             }
+            if (buildTool(tool)) {
+                remedies.replaceAll(remedy ->
+                        remedy.startsWith("mine outside ") ? "build" + remedy.substring("mine".length()) : remedy);
+            }
             boolean exhausted = !rule.remedies().isEmpty() && remedies.isEmpty();
             boolean needsPlayer = rule.ownerOnly() || exhausted;
             return new Diagnosis(rule.kind(), detail, remedies, needsPlayer);
         }
         return new Diagnosis(FailureKind.UNKNOWN, "unclear cause", List.of(), false);
+    }
+
+    private static boolean buildTool(String tool) {
+        return "build_structure".equals(tool) || (tool != null && tool.startsWith("special:"));
     }
 }

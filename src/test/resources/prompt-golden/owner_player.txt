@@ -41,7 +41,7 @@ Tool notes:
 - When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.
 - To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.
 - "Don't follow me" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.
-- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It fells that whole tree from the lowest log up. Pass limit only when the player asks for a few logs or to hurry; pass collect:false only when speed matters more than the drops.
+- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.
 - When the player says 'near me', near: "me" is the default for the tree tools and means their position; near: "self" means yours.
 - Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.
 - After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.
@@ -60,7 +60,7 @@ Tool notes:
 - Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.
 - Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.
 - Piglin barter is random. Pay only one plain gold ingot at a time under the owner's explicit cap, attribute only drops owned by the selected piglin, and never retry accepted gold with no output.
-- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, window, interior); pass parts to build only some of them.
+- For buildings, prefer a generator for standard shapes, call blueprint_help for the format, and preview_structure before build_structure. preview_structure reports the parts (floor, walls, roof, entrance, window, interior); pass parts to build only some of them. A failed build stays half built at its origin: call build_structure again without coordinates to resume it there instead of choosing a new place.
 - Use find_placed when the player asks what you just placed or tells you to take those blocks back. mine_blocks, pickup_items and store_items take placed:true to act on your own placements.
 - Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.
 - A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.

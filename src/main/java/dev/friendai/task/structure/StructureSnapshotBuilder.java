@@ -7,8 +7,10 @@ import dev.friendai.structure.SpecialStructure;
 import dev.friendai.structure.StructureSnapshot;
 import dev.friendai.structure.Trigger;
 import dev.friendai.task.build.Placement;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -16,7 +18,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -59,9 +60,22 @@ public final class StructureSnapshotBuilder {
             BlockState state = level.getBlockState(pos);
             free &= state.isAir() || state.canBeReplaced();
         }
-        boolean entityInFootprint = !level.getEntitiesOfClass(
-                        LivingEntity.class, box, e -> e == companion || e instanceof Player)
-                .isEmpty();
+        boolean entityInFootprint = false;
+        List<String> blockerIds = new ArrayList<>();
+        for (LivingEntity entity :
+                level.getEntitiesOfClass(LivingEntity.class, box, e -> e != companion && e.isAlive())) {
+            entityInFootprint = true;
+            if (blockerIds.size() < 3) {
+                String id =
+                        BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+                if (!blockerIds.contains(id)) {
+                    blockerIds.add(id);
+                }
+            }
+        }
+        // The companion standing in its own footprint still counts, but is the one entity the task can move.
+        entityInFootprint |= companion.getBoundingBox().intersects(box);
+        String blockers = String.join(", ", blockerIds);
 
         int nearby = 0;
         boolean present = false;
@@ -87,7 +101,8 @@ public final class StructureSnapshotBuilder {
                 present,
                 nearby,
                 maxNearbySpawned,
-                bag(companion));
+                bag(companion),
+                blockers);
     }
 
     /** How many positions in the box hold the block of {@code state}. */

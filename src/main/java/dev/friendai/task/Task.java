@@ -29,6 +29,11 @@ public interface Task {
         return List.of();
     }
 
+    /** One status line for the movement debug view: what the task is doing, why it is blocked, how many tries. */
+    default String debugStatus() {
+        return "";
+    }
+
     /** Whether a {@code stop} aimed at this tool name means this task; the runner also matches the name it started it under. */
     default boolean matches(String name) {
         return type().equals(name);

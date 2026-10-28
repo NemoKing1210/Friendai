@@ -126,6 +126,17 @@ class BuildOrderTest {
     }
 
     @Test
+    void bodyCellsGoLastWithinTheirGroup() {
+        Blueprint bp = blueprint(
+                new BlockSpec(0, 0, 0, "minecraft:stone"),
+                new BlockSpec(1, 0, 0, "minecraft:stone"),
+                new BlockSpec(2, 0, 0, "minecraft:stone"));
+        List<String> ordered = states(
+                BuildOrder.order(bp, INDEPENDENT, 0, 0, java.util.Set.of(new dev.friendai.pathing.Pos(0, 0, 0))));
+        assertEquals(List.of("1,0,0", "2,0,0", "0,0,0"), ordered);
+    }
+
+    @Test
     void doorUpperHalfDropped() {
         Blueprint bp = blueprint(
                 new BlockSpec(0, 1, 0, "minecraft:oak_door[facing=south,half=lower]"),

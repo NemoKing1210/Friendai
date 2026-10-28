@@ -1,9 +1,16 @@
 package dev.friendai.task.build;
 
+import dev.friendai.build.PlacementRefusal;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.task.interact.CompanionHands;
+import dev.friendai.pathing.Pos;
+import dev.friendai.placed.PlacedBlock;
+import dev.friendai.placed.PlacedQuery;
+import dev.friendai.placed.PlacedService;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -16,6 +23,10 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Checks the ground under a planned structure: what must be cleared, how deep the foundation goes, and what stops the
  * build. Never plans to break a block a player put there.
+ *
+ * <p>Every stop is a typed {@link PlacementRefusal}, not prose: a foreign block is foreign, a block this build placed
+ * itself is not an obstruction, and protection says whether it is the server or a named place. The caller supplies
+ * the ownership predicate, because the build is the one that knows what it placed.
  */
 public final class Site {
     public static final int MAX_FOUNDATION = 4;
@@ -24,13 +35,19 @@ public final class Site {
     /**
      * @param toClear    natural blocks to break before building
      * @param foundation fill blocks to place below the structure
-     * @param problems   why the site cannot be used, most important first
+     * @param refusals   why the site cannot be used, most important first
      */
-    public record SiteReport(List<BlockPos> toClear, List<Placement.PlacedSpec> foundation, List<String> problems) {
+    public record SiteReport(
+            List<BlockPos> toClear, List<Placement.PlacedSpec> foundation, List<PlacementRefusal> refusals) {
         public SiteReport {
             toClear = List.copyOf(toClear);
             foundation = List.copyOf(foundation);
-            problems = List.copyOf(problems);
+            refusals = List.copyOf(refusals);
+        }
+
+        /** The refusals as one line each, for the preview text and older callers. */
+        public List<String> problems() {
+            return refusals.stream().map(PlacementRefusal::describe).toList();
         }
     }
 
@@ -38,9 +55,21 @@ public final class Site {
 
     public static SiteReport check(
             ServerLevel level, Placement.PlacedBlueprint placed, CompanionEntity companion, boolean clearSite) {
-        CompanionHands hands = companion.hands();
+        return check(level, placed, companion, clearSite, pos -> false);
+    }
+
+    /**
+     * @param owned cells the companion placed itself, from this build or an earlier one; they are never reported as
+     *     "the site isn't clear" because the build knows how to take its own block back
+     */
+    public static SiteReport check(
+            ServerLevel level,
+            Placement.PlacedBlueprint placed,
+            CompanionEntity companion,
+            boolean clearSite,
+            Predicate<BlockPos> owned) {
         List<BlockPos> toClear = new ArrayList<>();
-        List<String> problems = new ArrayList<>();
+        List<PlacementRefusal> refusals = new ArrayList<>();
 
         for (Placement.PlacedSpec spec : placed.specs()) {
             BlockPos pos = spec.pos();
@@ -48,15 +77,20 @@ public final class Site {
             if (current.equals(spec.wanted())) {
                 continue;
             }
-            if (!hands.canInteract(pos)) {
-                problems.add(coords(pos) + " is protected");
+            if (owned.test(pos)) {
+                // An own block is handled at placement: reconciled when it is the wanted block in another state,
+                // taken back otherwise. It is not foreign obstruction.
+                continue;
+            }
+            if (!companion.hands().canInteract(pos)) {
+                refusals.add(new PlacementRefusal.Protected(coords(pos), "", "", 0, 0, 0, 0));
                 continue;
             }
             if (isNatural(current)) {
                 if (clearSite) {
                     toClear.add(pos);
                 } else {
-                    problems.add(siteProblem(current, pos));
+                    refusals.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
                 }
                 continue;
             }
@@ -65,7 +99,7 @@ public final class Site {
                     || !current.getFluidState().isEmpty()) {
                 continue;
             }
-            problems.add(siteProblem(current, pos));
+            refusals.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
         }
 
         List<Placement.PlacedSpec> foundation = new ArrayList<>();
@@ -85,12 +119,11 @@ public final class Site {
                 depth++;
             }
             if (depth == MAX_FOUNDATION && !isSolid(level.getBlockState(below))) {
-                problems.add(
-                        "the ground under " + coords(spec.pos()) + " drops more than " + MAX_FOUNDATION + " blocks");
+                refusals.add(new PlacementRefusal.NoSupport(coords(spec.pos()), coords(below), false, 0));
             }
         }
 
-        return new SiteReport(toClear, foundation, capped(problems));
+        return new SiteReport(toClear, foundation, capped(refusals));
     }
 
     /** Dirt when the companion carries more of it than cobblestone, otherwise cobblestone. */
@@ -98,6 +131,49 @@ public final class Site {
         int dirtCount = count(companion, Items.DIRT);
         int cobbleCount = count(companion, Items.COBBLESTONE);
         return dirtCount > cobbleCount ? Blocks.DIRT.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
+    }
+
+    /**
+     * The ledger placements inside the footprint: blocks this companion put there in this or an earlier run. A build
+     * adds its scaffold to this set; a preview uses only the ledger, because it has no scaffold of its own.
+     */
+    public static Set<BlockPos> ownedByCompanion(CompanionEntity companion, Placement.PlacedBlueprint placed) {
+        Set<BlockPos> owned = new HashSet<>();
+        try {
+            int width = 0;
+            int height = 0;
+            int depth = 0;
+            for (Placement.PlacedSpec spec : placed.specs()) {
+                width = Math.max(width, spec.pos().getX() - placed.origin().getX() + 1);
+                height = Math.max(height, spec.pos().getY() - placed.origin().getY() + 1);
+                depth = Math.max(depth, spec.pos().getZ() - placed.origin().getZ() + 1);
+            }
+            int radius = Math.max(width, Math.max(height, depth)) + 8;
+            PlacedQuery.Result result = PlacedService.findAt(
+                    companion,
+                    null,
+                    new Pos(
+                            placed.origin().getX(),
+                            placed.origin().getY(),
+                            placed.origin().getZ()),
+                    radius,
+                    512);
+            for (PlacedBlock entry : result.entries()) {
+                BlockPos pos = new BlockPos(
+                        entry.pos().x(), entry.pos().y(), entry.pos().z());
+                if (pos.getX() >= placed.origin().getX()
+                        && pos.getX() < placed.origin().getX() + Math.max(1, width)
+                        && pos.getY() >= placed.origin().getY()
+                        && pos.getY() < placed.origin().getY() + Math.max(1, height)
+                        && pos.getZ() >= placed.origin().getZ()
+                        && pos.getZ() < placed.origin().getZ() + Math.max(1, depth)) {
+                    owned.add(pos);
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // No ledger (or no owner) only means ownership is unknown; foreign blocks stay refusals.
+        }
+        return owned;
     }
 
     private static int count(CompanionEntity companion, Item item) {
@@ -133,20 +209,23 @@ public final class Site {
         return !state.isAir() && state.getFluidState().isEmpty() && !state.canBeReplaced();
     }
 
-    private static String siteProblem(BlockState state, BlockPos pos) {
-        return "the site isn't clear: " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at " + coords(pos);
-    }
-
-    private static List<String> capped(List<String> problems) {
-        if (problems.size() <= MAX_LISTED_PROBLEMS) {
-            return problems;
+    private static List<PlacementRefusal> capped(List<PlacementRefusal> refusals) {
+        if (refusals.size() <= MAX_LISTED_PROBLEMS) {
+            return refusals;
         }
-        List<String> listed = new ArrayList<>(problems.subList(0, MAX_LISTED_PROBLEMS));
-        listed.add("and " + (problems.size() - MAX_LISTED_PROBLEMS) + " more");
+        List<PlacementRefusal> listed = new ArrayList<>(refusals.subList(0, MAX_LISTED_PROBLEMS));
+        listed.add(new PlacementRefusal.AttemptsExhausted(
+                refusals.getFirst().pos(),
+                (refusals.size() - MAX_LISTED_PROBLEMS) + " more site problems",
+                refusals.size()));
         return listed;
     }
 
-    private static String coords(BlockPos pos) {
-        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
+    private static String blockId(BlockState state) {
+        return BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+    }
+
+    private static Pos coords(BlockPos pos) {
+        return new Pos(pos.getX(), pos.getY(), pos.getZ());
     }
 }

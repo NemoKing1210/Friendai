@@ -1,5 +1,6 @@
 package dev.friendai.task.builtin;
 
+import dev.friendai.build.PlacementRefusal;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
@@ -20,7 +21,6 @@ import dev.friendai.structure.Trigger;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
@@ -53,6 +53,8 @@ public final class SpecialStructureTask implements Task {
     private static final int VERIFY_TICKS = 100;
     private static final int MAX_REPLANS = 3;
     private static final int MAX_STEP_ASIDE = 5;
+    /** How long a mob or player on the site is waited out before the task names it and stops. */
+    private static final int MAX_ENTITY_WAIT = 200;
 
     private final SpecialStructure structure;
     private final StructureSite site;
@@ -63,6 +65,7 @@ public final class SpecialStructureTask implements Task {
     private boolean planned;
     private int replans;
     private int stepAsides;
+    private int entityWait;
     private int baselineNearby = -1;
     private int waited;
     private Task child;
@@ -146,9 +149,15 @@ public final class SpecialStructureTask implements Task {
                 return TaskStatus.SUCCESS;
             }
             case StructurePlan.Blocked blocked -> {
-                if (blocked.reason() == StructurePlan.Reason.ENTITY_IN_WAY
-                        && c.companion().getBoundingBox().intersects(site.box(structure))) {
-                    return stepOut(c, site.origin());
+                if (blocked.reason() == StructurePlan.Reason.ENTITY_IN_WAY) {
+                    if (c.companion().getBoundingBox().intersects(site.box(structure))) {
+                        return stepOut(c, site.origin());
+                    }
+                    // A mob or the owner is on the site: wait a bounded time instead of failing on the first look.
+                    if (++entityWait < MAX_ENTITY_WAIT) {
+                        return TaskStatus.RUNNING;
+                    }
+                    entityWait = 0;
                 }
                 summary = plan.describe();
                 return TaskStatus.FAILED;
@@ -164,7 +173,11 @@ public final class SpecialStructureTask implements Task {
 
     private TaskStatus startBuild(TaskContext c) {
         if (replans++ >= MAX_REPLANS) {
-            summary = "the " + structure.id() + " body is still incomplete after building";
+            summary = new PlacementRefusal.AttemptsExhausted(
+                            toPos(site.origin()),
+                            "the " + structure.id() + " body is still incomplete after building",
+                            replans)
+                    .describe();
             return TaskStatus.FAILED;
         }
         child = new BuildTask(structure.body(), site.origin(), site.rotation(), true, true);
@@ -217,7 +230,9 @@ public final class SpecialStructureTask implements Task {
         }
         boolean freeMaterials = c.canUseCreativeAction(CreativeAction.FREE_MATERIALS);
         if (matcher == null || (!hasItem(companion, matcher) && !freeMaterials)) {
-            summary = "I don't have " + (matcher == null ? "the finishing item" : matcher.label());
+            summary = new PlacementRefusal.OutOfMaterial(
+                            toPos(pos), matcher == null ? "the finishing item" : matcher.label(), "", 0)
+                    .describe();
             return TaskStatus.FAILED;
         }
         if (approach == null) {
@@ -225,7 +240,7 @@ public final class SpecialStructureTask implements Task {
         }
         switch (approach.tick(companion)) {
             case UNREACHABLE -> {
-                summary = "can't reach " + coords(pos);
+                summary = new PlacementRefusal.OutOfReach(toPos(pos), "finishing the " + structure.id(), 0).describe();
                 return TaskStatus.FAILED;
             }
             case MOVING -> {
@@ -237,13 +252,13 @@ public final class SpecialStructureTask implements Task {
             return stepOut(c, pos);
         }
         if (!companion.hands().canInteract(pos)) {
-            summary = coords(pos) + " is " + ProtectionText.describe(c, pos);
+            summary = new PlacementRefusal.Protected(toPos(pos), "", "", 0, 0, 0, 0).describe();
             return TaskStatus.FAILED;
         }
         if (against == null) {
             Optional<PlaceSpot.Spot> spot = PlaceSpot.spotAt(c.level(), pos);
             if (spot.isEmpty()) {
-                summary = "nothing to place against at " + coords(pos);
+                summary = new PlacementRefusal.NoFace(toPos(pos), "the finishing block", "", 0).describe();
                 return TaskStatus.FAILED;
             }
             against = spot.get().against();
@@ -261,7 +276,7 @@ public final class SpecialStructureTask implements Task {
         } else if (!held.isEmpty()) {
             lease = CreativeItemLease.carried(held);
         } else {
-            summary = "I don't have " + matcher.label();
+            summary = new PlacementRefusal.OutOfMaterial(toPos(pos), matcher.label(), "", 0).describe();
             return TaskStatus.FAILED;
         }
         lease.place(companion.hands(), against, face);
@@ -285,7 +300,9 @@ public final class SpecialStructureTask implements Task {
             return TaskStatus.SUCCESS;
         }
         if (++waited > VERIFY_TICKS) {
-            summary = "built the " + structure.id() + " but it did not activate";
+            summary = new PlacementRefusal.AttemptsExhausted(
+                            toPos(site.origin()), "the " + structure.id() + " did not activate", waited)
+                    .describe();
             return TaskStatus.FAILED;
         }
         return TaskStatus.RUNNING;
@@ -303,12 +320,18 @@ public final class SpecialStructureTask implements Task {
                 return TaskStatus.RUNNING;
             }
             if (stepAsides++ >= MAX_STEP_ASIDE) {
-                summary = "I can't get out of the way of the " + structure.id();
+                summary = new PlacementRefusal.OutOfReach(
+                                toPos(site.origin()), "cannot step out of the " + structure.id() + " site", stepAsides)
+                        .describe();
                 return TaskStatus.FAILED;
             }
             asideTarget = freeSpotOutside(c.level(), companion, box, near);
             if (asideTarget == null) {
-                summary = "no room to step away from the " + structure.id() + " site";
+                summary = new PlacementRefusal.OutOfReach(
+                                toPos(site.origin()),
+                                "no room to step away from the " + structure.id() + " site",
+                                stepAsides)
+                        .describe();
                 return TaskStatus.FAILED;
             }
         }
@@ -429,5 +452,9 @@ public final class SpecialStructureTask implements Task {
 
     private static String coords(BlockPos pos) {
         return pos.getX() + " " + pos.getY() + " " + pos.getZ();
+    }
+
+    private static Pos toPos(BlockPos pos) {
+        return new Pos(pos.getX(), pos.getY(), pos.getZ());
     }
 }

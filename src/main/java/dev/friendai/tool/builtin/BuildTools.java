@@ -104,7 +104,23 @@ final class BuildTools {
                                 throw new IllegalArgumentException(String.join("; ", parsed.errors()));
                             }
                             Blueprint blueprint = parsed.blueprint().get();
-                            Placement.PlacedBlueprint placed = Placement.of(blueprint, origin(a), facing(a), c);
+                            BlockPos requested = origin(a);
+                            String dimension = level.dimension().identifier().toString();
+                            Optional<BlueprintStore.InProgress> resumable = BlueprintStore.forLevel(level)
+                                    .findResumable(blueprint, c.ownerUuid(), dimension, requested);
+                            if (resumable.isPresent()) {
+                                BlueprintStore.InProgress record = resumable.get();
+                                return BuildTask.resume(
+                                        record.blueprint(),
+                                        record.origin(),
+                                        record.rotation(),
+                                        record.clearSite(),
+                                        record.gather(),
+                                        record.scaffold(),
+                                        record.id(),
+                                        record.parts());
+                            }
+                            Placement.PlacedBlueprint placed = Placement.of(blueprint, requested, facing(a), c);
                             return new BuildTask(
                                     blueprint, placed.origin(), placed.rotation(), clearSite(a), gather(a), parts(a));
                         },
@@ -172,7 +188,8 @@ final class BuildTools {
         Map<Item, Integer> needed;
         try {
             placed = Placement.of(blueprint, origin(args), facing(args), companion);
-            site = Site.check(level, placed, companion, true);
+            java.util.Set<BlockPos> owned = Site.ownedByCompanion(companion, placed);
+            site = Site.check(level, placed, companion, true, owned::contains);
             needed = Materials.needed(placed.specs(), site.foundation());
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());

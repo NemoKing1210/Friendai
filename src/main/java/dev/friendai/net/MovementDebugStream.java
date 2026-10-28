@@ -152,6 +152,13 @@ public final class MovementDebugStream {
                 c.isSprinting()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
+        String taskStatus = c.taskRunner().current().map(Task::debugStatus).orElse("");
+        if (!taskStatus.isBlank()) {
+            lines.add(
+                    taskStatus.length() > MovementDebug.MAX_LINE_CHARS
+                            ? taskStatus.substring(0, MovementDebug.MAX_LINE_CHARS)
+                            : taskStatus);
+        }
         List<WorkSet> workSets = WorkSetBudget.select(
                 c.taskRunner().current().map(Task::debugWorkSets).orElse(List.of()),
                 c.blockPosition().getX(),

@@ -29,7 +29,8 @@ public final class StructurePlanner {
                             + snap.maxNearbySpawned() + ")");
         }
         if (snap.entityInFootprint()) {
-            return blocked(StructurePlan.Reason.ENTITY_IN_WAY, "someone stands where " + id + " goes");
+            String who = snap.blockers().isBlank() ? "someone" : snap.blockers();
+            return blocked(StructurePlan.Reason.ENTITY_IN_WAY, who + " stands where " + id + " goes");
         }
         for (String item : structure.requiredItems()) {
             if (snap.bag().getOrDefault(item, 0) < 1) {

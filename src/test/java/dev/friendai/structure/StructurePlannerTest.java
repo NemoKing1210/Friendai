@@ -20,7 +20,7 @@ class StructurePlannerTest {
 
     /** A free, unprotected overworld site with an empty bag and room for four spawned mobs. */
     private static StructureSnapshot fresh() {
-        return new StructureSnapshot(true, false, false, false, Set.of(), false, 0, 4, Map.of());
+        return new StructureSnapshot(true, false, false, false, Set.of(), false, 0, 4, Map.of(), "");
     }
 
     private static StructureSnapshot with(
@@ -42,7 +42,8 @@ class StructurePlannerTest {
                 present != null ? present : b.outcomeAlreadyPresent(),
                 nearby != null ? nearby : b.nearbySpawned(),
                 b.maxNearbySpawned(),
-                bag != null ? bag : b.bag());
+                bag != null ? bag : b.bag(),
+                b.blockers());
     }
 
     private static Set<Offset> bodyOffsets(SpecialStructure s) {
@@ -78,6 +79,15 @@ class StructurePlannerTest {
     void entityInFootprintIsBlocked() {
         StructureSnapshot snap = with(fresh(), null, true, null, null, null, null, null, null);
         assertEquals(StructurePlan.Reason.ENTITY_IN_WAY, blockedReason(StructurePlanner.plan(s("iron_golem"), snap)));
+    }
+
+    @Test
+    void theBlockerIsNamedInTheFailure() {
+        StructureSnapshot snap =
+                new StructureSnapshot(true, true, false, false, Set.of(), false, 0, 4, Map.of(), "minecraft:player");
+        StructurePlan.Blocked blocked =
+                assertInstanceOf(StructurePlan.Blocked.class, StructurePlanner.plan(s("iron_golem"), snap));
+        assertTrue(blocked.detail().contains("minecraft:player"), blocked.detail());
     }
 
     @Test

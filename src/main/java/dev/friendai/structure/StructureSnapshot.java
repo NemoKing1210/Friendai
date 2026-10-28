@@ -13,6 +13,7 @@ import java.util.Set;
  * @param outcomeAlreadyPresent set for block outcomes only; a mob nearby counts toward the limit instead
  * @param nearbySpawned entities of the outcome type already near the site
  * @param bag item id to count in the companion's inventory
+ * @param blockers distinct entity type ids standing in the footprint, comma-separated; empty when nobody does
  */
 public record StructureSnapshot(
         boolean footprintFree,
@@ -23,9 +24,11 @@ public record StructureSnapshot(
         boolean outcomeAlreadyPresent,
         int nearbySpawned,
         int maxNearbySpawned,
-        Map<String, Integer> bag) {
+        Map<String, Integer> bag,
+        String blockers) {
     public StructureSnapshot {
         correctBodyBlocks = Set.copyOf(correctBodyBlocks);
         bag = Map.copyOf(bag);
+        blockers = blockers == null ? "" : blockers;
     }
 }

@@ -56,13 +56,27 @@ public final class BuildOrder {
 
     public static List<BlockSpec> order(
             Blueprint blueprint, Function<BlockSpec, Support> support, int startX, int startZ) {
+        return order(blueprint, support, startX, startZ, Set.of());
+    }
+
+    /**
+     * @param avoid cells the companion's body covers when the order is computed; they keep their relative place but
+     *     go last within their group, so the build walks around the body while reach allows and only fills an
+     *     occupied cell once everything else in the pass is done
+     */
+    public static List<BlockSpec> order(
+            Blueprint blueprint,
+            Function<BlockSpec, Support> support,
+            int startX,
+            int startZ,
+            Set<dev.friendai.pathing.Pos> avoid) {
         Map<BlockSpec, Support> supports = new HashMap<>();
         for (BlockSpec spec : blueprint.blocks()) {
             Support found = support.apply(spec);
             supports.put(spec, found == null ? Support.NONE : found);
         }
 
-        List<BlockSpec> priority = priority(blueprint, supports, startX, startZ);
+        List<BlockSpec> priority = priority(blueprint, supports, startX, startZ, avoid);
         Map<BlockSpec, Integer> unmet = new HashMap<>();
         Map<Cell, List<BlockSpec>> dependents = new HashMap<>();
         Map<Cell, BlockSpec> placedCells = new HashMap<>();
@@ -126,7 +140,11 @@ public final class BuildOrder {
 
     /** The order before dependencies: layer, then air / free / attachment, then the serpentine walk. */
     private static List<BlockSpec> priority(
-            Blueprint blueprint, Map<BlockSpec, Support> supports, int startX, int startZ) {
+            Blueprint blueprint,
+            Map<BlockSpec, Support> supports,
+            int startX,
+            int startZ,
+            Set<dev.friendai.pathing.Pos> avoid) {
         Map<Integer, List<BlockSpec>> layers = new TreeMap<>();
         for (BlockSpec spec : blueprint.blocks()) {
             if (isUpperHalf(spec.state())) {
@@ -149,9 +167,11 @@ public final class BuildOrder {
                     free.add(spec);
                 }
             }
-            air.sort(walk);
-            free.sort(walk);
-            attachments.sort(walk);
+            Comparator<BlockSpec> bodyLast = Comparator.comparingInt(
+                    spec -> avoid.contains(new dev.friendai.pathing.Pos(spec.x(), spec.y(), spec.z())) ? 1 : 0);
+            air.sort(bodyLast.thenComparing(walk));
+            free.sort(bodyLast.thenComparing(walk));
+            attachments.sort(bodyLast.thenComparing(walk));
             priority.addAll(air);
             priority.addAll(free);
             priority.addAll(attachments);

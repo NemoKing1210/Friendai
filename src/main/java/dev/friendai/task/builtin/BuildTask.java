@@ -4,6 +4,8 @@ import dev.friendai.build.BlockSpec;
 import dev.friendai.build.Blueprint;
 import dev.friendai.build.BuildOrder;
 import dev.friendai.build.PartKind;
+import dev.friendai.build.PlacementRefusal;
+import dev.friendai.build.StanceOrder;
 import dev.friendai.build.StructureParts;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
@@ -19,10 +21,11 @@ import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceSource;
+import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.autonomy.ProtectionText;
+import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
 import dev.friendai.task.build.Parts;
@@ -48,6 +51,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -57,6 +61,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Rotation;
@@ -75,6 +80,14 @@ public final class BuildTask implements Task {
     private static final int PROGRESS_STEP = 25;
     /** How far a block may be horizontally from the companion for a pillar to bring it into reach. */
     private static final double SCAFFOLD_RANGE = 3.8;
+    /** How many stance attempts one cell may cost before the build names it as the cause. */
+    private static final int MAX_SELF_ATTEMPTS = 6;
+    /** How many passes an entity in the cell is waited out before the build names it. */
+    private static final int MAX_ENTITY_ATTEMPTS = 3;
+    /** How many ticks one wait for an entity lasts before the next pass. */
+    private static final int ENTITY_WAIT_TICKS = 60;
+    /** How many horizontal rings a stance search considers. */
+    private static final int STANCE_RADIUS = 3;
     /** The sides of a target a pillar may be built on, in a fixed order so the column is reproducible. */
     private static final Direction[] PILLAR_SIDES = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
     /** The sides a temporary support is tried on, below first so a block with no support need keeps today's shape. */
@@ -188,6 +201,27 @@ public final class BuildTask implements Task {
     private BlockSpec current;
     private Placement.PlacedSpec currentPlaced;
     private BlockPos currentPos;
+
+    /** Cells this build may treat as its own: the adopted scaffold plus the owner's placement ledger in the site. */
+    private Set<BlockPos> ownedCells = Set.of();
+    /** Blueprint cells this run placed, so ownership is known before the ledger's next write. */
+    private final Set<BlockPos> ownPlaced = new HashSet<>();
+    /** Stances that were free but could not be reached; never tried again for this build. */
+    private final Set<BlockPos> rejectedStances = new HashSet<>();
+    /** Bounded attempts per cell, shared by stance, entity and support recovery. */
+    private final Map<BlockPos, Integer> attempts = new HashMap<>();
+    /** The stance chosen for the current column; kept while it still serves the next cell. */
+    private BlockPos stance;
+
+    private BlockPos waitCell;
+    private int waitTicks;
+    private int selfRecoveries;
+    /** The last typed refusal, for {@link #debugStatus()} and the result summary. */
+    private PlacementRefusal refusal;
+    /** The own block currently being taken back, if any. */
+    private BlockBreaker takeBack;
+    /** Whether the build finished well; a stop after a success must not leave a resume record. */
+    private boolean succeeded;
 
     public BuildTask(Blueprint blueprint, BlockPos origin, Rotation rotation, boolean clearSite) {
         this(blueprint, origin, rotation, clearSite, false);
@@ -317,12 +351,12 @@ public final class BuildTask implements Task {
     }
 
     /** Free time never builds over a place the owner already has; the footprint is boxed for any rotation. */
-    private boolean overlapsPlaceInFreeTime(TaskContext c) {
-        if (!c.autonomous() || !dev.friendai.task.autonomy.PlaceGuard.enabled(c.companion())) {
-            return false;
+    private Place overlappingPlace(TaskContext c) {
+        if (!c.autonomous() || !PlaceGuard.enabled(c.companion())) {
+            return null;
         }
         int side = Math.max(blueprint.width(), blueprint.depth());
-        return dev.friendai.task.autonomy.PlaceGuard.overlapsAnyPlace(
+        return PlaceGuard.overlapping(
                 c.companion(), origin.offset(-side, 0, -side), origin.offset(side, blueprint.height(), side));
     }
 
@@ -330,9 +364,9 @@ public final class BuildTask implements Task {
     public TaskStatus tick(TaskContext c) {
         TaskStatus status;
         if (phase != Phase.CLEANUP && ++ticks > tickLimit) {
-            status = fail(c, "timed out");
-        } else if (phase == Phase.CHECK && overlapsPlaceInFreeTime(c)) {
-            status = fail(c, "the site overlaps a known place");
+            status = fail(c, new PlacementRefusal.AttemptsExhausted(toPos(origin), "timed out", ticks), true);
+        } else if (phase == Phase.CHECK && overlappingPlace(c) != null) {
+            status = fail(c, protectedRefusal(toPos(origin), overlappingPlace(c)), true);
         } else {
             status = switch (phase) {
                 case CHECK -> check(c);
@@ -345,9 +379,12 @@ public final class BuildTask implements Task {
         }
         if (status == TaskStatus.RUNNING) {
             syncInProgress(c);
-        } else {
-            // Every terminal path — success, failure after cleanup — leaves no in-progress file behind.
+        } else if (status == TaskStatus.SUCCESS) {
+            succeeded = true;
             deleteInProgress(c);
+        } else {
+            // A failed build is resumable at its origin instead of being re-sited by the next tool call.
+            persistForResume(c);
         }
         return status;
     }
@@ -366,10 +403,11 @@ public final class BuildTask implements Task {
                         blueprint.depth(),
                         structure.cells(parts));
         if (!parts.isEmpty() && buildPlan.blocks().isEmpty()) {
-            return fail(c, "the blueprint has no " + partNames(parts) + "; omit parts to build all of it");
+            return reject(c, "the blueprint has no " + partNames(parts) + "; omit parts to build all of it");
         }
         placed = Placement.at(buildPlan, origin, rotation);
-        site = Site.check(level, placed, c.companion(), clearSite);
+        ownedCells = ownership(c);
+        site = Site.check(level, placed, c.companion(), clearSite, ownedCells::contains);
         // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as
         // scaffold surplus: only what is still to place counts.
         List<Placement.PlacedSpec> remaining = remaining(level);
@@ -383,21 +421,26 @@ public final class BuildTask implements Task {
         }
         // Every cell of the blueprint is off-limits to the scaffold, including the parts this run does not build.
         plannedCells = plannedCells(Placement.at(blueprint, origin, rotation).specs());
-        String unreachable = unreachable(c, remaining);
+        PlacementRefusal unreachable = unreachable(c, remaining);
         if (unreachable != null) {
-            return fail(c, unreachable);
+            return fail(c, unreachable, true);
         }
-        if (!site.problems().isEmpty()) {
-            return fail(c, String.join("; ", site.problems()));
+        if (!site.refusals().isEmpty()) {
+            return failAll(c, site.refusals());
         }
         if (materialError != null) {
-            return fail(c, materialError);
+            return fail(c, new PlacementRefusal.OutOfMaterial(toPos(origin), "scaffold", materialError, 0), true);
         }
         clearQueue.addAll(site.toClear());
         foundation = site.foundation().stream()
                 .sorted(Comparator.comparingInt(spec -> spec.pos().getY()))
                 .toList();
-        order = BuildOrder.order(buildPlan, supportLookup()::get, origin.getX(), origin.getZ());
+        order = BuildOrder.order(
+                buildPlan,
+                supportLookup()::get,
+                c.companion().blockPosition().getX(),
+                c.companion().blockPosition().getZ(),
+                bodyCells(c.companion()));
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
@@ -467,7 +510,7 @@ public final class BuildTask implements Task {
      * while building. Material the blueprint needs is not scaffolding: a tower with an exact supply must be refused
      * here rather than starved of its own walls.
      */
-    private String unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
+    private PlacementRefusal unreachable(TaskContext c, List<Placement.PlacedSpec> remaining) {
         if (c.canUseCreativeAction(CreativeAction.FLIGHT)) {
             return null;
         }
@@ -478,8 +521,8 @@ public final class BuildTask implements Task {
         if (pos == null) {
             return null;
         }
-        return coords(pos) + " is out of reach (build height limit without scaffolding is " + Reach.HEIGHT
-                + " above standing ground)";
+        return new PlacementRefusal.OutOfReach(
+                toPos(pos), "build height limit without scaffolding is " + Reach.HEIGHT + " above standing ground", 0);
     }
 
     /**
@@ -511,7 +554,10 @@ public final class BuildTask implements Task {
             gatherTask = null;
             gatherItem = null;
             if (status == TaskStatus.FAILED) {
-                return fail(c, "couldn't gather " + count + " × " + itemId(item) + ": " + obtainSummary);
+                return fail(
+                        c,
+                        new PlacementRefusal.OutOfMaterial(toPos(origin), itemId(item), obtainSummary, attempt(origin)),
+                        true);
             }
             // A gather that reports success but leaves the item short falls through to the usual materials failure;
             // the gathered set keeps the same request from being started again.
@@ -545,7 +591,7 @@ public final class BuildTask implements Task {
                 return TaskStatus.RUNNING;
             }
         }
-        return fail(c, missingText(missing));
+        return fail(c, missingRefusal(missing), true);
     }
 
     private Map<Item, Integer> missing(TaskContext c) {
@@ -577,17 +623,18 @@ public final class BuildTask implements Task {
         return null;
     }
 
-    private String missingText(Map<Item, Integer> missing) {
-        StringBuilder text = new StringBuilder("missing materials: ");
-        boolean first = true;
+    private PlacementRefusal missingRefusal(Map<Item, Integer> missing) {
+        String first = "unknown";
+        StringBuilder detail = new StringBuilder();
         for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
-            if (!first) {
-                text.append(", ");
+            if (detail.length() == 0) {
+                first = itemId(entry.getKey());
+            } else {
+                detail.append(", ");
             }
-            text.append(entry.getValue()).append(" × ").append(itemId(entry.getKey()));
-            first = false;
+            detail.append(entry.getValue()).append(" × ").append(itemId(entry.getKey()));
         }
-        return text.toString();
+        return new PlacementRefusal.OutOfMaterial(toPos(origin), first, "need " + detail, attempt(origin));
     }
 
     private TaskStatus clear(TaskContext c) {
@@ -643,7 +690,10 @@ public final class BuildTask implements Task {
                     return TaskStatus.RUNNING;
                 }
                 case UNREACHABLE -> {
-                    return fail(c, "can't reach " + coords(spec.pos()));
+                    return fail(
+                            c,
+                            new PlacementRefusal.OutOfReach(toPos(spec.pos()), "foundation", attempt(spec.pos())),
+                            false);
                 }
                 case IN_REACH -> {}
             }
@@ -651,23 +701,36 @@ public final class BuildTask implements Task {
             if (spot.isEmpty()) {
                 return fail(
                         c,
-                        "can't place " + describeState(spec.wanted()) + " at " + coords(spec.pos())
-                                + ": nothing to place it against");
+                        new PlacementRefusal.NoFace(
+                                toPos(spec.pos()), describeState(spec.wanted()), "", attempt(spec.pos())),
+                        false);
             }
             CreativeItemLease lease = takeOne(c, spec.wanted());
             if (lease == null) {
-                return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(spec.wanted())));
+                return fail(
+                        c,
+                        new PlacementRefusal.OutOfMaterial(
+                                toPos(spec.pos()),
+                                itemId(Materials.itemFor(spec.wanted())),
+                                "foundation",
+                                attempt(spec.pos())),
+                        false);
             }
             lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = c.level().getBlockState(spec.pos());
             if (after.getBlock() == spec.wanted().getBlock()) {
                 Parts.reconcile(c.level(), spec.pos(), spec.wanted());
+                ownPlaced.add(spec.pos());
                 foundationCount++;
                 foundationIndex++;
                 approach = null;
                 return TaskStatus.RUNNING;
             }
-            return fail(c, "couldn't place " + describeState(spec.wanted()) + " at " + coords(spec.pos()));
+            return fail(
+                    c,
+                    new PlacementRefusal.Rejected(
+                            toPos(spec.pos()), describeState(spec.wanted()), blockId(after), attempt(spec.pos())),
+                    false);
         }
         phase = Phase.PLACE;
         return TaskStatus.RUNNING;
@@ -682,8 +745,20 @@ public final class BuildTask implements Task {
                     return TaskStatus.RUNNING;
                 }
                 case FAILED -> {
+                    BlockPos cell = currentPos != null ? currentPos : origin;
                     pillarTargetY = null;
-                    return fail(c, scaffold.failure());
+                    if (scaffold.outOfMaterial()) {
+                        return fail(
+                                c,
+                                new PlacementRefusal.OutOfMaterial(
+                                        toPos(cell), "dirt or cobblestone", scaffold.failure(), attempt(cell)),
+                                false);
+                    }
+                    return fail(
+                            c,
+                            new PlacementRefusal.OutOfReach(
+                                    toPos(cell), "scaffold: " + scaffold.failure(), attempt(cell)),
+                            false);
                 }
                 case READY -> pillarTargetY = null;
             }
@@ -711,25 +786,71 @@ public final class BuildTask implements Task {
             Placement.PlacedSpec wanted = currentPlaced;
             BlockState world = level.getBlockState(currentPos);
             if (wanted.wanted().isAir()) {
-                current = null;
-                resetMovers(c);
+                clearCurrent(c);
                 advance(c);
                 continue;
             }
             if (world.equals(wanted.wanted())) {
-                current = null;
-                resetMovers(c);
+                clearCurrent(c);
                 advance(c);
                 continue;
             }
-            if (taken(level, currentPos, wanted.wanted())) {
-                return fail(c, coords(currentPos) + " is taken by " + blockId(world));
+            // Our own block in another state: fixing the state is cheaper and safer than breaking our own work.
+            if (ownsCell(currentPos) && world.getBlock() == wanted.wanted().getBlock()) {
+                Parts.reconcile(level, currentPos, wanted.wanted());
+                ownPlaced.add(currentPos);
+                placedCount++;
+                clearCurrent(c);
+                advance(c);
+                continue;
+            }
+            // Our own block that is not the planned one: take it back before filling the cell.
+            if (ownsCell(currentPos) && !world.isAir() && !world.canBeReplaced()) {
+                if (takeBack == null) {
+                    takeBack = new BlockBreaker(currentPos, state -> ownsCell(currentPos), false, true);
+                }
+                switch (takeBack.tick(c)) {
+                    case WORKING -> {
+                        return TaskStatus.RUNNING;
+                    }
+                    case BROKEN -> {
+                        PlacedService.forget(c.companion(), currentPos);
+                        ownedCells.remove(currentPos);
+                        ownPlaced.remove(currentPos);
+                        takeBack = null;
+                        selfRecoveries++;
+                        return TaskStatus.RUNNING;
+                    }
+                    case GONE -> {
+                        ownedCells.remove(currentPos);
+                        takeBack = null;
+                        return TaskStatus.RUNNING;
+                    }
+                    default -> {
+                        takeBack = null;
+                        return fail(
+                                c,
+                                new PlacementRefusal.OwnBlock(
+                                        toPos(currentPos), blockId(world), false, attempt(currentPos)),
+                                false);
+                    }
+                }
+            }
+            PlacementRefusal blocked = classify(level, currentPos, wanted.wanted());
+            if (blocked != null) {
+                return fail(c, blocked, false);
+            }
+            LivingEntity other = otherEntityAt(c, currentPos);
+            if (other != null && !standsIn(c.companion(), currentPos)) {
+                int n = attempt(currentPos);
+                if (n <= MAX_ENTITY_ATTEMPTS) {
+                    deferCurrent(c);
+                    continue;
+                }
+                return fail(c, new PlacementRefusal.OtherEntity(toPos(currentPos), entityId(other), n), false);
             }
             if (asideTarget != null || standsIn(c.companion(), currentPos)) {
-                if (stepAside(c, currentPos) == TaskStatus.FAILED) {
-                    return fail(c, coords(currentPos) + " is blocked by me and there is nowhere to step aside");
-                }
-                return TaskStatus.RUNNING;
+                return stepAside(c, currentPos);
             }
             if (!inReach(c.companion(), currentPos)) {
                 if (c.canUseCreativeAction(CreativeAction.FLIGHT)) {
@@ -744,7 +865,10 @@ public final class BuildTask implements Task {
                     if (state == Approach.State.IN_REACH && inReach(c.companion(), currentPos)) {
                         continue;
                     }
-                    return fail(c, "can't reach " + coords(currentPos));
+                    return fail(
+                            c,
+                            new PlacementRefusal.OutOfReach(toPos(currentPos), "flight", attempt(currentPos)),
+                            false);
                 }
                 int feetY = pillarFeetY(c.companion(), currentPos);
                 if (feetY < 0) {
@@ -765,45 +889,56 @@ public final class BuildTask implements Task {
                 }
                 feetY = pillarFeetY(c.companion(), currentPos);
                 if (feetY < 0) {
-                    return fail(c, "can't reach " + coords(currentPos));
+                    return fail(
+                            c,
+                            new PlacementRefusal.OutOfReach(toPos(currentPos), "no route", attempt(currentPos)),
+                            false);
                 }
                 pillarTargetY = feetY;
                 return TaskStatus.RUNNING;
             }
             c.companion().getNavigation().stop();
-            if (taken(level, currentPos, wanted.wanted())) {
-                return fail(c, coords(currentPos) + " is taken by " + blockId(level.getBlockState(currentPos)));
-            }
             if (!c.companion().hands().canInteract(currentPos)) {
-                return fail(c, coords(currentPos) + " is " + ProtectionText.describe(c, currentPos));
+                return fail(
+                        c,
+                        new PlacementRefusal.Protected(toPos(currentPos), "", "", 0, 0, 0, attempt(currentPos)),
+                        false);
+            }
+            Place protectedPlace = PlaceGuard.protecting(c, currentPos);
+            if (protectedPlace != null) {
+                return fail(c, protectedRefusal(toPos(currentPos), protectedPlace), false);
             }
             Optional<PlaceSpot.Spot> spot = spot(level, currentPos, wanted.wanted());
             if (spot.isEmpty()) {
                 // A block without a neighbour waits to the end of the queue: a neighbour placed later in the same
                 // layer is better than scaffold material, and support is only placed once nothing else can help.
-                deferred.add(current);
-                current = null;
-                resetMovers(c);
-                approach = null;
+                deferCurrent(c);
                 continue;
             }
             CreativeItemLease lease = takeOne(c, wanted.wanted());
             if (lease == null) {
-                return fail(c, "missing materials: 1 × " + itemId(Materials.itemFor(wanted.wanted())));
+                return fail(
+                        c,
+                        new PlacementRefusal.OutOfMaterial(
+                                toPos(currentPos), itemId(Materials.itemFor(wanted.wanted())), "", attempt(currentPos)),
+                        false);
             }
             lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = level.getBlockState(currentPos);
             if (after.getBlock() == wanted.wanted().getBlock()) {
                 Parts.reconcile(level, currentPos, wanted.wanted());
+                ownPlaced.add(currentPos);
                 placedCount++;
                 passProgress = true;
-                current = null;
-                resetMovers(c);
-                approach = null;
+                clearCurrent(c);
                 advance(c);
                 return TaskStatus.RUNNING;
             }
-            return fail(c, "couldn't place " + describeState(wanted.wanted()) + " at " + coords(currentPos));
+            return fail(
+                    c,
+                    new PlacementRefusal.Rejected(
+                            toPos(currentPos), describeState(wanted.wanted()), blockId(after), attempt(currentPos)),
+                    false);
         }
     }
 
@@ -818,28 +953,57 @@ public final class BuildTask implements Task {
     private TaskStatus supportStuck(TaskContext c) {
         Placement.PlacedSpec spec = specOf(deferred.get(0));
         BlockPos pos = spec.pos();
+        LivingEntity entity = otherEntityAt(c, pos);
+        if (entity != null) {
+            if (waitTicks < ENTITY_WAIT_TICKS) {
+                waitTicks++;
+                return TaskStatus.RUNNING;
+            }
+            waitTicks = 0;
+            int n = attempt(pos);
+            if (n <= MAX_ENTITY_ATTEMPTS) {
+                retryDeferredPass();
+                return TaskStatus.RUNNING;
+            }
+            return fail(c, new PlacementRefusal.OtherEntity(toPos(pos), entityId(entity), n), false);
+        }
+        if (standsIn(c.companion(), pos)) {
+            int n = attempt(pos);
+            if (n <= MAX_SELF_ATTEMPTS) {
+                retryDeferredPass();
+                return TaskStatus.RUNNING;
+            }
+            return fail(c, new PlacementRefusal.SelfBody(toPos(pos), n), false);
+        }
         BlockPos needed = SupportNeeds.supportOf(spec.wanted(), pos);
         if (needed != null) {
             return fail(
                     c,
-                    "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                            + ": it needs a block at " + coords(needed)
-                            + (plannedCells.contains(needed)
-                                    ? " that the build has not placed"
-                                    : " that the blueprint does not provide"));
+                    new PlacementRefusal.NoSupport(
+                            toPos(pos), toPos(needed), plannedCells.contains(needed), attempt(pos)),
+                    false);
+        }
+        if (spot(c.level(), pos, spec.wanted()).isPresent()) {
+            // The obstacle moved or the neighbouring block arrived while this cell waited.
+            retryDeferredPass();
+            return TaskStatus.RUNNING;
         }
         String refused = "";
         for (BlockPos cell : supportCells(c.level(), pos)) {
             if (!triedSupports.add(cell)) {
                 continue;
             }
-            if (plannedCells.contains(cell) || taken(c.level(), cell, spec.wanted())) {
+            if (plannedCells.contains(cell) || classify(c.level(), cell, spec.wanted()) != null) {
                 refused = coords(cell);
                 continue;
             }
             if (!scaffold.support(c, cell, pos)) {
                 if (scaffold.outOfMaterial()) {
-                    return fail(c, scaffold.failure());
+                    return fail(
+                            c,
+                            new PlacementRefusal.OutOfMaterial(
+                                    toPos(pos), "dirt or cobblestone", scaffold.failure(), attempt(pos)),
+                            false);
                 }
                 refused = coords(cell);
                 continue;
@@ -847,18 +1011,25 @@ public final class BuildTask implements Task {
             if (spot(c.level(), pos, spec.wanted()).isEmpty()) {
                 continue;
             }
-            queue = deferred;
-            deferred = new ArrayList<>();
-            cursor = 0;
-            passProgress = false;
+            retryDeferredPass();
             return TaskStatus.RUNNING;
         }
         return fail(
                 c,
-                "can't place " + describeState(spec.wanted()) + " at " + coords(pos)
-                        + (refused.isEmpty()
-                                ? ": nothing to place it against"
-                                : ": nothing to place it against, a temporary support at " + refused + " was refused"));
+                new PlacementRefusal.NoFace(
+                        toPos(pos),
+                        describeState(spec.wanted()),
+                        refused.isEmpty() ? "" : "a temporary support at " + refused + " was refused",
+                        attempt(pos)),
+                false);
+    }
+
+    /** Starts another pass over the deferred cells, so a bounded retry can place what waited. */
+    private void retryDeferredPass() {
+        queue = deferred;
+        deferred = new ArrayList<>();
+        cursor = 0;
+        passProgress = false;
     }
 
     /**
@@ -1010,14 +1181,21 @@ public final class BuildTask implements Task {
         return null;
     }
 
-    /** A foreign block the companion must not break. */
-    private static boolean taken(ServerLevel level, BlockPos pos, BlockState wanted) {
+    /** The typed cause when the cell is not clearable, or null when it can be filled. */
+    private PlacementRefusal classify(ServerLevel level, BlockPos pos, BlockState wanted) {
         BlockState state = level.getBlockState(pos);
-        return !state.isAir()
-                && !state.canBeReplaced()
-                && state.getFluidState().isEmpty()
-                && !Site.isNatural(state)
-                && state.getBlock() != wanted.getBlock();
+        if (state.isAir()
+                || state.canBeReplaced()
+                || !state.getFluidState().isEmpty()
+                || state.equals(wanted)
+                || state.getBlock() == wanted.getBlock()
+                || Site.isNatural(state)) {
+            return null;
+        }
+        int n = attempts.getOrDefault(pos, 0);
+        return ownsCell(pos)
+                ? new PlacementRefusal.OwnBlock(toPos(pos), blockId(state), false, n)
+                : new PlacementRefusal.ForeignBlock(toPos(pos), blockId(state), n);
     }
 
     /** Whether the companion's body overlaps pos, which makes vanilla refuse the placement. */
@@ -1026,19 +1204,21 @@ public final class BuildTask implements Task {
     }
 
     /**
-     * Moves the companion out of a block it is about to fill: a mob standing in the cell makes vanilla refuse the
-     * placement, and a companion boxed in by the blocks it has just placed cannot walk out (a one-block pit needs a
-     * jump). The free spot is within reach, so it keeps building. Walking takes several ticks; an unreachable spot fails.
+     * Moves the companion out of a block it is about to fill. The stance is chosen once from a deterministic order
+     * and kept while it serves the next cell; a candidate the mover cannot reach is rejected and the next one tried.
+     * Only the bounded attempt budget turns this into a failure, and a failure names the cell.
      */
     private TaskStatus stepAside(TaskContext c, BlockPos pos) {
         CompanionEntity companion = c.companion();
         if (asideTarget == null) {
-            asideTarget = c.canUseCreativeAction(CreativeAction.FLIGHT)
-                    ? freeFlightSpotNear(c, pos)
-                    : freeSpotNear(c.level(), companion, pos);
-            if (asideTarget == null) {
-                return TaskStatus.FAILED;
+            if (!standsIn(companion, pos)) {
+                return TaskStatus.RUNNING;
             }
+            BlockPos candidate = nextStance(c, pos);
+            if (candidate == null) {
+                return deferOrNameSelf(c, pos);
+            }
+            asideTarget = candidate;
             if (approach != null) {
                 approach.stop(companion);
                 approach = null;
@@ -1050,105 +1230,145 @@ public final class BuildTask implements Task {
         }
         if (state == MoveHelper.State.ARRIVED) {
             asideMover.stopAtDestination(c);
-        } else {
-            asideMover.reset(c);
+            BlockPos reached = asideTarget;
+            asideTarget = null;
+            if (standsIn(companion, pos)) {
+                rejectedStances.add(reached);
+                return deferOrNameSelf(c, pos);
+            }
+            stance = companion.blockPosition();
+            selfRecoveries++;
+            return TaskStatus.RUNNING;
         }
+        asideMover.reset(c);
+        rejectedStances.add(asideTarget);
         asideTarget = null;
-        return state == MoveHelper.State.ARRIVED ? TaskStatus.RUNNING : TaskStatus.FAILED;
+        return deferOrNameSelf(c, pos);
     }
 
-    /** Finds a collision-free airborne spot so creative building can clear its own placement cell. */
-    private BlockPos freeFlightSpotNear(TaskContext c, BlockPos target) {
+    /** Defers the current cell while attempts remain, otherwise names the companion's own body as the cause. */
+    private TaskStatus deferOrNameSelf(TaskContext c, BlockPos pos) {
+        int n = attempt(pos);
+        if (n <= MAX_SELF_ATTEMPTS) {
+            deferCurrent(c);
+            return TaskStatus.RUNNING;
+        }
+        return fail(c, new PlacementRefusal.SelfBody(toPos(pos), n), false);
+    }
+
+    /** The stance to try next: the kept one when it still serves the cell, otherwise the first usable candidate. */
+    private BlockPos nextStance(TaskContext c, BlockPos pos) {
+        if (stance != null && stanceUsable(c, stance, pos)) {
+            return stance;
+        }
+        stance = null;
+        Pos target = toPos(pos);
+        Pos feet = toPos(c.companion().blockPosition());
+        for (Pos candidate : StanceOrder.candidates(target, feet, STANCE_RADIUS)) {
+            BlockPos cell = new BlockPos(candidate.x(), candidate.y(), candidate.z());
+            if (rejectedStances.contains(cell) || !stanceUsable(c, cell, pos)) {
+                continue;
+            }
+            return cell;
+        }
+        return null;
+    }
+
+    /** Whether the companion can stand at {@code candidate} and still click the target from there. */
+    private boolean stanceUsable(TaskContext c, BlockPos candidate, BlockPos target) {
         CompanionEntity companion = c.companion();
         ServerLevel level = c.level();
-        int feetY = companion.blockPosition().getY();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        Vec3 targetCenter = Vec3.atCenterOf(target);
-        for (int dy = -3; dy <= 3; dy++) {
-            for (int dx = -3; dx <= 3; dx++) {
-                for (int dz = -3; dz <= 3; dz++) {
-                    double horizontal = Math.sqrt(dx * dx + dz * dz);
-                    int candidateY = feetY + dy;
-                    boolean clearVerticalSeparation = Math.abs(candidateY - target.getY()) >= 2;
-                    if (horizontal > 3.0 || horizontal < 1.5 && !clearVerticalSeparation) {
-                        continue;
-                    }
-                    BlockPos candidate = new BlockPos(target.getX() + dx, candidateY, target.getZ() + dz);
-                    if (plannedCells.contains(candidate)
-                            || plannedCells.contains(candidate.above())
-                            || plannedCells.contains(candidate.above(2))) {
-                        continue;
-                    }
-                    Vec3 feet = Vec3.atBottomCenterOf(candidate);
-                    if (feet.add(0.0, companion.getEyeHeight(), 0.0).distanceTo(targetCenter) > Approach.REACH) {
-                        continue;
-                    }
-                    AABB box = companion.getBoundingBox().move(feet.subtract(companion.position()));
-                    if (box.minY < level.getMinY()
-                            || box.maxY > level.getMaxY() + 1.0
-                            || !flightCellLoaded(level, box)
-                            || !level.noCollision(companion, box)) {
-                        continue;
-                    }
-                    double distance = companion.position().distanceToSqr(feet);
-                    if (distance < bestDistance) {
-                        best = candidate;
-                        bestDistance = distance;
-                    }
-                }
-            }
+        if (!level.hasChunkAt(candidate)) {
+            return false;
         }
-        return best;
+        boolean flying = c.canUseCreativeAction(CreativeAction.FLIGHT);
+        if (!flying && !freeStanding(level, candidate)) {
+            return false;
+        }
+        AABB body =
+                companion.getBoundingBox().move(Vec3.atBottomCenterOf(candidate).subtract(companion.position()));
+        if (body.minY < level.getMinY() || body.maxY > level.getMaxY() + 1.0) {
+            return false;
+        }
+        if (body.intersects(new AABB(target)) || !level.noCollision(companion, body)) {
+            return false;
+        }
+        Vec3 eye = Vec3.atBottomCenterOf(candidate).add(0.0, companion.getEyeHeight(), 0.0);
+        return eye.distanceTo(Vec3.atCenterOf(target)) <= Approach.REACH;
     }
 
-    private static boolean flightCellLoaded(ServerLevel level, AABB box) {
-        int minX = BlockPos.containing(box.minX, box.minY, box.minZ).getX();
-        int maxX = BlockPos.containing(box.maxX, box.minY, box.maxZ).getX();
-        int minZ = BlockPos.containing(box.minX, box.minY, box.minZ).getZ();
-        int maxZ = BlockPos.containing(box.maxX, box.minY, box.maxZ).getZ();
-        return level.hasChunkAt(minX, minZ)
-                && level.hasChunkAt(minX, maxZ)
-                && level.hasChunkAt(maxX, minZ)
-                && level.hasChunkAt(maxX, maxZ);
-    }
-
-    /**
-     * The nearest free standing spot within reach of {@code pos}, including a block above or below the companion.
-     * A partially built wall often leaves the companion standing on its top: requiring the old feet height then
-     * rejects every adjacent landing even though it can safely step down or up once.
-     */
-    private static BlockPos freeSpotNear(ServerLevel level, CompanionEntity companion, BlockPos pos) {
-        int feetY = companion.blockPosition().getY();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (int dy = -3; dy <= 3; dy++) {
-            for (int dx = -3; dx <= 3; dx++) {
-                for (int dz = -3; dz <= 3; dz++) {
-                    double horizontal = Math.sqrt(dx * dx + dz * dz);
-                    if (horizontal < 1.5 || horizontal > 3.0) {
-                        continue;
-                    }
-                    BlockPos candidate = new BlockPos(pos.getX() + dx, feetY + dy, pos.getZ() + dz);
-                    if (candidate.equals(pos) || !freeStanding(level, candidate)) {
-                        continue;
-                    }
-                    double distance = companion.getEyePosition().distanceTo(Vec3.atCenterOf(candidate));
-                    if (distance > Approach.REACH || distance >= bestDistance) {
-                        continue;
-                    }
-                    best = candidate;
-                    bestDistance = distance;
-                }
+    /** A living entity other than the companion in the cell, or null. Players count; only the builder is exempt. */
+    private static LivingEntity otherEntityAt(TaskContext c, BlockPos pos) {
+        ServerLevel level = c.level();
+        if (!level.hasChunkAt(pos)) {
+            return null;
+        }
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, new AABB(pos))) {
+            if (entity.isAlive() && entity != c.companion()) {
+                return entity;
             }
         }
-        return best;
+        return null;
+    }
+
+    private static String entityId(LivingEntity entity) {
+        return BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
     }
 
     private static boolean freeStanding(ServerLevel level, BlockPos pos) {
         return level.getBlockState(pos).isAir()
                 && level.getBlockState(pos.above()).isAir()
                 && level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP);
+    }
+
+    /** The cells the companion's body covers when the order is computed, so the build walks around it. */
+    private static Set<Pos> bodyCells(CompanionEntity companion) {
+        Set<Pos> cells = new HashSet<>();
+        AABB box = companion.getBoundingBox();
+        int minX = (int) Math.floor(box.minX);
+        int maxX = (int) Math.floor(box.maxX - 1.0E-4);
+        int minY = (int) Math.floor(box.minY);
+        int maxY = (int) Math.floor(box.maxY - 1.0E-4);
+        int minZ = (int) Math.floor(box.minZ);
+        int maxZ = (int) Math.floor(box.maxZ - 1.0E-4);
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    cells.add(new Pos(x, y, z));
+                }
+            }
+        }
+        return cells;
+    }
+
+    /** The scaffold this build adopted, plus every ledger placement inside the site. */
+    private Set<BlockPos> ownership(TaskContext c) {
+        Set<BlockPos> owned = new HashSet<>(Site.ownedByCompanion(c.companion(), placed));
+        owned.addAll(scaffold.placed());
+        return owned;
+    }
+
+    private boolean ownsCell(BlockPos pos) {
+        return ownPlaced.contains(pos)
+                || ownedCells.contains(pos)
+                || (scaffold != null && scaffold.placed().contains(pos));
+    }
+
+    private int attempt(BlockPos pos) {
+        return attempts.merge(pos, 1, Integer::sum);
+    }
+
+    private void clearCurrent(TaskContext c) {
+        current = null;
+        resetMovers(c);
+        approach = null;
+    }
+
+    private void deferCurrent(TaskContext c) {
+        if (current != null) {
+            deferred.add(current);
+        }
+        clearCurrent(c);
     }
 
     private void resetMovers(TaskContext c) {
@@ -1172,8 +1392,12 @@ public final class BuildTask implements Task {
         String selected = parts.isEmpty() || structure == null ? "" : " (" + structure.describe(parts) + ")";
         summary = "built " + blueprint.name() + " at " + coords(origin) + " facing "
                 + Placement.facingFor(rotation).getSerializedName() + ": " + placedCount + " placed" + selected
-                + ", " + clearedCount + " cleared, " + foundationCount + " foundation";
+                + ", " + clearedCount + " cleared, " + foundationCount + " foundation" + recoverySuffix();
         return complete(c, TaskStatus.SUCCESS);
+    }
+
+    private String recoverySuffix() {
+        return selfRecoveries == 0 ? "" : ", " + selfRecoveries + " self-blocked recoveries";
     }
 
     /**
@@ -1233,9 +1457,64 @@ public final class BuildTask implements Task {
                 : null;
     }
 
-    private TaskStatus fail(TaskContext c, String text) {
-        summary = text;
+    private TaskStatus fail(TaskContext c, PlacementRefusal refusal, boolean siteFailure) {
+        this.refusal = refusal;
+        // A site check happens before any work, so the owner gets the bare cause; a placement refusal says what to do
+        // next as well, because the build is already half done.
+        summary = refusal.describe() + (siteFailure ? "" : "; " + refusal.remedy()) + resumeHint(c) + recoverySuffix();
         return complete(c, TaskStatus.FAILED);
+    }
+
+    private TaskStatus failAll(TaskContext c, List<PlacementRefusal> refusals) {
+        if (refusals.isEmpty()) {
+            return reject(c, "the site cannot be used");
+        }
+        this.refusal = refusals.getFirst();
+        StringBuilder text = new StringBuilder();
+        for (PlacementRefusal refusal : refusals) {
+            if (text.length() > 0) {
+                text.append("; ");
+            }
+            text.append(refusal.describe());
+        }
+        summary = text + resumeHint(c) + recoverySuffix();
+        return complete(c, TaskStatus.FAILED);
+    }
+
+    /** A failure that is not a placement decision: a configuration problem or a cleanup result. */
+    private TaskStatus reject(TaskContext c, String text) {
+        summary = text + recoverySuffix();
+        return complete(c, TaskStatus.FAILED);
+    }
+
+    /** Tells the model where to resume, but only when there is something there to resume. */
+    private String resumeHint(TaskContext c) {
+        if (placed == null || !hasProgress(c.level())) {
+            return "";
+        }
+        return "; half built at " + coords(origin) + " — resume it with build_structure at the same origin";
+    }
+
+    private boolean hasProgress(ServerLevel level) {
+        if (placedCount > 0 || clearedCount > 0 || foundationCount > 0) {
+            return true;
+        }
+        if (scaffold != null && !scaffold.placed().isEmpty()) {
+            return true;
+        }
+        for (Placement.PlacedSpec spec : placed.specs()) {
+            if (level.getBlockState(spec.pos()).equals(spec.wanted())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void persistForResume(TaskContext c) {
+        if (scaffold == null || placed == null) {
+            return;
+        }
+        writeInProgress(c);
     }
 
     /** Leftover scaffold is the one thing a cancelled build leaves in the world: the runner takes it down next. */
@@ -1251,6 +1530,9 @@ public final class BuildTask implements Task {
         if (breaker != null) {
             breaker.stop(c);
         }
+        if (takeBack != null) {
+            takeBack.stop(c);
+        }
         if (approach != null) {
             approach.stop(c.companion());
         }
@@ -1263,8 +1545,12 @@ public final class BuildTask implements Task {
         if (scaffold != null) {
             scaffold.stop();
         }
-        // Cancelling ends the build: a reload must not pick it up again.
-        deleteInProgress(c);
+        if (succeeded) {
+            deleteInProgress(c);
+        } else {
+            // A cancellation is still a site with work done: keep it resumable at the same origin.
+            persistForResume(c);
+        }
     }
 
     /** Writes the in-progress file again when the scaffold has grown since the last write. */
@@ -1280,12 +1566,32 @@ public final class BuildTask implements Task {
 
     /** Persists the build so a reload can resume it. Best effort: a disk problem must not abort the build. */
     private void writeInProgress(TaskContext c) {
-        if (scaffold == null) {
+        if (scaffold == null || placed == null) {
             return;
         }
         try {
+            List<BlockPos> remaining = new ArrayList<>();
+            for (Placement.PlacedSpec spec : placed.specs()) {
+                if (!c.level().getBlockState(spec.pos()).equals(spec.wanted())) {
+                    remaining.add(spec.pos());
+                }
+            }
+            String owner = c.companion().ownerUuid() == null
+                    ? ""
+                    : c.companion().ownerUuid().toString();
             BlueprintStore.forLevel(c.level())
-                    .saveInProgress(id, blueprint, origin, rotation, clearSite, gather, scaffold.placed());
+                    .saveInProgress(
+                            id,
+                            blueprint,
+                            origin,
+                            rotation,
+                            clearSite,
+                            gather,
+                            scaffold.placed(),
+                            parts,
+                            remaining,
+                            owner,
+                            dimension);
             inProgressStarted = true;
             writtenScaffoldCount = scaffold.placed().size();
         } catch (RuntimeException ignored) {
@@ -1376,6 +1682,18 @@ public final class BuildTask implements Task {
         return summary;
     }
 
+    @Override
+    public String debugStatus() {
+        String cell = currentPos == null ? "-" : coords(currentPos);
+        String why = refusal != null
+                ? refusal.cause()
+                : asideTarget != null ? "stepping aside" : takeBack != null ? "taking my block back" : "building";
+        int tries = currentPos == null ? 0 : attempts.getOrDefault(currentPos, 0);
+        return "build " + phase + ": " + why + " at " + cell + ", stance "
+                + (stance == null ? "-" : coords(stance)) + ", attempts " + tries + ", recoveries "
+                + selfRecoveries + ", deferred " + deferred.size() + ", progress " + passProgress;
+    }
+
     /** The finished building, named after its blueprint; a "wheat_farm" blueprint becomes a farm, not a house. */
     @Override
     public PlaceCandidate placeCandidate() {
@@ -1408,5 +1726,20 @@ public final class BuildTask implements Task {
 
     private static String coords(BlockPos pos) {
         return pos.getX() + " " + pos.getY() + " " + pos.getZ();
+    }
+
+    private static Pos toPos(BlockPos pos) {
+        return new Pos(pos.getX(), pos.getY(), pos.getZ());
+    }
+
+    private static PlacementRefusal protectedRefusal(Pos pos, Place place) {
+        return new PlacementRefusal.Protected(
+                pos,
+                place.name(),
+                place.kind().name().toLowerCase(Locale.ROOT),
+                place.radius(),
+                place.anchor().x(),
+                place.anchor().z(),
+                0);
     }
 }
