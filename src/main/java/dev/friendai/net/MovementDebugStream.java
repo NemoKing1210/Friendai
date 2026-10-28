@@ -150,6 +150,15 @@ public final class MovementDebugStream {
                 c.getXRot(),
                 c.getSpeed(),
                 c.isSprinting()));
+        lines.add(String.format(
+                Locale.ROOT,
+                "facing: %s, want yaw %.1f pitch %.1f, body %.1f, head %.1f, pitch %.1f",
+                c.facing().source().name().toLowerCase(Locale.ROOT),
+                c.facing().desiredYaw(),
+                c.facing().desiredPitch(),
+                c.getYRot(),
+                c.getYHeadRot(),
+                c.getXRot()));
         List<DebugTarget> targets = MovementDebug.combineTargets(
                 c.taskRunner().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
         List<WorkSet> workSets = WorkSetBudget.select(

@@ -5,11 +5,14 @@ import dev.friendai.creative.CreativeAction;
 import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.movement.Facing;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.FlyToTask;
 import dev.friendai.task.builtin.FollowTask;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.task.nav.FlightNavigator;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import java.util.Optional;
@@ -218,5 +221,152 @@ public final class CreativeFlightTests {
 
     private static final class FlightTolerance {
         private static final double VALUE = 1.0;
+    }
+
+    @GameTest(maxTicks = 500)
+    public void flightFacesTheRoute(GameTestHelper h) {
+        GameTestSupport.platform(h, 20);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 18, 2, 18);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 2, 10));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        companion.setYRot(0.0F);
+        companion.setYBodyRot(0.0F);
+        companion.setYHeadRot(0.0F);
+        companion.setXRot(0.0F);
+        Vec3 north = h.absoluteVec(new Vec3(2.5, 2, 2.5));
+        Vec3 east = h.absoluteVec(new Vec3(12.5, 2, 2.5));
+        companion.taskRunner().start(new StayTask(5000), "stay");
+        TaskContext context = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.taskRunner(),
+                new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
+        FlightNavigator navigator = new FlightNavigator();
+        int[] leg = {0};
+        int[] moving = {0};
+        int[] stable = {0};
+        int[] samples = {0, 0};
+        float[] maxError = {0.0F, 0.0F};
+        float[] finalYaw = {0.0F, 0.0F};
+        float[] lastTravel = {Float.NaN};
+        float[] movingTravel = {Float.NaN};
+        float[] finalTravel = {Float.NaN, Float.NaN};
+        boolean[] done = {false, false};
+        String[] worst = {""};
+        double[] lastX = {companion.getX()};
+        double[] lastZ = {companion.getZ()};
+        String[] last = {"not started"};
+        h.onEachTick(() -> {
+            Vec3 target = leg[0] == 0 ? north : east;
+            FlightNavigator.State state = navigator.tick(context, target);
+            last[0] = state + " " + navigator.debugStatus() + " at " + companion.position();
+            if (state == FlightNavigator.State.UNREACHABLE) {
+                h.fail("flight leg " + leg[0] + " unreachable: " + navigator.diagnostic() + "; " + last[0]);
+            }
+            double dx = companion.getX() - lastX[0];
+            double dz = companion.getZ() - lastZ[0];
+            lastX[0] = companion.getX();
+            lastZ[0] = companion.getZ();
+            if (Math.hypot(dx, dz) > 0.02) {
+                moving[0]++;
+                float travel = Facing.yawToward(dx, dz);
+                if (!Float.isNaN(lastTravel[0])
+                        && Math.abs(net.minecraft.util.Mth.wrapDegrees(travel - lastTravel[0])) < 10.0F) {
+                    stable[0]++;
+                } else {
+                    stable[0] = 1;
+                }
+                lastTravel[0] = travel;
+                movingTravel[0] = travel;
+                if (moving[0] > 8 && stable[0] >= 4) {
+                    float error = Math.abs(net.minecraft.util.Mth.wrapDegrees(companion.getYRot() - travel));
+                    if (error > maxError[leg[0]]) {
+                        maxError[leg[0]] = error;
+                        worst[0] = "leg " + leg[0] + " tick " + h.getTick() + " travel " + travel + " yaw "
+                                + companion.getYRot() + " head " + companion.getYHeadRot() + " source "
+                                + companion.facing().source() + " move " + dx + "," + dz;
+                    }
+                    samples[leg[0]]++;
+                }
+            } else {
+                stable[0] = 0;
+                lastTravel[0] = Float.NaN;
+            }
+            if (state == FlightNavigator.State.ARRIVED && !done[leg[0]]) {
+                done[leg[0]] = true;
+                finalYaw[leg[0]] = companion.getYRot();
+                finalTravel[leg[0]] = movingTravel[0];
+                if (leg[0] == 0) {
+                    leg[0] = 1;
+                    moving[0] = 0;
+                    stable[0] = 0;
+                    lastTravel[0] = Float.NaN;
+                    movingTravel[0] = Float.NaN;
+                }
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    done[0] && done[1],
+                    "both flight legs did not finish: " + done[0] + ", " + done[1] + "; last " + last[0]);
+            h.assertTrue(samples[0] > 0 && samples[1] > 0, "no steady movement to measure");
+            h.assertTrue(maxError[0] <= 20.0F, "north leg faced up to " + maxError[0] + " degrees away from travel");
+            h.assertTrue(
+                    Math.abs(net.minecraft.util.Mth.wrapDegrees(finalYaw[0] - finalTravel[0])) <= 15.0F,
+                    "north leg ended facing " + finalYaw[0] + " while travelling " + finalTravel[0]);
+            h.assertTrue(
+                    maxError[1] <= 20.0F,
+                    "east leg faced up to " + maxError[1] + " degrees away from travel; worst " + worst[0]);
+            h.assertTrue(
+                    Math.abs(net.minecraft.util.Mth.wrapDegrees(finalYaw[1] - finalTravel[1])) <= 15.0F,
+                    "east leg ended facing " + finalYaw[1] + " while travelling " + finalTravel[1]);
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void climbKeepsTheYawAndPitches(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 14, 2, 14);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 2, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        companion.setYRot(-90.0F);
+        companion.setYBodyRot(-90.0F);
+        companion.setYHeadRot(-90.0F);
+        companion.setXRot(0.0F);
+        Vec3 up = h.absoluteVec(new Vec3(2.5, 7, 2.5));
+        companion.taskRunner().start(new StayTask(5000), "stay");
+        TaskContext context = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.taskRunner(),
+                new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
+        FlightNavigator navigator = new FlightNavigator();
+        float[] maxYawError = {0.0F};
+        float[] minPitch = {0.0F};
+        int[] climbing = {0};
+        boolean[] done = {false};
+        double[] lastY = {companion.getY()};
+        h.onEachTick(() -> {
+            FlightNavigator.State state = navigator.tick(context, up);
+            double dy = companion.getY() - lastY[0];
+            lastY[0] = companion.getY();
+            if (dy > 0.02) {
+                climbing[0]++;
+                maxYawError[0] = Math.max(
+                        maxYawError[0], Math.abs(net.minecraft.util.Mth.wrapDegrees(companion.getYRot() + 90.0F)));
+                minPitch[0] = Math.min(minPitch[0], companion.getXRot());
+            }
+            if (state == FlightNavigator.State.ARRIVED) {
+                done[0] = true;
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(done[0], "the climb did not finish");
+            h.assertTrue(climbing[0] > 3, "the climb was never measured");
+            h.assertTrue(maxYawError[0] <= 5.0F, "a pure climb turned the body by " + maxYawError[0]);
+            h.assertTrue(minPitch[0] <= -20.0F, "a pure climb never looked up: pitch " + minPitch[0]);
+        });
     }
 }

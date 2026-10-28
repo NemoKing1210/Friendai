@@ -23,10 +23,15 @@ public final class LookAtOwnerGoal extends Goal {
 
     private static final int MIN_GLANCE_TICKS = 40;
     private static final int EXTRA_GLANCE_TICKS = 40;
+    /** An owner further than this from the body's heading makes the head sit at the cone, so the body follows. */
+    private static final float BODY_TURN_CONE = 60.0f;
+    /** How many glanced ticks outside the cone before the body turns too instead of a permanent head twist. */
+    private static final int BODY_TURN_DELAY = 8;
 
     private final CompanionEntity companion;
     private ServerPlayer owner;
     private int glanceTicks;
+    private int outsideConeTicks;
 
     public LookAtOwnerGoal(CompanionEntity companion) {
         this.companion = companion;
@@ -63,19 +68,31 @@ public final class LookAtOwnerGoal extends Goal {
     @Override
     public void start() {
         glanceTicks = adjustedTickDelay(MIN_GLANCE_TICKS + companion.getRandom().nextInt(EXTRA_GLANCE_TICKS));
+        outsideConeTicks = 0;
     }
 
     @Override
     public void tick() {
         glanceTicks--;
-        if (owner != null) {
-            companion.getLookControl().setLookAt(owner.getX(), owner.getEyeY(), owner.getZ());
+        if (owner == null) {
+            return;
+        }
+        companion.getLookControl().setLookAt(owner.getX(), owner.getEyeY(), owner.getZ());
+        float yawToOwner = dev.friendai.movement.Facing.yawToward(
+                owner.getX() - companion.getX(), owner.getZ() - companion.getZ());
+        if (dev.friendai.movement.Facing.difference(companion.getYRot(), yawToOwner) > BODY_TURN_CONE) {
+            if (++outsideConeTicks > BODY_TURN_DELAY) {
+                companion.facing().lookAt(owner, 2);
+            }
+        } else {
+            outsideConeTicks = 0;
         }
     }
 
     @Override
     public void stop() {
         owner = null;
+        outsideConeTicks = 0;
     }
 
     /** True when the companion has nothing else to attend to: no task beyond the default follow, and no fight. */

@@ -71,7 +71,7 @@ public final class BreakAction {
         }
         if (creative) {
             Vec3 center = Vec3.atCenterOf(pos);
-            companion.getLookControl().setLookAt(center.x, center.y, center.z);
+            companion.facing().lookAt(center, 3);
             MiningRefusal recheck = MiningRefusal.check(c, pos, allowBreakingSupport);
             if (recheck != null) {
                 refusal = recheck;
@@ -94,7 +94,7 @@ public final class BreakAction {
                     BreakProgress.ticksToBreak(state.getDestroySpeed(level, pos), tool.getDestroySpeed(state), correct);
         }
         Vec3 center = Vec3.atCenterOf(pos);
-        companion.getLookControl().setLookAt(center.x, center.y, center.z);
+        companion.facing().lookAt(center, 3);
         if (breakTicks % SWING_INTERVAL == 0) {
             companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         }

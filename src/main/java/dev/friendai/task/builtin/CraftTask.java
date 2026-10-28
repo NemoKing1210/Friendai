@@ -412,7 +412,7 @@ public final class CraftTask implements Task {
         double x = stationPos.getX() + 0.5;
         double y = stationPos.getY() + 0.5;
         double z = stationPos.getZ() + 0.5;
-        companion.getLookControl().setLookAt(x, y, z);
+        companion.facing().lookAt(x, y, z, 2);
         stepTicks++;
         if (stepTicks < CRAFT_TICKS) {
             return TaskStatus.RUNNING;

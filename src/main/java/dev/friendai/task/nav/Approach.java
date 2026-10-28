@@ -350,7 +350,6 @@ public final class Approach {
     }
 
     private static void lookAt(CompanionEntity companion, BlockPos target) {
-        Vec3 center = Vec3.atCenterOf(target);
-        companion.getLookControl().setLookAt(center.x, center.y, center.z);
+        companion.facing().lookAt(Vec3.atCenterOf(target), 2);
     }
 }

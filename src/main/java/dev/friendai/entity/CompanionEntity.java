@@ -186,6 +186,7 @@ public class CompanionEntity extends PathfinderMob {
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
     private final CompanionBody body = new CompanionBody(this);
+    private final CompanionFacing facing = new CompanionFacing(this);
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
         super(type, level);
@@ -439,6 +440,7 @@ public class CompanionEntity extends PathfinderMob {
             taskRunner.tick();
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();
+            facing.tick();
             if (isSprinting() && !pathing() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
             }
@@ -690,6 +692,11 @@ public class CompanionEntity extends PathfinderMob {
         return body;
     }
 
+    /** The one writer of the body's yaw, head yaw and pitch; every action feeds it. */
+    public CompanionFacing facing() {
+        return facing;
+    }
+
     /** Decides between walking and running; the movement code calls it before it starts a path. */
     public Pace pace() {
         return pace;
@@ -747,6 +754,8 @@ public class CompanionEntity extends PathfinderMob {
         creativeLandingTicks = 0;
         setNoGravity(true);
         getNavigation().stop();
+        // The flight moves by setPos; a stale move-control target would keep rewriting yRot every tick.
+        getMoveControl().setWait();
     }
 
     /** Stops task-owned flight; disabling creative starts a separate bounded landing transition. */

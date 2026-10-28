@@ -181,6 +181,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Build/place, crafting table, furnace, collection and farm tasks show the active block action with a distinct color and label.
 - [ ] A queued multi-step plan shows the current action and the next two pending steps in queue order.
 - [ ] Turning the overlay off, disconnecting, losing operator status or having no companion clears the HUD and all world markers.
+- [ ] Mine a block behind the companion and fly a leg: the torso and head turn to the work instead of keeping the last walk's heading, and the HUD **Face** line shows the claiming source, the wanted and the actual yaw/pitch in both UI languages.
 
 ## Companion inventory window
 

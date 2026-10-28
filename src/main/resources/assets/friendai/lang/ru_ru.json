@@ -307,6 +307,7 @@
   "friendai.debug.hud.navigation": "Навигация: %s",
   "friendai.debug.hud.path": "Шаг пути: %s",
   "friendai.debug.hud.action": "Действие: %s",
+  "friendai.debug.hud.facing": "Взгляд: %s",
   "friendai.debug.hud.next": "Далее: %s",
   "friendai.debug.hud.work_set": "%s: готово %s, далее %s, ожидает %s, пропущено %s%s",
   "friendai.debug.hud.intent": "План: %s",

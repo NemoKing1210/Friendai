@@ -307,6 +307,7 @@
   "friendai.debug.hud.navigation": "Navigation: %s",
   "friendai.debug.hud.path": "Path step: %s",
   "friendai.debug.hud.action": "Action: %s",
+  "friendai.debug.hud.facing": "Face: %s",
   "friendai.debug.hud.next": "Next: %s",
   "friendai.debug.hud.work_set": "%s: %s done, %s next, %s pending, %s skipped%s",
   "friendai.debug.hud.intent": "Intent: %s",

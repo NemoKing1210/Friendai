@@ -201,6 +201,11 @@ public final class MovementDebugRenderer {
         if (!current.isBlank()) {
             lines.add(Component.translatable("friendai.debug.hud.path", current).getString());
         }
+        String facing = lineValue(view.lines(), "facing: ");
+        if (!facing.isBlank()) {
+            lines.add(
+                    Component.translatable("friendai.debug.hud.facing", facing).getString());
+        }
         if (!view.targets().isEmpty() && view.workSets().isEmpty()) {
             var target = view.targets().getFirst();
             String action = actionLabel(target.action());

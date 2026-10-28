@@ -40,6 +40,9 @@ import org.jetbrains.annotations.Nullable;
  * lost or duplicated.
  */
 public final class CompanionHands {
+    /** How long the companion keeps facing the place it clicked; long enough for a half turn at the capped rate. */
+    private static final int FACE_HOLD_TICKS = 6;
+
     private final CompanionEntity companion;
     private FakePlayer player;
     private @Nullable Merchant openMerchant;
@@ -357,7 +360,7 @@ public final class CompanionHands {
         if (hands.gameMode.getGameModeForPlayer() != desiredGameMode) {
             hands.setGameMode(desiredGameMode);
         }
-        companion.getLookControl().setLookAt(lookAt.x, lookAt.y, lookAt.z);
+        companion.facing().lookAt(lookAt, FACE_HOLD_TICKS);
         companion.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
     }
 
