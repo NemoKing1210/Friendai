@@ -156,6 +156,15 @@ java {
 	}
 }
 
+tasks.named('test') {
+	dependsOn tasks.named('compileClientJava')
+	systemProperty 'friendai.architecture.classpath', [
+			file('build/classes/java/main'),
+			file('build/classes/java/client'),
+			file('engine/build/classes/java/main')
+	].collect { it.absolutePath }.join(File.pathSeparator)
+}
+
 // One Java style for the whole tree. `./gradlew spotlessApply` rewrites the sources, `spotlessCheck` (part of
 // `check`) fails on a file that was edited by hand in another style. Palantir's formatter is the one that matches
 // this repository: 4-space indent and 120-column lines, where google-java-format re-indents everything to 2 spaces.
@@ -215,7 +224,7 @@ tasks.register('verifyModArtifact') {
 	def engineMainClasses = project(':engine').sourceSets.main.output.classesDirs
 	def productionRuntime = sourceSets.main.runtimeClasspath
 
-	dependsOn modJar, engineJar, engineFixturesJar
+	dependsOn modJar, engineJar, engineFixturesJar, ':engine:verifyEngineClasspath'
 	inputs.file(modJarArtifact)
 	inputs.file(engineJarArtifact)
 	inputs.file(engineFixturesArtifact)

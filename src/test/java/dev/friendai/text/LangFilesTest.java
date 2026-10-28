@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,7 +19,11 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class LangFilesTest {
-    private static final Path LANG_DIR = Path.of("src/main/resources/assets/friendai/lang");
+    private static final List<Path> LANG_DIRS = List.of(
+            Path.of("engine/src/main/resources/assets/friendai/lang"),
+            Path.of("src/main/resources/assets/friendai/lang"));
+    private static final List<Path> SOURCE_ROOTS =
+            List.of(Path.of("engine/src/main/java"), Path.of("src/main/java"), Path.of("src/client/java"));
     private static final Pattern PLACEHOLDER = Pattern.compile("%[sd%]");
 
     private static JsonObject read(Path p) throws IOException {
@@ -26,9 +31,34 @@ class LangFilesTest {
     }
 
     private static List<Path> langFiles() throws IOException {
-        try (Stream<Path> s = Files.list(LANG_DIR)) {
-            return s.filter(p -> p.toString().endsWith(".json")).sorted().toList();
+        List<Path> result = new ArrayList<>();
+        for (Path langDir : LANG_DIRS) {
+            if (Files.isDirectory(langDir)) {
+                try (Stream<Path> files = Files.list(langDir)) {
+                    result.addAll(files.filter(path -> path.toString().endsWith(".json"))
+                            .toList());
+                }
+            }
         }
+        return result.stream().sorted().toList();
+    }
+
+    private static JsonObject language(String locale) throws IOException {
+        JsonObject merged = new JsonObject();
+        for (Path langDir : LANG_DIRS) {
+            Path file = langDir.resolve(locale + ".json");
+            if (!Files.isRegularFile(file)) {
+                continue;
+            }
+            JsonObject catalog = read(file);
+            for (String key : catalog.keySet()) {
+                if (merged.has(key)) {
+                    throw new IOException("Duplicate language key " + key + " in " + file);
+                }
+                merged.add(key, catalog.get(key));
+            }
+        }
+        return merged;
     }
 
     private static int count(String s) {
@@ -42,11 +72,14 @@ class LangFilesTest {
 
     @Test
     void sameKeysInAllLanguages() throws IOException {
-        TreeSet<String> expected =
-                new TreeSet<>(read(LANG_DIR.resolve("en_us.json")).keySet());
-        for (Path p : langFiles()) {
-            assertEquals(
-                    expected, new TreeSet<>(read(p).keySet()), p.getFileName().toString());
+        TreeSet<String> expected = new TreeSet<>(language("en_us").keySet());
+        Set<String> locales = new TreeSet<>();
+        for (Path file : langFiles()) {
+            String filename = file.getFileName().toString();
+            locales.add(filename.substring(0, filename.length() - ".json".length()));
+        }
+        for (String locale : locales) {
+            assertEquals(expected, new TreeSet<>(language(locale).keySet()), locale);
         }
     }
 
@@ -59,8 +92,8 @@ class LangFilesTest {
 
     @Test
     void placeholdersMatch() throws IOException {
-        JsonObject en = read(LANG_DIR.resolve("en_us.json"));
-        JsonObject ru = read(LANG_DIR.resolve("ru_ru.json"));
+        JsonObject en = language("en_us");
+        JsonObject ru = language("ru_ru");
         for (String key : en.keySet()) {
             assertEquals(count(en.get(key).getAsString()), count(ru.get(key).getAsString()), key);
         }
@@ -68,12 +101,11 @@ class LangFilesTest {
 
     @Test
     void everyKeyUsedInCodeExists() throws IOException {
-        JsonObject en = read(LANG_DIR.resolve("en_us.json"));
+        JsonObject en = language("en_us");
         Pattern keyPattern = Pattern.compile(
                 "\"((?:friendai|key\\.friendai|key\\.category\\.friendai|entity\\.friendai)\\.[a-z0-9_.]+)\"");
         List<String> missing = new ArrayList<>();
-        for (String root : List.of("src/main/java", "src/client/java")) {
-            Path dir = Path.of(root);
+        for (Path dir : SOURCE_ROOTS) {
             if (!Files.exists(dir)) {
                 continue;
             }

@@ -29,6 +29,52 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+tasks.register('verifyEngineClasspath') {
+	group = 'verification'
+	description = 'Rejects Minecraft, Fabric, optional UI and native audio artifacts from the engine classpath.'
+	inputs.files(configurations.compileClasspath, configurations.runtimeClasspath)
+
+	doLast { task ->
+		def forbiddenArtifactName = ~/(?i)(?:^|[-_.])(minecraft|fabric|yacl|modmenu|whisper|sherpa)(?:[-_.]|$)/
+		def forbiddenClassPrefixes = [
+				'net/minecraft/',
+				'net/fabricmc/',
+				'dev/isxander/yacl3/',
+				'com/terraformersmc/modmenu/',
+				'io/github/givimad/whisperjni/',
+				'com/k2fsa/sherpa/onnx/'
+		]
+		def violations = []
+		task.inputs.files.files.each { dependency ->
+			if (forbiddenArtifactName.matcher(dependency.name).find()) {
+				violations.add(dependency.name)
+			}
+			if (dependency.isDirectory()) {
+				java.nio.file.Files.walk(dependency.toPath()).withCloseable { paths ->
+					paths.filter { java.nio.file.Files.isRegularFile(it) }.forEach { path ->
+						def className = dependency.toPath().relativize(path).toString().replace('\\', '/')
+						if (forbiddenClassPrefixes.any { className.startsWith(it) }) {
+							violations.add("${dependency.name}!/${className}")
+						}
+					}
+				}
+			} else if (dependency.name.endsWith('.jar')) {
+				new java.util.zip.ZipFile(dependency).withCloseable { archive ->
+					archive.entries().each { entry ->
+						if (forbiddenClassPrefixes.any { entry.name.startsWith(it) }) {
+							violations.add("${dependency.name}!/${entry.name}")
+						}
+					}
+				}
+			}
+		}
+		if (!violations.isEmpty()) {
+			throw new GradleException("Forbidden dependencies on the engine classpath: ${violations.unique().sort()}")
+		}
+		logger.lifecycle('Engine compile and runtime classpaths contain no game, optional UI or native audio dependencies.')
+	}
+}
+
 test {
 	useJUnitPlatform()
 }

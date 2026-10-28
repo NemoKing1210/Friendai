@@ -18,15 +18,20 @@ import org.junit.jupiter.api.Test;
  */
 class NoUntypedFailureTest {
     private static final Pattern UNTYPED = Pattern.compile("fail\\(c,\\s*\"");
-    private static final Path SOURCES = Path.of("src", "main", "java", "dev", "friendai");
+    private static final List<Path> SOURCE_ROOTS = List.of(Path.of("src/main/java"), Path.of("engine/src/main/java"));
 
     @Test
     void theBuildHasNoUntypedFailureLiteral() throws IOException {
         List<Path> files = new ArrayList<>();
-        files.add(SOURCES.resolve("task/builtin/BuildTask.java"));
-        try (Stream<Path> build = Files.list(SOURCES.resolve("task/build"))) {
-            build.filter(path -> path.getFileName().toString().endsWith(".java"))
-                    .forEach(files::add);
+        for (Path sourceRoot : SOURCE_ROOTS) {
+            if (!Files.isDirectory(sourceRoot)) {
+                continue;
+            }
+            try (Stream<Path> sourceFiles = Files.walk(sourceRoot)) {
+                files.addAll(sourceFiles
+                        .filter(path -> path.toString().endsWith(".java"))
+                        .toList());
+            }
         }
         List<String> offenders = new ArrayList<>();
         for (Path file : files) {
