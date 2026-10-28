@@ -33,7 +33,13 @@ class CombatPolicyTest {
             boolean ally) {
         return new CombatSnapshot.Self(
                 base.healthFraction(), danger, canEat, retreatPossible, shield, false, frontal, projectile, dodge,
-                cover, bow, lane, ally, false, false, false, 0);
+                cover, bow, lane, ally, false, false, false, 0, false);
+    }
+
+    private static CombatSnapshot.Self windingUp(CombatSnapshot.Self base) {
+        return new CombatSnapshot.Self(
+                base.healthFraction(), false, false, false, true, false, true, false, false, false,
+                false, false, false, false, false, false, 0, true);
     }
 
     private static CombatSnapshot.Target target(
@@ -127,7 +133,7 @@ class CombatPolicyTest {
     void conservativeRetreatIncreasesDisengagePriority() {
         CombatSnapshot.Self self = new CombatSnapshot.Self(
                 0.45, false, false, true, false, false, false, false, false, false, true, true, false,
-                false, false, false, 0);
+                false, false, false, 0, false);
         CombatSnapshot snapshot = snapshot(
                 self, target(true, false, true, 4.0, 4.0), new CombatSnapshot.Options(true, 8.0, true));
         CombatDecision standard = CombatPolicy.decide(
@@ -244,6 +250,25 @@ class CombatPolicyTest {
         assertTrue(outside < explosive, "a target beyond the pursuit bound is penalised");
         double routineOutside = CombatPolicy.targetScore(CombatPolicy.ThreatKind.ROUTINE, 1.0, true, 30.0, 24);
         assertTrue(routineOutside < other, "excessive pursuit is penalised");
+    }
+
+    @Test
+    void windupRaisesTheShieldBeforeTheArrowExists() {
+        CombatDecision decision = CombatPolicy.decide(
+                snapshot(windingUp(calm()), target(true, false, true, 10.0, 10.0),
+                        new CombatSnapshot.Options(false, 0.0, false)),
+                settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
+        assertEquals(CombatDecision.Action.SHIELD, decision.action());
+        assertEquals(CombatDecision.Reason.BLOCK_PROJECTILE, decision.reason());
+    }
+
+    @Test
+    void windupInReachStillSwings() {
+        CombatDecision decision = CombatPolicy.decide(
+                snapshot(windingUp(calm()), target(true, false, true, 2.0, 2.0),
+                        new CombatSnapshot.Options(true, 8.0, true)),
+                settings(ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED));
+        assertEquals(CombatDecision.Action.ATTACK, decision.action());
     }
 
     @Test

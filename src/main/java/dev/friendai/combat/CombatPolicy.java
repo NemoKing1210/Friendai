@@ -39,23 +39,24 @@ public final class CombatPolicy {
         }
 
         // 2. Immediate block, dodge or cover. Protective eligibility is irrelevant to physical danger.
-        if (self.projectileThreat()) {
-            if (self.frontalThreat() && self.shieldAvailable()) {
+        if (self.projectileThreat() || self.rangedWindup()) {
+            ShieldPolicy.Need shield = ShieldPolicy.decide(self.shieldAvailable(), self.shieldRaised(),
+                    self.projectileThreat(), self.rangedWindup(), self.frontalThreat(), options.inBand());
+            if (shield != ShieldPolicy.Need.LOWER) {
                 return new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.BLOCK_PROJECTILE);
             }
-            if (self.safeDodge()) {
-                return new CombatDecision(CombatDecision.Action.DODGE, CombatDecision.Reason.EVADE_PROJECTILE);
+            if (self.projectileThreat()) {
+                if (self.safeDodge()) {
+                    return new CombatDecision(CombatDecision.Action.DODGE, CombatDecision.Reason.EVADE_PROJECTILE);
+                }
+                if (self.safeCover()) {
+                    return new CombatDecision(CombatDecision.Action.SEEK_COVER, CombatDecision.Reason.EVADE_PROJECTILE);
+                }
+                if (self.retreatPossible()) {
+                    return new CombatDecision(CombatDecision.Action.RETREAT, CombatDecision.Reason.EVADE_PROJECTILE);
+                }
+                return new CombatDecision(CombatDecision.Action.AVOID, CombatDecision.Reason.SURVIVE);
             }
-            if (self.safeCover()) {
-                return new CombatDecision(CombatDecision.Action.SEEK_COVER, CombatDecision.Reason.EVADE_PROJECTILE);
-            }
-            if (self.retreatPossible()) {
-                return new CombatDecision(CombatDecision.Action.RETREAT, CombatDecision.Reason.EVADE_PROJECTILE);
-            }
-            if (self.shieldAvailable()) {
-                return new CombatDecision(CombatDecision.Action.SHIELD, CombatDecision.Reason.BLOCK_PROJECTILE);
-            }
-            return new CombatDecision(CombatDecision.Action.AVOID, CombatDecision.Reason.SURVIVE);
         }
 
         // 3. Emergency recovery.

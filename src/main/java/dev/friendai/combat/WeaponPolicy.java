@@ -13,6 +13,8 @@ public final class WeaponPolicy {
     public static final double MIN_DURABILITY = 0.1;
     /** Useful bow distance; close enough to hit, far enough to react. */
     public static final double BOW_DISTANCE = 8.0;
+    /** A bow already in hand stays until the target closes this far inside the style's start distance. */
+    public static final double BOW_HYSTERESIS = 1.5;
     private static final double AXE_PREFERENCE = 0.97;
 
     private WeaponPolicy() {}
@@ -104,6 +106,26 @@ public final class WeaponPolicy {
                     BOW_DISTANCE, Intent.KEEP_RANGE, true);
             case MELEE -> new Score(utility * 0.4, BOW_DISTANCE, Intent.KEEP_RANGE, true);
         };
+    }
+
+    /**
+     * Whether the style wants the bow at this distance. Starting a bow needs the style's full distance; a bow
+     * already in hand stays until the target closes {@link #BOW_HYSTERESIS} blocks inside it, so a target hovering
+     * at the boundary does not make the weapon flicker. A flying target and (for balanced) an unreachable melee
+     * target always want the bow.
+     */
+    public static boolean bowWanted(
+            FightingStyle style, double distance, boolean targetFlying, boolean unreachable, boolean bowHeld) {
+        if (targetFlying) {
+            return true;
+        }
+        double threshold = switch (style) {
+            case RANGED -> 4.0;
+            case MELEE -> 10.0;
+            case CAUTIOUS, BALANCED -> 6.0;
+        };
+        double leave = bowHeld ? BOW_HYSTERESIS : 0.0;
+        return distance > threshold - leave || (style == FightingStyle.BALANCED && unreachable);
     }
 
     /**

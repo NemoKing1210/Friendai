@@ -84,6 +84,36 @@ class WeaponPolicyTest {
     }
 
     @Test
+    void bowStartsOnlyAboveTheStyleThreshold() {
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.BALANCED, 6.0, false, false, false));
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.BALANCED, 6.1, false, false, false));
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.RANGED, 4.1, false, false, false));
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.RANGED, 3.9, false, false, false));
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.MELEE, 10.1, false, false, false));
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.MELEE, 9.9, false, false, false));
+    }
+
+    @Test
+    void heldBowLeavesOnlyBelowTheHysteresisBand() {
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.BALANCED, 5.0, false, false, true));
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.BALANCED, 4.4, false, false, true));
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.MELEE, 8.6, false, false, true));
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.MELEE, 8.4, false, false, true));
+    }
+
+    @Test
+    void flyingTargetAlwaysWantsTheBow() {
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.MELEE, 1.0, true, false, false));
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.RANGED, 1.0, true, false, true));
+    }
+
+    @Test
+    void balancedUnreachableTargetWantsTheBow() {
+        assertTrue(WeaponPolicy.bowWanted(FightingStyle.BALANCED, 2.0, false, true, false));
+        assertFalse(WeaponPolicy.bowWanted(FightingStyle.MELEE, 2.0, false, true, false));
+    }
+
+    @Test
     void damagedWeaponFallsBack() {
         WeaponPolicy.Score score = WeaponPolicy.score(
                 WeaponPolicy.Facts.melee(12.0, 4.0, 0.05, false, true, 2.0, true), FightingStyle.BALANCED);

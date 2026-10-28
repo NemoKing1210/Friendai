@@ -31,11 +31,13 @@ public record CombatSnapshot(Self self, Target target, Options options) {
             boolean potionAvailable,
             boolean potionSafe,
             boolean potionCooldownReady,
-            int potionBudget) {
+            int potionBudget,
+            /** A visible shooter is drawing at the companion or the owner; the arrow may not exist yet. */
+            boolean rangedWindup) {
         /** No shield, no bow, no potion and no immediate danger. */
         public static Self bare(double healthFraction) {
             return new Self(healthFraction, false, false, false, false, false, false, false, false, false,
-                    false, false, false, false, false, false, 0);
+                    false, false, false, false, false, false, 0, false);
         }
     }
 
