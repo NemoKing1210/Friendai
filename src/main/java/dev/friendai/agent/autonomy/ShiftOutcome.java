@@ -5,7 +5,7 @@ import java.util.Optional;
 /** What one finished shift means: its record, what the director should learn, and what is worth saying. */
 public final class ShiftOutcome {
     /** The queue's summary for a plan that hit its time limit. */
-    static final String TIME_UP = "ran out of time";
+    public static final String TIME_UP = "ran out of time";
 
     private ShiftOutcome() {}
 

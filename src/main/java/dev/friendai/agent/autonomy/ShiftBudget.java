@@ -22,10 +22,20 @@ public final class ShiftBudget {
     }
 
     public boolean allows(long nowMillis, int perHour) {
+        prune(nowMillis);
+        return recent.size() < perHour;
+    }
+
+    /** Director turns in the rolling hour, for the status line. */
+    public int used(long nowMillis) {
+        prune(nowMillis);
+        return recent.size();
+    }
+
+    private void prune(long nowMillis) {
         while (!recent.isEmpty() && recent.peekFirst() <= nowMillis - HOUR_MILLIS) {
             recent.removeFirst();
         }
-        return recent.size() < perHour;
     }
 
     public void failed() {

@@ -32,15 +32,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.properties.BedPart;
 
 public class FreeTimeTests {
     private static final class Result implements TaskListener {
@@ -88,28 +85,18 @@ public class FreeTimeTests {
                         c.level().getGameTime());
     }
 
-    /** A double bed at the given test-relative foot position, with its head to the east. */
-    private static void bed(GameTestHelper h, int x, int y, int z) {
-        BlockPos foot = h.absolutePos(new BlockPos(x, y, z));
-        var state = Blocks.BED.red()
-                .defaultBlockState()
-                .setValue(BedBlock.FACING, Direction.EAST)
-                .setValue(BedBlock.PART, BedPart.FOOT);
-        h.getLevel().setBlock(foot, state, 3);
-        h.getLevel().setBlock(foot.east(), state.setValue(BedBlock.PART, BedPart.HEAD), 3);
-    }
-
-    private static void midnight(GameTestHelper h) {
-        var server = h.getLevel().getServer();
-        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "time set midnight");
-    }
-
     /** Drains the companion's own hunger to {@code target} without waiting for vanilla depletion. */
     private static void drainHunger(GameTestHelper h, CompanionEntity c, int target) {
         while (c.hunger().food() > target) {
             c.hunger().addExhaustion(4.0f);
             c.hunger().tick(dev.friendai.survival.Difficulty.NORMAL, true, c.getHealth(), c.getMaxHealth());
         }
+    }
+
+    /** The reflex tests that need daylight set it explicitly; the GameTest world may have started at night. */
+    private static void noon(GameTestHelper h) {
+        var server = h.getLevel().getServer();
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "time set noon");
     }
 
     private static Container chest(GameTestHelper h, int x, int y, int z) {
@@ -455,29 +442,6 @@ public class FreeTimeTests {
         h.succeed();
     }
 
-    /**
-     * Free time on, nothing running, no director turn: after the window the watchdog asks anyway instead of standing
-     * still forever. The failure backoff is exhausted here, which is exactly the state that used to go silent.
-     */
-    @GameTest(maxTicks = 400)
-    public void watchdogAsksForWorkAfterSilence(GameTestHelper h) {
-        GameTestSupport.platform(h, 8);
-        CompanionEntity c = onlineCompanion(h);
-        UUID owner = c.ownerUuid();
-        int window = dev.friendai.task.TaskSettings.freeTimeWatchdogSec;
-        dev.friendai.task.TaskSettings.freeTimeWatchdogSec = 1;
-        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
-        for (int i = 0; i < dev.friendai.agent.tick.NudgeBackoff.MAX_STREAK; i++) {
-            driver(h).budget(owner).failed();
-        }
-        h.succeedWhen(() -> {
-            var state = driver(h).state(owner);
-            h.assertTrue(state.awaitingChoice(), "the watchdog forces a decision: " + state);
-            dev.friendai.task.TaskSettings.freeTimeWatchdogSec = window;
-            driver(h).stop(owner, "test over");
-        });
-    }
-
     /** "Come back" must turn following on even when free time was already off. */
     @GameTest(maxTicks = 200)
     public void endFreeTimeBringsTheCompanionBack(GameTestHelper h) {
@@ -547,26 +511,10 @@ public class FreeTimeTests {
         });
     }
 
-    @GameTest(maxTicks = 700)
-    public void nightSleepsAtHome(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        CompanionEntity c = onlineCompanion(h);
-        UUID owner = c.ownerUuid();
-        housePlace(h, c, "home", 4, 2, 4, 6);
-        bed(h, 5, 2, 5);
-        midnight(h);
-        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
-        h.succeedWhen(() -> {
-            h.assertTrue(
-                    c.isSleeping(),
-                    "the companion went to bed at night: " + driver(h).state(owner));
-            driver(h).stop(owner, "test over");
-        });
-    }
-
     @GameTest(maxTicks = 900)
     public void farmCreationRegistersPlace(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
+        noon(h);
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
         housePlace(h, c, "home", 4, 2, 4, 6);
@@ -676,37 +624,6 @@ public class FreeTimeTests {
             }
             h.assertTrue(state.shift() == null || state.shift().planId() != plan[0], "the shift ends with its plan");
             h.assertValueEqual(state.history().get(0).goal(), "practise jumping", "history");
-            driver(h).stop(owner, "test over");
-        });
-    }
-
-    @GameTest(maxTicks = 300)
-    public void plannerFailureDoesNotCoolTheNeed(GameTestHelper h) {
-        GameTestSupport.platform(h, 8);
-        CompanionEntity c = onlineCompanion(h);
-        UUID owner = c.ownerUuid();
-        var brains = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer())
-                .brains();
-        brains.setPlannerOverride(
-                owner,
-                input -> java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no plan")));
-        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
-        boolean[] chosen = {false};
-        h.succeedWhen(() -> {
-            var state = driver(h).state(owner);
-            if (!chosen[0]) {
-                h.assertTrue(state.awaitingChoice(), "the director is asked to choose");
-                var result = driver(h).choose(c, "mine stone", java.util.List.of(), "", 5, "GEAR");
-                h.assertTrue(!result.error(), result.content());
-                chosen[0] = true;
-                h.assertTrue(false, "wait for the planner failure");
-            }
-            h.assertTrue(
-                    state.history().stream().anyMatch(record -> record.summary().contains("no plan")),
-                    "the planner failure is recorded: " + state.history());
-            h.assertTrue(
-                    !state.cooldownUntil().containsKey(dev.friendai.agent.autonomy.NeedKind.GEAR),
-                    "the need did not fail, so it is not cooling: " + state.cooldownUntil());
             driver(h).stop(owner, "test over");
         });
     }

@@ -3,7 +3,9 @@ package dev.friendai.core;
 import dev.friendai.agent.autonomy.AutonomyFacts;
 import dev.friendai.agent.autonomy.FarmRef;
 import dev.friendai.agent.autonomy.PlaceRef;
+import dev.friendai.agent.autonomy.SelfFacts;
 import dev.friendai.agent.autonomy.StockKind;
+import dev.friendai.agent.autonomy.TradeRef;
 import dev.friendai.crafting.Station;
 import dev.friendai.crafting.obtain.Tier;
 import dev.friendai.crafting.obtain.ToolKind;
@@ -12,9 +14,12 @@ import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceQuery;
 import dev.friendai.place.PlaceService;
+import dev.friendai.pathing.Pos;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.task.mining.BlockMatcher;
+import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.obtain.DropIndex;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -78,6 +83,9 @@ final class AutonomyFactsBuilder {
         boolean table = false;
         boolean furnace = false;
         boolean fuel = false;
+        boolean flintAndSteel = false;
+        int obsidian = 0;
+        double wear = 1.0;
         List<ItemStack> stacks = new ArrayList<>();
         stacks.add(companion.getMainHandItem());
         for (int i = 0; i < bag.getContainerSize(); i++) {
@@ -104,13 +112,20 @@ final class AutonomyFactsBuilder {
             table |= stack.is(Items.CRAFTING_TABLE);
             furnace |= stack.is(Items.FURNACE);
             fuel |= FuelPolicy.isFuel(stack);
+            flintAndSteel |= stack.is(Items.FLINT_AND_STEEL);
+            if (stack.is(Items.OBSIDIAN)) {
+                obsidian += stack.getCount();
+            }
+            wear = Math.min(wear, wear(stack));
         }
         table |= !Stations.nearbyAll(companion, Station.CRAFTING_TABLE, 1).isEmpty();
         furnace |= !Stations.nearbyAll(companion, Station.FURNACE, 1).isEmpty();
         int pieces = 0;
         for (EquipmentSlot slot : ARMOR) {
-            if (!companion.getItemBySlot(slot).isEmpty()) {
+            ItemStack worn = companion.getItemBySlot(slot);
+            if (!worn.isEmpty()) {
                 pieces++;
+                wear = Math.min(wear, wear(worn));
             }
         }
         int armorPoints = companion.getArmorValue();
@@ -124,12 +139,28 @@ final class AutonomyFactsBuilder {
         List<PlaceQuery.Result> homes = places(companion, PlaceKind.HOUSE);
         List<PlaceQuery.Result> storages = places(companion, PlaceKind.STORAGE);
         List<PlaceQuery.Result> farms = places(companion, PlaceKind.FARM);
+        List<PlaceQuery.Result> trades = places(companion, PlaceKind.TRADE);
+        boolean portalKnown = !places(companion, PlaceKind.PORTAL).isEmpty();
+        Optional<PlaceQuery.Result> homeHere = homes.stream().filter(PlaceQuery.Result::sameDimension).findFirst();
         long gameTime = level.getGameTime();
         List<FarmRef> farmRefs = farms.stream()
                 .map(r -> new FarmRef(r.place().id(), r.place().name(), r.place().label(), r.distance(),
                         r.sameDimension(),
                         (gameTime - Math.max(r.place().lastVisitTick(), r.place().createdTick())) * 50L))
                 .toList();
+        List<TradeRef> tradeRefs = trades.stream()
+                .map(r -> new TradeRef(r.place().id(), r.place().name(), r.distance(), r.sameDimension(),
+                        (gameTime - Math.max(r.place().lastVisitTick(), r.place().createdTick())) * 50L))
+                .toList();
+        SelfFacts self = new SelfFacts(
+                companion.hunger().food(),
+                companion.experience().level(),
+                wear,
+                homeHere.map(r -> hasBlock(level, r.place(), "#minecraft:beds")).orElse(false),
+                homeHere.map(r -> hasBlock(level, r.place(), "minecraft:enchanting_table")).orElse(false),
+                homeHere.map(r -> hasBlock(level, r.place(), "#minecraft:anvil")).orElse(false),
+                flintAndSteel,
+                obsidian);
         Optional<Place> unloadAt = storages.stream().filter(PlaceQuery.Result::sameDimension).findFirst()
                 .or(() -> homes.stream().filter(PlaceQuery.Result::sameDimension).findFirst())
                 .map(PlaceQuery.Result::place);
@@ -141,8 +172,26 @@ final class AutonomyFactsBuilder {
                 stock, best.getOrDefault(ToolKind.PICKAXE, Tier.NONE), best.getOrDefault(ToolKind.AXE, Tier.NONE),
                 best.getOrDefault(ToolKind.SWORD, Tier.NONE), armor, pieces, shield, bucket, table, furnace,
                 level.isDarkOutside(), companion.getTarget() != null, owner.isPresent(), ownerDistance,
-                homes.stream().findFirst().map(AutonomyFactsBuilder::ref), storages.stream().map(AutonomyFactsBuilder::ref).toList(),
-                farmRefs, storageFree, ready, fuel, nowMillis);
+                homeHere.map(AutonomyFactsBuilder::ref), storages.stream().map(AutonomyFactsBuilder::ref).toList(),
+                farmRefs, storageFree, ready, fuel, self, tradeRefs, portalKnown, nowMillis);
+    }
+
+    /** Remaining durability of one stack, 1 for anything that cannot wear out. */
+    private static double wear(ItemStack stack) {
+        if (!stack.isDamageableItem() || stack.getMaxDamage() <= 0) {
+            return 1.0;
+        }
+        return (stack.getMaxDamage() - stack.getDamageValue()) / (double) stack.getMaxDamage();
+    }
+
+    /** Whether a place contains a block matching the id or #tag, within a small radius of its anchor. */
+    private static boolean hasBlock(ServerLevel level, Place place, String idOrTag) {
+        Optional<BlockMatcher> matcher = BlockMatcher.parse(idOrTag);
+        if (matcher.isEmpty()) {
+            return false;
+        }
+        int radius = Math.min(place.radius(), 12);
+        return !BlockSearch.nearestN(level, anchor(place), radius, matcher.get(), Set.of(), 1).isEmpty();
     }
 
     private static Optional<StockKind> stockOf(ItemStack stack) {
@@ -191,7 +240,7 @@ final class AutonomyFactsBuilder {
         BlockPos anchor = anchor(place);
         int r = place.radius();
         return ContainerAccess.all(level, anchor, r * 2).stream()
-                .filter(pos -> inside(anchor, r, pos))
+                .filter(pos -> place.contains(new Pos(pos.getX(), pos.getY(), pos.getZ())))
                 .limit(MAX_CONTAINERS)
                 .toList();
     }
@@ -208,7 +257,7 @@ final class AutonomyFactsBuilder {
                     continue;
                 }
                 for (BlockEntity entity : level.getChunkAt(sample).getBlockEntities().values()) {
-                    if (entity instanceof AbstractFurnaceBlockEntity furnace && inside(anchor, r, entity.getBlockPos())
+                    if (entity instanceof AbstractFurnaceBlockEntity furnace && place.contains(new Pos(entity.getBlockPos().getX(), entity.getBlockPos().getY(), entity.getBlockPos().getZ()))
                             && !furnace.getItem(2).isEmpty()) {
                         ready++;
                     }
@@ -222,8 +271,4 @@ final class AutonomyFactsBuilder {
         return new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
     }
 
-    static boolean inside(BlockPos anchor, int r, BlockPos pos) {
-        return Math.abs(pos.getX() - anchor.getX()) <= r && Math.abs(pos.getY() - anchor.getY()) <= r
-                && Math.abs(pos.getZ() - anchor.getZ()) <= r;
-    }
 }

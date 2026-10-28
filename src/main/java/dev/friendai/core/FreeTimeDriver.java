@@ -6,8 +6,10 @@ import dev.friendai.FriendaiMod;
 import dev.friendai.agent.autonomy.AutonomyFacts;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.autonomy.AwaySummary;
+import dev.friendai.agent.autonomy.Executor;
 import dev.friendai.agent.autonomy.FreeTime;
 import dev.friendai.agent.autonomy.FreeTimeService;
+import dev.friendai.agent.autonomy.FreeTimeStatus;
 import dev.friendai.agent.autonomy.FreeTimeText;
 import dev.friendai.agent.autonomy.NeedsAssessor;
 import dev.friendai.agent.autonomy.ProgressionLadder;
@@ -54,7 +56,8 @@ public final class FreeTimeDriver {
     public static final Set<String> DENIED = Set.of(
             "attack_player", "trust_player", "untrust_player", "forget", "set_name", "allow_food", "forbid_food",
             "reset_food_rule", "set_combat_settings", "set_combat_mode", "set_goal", "update_goal", "finish_goal",
-            "start_free_time", "end_free_time", "choose_activity", "follow_player");
+            "start_free_time", "end_free_time", "choose_activity", "follow_player", "execute_command",
+            "give_items", "drop_items");
     /** About one night: how long a shelter reflex stays home. */
     static final int SHELTER_MINUTES = 8;
     private static final Pattern PLAN_ID = Pattern.compile("plan #(\\d+)");
@@ -83,6 +86,8 @@ public final class FreeTimeDriver {
     private final Map<UUID, Boolean> wasMovementOrder = new HashMap<>();
     private final Map<UUID, Boolean> wasOnline = new HashMap<>();
     private final Set<UUID> seenOnline = new java.util.HashSet<>();
+    /** The last decision per owner, for the status line; in memory only, it is not work state. */
+    private final Map<UUID, String> lastDecision = new HashMap<>();
     /** Free-time plans cancelled on purpose; their end event is swallowed once. */
     private final Set<Long> released = new java.util.HashSet<>();
 
@@ -120,6 +125,20 @@ public final class FreeTimeDriver {
 
     public FreeTime state(UUID owner) {
         return service().state(owner);
+    }
+
+    /** What free time is doing, why, what it will decide next and what the budget allows. */
+    public FreeTimeStatus status(UUID owner) {
+        FreeTime state = service().state(owner);
+        if (!state.on()) {
+            return FreeTimeStatus.off();
+        }
+        ServerConfig cfg = config.get();
+        boolean online = wasOnline.getOrDefault(owner, true);
+        int perHour = online ? cfg.autonomy.maxShiftsPerHour : cfg.autonomy.offlineShiftsPerHour;
+        long now = now();
+        return FreeTimeStatus.of(state, lastDecision.getOrDefault(owner, "waiting"),
+                budget(owner).used(now), perHour, budget(owner).failStreak());
     }
 
     /**
@@ -223,6 +242,9 @@ public final class FreeTimeDriver {
         if (success) {
             // Any finished shift, template included, shows the companion is working: retry the director later.
             budget(owner).succeeded();
+        } else if (summary != null && summary.contains(ShiftOutcome.TIME_UP)) {
+            // The plan ran; hitting its limit is not an unanswered director either.
+            budget(owner).succeeded();
         } else if (!shift.reflex() && outcome.cooldownUntil().isPresent()) {
             budget(owner).failed();
         }
@@ -282,18 +304,32 @@ public final class FreeTimeDriver {
         if (shiftPlan != 0) {
             runner.markAutonomousPlan(shiftPlan); // after a restart the runner forgot its marks
         }
+        AutonomyFacts f = facts.build(companion, owner, nowMillis);
         if (state.awaitingChoice() && !brainThinking
                 && nowMillis - awaitingSince.getOrDefault(owner, 0L) > CHOICE_GRACE_MILLIS) {
-            // the director turn ended without choose_activity ([silent], an error, or a restart)
+            // the director turn ended without choose_activity ([silent], an error, or a restart):
+            // do not leave the hour empty, start the first deterministic template the agenda offers
             state = service.clearChoice(owner);
             budget(owner).failed();
+            if (queueFirstTemplate(owner, companion, f, s, nowMillis)) {
+                state = service.state(owner);
+            }
         }
-        AutonomyFacts f = facts.build(companion, owner, nowMillis);
         boolean planExists = shiftPlan != 0;
         ShiftInputs in = new ShiftInputs(state, f, s, ceiling, ownerGoalActive, planExists,
                 planningInFlight(owner), ownerWork, brainThinking, lastOwner, movementOrder);
-        switch (ShiftPolicy.decide(in, budget(owner))) {
-            case ShiftPolicy.CloseStale ignored -> service.finishShift(owner, false, "plan is gone", nowMillis);
+        ShiftPolicy.Decision decision = ShiftPolicy.decide(in, budget(owner));
+        lastDecision.put(owner, FreeTimeText.decisionLabel(decision));
+        switch (decision) {
+            case ShiftPolicy.CloseStale ignored -> service().finishShift(owner, false, "plan is gone", nowMillis);
+            case ShiftPolicy.Expired ignored -> {
+                Shift shift = state.shift();
+                if (shift != null) {
+                    release(companion, shift.planId(), "ran out of time");
+                    service().finishShift(owner, false, ShiftOutcome.TIME_UP, nowMillis);
+                    budget(owner).succeeded(); // the plan ran; a timeout is not an unanswered director
+                }
+            }
             case ShiftPolicy.Reflex reflex -> {
                 if (state.shift() != null) {
                     interrupt(owner, companion, state.shift(), reflex.need(), nowMillis);
@@ -340,11 +376,8 @@ public final class FreeTimeDriver {
             askDirector(owner, companion, f, nowMillis);
             return;
         }
-        for (Need need : NeedsAssessor.assess(f, state, s)) {
-            if (ShiftPolicy.FALLBACKS.contains(need.kind())) {
-                queueTemplate(owner, companion, need, ReflexPlans.fallback(need, f), s, nowMillis);
-                return;
-            }
+        if (queueFirstTemplate(owner, companion, f, s, nowMillis)) {
+            return;
         }
         if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= TaskSettings.freeTimeWatchdogSec * 1000L) {
             stallSaidAt.put(owner, nowMillis);
@@ -455,6 +488,20 @@ public final class FreeTimeDriver {
                 long now = now();
                 String reason = error == null || error.getMessage() == null ? "the plan was refused"
                         : error.getMessage();
+                // The need did not fail, the planner could not draft work for it: try the deterministic template
+                // for the same need before giving the hour up. The director still backs off.
+                AutonomyFacts f = facts.build(companion, owner, now);
+                Optional<List<ReflexStep>> template = ReflexPlans.fallback(state.shift().need(), f);
+                if (template.isPresent()) {
+                    Optional<Long> fallback = queue(owner, companion, state.shift().goal(), template.get(), minutes,
+                            taskTools);
+                    if (fallback.isPresent()) {
+                        service().linkPlan(owner, fallback.get());
+                        facts.invalidate(owner);
+                        budget(owner).failed();
+                        return;
+                    }
+                }
                 // The need did not fail, the planner could not draft work for it: only the director backs off.
                 service().finishShift(owner, false, "no plan: " + reason, now);
                 budget(owner).failed();
@@ -507,24 +554,56 @@ public final class FreeTimeDriver {
         release(companion, shift.planId(), "interrupted by free time");
     }
 
-    private void queueTemplate(UUID owner, CompanionEntity companion, Need need, Optional<List<ReflexStep>> steps,
-                               AutonomySettings s, long nowMillis) {
+    private boolean queueTemplate(UUID owner, CompanionEntity companion, Need need, Optional<List<ReflexStep>> steps,
+                                  AutonomySettings s, long nowMillis) {
         if (steps.isEmpty()) {
             service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
-            return;
+            return false;
         }
         boolean shelter = need.kind() == NeedKind.SHELTER || need.kind() == NeedKind.SURVIVE;
         int minutes = shelter ? SHELTER_MINUTES : s.shiftMinutes();
         Optional<Long> plan = queue(owner, companion, "free time: " + need.text(), steps.get(), minutes, taskTools);
         if (plan.isEmpty()) {
             service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
-            return;
+            return false;
         }
         stageAtStart.remove(owner);
         service().beginShift(owner, need.text(), List.of(), "", need.kind(), true, nowMillis,
                 nowMillis + minutes * 60_000L);
         service().linkPlan(owner, plan.get());
         facts.invalidate(owner);
+        return true;
+    }
+
+    /**
+     * Starts the first agenda entry that has a deterministic template, reflex first. Used when the director is
+     * silent, the planner failed, the budget is spent or the watchdog fired: the hour must keep moving.
+     */
+    private boolean queueFirstTemplate(UUID owner, CompanionEntity companion, AutonomyFacts f, AutonomySettings s,
+                                       long nowMillis) {
+        FreeTime state = service().state(owner);
+        List<Need> needs = NeedsAssessor.assess(f, state, s);
+        for (Need need : needs) {
+            if (need.executor() != Executor.REFLEX) {
+                continue;
+            }
+            Optional<List<ReflexStep>> steps = ReflexPlans.plan(need, f, s);
+            if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis)) {
+                return true;
+            }
+        }
+        for (NeedKind kind : ShiftPolicy.FALLBACK_ORDER) {
+            for (Need need : needs) {
+                if (need.kind() != kind) {
+                    continue;
+                }
+                Optional<List<ReflexStep>> steps = ReflexPlans.fallback(need, f);
+                if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Queues a free-time plan with the owner's authority; empty when the plan was refused. */

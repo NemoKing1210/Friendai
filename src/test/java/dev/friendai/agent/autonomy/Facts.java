@@ -35,6 +35,16 @@ final class Facts {
     private int storageFreeSlots;
     private int furnacesReady;
     private boolean hasFuel;
+    private int hunger = 20;
+    private int xpLevel;
+    private double gearWear = 1.0;
+    private boolean bedAtHome;
+    private boolean enchantingTableAtHome;
+    private boolean anvilAtHome;
+    private boolean flintAndSteel;
+    private int obsidian;
+    private final List<TradeRef> trades = new ArrayList<>();
+    private boolean portalKnown;
     private long now = NOW;
     private long nextId = 1;
     private Runnable lastPlace = () -> {};
@@ -54,13 +64,29 @@ final class Facts {
     Facts shield() { shield = true; return this; }
     Facts bucket() { bucket = true; return this; }
     Facts craftingTable() { craftingTable = true; return this; }
+    Facts craftingTable(boolean value) { craftingTable = value; return this; }
     Facts furnace() { furnace = true; return this; }
+    Facts furnace(boolean value) { furnace = value; return this; }
     Facts dark() { dark = true; return this; }
+    Facts dark(boolean value) { dark = value; return this; }
     Facts inCombat() { inCombat = true; return this; }
     Facts ownerOffline() { ownerOnline = false; return this; }
     Facts storageFreeSlots(int v) { storageFreeSlots = v; return this; }
     Facts furnacesReady(int v) { furnacesReady = v; return this; }
     Facts hasFuel() { hasFuel = true; return this; }
+    Facts hunger(int v) { hunger = v; return this; }
+    Facts xpLevel(int v) { xpLevel = v; return this; }
+    Facts gearWear(double v) { gearWear = v; return this; }
+    Facts bedAtHome() { bedAtHome = true; return this; }
+    Facts enchantingTableAtHome() { enchantingTableAtHome = true; return this; }
+    Facts anvilAtHome() { anvilAtHome = true; return this; }
+    Facts flintAndSteel() { flintAndSteel = true; return this; }
+    Facts obsidian(int v) { obsidian = v; return this; }
+    Facts portalKnown() { portalKnown = true; return this; }
+    Facts trade(String name, double distance, long millisSinceVisit) {
+        trades.add(new TradeRef(nextId++, name, distance, true, millisSinceVisit));
+        return this;
+    }
     Facts now(long v) { now = v; return this; }
 
     Facts home(String name, double distance) {
@@ -112,6 +138,8 @@ final class Facts {
     AutonomyFacts build() {
         return new AutonomyFacts(freeSlots, foodPoints, health, maxHealth, stock, pickaxe, axe, sword, armor,
                 armorPieces, shield, bucket, craftingTable, furnace, dark, inCombat, ownerOnline, ownerDistance,
-                Optional.ofNullable(home), storages, farms, storageFreeSlots, furnacesReady, hasFuel, now);
+                Optional.ofNullable(home), storages, farms, storageFreeSlots, furnacesReady, hasFuel,
+                new SelfFacts(hunger, xpLevel, gearWear, bedAtHome, enchantingTableAtHome, anvilAtHome,
+                        flintAndSteel, obsidian), trades, portalKnown, now);
     }
 }

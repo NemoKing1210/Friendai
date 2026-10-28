@@ -109,6 +109,68 @@ class NeedsAssessorTest {
     }
 
     @Test
+    void hungerIsASelfCareReflex() {
+        List<Need> starving = needs(Facts.base().hunger(6).foodPoints(0));
+        assertEquals(NeedKind.HUNGER, starving.get(0).kind());
+        assertEquals(Executor.REFLEX, starving.get(0).executor());
+        assertFalse(kinds(needs(Facts.base().hunger(12).foodPoints(0))).contains(NeedKind.HUNGER));
+        assertTrue(kinds(needs(Facts.base().hunger(10).foodPoints(0))).contains(NeedKind.HUNGER));
+        assertFalse(kinds(needs(Facts.base().hunger(10).foodPoints(8))).contains(NeedKind.HUNGER));
+    }
+
+    @Test
+    void nightWithABedIsSleepNotShelter() {
+        List<NeedKind> bed = kinds(needs(Facts.base().dark().home("home", 40).bedAtHome()));
+        assertTrue(bed.contains(NeedKind.SLEEP));
+        assertFalse(bed.contains(NeedKind.SHELTER));
+        List<NeedKind> noBed = kinds(needs(Facts.base().dark().home("home", 40)));
+        assertTrue(noBed.contains(NeedKind.SHELTER));
+        assertFalse(noBed.contains(NeedKind.SLEEP));
+    }
+
+    @Test
+    void wornGearIsRepair() {
+        assertTrue(kinds(needs(Facts.base().pickaxe(Tier.IRON).gearWear(0.1))).contains(NeedKind.REPAIR));
+        assertFalse(kinds(needs(Facts.base().pickaxe(Tier.IRON).gearWear(0.5))).contains(NeedKind.REPAIR));
+    }
+
+    @Test
+    void homeWithSeedsCreatesAFarm() {
+        assertTrue(kinds(needs(Facts.base().home("home", 8).stock(StockKind.SEEDS, 3)))
+                .contains(NeedKind.FARM_CREATE));
+        assertFalse(kinds(needs(Facts.base().home("home", 8))).contains(NeedKind.FARM_CREATE));
+        assertFalse(kinds(needs(Facts.base().stock(StockKind.SEEDS, 3))).contains(NeedKind.FARM_CREATE));
+        var noBuild = new AutonomySettings(true, true, 5, 60, true, 20, 6, 2, 10, true, false, List.of());
+        assertFalse(kinds(NeedsAssessor.assess(Facts.base().home("home", 8).stock(StockKind.SEEDS, 3).build(),
+                FreeTime.OFF, noBuild)).contains(NeedKind.FARM_CREATE));
+    }
+
+    @Test
+    void homeStorageAndProgress() {
+        assertTrue(kinds(needs(Facts.base().home("home", 8))).contains(NeedKind.STORAGE));
+        assertFalse(kinds(needs(Facts.base().home("home", 8).storage("s", 4).storageFreeSlots(9)))
+                .contains(NeedKind.STORAGE));
+        assertTrue(kinds(needs(Facts.base().trade("village", 20, 40 * 60_000L))).contains(NeedKind.TRADE));
+        assertFalse(kinds(needs(Facts.base().trade("village", 20, 60_000L))).contains(NeedKind.TRADE));
+        assertTrue(kinds(needs(Facts.base().pickaxe(Tier.IRON).xpLevel(9).home("home", 4)
+                .enchantingTableAtHome())).contains(NeedKind.ENCHANT));
+        assertTrue(kinds(needs(Facts.base().everything().flintAndSteel().obsidian(10)
+                .home("home", 4))).contains(NeedKind.NETHER));
+        assertFalse(kinds(needs(Facts.base().everything().portalKnown().flintAndSteel().obsidian(10)
+                .home("home", 4))).contains(NeedKind.NETHER));
+    }
+
+    @Test
+    void safetyNeedsSurviveTheSixItemCap() {
+        List<NeedKind> kinds = kinds(needs(Facts.base().health(4).hunger(5).dark().home("home", 40)
+                .freeSlots(1).storageFreeSlots(9).furnacesReady(2).foodPoints(0)
+                .stock(StockKind.RAW_ORE, 9).hasFuel().gearWear(0.1)));
+        assertTrue(kinds.contains(NeedKind.SURVIVE));
+        assertTrue(kinds.contains(NeedKind.HUNGER));
+        assertTrue(kinds.contains(NeedKind.SHELTER));
+    }
+
+    @Test
     void theDirectorNamePicksTheAgendaNeed() {
         List<Need> needs = needs(Facts.base());
         assertEquals(NeedKind.STOCK, NeedsAssessor.kindNamed("stock", needs));

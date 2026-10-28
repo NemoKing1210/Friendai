@@ -19,8 +19,8 @@ class ShiftPolicyTest {
 
     private static FreeTime withShift(boolean reflex, NeedKind need) {
         return new FreeTime(true, FreeTime.Origin.COMMAND, "", 0,
-                new Shift(1, "g", List.of(), "", 5, 0, 0, reflex, need), false, 2, List.of(), List.of(), Map.of(),
-                List.of());
+                new Shift(1, "g", List.of(), "", 5, 0, Facts.NOW + 60_000L, reflex, need), false, 2, List.of(),
+                List.of(), Map.of(), List.of());
     }
 
     private static ShiftInputs in(FreeTime state, Facts facts) {
@@ -142,10 +142,34 @@ class ShiftPolicyTest {
     }
 
     @Test
+    void anExpiredShiftIsClosed() {
+        FreeTime expired = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0,
+                new Shift(1, "g", List.of(), "", 5, 0, Facts.NOW - 1, false, NeedKind.STOCK), false, 2,
+                List.of(), List.of(), Map.of(), List.of());
+        var in = new ShiftInputs(expired, Facts.base().build(), S, Autonomy.ASSISTIVE, false, true, false, false,
+                false, QUIET, false);
+        assertInstanceOf(ShiftPolicy.Expired.class, decide(in));
+    }
+
+    @Test
+    void hungerCancelsRunningShift() {
+        assertEquals(true, ShiftPolicy.cancelsRunningShift(NeedKind.HUNGER));
+        var d = decide(in(withShift(false, NeedKind.STOCK), Facts.base().hunger(5)));
+        assertEquals(NeedKind.HUNGER, assertInstanceOf(ShiftPolicy.Reflex.class, d).need().kind());
+    }
+
+    @Test
+    void sickShiftDeadlineIsTheQueueLimit() {
+        var d = decide(in(withShift(false, NeedKind.STOCK), Facts.base()));
+        assertInstanceOf(ShiftPolicy.None.class, d);
+    }
+
+    @Test
     void anEmptyAgendaIsNone() {
         FreeTime coolingExplore = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(),
                 List.of(), Map.of(NeedKind.EXPLORE, Facts.NOW + 60_000), List.of());
-        Facts settled = Facts.base().everything().home("h", 2).storage("s", 3).storageFreeSlots(9);
+        Facts settled = Facts.base().everything().home("h", 2).storage("s", 3).storageFreeSlots(9)
+                .farm("f", "wheat", 4, 0);
         assertInstanceOf(ShiftPolicy.None.class, decide(in(coolingExplore, settled)));
     }
 
@@ -162,9 +186,11 @@ class ShiftPolicyTest {
         ShiftBudget budget = new ShiftBudget();
         budget.record(Facts.NOW - 10_000);
         budget.record(Facts.NOW - 5_000);
-        var in = in(on(), Facts.base().ownerOffline().everything().home("h", 2).storage("s", 3).storageFreeSlots(4));
+        var in = in(on(), Facts.base().ownerOffline().everything().home("h", 2).storage("s", 3).storageFreeSlots(4)
+                .farm("f", "wheat", 4, 0));
         assertInstanceOf(ShiftPolicy.WaitBudget.class, ShiftPolicy.decide(in, budget));
-        var online = in(on(), Facts.base().everything().home("h", 2).storage("s", 3).storageFreeSlots(4));
+        var online = in(on(), Facts.base().everything().home("h", 2).storage("s", 3).storageFreeSlots(4)
+                .farm("f", "wheat", 4, 0));
         assertInstanceOf(ShiftPolicy.Director.class, ShiftPolicy.decide(online, budget));
     }
 
@@ -175,8 +201,20 @@ class ShiftPolicyTest {
             budget.record(Facts.NOW - i);
         }
         var d = ShiftPolicy.decide(in(on(), Facts.base().stock(StockKind.LOGS, 2).pickaxe(
-                dev.friendai.crafting.obtain.Tier.WOOD).craftingTable().home("h", 2)), budget);
+                dev.friendai.crafting.obtain.Tier.WOOD).craftingTable().home("h", 2)
+                .storage("s", 3).storageFreeSlots(9)), budget);
         assertEquals(NeedKind.STOCK, assertInstanceOf(ShiftPolicy.Fallback.class, d).need().kind());
+    }
+
+    @Test
+    void budgetSpentGivesTheBaseStorageFirst() {
+        ShiftBudget budget = new ShiftBudget();
+        for (int i = 0; i < 6; i++) {
+            budget.record(Facts.NOW - i);
+        }
+        var d = ShiftPolicy.decide(in(on(), Facts.base().home("h", 2).stock(StockKind.LOGS, 2)
+                .pickaxe(dev.friendai.crafting.obtain.Tier.WOOD).craftingTable()), budget);
+        assertEquals(NeedKind.STORAGE, assertInstanceOf(ShiftPolicy.Fallback.class, d).need().kind());
     }
 
     @Test
@@ -186,7 +224,7 @@ class ShiftPolicyTest {
             budget.record(Facts.NOW - i);
         }
         var d = ShiftPolicy.decide(in(on(), Facts.base().everything().home("h", 2).storage("s", 3)
-                .storageFreeSlots(5)), budget);
+                .storageFreeSlots(5).farm("f", "wheat", 4, 0)), budget);
         assertInstanceOf(ShiftPolicy.WaitBudget.class, d);
     }
 

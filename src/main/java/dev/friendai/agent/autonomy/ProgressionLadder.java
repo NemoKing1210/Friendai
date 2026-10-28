@@ -50,6 +50,48 @@ public final class ProgressionLadder {
         return Map.of();
     }
 
+    /** Item ids an {@code obtain_item} plan can ask for to fill the current stage's gear gaps. */
+    public static List<String> missingGearItemIds(AutonomyFacts f) {
+        for (Stage stage : STAGES) {
+            if (!check(stage, f).complete()) {
+                return missingGearItems(stage, f);
+            }
+        }
+        return List.of();
+    }
+
+    private static List<String> missingGearItems(Stage stage, AutonomyFacts f) {
+        List<String> items = new ArrayList<>();
+        stage.tools().forEach((kind, tier) -> {
+            if (have(f, kind).ordinal() < tier.ordinal()) {
+                items.add("minecraft:" + material(tier).toLowerCase(java.util.Locale.ROOT) + "_" + kind);
+            }
+        });
+        if (stage.armorPieces() > 0) {
+            int havePieces = f.armor().ordinal() >= stage.armor().ordinal() ? f.armorPieces() : 0;
+            if (havePieces < stage.armorPieces()) {
+                String material = material(stage.armor()).toLowerCase(java.util.Locale.ROOT);
+                items.add("minecraft:" + material + "_chestplate");
+                if (havePieces == 0) {
+                    items.add("minecraft:" + material + "_leggings");
+                }
+            }
+        }
+        if (stage.shield() && !f.shield()) {
+            items.add("minecraft:shield");
+        }
+        if (stage.bucket() && !f.bucket()) {
+            items.add("minecraft:bucket");
+        }
+        if (stage.craftingTable() && !f.craftingTable()) {
+            items.add("minecraft:crafting_table");
+        }
+        if (stage.furnace() && !f.furnace()) {
+            items.add("minecraft:furnace");
+        }
+        return items;
+    }
+
     private static Map<StockKind, Integer> missingStock(Stage stage, AutonomyFacts f) {
         Map<StockKind, Integer> missing = new LinkedHashMap<>();
         stage.stock().forEach((kind, target) -> {

@@ -36,18 +36,43 @@ class ReflexPlansTest {
     void shelterGoesHomeAndStays() {
         var steps = ReflexPlans.plan(need(NeedKind.SHELTER), Facts.base().home("home", 40).build(), S).orElseThrow();
         assertEquals(List.of("go_to_place", "stay"), tools(steps));
-        assertEquals(List.of("go_to_place", "stay"),
+        assertEquals(List.of("go_to_place", "eat", "stay"),
                 tools(ReflexPlans.plan(need(NeedKind.SURVIVE), Facts.base().home("home", 40).build(), S)
                         .orElseThrow()));
     }
 
     @Test
-    void shelterWithoutHomeHere() {
+    void shelterWithoutHomeNeverFollowsTheOwner() {
         var online = ReflexPlans.plan(need(NeedKind.SHELTER), Facts.base().home("home", 40).otherDimension().build(),
                 S).orElseThrow();
-        assertEquals(List.of("follow_player"), tools(online));
-        var offline = ReflexPlans.plan(need(NeedKind.SURVIVE), Facts.base().ownerOffline().build(), S).orElseThrow();
-        assertEquals(List.of("light_area", "stay"), tools(offline));
+        assertEquals(List.of("light_area", "stay"), tools(online));
+        var survive = ReflexPlans.plan(need(NeedKind.SURVIVE), Facts.base().ownerOffline().build(), S).orElseThrow();
+        assertEquals(List.of("light_area", "eat", "stay"), tools(survive));
+    }
+
+    @Test
+    void hungerEatsCarriedFoodOrGetsSome() {
+        assertEquals(List.of("eat"), tools(ReflexPlans.plan(need(NeedKind.HUNGER),
+                Facts.base().hunger(5).foodPoints(6).build(), S).orElseThrow()));
+        assertEquals(List.of("get_food"), tools(ReflexPlans.plan(need(NeedKind.HUNGER),
+                Facts.base().hunger(5).foodPoints(0).build(), S).orElseThrow()));
+    }
+
+    @Test
+    void sleepGoesHome() {
+        var steps = ReflexPlans.plan(need(NeedKind.SLEEP), Facts.base().home("home", 20).dark().bedAtHome().build(),
+                S).orElseThrow();
+        assertEquals(List.of("go_to_place", "sleep"), tools(steps));
+        assertEquals("home", steps.get(0).args().get("name").getAsString());
+    }
+
+    @Test
+    void farmCreationTillsAndSows() {
+        var steps = ReflexPlans.plan(need(NeedKind.FARM_CREATE),
+                Facts.base().home("home", 8).build(), S).orElseThrow();
+        assertEquals(List.of("go_to_place", "farm"), tools(steps));
+        assertEquals(true, steps.get(1).args().get("till").getAsBoolean());
+        assertEquals("minecraft:wheat_seeds", steps.get(1).args().get("crop").getAsString());
     }
 
     @Test

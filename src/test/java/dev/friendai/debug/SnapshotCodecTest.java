@@ -85,12 +85,26 @@ class SnapshotCodecTest {
     }
 
     @Test
+    void freeTimeStatusRoundTrips() {
+        CompanionSnapshot base = full();
+        CompanionSnapshot s = new CompanionSnapshot(base.present(), base.operator(), base.companionName(),
+                base.provider(), base.model(), base.thinking(), base.currentTask(), base.history(), base.newLog(),
+                base.perception(), base.toolNames(), base.vitals(), base.queue(), base.autoRespawn(),
+                base.autoRespawnAvailable(), base.creativeMode(), base.creativeModeAvailable(), true,
+                "mine iron", false, true, "reflex: HUNGER", "3/6 director turns this hour", "stock logs: ok");
+        assertEquals(s, SnapshotCodec.decode(SnapshotCodec.encode(s)));
+    }
+
+    @Test
     void decodesABytesFromTheOlderFormat() {
+        // A payload from before the status tail: the version byte and three empty strings are absent.
         byte[] fullBytes = SnapshotCodec.encode(full());
-        byte[] oldBytes = java.util.Arrays.copyOf(fullBytes, fullBytes.length - 2);
+        byte[] oldBytes = java.util.Arrays.copyOf(fullBytes, fullBytes.length - 13);
         CompanionSnapshot decoded = SnapshotCodec.decode(oldBytes);
         assertEquals(false, decoded.freeTimeWaiting());
         assertEquals(true, decoded.followMode(), "an old payload keeps following on, like the config default");
+        assertEquals("", decoded.freeTimeNext());
+        assertEquals("", decoded.freeTimeLast());
     }
 
     @Test

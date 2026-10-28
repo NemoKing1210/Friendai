@@ -3,6 +3,10 @@ package dev.friendai.task.builtin;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.place.PlaceCandidate;
+import dev.friendai.place.PlaceKind;
+import dev.friendai.place.PlaceSource;
+import dev.friendai.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -18,6 +22,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Blocks;
 
 /** Places one block from the inventory at the given coordinates, or at a free spot nearby. */
 public final class PlaceBlockTask implements Task {
@@ -33,6 +38,7 @@ public final class PlaceBlockTask implements Task {
     private Direction face;
     private boolean prepared;
     private BlockPos placedAt;
+    private String dimension = "";
     private String summary = "";
 
     public PlaceBlockTask(BlockItem item, BlockPos target) {
@@ -45,6 +51,20 @@ public final class PlaceBlockTask implements Task {
     /** Where the block ended up after a success, or null. */
     public BlockPos placedAt() {
         return placedAt;
+    }
+
+    /**
+     * A chest the companion placed deliberately is a storage place, so free time can find it and unload into it
+     * next time instead of asking the director for the same chest forever.
+     */
+    @Override
+    public PlaceCandidate placeCandidate() {
+        if (placedAt == null || dimension.isBlank()
+                || item != Blocks.CHEST.asItem() && item != Blocks.TRAPPED_CHEST.asItem()) {
+            return null;
+        }
+        return new PlaceCandidate(PlaceKind.STORAGE, "storage", "storage", dimension,
+                new Pos(placedAt.getX(), placedAt.getY(), placedAt.getZ()), 2, PlaceSource.BUILD);
     }
 
     private String itemId() {
@@ -66,7 +86,9 @@ public final class PlaceBlockTask implements Task {
     }
 
     @Override
-    public void start(TaskContext c) {}
+    public void start(TaskContext c) {
+        dimension = c.level().dimension().identifier().toString();
+    }
 
     @Override
     public TaskStatus tick(TaskContext c) {

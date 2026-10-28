@@ -131,13 +131,18 @@ public final class FriendaiCommands {
 
     private static int freeTimeStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
-        var state = FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime().state(player.getUUID());
-        Component status = !state.on()
+        var driver = FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime();
+        var status = driver.status(player.getUUID());
+        Component answer = !status.on()
                 ? Component.translatable("friendai.command.freetime.status.off")
-                : Component.translatable("friendai.command.freetime.status.on",
-                        state.shift() == null ? "-" : state.shift().goal(), state.history().size());
-        ctx.getSource().sendSuccess(() -> status, false);
-        return state.on() ? 1 : 0;
+                : Component.translatable("friendai.command.freetime.status.detail",
+                        status.activity().isBlank() ? "-" : status.activity(),
+                        status.why().isBlank() ? "-" : status.why(),
+                        status.next().isBlank() ? "-" : status.next(),
+                        status.budget().isBlank() ? "-" : status.budget(),
+                        status.last().isBlank() ? "-" : status.last());
+        ctx.getSource().sendSuccess(() -> answer, false);
+        return status.on() ? 1 : 0;
     }
 
     private static int stop(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
