@@ -119,14 +119,7 @@ public final class PlacedService {
         }
         BlockPos origin = companion.blockPosition();
         Pos here = new Pos(origin.getX(), origin.getY(), origin.getZ());
-        prune(companion);
-        PlacedQuery.Result result = PlacedQuery.find(
-                book(companion),
-                level.dimension().identifier().toString(),
-                here,
-                PROMPT_RADIUS,
-                entry -> true,
-                PROMPT_ENTRIES);
+        PlacedQuery.Result result = findAt(companion, null, here, PROMPT_RADIUS, PROMPT_ENTRIES);
         if (result.total() == 0) {
             return "";
         }
@@ -160,7 +153,7 @@ public final class PlacedService {
                 level.dimension().identifier().toString(),
                 origin,
                 radius,
-                entry -> matcher == null || matches(matcher, entry.blockId()),
+                entry -> (matcher == null || matches(matcher, entry.blockId())) && stillThere(level, entry),
                 limit);
     }
 
