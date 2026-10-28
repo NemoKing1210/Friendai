@@ -17,6 +17,8 @@ public final class BodyFacing {
     public static final float MAX_BODY_TURN = 30.0f;
     /** The most the head may turn in one tick; it leads the torso, up to the vanilla mob head cone. */
     public static final float MAX_HEAD_TURN = 75.0f;
+    /** The widest the head may sit from the body, the same cone vanilla gives a mob. */
+    public static final float MAX_HEAD_YAW = 75.0f;
     /** The most the pitch may change in one tick. */
     public static final float MAX_PITCH_TURN = 30.0f;
     /** A target closer than this to the value already written causes no write at all. */
@@ -44,6 +46,13 @@ public final class BodyFacing {
     private boolean bodyChanged;
     private boolean headChanged;
     private boolean pitchChanged;
+    /**
+     * The pitch the policy last held. Vanilla's {@code LookControl} resets {@code xRot} to 0 at the start of every
+     * tick, so the entity's current pitch cannot carry the aim from one tick to the next; the claim must.
+     */
+    private float heldPitch;
+
+    private boolean pitchSeeded;
 
     /** Claims the body and the head for an action, with the pitch; the caller refreshes it while the action runs. */
     public void aim(float yaw, float pitch, int ticks) {
@@ -85,6 +94,7 @@ public final class BodyFacing {
         ticksLeft = 0;
         yawOwned = false;
         pitchOwned = false;
+        pitchSeeded = false;
     }
 
     public boolean hasClaim() {
@@ -143,22 +153,33 @@ public final class BodyFacing {
         if (yawOwned) {
             bodyChanged = Facing.difference(currentYaw, targetYaw) > HYSTERESIS;
             bodyYaw = bodyChanged ? Facing.stepToward(currentYaw, targetYaw, MAX_BODY_TURN) : currentYaw;
-            headChanged = Facing.difference(currentHeadYaw, targetYaw) > HYSTERESIS;
-            headYaw = headChanged ? Facing.stepToward(currentHeadYaw, targetYaw, MAX_HEAD_TURN) : currentHeadYaw;
+            float headTarget = clampToCone(bodyYaw, targetYaw, MAX_HEAD_YAW);
+            headChanged = Facing.difference(currentHeadYaw, headTarget) > HYSTERESIS;
+            headYaw = headChanged ? Facing.stepToward(currentHeadYaw, headTarget, MAX_HEAD_TURN) : currentHeadYaw;
         } else {
             bodyYaw = currentYaw;
             headYaw = currentHeadYaw;
         }
         if (pitchOwned) {
             float wanted = clampPitch(targetPitch);
-            pitchChanged = Math.abs(wanted - currentPitch) > HYSTERESIS;
-            pitch = pitchChanged ? stepPitch(currentPitch, wanted, MAX_PITCH_TURN) : currentPitch;
+            if (!pitchSeeded) {
+                heldPitch = currentPitch;
+                pitchSeeded = true;
+            }
+            if (Math.abs(wanted - heldPitch) > HYSTERESIS) {
+                heldPitch = stepPitch(heldPitch, wanted, MAX_PITCH_TURN);
+            }
+            pitch = heldPitch;
+            // Vanilla resets xRot to 0 each tick, so the held pitch must be re-asserted even when the aim is settled.
+            pitchChanged = Math.abs(pitch - currentPitch) > HYSTERESIS;
         } else {
             pitch = currentPitch;
+            pitchSeeded = false;
         }
         if (--ticksLeft <= 0) {
             ticksLeft = 0;
             source = Source.NONE;
+            pitchSeeded = false;
         }
         return bodyChanged || headChanged || pitchChanged;
     }
@@ -178,6 +199,15 @@ public final class BodyFacing {
 
     private static float clampPitch(float value) {
         return Math.max(-90.0f, Math.min(90.0f, value));
+    }
+
+    /** The nearest yaw to {@code targetYaw} that sits within {@code cone} degrees of {@code bodyYaw}. */
+    private static float clampToCone(float bodyYaw, float targetYaw, float cone) {
+        float delta = Facing.normalize(targetYaw - bodyYaw);
+        if (Math.abs(delta) <= cone) {
+            return Facing.normalize(targetYaw);
+        }
+        return Facing.normalize(bodyYaw + Math.copySign(cone, delta));
     }
 
     private static float stepPitch(float current, float target, float maxStep) {

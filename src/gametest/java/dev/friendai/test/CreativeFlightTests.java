@@ -366,7 +366,7 @@ public final class CreativeFlightTests {
             h.assertTrue(done[0], "the climb did not finish");
             h.assertTrue(climbing[0] > 3, "the climb was never measured");
             h.assertTrue(maxYawError[0] <= 5.0F, "a pure climb turned the body by " + maxYawError[0]);
-            h.assertTrue(minPitch[0] <= -20.0F, "a pure climb never looked up: pitch " + minPitch[0]);
+            h.assertTrue(minPitch[0] <= -60.0F, "a pure climb never looked up: pitch " + minPitch[0]);
         });
     }
 }

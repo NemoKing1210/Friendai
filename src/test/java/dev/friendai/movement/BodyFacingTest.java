@@ -70,23 +70,37 @@ class BodyFacingTest {
         assertTrue(facing.step(90.0f, 0.0f, 90.0f));
         assertFalse(facing.bodyChanged(), "a pure climb must not turn the body");
         assertEquals(90.0f, facing.bodyYaw(), EPS);
-        for (int i = 0; i < 4; i++) {
-            facing.travelPitch(-45.0f);
-            facing.step(90.0f, facing.pitch(), 90.0f);
-        }
+        facing.travelPitch(-45.0f);
+        facing.step(90.0f, 0.0f, 90.0f);
         assertEquals(-45.0f, facing.pitch(), EPS);
         assertEquals(90.0f, facing.bodyYaw(), EPS);
     }
 
     @Test
-    void capsThePitchTurnAndClampsTheTarget() {
+    void accumulatesThePitchAcrossTheVanillaReset() {
+        // LookControl resets xRot to 0 at the start of every tick, so the policy must carry the held pitch itself.
         BodyFacing facing = new BodyFacing();
-        facing.aim(0.0f, 200.0f, 3);
+        facing.aim(0.0f, 200.0f, 10);
         facing.step(0.0f, 0.0f, 0.0f);
         assertEquals(30.0f, facing.pitch(), EPS);
-        facing.aim(0.0f, 200.0f, 3);
-        facing.step(0.0f, 90.0f, 0.0f);
+        facing.aim(0.0f, 200.0f, 10);
+        facing.step(0.0f, 0.0f, 0.0f);
+        assertEquals(60.0f, facing.pitch(), EPS);
+        facing.aim(0.0f, 200.0f, 10);
+        facing.step(0.0f, 0.0f, 0.0f);
         assertEquals(90.0f, facing.pitch(), EPS, "the target pitch is clamped to the straight-down limit");
+    }
+
+    @Test
+    void keepsTheHeadInsideTheBodyCone() {
+        BodyFacing facing = new BodyFacing();
+        for (int tick = 0; tick < 4; tick++) {
+            facing.aim(-170.0f, 0.0f, 5);
+            facing.step(facing.bodyYaw(), 0.0f, facing.headYaw());
+            assertTrue(
+                    Facing.difference(facing.headYaw(), facing.bodyYaw()) <= 75.0f + EPS,
+                    "head " + facing.headYaw() + " left the body cone " + facing.bodyYaw());
+        }
     }
 
     @Test
