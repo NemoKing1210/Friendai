@@ -322,8 +322,8 @@ public final class Scaffold {
                     return State.FAILED;
                 }
                 case PROTECTED -> {
+                    failure = descentBreaker.reason(BlockBreaker.State.PROTECTED);
                     descentBreaker = null;
-                    failure = "the scaffold under my feet is protected";
                     return State.FAILED;
                 }
                 case OUT_OF_SIGHT -> {
@@ -396,12 +396,12 @@ public final class Scaffold {
                         return State.FAILED;
                     }
                     case PROTECTED -> {
+                        String why = breaker.reason(BlockBreaker.State.PROTECTED);
                         breaker = null;
                         BlockPos blocked = removal.get(removalIndex);
-                        if (!companion.hands().canInteract(blocked)) {
-                            failure = "scaffold is protected at " + coords(blocked);
-                        } else if (level.getBlockState(blocked).getDestroySpeed(level, blocked) < 0) {
-                            failure = "scaffold cannot be broken at " + coords(blocked);
+                        if (!companion.hands().canInteract(blocked)
+                                || level.getBlockState(blocked).getDestroySpeed(level, blocked) < 0) {
+                            failure = why;
                         } else {
                             failure = "scaffold breaker was blocked at " + coords(blocked);
                         }

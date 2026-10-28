@@ -28,6 +28,21 @@ class MiningSafetyTest {
     }
 
     @Test
+    void theBlockUnderTheStanceIsNeverABreakTarget() {
+        GridCellView view = new GridCellView(
+                "#######/#######/#######",
+                "#######/#######/#######",
+                "......./......./.......",
+                "......./......./.......");
+        Node stance = new Node(3, 2, 1);
+
+        assertFalse(MiningSafety.canBreak(view, stance, new Pos(3, 1, 1), Set.of()),
+                "a dig-down must not remove the block it stands on");
+        assertTrue(MiningSafety.canBreak(view, stance, new Pos(1, 1, 1), Set.of()),
+                "a block away from the feet stays a target");
+    }
+
+    @Test
     void adjacentSideStanceDoesNotOverlapUnderfootOreButFartherStanceCanReach() {
         GridCellView view = miningFloor();
         MiningGoal goal = new MiningGoal(List.of(new Pos(2, 1, 1)), 4, 1.62, Set.of());

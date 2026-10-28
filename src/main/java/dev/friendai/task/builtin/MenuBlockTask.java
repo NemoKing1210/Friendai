@@ -2,6 +2,7 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
@@ -62,7 +63,7 @@ abstract class MenuBlockTask implements Task {
             }
         }
         if (!c.companion().hands().canInteract(pos)) {
-            summary = "the " + noun + " at " + coords(pos) + " is protected";
+            summary = "the " + noun + " at " + coords(pos) + " is " + ProtectionText.describe(c, pos);
             return TaskStatus.FAILED;
         }
         try {

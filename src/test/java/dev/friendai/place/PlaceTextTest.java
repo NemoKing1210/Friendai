@@ -67,8 +67,8 @@ class PlaceTextTest {
                 4, "пшеничная", PlaceKind.FARM, "wheat", OVERWORLD, new Pos(0, 70, 9), 4, Set.of(),
                 PlaceSource.FARM, null, 0, 0, 0, 0, "");
         assertEquals(
-                "- home (house, minecraft:overworld) at 120 64 -30, r=8\n"
-                        + "- пшеничная (farm/wheat, minecraft:overworld) at 0 70 9, r=4",
+                "- home (house, minecraft:overworld) at 120 64 -30, r=8, y-1..+8\n"
+                        + "- пшеничная (farm/wheat, minecraft:overworld) at 0 70 9, r=4, y-1..+4",
                 PlaceText.planner(List.of(home, wheat), 40));
     }
 

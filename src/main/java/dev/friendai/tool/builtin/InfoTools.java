@@ -12,8 +12,10 @@ import dev.friendai.pathing.Pos;
 import dev.friendai.placed.PlacedQuery;
 import dev.friendai.placed.PlacedService;
 import dev.friendai.placed.PlacedText;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
+import dev.friendai.task.mining.MiningRefusal;
 import dev.friendai.task.mining.TreeFinder;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.SchemaBuilder;
@@ -114,6 +116,7 @@ final class InfoTools {
                     }
                     StringBuilder text = new StringBuilder(found.size() + " observed/remembered " + matcher.label()
                             + " nearest first: ");
+                    TaskContext context = new TaskContext(c, (ServerLevel) c.level());
                     for (int i = 0; i < found.size(); i++) {
                         BlockPos p = found.get(i);
                         if (i > 0) {
@@ -122,6 +125,10 @@ final class InfoTools {
                         double distance = Math.sqrt(Vec3.atCenterOf(p).distanceToSqr(c.position()));
                         text.append(p.getX()).append(' ').append(p.getY()).append(' ').append(p.getZ())
                                 .append(" (").append(String.format(Locale.ROOT, "%.1f", distance)).append(" blocks)");
+                        MiningRefusal refusal = MiningRefusal.check(context, p, false);
+                        if (refusal != null) {
+                            text.append(" (unmineable: ").append(refusal.cause()).append(')');
+                        }
                     }
                     return ToolResult.ok(text.toString());
                 }));

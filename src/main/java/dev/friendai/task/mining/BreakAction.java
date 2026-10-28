@@ -3,17 +3,13 @@ package dev.friendai.task.mining;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskSettings;
-import dev.friendai.task.nav.LevelCellView;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -33,6 +29,8 @@ public final class BreakAction {
     private boolean broken;
     private int breakTicks;
     private int breakNeeded;
+    /** Why the last attempt refused, or null when it never did; the caller renders it. */
+    private MiningRefusal refusal;
 
     public BreakAction(BlockPos pos) {
         this(pos, false);
@@ -59,18 +57,18 @@ public final class BreakAction {
             return State.GONE;
         }
         boolean creative = companion.creativeMode();
-        boolean blacklisted = creative && TaskSettings.breakList.matches(
-                BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(), LevelCellView.tagsOf(state));
-        if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))
-                || blacklisted || (!creative && state.getDestroySpeed(level, pos) < 0)
-                || dev.friendai.task.autonomy.PlaceGuard.protects(c, pos)) {
+        MiningRefusal blocked = MiningRefusal.check(c, pos, allowBreakingSupport);
+        if (blocked != null) {
+            refusal = blocked;
             stop(c);
             return State.BLOCKED;
         }
         if (creative) {
             Vec3 center = Vec3.atCenterOf(pos);
             companion.getLookControl().setLookAt(center.x, center.y, center.z);
-            if (!companion.hands().canInteract(pos) || (!allowBreakingSupport && occupiesSupport(companion, pos))) {
+            MiningRefusal recheck = MiningRefusal.check(c, pos, allowBreakingSupport);
+            if (recheck != null) {
+                refusal = recheck;
                 stop(c);
                 return State.BLOCKED;
             }
@@ -99,8 +97,13 @@ public final class BreakAction {
             return State.WORKING;
         }
         level.destroyBlockProgress(companion.getId(), pos, -1);
-        if (!stillValid.test(level.getBlockState(pos)) || !companion.hands().canInteract(pos)
-                || (!allowBreakingSupport && occupiesSupport(companion, pos))) {
+        if (!stillValid.test(level.getBlockState(pos))) {
+            stop(c);
+            return State.BLOCKED;
+        }
+        MiningRefusal recheck = MiningRefusal.check(c, pos, allowBreakingSupport);
+        if (recheck != null) {
+            refusal = recheck;
             stop(c);
             return State.BLOCKED;
         }
@@ -128,11 +131,8 @@ public final class BreakAction {
         c.level().destroyBlockProgress(c.companion().getId(), pos, -1);
     }
 
-    private static boolean occupiesSupport(CompanionEntity companion, BlockPos pos) {
-        AABB bounds = companion.getBoundingBox();
-        double top = pos.getY() + 1.0;
-        return Math.abs(bounds.minY - top) < 0.2
-                && bounds.maxX > pos.getX() && bounds.minX < pos.getX() + 1.0
-                && bounds.maxZ > pos.getZ() && bounds.minZ < pos.getZ() + 1.0;
+    /** Why the last attempt was refused, or null when it never was. */
+    public MiningRefusal refusal() {
+        return refusal;
     }
 }

@@ -7,6 +7,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.mining.BlockBreaker;
+import dev.friendai.task.mining.MiningRefusal;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -23,6 +24,8 @@ public final class MineBlockAtTask implements Task {
     private DropCollector sweep;
     private BlockState startBlock;
     private String summary = "";
+    /** Whether the safe break of the block under the companion was already tried. */
+    private boolean supportRetry;
 
     public MineBlockAtTask(BlockPos pos) {
         this.pos = pos;
@@ -35,7 +38,9 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public List<DebugTarget> debugTargets() {
-        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, ""));
+        MiningRefusal refusal = breaker == null ? null : breaker.refusal();
+        return List.of(new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
+                refusal == null ? "" : refusal.describe()));
     }
 
     @Override
@@ -76,15 +81,28 @@ public final class MineBlockAtTask implements Task {
                 yield TaskStatus.FAILED;
             }
             case UNREACHABLE -> {
-                summary = "can't reach " + coords();
+                MiningRefusal refusal = breaker.refusal();
+                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
+                        : "can't reach " + coords();
                 yield TaskStatus.FAILED;
             }
             case OUT_OF_SIGHT -> {
-                summary = coords() + " is hidden behind another block";
+                MiningRefusal refusal = breaker.refusal();
+                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
+                        : coords() + " is hidden behind another block";
                 yield TaskStatus.FAILED;
             }
             case PROTECTED -> {
-                summary = coords() + " is protected";
+                MiningRefusal refusal = breaker.refusal();
+                if (refusal instanceof MiningRefusal.OwnSupport own && own.safeDrop() && !supportRetry) {
+                    // The caller named this exact block, and the drop is safe: step off it by breaking it.
+                    supportRetry = true;
+                    breaker.stop(c);
+                    breaker = new BlockBreaker(pos, state -> state.is(startBlock.getBlock()), true, true);
+                    yield TaskStatus.RUNNING;
+                }
+                summary = refusal != null ? refusal.describe() + "; " + refusal.remedy()
+                        : coords() + " is protected";
                 yield TaskStatus.FAILED;
             }
         };

@@ -18,6 +18,7 @@ import dev.friendai.structure.StructureStep;
 import dev.friendai.structure.Trigger;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.creative.CreativeAction;
@@ -235,7 +236,7 @@ public final class SpecialStructureTask implements Task {
             return stepOut(c, pos);
         }
         if (!companion.hands().canInteract(pos)) {
-            summary = coords(pos) + " is protected";
+            summary = coords(pos) + " is " + ProtectionText.describe(c, pos);
             return TaskStatus.FAILED;
         }
         if (against == null) {

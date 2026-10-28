@@ -312,6 +312,7 @@ public final class MiningSession {
             setPhase("extract");
             return State.WORKING;
         }
+        MiningRefusal refusal = extraction.refusal();
         extraction.stop(context);
         extraction = null;
         if (result == BreakAction.State.BROKEN) {
@@ -329,7 +330,26 @@ public final class MiningSession {
         target = null;
         search = null;
         return retryPlan(result == BreakAction.State.BLOCKED
-                ? UserMessage.of("friendai.mining.unsafe_support") : UserMessage.of("friendai.mining.unreachable"));
+                ? ownerMessage(refusal) : UserMessage.of("friendai.mining.unreachable"));
+    }
+
+    /** A translated sentence for the owner, one per typed refusal; the model gets the English one elsewhere. */
+    private static UserMessage ownerMessage(MiningRefusal refusal) {
+        if (refusal == null) {
+            return UserMessage.of("friendai.mining.unsafe_support");
+        }
+        return switch (refusal) {
+            case MiningRefusal.ServerProtected p -> UserMessage.of("friendai.mining.server_protected", coords(p.pos()));
+            case MiningRefusal.PlaceProtected p -> UserMessage.of("friendai.mining.place_protected", coords(p.pos()));
+            case MiningRefusal.OwnSupport p -> UserMessage.of("friendai.mining.own_support_unsafe", coords(p.pos()));
+            case MiningRefusal.Blacklisted p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
+            case MiningRefusal.Unbreakable p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
+            case MiningRefusal.OutOfReach p -> UserMessage.of("friendai.mining.unreachable");
+        };
+    }
+
+    private static String coords(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 
     private State executeEdge(TaskContext context, PathStep step) {

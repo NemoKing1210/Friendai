@@ -100,7 +100,7 @@ public final class PlaceText {
     private static String plannerLine(Place place) {
         return "- " + place.name() + " (" + kindText(place) + ", " + place.dimension() + ") at "
                 + place.anchor().x() + ' ' + place.anchor().y() + ' ' + place.anchor().z()
-                + ", r=" + place.radius();
+                + ", r=" + place.radius() + ", y-" + place.below() + "..+" + place.above();
     }
 
     private static String summaryLine(PlaceQuery.Result result) {

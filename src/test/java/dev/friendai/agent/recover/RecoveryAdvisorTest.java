@@ -65,6 +65,47 @@ class RecoveryAdvisorTest {
     }
 
     @Test
+    void aPlaceRefusalTellsTheModelWhereToMineInstead() {
+        Diagnosis d = advisor.diagnose("mine_blocks",
+                "24 68 17 is inside the house place \"home\" (r=32)", Set.of());
+        assertEquals(FailureKind.RESOURCE_NOT_FOUND, d.kind());
+        assertEquals(List.of("mine outside home"), d.remedies());
+        assertFalse(d.needsPlayer(), "a place it can leave is not an owner decision");
+    }
+
+    @Test
+    void serverProtectionComesWithAWayOut() {
+        Diagnosis d = advisor.diagnose("mine_block_at",
+                "24 68 17 is protected by the server (spawn protection or a world rule)", Set.of());
+        assertEquals(FailureKind.FORBIDDEN, d.kind());
+        assertFalse(d.remedies().isEmpty());
+        assertFalse(d.needsPlayer(), "the model must try the nearest legal block first");
+    }
+
+    @Test
+    void theBlockUnderTheFeetSuggestsANeighbour() {
+        Diagnosis d = advisor.diagnose("mine_block_at",
+                "24 68 17 is the block I am standing on", Set.of());
+        assertEquals(FailureKind.UNREACHABLE, d.kind());
+        assertTrue(d.remedies().contains("mine a neighbouring block instead"), d.remedies().toString());
+        assertFalse(d.needsPlayer());
+    }
+
+    @Test
+    void theBreakListAndAnUnbreakableBlockHaveTheirOwnAdvice() {
+        Diagnosis listed = advisor.diagnose("mine_blocks", "24 68 17 is on the break list (minecraft:stone)",
+                Set.of());
+        assertEquals(FailureKind.FORBIDDEN, listed.kind());
+        assertTrue(listed.remedies().getFirst().contains("not on the break list"), listed.remedies().toString());
+        assertFalse(listed.needsPlayer());
+
+        Diagnosis bedrock = advisor.diagnose("mine_block_at",
+                "minecraft:bedrock at 24 68 17 cannot be broken (minecraft:bedrock)", Set.of());
+        assertTrue(bedrock.remedies().contains("choose another block"), bedrock.remedies().toString());
+        assertFalse(bedrock.needsPlayer());
+    }
+
+    @Test
     void nullAndEmptyTextAreUnknown() {
         assertEquals(FailureKind.UNKNOWN, advisor.diagnose("x", null, Set.of()).kind());
         assertEquals(FailureKind.UNKNOWN, advisor.diagnose("x", "", Set.of()).kind());

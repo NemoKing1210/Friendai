@@ -24,19 +24,27 @@ public final class PlaceGuard {
 
     /** True when the running autonomous job must not break the block at {@code pos}. */
     public static boolean protects(TaskContext c, BlockPos pos) {
+        return protecting(c, pos) != null;
+    }
+
+    /**
+     * The place that protects {@code pos} from this job, or null when none does. The caller uses the name and
+     * kind in its refusal, so the model learns which place refused instead of a bare "protected".
+     */
+    public static Place protecting(TaskContext c, BlockPos pos) {
         if (!c.autonomous() || !enabled(c.companion())) {
-            return false;
+            return null;
         }
         String tool = c.runner() == null ? "" : c.runner().currentToolName();
         if (STATION_TOOLS.contains(tool)) {
-            return false;
+            return null;
         }
         for (Place place : placesHere(c.companion())) {
             if (inside(place, pos) && !(place.kind() == PlaceKind.FARM && FARM_TOOLS.contains(tool))) {
-                return true;
+                return place;
             }
         }
-        return false;
+        return null;
     }
 
     /** True when {@code pos} lies inside any known place in the companion's dimension. */
@@ -49,7 +57,8 @@ public final class PlaceGuard {
         for (Place place : placesHere(companion)) {
             int r = place.radius();
             if (max.getX() >= place.anchor().x() - r && min.getX() <= place.anchor().x() + r
-                    && max.getY() >= place.anchor().y() - r && min.getY() <= place.anchor().y() + r
+                    && max.getY() >= place.anchor().y() - place.below()
+                    && min.getY() <= place.anchor().y() + place.above()
                     && max.getZ() >= place.anchor().z() - r && min.getZ() <= place.anchor().z() + r) {
                 return true;
             }
@@ -72,8 +81,6 @@ public final class PlaceGuard {
     }
 
     private static boolean inside(Place place, BlockPos pos) {
-        int r = place.radius();
-        return Math.abs(pos.getX() - place.anchor().x()) <= r && Math.abs(pos.getY() - place.anchor().y()) <= r
-                && Math.abs(pos.getZ() - place.anchor().z()) <= r;
+        return place.contains(new dev.friendai.pathing.Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 }

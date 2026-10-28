@@ -544,6 +544,10 @@
   "friendai.menu.places.error.name_invalid": "Название места должно быть длиной 1-%s символов.",
 
   "friendai.mining.unsafe_support": "Не могу добывать блок, который поддерживает меня или путь.",
+  "friendai.mining.server_protected": "%s защищён сервером (защита спавна или правило мира).",
+  "friendai.mining.place_protected": "%s находится внутри места, которое владелец просил защищать.",
+  "friendai.mining.own_support_unsafe": "Под блоком у меня под ногами (%s) небезопасное падение.",
+  "friendai.mining.not_breakable": "%s нельзя сломать.",
   "friendai.mining.unsafe_passage": "Этот проход небезопасно раскапывать.",
   "friendai.mining.no_tool": "У меня нет подходящего инструмента, чтобы добыть этот ресурс.",
   "friendai.mining.inventory_full": "В инвентаре нет места для ожидаемой добычи.",

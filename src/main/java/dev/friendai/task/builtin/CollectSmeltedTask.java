@@ -236,13 +236,14 @@ public final class CollectSmeltedTask implements Task {
         if (state == BlockBreaker.State.WORKING) {
             return TaskStatus.RUNNING;
         }
+        String why = breaker.reason(state);
         breaker = null;
         if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
             notes.add("placed a " + targets.get(index).station().noun() + " at " + coords(breakPos)
                     + " and took it back");
         } else {
             notes.add("placed a " + targets.get(index).station().noun() + " at " + coords(breakPos)
-                    + " but couldn't take it back: " + reason(state));
+                    + " but couldn't take it back: " + why);
         }
         breakPos = null;
         nextTarget();
@@ -298,14 +299,6 @@ public final class CollectSmeltedTask implements Task {
 
     private static String coords(BlockPos pos) {
         return pos.getX() + " " + pos.getY() + " " + pos.getZ();
-    }
-
-    private static String reason(BlockBreaker.State state) {
-        return switch (state) {
-            case PROTECTED -> "it is protected";
-            case UNREACHABLE -> "can't reach it";
-            default -> "the block is gone";
-        };
     }
 
     @Override

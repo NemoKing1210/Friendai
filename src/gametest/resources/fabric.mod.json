@@ -21,6 +21,7 @@
 			"dev.friendai.test.TaskTests",
 			"dev.friendai.test.ItemTaskTests",
 			"dev.friendai.test.MineBlocksTests",
+			"dev.friendai.test.ProtectionTests",
 			"dev.friendai.test.MiningTests",
 			"dev.friendai.test.InteractTests",
 			"dev.friendai.test.PlaceBlockTests",

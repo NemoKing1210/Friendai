@@ -57,7 +57,7 @@ public final class PlaceService {
         }
         PlaceValues stored = new PlaceValues(
                 values.name(), values.kind(), values.label(), values.dimension(), values.anchor(), values.radius(),
-                values.aliases(), values.source(), author, values.note());
+                values.aliases(), values.source(), author, values.note(), values.below(), values.above());
         return book.remember(stored, tick);
     }
 
@@ -131,9 +131,15 @@ public final class PlaceService {
             if (outcome.decision() == PlaceAutoRegistration.Decision.SKIP) {
                 return;
             }
+            Place existing = outcome.decision() == PlaceAutoRegistration.Decision.UPDATE
+                    ? book(companion).byId(outcome.targetId()).orElse(null)
+                    : null;
+            int below = existing == null ? Place.defaultBelow(candidate.radius()) : existing.below();
+            int above = existing == null ? Place.defaultAbove(candidate.radius()) : existing.above();
             PlaceValues values = new PlaceValues(
                     outcome.name(), candidate.kind(), candidate.label(), candidate.dimension(),
-                    candidate.anchor(), candidate.radius(), Set.of(), candidate.source(), owner(companion), "");
+                    candidate.anchor(), candidate.radius(), Set.of(), candidate.source(), owner(companion), "",
+                    below, above);
             // The owner is the author of a place no player typed in.
             remember(companion, new Caller(owner(companion), "", AccessLevel.OWNER), values, tick);
         } catch (IllegalArgumentException rejected) {

@@ -17,6 +17,7 @@ import dev.friendai.place.PlaceNames;
 import dev.friendai.place.PlaceSource;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.build.BlueprintStore;
 import dev.friendai.task.build.Materials;
@@ -722,7 +723,7 @@ public final class BuildTask implements Task {
                 return fail(c, coords(currentPos) + " is taken by " + blockId(level.getBlockState(currentPos)));
             }
             if (!c.companion().hands().canInteract(currentPos)) {
-                return fail(c, coords(currentPos) + " is protected");
+                return fail(c, coords(currentPos) + " is " + ProtectionText.describe(c, currentPos));
             }
             Optional<PlaceSpot.Spot> spot = spot(level, currentPos, wanted.wanted());
             if (spot.isEmpty()) {

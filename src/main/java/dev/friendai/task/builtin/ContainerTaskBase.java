@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.core.FriendaiServerState;
@@ -117,7 +118,7 @@ abstract class ContainerTaskBase implements Task {
         }
         container = at.get();
         if (!c.companion().hands().canInteract(containerPos)) {
-            summary = coords() + " is protected";
+            summary = coords() + " is " + ProtectionText.describe(c, containerPos);
             return TaskStatus.FAILED;
         }
         if (!opened) {

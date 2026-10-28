@@ -97,6 +97,10 @@ final class PlaceTools {
                 .string("note", "Optional one-line remark")
                 .string("aliases", "Optional other names, separated by commas")
                 .integer("radius", "How many blocks around the anchor the place covers", 1, Place.RADIUS_MAX)
+                .integer("below", "How far below the anchor the place reaches; default 1 (its floor, not the "
+                        + "rock under it)", 0, Place.RADIUS_MAX)
+                .integer("above", "How far above the anchor the place reaches; default 8, at most the radius", 0,
+                        Place.RADIUS_MAX)
                 .integer("x", "Anchor x; give all of x, y and z or none")
                 .integer("y", "Anchor y; give all of x, y and z or none")
                 .integer("z", "Anchor z; give all of x, y and z or none")
@@ -137,19 +141,28 @@ final class PlaceTools {
 
     private static PlaceValues values(CompanionEntity companion, Caller caller, JsonObject args) {
         BlockPos anchor = position(companion, caller, args);
+        int radius = args.has("radius") && !args.get("radius").isJsonNull()
+                ? args.get("radius").getAsInt()
+                : DEFAULT_RADIUS;
+        int below = args.has("below") && !args.get("below").isJsonNull()
+                ? args.get("below").getAsInt()
+                : Place.defaultBelow(radius);
+        int above = args.has("above") && !args.get("above").isJsonNull()
+                ? args.get("above").getAsInt()
+                : Place.defaultAbove(radius);
         return new PlaceValues(
                 args.get("name").getAsString(),
                 PlaceKind.parse(args.get("kind").getAsString()),
                 text(args, "label"),
                 companion.level().dimension().identifier().toString(),
                 new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
-                args.has("radius") && !args.get("radius").isJsonNull()
-                        ? args.get("radius").getAsInt()
-                        : DEFAULT_RADIUS,
+                radius,
                 aliases(args),
                 PlaceSource.MANUAL,
                 caller.uuid(),
-                text(args, "note"));
+                text(args, "note"),
+                below,
+                above);
     }
 
     /**

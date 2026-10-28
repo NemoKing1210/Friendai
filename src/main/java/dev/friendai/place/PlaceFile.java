@@ -22,7 +22,14 @@ import java.util.UUID;
  * {@link IllegalArgumentException}; the store backs the file up and starts empty.
  */
 public final class PlaceFile {
-    public static final int CURRENT_VERSION = 1;
+    /**
+     * Version 2 added the vertical band ({@code below}/{@code above}). A version-1 file decodes with the band
+     * defaults, so an old world keeps working and stops protecting the rock under every home.
+     */
+    public static final int CURRENT_VERSION = 2;
+
+    /** The oldest file version this build still reads. */
+    public static final int MIN_VERSION = 1;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
     private int version;
@@ -83,7 +90,7 @@ public final class PlaceFile {
     /** Validates every record and materializes it as a {@link Place}. */
     List<Place> validated(PlaceLimits limits) {
         Objects.requireNonNull(limits, "limits");
-        if (version != CURRENT_VERSION) {
+        if (version < MIN_VERSION || version > CURRENT_VERSION) {
             throw new IllegalArgumentException("Unsupported place file version: " + version + ".");
         }
         if (places == null) {
@@ -104,7 +111,7 @@ public final class PlaceFile {
             if (record == null) {
                 throw new IllegalArgumentException("A place file holds a null record.");
             }
-            Place place = record.toPlace();
+            Place place = record.toPlace(version);
             if (!ids.add(place.id())) {
                 throw new IllegalArgumentException("Duplicate place id [" + place.id() + "].");
             }
@@ -172,6 +179,8 @@ public final class PlaceFile {
         private int y;
         private int z;
         private int radius;
+        private Integer below;
+        private Integer above;
         private List<String> aliases;
         private String source;
         private String author;
@@ -193,6 +202,8 @@ public final class PlaceFile {
             this.y = place.anchor().y();
             this.z = place.anchor().z();
             this.radius = place.radius();
+            this.below = place.below();
+            this.above = place.above();
             this.aliases = new ArrayList<>(place.aliases());
             this.source = place.source().name();
             this.author = place.author() == null ? null : place.author().toString();
@@ -207,10 +218,12 @@ public final class PlaceFile {
             return new Record(place);
         }
 
-        Place toPlace() {
+        Place toPlace(int version) {
+            int bandBelow = version >= 2 && below != null ? below : Place.defaultBelow(radius);
+            int bandAbove = version >= 2 && above != null ? above : Place.defaultAbove(radius);
             return new Place(id, name, kind(), label, dimension, new Pos(x, y, z), radius,
                     aliases == null ? Set.of() : new LinkedHashSet<>(aliases), source(), author(), created,
-                    updated, lastVisit, visits, note);
+                    updated, lastVisit, visits, note, bandBelow, bandAbove);
         }
 
         private PlaceKind kind() {

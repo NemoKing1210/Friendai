@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.nav.Approach;
 import java.util.List;
@@ -76,7 +77,7 @@ public final class UseBlockTask implements Task {
             }
         }
         if (!c.companion().hands().canInteract(pos)) {
-            summary = coords() + " is protected";
+            summary = coords() + " is " + ProtectionText.describe(c, pos);
             return TaskStatus.FAILED;
         }
 

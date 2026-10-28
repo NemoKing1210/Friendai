@@ -12,6 +12,7 @@ import dev.friendai.crafting.Station;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.crafting.RecipeIndex;
 import dev.friendai.task.crafting.Stations;
@@ -368,7 +369,7 @@ public final class CraftTask implements Task {
         against = current.get().against();
         face = current.get().face();
         if (!c.companion().hands().canInteract(spot)) {
-            summary = "couldn't place a " + noun + ": " + coords(spot) + " is protected";
+            summary = "couldn't place a " + noun + ": " + coords(spot) + " is " + ProtectionText.describe(c, spot);
             return TaskStatus.FAILED;
         }
         String stationItem = index.stationItem(station);
@@ -523,6 +524,7 @@ public final class CraftTask implements Task {
             if (state == BlockBreaker.State.WORKING) {
                 return TaskStatus.RUNNING;
             }
+            String why = breaker.reason(state);
             if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
                 breaker = null;
                 stationNotes.add("placed a " + station.noun() + " at " + coords(pos) + " and took it back");
@@ -535,7 +537,7 @@ public final class CraftTask implements Task {
                 breaker.stop(c);
                 breaker = null;
                 stationNotes.add("placed a " + station.noun() + " at " + coords(pos)
-                        + " but couldn't take it back: " + reason(state));
+                        + " but couldn't take it back: " + why);
             }
             takeIndex++;
             return TaskStatus.RUNNING;
@@ -564,14 +566,6 @@ public final class CraftTask implements Task {
                 takeBacks.add(station);
             }
         }
-    }
-
-    private static String reason(BlockBreaker.State state) {
-        return switch (state) {
-            case PROTECTED -> "it is protected";
-            case UNREACHABLE -> "can't reach it";
-            default -> "the block is gone";
-        };
     }
 
     private TaskStatus finish() {

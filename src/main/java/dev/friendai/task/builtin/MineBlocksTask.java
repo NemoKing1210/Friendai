@@ -12,6 +12,7 @@ import dev.friendai.task.mining.BlockBreaker;
 import dev.friendai.task.mining.BlockMatcher;
 import dev.friendai.task.mining.BlockSearch;
 import dev.friendai.task.mining.MiningSession;
+import dev.friendai.task.mining.MiningRefusal;
 import dev.friendai.task.mining.TemporaryBlockCleanup;
 import dev.friendai.task.nav.PlacementLedger;
 import dev.friendai.mining.MiningBounds;
@@ -61,6 +62,8 @@ public final class MineBlocksTask implements Task {
     private BlockPos pendingObservation;
     private int observationWaitTicks;
     private String summary = "";
+    /** The last typed refusal, so a job that stops says what stopped it. */
+    private MiningRefusal lastRefusal;
     /** The first block this job actually broke; the anchor of the place it may be remembered as. */
     private BlockPos firstMined;
     /** The dimension the job ran in, captured at start because a place candidate is built without a context. */
@@ -115,7 +118,9 @@ public final class MineBlocksTask implements Task {
     }
 
     private DebugTarget target(BlockPos pos) {
-        return new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, matcher.label());
+        MiningRefusal refusal = breaker == null ? null : breaker.refusal();
+        return new DebugTarget(pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK,
+                refusal == null ? matcher.label() : refusal.describe());
     }
 
     @Override
@@ -200,6 +205,9 @@ public final class MineBlocksTask implements Task {
             }
             case PROTECTED, OUT_OF_SIGHT -> {
                 // Only the block the companion actually stood by: a sibling may still be reachable.
+                if (breaker.refusal() != null) {
+                    lastRefusal = breaker.refusal();
+                }
                 if (breaker.target() != null) {
                     blacklist.add(breaker.target());
                 }
@@ -288,6 +296,18 @@ public final class MineBlocksTask implements Task {
             BlockState state = c.level().getBlockState(pos);
             return !matcher.test(state) || (!creative && state.getDestroySpeed(c.level(), pos) < 0);
         });
+        // Ask the same question the breaker will ask, before spending the walk: a protected or unbreakable
+        // candidate is no target. Own support stays: the session can move off it or break it safely.
+        List<BlockPos> legal = new ArrayList<>(candidates.size());
+        for (BlockPos pos : candidates) {
+            MiningRefusal refusal = MiningRefusal.check(c, pos, false);
+            if (refusal == null || refusal instanceof MiningRefusal.OwnSupport) {
+                legal.add(pos);
+            } else {
+                lastRefusal = refusal;
+            }
+        }
+        candidates = legal;
         if (candidates.isEmpty()) {
             if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
                 if (observationWaitTicks++ == 0) {
@@ -311,6 +331,9 @@ public final class MineBlocksTask implements Task {
             } else {
                 summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
                         + (placedOnly ? " you placed nearby" : hidden ? " could be reached" : " nearby");
+            }
+            if (lastRefusal != null) {
+                summary += "; " + lastRefusal.describe() + "; " + lastRefusal.remedy();
             }
             return TaskStatus.FAILED;
         }
@@ -361,6 +384,10 @@ public final class MineBlocksTask implements Task {
             case "friendai.mining.no_tool" ->
                     "no suitable tool to collect the block; get the right tool first (obtain_item plans the chain)";
             case "friendai.mining.unsafe_support" -> "the block supports the companion or its route";
+            case "friendai.mining.server_protected" -> "the server protects it (spawn protection or a world rule)";
+            case "friendai.mining.place_protected" -> "it is inside a place the owner protects";
+            case "friendai.mining.own_support_unsafe" -> "it is under the companion's feet and the drop is unsafe";
+            case "friendai.mining.not_breakable" -> "it cannot be broken";
             case "friendai.mining.unsafe_passage" -> "the passage is unsafe to excavate";
             case "friendai.mining.unreachable" -> "the resource cannot be reached safely";
             case "friendai.mining.search_limit" -> "the mining search limit was reached";

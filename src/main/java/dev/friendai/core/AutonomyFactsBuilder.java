@@ -12,6 +12,7 @@ import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceQuery;
 import dev.friendai.place.PlaceService;
+import dev.friendai.pathing.Pos;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.interact.ContainerAccess;
@@ -191,7 +192,7 @@ final class AutonomyFactsBuilder {
         BlockPos anchor = anchor(place);
         int r = place.radius();
         return ContainerAccess.all(level, anchor, r * 2).stream()
-                .filter(pos -> inside(anchor, r, pos))
+                .filter(pos -> place.contains(new Pos(pos.getX(), pos.getY(), pos.getZ())))
                 .limit(MAX_CONTAINERS)
                 .toList();
     }
@@ -208,7 +209,9 @@ final class AutonomyFactsBuilder {
                     continue;
                 }
                 for (BlockEntity entity : level.getChunkAt(sample).getBlockEntities().values()) {
-                    if (entity instanceof AbstractFurnaceBlockEntity furnace && inside(anchor, r, entity.getBlockPos())
+                    BlockPos at = entity.getBlockPos();
+                    if (entity instanceof AbstractFurnaceBlockEntity furnace
+                            && place.contains(new Pos(at.getX(), at.getY(), at.getZ()))
                             && !furnace.getItem(2).isEmpty()) {
                         ready++;
                     }
@@ -222,8 +225,4 @@ final class AutonomyFactsBuilder {
         return new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
     }
 
-    static boolean inside(BlockPos anchor, int r, BlockPos pos) {
-        return Math.abs(pos.getX() - anchor.getX()) <= r && Math.abs(pos.getY() - anchor.getY()) <= r
-                && Math.abs(pos.getZ() - anchor.getZ()) <= r;
-    }
 }

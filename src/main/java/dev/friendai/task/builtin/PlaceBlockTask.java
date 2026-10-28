@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.task.interact.PlaceSpot;
@@ -127,7 +128,7 @@ public final class PlaceBlockTask implements Task {
         against = current.get().against();
         face = current.get().face();
         if (!companion.hands().canInteract(spot)) {
-            summary = coords(spot) + " is protected";
+            summary = coords(spot) + " is " + ProtectionText.describe(c, spot);
             return TaskStatus.FAILED;
         }
 

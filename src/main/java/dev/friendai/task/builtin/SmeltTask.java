@@ -7,6 +7,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.cooking.FuelPolicy;
 import dev.friendai.task.cooking.FurnaceJob;
@@ -532,7 +533,7 @@ public final class SmeltTask implements Task {
         against = current.get().against();
         face = current.get().face();
         if (!c.companion().hands().canInteract(spot)) {
-            summary = "couldn't place a " + noun + ": " + coords(spot) + " is protected";
+            summary = "couldn't place a " + noun + ": " + coords(spot) + " is " + ProtectionText.describe(c, spot);
             return TaskStatus.FAILED;
         }
         String stationItem = index.stationItem(kind);
@@ -924,6 +925,7 @@ public final class SmeltTask implements Task {
         if (state == BlockBreaker.State.WORKING) {
             return TaskStatus.RUNNING;
         }
+        String why = breaker.reason(state);
         breaker = null;
         if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
             stationNotes.add("placed a " + kind.noun() + " at " + coords(pos) + " and took it back");
@@ -934,7 +936,7 @@ public final class SmeltTask implements Task {
             }
         } else {
             stationNotes.add("placed a " + kind.noun() + " at " + coords(pos)
-                    + " but couldn't take it back: " + reason(state));
+                    + " but couldn't take it back: " + why);
         }
         takeBackIndex++;
         return TaskStatus.RUNNING;
@@ -949,13 +951,6 @@ public final class SmeltTask implements Task {
         phase = Phase.DONE;
     }
 
-    private static String reason(BlockBreaker.State state) {
-        return switch (state) {
-            case PROTECTED -> "it is protected";
-            case UNREACHABLE -> "can't reach it";
-            default -> "the block is gone";
-        };
-    }
 
     /** True when a carried tool can mine the block with drops. */
     static boolean hasPickaxe(CompanionEntity companion, BlockState state) {

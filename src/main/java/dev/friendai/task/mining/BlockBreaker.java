@@ -53,6 +53,8 @@ public final class BlockBreaker {
     private BlockPos digging;
     private BreakAction digAction;
     private int dug;
+    /** The typed cause of the last refusal, so a task can say what refused instead of "is protected". */
+    private MiningRefusal refusal;
 
     /** @param stillValid whether the block is still the one this breaker was made for; when false the breaker reports {@link State#GONE} */
     public BlockBreaker(BlockPos target, Predicate<BlockState> stillValid) {
@@ -168,6 +170,7 @@ public final class BlockBreaker {
         if (viewApproach == null) {
             switch (approach.tick(companion)) {
                 case UNREACHABLE -> {
+                    refusal = new MiningRefusal.OutOfReach(target != null ? target : candidates.get(0), "no route");
                     return State.UNREACHABLE;
                 }
                 case MOVING -> {
@@ -180,6 +183,7 @@ public final class BlockBreaker {
             return State.GONE;
         }
         if (!companion.hands().canInteract(target)) {
+            refusal = new MiningRefusal.ServerProtected(target);
             return State.PROTECTED;
         }
         if (requireSight && !Sight.canSee(c.level(), companion, target)) {
@@ -245,6 +249,9 @@ public final class BlockBreaker {
         if (digState == BreakAction.State.WORKING) {
             return true;
         }
+        if (digState == BreakAction.State.BLOCKED && digAction.refusal() != null) {
+            refusal = digAction.refusal();
+        }
         digAction = null;
         digging = null;
         return digState != BreakAction.State.BLOCKED;
@@ -264,7 +271,28 @@ public final class BlockBreaker {
             case WORKING -> State.WORKING;
             case BROKEN -> State.BROKEN;
             case GONE -> State.GONE;
-            case BLOCKED -> State.PROTECTED;
+            case BLOCKED -> {
+                refusal = action.refusal();
+                yield State.PROTECTED;
+            }
+        };
+    }
+
+    /** The typed cause of the last refusal, or null when there was none. */
+    public MiningRefusal refusal() {
+        return refusal;
+    }
+
+    /** A model-facing sentence for a state this breaker just returned; names the refusal and its way out. */
+    public String reason(State state) {
+        if (refusal != null) {
+            return refusal.describe() + "; " + refusal.remedy();
+        }
+        return switch (state) {
+            case PROTECTED -> "the block is protected";
+            case UNREACHABLE -> "can't reach it";
+            case OUT_OF_SIGHT -> "another block hides it";
+            default -> "the block is gone";
         };
     }
 }

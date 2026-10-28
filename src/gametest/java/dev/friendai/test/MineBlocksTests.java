@@ -279,7 +279,8 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals(coords(target) + " is protected"), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("is protected by the server"),
+                    "summary must name the server: " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.PRISMARINE_BRICKS), "block must stay");
         });
     }

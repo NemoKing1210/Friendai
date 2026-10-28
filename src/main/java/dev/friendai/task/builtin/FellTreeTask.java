@@ -554,8 +554,10 @@ public final class FellTreeTask implements Task {
         if (!c.companion().hands().canInteract(pos)) {
             return "protected by the server";
         }
-        if (PlaceGuard.protects(c, pos)) {
-            return "inside a protected place";
+        var place = PlaceGuard.protecting(c, pos);
+        if (place != null) {
+            return "inside the " + place.kind().name().toLowerCase(java.util.Locale.ROOT) + " place \""
+                    + place.name() + "\" (r=" + place.radius() + ")";
         }
         return "";
     }

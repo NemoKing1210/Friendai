@@ -3,6 +3,7 @@ package dev.friendai.task.builtin;
 import dev.friendai.task.Task;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.autonomy.ProtectionText;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -124,7 +125,7 @@ public final class HoneyTask implements Task {
             return TaskStatus.FAILED;
         }
         if (!c.companion().hands().canInteract(target)) {
-            summary = "the hive at " + coords(target) + " is protected";
+            summary = "the hive at " + coords(target) + " is " + ProtectionText.describe(c, target);
             failed = true;
             return TaskStatus.FAILED;
         }

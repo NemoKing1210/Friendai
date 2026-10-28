@@ -26,13 +26,55 @@ public record Place(
         long updatedTick,
         long lastVisitTick,
         int visits,
-        String note) {
+        String note,
+        int below,
+        int above) {
 
     /** The largest box half-size a place may cover. */
     public static final int RADIUS_MAX = 64;
 
     /** Every coordinate stays within the world border limits. */
     public static final int COORDINATE_MAX = 30_000_000;
+
+    /** How far below the anchor a place reaches unless it was set otherwise: its floor, not its cellar. */
+    public static final int DEFAULT_BELOW = 1;
+
+    /** How far above the anchor a place reaches unless it was set otherwise. */
+    public static final int DEFAULT_ABOVE = 8;
+
+    /**
+     * The band a place gets when the caller did not name one. The horizontal radius may be large, but a house
+     * only reaches a few blocks above its anchor and one below it: the stone under the floor is not the house.
+     */
+    public static int defaultBelow(int radius) {
+        return Math.min(DEFAULT_BELOW, Math.max(0, radius));
+    }
+
+    /** @see #defaultBelow(int) */
+    public static int defaultAbove(int radius) {
+        return Math.min(DEFAULT_ABOVE, Math.max(0, radius));
+    }
+
+    /** A place with the default vertical band; use the canonical constructor to set one explicitly. */
+    public Place(
+            long id,
+            String name,
+            PlaceKind kind,
+            String label,
+            String dimension,
+            Pos anchor,
+            int radius,
+            Set<String> aliases,
+            PlaceSource source,
+            UUID author,
+            long createdTick,
+            long updatedTick,
+            long lastVisitTick,
+            int visits,
+            String note) {
+        this(id, name, kind, label, dimension, anchor, radius, aliases, source, author, createdTick, updatedTick,
+                lastVisitTick, visits, note, defaultBelow(radius), defaultAbove(radius));
+    }
 
     public Place {
         if (id < 1) {
@@ -66,6 +108,11 @@ public record Place(
             throw new IllegalArgumentException(
                     "A place radius must be 1-" + RADIUS_MAX + ", not " + radius + ".");
         }
+        if (below < 0 || below > RADIUS_MAX || above < 0 || above > RADIUS_MAX) {
+            throw new IllegalArgumentException(
+                    "A place band must be 0-" + RADIUS_MAX + " blocks below and above the anchor, not "
+                            + below + " and " + above + ".");
+        }
         aliases = typedAliases(aliases);
         if (source == null) {
             throw new IllegalArgumentException("A place needs a source.");
@@ -96,6 +143,19 @@ public record Place(
             byKey.putIfAbsent(normalized, typed);
         }
         return Set.copyOf(byKey.values());
+    }
+
+    /**
+     * Whether {@code pos} lies inside this place's footprint: the horizontal square of {@link #radius()} around
+     * the anchor, between {@link #below()} and {@link #above()} blocks vertically. A place is a room, not a cube:
+     * the rock under its floor and the air over its roof are outside.
+     */
+    public boolean contains(Pos pos) {
+        return pos != null
+                && Math.abs(pos.x() - anchor.x()) <= radius
+                && Math.abs(pos.z() - anchor.z()) <= radius
+                && pos.y() >= anchor.y() - below
+                && pos.y() <= anchor.y() + above;
     }
 
     /** Text that reaches the prompt must stay one line; control characters would let it forge new lines. */

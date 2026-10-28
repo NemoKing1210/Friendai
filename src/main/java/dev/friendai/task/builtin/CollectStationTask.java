@@ -83,7 +83,7 @@ public final class CollectStationTask implements Task {
                 yield TaskStatus.FAILED;
             }
             case PROTECTED -> {
-                summary = "the " + station.noun() + " at " + coords() + " is protected";
+                summary = breaker.reason(state);
                 yield TaskStatus.FAILED;
             }
         };

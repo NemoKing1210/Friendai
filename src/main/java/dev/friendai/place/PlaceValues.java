@@ -15,4 +15,23 @@ public record PlaceValues(
         Set<String> aliases,
         PlaceSource source,
         UUID author,
-        String note) {}
+        String note,
+        int below,
+        int above) {
+
+    /** Values with the default vertical band for the radius; a caller that cares sets it explicitly. */
+    public PlaceValues(
+            String name,
+            PlaceKind kind,
+            String label,
+            String dimension,
+            Pos anchor,
+            int radius,
+            Set<String> aliases,
+            PlaceSource source,
+            UUID author,
+            String note) {
+        this(name, kind, label, dimension, anchor, radius, aliases, source, author, note,
+                Place.defaultBelow(radius), Place.defaultAbove(radius));
+    }
+}

@@ -244,7 +244,8 @@ public class PlaceBlockTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals(coords(target) + " is protected"), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("is protected by the server"),
+                    "summary must name the server: " + result.summary);
             h.assertTrue(c.inventory().countItem(Items.QUARTZ_BLOCK) == 1, "item must come back");
         });
     }

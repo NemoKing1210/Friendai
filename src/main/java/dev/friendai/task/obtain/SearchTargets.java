@@ -176,9 +176,7 @@ public final class SearchTargets {
     }
 
     private static boolean within(Place place, Pos position) {
-        int r = place.radius();
-        return Math.abs(position.x() - place.anchor().x()) <= r && Math.abs(position.y() - place.anchor().y()) <= r
-                && Math.abs(position.z() - place.anchor().z()) <= r;
+        return place.contains(position);
     }
 
     private static Set<String> visibleEntityIds(ServerLevel level, CompanionEntity companion, int radius) {

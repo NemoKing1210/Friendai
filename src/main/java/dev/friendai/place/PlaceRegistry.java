@@ -69,7 +69,8 @@ public final class PlaceRegistry {
             }
             Place place = new Place(
                     nextId, name, values.kind(), values.label(), dimension, values.anchor(), values.radius(),
-                    aliases, values.source(), values.author(), tick, tick, 0, 0, values.note());
+                    aliases, values.source(), values.author(), tick, tick, 0, 0, values.note(),
+                    values.below(), values.above());
             checkLimits(place);
             nextId++;
             byId.put(place.id(), place);
@@ -90,7 +91,7 @@ public final class PlaceRegistry {
                 existing.id(), existing.name(), values.kind(), values.label(), existing.dimension(),
                 values.anchor(), values.radius(), new LinkedHashSet<>(merged.values()), existing.source(),
                 existing.author(), existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(),
-                values.note());
+                values.note(), values.below(), values.above());
         checkLimits(updated);
         if (updated.equals(existing)) {
             return existing;
@@ -130,7 +131,8 @@ public final class PlaceRegistry {
         Place updated = new Place(
                 existing.id(), existing.name(), existing.kind(), existing.label(), existing.dimension(),
                 existing.anchor(), existing.radius(), existing.aliases(), existing.source(), existing.author(),
-                existing.createdTick(), existing.updatedTick(), tick, existing.visits() + 1, existing.note());
+                existing.createdTick(), existing.updatedTick(), tick, existing.visits() + 1, existing.note(),
+                existing.below(), existing.above());
         byId.put(updated.id(), updated);
         dirty = true;
         revision++;
@@ -153,7 +155,8 @@ public final class PlaceRegistry {
         Place updated = new Place(
                 existing.id(), name, existing.kind(), existing.label(), existing.dimension(), existing.anchor(),
                 existing.radius(), existing.aliases(), existing.source(), existing.author(),
-                existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(), existing.note());
+                existing.createdTick(), tick, existing.lastVisitTick(), existing.visits(), existing.note(),
+                existing.below(), existing.above());
         checkLimits(updated);
         keys.entrySet().removeIf(entry -> entry.getValue().longValue() == id);
         byId.put(updated.id(), updated);

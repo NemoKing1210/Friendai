@@ -2,6 +2,7 @@ package dev.friendai.task.builtin;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.pathing.MaterialPrices;
+import dev.friendai.pathing.Pos;
 import dev.friendai.place.Place;
 import dev.friendai.place.PlaceKind;
 import dev.friendai.place.PlaceQuery;
@@ -134,9 +135,7 @@ public final class DepositTask implements Task {
         BlockPos anchor = new BlockPos(place.anchor().x(), place.anchor().y(), place.anchor().z());
         int r = place.radius();
         containers = ContainerAccess.all(c.level(), anchor, r * 2).stream()
-                .filter(pos -> Math.abs(pos.getX() - anchor.getX()) <= r
-                        && Math.abs(pos.getY() - anchor.getY()) <= r
-                        && Math.abs(pos.getZ() - anchor.getZ()) <= r)
+                .filter(pos -> place.contains(new Pos(pos.getX(), pos.getY(), pos.getZ())))
                 .limit(MAX_CONTAINERS)
                 .toList();
         if (containers.isEmpty()) {

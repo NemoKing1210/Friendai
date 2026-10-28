@@ -544,6 +544,10 @@
   "friendai.menu.places.error.name_invalid": "A place name must be 1-%s characters.",
 
   "friendai.mining.unsafe_support": "I can't mine a block that supports me or the route.",
+  "friendai.mining.server_protected": "%s is protected by the server (spawn protection or a world rule).",
+  "friendai.mining.place_protected": "%s is inside a place the owner asked me to protect.",
+  "friendai.mining.own_support_unsafe": "The block under my feet at %s has an unsafe drop below.",
+  "friendai.mining.not_breakable": "%s cannot be broken.",
   "friendai.mining.unsafe_passage": "That passage is unsafe to excavate.",
   "friendai.mining.no_tool": "I don't have a suitable tool to collect this resource.",
   "friendai.mining.inventory_full": "My inventory has no room for the expected drop.",

@@ -26,8 +26,29 @@ class PlaceFileTest {
 
     @Test
     void unknownVersionIsRejected() {
-        String json = "{\"version\":2,\"nextId\":1,\"places\":[]}";
+        String json = "{\"version\":3,\"nextId\":1,\"places\":[]}";
         assertThrows(IllegalArgumentException.class, () -> PlaceFile.decode(json, PlaceLimits.DEFAULTS));
+    }
+
+    @Test
+    void aVersionOneFileGetsTheDefaultBand() {
+        String json = "{\"version\":1,\"nextId\":2,\"places\":[" + placeJson(1, "home", OVERWORLD) + "]}";
+        Place home = PlaceFile.decode(json, PlaceLimits.DEFAULTS).all().getFirst();
+        assertEquals(1, home.below());
+        assertEquals(8, home.above());
+    }
+
+    @Test
+    void anExplicitBandRoundTrips() {
+        PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
+        registry.remember(new PlaceValues("mine", PlaceKind.MINE, "", OVERWORLD, new Pos(4, 40, 4), 6, Set.of(),
+                PlaceSource.MANUAL, null, "", 16, 2), 3);
+        String json = PlaceFile.encode(registry).toJson();
+        assertTrue(json.contains("\"below\": 16"), json);
+        assertTrue(json.contains("\"above\": 2"), json);
+        Place copy = PlaceFile.decode(json, PlaceLimits.DEFAULTS).all().getFirst();
+        assertEquals(16, copy.below());
+        assertEquals(2, copy.above());
     }
 
     @Test
@@ -142,12 +163,14 @@ class PlaceFileTest {
         PlaceRegistry registry = new PlaceRegistry(PlaceLimits.DEFAULTS);
         registry.remember(values("home", PlaceKind.HOUSE, new Pos(1, 64, 2), Set.of("дом")), 7);
         String json = PlaceFile.encode(registry).toJson();
-        assertTrue(json.contains("\"version\": 1"));
+        assertTrue(json.contains("\"version\": 2"));
         assertTrue(json.contains("\"nextId\": 2"));
         assertTrue(json.contains("\"places\": ["));
         assertTrue(json.contains("\"kind\": \"HOUSE\""));
         assertTrue(json.contains("\"source\": \"MANUAL\""));
         assertTrue(json.contains("\"aliases\": ["));
+        assertTrue(json.contains("\"below\": 1"));
+        assertTrue(json.contains("\"above\": 8"));
         assertTrue(json.contains("\"lastVisit\": 0"));
         assertTrue(json.contains("\"created\": 7"));
     }
