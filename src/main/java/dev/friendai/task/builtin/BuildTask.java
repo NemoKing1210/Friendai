@@ -319,13 +319,12 @@ public final class BuildTask implements Task {
     }
 
     /**
-     * {@code build:<id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>[,<part>+<part>…]}. The blueprint and the scaffold
-     * live in the in-progress file named by {@code <id>}, under the world's blueprint directory. The optional eighth
-     * field keeps a partial build partial across a reload; an older seven-field save restores as the whole blueprint.
+     * {@code <id>,<x>,<y>,<z>,<facing>,<clearSite>,<gather>[,<part>+<part>…]}. The blueprint and the scaffold live
+     * in the in-progress file named by {@code <id>}, under the world's blueprint directory.
      */
     @Override
     public String saveData() {
-        String data = "build:" + id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
+        String data = id + "," + origin.getX() + "," + origin.getY() + "," + origin.getZ() + ","
                 + Placement.facingFor(rotation).getSerializedName() + "," + clearSite + "," + gather;
         if (parts.isEmpty()) {
             return data;

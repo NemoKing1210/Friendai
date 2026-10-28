@@ -7,11 +7,12 @@ import dev.friendai.farming.CellKind;
 import dev.friendai.farming.FarmSnapshot;
 import dev.friendai.farming.FieldCell;
 import dev.friendai.farming.Soil;
+import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.BonemealTask;
 import dev.friendai.task.builtin.FarmTask;
@@ -465,9 +466,10 @@ public class FarmingTests {
 
     @GameTest
     public void tendFarmRestores(GameTestHelper h) {
-        Task task = TaskFactory.restore("tend_farm:1,2,3,8").orElseThrow();
+        Task task = TaskRestoreRegistry.restoreCheckpoint(new TaskState("tend_farm", "1,2,3,8"), null)
+                .orElseThrow();
         h.assertValueEqual(task.type(), "tend_farm", "type");
-        h.assertValueEqual(task.saveData(), "tend_farm:1,2,3,8", "save data");
+        h.assertValueEqual(task.saveData(), "1,2,3,8", "save data");
         h.assertValueEqual(task.describe(), "tending the farm at 1 2 3 (radius 8)", "describe");
         h.succeed();
     }

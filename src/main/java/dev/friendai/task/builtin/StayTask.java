@@ -57,6 +57,6 @@ public final class StayTask implements Task {
 
     @Override
     public String saveData() {
-        return "stay";
+        return "";
     }
 }

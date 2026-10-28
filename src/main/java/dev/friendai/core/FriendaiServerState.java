@@ -21,6 +21,7 @@ import dev.friendai.placed.PlacedStore;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.RuntimeResources;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.skin.SkinStore;
@@ -43,6 +44,7 @@ public final class FriendaiServerState {
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
     private final CompanionSessions sessions;
+    private final TaskPersistenceCoordinator taskPersistence;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
     private final SkillService skills;
@@ -117,6 +119,12 @@ public final class FriendaiServerState {
         this.resources.attach(observations);
         this.sessions = resources.own(new CompanionSessions(
                 server, config, memory, this::settings, skills, goals, trading, places, this.resources, freeTime));
+        this.taskPersistence = new TaskPersistenceCoordinator(
+                this::settings,
+                sessions.taskRestoreRegistry(),
+                sessions::prepareForTaskRestore,
+                owner -> sessions.tradeAuthorityFor(owner).invalidateAll("trading authority expired after restart"),
+                owner -> knowledge.book(owner).searchLedger());
         this.skills.setTeachingContextSource(sessions::teachingContext);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         resources.onClose(chunkLoader::stop);
@@ -151,6 +159,10 @@ public final class FriendaiServerState {
 
     public CompanionSessions sessions() {
         return sessions;
+    }
+
+    public TaskPersistenceCoordinator taskPersistence() {
+        return taskPersistence;
     }
 
     /** Keeps loaded companions' chunks ticking and restores them on startup. */

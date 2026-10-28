@@ -118,7 +118,7 @@ public final class TendFarmTask implements Task {
 
     @Override
     public String saveData() {
-        return "tend_farm:" + coords().replace(' ', ',') + "," + radius;
+        return coords().replace(' ', ',') + "," + radius;
     }
 
     private void stayNear(TaskContext c) {

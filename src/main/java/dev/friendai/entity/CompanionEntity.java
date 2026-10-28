@@ -10,13 +10,10 @@ import dev.friendai.crafting.StationLease;
 import dev.friendai.memory.MemoryBook;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.movement.PaceMode;
-import dev.friendai.queue.QueueSave;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.survival.Difficulty;
 import dev.friendai.survival.ExperienceModel;
 import dev.friendai.survival.HungerModel;
-import dev.friendai.task.Task;
-import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskRunner;
 import dev.friendai.task.build.PreviewOutline;
 import dev.friendai.task.builtin.CollectStationTask;
@@ -29,7 +26,6 @@ import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.fire.FireReflex;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.task.nav.Pace;
-import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.survival.HungerWatcher;
 import dev.friendai.tool.InventoryAccess;
 import java.util.ArrayList;
@@ -1102,19 +1098,12 @@ public class CompanionEntity extends PathfinderMob {
         output.putFloat("Saturation", hunger.saturation());
         output.putFloat("Exhaustion", hunger.exhaustion());
         output.putInt("XpPoints", experience.points());
-        Optional<String> savedQueue = taskRunner.savedQueue();
-        savedQueue.ifPresent(saved -> {
-            // One NBT string holds at most 65535 bytes, so a long queue is stored in pieces.
-            List<String> parts = QueueSave.split(saved);
-            output.putInt("SavedQueueParts", parts.size());
-            for (int i = 0; i < parts.size(); i++) output.putString("SavedQueue" + i, parts.get(i));
-        });
-        if (savedQueue.isEmpty()) {
-            taskRunner
-                    .current()
-                    .filter(task -> !task.type().equals("follow"))
-                    .map(Task::saveData)
-                    .ifPresent(saved -> output.putString("SavedTask", saved));
+        if (level() instanceof ServerLevel serverLevel) {
+            var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
+            persistence
+                    .capture(taskRunner)
+                    .ifPresent(saved -> output.store(
+                            "SavedExecution", Codec.STRING.listOf(), persistence.split(persistence.encode(saved))));
         }
     }
 
@@ -1155,14 +1144,9 @@ public class CompanionEntity extends PathfinderMob {
         experience.load(input.getInt("XpPoints").orElse(0));
         syncExperience();
         if (level() instanceof ServerLevel serverLevel) {
-            Optional<String> savedQueue = readSavedQueue(input);
-            if (savedQueue.isPresent()) {
-                FriendaiServerState.get(serverLevel.getServer()).sessions().restoreQueue(this, savedQueue.get());
-            } else {
-                input.getString("SavedTask")
-                        .flatMap(saved -> restoreTask(saved, serverLevel))
-                        .ifPresent(taskRunner::restore);
-            }
+            var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
+            input.read("SavedExecution", Codec.STRING.listOf())
+                    .ifPresent(parts -> persistence.restoreEncoded(this, parts));
         }
     }
 
@@ -1186,26 +1170,5 @@ public class CompanionEntity extends PathfinderMob {
                 setItemSlot(CARRY_SLOTS[i], equipment.get(i));
             }
         });
-    }
-
-    /** Reads the chunked queue save, falling back to the single-string key written by older versions. */
-    private static Optional<String> readSavedQueue(ValueInput input) {
-        int parts = input.getInt("SavedQueueParts").orElse(0);
-        if (parts <= 0) return input.getString("SavedQueue");
-        List<String> pieces = new ArrayList<>();
-        for (int i = 0; i < parts; i++) {
-            Optional<String> piece = input.getString("SavedQueue" + i);
-            if (piece.isEmpty()) return Optional.empty();
-            pieces.add(piece.get());
-        }
-        return Optional.of(QueueSave.join(pieces));
-    }
-
-    /** Plans are rebuilt with the server's tool set; every other task restores on its own. */
-    private Optional<Task> restoreTask(String saved, ServerLevel level) {
-        if (saved.startsWith(PlanSave.PREFIX)) {
-            return FriendaiServerState.get(level.getServer()).sessions().restorePlan(this, saved);
-        }
-        return TaskFactory.restore(saved, level);
     }
 }

@@ -38,15 +38,6 @@ class QueueReviewFixesTest {
     }
 
     @Test
-    void chunkedSaveRoundTrips() {
-        String text = "x".repeat(QueueSave.CHUNK_CHARS * 2 + 5);
-        List<String> parts = QueueSave.split(text);
-        assertEquals(3, parts.size());
-        assertTrue(parts.stream().allMatch(p -> p.length() <= QueueSave.CHUNK_CHARS));
-        assertEquals(text, QueueSave.join(parts));
-    }
-
-    @Test
     void moveRenumbersWithoutCollisions() {
         JobQueue q = plan("a", "b", "c");
         assertTrue(q.move(3, 1).ok());

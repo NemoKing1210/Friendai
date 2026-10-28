@@ -49,7 +49,7 @@ public interface Task {
         return true;
     }
 
-    /** A string {@link TaskFactory#restore} understands, or null if the task is not restored after a reload. */
+    /** The task-specific checkpoint payload, or null when this task is not restored after a reload. */
     default String saveData() {
         return null;
     }

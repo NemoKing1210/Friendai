@@ -165,6 +165,6 @@ public final class FollowTask implements Task {
 
     @Override
     public String saveData() {
-        return "follow";
+        return "";
     }
 }

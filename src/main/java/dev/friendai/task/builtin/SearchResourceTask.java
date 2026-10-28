@@ -1,7 +1,5 @@
 package dev.friendai.task.builtin;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import dev.friendai.brain.BrainEvent;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.WorkSet;
@@ -20,8 +18,6 @@ import dev.friendai.task.obtain.ResourceSearchDriver;
 import dev.friendai.task.obtain.SearchTargets;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -34,7 +30,7 @@ import net.minecraft.world.item.Items;
 
 /** Caller-scoped search for one target kind; the engine is shared, only the target data differs. */
 public final class SearchResourceTask implements Task {
-    public static final String SAVE_PREFIX = "resource_session:v2:";
+    public static final String TYPE = "search_resource";
 
     private final TargetKind fixedTarget;
     private final String resource;
@@ -42,7 +38,6 @@ public final class SearchResourceTask implements Task {
     private final String scope;
     private final String heading;
     private final Caller caller;
-    private final UUID restoreSession;
     private Task driver;
     private SearchSession session;
     private TargetKind target;
@@ -52,68 +47,29 @@ public final class SearchResourceTask implements Task {
     private UUID ownerId;
     private int radius;
     private boolean ownerWasNear;
-    private boolean restored;
-    private boolean restoredFound;
 
     public SearchResourceTask(String resource, String requestedStrategy, String scope, String heading, Caller caller) {
-        this(null, resource, requestedStrategy, scope, heading, caller, null, false, false);
+        this(null, resource, requestedStrategy, scope, heading, caller);
     }
 
     public SearchResourceTask(
             TargetKind target, String requestedStrategy, String scope, String heading, Caller caller) {
-        this(target, null, requestedStrategy, scope, heading, caller, null, false, false);
+        this(target, null, requestedStrategy, scope, heading, caller);
     }
 
     private SearchResourceTask(
-            TargetKind target,
-            String resource,
-            String requestedStrategy,
-            String scope,
-            String heading,
-            Caller caller,
-            UUID restoreSession,
-            boolean restored,
-            boolean restoredFound) {
+            TargetKind target, String resource, String requestedStrategy, String scope, String heading, Caller caller) {
         this.fixedTarget = target;
         this.resource = resource;
         this.requestedStrategy = requestedStrategy == null ? "auto" : requestedStrategy;
         this.scope = scope == null ? "local" : scope;
         this.heading = heading;
         this.caller = caller;
-        this.restoreSession = restoreSession;
-        this.restored = restored;
-        this.restoredFound = restoredFound;
-    }
-
-    /** Rebuilds an owner-principal search after a reload; the ledger keeps every spent unit. */
-    public static SearchResourceTask restore(String saved) {
-        if (saved == null || !saved.startsWith(SAVE_PREFIX)) return null;
-        try {
-            String json = new String(
-                    Base64.getUrlDecoder().decode(saved.substring(SAVE_PREFIX.length())), StandardCharsets.UTF_8);
-            JsonObject payload = JsonParser.parseString(json).getAsJsonObject();
-            TargetKind kind = TargetKind.parse(payload.getAsJsonObject("target"));
-            UUID sessionId = payload.has("session")
-                    ? UUID.fromString(payload.get("session").getAsString())
-                    : null;
-            return new SearchResourceTask(
-                    kind,
-                    null,
-                    payload.has("strategy") ? payload.get("strategy").getAsString() : "auto",
-                    payload.has("scope") ? payload.get("scope").getAsString() : "local",
-                    payload.has("heading") ? payload.get("heading").getAsString() : null,
-                    null,
-                    sessionId,
-                    true,
-                    payload.has("found") && payload.get("found").getAsBoolean());
-        } catch (RuntimeException malformed) {
-            return null;
-        }
     }
 
     @Override
     public String type() {
-        return "search_resource";
+        return TYPE;
     }
 
     @Override
@@ -124,8 +80,7 @@ public final class SearchResourceTask implements Task {
     @Override
     public void start(TaskContext context) {
         var owner = context.companion().ownerUuid();
-        if (owner == null
-                || (!restored && (caller == null || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal())))
+        if (owner == null || caller == null || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal())
             throw new IllegalArgumentException("resource search is unavailable to this caller");
         var serverState = FriendaiServerState.get(context.level().getServer());
         var policy = serverState.config().tasks.resources;
@@ -134,11 +89,6 @@ public final class SearchResourceTask implements Task {
             throw new IllegalArgumentException("scope must be local or expedition");
         boolean expedition = scope.equals("expedition");
         if (expedition && (caller == null || caller.access() != AccessLevel.OWNER || !policy.allowExpeditions)) {
-            if (restored) {
-                if (restoreSession != null) ledger.interrupt(restoreSession);
-                summary = "an expedition does not resume after a reload; ask again";
-                return;
-            }
             throw new IllegalArgumentException("expeditions are disabled or owner-only");
         }
         if (expedition && !serverState.config().companion.chunkLoading.enabled)
@@ -197,28 +147,12 @@ public final class SearchResourceTask implements Task {
         SearchSession.Limits requested = new SearchSession.Limits(radius, radius * 4.0, ticks, excavationLimit);
         Pos origin = position(context);
         long logicalTick = context.level().getServer().overworld().getGameTime();
-        session = restoreSession == null ? null : ledger.session(restoreSession);
-        if (restoreSession != null && session == null) {
-            summary = "saved search session is unavailable; ask again";
-            return;
-        }
-        if (session != null && session.terminal() && session.snapshot().phase() != SearchSession.Phase.INTERRUPTED) {
-            summary = "saved search already finished";
-            session = null;
-            return;
-        }
-        if (session != null) {
-            session.resumeAfterReload(logicalTick);
-            session.clampLimits(requested);
-            radius = session.snapshot().limits().radius();
-        } else {
-            session = ledger.acquire(owner, dimension, target.coverageKey(), logicalTick, requested, origin);
-            session.clampLimits(requested);
-        }
+        session = ledger.acquire(owner, dimension, target.coverageKey(), logicalTick, requested, origin);
+        session.clampLimits(requested);
         hint = serverState.searchHints().get(owner, logicalTick).orElse(null);
         escort = new EscortPolicy(policy.escort());
         driver = new ResourceSearchDriver(
-                session, target, profile, radius, expedition, strategy, heading, caveEntrance, hint, restoredFound);
+                session, target, profile, radius, expedition, strategy, heading, caveEntrance, hint, false);
         ownerId = owner;
         driver.start(context);
     }
@@ -365,25 +299,6 @@ public final class SearchResourceTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
-    }
-
-    @Override
-    public String saveData() {
-        if (session == null || target == null) return null;
-        try {
-            JsonObject payload = new JsonObject();
-            payload.add("target", target.toJson());
-            payload.addProperty("session", session.snapshot().id().toString());
-            payload.addProperty("strategy", requestedStrategy);
-            payload.addProperty("scope", scope);
-            if (heading != null) payload.addProperty("heading", heading);
-            payload.addProperty("found", driver instanceof ResourceSearchDriver search && search.discovered());
-            String json = payload.toString();
-            return SAVE_PREFIX
-                    + Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-        } catch (RuntimeException broken) {
-            return null;
-        }
     }
 
     private static ResourceSearchProfile profile(TargetKind target, String dimension) {

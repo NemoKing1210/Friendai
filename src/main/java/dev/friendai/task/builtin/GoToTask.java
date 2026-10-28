@@ -74,6 +74,6 @@ public final class GoToTask implements Task {
 
     @Override
     public String saveData() {
-        return String.format(Locale.ROOT, "goto:%f,%f,%f", target.x, target.y, target.z);
+        return String.format(Locale.ROOT, "%f,%f,%f", target.x, target.y, target.z);
     }
 }

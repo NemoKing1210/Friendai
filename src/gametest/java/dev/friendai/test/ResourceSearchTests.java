@@ -122,15 +122,51 @@ public final class ResourceSearchTests {
                 companion
                         .taskRunner()
                         .current()
-                        .map(task -> task.saveData().startsWith("resource_session:v2:"))
+                        .map(task -> task.type().equals("search_resource") && task.saveData() == null)
                         .orElse(false),
-                "active search should carry a restart interruption marker");
+                "active search should rely on coordinator interruption, not a resumable task checkpoint");
         companion.taskRunner().stop("test cleanup");
         config.tasks.resources.allowExpeditions = oldExpeditions;
         config.tasks.resources.expeditionRadius = oldRadius;
         config.tasks.resources.expeditionTicks = oldTicks;
         config.companion.chunkLoading.enabled = oldChunkLoading;
         state.applyConfig(config);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 80)
+    public void restartInterruptsAnActiveResourceSearch(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        original.setOwner(owner.getUUID());
+        var started = tools().bind(original)
+                .execute(
+                        searchCall("minecraft:coal_ore", "surface", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), "owner search should start: " + started.content());
+        original.taskRunner().tick();
+
+        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var persistence = state.taskPersistence();
+        var saved = persistence.capture(original.taskRunner()).orElseThrow();
+        h.assertTrue(saved.queue().activeJobId() > 0, "the saved search should be an active queue job");
+        h.assertTrue(saved.activeTask() == null, "searches must not carry restartable task checkpoints");
+
+        CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        restored.setOwner(owner.getUUID());
+        persistence.restore(
+                restored, persistence.decode(persistence.encode(saved)).orElseThrow());
+
+        var job = restored.taskRunner().queue().job(saved.queue().activeJobId()).orElseThrow();
+        var sessions = state.knowledge().book(owner.getUUID()).searchLedger().snapshot();
+        h.assertTrue(
+                job.state() == dev.friendai.queue.JobState.CANCELLED,
+                "active resource search must be cancelled on restart");
+        h.assertTrue(restored.taskRunner().current().isEmpty(), "resource search must not resume automatically");
+        h.assertTrue(
+                sessions.size() == 1 && sessions.getFirst().phase() == SearchSession.Phase.INTERRUPTED,
+                "search ledger must record the interruption and keep its spent budget");
         h.succeed();
     }
 
@@ -344,9 +380,9 @@ public final class ResourceSearchTests {
                 companion
                         .taskRunner()
                         .current()
-                        .map(task -> task.saveData().startsWith("resource_session:v2:"))
+                        .map(task -> task.type().equals("search_resource") && task.saveData() == null)
                         .orElse(false),
-                "the active cave search should carry the restart interruption marker");
+                "the active cave search should not have a resumable checkpoint");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
     }

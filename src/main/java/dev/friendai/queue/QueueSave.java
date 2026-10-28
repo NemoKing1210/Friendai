@@ -2,39 +2,22 @@ package dev.friendai.queue;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Bounded versioned queue serialization; malformed saves are deliberately dropped. */
+/** Bounded queue snapshot codec. The enclosing execution document owns format versioning. */
 public final class QueueSave {
-    public static final String PREFIX = "queue:v2:";
-    private static final String LEGACY_PREFIX = "queue:v1:";
     public static final int MAX_SAVE_CHARS = 1_000_000;
     public static final int MAX_FIELD_CHARS = 8_192;
 
     private QueueSave() {}
-    /** Largest piece stored as one NBT string; NBT strings are capped at 65535 bytes, a char takes at most 3. */
-    public static final int CHUNK_CHARS = 16_000;
 
-    public record Decoded(JobQueue queue, long activeJobId, String activeTaskSave) {}
+    public record Decoded(JobQueue queue, long activeJobId) {}
 
-    /** Splits a save into pieces that each fit one NBT string. */
-    public static List<String> split(String text) {
-        List<String> parts = new ArrayList<>();
-        for (int at = 0; at < text.length(); at += CHUNK_CHARS)
-            parts.add(text.substring(at, Math.min(text.length(), at + CHUNK_CHARS)));
-        return parts;
-    }
-
-    public static String join(List<String> parts) {
-        return String.join("", parts);
-    }
-
-    public static String encode(JobQueue queue, String activeTaskSave) {
+    public static JsonObject encode(JobQueue queue, long activeJobId) {
         JsonObject root = new JsonObject();
         root.addProperty("clock", queue.clock());
         root.addProperty("nextJob", queue.nextJobId());
@@ -94,26 +77,17 @@ public final class QueueSave {
             archives.add(o);
         }
         root.add("archives", archives);
-        long active = queue.active().map(Job::id).orElse(0L);
-        root.addProperty("active", active);
-        if (activeTaskSave != null && !activeTaskSave.isBlank())
-            root.addProperty("activeTask", bounded(activeTaskSave, 8_192));
-        String result = PREFIX + root;
+        root.addProperty("active", activeJobId);
+        String result = root.toString();
         if (result.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS)
             throw new IllegalStateException("queue save exceeds size limit");
-        return result;
+        return root;
     }
 
-    public static Optional<Decoded> decode(String text, QueueLimits limits) {
-        if (text == null
-                || text.length() > MAX_SAVE_CHARS
-                || text.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS) return Optional.empty();
-        boolean legacy = text.startsWith(LEGACY_PREFIX);
-        if (!legacy && !text.startsWith(PREFIX)) return Optional.empty();
+    public static Optional<Decoded> decode(JsonObject root, QueueLimits limits) {
+        if (root == null || root.toString().getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS)
+            return Optional.empty();
         try {
-            String prefix = legacy ? LEGACY_PREFIX : PREFIX;
-            JsonObject root =
-                    JsonParser.parseString(text.substring(prefix.length())).getAsJsonObject();
             JsonArray planRows = root.getAsJsonArray("plans"),
                     jobRows = root.getAsJsonArray("jobs"),
                     archiveRows = root.getAsJsonArray("archives");
@@ -128,41 +102,12 @@ public final class QueueSave {
             List<PlanRecord> plans = new ArrayList<>();
             for (JsonObject p : planObjects) {
                 long id = p.get("id").getAsLong();
-                PlanDefinition definition;
+                PlanDefinition definition =
+                        p.has("definition") ? PlanCodec.fromJson(p.getAsJsonArray("definition")) : null;
                 PlanCursor cursor = null;
-                if (legacy) {
-                    List<Job> planJobs = jobs.stream()
-                            .filter(j -> j.planId() == id)
-                            .sorted(java.util.Comparator.comparingLong(Job::order))
-                            .toList();
-                    if (planJobs.isEmpty()) return Optional.empty();
-                    List<PlanNode> actions = new ArrayList<>();
-                    for (Job job : planJobs) {
-                        List<Integer> after = new ArrayList<>();
-                        for (long dep : job.after()) {
-                            int depIndex = -1;
-                            for (int index = 0; index < planJobs.size(); index++)
-                                if (planJobs.get(index).id() == dep) depIndex = index + 1;
-                            if (depIndex < 1 || depIndex >= actions.size() + 1) return Optional.empty();
-                            after.add(depIndex);
-                        }
-                        QueuedStep step = new QueuedStep(
-                                job.tool(),
-                                job.args(),
-                                job.priorityExplicit() ? job.priority() : null,
-                                job.guards(),
-                                job.onUnmet(),
-                                job.onFailure(),
-                                job.maxAttempts(),
-                                after,
-                                job.principal(),
-                                job.creativeSensitive());
-                        actions.add(new PlanNode.Action(step));
-                    }
-                    definition = new PlanDefinition(actions);
-                } else {
-                    definition = PlanCodec.fromJson(p.getAsJsonArray("definition"));
-                    if (p.has("cursor")) cursor = readCursor(p.getAsJsonObject("cursor"));
+                if (p.has("cursor")) {
+                    if (definition == null) return Optional.empty();
+                    cursor = readCursor(p.getAsJsonObject("cursor"));
                 }
                 plans.add(new PlanRecord(
                         id,
@@ -222,7 +167,7 @@ public final class QueueSave {
                     plans,
                     jobs,
                     archives);
-            return Optional.of(new Decoded(q, active, root.has("activeTask") ? field(root, "activeTask") : ""));
+            return Optional.of(new Decoded(q, active));
         } catch (RuntimeException ignored) {
             return Optional.empty();
         }

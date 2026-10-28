@@ -35,23 +35,10 @@ import dev.friendai.place.PlaceCandidate;
 import dev.friendai.place.PlaceService;
 import dev.friendai.place.PlaceStore;
 import dev.friendai.place.PlaceText;
-import dev.friendai.queue.Job;
-import dev.friendai.queue.JobState;
-import dev.friendai.queue.PlanNode;
-import dev.friendai.queue.PlanRecord;
-import dev.friendai.queue.QueueSave;
-import dev.friendai.queue.QueueTradeScope;
-import dev.friendai.queue.QueuedStep;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.task.Task;
-import dev.friendai.task.TaskFactory;
+import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.plan.PlanEntry;
-import dev.friendai.task.plan.PlanSave;
-import dev.friendai.task.plan.PlanStepFactory;
-import dev.friendai.task.plan.SequenceTask;
-import dev.friendai.task.plan.StepFactory;
 import dev.friendai.tool.AccessLevel;
 import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolRegistry;
@@ -366,98 +353,13 @@ public final class CompanionSessions implements AutoCloseable {
         CompanionManager.get(server).find(owner).ifPresent(c -> c.taskRunner().resume());
     }
 
-    /** Restore a durable task queue after the companion's saved owner and tools are available. */
-    public void restoreQueue(CompanionEntity companion, String saved) {
-        if (saved == null || companion.ownerUuid() == null) return;
-        session(companion.ownerUuid()).tradingAuthority().invalidateAll("trading authority expired after restart");
-        Optional<QueueSave.Decoded> decoded =
-                QueueSave.decode(saved, settings.get().queueLimits());
-        if (decoded.isEmpty()) {
-            FriendaiMod.LOGGER.warn("Discarding malformed task queue for {}", companion.ownerUuid());
-            return;
-        }
-        var restoredQueue = decoded.get().queue();
-        java.util.Set<Long> expiredPlans = new java.util.HashSet<>();
-        for (Job job : List.copyOf(restoredQueue.jobs())) {
-            if (!spendingJob(job)) continue;
-            if (job.planId() > 0) expiredPlans.add(job.planId());
-            else restoredQueue.cancel(job.id(), "trading authority expired after restart");
-        }
-        for (PlanRecord plan : restoredQueue.plans()) {
-            if (plan.cursor() != null
-                    && plan.definition() != null
-                    && structuredPlanNeedsFreshAuthority(plan.definition().nodes())) {
-                expiredPlans.add(plan.id());
-            }
-        }
-        for (long planId : expiredPlans) {
-            restoredQueue.cancelPlan(planId);
-            restoredQueue.archivePlan(planId, false, "trading authority expired after restart");
-        }
-        entryFor(companion.ownerUuid()); // Attach the listener before emitting restore notices.
-        Map<Long, StepFactory> factories = new HashMap<>();
-        Map<Long, Map<String, PlanStepFactory>> planFactories = new HashMap<>();
-        for (Job job : restoredQueue.jobs()) {
-            TaskToolDef def = taskTools.get(job.tool());
-            if (def == null) {
-                if (job.state() == JobState.PENDING
-                        || job.state() == JobState.RUNNING
-                        || job.state() == JobState.FAILED) {
-                    decoded.get().queue().markMissingTool(job.id());
-                    FriendaiMod.LOGGER.warn("Queued tool {} is unavailable after reload", job.tool());
-                }
-                continue;
-            }
-            JsonObject args = job.args().deepCopy();
-            UUID principal = job.principal();
-            factories.put(
-                    job.id(),
-                    ctx -> def.callerFactory() == null
-                            ? def.factory().create(ctx.companion(), args.deepCopy())
-                            : def.callerFactory()
-                                    .create(
-                                            ctx.companion(),
-                                            currentCaller(ctx.companion().ownerUuid(), principal),
-                                            args.deepCopy()));
-        }
-        for (PlanRecord plan : restoredQueue.plans()) {
-            if (plan.cursor() == null || plan.definition() == null) continue;
-            Map<String, TaskToolDef> definitions = new HashMap<>();
-            collectPlanTools(plan.definition().nodes(), definitions);
-            Map<String, PlanStepFactory> byTool = new HashMap<>();
-            for (var entry : definitions.entrySet()) {
-                TaskToolDef def = entry.getValue();
-                if (def == null || !def.plannable()) continue;
-                byTool.put(entry.getKey(), new PlanStepFactory() {
-                    @Override
-                    public Task create(dev.friendai.task.TaskContext ctx, QueuedStep step) {
-                        JsonObject args = step.args();
-                        Caller caller = currentCaller(ctx.companion().ownerUuid(), step.principal())
-                                .withTradingScope(QueueTradeScope.read(args));
-                        return def.callerFactory() == null
-                                ? def.factory().create(ctx.companion(), args)
-                                : def.callerFactory().create(ctx.companion(), caller, args);
-                    }
+    public TaskRestoreRegistry taskRestoreRegistry() {
+        return new TaskRestoreRegistry(taskTools, planTools, settings, this::currentCaller);
+    }
 
-                    @Override
-                    public boolean authorized(dev.friendai.task.TaskContext ctx, QueuedStep step) {
-                        return currentCaller(ctx.companion().ownerUuid(), step.principal())
-                                .access()
-                                .allows(def.minAccess());
-                    }
-                });
-            }
-            planFactories.put(plan.id(), byTool);
-        }
-        companion.taskRunner().restoreQueue(decoded.get(), factories, planFactories);
-        for (Job job : companion.taskRunner().queue().jobs()) {
-            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
-                companion
-                        .taskRunner()
-                        .notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool()
-                                + " is no longer available");
-            }
-        }
+    /** Installs event routing before TaskPersistenceCoordinator publishes any restore notices. */
+    public void prepareForTaskRestore(CompanionEntity companion) {
+        if (companion.ownerUuid() != null) entryFor(companion.ownerUuid());
     }
 
     /** Reconstructs a caller from current owner/trust data; queue saves never carry an access level. */
@@ -467,67 +369,6 @@ public final class CompanionSessions implements AutoCloseable {
                 ? AccessLevel.OWNER
                 : owner != null && memory.book(owner).isTrusted(principal) ? AccessLevel.TRUSTED : AccessLevel.GUEST;
         return new Caller(principal, "", access);
-    }
-
-    private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDef> result) {
-        for (PlanNode node : nodes) {
-            if (node instanceof PlanNode.Action action)
-                result.put(action.step().tool(), taskTools.get(action.step().tool()));
-            else if (node instanceof PlanNode.Conditional conditional) {
-                collectPlanTools(conditional.thenNodes(), result);
-                collectPlanTools(conditional.elseNodes(), result);
-            } else collectPlanTools(((PlanNode.Repeat) node).body(), result);
-        }
-    }
-
-    private boolean structuredPlanNeedsFreshAuthority(List<PlanNode> nodes) {
-        for (PlanNode node : nodes) {
-            if (node instanceof PlanNode.Action action) {
-                TaskToolDef def = taskTools.get(action.step().tool());
-                if (QueueTradeScope.requiresFreshAuthority(
-                        action.step().args(), def != null && def.queueTraits().requiresTradingScope())) return true;
-            } else if (node instanceof PlanNode.Conditional conditional) {
-                if (structuredPlanNeedsFreshAuthority(conditional.thenNodes())
-                        || structuredPlanNeedsFreshAuthority(conditional.elseNodes())) return true;
-            } else if (structuredPlanNeedsFreshAuthority(((PlanNode.Repeat) node).body())) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Rebuilds a plan saved with the world. The steps come from this server's tools, so a plan is only resumed when
-     * every tool it used still exists and is still plannable. A build step that saved itself keeps its progress and
-     * its scaffold; other steps start again.
-     */
-    public Optional<Task> restorePlan(CompanionEntity companion, String saved) {
-        Optional<PlanSave.Saved> decoded = PlanSave.decode(saved);
-        if (decoded.isEmpty()) {
-            return Optional.empty();
-        }
-        if (companion.ownerUuid() != null) {
-            session(companion.ownerUuid()).tradingAuthority().invalidateAll("trading authority expired after restart");
-        }
-        PlanSave.Saved data = decoded.get();
-        if (data.steps().stream().anyMatch(this::spendingPlanStep)) {
-            FriendaiMod.LOGGER.info("Discarding a saved plan that contains expired trading authority");
-            return Optional.empty();
-        }
-        List<PlanEntry> entries = new ArrayList<>(data.steps().size());
-        for (PlanSave.Step step : data.steps()) {
-            TaskToolDef def = planTools.get(step.tool());
-            if (def == null) {
-                FriendaiMod.LOGGER.warn("Plan step {} is unavailable; the saved plan is not resumed", step.tool());
-                return Optional.empty();
-            }
-            JsonObject args = step.args();
-            entries.add(new PlanEntry(step.tool(), args, ctx -> def.factory().create(ctx.companion(), args)));
-        }
-        Task active = data.active() == null || !(companion.level() instanceof ServerLevel level)
-                ? null
-                : TaskFactory.restore(data.active(), level).orElse(null);
-        int timeoutTicks = settings.get().tasks().taskTimeoutSec() * 20;
-        return Optional.of(
-                SequenceTask.resumed(data.goal(), entries, data.index(), data.done(), active, () -> timeoutTicks));
     }
 
     public void tick() {
@@ -1059,17 +900,5 @@ public final class CompanionSessions implements AutoCloseable {
     /** Revokes every runtime trading scope when server trading is disabled. */
     public void invalidateTradingAuthorities(String reason) {
         sessions.values().forEach(session -> session.tradingAuthority().invalidateAll(reason));
-    }
-
-    private boolean spendingJob(Job job) {
-        TaskToolDef def = taskTools.get(job.tool());
-        return QueueTradeScope.requiresFreshAuthority(
-                job.args(), def != null && def.queueTraits().requiresTradingScope());
-    }
-
-    private boolean spendingPlanStep(PlanSave.Step step) {
-        TaskToolDef def = planTools.get(step.tool());
-        return QueueTradeScope.requiresFreshAuthority(
-                step.args(), def != null && def.queueTraits().requiresTradingScope());
     }
 }

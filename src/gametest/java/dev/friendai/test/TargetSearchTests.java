@@ -173,7 +173,7 @@ public final class TargetSearchTests {
     }
 
     @GameTest(maxTicks = 80)
-    public void aSavedSearchRoundTripsAndTheOldMarkerDoesNot(GameTestHelper h) {
+    public void resourceSearchHasNoResumableTaskCheckpoint(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -186,14 +186,18 @@ public final class TargetSearchTests {
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
-        String saved = companion.taskRunner().current().orElseThrow().saveData();
-        h.assertTrue(saved != null && saved.startsWith(SearchResourceTask.SAVE_PREFIX), "save format: " + saved);
-        SearchResourceTask restored = SearchResourceTask.restore(saved);
-        h.assertTrue(restored != null, "a v2 search must restore");
-        h.assertTrue(restored.describe().contains("#minecraft:logs"), restored.describe());
+        var task = companion.taskRunner().current().orElseThrow();
+        h.assertTrue(task.type().equals(SearchResourceTask.TYPE), "active task: " + task.type());
         h.assertTrue(
-                SearchResourceTask.restore("resource_session:v1:deadbeef") == null,
-                "the old interruption marker must not restore");
+                dev.friendai.server.execution.persistence.TaskRestoreRegistry.restoreCheckpoint(
+                                new dev.friendai.task.TaskState(SearchResourceTask.TYPE, ""), h.getLevel())
+                        .isEmpty(),
+                "resource searches require a fresh request after restart");
+        h.assertTrue(
+                dev.friendai.server.execution.persistence.TaskRestoreRegistry.restoreCheckpoint(
+                                new dev.friendai.task.TaskState("unknown_task", ""), h.getLevel())
+                        .isEmpty(),
+                "unknown task types must be rejected");
         companion.taskRunner().stop("test cleanup");
         h.succeed();
     }

@@ -1,7 +1,6 @@
 package dev.friendai.task;
 
 import dev.friendai.core.CreativeModeService;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.creative.CreativeAction;
 import dev.friendai.creative.CreativeActionContext;
 import dev.friendai.entity.CompanionEntity;
@@ -23,7 +22,6 @@ import dev.friendai.queue.PlanStatus;
 import dev.friendai.queue.QueuePolicy;
 import dev.friendai.queue.QueueSave;
 import dev.friendai.queue.QueueText;
-import dev.friendai.queue.QueueTradeScope;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.builtin.FollowTask;
@@ -34,11 +32,9 @@ import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import dev.friendai.tool.Caller;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -1176,23 +1172,36 @@ public final class TaskRunner {
         return !awaitingDecision.isEmpty();
     }
 
-    public Optional<String> savedQueue() {
-        long active = current != null && current.jobId() > 0 ? current.jobId() : frozen != null ? frozen.jobId() : 0;
-        String taskSave = "";
-        if (current != null && current.jobId() > 0) taskSave = current.task().saveData();
-        else if (frozen != null) taskSave = frozen.task().saveData();
-        if (queue.jobCount() == 0 && queue.planCount() == 0 && queue.archives().isEmpty()) return Optional.empty();
-        return Optional.of(QueueSave.encode(queue, taskSave));
+    public long persistenceActiveJobId() {
+        return current != null && current.jobId() > 0 ? current.jobId() : frozen == null ? 0 : frozen.jobId();
     }
 
-    public void restoreQueue(QueueSave.Decoded decoded, Map<Long, StepFactory> restoredFactories) {
-        restoreQueue(decoded, restoredFactories, Map.of());
+    public Optional<TaskState> persistenceTaskState() {
+        Active active = current != null && current.jobId() > 0 ? current : frozen != null ? frozen : current;
+        if (active == null || active.defaultActivity() || active.task().type().equals("follow"))
+            return Optional.empty();
+        String data;
+        try {
+            data = active.task().saveData();
+        } catch (RuntimeException error) {
+            LOGGER.warn("Task {} failed to save its checkpoint", active.toolName(), error);
+            return Optional.empty();
+        }
+        if (data == null) return Optional.empty();
+        try {
+            return Optional.of(new TaskState(active.task().type(), data));
+        } catch (IllegalArgumentException oversized) {
+            LOGGER.warn("Task {} checkpoint exceeds the save limit", active.toolName());
+            return Optional.empty();
+        }
     }
 
-    public void restoreQueue(
+    /** Installs validated state; decoding, authorization and recovery policy belong to TaskPersistenceCoordinator. */
+    public void installRestoredState(
             QueueSave.Decoded decoded,
             Map<Long, StepFactory> restoredFactories,
-            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories) {
+            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
+            Task restoredTask) {
         syncSettings();
         queue = decoded.queue();
         queue.setLimits(queueSettings.queueLimits());
@@ -1202,90 +1211,33 @@ public final class TaskRunner {
         restoredPlanFactories.forEach((id, map) -> structuredFactories.put(id, Map.copyOf(map)));
         current = null;
         frozen = null;
-        if (companion.creativeMode()) {
-            Set<Long> creativePlans = new HashSet<>();
-            for (Job job : queue.jobs()) {
-                if (!job.creativeSensitive()
-                        || job.state() == JobState.DONE
-                        || job.state() == JobState.CANCELLED
-                        || job.state() == JobState.SKIPPED) continue;
-                if (job.planId() > 0) creativePlans.add(job.planId());
-                else queue.cancel(job.id(), "creative task cancelled after reload");
+        Job activeJob = decoded.activeJobId() == 0
+                ? null
+                : queue.job(decoded.activeJobId()).orElse(null);
+        if (restoredTask != null && activeJob != null && activeJob.state() == JobState.RUNNING) {
+            CreativeActionContext actionContext = actionContext(activeJob.principal(), activeJob.creativeSensitive());
+            current = new Active(
+                    (int) activeJob.id(),
+                    activeJob.id(),
+                    activeJob.planId(),
+                    activeJob.tool(),
+                    restoredTask,
+                    true,
+                    false,
+                    false,
+                    activeTicks,
+                    actionContext,
+                    activeJob.creativeSensitive(),
+                    timeoutSec.getAsInt(),
+                    settingsSupplier.get());
+            try {
+                restoredTask.start(context(current));
+            } catch (RuntimeException e) {
+                current = null;
+                queue.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
             }
-            for (long planId : creativePlans) queue.cancelPlan(planId);
-            if (!creativePlans.isEmpty()
-                    || queue.jobs().stream()
-                            .anyMatch(j -> j.creativeSensitive()
-                                    && j.planId() == 0
-                                    && j.state() == JobState.CANCELLED
-                                    && "creative task cancelled after reload".equals(j.result()))) {
-                notice("Saved creative tasks were cancelled after reload; submit them again.");
-            }
-        }
-        Set<Long> expiredTradingPlans = new HashSet<>();
-        for (Job job : List.copyOf(queue.jobs())) {
-            if (!QueueTradeScope.requiresFreshAuthority(job.args(), false)) continue;
-            factories.remove(job.id());
-            if (job.planId() > 0) expiredTradingPlans.add(job.planId());
-            else queue.cancel(job.id(), "trading authority expired after restart");
-        }
-        for (long planId : expiredTradingPlans) {
-            queue.cancelPlan(planId);
-            finishPlan(planId, "trading authority expired after restart", false);
-        }
-        if (decoded.activeJobId() > 0) {
-            Job job = queue.job(decoded.activeJobId()).orElse(null);
-            if (job != null && job.state() == JobState.RUNNING) {
-                String save = decoded.activeTaskSave();
-                Task task = null;
-                boolean cancelled = false;
-                if (!save.isBlank())
-                    task = TaskFactory.restore(save, (ServerLevel) companion.level())
-                            .orElse(null);
-                if (task == null && save.startsWith(dev.friendai.task.builtin.SearchResourceTask.SAVE_PREFIX)) {
-                    java.util.UUID owner = companion.ownerUuid();
-                    if (owner != null && owner.equals(job.principal())) {
-                        task = dev.friendai.task.builtin.SearchResourceTask.restore(save);
-                    }
-                    if (task == null) {
-                        interruptSearchLedger(save);
-                        queue.cancel(job.id(), "saved search could not be resumed");
-                        cancelled = true;
-                    }
-                }
-                if (task == null && !cancelled) {
-                    if (interruptedSearch(job, save)) {
-                        interruptSearchLedger(save);
-                        queue.cancel(job.id(), "interrupted by restart");
-                    } else {
-                        StepFactory factory = factories.get(job.id());
-                        if (factory != null) task = factory.create(context());
-                    }
-                }
-                if (task != null) {
-                    CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
-                    current = new Active(
-                            (int) job.id(),
-                            job.id(),
-                            job.planId(),
-                            job.tool(),
-                            task,
-                            true,
-                            false,
-                            false,
-                            activeTicks,
-                            actionContext,
-                            job.creativeSensitive(),
-                            timeoutSec.getAsInt(),
-                            settingsSupplier.get());
-                    try {
-                        task.start(context(current));
-                    } catch (RuntimeException e) {
-                        current = null;
-                        queue.fail(job.id(), "task crashed: " + e.getClass().getSimpleName());
-                    }
-                }
-            }
+        } else if (restoredTask != null && activeJob == null) {
+            restore(restoredTask);
         }
         for (Job job : List.copyOf(queue.jobs()))
             if (job.state() == JobState.RUNNING && (current == null || current.jobId() != job.id()))
@@ -1294,36 +1246,6 @@ public final class TaskRunner {
         for (PlanRecord plan : queue.plans())
             if (queue.planStatus(plan.id()) == PlanStatus.NEEDS_DECISION) awaitingDecision.add(plan.id());
         nextPoll = 0;
-    }
-
-    private static boolean requiresFreshTradingAuthority(Job job) {
-        return QueueTradeScope.requiresFreshAuthority(job.args(), false);
-    }
-
-    private static boolean interruptedSearch(Job job, String save) {
-        if (save != null && save.startsWith("resource_session:v1:")) return true;
-        if (job.tool().equals("search_resource") || job.tool().equals("find_target")) return true;
-        return job.tool().equals("obtain_item")
-                && job.args().has("explore")
-                && job.args().get("explore").getAsBoolean();
-    }
-
-    private void interruptSearchLedger(String save) {
-        var owner = companion.ownerUuid();
-        if (owner == null) return;
-        var ledger = FriendaiServerState.get(((ServerLevel) companion.level()).getServer())
-                .knowledge()
-                .book(owner)
-                .searchLedger();
-        if (save != null && save.startsWith("resource_session:v1:")) {
-            try {
-                ledger.interrupt(java.util.UUID.fromString(save.substring("resource_session:v1:".length())));
-                return;
-            } catch (IllegalArgumentException malformed) {
-                LOGGER.warn("Malformed saved resource session marker; interrupting active ledger sessions");
-            }
-        }
-        ledger.interruptActive();
     }
 
     private void safeStop(Task task, TaskContext ctx) {

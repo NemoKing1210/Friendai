@@ -242,7 +242,8 @@ public class CompanionDeathTests {
         companion
                 .taskRunner()
                 .queue()
-                .addDirect(new QueuedStep("stay", new JsonObject(), null, List.of(), null, null, 1, List.of()));
+                .addDirect(new QueuedStep(
+                        "stay", new JsonObject(), null, List.of(), null, null, 1, List.of(), owner.getUUID(), false));
         UUID dead = companion.getUUID();
 
         kill(companion, h);
@@ -368,7 +369,8 @@ public class CompanionDeathTests {
                 .queue()
                 .addPlan(
                         "free time: gather wood",
-                        List.of(new QueuedStep("stay", new JsonObject(), null, List.of(), null, null, 1, List.of())),
+                        List.of(new QueuedStep(
+                                "jump", new JsonObject(), null, List.of(), null, null, 1, List.of(), ownerId, false)),
                         PlanOptions.DEFAULT);
         state.freeTime().start(ownerId, FreeTime.Origin.IDLE, "", now);
         state.freeTime().beginShift(ownerId, "gather wood", List.of(), "", NeedKind.FARM, false, now, now + 600_000L);

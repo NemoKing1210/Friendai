@@ -11,15 +11,20 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.builtin.DropItemsTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.plan.PlanEntry;
+import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.plan.SequenceTask;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -58,6 +63,15 @@ public class PlanTests {
         TaskRunner r = new TaskRunner(c, () -> 300, () -> false);
         r.setListener(result);
         return r;
+    }
+
+    private static ToolExecutor ownerTools(CompanionEntity companion) {
+        companion.setOwner(UUID.randomUUID());
+        return FriendaiTools.create(() -> 32).bind(companion);
+    }
+
+    private static ToolResult addPlan(ToolExecutor tools, CompanionEntity companion, ToolCall call) {
+        return tools.execute(call, new Caller(companion.ownerUuid(), "", AccessLevel.OWNER));
     }
 
     private static PlanEntry drop(String item, int count) {
@@ -277,11 +291,13 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
         c.taskRunner().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = ownerTools(c);
         String json =
                 "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
                         + "{\"tool\":\"pickup_items\",\"args\":\"{\\\"radius\\\":3}\"}]}";
-        ToolResult started = tools.execute(
+        ToolResult started = addPlan(
+                tools,
+                c,
                 new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
@@ -294,6 +310,8 @@ public class PlanTests {
     public void planSurvivesReload(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        c.setOwner(owner);
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
         c.taskRunner().setListener(result);
@@ -311,6 +329,7 @@ public class PlanTests {
                                         new PlanEntry(
                                                 "drop_items",
                                                 dropArgs,
+                                                owner,
                                                 ctx -> new DropItemsTask(
                                                         ItemMatcher.parse("minecraft:mud_bricks")
                                                                 .orElseThrow(),
@@ -318,6 +337,7 @@ public class PlanTests {
                                         new PlanEntry(
                                                 "drop_items",
                                                 dropArgs,
+                                                owner,
                                                 ctx -> new DropItemsTask(
                                                         ItemMatcher.parse("minecraft:mud_bricks")
                                                                 .orElseThrow(),
@@ -330,10 +350,11 @@ public class PlanTests {
             if (saved[0] == null && c.inventory().countItem(Items.MUD_BRICKS) == 1) {
                 // The first step is done: take the plan's state as the reload would.
                 saved[0] = c.taskRunner().current().orElseThrow().saveData();
-                h.assertTrue(saved[0] != null && saved[0].startsWith("plan:"), "saved was " + saved[0]);
+                h.assertTrue(saved[0] != null && saved[0].startsWith("{"), "saved was " + saved[0]);
                 Task restored = FriendaiServerState.get(h.getLevel().getServer())
                         .sessions()
-                        .restorePlan(c, saved[0])
+                        .taskRestoreRegistry()
+                        .restore(new TaskState("run_plan", saved[0]), c)
                         .orElseThrow();
                 h.assertTrue(saved[0].equals(restored.saveData()), "the plan must survive the round trip");
                 c.taskRunner().start(restored, "run_plan");
@@ -344,6 +365,22 @@ public class PlanTests {
                     "restored plan did not finish: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.MUD_BRICKS), 0, "mud bricks left");
         });
+    }
+
+    @GameTest
+    public void restoredPlanRequiresItsSavedActor(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        String saved = PlanSave.encode(
+                "missing actor", 0, List.of(), null, List.of(new PlanSave.Step("drop_items", new JsonObject())));
+
+        boolean restored = FriendaiServerState.get(h.getLevel().getServer())
+                .sessions()
+                .taskRestoreRegistry()
+                .restore(new TaskState("run_plan", saved), c)
+                .isPresent();
+        h.assertTrue(!restored, "a plan without its saved actor must not resume");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 1200)
@@ -366,13 +403,15 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();
         c.taskRunner().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = ownerTools(c);
         String json = "{\"goal\":\"smelt and craft\",\"steps\":["
                 + "{\"tool\":\"smelt_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:raw_iron\\\","
                 + "\\\"count\\\":1,\\\"station\\\":\\\"blast_furnace\\\",\\\"wait\\\":true}\"},"
                 + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:iron_nugget\\\","
                 + "\\\"count\\\":9}\"}]}";
-        ToolResult started = tools.execute(
+        ToolResult started = addPlan(
+                tools,
+                c,
                 new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
@@ -391,7 +430,7 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         c.taskRunner().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(8, 2, 2));
 
         JsonObject takeArgs = new JsonObject();
@@ -416,7 +455,7 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "set up a table");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
+        ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -446,7 +485,7 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         c.taskRunner().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(11, 2, 11));
 
         JsonObject takeArgs = new JsonObject();
@@ -472,7 +511,7 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "turn logs into planks");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
+        ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();
@@ -492,7 +531,7 @@ public class PlanTests {
         Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
         Result result = new Result();
         c.taskRunner().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(10, 2, 10));
 
         JsonObject shearArgs = new JsonObject();
@@ -518,7 +557,7 @@ public class PlanTests {
         JsonObject json = new JsonObject();
         json.addProperty("goal", "shear and store");
         json.add("steps", steps);
-        ToolResult started = tools.execute(new ToolCall("1", "queue_add", json, json.toString(), null));
+        ToolResult started = addPlan(tools, c, new ToolCall("1", "queue_add", json, json.toString(), null));
         h.assertTrue(!started.error(), "start failed: " + started.content());
         h.succeedWhen(() -> {
             c.taskRunner().tick();

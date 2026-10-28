@@ -11,11 +11,12 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskRunner;
+import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.build.BlueprintResolver;
 import dev.friendai.task.build.BlueprintStore;
@@ -368,7 +369,7 @@ public class BuildTests {
     }
 
     private static String buildId(String saved) {
-        return saved.substring("build:".length(), saved.indexOf(','));
+        return saved.substring(0, saved.indexOf(','));
     }
 
     @GameTest(maxTicks = 400)
@@ -381,7 +382,7 @@ public class BuildTests {
         String saved = task.saveData();
         String[] parts = saved.split(",");
         equal(7, parts.length, "field count");
-        check(parts[0].matches("build:[0-9a-f]{32}"), "field id: " + parts[0]);
+        check(parts[0].matches("[0-9a-f]{32}"), "field id: " + parts[0]);
         equal(Integer.toString(origin.getX()), parts[1], "x");
         equal(Integer.toString(origin.getY()), parts[2], "y");
         equal(Integer.toString(origin.getZ()), parts[3], "z");
@@ -390,7 +391,10 @@ public class BuildTests {
         equal("false", parts[6], "gather");
 
         // A level-free restore cannot rebuild a build task; the in-progress file lives in the world.
-        check(TaskFactory.restore(saved).isEmpty(), "a build needs a level");
+        check(
+                TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", saved), null)
+                        .isEmpty(),
+                "a build needs a level");
 
         BuildTask partial =
                 new BuildTask(generator("""
@@ -413,11 +417,16 @@ public class BuildTests {
             BlueprintStore.InProgress loaded = store.loadInProgress(id).orElse(null);
             check(loaded != null, "the in-progress file must load: " + Files.readString(store.inProgressFile(id)));
             equal(Rotation.CLOCKWISE_90, loaded.rotation(), "in-progress rotation");
-            Task restored = TaskFactory.restore(partialSaved, h.getLevel()).orElse(null);
+            Task restored = TaskRestoreRegistry.restoreCheckpoint(
+                            new TaskState("build_structure", partialSaved), h.getLevel())
+                    .orElse(null);
             check(restored != null, "the saved build must restore: " + partialSaved);
             equal(partialSaved, restored.saveData(), "save data round trip");
             String corrupt = partialSaved.substring(0, partialSaved.lastIndexOf(',') + 1) + "nonsense";
-            check(TaskFactory.restore(corrupt, h.getLevel()).isEmpty(), "an unknown part must not restore the build");
+            check(
+                    TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", corrupt), h.getLevel())
+                            .isEmpty(),
+                    "an unknown part must not restore the build");
         } finally {
             store.deleteInProgress(id);
             runner.stop("test");
@@ -475,8 +484,9 @@ public class BuildTests {
                 runner.tick();
                 if (companion.inventory().countItem(Items.COBBLESTONE) < 16) {
                     saved[0] = runner.current().orElseThrow().saveData();
-                    BuildTask resumed = (BuildTask)
-                            TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                    BuildTask resumed = (BuildTask) TaskRestoreRegistry.restoreCheckpoint(
+                                    new TaskState("build_structure", saved[0]), h.getLevel())
+                            .orElseThrow();
                     equal(saved[0], resumed.saveData(), "the id and fields survive the restore");
                     restoredRunner[0] = runner(companion, restored);
                     restoredRunner[0].start(resumed, "build_structure");
@@ -532,8 +542,9 @@ public class BuildTests {
                             .orElse(false);
                     if (scaffolded) {
                         saved[0] = current;
-                        BuildTask resumed = (BuildTask)
-                                TaskFactory.restore(saved[0], h.getLevel()).orElseThrow();
+                        BuildTask resumed = (BuildTask) TaskRestoreRegistry.restoreCheckpoint(
+                                        new TaskState("build_structure", saved[0]), h.getLevel())
+                                .orElseThrow();
                         restoredRunner[0] = runner(companion, restored);
                         restoredRunner[0].start(resumed, "build_structure");
                     }
@@ -690,8 +701,9 @@ public class BuildTests {
                 h.assertTrue(record.origin().equals(origin), "the record keeps the origin");
                 h.assertTrue(record.remaining().contains(origin), "the record knows the remaining cell");
                 h.setBlock(5, 2, 5, Blocks.AIR);
-                BuildTask resumed =
-                        (BuildTask) TaskFactory.restore(saved, h.getLevel()).orElseThrow();
+                BuildTask resumed = (BuildTask)
+                        TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", saved), h.getLevel())
+                                .orElseThrow();
                 retrying[0] = true;
                 retryRunner[0] = runner(companion, retried);
                 retryRunner[0].start(resumed, "build_structure");
@@ -750,7 +762,8 @@ public class BuildTests {
         BlueprintStore.InProgress loaded = store.loadInProgress(buildId(saved)).orElseThrow();
         equal(h.absolutePos(new BlockPos(5, 2, 5)), loaded.origin(), "the resume record keeps the origin");
         check(
-                TaskFactory.restore(saved, h.getLevel()).isPresent(),
+                TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", saved), h.getLevel())
+                        .isPresent(),
                 "a cancelled build restores from its record instead of being forgotten");
         h.succeed();
     }

@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -122,9 +123,11 @@ public final class SequenceTask implements Task {
     public String saveData() {
         List<PlanSave.Step> steps = new ArrayList<>(entries.size());
         for (PlanEntry entry : entries) {
-            steps.add(new PlanSave.Step(entry.tool(), entry.args()));
+            steps.add(new PlanSave.Step(entry.tool(), entry.args(), entry.principal()));
         }
-        return PlanSave.encode(goal, index, done, active == null ? null : active.saveData(), steps);
+        String activeData = active == null ? null : active.saveData();
+        TaskState activeState = activeData == null ? null : new TaskState(active.type(), activeData);
+        return PlanSave.encode(goal, index, done, activeState, steps);
     }
 
     /**

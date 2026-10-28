@@ -9,6 +9,8 @@ import dev.friendai.queue.FailurePolicy;
 import dev.friendai.queue.GuardAction;
 import dev.friendai.queue.QueuedStep;
 import dev.friendai.task.builtin.StayTask;
+import dev.friendai.tool.AccessLevel;
+import dev.friendai.tool.Caller;
 import dev.friendai.tool.ToolExecutor;
 import dev.friendai.tool.ToolResult;
 import dev.friendai.tool.builtin.FriendaiTools;
@@ -25,6 +27,11 @@ public final class QueueTests {
     private static ToolResult run(ToolExecutor tools, String name, String json) {
         JsonObject args = JsonParser.parseString(json).getAsJsonObject();
         return tools.execute(new ToolCall("queue-test", name, args, json, null));
+    }
+
+    private static ToolResult run(ToolExecutor tools, String name, String json, Caller caller) {
+        JsonObject args = JsonParser.parseString(json).getAsJsonObject();
+        return tools.execute(new ToolCall("queue-test", name, args, json, null), caller);
     }
 
     @GameTest
@@ -46,13 +53,17 @@ public final class QueueTests {
     @GameTest
     public void queueShowIncludesPlanAndJobs(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        Caller caller = new Caller(owner, "queue-test", AccessLevel.OWNER);
         ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
         ToolResult added = run(
                 tools,
                 "queue_add",
-                "{\"goal\":\"drop dirt\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\",\\\"count\\\":1}\"}]}");
+                "{\"goal\":\"drop dirt\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dirt\\\",\\\"count\\\":1}\"}]}",
+                caller);
         h.assertTrue(!added.error(), "queue_add failed: " + added.content());
-        ToolResult shown = run(tools, "queue_show", "{}");
+        ToolResult shown = run(tools, "queue_show", "{}", caller);
         h.assertTrue(
                 !shown.error()
                         && shown.content().contains("drop dirt")
@@ -64,7 +75,8 @@ public final class QueueTests {
     @GameTest
     public void activeQueueJobSurvivesEntitySave(GameTestHelper h) {
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        original.setOwner(UUID.randomUUID());
+        UUID owner = UUID.randomUUID();
+        original.setOwner(owner);
         original.taskRunner()
                 .enqueue(
                         new QueuedStep(
@@ -75,7 +87,9 @@ public final class QueueTests {
                                 GuardAction.WAIT,
                                 FailurePolicy.ASK,
                                 1,
-                                List.of()),
+                                List.of(),
+                                owner,
+                                false),
                         ctx -> new StayTask());
         TagValueOutput output = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());
