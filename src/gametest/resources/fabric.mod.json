@@ -52,6 +52,7 @@
 			"dev.friendai.test.HungerTests",
 			"dev.friendai.test.FireTests",
 			"dev.friendai.test.QueueTests",
+			"dev.friendai.test.ConditionalPlansTests",
 			"dev.friendai.test.AnimalTests",
 			"dev.friendai.test.FarmingTests",
 			"dev.friendai.test.ObtainTests",
