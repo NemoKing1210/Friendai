@@ -2,7 +2,12 @@ package dev.friendai.tool.builtin;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.features.navigation.minecraft.tool.MovementTools;
+import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import dev.friendai.perception.PerceptionContext;
+import dev.friendai.server.execution.tools.FeatureToolContributor;
+import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,7 +78,13 @@ public final class FriendaiTools {
             Supplier<PerceptionContext> perceptionContext) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         List<TaskToolDef> defs = new ArrayList<>();
-        MovementTools.register(registry, defs);
+        FeatureToolRegistry featureTools = new FeatureToolRegistry(registry, definition -> {
+            TaskToolDef task = legacyTaskDefinition(definition);
+            defs.add(task);
+            return ToolKit.taskTool(task);
+        });
+        List<FeatureToolContributor> contributors = List.of(new MovementTools(), new RelativeMovementTools());
+        contributors.forEach(contributor -> contributor.register(featureTools));
         GatheringTools.register(registry, defs, mineRadius, treeRadius);
         InventoryTools.register(registry, defs);
         BuildingTools.register(registry, defs);
@@ -96,7 +107,6 @@ public final class FriendaiTools {
         TradingTools.register(registry, defs);
         QueueTools.register(registry, defs);
         BodyTools.register(registry, defs);
-        RelativeMovementTools.register(registry, defs);
         InteractionTools.register(registry, defs);
         FireTools.register(registry, defs);
         CreativeTools.register(registry, defs);
@@ -113,5 +123,20 @@ public final class FriendaiTools {
         Map<String, TaskToolDef> taskTools = new LinkedHashMap<>();
         for (TaskToolDef def : defs) taskTools.put(def.name(), def);
         return new Builtins(registry, Map.copyOf(plannable), Map.copyOf(taskTools));
+    }
+
+    private static TaskToolDef legacyTaskDefinition(TaskToolDefinition definition) {
+        TaskToolDefinition.QueueTraits queueTraits = definition.queueTraits();
+        return new TaskToolDef(
+                definition.name(),
+                definition.description(),
+                definition.schema(),
+                definition.factory() == null ? null : definition.factory()::create,
+                definition.plannable(),
+                definition.minAccess(),
+                new TaskToolDef.QueueTraits(
+                        queueTraits.interrupts(), queueTraits.mergeableCountArg(), queueTraits.requiresTradingScope()),
+                definition.callerFactory() == null ? null : definition.callerFactory()::create,
+                definition.creativeSensitive());
     }
 }

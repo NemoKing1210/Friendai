@@ -11,7 +11,17 @@ public final class ToolRegistry<C> {
     private final Map<String, Tool<C>> tools = new LinkedHashMap<>();
 
     public ToolRegistry<C> register(Tool<C> tool) {
-        tools.put(tool.name(), tool);
+        if (tool == null) {
+            throw new IllegalArgumentException("Tool is required");
+        }
+        String name = tool.name();
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Tool name is required");
+        }
+        if (tools.containsKey(name)) {
+            throw new IllegalArgumentException("Tool already registered: " + name);
+        }
+        tools.put(name, tool);
         return this;
     }
 

@@ -1,12 +1,17 @@
-package dev.friendai.tool.builtin;
+package dev.friendai.features.navigation.minecraft.tool;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
+import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
-import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.navigation.minecraft.task.CircleTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
 import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.server.execution.tools.FeatureToolContributor;
+import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.builtin.ApproachTask;
 import dev.friendai.task.interact.EntityTargets;
@@ -16,78 +21,68 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 /** Small moves measured from where the companion stands or from something it is near. */
-final class RelativeMovementTools {
+public final class RelativeMovementTools implements FeatureToolContributor {
     private static final int DEFAULT_BACK_AWAY_BLOCKS = 4;
     private static final double DEFAULT_APPROACH_DISTANCE = 2.0;
     private static final double DEFAULT_CIRCLE_RADIUS = 4.0;
 
-    private RelativeMovementTools() {}
+    public RelativeMovementTools() {}
 
-    static void register(ToolRegistry<CompanionEntity> registry, List<TaskToolDef> defs) {
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "step",
-                        "Take a few steps in a direction relative to where you are facing (forward, back, left, right), "
-                                + "without turning to face it. Use it for small adjustments like 'step back' or 'move left'.",
-                        SchemaBuilder.object()
-                                .enumeration(
-                                        "direction",
-                                        "Which way, relative to your facing",
-                                        "forward",
-                                        "back",
-                                        "left",
-                                        "right")
-                                .integer("blocks", "How many blocks, 1 to 16", 1, 16)
-                                .bool("sneak", "Crouch while moving")
-                                .required("direction", "blocks")
-                                .build(),
-                        RelativeMovementTools::step,
-                        true));
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "back_away",
-                        "Move away from something or someone (owner, a player's name, an animal/mob type) to make room. "
-                                + "Without a target, back off straight behind you.",
-                        SchemaBuilder.object()
-                                .string("from", "owner, a player name, or an entity type such as zombie")
-                                .integer("blocks", "How far to move away; default 4", 1, 16)
-                                .build(),
-                        RelativeMovementTools::backAway,
-                        true));
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "approach",
-                        "Walk up to something (owner, a player's name, an animal/mob type), stop at the given distance and look at it.",
-                        SchemaBuilder.object()
-                                .string("target", "owner, a player name, or an entity type such as cow")
-                                .number("distance", "How close to get, in blocks (1 to 8); default 2")
-                                .required("target")
-                                .build(),
-                        RelativeMovementTools::approach,
-                        true));
-        ToolKit.add(
-                registry,
-                defs,
-                new TaskToolDef(
-                        "circle",
-                        "Walk in a circle around something (owner, a player's name, an animal/mob type) or around a point, "
-                                + "looking at its centre.",
-                        SchemaBuilder.object()
-                                .string("target", "owner, a player name, or an entity type such as cow")
-                                .number("x", "Centre X, if there is no target")
-                                .number("y", "Centre Y, if there is no target")
-                                .number("z", "Centre Z, if there is no target")
-                                .number("radius", "Circle radius in blocks (2 to 16); default 4")
-                                .integer("laps", "How many times around (1 to 5); default 1", 1, 5)
-                                .build(),
-                        RelativeMovementTools::circle,
-                        true));
+    @Override
+    public void register(FeatureToolRegistry registry) {
+        registry.registerTask(task(
+                "step",
+                "Take a few steps in a direction relative to where you are facing (forward, back, left, right), "
+                        + "without turning to face it. Use it for small adjustments like 'step back' or 'move left'.",
+                SchemaBuilder.object()
+                        .enumeration(
+                                "direction", "Which way, relative to your facing", "forward", "back", "left", "right")
+                        .integer("blocks", "How many blocks, 1 to 16", 1, 16)
+                        .bool("sneak", "Crouch while moving")
+                        .required("direction", "blocks")
+                        .build(),
+                RelativeMovementTools::step));
+        registry.registerTask(task(
+                "back_away",
+                "Move away from something or someone (owner, a player's name, an animal/mob type) to make room. "
+                        + "Without a target, back off straight behind you.",
+                SchemaBuilder.object()
+                        .string("from", "owner, a player name, or an entity type such as zombie")
+                        .integer("blocks", "How far to move away; default 4", 1, 16)
+                        .build(),
+                RelativeMovementTools::backAway));
+        registry.registerTask(task(
+                "approach",
+                "Walk up to something (owner, a player's name, an animal/mob type), stop at the given distance and look at it.",
+                SchemaBuilder.object()
+                        .string("target", "owner, a player name, or an entity type such as cow")
+                        .number("distance", "How close to get, in blocks (1 to 8); default 2")
+                        .required("target")
+                        .build(),
+                RelativeMovementTools::approach));
+        registry.registerTask(task(
+                "circle",
+                "Walk in a circle around something (owner, a player's name, an animal/mob type) or around a point, "
+                        + "looking at its centre.",
+                SchemaBuilder.object()
+                        .string("target", "owner, a player name, or an entity type such as cow")
+                        .number("x", "Centre X, if there is no target")
+                        .number("y", "Centre Y, if there is no target")
+                        .number("z", "Centre Z, if there is no target")
+                        .number("radius", "Circle radius in blocks (2 to 16); default 4")
+                        .integer("laps", "How many times around (1 to 5); default 1", 1, 5)
+                        .build(),
+                RelativeMovementTools::circle));
+    }
+
+    private static TaskToolDefinition task(
+            String name, String description, JsonObject schema, TaskToolDefinition.Factory factory) {
+        return new TaskToolDefinition(
+                name, description, schema, factory, true, TaskToolDefinition.QueueTraits.DEFAULT, metadata(name));
+    }
+
+    private static ToolMeta metadata(String name) {
+        return new ToolMeta(name, ToolGroup.MOVEMENT, false, "", List.of(), Cost.MEDIUM);
     }
 
     private static Task step(CompanionEntity c, JsonObject a) {

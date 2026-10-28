@@ -26,6 +26,12 @@ final class PackageDependencyRules {
             new FeatureDependency("places", "navigation"),
             new FeatureDependency("placements", "navigation"),
             new FeatureDependency("instructions", "memory"));
+    private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
+            "dev.friendai.server.execution.tools.FeatureToolContributor",
+            "dev.friendai.server.execution.tools.FeatureToolRegistry",
+            "dev.friendai.server.execution.tools.TaskToolDefinition",
+            "dev.friendai.server.execution.tools.TaskToolDefinition$Factory",
+            "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits");
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
             "dev.friendai.infrastructure.config",
@@ -166,12 +172,20 @@ final class PackageDependencyRules {
     }
 
     private static boolean isFeatureAdapter(String source, String target) {
-        return isUnder(target, "dev.friendai.server")
+        return isUnder(target, "dev.friendai.server") && !isAllowedFeatureToolApiDependency(source, target)
                 || isUnder(target, "dev.friendai.client")
                 || isUnder(target, "dev.friendai.transport")
                 || isUnder(target, "dev.friendai.infrastructure")
                 || isUnder(target, "dev.friendai.presentation")
                 || !isMinecraftFeatureAdapter(source) && isPlatformPackage(target);
+    }
+
+    private static boolean isAllowedFeatureToolApiDependency(String source, String target) {
+        if (!FEATURE_TOOL_REGISTRATION_API.contains(target) || !isUnder(source, "dev.friendai.features")) {
+            return false;
+        }
+        String[] segments = source.substring("dev.friendai.features.".length()).split("\\.");
+        return segments.length >= 4 && segments[1].equals("minecraft") && segments[2].equals("tool");
     }
 
     private static boolean hasUnlistedFeatureDependency(String source, String target) {

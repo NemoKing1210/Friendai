@@ -176,6 +176,31 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void featureToolAdaptersMayUseRegistrationApiButNotServerRuntimeServices() {
+        String toolAdapter = "dev.friendai.features.navigation.minecraft.tool.MovementTools";
+        List<DependencyEdge> allowed = List.of(
+                edge(toolAdapter, "dev.friendai.server.execution.tools.FeatureToolContributor"),
+                edge(toolAdapter, "dev.friendai.server.execution.tools.FeatureToolRegistry"),
+                edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition"),
+                edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition$Factory"),
+                edge(toolAdapter, "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits"));
+        assertTrue(PackageDependencyRules.validate(allowed).isEmpty());
+
+        assertEquals(
+                List.of(
+                        violation(
+                                "feature-to-server",
+                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
+                                "dev.friendai.server.execution.tools.FeatureToolRegistry"),
+                        violation("feature-to-server", toolAdapter, "dev.friendai.server.runtime.ServerRuntime")),
+                PackageDependencyRules.validate(List.of(
+                        edge(toolAdapter, "dev.friendai.server.runtime.ServerRuntime"),
+                        edge(
+                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
+                                "dev.friendai.server.execution.tools.FeatureToolRegistry"))));
+    }
+
+    @Test
     void engineRejectsGameOptionalUiAndNativeAudioDependencies() {
         List<DependencyEdge> edges = List.of(
                 edge("dev.friendai.foundation.Text", "net.minecraft.world.level.Level"),
