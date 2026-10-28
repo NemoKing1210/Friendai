@@ -281,6 +281,18 @@ class PathSearchTest {
         assertTrue(hasMove(path, Move.DIG_ASCEND));
     }
 
+    @Test
+    void descentContinuesInTheDirectionOfTravel() {
+        // A raised walkway for x=0..4, one block above the ground; the drop at x=5 then flat ground east.
+        GridCellView view = new GridCellView("##########", "#####.....", "..........", "..........");
+        Path path = path(view, new Node(0, 2, 0), point(8.5, 1, 0.5), 0);
+        assertEquals(1, path.steps().stream().filter(step -> step.move() == Move.DESCEND).count());
+        for (PathStep step : path.steps()) {
+            assertTrue(step.to().x() >= step.from().x(),
+                    "the descent path stepped back west: " + step.from() + " -> " + step.to());
+        }
+    }
+
     /** A 1Г—1 pit three deep in flat ground, the surface at y = 4. */
     private static GridCellView pitWorld() {
         String[] layers = {

@@ -8,6 +8,7 @@ import dev.friendai.pathing.Node;
 import dev.friendai.pathing.Path;
 import dev.friendai.pathing.PathGoal;
 import dev.friendai.pathing.PathSearch;
+import dev.friendai.pathing.PathSmoother;
 import dev.friendai.pathing.PathStep;
 import dev.friendai.pathing.PathingConfig;
 import dev.friendai.pathing.Pos;
@@ -124,6 +125,11 @@ public final class Navigator {
 
     public int failedPlans() {
         return failedPlans;
+    }
+
+    /** Horizontal blocks left on the route being walked, or 0 while none is. */
+    public double remainingDistance() {
+        return executor == null ? 0.0 : executor.remainingDistance();
     }
 
     public boolean searching() {
@@ -341,7 +347,8 @@ public final class Navigator {
         if (executor != null) {
             executor.stop(c);
         }
-        plan = path.afterNode(node(), TRIM_LOOKAHEAD);
+        Path trimmed = path.afterNode(node(), TRIM_LOOKAHEAD);
+        plan = PathSmoother.simplify(trimmed, new LevelCellView(companion, config(), CostModel.DEFAULTS));
         executor = new PathExecutor(plan, new MaterialPicker(config()), config(), PathExecutionGuard.DEFAULT, ledger);
         state = State.MOVING;
     }
@@ -448,6 +455,16 @@ public final class Navigator {
     }
 
     private boolean goalHolds() {
+        if (goal instanceof GoalPoint point) {
+            // The search judges a block node; at run time the body may already be inside the goal block while its
+            // feet are a fraction below the node (the top of a climb). Compare the body, not the node floor.
+            double dx = companion.getX() - point.x();
+            double dz = companion.getZ() - point.z();
+            if (Math.sqrt(dx * dx + dz * dz) <= point.horizontal()
+                    && Math.abs(companion.getY() - point.y()) <= point.vertical()) {
+                return true;
+            }
+        }
         return goal.isGoal(node(), new LevelCellView(companion, config(), CostModel.DEFAULTS));
     }
 
