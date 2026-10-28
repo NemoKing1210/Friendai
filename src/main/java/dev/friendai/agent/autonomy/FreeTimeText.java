@@ -13,14 +13,16 @@ public final class FreeTimeText {
         }
         long minutes = Math.max(0, nowMillis - state.sinceMillis()) / 60_000;
         return "Free time: on for " + minutes + " min; "
-                + (state.shift() == null ? "between activities" : "current activity: " + state.shift().goal());
+                + (state.shift() == null
+                        ? "between activities"
+                        : "current activity: " + state.shift().goal());
     }
 
     /** The last shifts, newest first, one short line each. */
     public static List<String> recent(FreeTime state) {
         return state.history().stream()
-                .map(r -> r.goal() + ": " + (r.success() ? "ok" : "failed") + (r.summary().isBlank() ? "" : ", "
-                        + FreeTime.cut(r.summary(), 120)))
+                .map(r -> r.goal() + ": " + (r.success() ? "ok" : "failed")
+                        + (r.summary().isBlank() ? "" : ", " + FreeTime.cut(r.summary(), 120)))
                 .toList();
     }
 

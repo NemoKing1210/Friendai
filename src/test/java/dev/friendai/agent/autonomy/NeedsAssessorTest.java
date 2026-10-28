@@ -22,7 +22,8 @@ class NeedsAssessorTest {
 
     @Test
     void fullBagWithStorageIsUnloadReflex() {
-        List<Need> needs = needs(Facts.base().freeSlots(2).storage("storage", 30).storageFreeSlots(27));
+        List<Need> needs =
+                needs(Facts.base().freeSlots(2).storage("storage", 30).storageFreeSlots(27));
         assertEquals(NeedKind.UNLOAD, needs.get(0).kind());
         assertEquals(Executor.REFLEX, needs.get(0).executor());
     }
@@ -42,7 +43,8 @@ class NeedsAssessorTest {
 
     @Test
     void lowHealthIsSurviveFirst() {
-        List<Need> needs = needs(Facts.base().health(7).freeSlots(2).storage("s", 5).storageFreeSlots(9));
+        List<Need> needs =
+                needs(Facts.base().health(7).freeSlots(2).storage("s", 5).storageFreeSlots(9));
         assertEquals(NeedKind.SURVIVE, needs.get(0).kind());
         assertEquals(100, needs.get(0).urgency());
         assertFalse(kinds(needs(Facts.base().health(8))).contains(NeedKind.SURVIVE));
@@ -71,7 +73,8 @@ class NeedsAssessorTest {
 
     @Test
     void rawOreWithFuelIsProcess() {
-        assertTrue(kinds(needs(Facts.base().stock(StockKind.RAW_ORE, 8).hasFuel())).contains(NeedKind.PROCESS));
+        assertTrue(
+                kinds(needs(Facts.base().stock(StockKind.RAW_ORE, 8).hasFuel())).contains(NeedKind.PROCESS));
         assertFalse(kinds(needs(Facts.base().stock(StockKind.RAW_ORE, 8))).contains(NeedKind.PROCESS));
     }
 
@@ -104,7 +107,8 @@ class NeedsAssessorTest {
         List<NeedKind> kinds = kinds(needs(Facts.base()));
         assertTrue(kinds.contains(NeedKind.GEAR));
         assertTrue(kinds.contains(NeedKind.STOCK));
-        assertTrue(needs(Facts.base()).stream().filter(n -> n.kind() == NeedKind.GEAR)
+        assertTrue(needs(Facts.base()).stream()
+                .filter(n -> n.kind() == NeedKind.GEAR)
                 .allMatch(n -> n.text().contains("wooden pickaxe")));
     }
 
@@ -141,8 +145,9 @@ class NeedsAssessorTest {
         assertFalse(kinds(needs(Facts.base().home("home", 8))).contains(NeedKind.FARM_CREATE));
         assertFalse(kinds(needs(Facts.base().stock(StockKind.SEEDS, 3))).contains(NeedKind.FARM_CREATE));
         var noBuild = new AutonomySettings(true, true, 5, 60, true, 20, 6, 2, 10, true, false, List.of());
-        assertFalse(kinds(NeedsAssessor.assess(Facts.base().home("home", 8).stock(StockKind.SEEDS, 3).build(),
-                FreeTime.OFF, noBuild)).contains(NeedKind.FARM_CREATE));
+        assertFalse(kinds(NeedsAssessor.assess(
+                        Facts.base().home("home", 8).stock(StockKind.SEEDS, 3).build(), FreeTime.OFF, noBuild))
+                .contains(NeedKind.FARM_CREATE));
     }
 
     @Test
@@ -152,19 +157,38 @@ class NeedsAssessorTest {
                 .contains(NeedKind.STORAGE));
         assertTrue(kinds(needs(Facts.base().trade("village", 20, 40 * 60_000L))).contains(NeedKind.TRADE));
         assertFalse(kinds(needs(Facts.base().trade("village", 20, 60_000L))).contains(NeedKind.TRADE));
-        assertTrue(kinds(needs(Facts.base().pickaxe(Tier.IRON).xpLevel(9).home("home", 4)
-                .enchantingTableAtHome())).contains(NeedKind.ENCHANT));
-        assertTrue(kinds(needs(Facts.base().everything().flintAndSteel().obsidian(10)
-                .home("home", 4))).contains(NeedKind.NETHER));
-        assertFalse(kinds(needs(Facts.base().everything().portalKnown().flintAndSteel().obsidian(10)
-                .home("home", 4))).contains(NeedKind.NETHER));
+        assertTrue(kinds(needs(Facts.base()
+                        .pickaxe(Tier.IRON)
+                        .xpLevel(9)
+                        .home("home", 4)
+                        .enchantingTableAtHome()))
+                .contains(NeedKind.ENCHANT));
+        assertTrue(kinds(needs(
+                        Facts.base().everything().flintAndSteel().obsidian(10).home("home", 4)))
+                .contains(NeedKind.NETHER));
+        assertFalse(kinds(needs(Facts.base()
+                        .everything()
+                        .portalKnown()
+                        .flintAndSteel()
+                        .obsidian(10)
+                        .home("home", 4)))
+                .contains(NeedKind.NETHER));
     }
 
     @Test
     void safetyNeedsSurviveTheSixItemCap() {
-        List<NeedKind> kinds = kinds(needs(Facts.base().health(4).hunger(5).dark().home("home", 40)
-                .freeSlots(1).storageFreeSlots(9).furnacesReady(2).foodPoints(0)
-                .stock(StockKind.RAW_ORE, 9).hasFuel().gearWear(0.1)));
+        List<NeedKind> kinds = kinds(needs(Facts.base()
+                .health(4)
+                .hunger(5)
+                .dark()
+                .home("home", 40)
+                .freeSlots(1)
+                .storageFreeSlots(9)
+                .furnacesReady(2)
+                .foodPoints(0)
+                .stock(StockKind.RAW_ORE, 9)
+                .hasFuel()
+                .gearWear(0.1)));
         assertTrue(kinds.contains(NeedKind.SURVIVE));
         assertTrue(kinds.contains(NeedKind.HUNGER));
         assertTrue(kinds.contains(NeedKind.SHELTER));
@@ -181,15 +205,31 @@ class NeedsAssessorTest {
 
     @Test
     void atMostSixSorted() {
-        List<Need> needs = needs(Facts.base().health(5).dark().home("home", 40).freeSlots(1).storageFreeSlots(9)
-                .furnacesReady(2).foodPoints(0).stock(StockKind.RAW_ORE, 9).hasFuel().stock(StockKind.COAL, 3)
+        List<Need> needs = needs(Facts.base()
+                .health(5)
+                .dark()
+                .home("home", 40)
+                .freeSlots(1)
+                .storageFreeSlots(9)
+                .furnacesReady(2)
+                .foodPoints(0)
+                .stock(StockKind.RAW_ORE, 9)
+                .hasFuel()
+                .stock(StockKind.COAL, 3)
                 .farm("f", "wheat", 5, 3_600_000));
         assertEquals(NeedsAssessor.MAX_NEEDS, needs.size());
         for (int i = 1; i < needs.size(); i++) {
             assertTrue(needs.get(i - 1).urgency() >= needs.get(i).urgency());
         }
-        assertEquals(List.of(NeedKind.SURVIVE, NeedKind.SHELTER, NeedKind.UNLOAD, NeedKind.FOOD,
-                NeedKind.COLLECT, NeedKind.GEAR), kinds(needs));
+        assertEquals(
+                List.of(
+                        NeedKind.SURVIVE,
+                        NeedKind.SHELTER,
+                        NeedKind.UNLOAD,
+                        NeedKind.FOOD,
+                        NeedKind.COLLECT,
+                        NeedKind.GEAR),
+                kinds(needs));
     }
 
     @Test
@@ -202,19 +242,44 @@ class NeedsAssessorTest {
     @Test
     void unloadOnCooldownIsSkipped() {
         Facts facts = Facts.base().freeSlots(2).storage("storage", 30).storageFreeSlots(27);
-        FreeTime cooling = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(), List.of(),
-                Map.of(NeedKind.UNLOAD, Facts.NOW + 1), List.of());
+        FreeTime cooling = new FreeTime(
+                true,
+                FreeTime.Origin.COMMAND,
+                "",
+                0,
+                null,
+                false,
+                1,
+                List.of(),
+                List.of(),
+                Map.of(NeedKind.UNLOAD, Facts.NOW + 1),
+                List.of());
         assertFalse(kinds(NeedsAssessor.assess(facts.build(), cooling, S)).contains(NeedKind.UNLOAD));
-        FreeTime expired = new FreeTime(true, FreeTime.Origin.COMMAND, "", 0, null, false, 1, List.of(), List.of(),
-                Map.of(NeedKind.UNLOAD, Facts.NOW - 1), List.of());
+        FreeTime expired = new FreeTime(
+                true,
+                FreeTime.Origin.COMMAND,
+                "",
+                0,
+                null,
+                false,
+                1,
+                List.of(),
+                List.of(),
+                Map.of(NeedKind.UNLOAD, Facts.NOW - 1),
+                List.of());
         assertTrue(kinds(NeedsAssessor.assess(facts.build(), expired, S)).contains(NeedKind.UNLOAD));
     }
 
     @Test
     void placesInOtherDimensionAreIgnored() {
-        assertFalse(kinds(needs(Facts.base().freeSlots(2).storage("storage", 30).otherDimension()
-                .storageFreeSlots(27))).contains(NeedKind.UNLOAD));
-        assertFalse(kinds(needs(Facts.base().dark().home("home", 40).otherDimension())).contains(NeedKind.SHELTER));
+        assertFalse(kinds(needs(Facts.base()
+                        .freeSlots(2)
+                        .storage("storage", 30)
+                        .otherDimension()
+                        .storageFreeSlots(27)))
+                .contains(NeedKind.UNLOAD));
+        assertFalse(kinds(needs(Facts.base().dark().home("home", 40).otherDimension()))
+                .contains(NeedKind.SHELTER));
         assertFalse(kinds(needs(Facts.base().farm("f", "wheat", 5, 3_600_000).otherDimension()))
                 .contains(NeedKind.FARM));
     }

@@ -1,13 +1,7 @@
 package dev.friendai.agent.autonomy;
 
 /** What free time is doing, why, what it will decide next, and what the budget allows. Shown to the owner. */
-public record FreeTimeStatus(
-        boolean on,
-        String activity,
-        String why,
-        String next,
-        String budget,
-        String last) {
+public record FreeTimeStatus(boolean on, String activity, String why, String next, String budget, String last) {
 
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_TEXT = 160;

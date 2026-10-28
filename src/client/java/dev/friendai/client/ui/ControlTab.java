@@ -32,19 +32,31 @@ final class ControlTab implements MenuTab {
         int buttonWidth = (width - (columns - 1) * GAP) / columns;
         buttonsTop = top + height - rows * BUTTON_HEIGHT - (rows - 1) * GAP;
         summon = button(host, "friendai.menu.summon", RequestType.SUMMON, Ui.GOOD, left, buttonsTop, buttonWidth);
-        teleport = button(host, "friendai.menu.teleport", RequestType.TELEPORT, Ui.ACCENT,
-                left + (buttonWidth + GAP), buttonsTop, buttonWidth);
+        teleport = button(
+                host,
+                "friendai.menu.teleport",
+                RequestType.TELEPORT,
+                Ui.ACCENT,
+                left + (buttonWidth + GAP),
+                buttonsTop,
+                buttonWidth);
         int secondRow = oneRow ? buttonsTop : buttonsTop + BUTTON_HEIGHT + GAP;
         int dismissX = oneRow ? left + 2 * (buttonWidth + GAP) : left;
         dismiss = button(host, "friendai.menu.dismiss", RequestType.DISMISS, Ui.WARN, dismissX, secondRow, buttonWidth);
-        stop = button(host, "friendai.menu.stop", RequestType.STOP, Ui.BAD,
-                dismissX + buttonWidth + GAP, secondRow, buttonWidth);
+        stop = button(
+                host,
+                "friendai.menu.stop",
+                RequestType.STOP,
+                Ui.BAD,
+                dismissX + buttonWidth + GAP,
+                secondRow,
+                buttonWidth);
         tick();
     }
 
     private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
-        return host.add(new FlatButton(x, y, width, BUTTON_HEIGHT, Component.translatable(key), color,
-                () -> CompanionRequests.send(request)));
+        return host.add(new FlatButton(
+                x, y, width, BUTTON_HEIGHT, Component.translatable(key), color, () -> CompanionRequests.send(request)));
     }
 
     @Override
@@ -94,61 +106,138 @@ final class ControlTab implements MenuTab {
 
         int textX = ax + 36 + PAD;
         int textWidth = left + width - PAD - textX;
-        Component stateLabel = Component.translatable(!s.present()
-                ? "friendai.menu.state.offline"
-                : s.thinking() ? "friendai.menu.state.thinking" : "friendai.menu.state.idle");
+        Component stateLabel = Component.translatable(
+                !s.present()
+                        ? "friendai.menu.state.offline"
+                        : s.thinking() ? "friendai.menu.state.thinking" : "friendai.menu.state.idle");
         int badgeWidth = Ui.badgeWidth(font, stateLabel.getString());
-        String name = s.present() ? s.companionName() : Component.translatable("friendai.menu.no_companion").getString();
+        String name = s.present()
+                ? s.companionName()
+                : Component.translatable("friendai.menu.no_companion").getString();
         Ui.text(g, font, Ui.clip(font, name, Math.max(20, textWidth - badgeWidth - 6)), textX, top + PAD + 1, Ui.TEXT);
         Ui.badge(g, font, stateLabel.getString(), left + width - PAD - badgeWidth, top + PAD - 1, stateColor);
-        String model = Component.translatable("friendai.menu.model", s.model(), s.provider()).getString();
+        String model = Component.translatable("friendai.menu.model", s.model(), s.provider())
+                .getString();
         Ui.text(g, font, Ui.clip(font, model, textWidth), textX, top + PAD + 13, Ui.DIM);
         if (s.present()) {
             int x = textX;
             CompanionVitals v = s.vitals();
-            x += Ui.badge(g, font, Component.translatable("friendai.menu.mode.combat",
-                    combatName(v.protection(), v.style())).getString(), x, top + PAD + 25, Ui.PURPLE) + 4;
-            Ui.badge(g, font, Component.translatable("friendai.menu.mode.pace", paceName(v.paceMode())).getString(),
-                    x, top + PAD + 25, Ui.ACCENT);
-            Component creative = Component.translatable(s.creativeMode()
-                    ? "friendai.menu.mode.creative"
-                    : "friendai.menu.mode.survival");
-            Ui.text(g, font, Component.translatable("friendai.menu.mode.current", creative), textX,
-                    top + PAD + 39, s.creativeMode() ? Ui.PURPLE : Ui.DIM);
+            x += Ui.badge(
+                            g,
+                            font,
+                            Component.translatable("friendai.menu.mode.combat", combatName(v.protection(), v.style()))
+                                    .getString(),
+                            x,
+                            top + PAD + 25,
+                            Ui.PURPLE)
+                    + 4;
+            Ui.badge(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.mode.pace", paceName(v.paceMode()))
+                            .getString(),
+                    x,
+                    top + PAD + 25,
+                    Ui.ACCENT);
+            Component creative = Component.translatable(
+                    s.creativeMode() ? "friendai.menu.mode.creative" : "friendai.menu.mode.survival");
+            Ui.text(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.mode.current", creative),
+                    textX,
+                    top + PAD + 39,
+                    s.creativeMode() ? Ui.PURPLE : Ui.DIM);
         }
     }
 
     private void drawVitals(GuiGraphicsExtractor g, Font font, CompanionVitals v, int left, int top, int width) {
         Ui.card(g, left, top, width, VITALS_HEIGHT);
-        int labelWidth = Math.min(80, Math.max(font.width(Component.translatable("friendai.menu.vital.health")),
-                Math.max(font.width(Component.translatable("friendai.menu.vital.hunger")),
-                        font.width(Component.translatable("friendai.menu.vital.inventory")))));
-        int valueWidth = font.width("00.0 / 00.0") ;
+        int labelWidth = Math.min(
+                80,
+                Math.max(
+                        font.width(Component.translatable("friendai.menu.vital.health")),
+                        Math.max(
+                                font.width(Component.translatable("friendai.menu.vital.hunger")),
+                                font.width(Component.translatable("friendai.menu.vital.inventory")))));
+        int valueWidth = font.width("00.0 / 00.0");
         int barX = left + PAD + labelWidth + 6;
         int barWidth = Math.max(20, left + width - PAD - valueWidth - 6 - barX);
-        row(g, font, "friendai.menu.vital.health", v.health() / Math.max(1f, v.maxHealth()), Ui.BAD,
-                trim(v.health()) + " / " + trim(v.maxHealth()), left, top + 7, barX, barWidth, width);
-        row(g, font, "friendai.menu.vital.hunger", v.food() / 20f, Ui.WARN,
-                v.food() + " / 20", left, top + 21, barX, barWidth, width);
-        row(g, font, "friendai.menu.vital.inventory", v.inventoryUsed() / (float) Math.max(1, v.inventorySlots()),
-                Ui.ACCENT, v.inventoryUsed() + " / " + v.inventorySlots(), left, top + 35, barX, barWidth, width);
-        row(g, font, "friendai.menu.vital.experience", v.xpProgress(), Ui.GOOD,
+        row(
+                g,
+                font,
+                "friendai.menu.vital.health",
+                v.health() / Math.max(1f, v.maxHealth()),
+                Ui.BAD,
+                trim(v.health()) + " / " + trim(v.maxHealth()),
+                left,
+                top + 7,
+                barX,
+                barWidth,
+                width);
+        row(
+                g,
+                font,
+                "friendai.menu.vital.hunger",
+                v.food() / 20f,
+                Ui.WARN,
+                v.food() + " / 20",
+                left,
+                top + 21,
+                barX,
+                barWidth,
+                width);
+        row(
+                g,
+                font,
+                "friendai.menu.vital.inventory",
+                v.inventoryUsed() / (float) Math.max(1, v.inventorySlots()),
+                Ui.ACCENT,
+                v.inventoryUsed() + " / " + v.inventorySlots(),
+                left,
+                top + 35,
+                barX,
+                barWidth,
+                width);
+        row(
+                g,
+                font,
+                "friendai.menu.vital.experience",
+                v.xpProgress(),
+                Ui.GOOD,
                 Component.translatable("friendai.menu.vital.level", v.xpLevel()).getString(),
-                left, top + 49, barX, barWidth, width);
+                left,
+                top + 49,
+                barX,
+                barWidth,
+                width);
     }
 
-    private static void row(GuiGraphicsExtractor g, Font font, String labelKey, float fraction, int color,
-            String value, int left, int y, int barX, int barWidth, int width) {
+    private static void row(
+            GuiGraphicsExtractor g,
+            Font font,
+            String labelKey,
+            float fraction,
+            int color,
+            String value,
+            int left,
+            int y,
+            int barX,
+            int barWidth,
+            int width) {
         Ui.text(g, font, Component.translatable(labelKey), left + PAD, y, Ui.DIM);
         Ui.bar(g, barX, y + 1, barWidth, 7, fraction, color);
         Ui.text(g, font, value, left + width - PAD - font.width(value), y, Ui.TEXT);
     }
 
     private static String trim(float value) {
-        return value == Math.floor(value) ? String.valueOf((int) value) : String.format(java.util.Locale.ROOT, "%.1f", value);
+        return value == Math.floor(value)
+                ? String.valueOf((int) value)
+                : String.format(java.util.Locale.ROOT, "%.1f", value);
     }
 
-    private void drawActivity(GuiGraphicsExtractor g, Font font, CompanionSnapshot s, int left, int top, int width, int height) {
+    private void drawActivity(
+            GuiGraphicsExtractor g, Font font, CompanionSnapshot s, int left, int top, int width, int height) {
         if (height < 24) {
             return;
         }
@@ -164,8 +253,9 @@ final class ControlTab implements MenuTab {
         }
         CompanionVitals v = s.vitals();
         if (s.present() && v.action() != null && !v.action().isEmpty() && !"none".equals(v.action())) {
-            String active = Component.translatable("friendai.menu.combat.active",
-                    actionName(v.action()), reasonName(v.reason())).getString();
+            String active = Component.translatable(
+                            "friendai.menu.combat.active", actionName(v.action()), reasonName(v.reason()))
+                    .getString();
             text = active + (text.isEmpty() ? "" : "\n" + text);
         }
         QueuePanel.draw(g, font, text, left + PAD, top + 20, width - 2 * PAD);
@@ -175,88 +265,104 @@ final class ControlTab implements MenuTab {
     /** The free-time lines the activity card shows before the current task. */
     static String freeTimeLines(CompanionSnapshot s) {
         StringBuilder sb = new StringBuilder();
-        sb.append(s.freeTimeActivity().isBlank()
-                ? Component.translatable(s.freeTimeWaiting()
-                        ? "friendai.menu.free_time.waiting"
-                        : "friendai.menu.free_time.on").getString()
-                : Component.translatable("friendai.menu.free_time.activity",
-                        s.freeTimeActivity()).getString());
+        sb.append(
+                s.freeTimeActivity().isBlank()
+                        ? Component.translatable(
+                                        s.freeTimeWaiting()
+                                                ? "friendai.menu.free_time.waiting"
+                                                : "friendai.menu.free_time.on")
+                                .getString()
+                        : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity())
+                                .getString());
         if (!s.freeTimeNext().isBlank()) {
-            sb.append('\n').append(Component.translatable("friendai.menu.free_time.next",
-                    s.freeTimeNext(), s.freeTimeBudget()).getString());
+            sb.append('\n')
+                    .append(Component.translatable("friendai.menu.free_time.next", s.freeTimeNext(), s.freeTimeBudget())
+                            .getString());
         } else if (!s.freeTimeBudget().isBlank()) {
-            sb.append('\n').append(Component.translatable("friendai.menu.free_time.budget",
-                    s.freeTimeBudget()).getString());
+            sb.append('\n')
+                    .append(Component.translatable("friendai.menu.free_time.budget", s.freeTimeBudget())
+                            .getString());
         }
         if (!s.freeTimeLast().isBlank()) {
-            sb.append('\n').append(Component.translatable("friendai.menu.free_time.last", s.freeTimeLast()).getString());
+            sb.append('\n')
+                    .append(Component.translatable("friendai.menu.free_time.last", s.freeTimeLast())
+                            .getString());
         }
         return sb.toString();
     }
 
     static Component combatName(String protection, String style) {
-        String protectionName = Component.translatable(switch (protection) {
-            case "self_only" -> "friendai.menu.protection.self_only";
-            case "guard" -> "friendai.menu.protection.guard";
-            case "avoid_combat" -> "friendai.menu.protection.avoid_combat";
-            default -> "friendai.menu.protection.bodyguard";
-        }).getString();
-        String styleName = Component.translatable(switch (style) {
-            case "cautious" -> "friendai.menu.style.cautious";
-            case "melee" -> "friendai.menu.style.melee";
-            case "ranged" -> "friendai.menu.style.ranged";
-            default -> "friendai.menu.style.balanced";
-        }).getString();
+        String protectionName = Component.translatable(
+                        switch (protection) {
+                            case "self_only" -> "friendai.menu.protection.self_only";
+                            case "guard" -> "friendai.menu.protection.guard";
+                            case "avoid_combat" -> "friendai.menu.protection.avoid_combat";
+                            default -> "friendai.menu.protection.bodyguard";
+                        })
+                .getString();
+        String styleName = Component.translatable(
+                        switch (style) {
+                            case "cautious" -> "friendai.menu.style.cautious";
+                            case "melee" -> "friendai.menu.style.melee";
+                            case "ranged" -> "friendai.menu.style.ranged";
+                            default -> "friendai.menu.style.balanced";
+                        })
+                .getString();
         return Component.literal(protectionName + " / " + styleName);
     }
 
     private static String actionName(String action) {
-        return Component.translatable(switch (action) {
-            case "attack" -> "friendai.menu.action.attack";
-            case "melee_approach" -> "friendai.menu.action.melee_approach";
-            case "keep_range" -> "friendai.menu.action.keep_range";
-            case "shield" -> "friendai.menu.action.shield";
-            case "dodge" -> "friendai.menu.action.dodge";
-            case "seek_cover" -> "friendai.menu.action.seek_cover";
-            case "retreat" -> "friendai.menu.action.retreat";
-            case "eat" -> "friendai.menu.action.eat";
-            case "fire_bow" -> "friendai.menu.action.fire_bow";
-            case "throw_potion" -> "friendai.menu.action.throw_potion";
-            case "disengage" -> "friendai.menu.action.disengage";
-            case "avoid" -> "friendai.menu.action.avoid";
-            default -> "friendai.menu.action.none";
-        }).getString();
+        return Component.translatable(
+                        switch (action) {
+                            case "attack" -> "friendai.menu.action.attack";
+                            case "melee_approach" -> "friendai.menu.action.melee_approach";
+                            case "keep_range" -> "friendai.menu.action.keep_range";
+                            case "shield" -> "friendai.menu.action.shield";
+                            case "dodge" -> "friendai.menu.action.dodge";
+                            case "seek_cover" -> "friendai.menu.action.seek_cover";
+                            case "retreat" -> "friendai.menu.action.retreat";
+                            case "eat" -> "friendai.menu.action.eat";
+                            case "fire_bow" -> "friendai.menu.action.fire_bow";
+                            case "throw_potion" -> "friendai.menu.action.throw_potion";
+                            case "disengage" -> "friendai.menu.action.disengage";
+                            case "avoid" -> "friendai.menu.action.avoid";
+                            default -> "friendai.menu.action.none";
+                        })
+                .getString();
     }
 
     private static String reasonName(String reason) {
-        return Component.translatable(switch (reason) {
-            case "imminent_danger" -> "friendai.menu.reason.imminent_danger";
-            case "block_projectile" -> "friendai.menu.reason.block_projectile";
-            case "block_melee" -> "friendai.menu.reason.block_melee";
-            case "evade_projectile" -> "friendai.menu.reason.evade_projectile";
-            case "evade_melee" -> "friendai.menu.reason.evade_melee";
-            case "survive" -> "friendai.menu.reason.survive";
-            case "recover" -> "friendai.menu.reason.recover";
-            case "defend_self" -> "friendai.menu.reason.defend_self";
-            case "defend_owner" -> "friendai.menu.reason.defend_owner";
-            case "guard" -> "friendai.menu.reason.guard";
-            case "attack" -> "friendai.menu.reason.attack";
-            case "position" -> "friendai.menu.reason.position";
-            case "out_of_pursuit" -> "friendai.menu.reason.out_of_pursuit";
-            case "style_range" -> "friendai.menu.reason.style_range";
-            case "avoid_combat" -> "friendai.menu.reason.avoid_combat";
-            case "no_weapon" -> "friendai.menu.reason.no_weapon";
-            case "no_ammunition" -> "friendai.menu.reason.no_ammunition";
-            case "unsafe_lane" -> "friendai.menu.reason.unsafe_lane";
-            default -> "friendai.menu.reason.none";
-        }).getString();
+        return Component.translatable(
+                        switch (reason) {
+                            case "imminent_danger" -> "friendai.menu.reason.imminent_danger";
+                            case "block_projectile" -> "friendai.menu.reason.block_projectile";
+                            case "block_melee" -> "friendai.menu.reason.block_melee";
+                            case "evade_projectile" -> "friendai.menu.reason.evade_projectile";
+                            case "evade_melee" -> "friendai.menu.reason.evade_melee";
+                            case "survive" -> "friendai.menu.reason.survive";
+                            case "recover" -> "friendai.menu.reason.recover";
+                            case "defend_self" -> "friendai.menu.reason.defend_self";
+                            case "defend_owner" -> "friendai.menu.reason.defend_owner";
+                            case "guard" -> "friendai.menu.reason.guard";
+                            case "attack" -> "friendai.menu.reason.attack";
+                            case "position" -> "friendai.menu.reason.position";
+                            case "out_of_pursuit" -> "friendai.menu.reason.out_of_pursuit";
+                            case "style_range" -> "friendai.menu.reason.style_range";
+                            case "avoid_combat" -> "friendai.menu.reason.avoid_combat";
+                            case "no_weapon" -> "friendai.menu.reason.no_weapon";
+                            case "no_ammunition" -> "friendai.menu.reason.no_ammunition";
+                            case "unsafe_lane" -> "friendai.menu.reason.unsafe_lane";
+                            default -> "friendai.menu.reason.none";
+                        })
+                .getString();
     }
 
     static Component paceName(String mode) {
-        return Component.translatable(switch (mode) {
-            case "walk" -> "friendai.menu.pace.walk";
-            case "run" -> "friendai.menu.pace.run";
-            default -> "friendai.menu.pace.auto";
-        });
+        return Component.translatable(
+                switch (mode) {
+                    case "walk" -> "friendai.menu.pace.walk";
+                    case "run" -> "friendai.menu.pace.run";
+                    default -> "friendai.menu.pace.auto";
+                });
     }
 }

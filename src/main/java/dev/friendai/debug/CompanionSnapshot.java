@@ -78,9 +78,31 @@ public record CompanionSnapshot(
             String freeTimeActivity,
             boolean freeTimeWaiting,
             boolean followMode) {
-        this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable,
-                freeTimeOn, freeTimeActivity, freeTimeWaiting, followMode, "", "", "");
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                "",
+                "",
+                "");
     }
 
     public CompanionSnapshot(
@@ -101,9 +123,31 @@ public record CompanionSnapshot(
             boolean autoRespawnAvailable,
             boolean creativeMode,
             boolean creativeModeAvailable) {
-        this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable,
-                false, "", false, true, "", "", "");
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                false,
+                "",
+                false,
+                true,
+                "",
+                "",
+                "");
     }
 
     public CompanionSnapshot(
@@ -122,9 +166,31 @@ public record CompanionSnapshot(
             List<QueueRow> queue,
             boolean autoRespawn,
             boolean autoRespawnAvailable) {
-        this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, autoRespawn, autoRespawnAvailable, false, false,
-                false, "", false, true, "", "", "");
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                false,
+                false,
+                false,
+                "",
+                false,
+                true,
+                "",
+                "",
+                "");
     }
 
     public CompanionSnapshot(
@@ -141,8 +207,30 @@ public record CompanionSnapshot(
             List<String> toolNames,
             CompanionVitals vitals,
             List<QueueRow> queue) {
-        this(present, operator, companionName, provider, model, thinking, currentTask, history, newLog, perception,
-                toolNames, vitals, queue, true, present, false, false,
-                false, "", false, true, "", "", "");
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                true,
+                present,
+                false,
+                false,
+                false,
+                "",
+                false,
+                true,
+                "",
+                "",
+                "");
     }
 }

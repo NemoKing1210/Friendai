@@ -7,12 +7,26 @@ import java.util.Set;
 /** Decides, once a second, whether free time should start a reflex, ask the director, or wait. */
 public final class ShiftPolicy {
     /** Director needs that have a template, for when the budget is spent; the driver's watchdog uses the same set. */
-    public static final Set<NeedKind> FALLBACKS = Set.of(NeedKind.STOCK, NeedKind.GEAR, NeedKind.FARM,
-            NeedKind.PROCESS, NeedKind.FOOD, NeedKind.LIGHT, NeedKind.BUILD, NeedKind.STORAGE);
+    public static final Set<NeedKind> FALLBACKS = Set.of(
+            NeedKind.STOCK,
+            NeedKind.GEAR,
+            NeedKind.FARM,
+            NeedKind.PROCESS,
+            NeedKind.FOOD,
+            NeedKind.LIGHT,
+            NeedKind.BUILD,
+            NeedKind.STORAGE);
 
     /** Order a spent budget tries templates in: a base first, then ladder progress, then maintenance. */
-    public static final List<NeedKind> FALLBACK_ORDER = List.of(NeedKind.BUILD, NeedKind.STORAGE, NeedKind.STOCK,
-            NeedKind.GEAR, NeedKind.PROCESS, NeedKind.FOOD, NeedKind.LIGHT, NeedKind.FARM);
+    public static final List<NeedKind> FALLBACK_ORDER = List.of(
+            NeedKind.BUILD,
+            NeedKind.STORAGE,
+            NeedKind.STOCK,
+            NeedKind.GEAR,
+            NeedKind.PROCESS,
+            NeedKind.FOOD,
+            NeedKind.LIGHT,
+            NeedKind.FARM);
 
     /** Base of the doubling wait after a director turn chose nothing. */
     static final int BACKOFF_BASE_SEC = 60;

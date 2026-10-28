@@ -14,19 +14,58 @@ public final class ProgressionLadder {
      *
      * @param tools tool kind ({@code pickaxe}, {@code axe}, {@code sword}) to the minimum tier
      */
-    public record Stage(String name, Map<String, Tier> tools, Tier armor, int armorPieces, boolean shield,
-                        boolean bucket, boolean craftingTable, boolean furnace, Map<StockKind, Integer> stock) {}
+    public record Stage(
+            String name,
+            Map<String, Tier> tools,
+            Tier armor,
+            int armorPieces,
+            boolean shield,
+            boolean bucket,
+            boolean craftingTable,
+            boolean furnace,
+            Map<StockKind, Integer> stock) {}
 
     public static final List<Stage> STAGES = List.of(
-            new Stage("WOOD", tools("pickaxe", Tier.WOOD), Tier.NONE, 0, false, false, true, false,
+            new Stage(
+                    "WOOD",
+                    tools("pickaxe", Tier.WOOD),
+                    Tier.NONE,
+                    0,
+                    false,
+                    false,
+                    true,
+                    false,
                     stock(StockKind.LOGS, 16)),
-            new Stage("STONE", tools("pickaxe", Tier.STONE, "axe", Tier.STONE, "sword", Tier.STONE), Tier.NONE, 0,
-                    false, false, true, true,
+            new Stage(
+                    "STONE",
+                    tools("pickaxe", Tier.STONE, "axe", Tier.STONE, "sword", Tier.STONE),
+                    Tier.NONE,
+                    0,
+                    false,
+                    false,
+                    true,
+                    true,
                     stock(StockKind.COBBLE, 32, StockKind.COAL, 16, StockKind.TORCHES, 32)),
-            new Stage("IRON", tools("pickaxe", Tier.IRON, "sword", Tier.IRON), Tier.IRON, 2, true, true, true, true,
+            new Stage(
+                    "IRON",
+                    tools("pickaxe", Tier.IRON, "sword", Tier.IRON),
+                    Tier.IRON,
+                    2,
+                    true,
+                    true,
+                    true,
+                    true,
                     stock(StockKind.IRON_INGOT, 16)),
-            new Stage("DIAMOND", tools("pickaxe", Tier.DIAMOND, "sword", Tier.DIAMOND), Tier.IRON, 2, true, true,
-                    true, true, stock(StockKind.DIAMOND, 5)));
+            new Stage(
+                    "DIAMOND",
+                    tools("pickaxe", Tier.DIAMOND, "sword", Tier.DIAMOND),
+                    Tier.IRON,
+                    2,
+                    true,
+                    true,
+                    true,
+                    true,
+                    stock(StockKind.DIAMOND, 5)));
 
     private ProgressionLadder() {}
 
@@ -128,8 +167,9 @@ public final class ProgressionLadder {
             gear.add("furnace");
         }
         List<String> stock = new ArrayList<>();
-        missingStock(stage, f).forEach(
-                (kind, unused) -> stock.add(kind.words() + " " + f.count(kind) + "/" + stage.stock().get(kind)));
+        missingStock(stage, f)
+                .forEach((kind, unused) -> stock.add(
+                        kind.words() + " " + f.count(kind) + "/" + stage.stock().get(kind)));
         return new LadderView(stage.name(), gear, stock);
     }
 

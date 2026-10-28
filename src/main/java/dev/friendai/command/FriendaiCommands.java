@@ -50,7 +50,8 @@ public final class FriendaiCommands {
                 .then(Commands.literal("untrust")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
-                                    for (PlayerRecord record : book(ctx.getSource()).trusted()) {
+                                    for (PlayerRecord record :
+                                            book(ctx.getSource()).trusted()) {
                                         builder.suggest(record.lastName());
                                     }
                                     return builder.buildFuture();
@@ -86,14 +87,16 @@ public final class FriendaiCommands {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.summon_other_dimension"));
             return 0;
         }
-        ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.summoned", companion.getName()), false);
+        ctx.getSource()
+                .sendSuccess(() -> Component.translatable("friendai.command.summoned", companion.getName()), false);
         return 1;
     }
 
     private static int dismiss(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         CompanionManager manager = CompanionManager.get(ctx.getSource().getServer());
-        Component name = manager.find(player.getUUID()).map(CompanionEntity::getName).orElse(Component.empty());
+        Component name =
+                manager.find(player.getUUID()).map(CompanionEntity::getName).orElse(Component.empty());
         FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime().stop(player.getUUID(), "dismissed");
         if (manager.dismiss(player)) {
             ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.dismissed", name), false);
@@ -123,7 +126,9 @@ public final class FriendaiCommands {
 
     private static int freeTimeOff(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
-        FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime()
+        FriendaiServerState.get(ctx.getSource().getServer())
+                .brains()
+                .freeTime()
                 .stop(player.getUUID(), "owner ended free time");
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.off"), false);
         return 1;
@@ -131,11 +136,13 @@ public final class FriendaiCommands {
 
     private static int freeTimeStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
-        var driver = FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime();
+        var driver =
+                FriendaiServerState.get(ctx.getSource().getServer()).brains().freeTime();
         var status = driver.status(player.getUUID());
         Component answer = !status.on()
                 ? Component.translatable("friendai.command.freetime.status.off")
-                : Component.translatable("friendai.command.freetime.status.detail",
+                : Component.translatable(
+                        "friendai.command.freetime.status.detail",
                         status.activity().isBlank() ? "-" : status.activity(),
                         status.why().isBlank() ? "-" : status.why(),
                         status.next().isBlank() ? "-" : status.next(),
@@ -170,9 +177,11 @@ public final class FriendaiCommands {
         }
         InventoryAccess.Denial denial = FriendaiMenus.open(player, companion.get());
         if (denial != InventoryAccess.Denial.NONE) {
-            ctx.getSource().sendFailure(Component.translatable(denial == InventoryAccess.Denial.NOT_OWNER
-                    ? "friendai.inventory.not_owner"
-                    : "friendai.inventory.unavailable"));
+            ctx.getSource()
+                    .sendFailure(Component.translatable(
+                            denial == InventoryAccess.Denial.NOT_OWNER
+                                    ? "friendai.inventory.not_owner"
+                                    : "friendai.inventory.unavailable"));
             return 0;
         }
         return 1;
@@ -188,7 +197,10 @@ public final class FriendaiCommands {
             return 0;
         }
         String task = companion.get().taskRunner().current().map(Task::describe).orElse("none");
-        boolean thinking = state.brains().brainOf(player.getUUID()).map(b -> b.isThinking()).orElse(false);
+        boolean thinking = state.brains()
+                .brainOf(player.getUUID())
+                .map(b -> b.isThinking())
+                .orElse(false);
         UserMessage message = UserMessage.of(
                 "friendai.command.status",
                 state.brains().activeProvider(),
@@ -207,8 +219,7 @@ public final class FriendaiCommands {
             return 0;
         }
         String name = target.getName().getString();
-        boolean changed = book(ctx.getSource())
-                .setTrusted(target.getUUID(), name, true, System.currentTimeMillis());
+        boolean changed = book(ctx.getSource()).setTrusted(target.getUUID(), name, true, System.currentTimeMillis());
         ctx.getSource()
                 .sendSuccess(
                         () -> Component.translatable(
@@ -229,7 +240,8 @@ public final class FriendaiCommands {
         book.setTrusted(record.get().uuid(), record.get().lastName(), false, System.currentTimeMillis());
         ctx.getSource()
                 .sendSuccess(
-                        () -> Component.translatable("friendai.command.untrust.removed", record.get().lastName()),
+                        () -> Component.translatable(
+                                "friendai.command.untrust.removed", record.get().lastName()),
                         false);
         return 1;
     }
@@ -245,8 +257,7 @@ public final class FriendaiCommands {
             return 0;
         }
         String names = records.stream().map(PlayerRecord::lastName).collect(Collectors.joining(", "));
-        ctx.getSource()
-                .sendSuccess(() -> Component.translatable("friendai.command.trusted.list", names), false);
+        ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.trusted.list", names), false);
         return records.size();
     }
 
@@ -254,9 +265,8 @@ public final class FriendaiCommands {
     private static int pending(CommandContext<CommandSourceStack> ctx, boolean confirm) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         int id = IntegerArgumentType.getInteger(ctx, "id");
-        boolean applied = FriendaiServerState.get(ctx.getSource().getServer())
-                .trust()
-                .apply(player.getUUID(), id, confirm);
+        boolean applied =
+                FriendaiServerState.get(ctx.getSource().getServer()).trust().apply(player.getUUID(), id, confirm);
         if (!applied) {
             ctx.getSource().sendFailure(Component.translatable("friendai.trust.none"));
             return 0;
@@ -286,8 +296,7 @@ public final class FriendaiCommands {
                                 .executes(ctx -> memoryClear(ctx, StringArgumentType.getString(ctx, "target")))));
     }
 
-    private static void suggestMemoryTargets(
-            CommandSourceStack source, SuggestionsBuilder builder, boolean withAll) {
+    private static void suggestMemoryTargets(CommandSourceStack source, SuggestionsBuilder builder, boolean withAll) {
         if (withAll) {
             builder.suggest("all");
         }
@@ -307,30 +316,26 @@ public final class FriendaiCommands {
         }
     }
 
-    private static int memoryList(CommandContext<CommandSourceStack> ctx, String target)
-            throws CommandSyntaxException {
+    private static int memoryList(CommandContext<CommandSourceStack> ctx, String target) throws CommandSyntaxException {
         if (!memoryEnabled(ctx)) {
             return 0;
         }
         ServerPlayer sender = ctx.getSource().getPlayerOrException();
-        MemoryBook book = FriendaiServerState.get(ctx.getSource().getServer())
-                .memory()
-                .book(sender.getUUID());
+        MemoryBook book =
+                FriendaiServerState.get(ctx.getSource().getServer()).memory().book(sender.getUUID());
         for (UserMessage message : MemoryReport.list(book, sender.getUUID(), target)) {
             ctx.getSource().sendSuccess(() -> Components.of(message), false);
         }
         return 1;
     }
 
-    private static int memoryForget(CommandContext<CommandSourceStack> ctx, int id)
-            throws CommandSyntaxException {
+    private static int memoryForget(CommandContext<CommandSourceStack> ctx, int id) throws CommandSyntaxException {
         if (!memoryEnabled(ctx)) {
             return 0;
         }
         ServerPlayer sender = ctx.getSource().getPlayerOrException();
-        MemoryBook book = FriendaiServerState.get(ctx.getSource().getServer())
-                .memory()
-                .book(sender.getUUID());
+        MemoryBook book =
+                FriendaiServerState.get(ctx.getSource().getServer()).memory().book(sender.getUUID());
         UserMessage message = MemoryReport.forget(book, id);
         ctx.getSource().sendSuccess(() -> Components.of(message), false);
         return 1;
@@ -342,9 +347,8 @@ public final class FriendaiCommands {
             return 0;
         }
         ServerPlayer sender = ctx.getSource().getPlayerOrException();
-        MemoryBook book = FriendaiServerState.get(ctx.getSource().getServer())
-                .memory()
-                .book(sender.getUUID());
+        MemoryBook book =
+                FriendaiServerState.get(ctx.getSource().getServer()).memory().book(sender.getUUID());
         UserMessage message = MemoryReport.clear(book, target);
         ctx.getSource().sendSuccess(() -> Components.of(message), false);
         return 1;
@@ -369,11 +373,12 @@ public final class FriendaiCommands {
         ServerConfig loaded = state.store().load();
         List<String> problems = state.applyConfig(loaded);
         problems.forEach(p -> FriendaiMod.LOGGER.warn("Config reload: {}", p));
-        ctx.getSource().sendSuccess(
-                () -> problems.isEmpty()
-                        ? Component.translatable("friendai.command.reloaded")
-                        : Component.translatable("friendai.command.reloaded_with_fixes", problems.size()),
-                true);
+        ctx.getSource()
+                .sendSuccess(
+                        () -> problems.isEmpty()
+                                ? Component.translatable("friendai.command.reloaded")
+                                : Component.translatable("friendai.command.reloaded_with_fixes", problems.size()),
+                        true);
         return 1;
     }
 }

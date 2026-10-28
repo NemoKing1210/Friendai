@@ -13,22 +13,22 @@ public final class ReflexPlans {
     /** The template for a reflex need, or empty when the need has none or nowhere to go. */
     public static Optional<List<ReflexStep>> plan(Need need, AutonomyFacts f, AutonomySettings s) {
         return switch (need.kind()) {
-            case HUNGER -> Optional.of(f.foodPoints() > 0
-                    ? List.of(step("eat"))
-                    : List.of(step("get_food")));
-            case SLEEP -> f.homeHere()
-                    .map(home -> List.of(step("go_to_place", "name", home.name()), step("sleep")));
-            case FARM_CREATE -> f.homeHere().map(home -> List.of(step("go_to_place", "name", home.name()),
-                    farmStep()));
-            case UNLOAD -> f.storageHere().or(f::homeHere)
-                    .map(place -> List.of(step("go_to_place", "name", place.name()),
-                            step("deposit_items", "place", place.name())));
-            case SHELTER -> Optional.of(f.homeHere()
-                    .map(home -> List.of(step("go_to_place", "name", home.name()), step("stay")))
-                    .orElseGet(() -> List.of(step("light_area"), step("stay"))));
+            case HUNGER -> Optional.of(f.foodPoints() > 0 ? List.of(step("eat")) : List.of(step("get_food")));
+            case SLEEP -> f.homeHere().map(home -> List.of(step("go_to_place", "name", home.name()), step("sleep")));
+            case FARM_CREATE -> f.homeHere().map(home -> List.of(step("go_to_place", "name", home.name()), farmStep()));
+            case UNLOAD ->
+                f.storageHere()
+                        .or(f::homeHere)
+                        .map(place -> List.of(
+                                step("go_to_place", "name", place.name()),
+                                step("deposit_items", "place", place.name())));
+            case SHELTER ->
+                Optional.of(f.homeHere()
+                        .map(home -> List.of(step("go_to_place", "name", home.name()), step("stay")))
+                        .orElseGet(() -> List.of(step("light_area"), step("stay"))));
             case SURVIVE -> Optional.of(survivePlan(f));
-            case COLLECT -> f.homeHere()
-                    .map(home -> List.of(step("go_to_place", "name", home.name()), step("collect_smelted")));
+            case COLLECT ->
+                f.homeHere().map(home -> List.of(step("go_to_place", "name", home.name()), step("collect_smelted")));
             default -> Optional.empty();
         };
     }
@@ -42,14 +42,17 @@ public final class ReflexPlans {
             case FOOD -> Optional.of(List.of(step("get_food")));
             case LIGHT -> Optional.of(List.of(step("obtain_item", "item", "minecraft:torch", "count", 16)));
             case BUILD -> hasShelterMaterial(f) ? Optional.of(List.of(buildShelterStep())) : Optional.empty();
-            case STORAGE -> f.homeHere().map(home -> List.of(
-                    step("go_to_place", "name", home.name()),
-                    step("obtain_item", "item", "minecraft:chest", "count", 1),
-                    step("place_block", "block", "minecraft:chest")));
-            case FARM -> f.farms().stream()
-                    .filter(FarmRef::sameDimension)
-                    .max(Comparator.comparingLong(FarmRef::millisSinceVisit))
-                    .map(farm -> List.of(step("tend_farm", "place", farm.name())));
+            case STORAGE ->
+                f.homeHere()
+                        .map(home -> List.of(
+                                step("go_to_place", "name", home.name()),
+                                step("obtain_item", "item", "minecraft:chest", "count", 1),
+                                step("place_block", "block", "minecraft:chest")));
+            case FARM ->
+                f.farms().stream()
+                        .filter(FarmRef::sameDimension)
+                        .max(Comparator.comparingLong(FarmRef::millisSinceVisit))
+                        .map(farm -> List.of(step("tend_farm", "place", farm.name())));
             default -> Optional.empty();
         };
     }
@@ -61,8 +64,10 @@ public final class ReflexPlans {
 
     private static List<ReflexStep> survivePlan(AutonomyFacts f) {
         List<ReflexStep> steps = new ArrayList<>();
-        f.homeHere().ifPresentOrElse(home -> steps.add(step("go_to_place", "name", home.name())),
-                () -> steps.add(step("light_area")));
+        f.homeHere()
+                .ifPresentOrElse(
+                        home -> steps.add(step("go_to_place", "name", home.name())),
+                        () -> steps.add(step("light_area")));
         if (f.foodPoints() > 0) {
             steps.add(step("eat"));
         }

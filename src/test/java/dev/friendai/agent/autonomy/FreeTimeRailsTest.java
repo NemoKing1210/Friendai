@@ -24,12 +24,20 @@ class FreeTimeRailsTest {
 
     @Test
     void noTemplateEverFollowsTheOwner() {
-        for (NeedKind kind : List.of(NeedKind.SHELTER, NeedKind.SURVIVE, NeedKind.SLEEP, NeedKind.UNLOAD,
-                NeedKind.COLLECT, NeedKind.HUNGER, NeedKind.FARM_CREATE)) {
-            var steps = ReflexPlans.plan(new Need(kind, 50, Executor.REFLEX, ""),
-                    Facts.base().home("home", 40).build(), S);
-            steps.ifPresent(list -> assertFalse(tools(list).contains("follow_player"),
-                    kind + " must not follow the owner: " + tools(list)));
+        for (NeedKind kind : List.of(
+                NeedKind.SHELTER,
+                NeedKind.SURVIVE,
+                NeedKind.SLEEP,
+                NeedKind.UNLOAD,
+                NeedKind.COLLECT,
+                NeedKind.HUNGER,
+                NeedKind.FARM_CREATE)) {
+            var steps = ReflexPlans.plan(
+                    new Need(kind, 50, Executor.REFLEX, ""),
+                    Facts.base().home("home", 40).build(),
+                    S);
+            steps.ifPresent(list -> assertFalse(
+                    tools(list).contains("follow_player"), kind + " must not follow the owner: " + tools(list)));
         }
     }
 

@@ -53,41 +53,166 @@ final class Facts {
         return new Facts();
     }
 
-    Facts freeSlots(int v) { freeSlots = v; return this; }
-    Facts foodPoints(int v) { foodPoints = v; return this; }
-    Facts health(int v) { health = v; return this; }
-    Facts stock(StockKind kind, int v) { stock.put(kind, v); return this; }
-    Facts pickaxe(Tier v) { pickaxe = v; return this; }
-    Facts axe(Tier v) { axe = v; return this; }
-    Facts sword(Tier v) { sword = v; return this; }
-    Facts armor(Tier v, int pieces) { armor = v; armorPieces = pieces; return this; }
-    Facts shield() { shield = true; return this; }
-    Facts bucket() { bucket = true; return this; }
-    Facts craftingTable() { craftingTable = true; return this; }
-    Facts craftingTable(boolean value) { craftingTable = value; return this; }
-    Facts furnace() { furnace = true; return this; }
-    Facts furnace(boolean value) { furnace = value; return this; }
-    Facts dark() { dark = true; return this; }
-    Facts dark(boolean value) { dark = value; return this; }
-    Facts inCombat() { inCombat = true; return this; }
-    Facts ownerOffline() { ownerOnline = false; return this; }
-    Facts storageFreeSlots(int v) { storageFreeSlots = v; return this; }
-    Facts furnacesReady(int v) { furnacesReady = v; return this; }
-    Facts hasFuel() { hasFuel = true; return this; }
-    Facts hunger(int v) { hunger = v; return this; }
-    Facts xpLevel(int v) { xpLevel = v; return this; }
-    Facts gearWear(double v) { gearWear = v; return this; }
-    Facts bedAtHome() { bedAtHome = true; return this; }
-    Facts enchantingTableAtHome() { enchantingTableAtHome = true; return this; }
-    Facts anvilAtHome() { anvilAtHome = true; return this; }
-    Facts flintAndSteel() { flintAndSteel = true; return this; }
-    Facts obsidian(int v) { obsidian = v; return this; }
-    Facts portalKnown() { portalKnown = true; return this; }
+    Facts freeSlots(int v) {
+        freeSlots = v;
+        return this;
+    }
+
+    Facts foodPoints(int v) {
+        foodPoints = v;
+        return this;
+    }
+
+    Facts health(int v) {
+        health = v;
+        return this;
+    }
+
+    Facts stock(StockKind kind, int v) {
+        stock.put(kind, v);
+        return this;
+    }
+
+    Facts pickaxe(Tier v) {
+        pickaxe = v;
+        return this;
+    }
+
+    Facts axe(Tier v) {
+        axe = v;
+        return this;
+    }
+
+    Facts sword(Tier v) {
+        sword = v;
+        return this;
+    }
+
+    Facts armor(Tier v, int pieces) {
+        armor = v;
+        armorPieces = pieces;
+        return this;
+    }
+
+    Facts shield() {
+        shield = true;
+        return this;
+    }
+
+    Facts bucket() {
+        bucket = true;
+        return this;
+    }
+
+    Facts craftingTable() {
+        craftingTable = true;
+        return this;
+    }
+
+    Facts craftingTable(boolean value) {
+        craftingTable = value;
+        return this;
+    }
+
+    Facts furnace() {
+        furnace = true;
+        return this;
+    }
+
+    Facts furnace(boolean value) {
+        furnace = value;
+        return this;
+    }
+
+    Facts dark() {
+        dark = true;
+        return this;
+    }
+
+    Facts dark(boolean value) {
+        dark = value;
+        return this;
+    }
+
+    Facts inCombat() {
+        inCombat = true;
+        return this;
+    }
+
+    Facts ownerOffline() {
+        ownerOnline = false;
+        return this;
+    }
+
+    Facts storageFreeSlots(int v) {
+        storageFreeSlots = v;
+        return this;
+    }
+
+    Facts furnacesReady(int v) {
+        furnacesReady = v;
+        return this;
+    }
+
+    Facts hasFuel() {
+        hasFuel = true;
+        return this;
+    }
+
+    Facts hunger(int v) {
+        hunger = v;
+        return this;
+    }
+
+    Facts xpLevel(int v) {
+        xpLevel = v;
+        return this;
+    }
+
+    Facts gearWear(double v) {
+        gearWear = v;
+        return this;
+    }
+
+    Facts bedAtHome() {
+        bedAtHome = true;
+        return this;
+    }
+
+    Facts enchantingTableAtHome() {
+        enchantingTableAtHome = true;
+        return this;
+    }
+
+    Facts anvilAtHome() {
+        anvilAtHome = true;
+        return this;
+    }
+
+    Facts flintAndSteel() {
+        flintAndSteel = true;
+        return this;
+    }
+
+    Facts obsidian(int v) {
+        obsidian = v;
+        return this;
+    }
+
+    Facts portalKnown() {
+        portalKnown = true;
+        return this;
+    }
+
     Facts trade(String name, double distance, long millisSinceVisit) {
         trades.add(new TradeRef(nextId++, name, distance, true, millisSinceVisit));
         return this;
     }
-    Facts now(long v) { now = v; return this; }
+
+    Facts now(long v) {
+        now = v;
+        return this;
+    }
 
     Facts home(String name, double distance) {
         long id = nextId++;
@@ -136,10 +261,42 @@ final class Facts {
     }
 
     AutonomyFacts build() {
-        return new AutonomyFacts(freeSlots, foodPoints, health, maxHealth, stock, pickaxe, axe, sword, armor,
-                armorPieces, shield, bucket, craftingTable, furnace, dark, inCombat, ownerOnline, ownerDistance,
-                Optional.ofNullable(home), storages, farms, storageFreeSlots, furnacesReady, hasFuel,
-                new SelfFacts(hunger, xpLevel, gearWear, bedAtHome, enchantingTableAtHome, anvilAtHome,
-                        flintAndSteel, obsidian), trades, portalKnown, now);
+        return new AutonomyFacts(
+                freeSlots,
+                foodPoints,
+                health,
+                maxHealth,
+                stock,
+                pickaxe,
+                axe,
+                sword,
+                armor,
+                armorPieces,
+                shield,
+                bucket,
+                craftingTable,
+                furnace,
+                dark,
+                inCombat,
+                ownerOnline,
+                ownerDistance,
+                Optional.ofNullable(home),
+                storages,
+                farms,
+                storageFreeSlots,
+                furnacesReady,
+                hasFuel,
+                new SelfFacts(
+                        hunger,
+                        xpLevel,
+                        gearWear,
+                        bedAtHome,
+                        enchantingTableAtHome,
+                        anvilAtHome,
+                        flintAndSteel,
+                        obsidian),
+                trades,
+                portalKnown,
+                now);
     }
 }

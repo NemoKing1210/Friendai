@@ -131,9 +131,19 @@ public final class SnapshotCodec {
                 tools.add(readString(in));
             }
             CompanionVitals vitals = new CompanionVitals(
-                    in.readFloat(), in.readFloat(), in.readInt(), in.readInt(), in.readInt(),
-                    readString(in), readString(in), readString(in), readString(in), readString(in), readString(in),
-                    in.readInt(), in.readFloat());
+                    in.readFloat(),
+                    in.readFloat(),
+                    in.readInt(),
+                    in.readInt(),
+                    in.readInt(),
+                    readString(in),
+                    readString(in),
+                    readString(in),
+                    readString(in),
+                    readString(in),
+                    readString(in),
+                    in.readInt(),
+                    in.readFloat());
             int queueSize = readCount(in);
             List<QueueRow> queue = new ArrayList<>();
             for (int i = 0; i < queueSize; i++) {
@@ -150,8 +160,19 @@ public final class SnapshotCodec {
                 for (int j = 0; j < afterSize; j++) {
                     after.add(in.readLong());
                 }
-                queue.add(new QueueRow(id, planId, goal, planStatus, tool, args, state, note, after,
-                        in.readInt(), in.readInt(), in.readInt()));
+                queue.add(new QueueRow(
+                        id,
+                        planId,
+                        goal,
+                        planStatus,
+                        tool,
+                        args,
+                        state,
+                        note,
+                        after,
+                        in.readInt(),
+                        in.readInt(),
+                        in.readInt()));
             }
             boolean autoRespawn = true;
             boolean autoRespawnAvailable = present;
@@ -193,9 +214,30 @@ public final class SnapshotCodec {
                 throw new IllegalArgumentException("trailing bytes");
             }
             return new CompanionSnapshot(
-                    present, operator, name, provider, model, thinking, task, history, log, perception, tools, vitals,
-                    queue, autoRespawn, autoRespawnAvailable, creativeMode, creativeModeAvailable, freeTimeOn,
-                    freeTimeActivity, freeTimeWaiting, followMode, freeTimeNext, freeTimeBudget, freeTimeLast);
+                    present,
+                    operator,
+                    name,
+                    provider,
+                    model,
+                    thinking,
+                    task,
+                    history,
+                    log,
+                    perception,
+                    tools,
+                    vitals,
+                    queue,
+                    autoRespawn,
+                    autoRespawnAvailable,
+                    creativeMode,
+                    creativeModeAvailable,
+                    freeTimeOn,
+                    freeTimeActivity,
+                    freeTimeWaiting,
+                    followMode,
+                    freeTimeNext,
+                    freeTimeBudget,
+                    freeTimeLast);
         } catch (IOException e) {
             throw new IllegalArgumentException("malformed snapshot", e);
         }

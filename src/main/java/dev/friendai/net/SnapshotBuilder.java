@@ -9,7 +9,6 @@ import dev.friendai.debug.TaskRecord;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.perception.PerceptionBuilder;
-import dev.friendai.task.Task;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,15 +34,35 @@ public final class SnapshotBuilder {
         boolean autoRespawn = state.companionLife().autoRespawn(owner) && !server.isHardcore();
         boolean creativeMode = state.companionLife().creativeMode(owner);
         boolean creativeModeAvailable = creativeMode || operator;
-        boolean followMode = state.companionLife().followModeChoice(owner)
-                .orElse(state.config().tasks.defaultFollow);
+        boolean followMode = state.companionLife().followModeChoice(owner).orElse(state.config().tasks.defaultFollow);
         var freeTime = state.freeTime().state(owner);
         var status = brains.freeTime().status(owner);
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
-                    false, operator, "", brains.activeProvider(), brains.activeModel(), false, "", history, log, "",
-                    toolNames, CompanionVitals.NONE, List.of(), autoRespawn, false, creativeMode, false, false, "",
-                    false, followMode, status.next(), status.budget(), status.last());
+                    false,
+                    operator,
+                    "",
+                    brains.activeProvider(),
+                    brains.activeModel(),
+                    false,
+                    "",
+                    history,
+                    log,
+                    "",
+                    toolNames,
+                    CompanionVitals.NONE,
+                    List.of(),
+                    autoRespawn,
+                    false,
+                    creativeMode,
+                    false,
+                    false,
+                    "",
+                    false,
+                    followMode,
+                    status.next(),
+                    status.budget(),
+                    status.last());
         }
         CompanionEntity c = companion.get();
         return new CompanionSnapshot(

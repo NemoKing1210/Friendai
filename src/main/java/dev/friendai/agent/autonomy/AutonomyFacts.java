@@ -62,15 +62,61 @@ public record AutonomyFacts(
     }
 
     /** Self facts with safe defaults, for callers that predate them. */
-    public AutonomyFacts(int freeSlots, int foodPoints, int health, int maxHealth, Map<StockKind, Integer> stock,
-                         Tier pickaxe, Tier axe, Tier sword, Tier armor, int armorPieces, boolean shield,
-                         boolean bucket, boolean craftingTable, boolean furnace, boolean dark, boolean inCombat,
-                         boolean ownerOnline, double ownerDistance, Optional<PlaceRef> home, List<PlaceRef> storages,
-                         List<FarmRef> farms, int storageFreeSlots, int furnacesReady, boolean hasFuel,
-                         long nowMillis) {
-        this(freeSlots, foodPoints, health, maxHealth, stock, pickaxe, axe, sword, armor, armorPieces, shield,
-                bucket, craftingTable, furnace, dark, inCombat, ownerOnline, ownerDistance, home, storages, farms,
-                storageFreeSlots, furnacesReady, hasFuel, SelfFacts.NONE, List.of(), false, nowMillis);
+    public AutonomyFacts(
+            int freeSlots,
+            int foodPoints,
+            int health,
+            int maxHealth,
+            Map<StockKind, Integer> stock,
+            Tier pickaxe,
+            Tier axe,
+            Tier sword,
+            Tier armor,
+            int armorPieces,
+            boolean shield,
+            boolean bucket,
+            boolean craftingTable,
+            boolean furnace,
+            boolean dark,
+            boolean inCombat,
+            boolean ownerOnline,
+            double ownerDistance,
+            Optional<PlaceRef> home,
+            List<PlaceRef> storages,
+            List<FarmRef> farms,
+            int storageFreeSlots,
+            int furnacesReady,
+            boolean hasFuel,
+            long nowMillis) {
+        this(
+                freeSlots,
+                foodPoints,
+                health,
+                maxHealth,
+                stock,
+                pickaxe,
+                axe,
+                sword,
+                armor,
+                armorPieces,
+                shield,
+                bucket,
+                craftingTable,
+                furnace,
+                dark,
+                inCombat,
+                ownerOnline,
+                ownerDistance,
+                home,
+                storages,
+                farms,
+                storageFreeSlots,
+                furnacesReady,
+                hasFuel,
+                SelfFacts.NONE,
+                List.of(),
+                false,
+                nowMillis);
     }
 
     public int count(StockKind kind) {
@@ -84,7 +130,8 @@ public record AutonomyFacts(
 
     /** The nearest storage place in the companion's dimension. */
     public Optional<PlaceRef> storageHere() {
-        return storages.stream().filter(PlaceRef::sameDimension)
+        return storages.stream()
+                .filter(PlaceRef::sameDimension)
                 .min(java.util.Comparator.comparingDouble(PlaceRef::distance));
     }
 }
