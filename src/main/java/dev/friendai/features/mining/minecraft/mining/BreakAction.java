@@ -1,6 +1,5 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.task.TaskContext;
 import java.util.function.Predicate;
@@ -82,7 +81,7 @@ public final class BreakAction {
                 stop(c);
                 return level.getBlockState(pos).isAir() ? State.GONE : State.BLOCKED;
             }
-            FriendaiServerState.get(level.getServer()).resources().ownBreak(companion, pos);
+            c.resources().ownBreak(companion, pos);
             broken = true;
             return State.BROKEN;
         }
@@ -127,7 +126,7 @@ public final class BreakAction {
         if (dropsLoot) {
             Block.dropResources(brokenState, level, pos, blockEntity, companion, heldTool);
         }
-        FriendaiServerState.get(level.getServer()).resources().ownBreak(companion, pos);
+        c.resources().ownBreak(companion, pos);
         c.addBlockExhaustion();
         broken = true;
         return State.BROKEN;
