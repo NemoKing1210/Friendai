@@ -10,6 +10,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.SpatialAudio;
 import dev.friendai.features.speech.VoiceReadiness;
+import dev.friendai.features.speech.tts.PlaybackGate;
 import dev.friendai.features.speech.tts.SpeechEngine;
 import dev.friendai.features.speech.tts.SpeechGate;
 import dev.friendai.features.speech.tts.SpeechQueue;
@@ -121,13 +122,15 @@ public final class SpeechRuntime {
         String sample = Component.translatable("friendai.voice.tts.sample").getString();
         int gen;
         ClientSessionId expectedSession;
+        PlaybackGate.Permit permit;
         synchronized (LOCK) {
             gen = generation;
             expectedSession = sessionId;
+            permit = PLAYBACK.permit();
         }
         WORKER.execute(() -> {
             try {
-                playOne(sample, plan, gen, expectedSession);
+                playOne(sample, plan, gen, expectedSession, permit);
                 if (isCurrent(gen, expectedSession)) {
                     Minecraft.getInstance().execute(() -> {
                         if (isCurrent(gen, expectedSession)) {
@@ -299,6 +302,7 @@ public final class SpeechRuntime {
             while (true) {
                 Chunk chunk;
                 int gen;
+                PlaybackGate.Permit permit;
                 synchronized (LOCK) {
                     chunk = QUEUE.poll();
                     if (chunk == null) {
@@ -306,22 +310,24 @@ public final class SpeechRuntime {
                     }
                     if (closed || !chunk.sessionId().equals(sessionId)) continue;
                     gen = generation;
+                    // The permit is taken before synthesis; a stop invalidates it before the device opens.
+                    permit = PLAYBACK.permit();
                 }
                 try {
-                    playOne(chunk.text(), chunk.plan(), gen, chunk.sessionId());
+                    playOne(chunk.text(), chunk.plan(), gen, chunk.sessionId(), permit);
                 } catch (UserFacingException e) {
                     if (!isCurrent(gen, chunk.sessionId())) continue;
                     synchronized (LOCK) {
                         QUEUE.clear();
                     }
-                    toastOnce(e.userMessage());
+                    toastOnce(e.userMessage(), gen, chunk.sessionId());
                 } catch (RuntimeException e) {
                     if (!isCurrent(gen, chunk.sessionId())) continue;
                     LOGGER.warn("Speech failed: {}", e.toString());
                     synchronized (LOCK) {
                         QUEUE.clear();
                     }
-                    toastOnce(UserMessage.of("friendai.voice.tts.error.failed"));
+                    toastOnce(UserMessage.of("friendai.voice.tts.error.failed"), gen, chunk.sessionId());
                 } finally {
                     playingPlan = null;
                 }
@@ -340,7 +346,8 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void playOne(String text, Plan plan, int gen, ClientSessionId expectedSession) {
+    private static void playOne(
+            String text, Plan plan, int gen, ClientSessionId expectedSession, PlaybackGate.Permit permit) {
         if (plan == null) {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
         }
@@ -375,7 +382,8 @@ public final class SpeechRuntime {
         }
         playingPlan = plan;
         try {
-            PLAYBACK.play(clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null);
+            PLAYBACK.play(
+                    clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null, permit);
         } finally {
             playingPlan = null;
         }
@@ -426,7 +434,7 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void toastOnce(UserMessage message) {
+    private static void toastOnce(UserMessage message, int gen, ClientSessionId expectedSession) {
         long now = System.currentTimeMillis();
         synchronized (LOCK) {
             if (message.key().equals(lastToastKey) && now - lastToastAt < ERROR_TOAST_INTERVAL_MS) {
@@ -435,7 +443,9 @@ public final class SpeechRuntime {
             lastToastKey = message.key();
             lastToastAt = now;
         }
-        Minecraft.getInstance().execute(() -> ClientToasts.show(Components.of(message)));
+        Minecraft.getInstance().execute(() -> {
+            if (isCurrent(gen, expectedSession)) ClientToasts.show(Components.of(message));
+        });
     }
 
     private static ClientSessionId currentSession() {

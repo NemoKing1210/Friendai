@@ -1,5 +1,6 @@
 package dev.friendai.client.runtime;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -12,6 +13,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class AudioSessionLifecycleTest {
+    @Test
+    void aPermitTakenBeforeAStopIsRejectedBeforeAnyDeviceWork() {
+        var playback = new dev.friendai.client.tts.SpeechPlayback();
+        var permit = playback.permit();
+        playback.stop();
+        // A zero sample rate is not a valid device format, so reaching device preparation would throw.
+        var clip = new dev.friendai.features.speech.tts.TtsClip(new byte[] {1, 2}, 0);
+
+        assertDoesNotThrow(
+                () -> playback.play(clip, 1.0, null, null, permit),
+                "a stopped clip must be rejected before any device format or line work");
+    }
+
     @Test
     void disconnectClosesActiveAudioResourcesOnceAndRejectsLateResults() {
         ClientLifecycle lifecycle = new ClientLifecycle();

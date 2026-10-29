@@ -23,6 +23,21 @@ class PlaybackGateTest {
     }
 
     @Test
+    void aPermitCapturedBeforeACancelIsRejected() {
+        PlaybackGate gate = new PlaybackGate();
+        PlaybackGate.Permit permit = gate.permit();
+        gate.cancel();
+        assertFalse(gate.stillOpen(permit));
+    }
+
+    @Test
+    void aPermitCapturedAfterACancelStaysOpen() {
+        PlaybackGate gate = new PlaybackGate();
+        gate.cancel();
+        assertTrue(gate.stillOpen(gate.permit()));
+    }
+
+    @Test
     void oneStopInvalidatesEveryTokenFromBeforeIt() {
         PlaybackGate gate = new PlaybackGate();
         long first = gate.token();

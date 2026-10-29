@@ -42,9 +42,14 @@ public final class SpeechPlayback {
         return names;
     }
 
+    /** An admission permit taken before synthesis; pass it to {@link #play} to reject a stopped clip. */
+    public PlaybackGate.Permit permit() {
+        return gate.permit();
+    }
+
     /** Blocks until the clip has played or {@link #stop()} closed the line under it. */
     public void play(TtsClip clip, double volume, String deviceName) {
-        play(clip, volume, deviceName, null);
+        play(clip, volume, deviceName, null, permit());
     }
 
     /**
@@ -55,11 +60,23 @@ public final class SpeechPlayback {
      * that cannot open stereo still gets the distance attenuation through a mono fallback.
      */
     public void play(TtsClip clip, double volume, String deviceName, Supplier<SpatialAudio.Mix> spatial) {
-        if (clip == null || clip.pcm16le().length == 0) {
+        play(clip, volume, deviceName, spatial, permit());
+    }
+
+    /**
+     * Plays a clip admitted by {@code permit}. A stop after the permit was taken rejects the clip before the
+     * device opens and again before every block, so a slow device opening cannot publish an obsolete clip.
+     */
+    public void play(
+            TtsClip clip,
+            double volume,
+            String deviceName,
+            Supplier<SpatialAudio.Mix> spatial,
+            PlaybackGate.Permit permit) {
+        if (clip == null || clip.pcm16le().length == 0 || !gate.stillOpen(permit)) {
             return;
         }
         boolean monoFallback = false;
-        long token = gate.token();
         int blockSamples = Math.max(1, clip.sampleRate() / BLOCKS_PER_SECOND);
         int blockBytes = blockSamples * 2;
         AudioFormat mono = new AudioFormat(clip.sampleRate(), 16, 1, true, false);
@@ -82,7 +99,7 @@ public final class SpeechPlayback {
         }
         synchronized (lock) {
             // The device can take a moment to open; a stop during that window must not let the clip play.
-            if (!gate.stillOpen(token)) {
+            if (!gate.stillOpen(permit)) {
                 closeQuietly(opened);
                 return;
             }
@@ -108,7 +125,7 @@ public final class SpeechPlayback {
             int offset = 0;
             while (offset < pcm.length) {
                 synchronized (lock) {
-                    if (line != opened) {
+                    if (line != opened || !gate.stillOpen(permit)) {
                         return;
                     }
                 }
