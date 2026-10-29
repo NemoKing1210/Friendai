@@ -16,7 +16,7 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.place.PlaceService;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskListener;

@@ -4,22 +4,24 @@ import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.acquisition.Source;
 import dev.friendai.features.acquisition.ToolKind;
 import dev.friendai.features.acquisition.ToolNeed;
 import dev.friendai.features.acquisition.WorldFacts;
+import dev.friendai.features.acquisition.minecraft.search.DropIndex;
+import dev.friendai.features.acquisition.minecraft.search.WorldScan;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.ExploreTask;
-import dev.friendai.task.builtin.ObtainTask;
-import dev.friendai.task.obtain.DropIndex;
-import dev.friendai.task.obtain.WorldScan;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +46,8 @@ public class ObtainTests {
             }
         }
         var owner = GameTestSupport.mockPlayerAt(h, 10, 201, 10);
+        // Seed one station
+        h.setBlock(8, 201, 10, Blocks.CRAFTING_TABLE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
         companion.setOwner(owner.getUUID());
         companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
@@ -55,11 +59,11 @@ public class ObtainTests {
         ExecutionCoordinator runner = obtain(
                 companion,
                 result,
-                new ObtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 1100, 64, 128, 800, "local", caller));
+                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 1100, 64, 128, 800, "local", caller));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "caller-aware obtain should finish");
-            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());
             h.assertTrue(
                     dev.friendai.task.inventory.InventoryOps.count(
                                     companion.inventory(),
@@ -93,7 +97,7 @@ public class ObtainTests {
         ExecutionCoordinator runner = obtain(
                 companion,
                 result,
-                new ObtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 4400, 64, 128, 800, "local", caller));
+                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 4400, 64, 128, 800, "local", caller));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "caller-aware obtain should finish");
@@ -120,6 +124,64 @@ public class ObtainTests {
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    private static ObtainTask obtainTask(String item, int count, boolean useContainers, boolean explore) {
+        return new ObtainTask(item, count, useContainers, explore, new MinecraftObtainSubtaskFactory());
+    }
+
+    private static ObtainTask obtainTask(
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks) {
+        return new ObtainTask(
+                item,
+                count,
+                useContainers,
+                explore,
+                maxSteps,
+                maxTicks,
+                exploreRadius,
+                exploreBlocks,
+                exploreTicks,
+                "local",
+                null,
+                null,
+                new MinecraftObtainSubtaskFactory());
+    }
+
+    private static ObtainTask obtainTask(
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks,
+            String searchScope,
+            Caller caller) {
+        return new ObtainTask(
+                item,
+                count,
+                useContainers,
+                explore,
+                maxSteps,
+                maxTicks,
+                exploreRadius,
+                exploreBlocks,
+                exploreTicks,
+                searchScope,
+                caller,
+                null,
+                new MinecraftObtainSubtaskFactory());
     }
 
     private static ExecutionCoordinator obtain(CompanionEntity c, Result result, ObtainTask task) {
@@ -410,7 +472,7 @@ public class ObtainTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))),
                 "crafting table should be directly visible");
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, true));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:wooden_pickaxe", 1, true, true));
         int[] factChecks = {0};
         h.succeedWhen(() -> {
             for (BlockPos log : logs) {
@@ -462,7 +524,7 @@ public class ObtainTests {
                     "stone should be directly visible at " + pos);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, true));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, true));
         h.succeedWhen(() -> {
             for (BlockPos pos : logs)
                 if (h.getBlockState(pos).is(Blocks.OAK_LOG)) GameTestSupport.observeVisible(h, c, h.absolutePos(pos));
@@ -495,7 +557,7 @@ public class ObtainTests {
                     "stone should be directly visible at " + pos);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, true));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, true));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -527,7 +589,7 @@ public class ObtainTests {
                 startedObtain[0] = true;
                 result.status = null;
                 result.summary = null;
-                runner.start(new ObtainTask("minecraft:stone_pickaxe", 1, true, false), "obtain_item");
+                runner.start(obtainTask("minecraft:stone_pickaxe", 1, true, false), "obtain_item");
             }
             if (!startedObtain[0]) return;
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -552,7 +614,7 @@ public class ObtainTests {
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, true));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:iron_ingot", 1, true, true));
         h.succeedWhen(() -> {
             if (h.getBlockState(new BlockPos(4, 2, 2)).is(Blocks.IRON_ORE)) {
                 h.assertTrue(
@@ -582,7 +644,7 @@ public class ObtainTests {
                     "oak log should be directly visible at " + log);
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, true));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:wooden_pickaxe", 1, true, true));
         boolean[] stolen = {false};
         h.succeedWhen(() -> {
             for (BlockPos log : logs)
@@ -610,7 +672,7 @@ public class ObtainTests {
         GameTestSupport.platformAt(h, -40, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, -39, 2);
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:iron_ingot", 1, true, false));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:iron_ingot", 1, true, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
@@ -627,7 +689,7 @@ public class ObtainTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, -19, 2);
         Result result = new Result();
         ExecutionCoordinator runner =
-                obtain(c, result, new ObtainTask("minecraft:oak_planks", 1, true, true, 40, 24000, 16, 128, 6000));
+                obtain(c, result, obtainTask("minecraft:oak_planks", 1, true, true, 40, 24000, 16, 128, 6000));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
@@ -641,7 +703,7 @@ public class ObtainTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_PICKAXE));
         Result result = new Result();
-        ExecutionCoordinator runner = obtain(c, result, new ObtainTask("minecraft:stone_pickaxe", 1, true, false));
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, false));
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -673,7 +735,7 @@ public class ObtainTests {
                 "crafting table should be directly visible");
         Result result = new Result();
         ExecutionCoordinator runner =
-                obtain(c, result, new ObtainTask("minecraft:wooden_pickaxe", 1, true, false, 1, 24000, 64, 128, 6000));
+                obtain(c, result, obtainTask("minecraft:wooden_pickaxe", 1, true, false, 1, 24000, 64, 128, 6000));
         h.succeedWhen(() -> {
             for (BlockPos log : visibleLogs)
                 if (h.getBlockState(log).is(Blocks.OAK_LOG))

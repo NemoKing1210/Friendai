@@ -73,6 +73,18 @@ class ToolCatalogTest {
     }
 
     @Test
+    void combatSurvivalAndEquipmentToolsBelongToTheirOwningGroups() {
+        assertEquals("COMBAT", catalog.meta("attack").orElseThrow().group().name());
+        assertEquals(
+                "INVENTORY", catalog.meta("equip_item").orElseThrow().group().name());
+        for (String tool :
+                List.of("eat", "get_food", "allow_food", "forbid_food", "reset_food_rule", "get_food_rules", "sleep")) {
+            assertEquals("SURVIVAL", catalog.meta(tool).orElseThrow().group().name(), tool);
+        }
+        assertFalse(catalog.namesFor(EnumSet.of(ToolGroup.INTERACTION)).contains("sleep"));
+    }
+
+    @Test
     void onlyTheMutatingPlaceToolsStayInThePlaceGroup() {
         Set<String> names = catalog.namesFor(EnumSet.of(ToolGroup.PLACE));
         for (String tool : List.of("remember_place", "go_to_place", "rename_place", "forget_place")) {

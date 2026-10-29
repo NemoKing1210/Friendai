@@ -10,22 +10,21 @@ import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.interaction.minecraft.task.InteractEntityTask;
 import dev.friendai.features.interaction.minecraft.task.MountTask;
+import dev.friendai.features.interaction.minecraft.task.UseBlockTask;
 import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
-import dev.friendai.task.builtin.SleepTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
-import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Simple contact with the world: animals, vehicles, beds, tossing things. */
+/** Simple contact with animals, vehicles, and blocks. */
 public final class InteractionTools implements FeatureToolContributor {
     public InteractionTools() {}
 
@@ -67,18 +66,23 @@ public final class InteractionTools implements FeatureToolContributor {
         });
         registerTask(
                 registry,
-                "sleep",
-                "Walk to a bed and sleep in it. By default you get up in the morning and refuse to sleep in the daytime; "
-                        + "pass until_morning=false to sleep until told to get up.",
+                "use_block",
+                "Use a door, trapdoor, fence gate, lever or button at the given coordinates. With want, only acts if the block is not already in that state.",
                 SchemaBuilder.object()
-                        .integer("x", "Bed X coordinate; the nearest bed when omitted")
-                        .integer("y", "Bed Y coordinate")
-                        .integer("z", "Bed Z coordinate")
-                        .bool("until_morning", "Get up when the day comes; default true")
+                        .integer("x", "Block X coordinate")
+                        .integer("y", "Block Y coordinate")
+                        .integer("z", "Block Z coordinate")
+                        .enumeration("want", "The state to reach, if the block has it", "open", "closed", "on", "off")
+                        .required("x", "y", "z")
                         .build(),
-                (c, a) -> new SleepTask(
-                        optionalPos(a).orElse(null),
-                        !a.has("until_morning") || a.get("until_morning").getAsBoolean()),
+                (c, a) -> new UseBlockTask(
+                        new BlockPos(
+                                a.get("x").getAsInt(),
+                                a.get("y").getAsInt(),
+                                a.get("z").getAsInt()),
+                        a.has("want") && !a.get("want").isJsonNull()
+                                ? a.get("want").getAsString()
+                                : null),
                 true);
     }
 
@@ -94,19 +98,6 @@ public final class InteractionTools implements FeatureToolContributor {
 
     private static Entity named(CompanionEntity c, String name) {
         return EntityTargets.find(c, name).orElseThrow(() -> new IllegalArgumentException("I can't see any " + name));
-    }
-
-    private static Optional<BlockPos> optionalPos(JsonObject args) {
-        int present = 0;
-        for (String name : new String[] {"x", "y", "z"}) {
-            if (args.has(name) && !args.get(name).isJsonNull()) present++;
-        }
-        if (present == 0) return Optional.empty();
-        if (present != 3) throw new IllegalArgumentException("give all of x, y, z or none");
-        return Optional.of(new BlockPos(
-                args.get("x").getAsInt(),
-                args.get("y").getAsInt(),
-                args.get("z").getAsInt()));
     }
 
     private static ItemMatcher parseItemMatcher(String idOrTag) {
@@ -152,7 +143,8 @@ public final class InteractionTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return new ToolMeta(name, ToolGroup.INTERACTION, false, "", List.of(), Cost.MEDIUM);
+        ToolGroup group = name.equals("use_block") ? ToolGroup.BUILDING : ToolGroup.INTERACTION;
+        return new ToolMeta(name, group, false, "", List.of(), Cost.MEDIUM);
     }
 
     @FunctionalInterface

@@ -5,30 +5,31 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.construction.blueprint.BlockSpec;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.construction.blueprint.BlueprintParser;
 import dev.friendai.features.construction.blueprint.ParseResult;
 import dev.friendai.features.construction.blueprint.PartKind;
 import dev.friendai.features.construction.blueprint.PlacementRefusal;
+import dev.friendai.features.construction.minecraft.build.BlueprintResolver;
+import dev.friendai.features.construction.minecraft.build.BlueprintStore;
+import dev.friendai.features.construction.minecraft.build.Materials;
+import dev.friendai.features.construction.minecraft.build.Parts;
+import dev.friendai.features.construction.minecraft.build.Placement;
+import dev.friendai.features.construction.minecraft.build.Scaffold;
+import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
+import dev.friendai.features.construction.minecraft.build.Site;
+import dev.friendai.features.construction.minecraft.build.SupportNeeds;
+import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.build.BlueprintResolver;
-import dev.friendai.task.build.BlueprintStore;
-import dev.friendai.task.build.Materials;
-import dev.friendai.task.build.Parts;
-import dev.friendai.task.build.Placement;
-import dev.friendai.task.build.Scaffold;
-import dev.friendai.task.build.ScaffoldCleanupTask;
-import dev.friendai.task.build.Site;
-import dev.friendai.task.build.SupportNeeds;
-import dev.friendai.task.builtin.BuildTask;
-import dev.friendai.task.builtin.ObtainTask;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -1299,7 +1300,14 @@ public class BuildTests {
         Result result = new Result();
         ExecutionCoordinator runner = runner(companion, result);
         runner.start(
-                new BuildTask(wall, origin, Placement.rotationFor(Direction.SOUTH), true, true), "build_structure");
+                new BuildTask(
+                        wall,
+                        origin,
+                        Placement.rotationFor(Direction.SOUTH),
+                        true,
+                        true,
+                        new MinecraftObtainSubtaskFactory()::createForBuild),
+                "build_structure");
         h.succeedWhen(() -> {
             for (BlockPos log : logs)
                 if (h.getBlockState(log).is(Blocks.ACACIA_LOG))
@@ -2032,7 +2040,8 @@ public class BuildTests {
         BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
         List<Placement.PlacedSpec> specs =
                 Placement.at(house, origin, Rotation.NONE).specs();
-        BlockPos outOfReach = dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin);
+        BlockPos outOfReach =
+                dev.friendai.features.construction.minecraft.build.Reach.firstOutOfReach(h.getLevel(), specs, origin);
         h.assertTrue(
                 outOfReach == null,
                 "the gable roof must be reachable from its own walls, but " + outOfReach + " is not");
@@ -2048,7 +2057,8 @@ public class BuildTests {
         List<Placement.PlacedSpec> specs =
                 Placement.at(tower, origin, Rotation.NONE).specs();
         h.assertTrue(
-                dev.friendai.task.build.Reach.firstOutOfReach(h.getLevel(), specs, origin) != null,
+                dev.friendai.features.construction.minecraft.build.Reach.firstOutOfReach(h.getLevel(), specs, origin)
+                        != null,
                 "a tower without scaffolding is out of reach");
         h.succeed();
     }

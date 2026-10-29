@@ -2,11 +2,11 @@ package dev.friendai.perception;
 
 import dev.friendai.agent.autonomy.FreeTimeText;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.task.combat.Threats;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;

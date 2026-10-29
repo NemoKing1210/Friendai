@@ -15,6 +15,7 @@ public enum ToolGroup {
     COOKING,
     ENCHANT,
     COMBAT,
+    SURVIVAL,
     FARMING,
     ANIMALS,
     OBTAIN,

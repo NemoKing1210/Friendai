@@ -10,6 +10,10 @@ import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.construction.blueprint.PartKind;
+import dev.friendai.features.construction.minecraft.build.BlueprintStore;
+import dev.friendai.features.construction.minecraft.build.Placement;
+import dev.friendai.features.construction.minecraft.task.BuildTask;
+import dev.friendai.features.farming.minecraft.task.TendFarmTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
@@ -17,10 +21,6 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskState;
-import dev.friendai.task.build.BlueprintStore;
-import dev.friendai.task.build.Placement;
-import dev.friendai.task.builtin.BuildTask;
-import dev.friendai.task.builtin.TendFarmTask;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.plan.PlanStepFactory;
@@ -255,6 +255,7 @@ public final class TaskRestoreRegistry {
                     BlueprintStore.forLevel(level).loadInProgress(p[0]).orElse(null);
             if (inProgress == null || inProgress.rotation() != rotation) return Optional.empty();
             Blueprint blueprint = inProgress.blueprint();
+            var obtainFactory = new dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory();
             return Optional.of(BuildTask.resume(
                     blueprint,
                     origin,
@@ -263,7 +264,8 @@ public final class TaskRestoreRegistry {
                     Boolean.parseBoolean(p[6]),
                     inProgress.scaffold(),
                     p[0],
-                    Set.copyOf(parts)));
+                    Set.copyOf(parts),
+                    obtainFactory::createForBuild));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }

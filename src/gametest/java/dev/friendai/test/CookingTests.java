@@ -3,21 +3,23 @@ package dev.friendai.test;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.cooking.minecraft.FuelPolicy;
+import dev.friendai.features.cooking.minecraft.FurnaceJob;
+import dev.friendai.features.cooking.minecraft.FurnaceSlots;
+import dev.friendai.features.cooking.minecraft.task.CollectSmeltedTask;
+import dev.friendai.features.cooking.minecraft.task.CollectStationTask;
+import dev.friendai.features.cooking.minecraft.task.CookFoodTask;
+import dev.friendai.features.cooking.minecraft.task.CraftingTaskFactory;
+import dev.friendai.features.cooking.minecraft.task.SmeltTask;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.crafting.StationPolicy;
+import dev.friendai.features.crafting.minecraft.RecipeIndex;
+import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.CollectSmeltedTask;
-import dev.friendai.task.builtin.CollectStationTask;
-import dev.friendai.task.builtin.CookFoodTask;
-import dev.friendai.task.builtin.CraftTask;
-import dev.friendai.task.builtin.SmeltTask;
-import dev.friendai.task.cooking.FuelPolicy;
-import dev.friendai.task.cooking.FurnaceJob;
-import dev.friendai.task.cooking.FurnaceSlots;
-import dev.friendai.task.crafting.RecipeIndex;
-import dev.friendai.task.crafting.Stations;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import java.util.Optional;
@@ -67,7 +69,7 @@ public class CookingTests {
                 Station.FURNACE,
                 null,
                 false,
-                CraftTask.StationPolicy.AUTO,
+                StationPolicy.AUTO,
                 20);
         TaskContext context = new TaskContext(c, h.getLevel());
         task.start(context);
@@ -401,7 +403,7 @@ public class CookingTests {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
-        runner.start(new CookFoodTask(256, false, CraftTask.StationPolicy.AUTO, 60 * 20), "cook_food");
+        runner.start(new CookFoodTask(256, false, StationPolicy.AUTO, 60 * 20), "cook_food");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -416,7 +418,7 @@ public class CookingTests {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
-        runner.start(new CookFoodTask(256, false, CraftTask.StationPolicy.AUTO, 60 * 20), "cook_food");
+        runner.start(new CookFoodTask(256, false, StationPolicy.AUTO, 60 * 20), "cook_food");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
         h.assertValueEqual(result.summary, "I have no raw food", "summary");
@@ -600,13 +602,33 @@ public class CookingTests {
             String fuel,
             boolean forceWait,
             int waitLimitTicks) {
+        return smelt(c, result, item, count, forced, fuel, forceWait, waitLimitTicks, CraftingTaskFactory.UNAVAILABLE);
+    }
+
+    private static ExecutionCoordinator smelt(
+            CompanionEntity c,
+            Result result,
+            String item,
+            int count,
+            Station forced,
+            String fuel,
+            boolean forceWait,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         ItemMatcher input = ItemMatcher.parse(item).orElseThrow();
         ItemMatcher fuelMatcher = fuel == null ? null : ItemMatcher.parse(fuel).orElseThrow();
         runner.start(
                 new SmeltTask(
-                        input, count, forced, fuelMatcher, forceWait, CraftTask.StationPolicy.AUTO, waitLimitTicks),
+                        input,
+                        count,
+                        forced,
+                        fuelMatcher,
+                        forceWait,
+                        StationPolicy.AUTO,
+                        waitLimitTicks,
+                        craftingTaskFactory),
                 "smelt_items");
         return runner;
     }
@@ -761,7 +783,16 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 3));
         Result result = new Result();
-        ExecutionCoordinator runner = smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 20);
+        ExecutionCoordinator runner = smelt(
+                c,
+                result,
+                "minecraft:raw_copper",
+                1,
+                Station.FURNACE,
+                null,
+                false,
+                20,
+                new MinecraftObtainSubtaskFactory());
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);

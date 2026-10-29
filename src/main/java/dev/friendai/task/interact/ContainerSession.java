@@ -75,8 +75,8 @@ public final class ContainerSession {
             }
             if (onlyInsidePlacesInFreeTime
                     && context.autonomous()
-                    && PlaceGuard.enabled(context.companion())
-                    && !PlaceGuard.insideAnyPlace(context.companion(), position)) {
+                    && PlaceGuard.enabled(context)
+                    && !PlaceGuard.insideAnyPlace(context, position)) {
                 failureSummary = "container is outside known places";
                 return TaskStatus.FAILED;
             }

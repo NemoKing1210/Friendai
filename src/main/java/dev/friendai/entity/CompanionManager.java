@@ -3,7 +3,7 @@ package dev.friendai.entity;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.survival.DeathRecord;
-import dev.friendai.task.builtin.SleepTask;
+import dev.friendai.features.survival.minecraft.task.SleepTask;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,10 +37,9 @@ public final class CompanionManager {
     }
 
     private static final Map<MinecraftServer, CompanionManager> INSTANCES = new WeakHashMap<>();
-
     /** Furnaces and station leases are not saved by the entity; they cross a death in this session only. */
     private record TransientCarry(
-            List<dev.friendai.task.cooking.FurnaceJob> furnaces,
+            List<dev.friendai.features.cooking.minecraft.FurnaceJob> furnaces,
             List<dev.friendai.features.crafting.StationLease.Kept> leases) {}
 
     private final MinecraftServer server;
@@ -56,7 +55,6 @@ public final class CompanionManager {
     public static synchronized CompanionManager get(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, CompanionManager::new);
     }
-
     /** Detaches this server's owner-thread index after runtime shutdown. */
     public static synchronized void close(MinecraftServer server) {
         INSTANCES.remove(server);
@@ -65,12 +63,10 @@ public final class CompanionManager {
     public Optional<CompanionEntity> find(UUID owner) {
         return Optional.ofNullable(byOwner.get(owner)).filter(e -> !e.isRemoved());
     }
-
     /** Loaded companions that have not been removed. */
     public List<CompanionEntity> all() {
         return byOwner.values().stream().filter(e -> !e.isRemoved()).toList();
     }
-
     /** Indexes a loaded companion. A second companion of the same owner is discarded. */
     public void register(CompanionEntity entity) {
         UUID owner = entity.ownerUuid();
@@ -119,7 +115,6 @@ public final class CompanionManager {
     public void removeListener(Listener listener) {
         listeners.remove(listener);
     }
-
     /** Called only from the entity's actual death path; removals and unloads do not qualify. */
     public void onDeath(CompanionEntity companion, ServerLevel level, DamageSource source) {
         UUID owner = companion.ownerUuid();
@@ -147,7 +142,6 @@ public final class CompanionManager {
                 killer,
                 level.getGameTime());
     }
-
     /** Replaces eligible dead companions after their entity-unload callback has removed the old index entry. */
     public void tick() {
         CompanionLifeData life = FriendaiServerState.get(server).companionLife();
@@ -207,7 +201,6 @@ public final class CompanionManager {
         restoreCarry(companion, owner);
         return true;
     }
-
     /** Applies the pending body, furnaces and leases to a freshly created companion and clears the record. */
     private void restoreCarry(CompanionEntity companion, UUID owner) {
         CompanionCarryData.get(server).carry(owner).ifPresent(companion::restoreCarry);

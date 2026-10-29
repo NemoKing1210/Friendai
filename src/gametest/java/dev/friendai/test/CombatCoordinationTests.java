@@ -2,9 +2,9 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.combat.minecraft.CombatController;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.combat.CombatController;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

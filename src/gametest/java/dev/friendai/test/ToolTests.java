@@ -14,12 +14,12 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.cooking.minecraft.FurnaceJob;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.memory.CompanionName;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.perception.PerceptionContext;
-import dev.friendai.task.combat.Food;
-import dev.friendai.task.cooking.FurnaceJob;
 import dev.friendai.tool.builtin.FriendaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
@@ -56,7 +56,6 @@ public class ToolTests {
         JsonObject args = JsonParser.parseString(json).getAsJsonObject();
         return tools.execute(new ToolCall("1", name, args, json, null), caller);
     }
-
     /** A mock player with a unique name, because the stock helper names every player "test-mock-player". */
     @SuppressWarnings("removal")
     private static ServerPlayer mockPlayerNamed(GameTestHelper h, String name, double x, double y, double z) {

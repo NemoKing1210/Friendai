@@ -1,6 +1,6 @@
 package dev.friendai.entity;
 
-import dev.friendai.task.combat.CombatController;
+import dev.friendai.features.combat.minecraft.CombatController;
 import java.util.EnumSet;
 import java.util.Optional;
 import net.minecraft.server.level.ServerPlayer;

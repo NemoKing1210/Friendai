@@ -1,10 +1,10 @@
 package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.inventory.minecraft.Equipment;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.combat.Equipment;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;

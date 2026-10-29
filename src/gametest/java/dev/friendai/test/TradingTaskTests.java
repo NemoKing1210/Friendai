@@ -15,13 +15,11 @@ import dev.friendai.features.trading.TradeBudget;
 import dev.friendai.features.trading.TradeOrder;
 import dev.friendai.features.trading.TradeProgress;
 import dev.friendai.features.trading.TraderRecord;
+import dev.friendai.features.trading.minecraft.task.*;
+import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.InspectTraderTask;
-import dev.friendai.task.builtin.LevelTraderTask;
-import dev.friendai.task.builtin.TradeTask;
-import dev.friendai.task.trading.MerchantAdapter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -545,6 +543,7 @@ public final class TradingTaskTests {
     @GameTest(maxTicks = 400)
     public void navigation_walks_around_obstacle_without_changing_blocks(GameTestHelper h) {
         Fixture f = setup(h, "task-navigation", 1, 1, 1, false, false, 400);
+        f.companion().setNoAi(false);
         f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(12.5, 2, 2.5)));
         h.setBlock(7, 2, 2, Blocks.STONE);
         h.setBlock(7, 3, 2, Blocks.STONE);
@@ -571,6 +570,7 @@ public final class TradingTaskTests {
     @GameTest(maxTicks = 160)
     public void navigation_tracks_the_same_loaded_trader_after_it_moves(GameTestHelper h) {
         Fixture f = setup(h, "task-follow-moving-trader", 1, 1, 1, false, false, 140);
+        f.companion().setNoAi(false);
         f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(12.5, 2, 2.5)));
         TradeTask task = new TradeTask(f.order());
         f.companion().executionCoordinator().start(task, "trade_item");
@@ -592,6 +592,7 @@ public final class TradingTaskTests {
     @GameTest(maxTicks = 200)
     public void sealed_path_fails_without_changing_terrain_or_trading(GameTestHelper h) {
         Fixture f = setup(h, "task-sealed-path", 1, 1, 1, false, false, 140);
+        f.companion().setNoAi(false);
         f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(12.5, 2, 2.5)));
         for (int y = 1; y <= 4; y++) {
             for (int x = 8; x <= 16; x++) {
@@ -603,7 +604,7 @@ public final class TradingTaskTests {
                 h.setBlock(16, y, z, Blocks.BEDROCK);
             }
         }
-        // Close the top too: otherwise either entity can sometimes climb over the four-block perimeter.
+        // Seal the box overhead.
         for (int x = 8; x <= 16; x++) {
             for (int z = -2; z <= 7; z++) h.setBlock(x, 5, z, Blocks.BEDROCK);
         }
@@ -613,7 +614,7 @@ public final class TradingTaskTests {
             TradeProgress progress = f.authority().progress(f.order().orderId()).orElse(null);
             h.assertTrue(
                     progress != null,
-                    "sealed route did not terminalize by its order deadline: " + task.resultSummary());
+                    "sealed: " + task.resultSummary() + " @ " + f.companion().blockPosition());
             h.assertTrue(
                     progress.state() == TradeProgress.State.FAILED,
                     "sealed merchant task did not fail at its bounded deadline: " + task.resultSummary());

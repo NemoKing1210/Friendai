@@ -24,7 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Owner-scoped trading snapshots, independent from memory and resource knowledge. */
-public final class TradeStore implements AutoCloseable {
+public final class TradeStore implements TradeBookRepository, AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = 5_000;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/trading");
 

@@ -1,12 +1,12 @@
 package dev.friendai.task.structure;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.construction.minecraft.build.Placement;
 import dev.friendai.features.construction.special.Offset;
 import dev.friendai.features.construction.special.Outcome;
 import dev.friendai.features.construction.special.SpecialStructure;
 import dev.friendai.features.construction.special.StructureSnapshot;
 import dev.friendai.features.construction.special.Trigger;
-import dev.friendai.task.build.Placement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;

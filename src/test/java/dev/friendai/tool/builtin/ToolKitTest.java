@@ -33,6 +33,7 @@ class ToolKitTest {
 
         assertThrows(IllegalArgumentException.class, () -> ToolKit.validateRegistration(spending, false));
         assertThrows(IllegalArgumentException.class, () -> ToolKit.taskTool(spending));
+        assertDoesNotThrow(() -> ToolKit.taskTool(spending, true));
         var definitions = new ArrayList<TaskToolDef>();
         assertThrows(
                 IllegalArgumentException.class,

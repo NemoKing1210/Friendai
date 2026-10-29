@@ -6,9 +6,15 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.features.combat.CombatMode;
 import dev.friendai.features.combat.CombatSettings;
+import dev.friendai.features.combat.minecraft.CombatController;
 import dev.friendai.features.construction.blueprint.Blueprint;
+import dev.friendai.features.construction.minecraft.build.PreviewOutline;
+import dev.friendai.features.cooking.minecraft.FurnaceJobs;
+import dev.friendai.features.cooking.minecraft.task.CollectStationTask;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.StationLease;
+import dev.friendai.features.crafting.minecraft.Stations;
+import dev.friendai.features.fire.minecraft.FireReflex;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.navigation.minecraft.nav.Pace;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
@@ -16,6 +22,8 @@ import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.features.survival.Difficulty;
 import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.features.survival.HungerModel;
+import dev.friendai.features.survival.minecraft.HungerWatcher;
+import dev.friendai.features.survival.minecraft.task.SleepTask;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.net.DebugStream;
 import dev.friendai.server.companion.CompanionExecution;
@@ -26,15 +34,8 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
-import dev.friendai.task.build.PreviewOutline;
-import dev.friendai.task.builtin.CollectStationTask;
-import dev.friendai.task.builtin.SleepTask;
-import dev.friendai.task.combat.CombatController;
-import dev.friendai.task.cooking.FurnaceJobs;
-import dev.friendai.task.crafting.Stations;
-import dev.friendai.task.fire.FireReflex;
+import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
-import dev.friendai.task.survival.HungerWatcher;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,12 +126,10 @@ public class CompanionEntity extends PathfinderMob {
     public static final double XP_PULL_RADIUS = 8.0;
 
     public static final double XP_PICKUP_RADIUS = 1.0;
-
     /** How often the companion looks for stations it left out, and how far it will walk back for one. */
     private static final int STATION_WATCH_INTERVAL = 20;
 
     private static final double STATION_RECOVERY_RADIUS = 32.0;
-
     private UUID ownerUuid;
     private long creativeModeRevision;
     private final SimpleContainer inventory = new SimpleContainer(27);
@@ -200,34 +199,28 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_SLIM, false);
         builder.define(DATA_CREATIVE_MODE, false);
     }
-
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
     public ExperienceModel experience() {
         return experience;
     }
-
     /** The experience level as the client sees it. */
     public int syncedXpLevel() {
         return entityData.get(DATA_XP_LEVEL);
     }
-
     /** The progress through the current level (0 to 1) as the client sees it. */
     public float syncedXpProgress() {
         return entityData.get(DATA_XP_PROGRESS);
     }
-
     /** Adds experience points and refreshes the synced fields. */
     public void addExperience(int points) {
         experience.add(points);
         syncExperience();
     }
-
     /** Copies the model into the synced fields the client reads. */
     public void syncExperience() {
         entityData.set(DATA_XP_LEVEL, experience.level());
         entityData.set(DATA_XP_PROGRESS, experience.progress());
     }
-
     /** Pulls orbs in the pull radius toward the chest, like vanilla does for a player, and absorbs those in reach. */
     private void collectExperienceOrbs() {
         List<ExperienceOrb> orbs =
@@ -260,7 +253,6 @@ public class CompanionEntity extends PathfinderMob {
             playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.1f, 0.5f + random.nextFloat() * 0.5f);
         }
     }
-
     /** Hash of the custom skin, or empty for the default look. */
     public String getSkinHash() {
         return entityData.get(DATA_SKIN);
@@ -274,7 +266,6 @@ public class CompanionEntity extends PathfinderMob {
         entityData.set(DATA_SKIN, hash);
         entityData.set(DATA_SLIM, slim);
     }
-
     /** True while the brain is waiting for the model; the client draws a thought bubble above the head. */
     public boolean isThinking() {
         return entityData.get(DATA_THINKING);
@@ -283,7 +274,6 @@ public class CompanionEntity extends PathfinderMob {
     public void setThinking(boolean thinking) {
         entityData.set(DATA_THINKING, thinking);
     }
-
     /** The food level as the client sees it; the server ticks the model, the client only reads this field. */
     public int syncedFood() {
         return entityData.get(DATA_FOOD);
@@ -293,6 +283,9 @@ public class CompanionEntity extends PathfinderMob {
         return executionCoordinator;
     }
 
+    public TaskExecutionPort taskExecution() {
+        return executionCoordinator;
+    }
     /** The immutable effective config snapshot owned by this companion's server. */
     public ServerSettings serverSettings() {
         var server = level().getServer();
@@ -300,7 +293,6 @@ public class CompanionEntity extends PathfinderMob {
                 ? ServerSettings.DEFAULTS
                 : FriendaiServerState.get(server).settings();
     }
-
     /**
      * The idle fallback may walk to the owner unless free time is the companion's own business right now or the owner
      * switched following off. Both are persisted, so a reload does not turn the companion back into a follower.
@@ -322,7 +314,6 @@ public class CompanionEntity extends PathfinderMob {
                 executionCoordinator.busyWithOther() || executionCoordinator.ownerWorkQueued(),
                 inCombat);
     }
-
     /**
      * Whether the companion walks to its owner on its own initiative. The owner's choice is stored with their other
      * life preferences, so it survives a relog, a dismiss and a death; the config's default applies until they choose.
@@ -336,7 +327,6 @@ public class CompanionEntity extends PathfinderMob {
                 .followModeChoice(ownerUuid)
                 .orElse(serverSettings().tasks().defaultFollow());
     }
-
     /** Switches following; a running default follow stops on the next tick through {@link #mayFollowOwner()}. */
     public void setFollowMode(boolean on) {
         var server = level().getServer();
@@ -353,12 +343,10 @@ public class CompanionEntity extends PathfinderMob {
     public FireReflex fireReflex() {
         return fireReflex;
     }
-
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
     }
-
     /**
      * The stations this companion placed and still owns: kept out between crafts so the next one reuses them, and
      * fetched back when nothing followed. Not saved; after a reload a station left out simply stays where it is.
@@ -366,12 +354,10 @@ public class CompanionEntity extends PathfinderMob {
     public StationLease stationLease() {
         return stationLease;
     }
-
     /** Hunger stages and the self-starting food quest; ticked every 20 server ticks. Not saved. */
     public HungerWatcher hungerWatcher() {
         return hungerWatcher;
     }
-
     /** The fake player that performs placements and right-clicks. Not saved. */
     public CompanionHands hands() {
         if (hands == null) {
@@ -379,7 +365,6 @@ public class CompanionEntity extends PathfinderMob {
         }
         return hands;
     }
-
     /** The blueprint {@code preview_structure} showed last, for {@code save_blueprint} without JSON. Not saved. */
     public Optional<Blueprint> lastPreview() {
         return Optional.ofNullable(lastPreview);
@@ -388,7 +373,6 @@ public class CompanionEntity extends PathfinderMob {
     public void setLastPreview(Blueprint blueprint) {
         this.lastPreview = blueprint;
     }
-
     /**
      * Test hook: confines pathing to a box, so a GameTest cannot dig or build into a neighbour's structure. Not
      * saved; null means the whole loaded world is fair game.
@@ -396,12 +380,10 @@ public class CompanionEntity extends PathfinderMob {
     public void setPathBounds(@Nullable AABB bounds) {
         this.pathBounds = bounds;
     }
-
     /** The box pathing is confined to, or null when it is not confined. */
     public @Nullable AABB pathBounds() {
         return pathBounds;
     }
-
     /**
      * Whether the path executor currently drives the movement. Vanilla navigation then stays idle, so it must not be
      * what decides the companion stopped moving.
@@ -414,7 +396,6 @@ public class CompanionEntity extends PathfinderMob {
         this.lastNavigator = navigator;
         this.lastNavigatorTick = level().getGameTime();
     }
-
     /** The navigator that drove the companion within the last second, or null. */
     public dev.friendai.features.navigation.minecraft.nav.Navigator activeNavigator() {
         return lastNavigator != null && level().getGameTime() - lastNavigatorTick <= 20 ? lastNavigator : null;
@@ -423,7 +404,6 @@ public class CompanionEntity extends PathfinderMob {
     public void setPathing(boolean pathing) {
         this.pathingTicks = pathing ? 2 : 0;
     }
-
     /** Shows the owner where a structure will go; replaces any earlier outline. Not saved. */
     public void showOutline(PreviewOutline outline) {
         this.previewOutline = outline;
@@ -457,7 +437,7 @@ public class CompanionEntity extends PathfinderMob {
                 collectOwnerThrows();
             }
             if (++furnaceWatchTicks % 20 == 0) {
-                furnaceJobs.tick(this);
+                furnaceJobs.tick(this, executionCoordinator()::notice);
             }
             if (++hungerWatchTicks % 20 == 0) {
                 hungerWatcher.tick();
@@ -487,7 +467,6 @@ public class CompanionEntity extends PathfinderMob {
             executionCoordinator.start(SleepTask.automatic(beds), "auto_sleep");
         }
     }
-
     /**
      * Takes back a station the companion left out when no craft followed: the lease ran out, the block is still
      * there and close, and nothing else is going on. A station that is gone, out of walking distance or replaced by
@@ -515,7 +494,6 @@ public class CompanionEntity extends PathfinderMob {
             return;
         }
     }
-
     /**
      * True when the default activity is all the runner is doing, so a quick errand may replace it and the companion
      * may glance at its owner. A real task owns the look, so the companion keeps its eyes on the job instead.
@@ -526,12 +504,10 @@ public class CompanionEntity extends PathfinderMob {
                 .map(task -> task instanceof FollowTask)
                 .orElse(true);
     }
-
     /** The companion's food, saturation and exhaustion; ticked every server tick by {@link #tick()}. */
     public HungerModel hunger() {
         return hunger;
     }
-
     /** Vanilla player hunger: movement, effects, then the model; heal and starve come back from it. */
     private void tickHunger(ServerLevel level) {
         if (creativeMode()) {
@@ -604,7 +580,6 @@ public class CompanionEntity extends PathfinderMob {
             setGuaranteedDrop(slot);
         }
     }
-
     /** The armor, hands and combat mode, as one LLM-facing line. */
     public String equipmentText() {
         StringBuilder text = new StringBuilder("Wearing: ");

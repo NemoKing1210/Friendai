@@ -1,12 +1,12 @@
 package dev.friendai.task.inventory;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.combat.Threats;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;

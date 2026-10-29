@@ -59,6 +59,7 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.server.ServerRuntime"),
                 edge("dev.friendai.features.navigation.Navigator", "net.minecraft.server.MinecraftServer"),
                 edge("dev.friendai.server.LegacyCaller", "dev.friendai.core.FriendaiServerState"),
+                edge("dev.friendai.task.TaskContext", "dev.friendai.core.FriendaiServerState"),
                 edge("dev.friendai.server.runtime.ServerTickPipeline", "dev.friendai.core.FriendaiServerState"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.friendai.client.ui.CompanionScreen"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
@@ -181,8 +182,63 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
                         "dev.friendai.features.mining.minecraft.mining.BreakAction"),
                 edge(
+                        "dev.friendai.features.acquisition.minecraft.task.ObtainTask",
+                        "dev.friendai.features.creative.minecraft.CreativeItemCapability"),
+                edge(
                         "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
                         "dev.friendai.features.survival.HungerModel"),
+                edge(
+                        "dev.friendai.features.animals.minecraft.Animals",
+                        "dev.friendai.features.combat.minecraft.Threats"),
+                edge(
+                        "dev.friendai.features.animals.minecraft.task.LeadTask",
+                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
+                edge(
+                        "dev.friendai.features.animals.minecraft.task.HoneyTask",
+                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                edge(
+                        "dev.friendai.features.combat.minecraft.CombatController",
+                        "dev.friendai.features.navigation.movement.Facing"),
+                edge(
+                        "dev.friendai.features.combat.minecraft.CombatController",
+                        "dev.friendai.features.inventory.minecraft.Equipment"),
+                edge(
+                        "dev.friendai.features.combat.minecraft.CombatController",
+                        "dev.friendai.features.survival.HungerModel"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.EatTask",
+                        "dev.friendai.features.combat.minecraft.CombatController"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.GetFoodTask",
+                        "dev.friendai.features.cooking.minecraft.FuelPolicy"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.GetFoodTask",
+                        "dev.friendai.features.farming.minecraft.Crops"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.GetFoodTask",
+                        "dev.friendai.features.knowledge.ResourceObservation"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.GetFoodTask",
+                        "dev.friendai.features.navigation.pathing.Pos"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.SleepTask",
+                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                edge(
+                        "dev.friendai.features.survival.minecraft.task.SleepTask",
+                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
+                edge(
+                        "dev.friendai.features.construction.minecraft.task.ClearAreaTask",
+                        "dev.friendai.features.fire.minecraft.FireHands"),
+                edge(
+                        "dev.friendai.features.interaction.minecraft.task.InteractEntityTask",
+                        "dev.friendai.features.combat.minecraft.Threats"),
+                edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.features.crafting.Station"),
+                edge(
+                        "dev.friendai.features.fire.minecraft.task.ExtinguishFireTask",
+                        "dev.friendai.features.mining.minecraft.mining.BlockBreaker"),
+                edge(
+                        "dev.friendai.features.fire.minecraft.FireScan",
+                        "dev.friendai.features.navigation.minecraft.nav.LevelCellView"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
@@ -209,8 +265,57 @@ class ArchitectureRulesTest {
                         violation(
                                 "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
+                                "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
+                        violation(
+                                "feature-task-internals-not-allowed",
+                                "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                                 "dev.friendai.features.interaction.minecraft.task.ApproachTask")),
                 PackageDependencyRules.validate(edges));
+    }
+
+    @Test
+    void featureAdaptersCannotConstructAnotherFeaturesTasks() {
+        String obtainTask = "dev.friendai.features.acquisition.minecraft.task.ObtainTask";
+        String creativeTask = "dev.friendai.features.creative.minecraft.task.CreateItemsTask";
+
+        assertEquals(
+                List.of(violation("feature-task-internals-not-allowed", obtainTask, creativeTask)),
+                PackageDependencyRules.validate(List.of(edge(obtainTask, creativeTask))));
+    }
+
+    @Test
+    void gameplayTasksAreCoLocatedWithTheirFeatures() {
+        for (String[] task : List.of(
+                new String[] {"combat", "AttackPlayerTask"},
+                new String[] {"combat", "HuntTask"},
+                new String[] {"survival", "EatTask"},
+                new String[] {"survival", "GetFoodTask"},
+                new String[] {"survival", "SleepTask"},
+                new String[] {"animals", "BreedTask"},
+                new String[] {"animals", "FishTask"},
+                new String[] {"animals", "HoneyTask"},
+                new String[] {"animals", "LeadTask"},
+                new String[] {"animals", "MilkTask"},
+                new String[] {"animals", "ShearTask"},
+                new String[] {"animals", "TameTask"},
+                new String[] {"trading", "BarterTask"},
+                new String[] {"trading", "InspectTraderTask"},
+                new String[] {"trading", "LevelTraderTask"},
+                new String[] {"trading", "RefreshTradesTask"},
+                new String[] {"trading", "TradeTask"},
+                new String[] {"trading", "WaitForRestockTask"},
+                new String[] {"enchanting", "AnvilItemTask"},
+                new String[] {"enchanting", "EnchantItemTask"},
+                new String[] {"enchanting", "GrindstoneItemTask"},
+                new String[] {"enchanting", "MenuBlockTask"},
+                new String[] {"fire", "ExtinguishFireTask"})) {
+            Path featureTask = PROJECT_ROOT.resolve(
+                    "src/main/java/dev/friendai/features/" + task[0] + "/minecraft/task/" + task[1] + ".java");
+            Path legacyTask = PROJECT_ROOT.resolve("src/main/java/dev/friendai/task/builtin/" + task[1] + ".java");
+
+            assertTrue(Files.isRegularFile(featureTask), "Task should be feature-owned: " + featureTask);
+            assertFalse(Files.exists(legacyTask), "Legacy task should be removed: " + legacyTask);
+        }
     }
 
     @Test

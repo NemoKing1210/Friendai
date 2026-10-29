@@ -102,7 +102,11 @@ final class ToolKit {
     }
 
     static Tool<CompanionEntity> taskTool(TaskToolDef def) {
-        validateRegistration(def, false);
+        return taskTool(def, false);
+    }
+
+    static Tool<CompanionEntity> taskTool(TaskToolDef def, boolean callerAware) {
+        validateRegistration(def, callerAware);
         return callerTool(
                 def.name(), def.description(), def.schema(), def.minAccess(), () -> true, (c, caller, args) -> {
                     if (def.creativeSensitive()

@@ -9,31 +9,81 @@ import java.util.regex.Pattern;
 /** Checks stable module and package boundaries against compiled class dependency edges. */
 final class PackageDependencyRules {
     private static final Pattern CLASS_NAME = Pattern.compile("[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)+");
-    private static final Set<String> SERVER_RUNTIME_STATE_OWNERS = Set.of(
+    private static final Set<String> SERVER_STATE_ACCESS_OWNERS = Set.of(
             "dev.friendai.server.runtime.ServerRuntime",
             "dev.friendai.server.runtime.ServerRuntimeFactory",
-            "dev.friendai.server.runtime.ServerTickPipeline");
+            "dev.friendai.server.runtime.ServerTickPipeline",
+            "dev.friendai.task.TaskContext",
+            "dev.friendai.features.trading.minecraft.task.BarterTask",
+            "dev.friendai.features.trading.minecraft.task.InspectTraderTask",
+            "dev.friendai.features.trading.minecraft.task.TradeTask",
+            "dev.friendai.features.trading.minecraft.task.WaitForRestockTask",
+            "dev.friendai.features.trading.minecraft.tool.TradingTools");
     private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
+            new FeatureDependency("animals", "combat"),
+            new FeatureDependency("animals", "mining"),
+            new FeatureDependency("animals", "navigation"),
+            new FeatureDependency("enchanting", "mining"),
+            new FeatureDependency("enchanting", "navigation"),
             new FeatureDependency("mining", "navigation"),
             new FeatureDependency("mining", "places"),
             new FeatureDependency("navigation", "mining"),
+            new FeatureDependency("navigation", "knowledge"),
+            new FeatureDependency("exploration", "acquisition"),
+            new FeatureDependency("exploration", "knowledge"),
+            new FeatureDependency("exploration", "mining"),
+            new FeatureDependency("exploration", "navigation"),
+            new FeatureDependency("fire", "crafting"),
+            new FeatureDependency("fire", "mining"),
             new FeatureDependency("fire", "navigation"),
+            new FeatureDependency("combat", "navigation"),
+            new FeatureDependency("combat", "inventory"),
+            new FeatureDependency("combat", "survival"),
+            new FeatureDependency("trading", "combat"),
+            new FeatureDependency("trading", "navigation"),
+            new FeatureDependency("construction", "creative"),
+            new FeatureDependency("construction", "fire"),
+            new FeatureDependency("construction", "mining"),
             new FeatureDependency("construction", "navigation"),
+            new FeatureDependency("construction", "places"),
+            new FeatureDependency("construction", "placements"),
+            new FeatureDependency("cooking", "crafting"),
+            new FeatureDependency("cooking", "mining"),
+            new FeatureDependency("cooking", "navigation"),
             new FeatureDependency("acquisition", "crafting"),
+            new FeatureDependency("acquisition", "creative"),
+            new FeatureDependency("acquisition", "farming"),
+            new FeatureDependency("acquisition", "knowledge"),
             new FeatureDependency("acquisition", "navigation"),
+            new FeatureDependency("acquisition", "places"),
             new FeatureDependency("acquisition", "trading"),
             new FeatureDependency("knowledge", "acquisition"),
             new FeatureDependency("knowledge", "navigation"),
+            new FeatureDependency("crafting", "knowledge"),
+            new FeatureDependency("crafting", "mining"),
+            new FeatureDependency("crafting", "navigation"),
+            new FeatureDependency("farming", "mining"),
+            new FeatureDependency("farming", "navigation"),
+            new FeatureDependency("farming", "places"),
+            new FeatureDependency("farming", "survival"),
+            new FeatureDependency("mining", "construction"),
             new FeatureDependency("places", "memory"),
             new FeatureDependency("places", "navigation"),
             new FeatureDependency("placements", "navigation"),
             new FeatureDependency("instructions", "memory"),
             new FeatureDependency("interaction", "creative"),
+            new FeatureDependency("interaction", "combat"),
             new FeatureDependency("interaction", "navigation"),
             new FeatureDependency("inventory", "acquisition"),
             new FeatureDependency("inventory", "navigation"),
             new FeatureDependency("inventory", "places"),
-            new FeatureDependency("inventory", "survival"));
+            new FeatureDependency("inventory", "survival"),
+            new FeatureDependency("survival", "combat"),
+            new FeatureDependency("survival", "cooking"),
+            new FeatureDependency("survival", "farming"),
+            new FeatureDependency("survival", "knowledge"),
+            new FeatureDependency("survival", "mining"),
+            new FeatureDependency("survival", "navigation"));
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",
@@ -104,6 +154,13 @@ final class PackageDependencyRules {
             if (hasUnlistedFeatureDependency(source, target)) {
                 add(violations, "feature-dependency-not-allowed", edge);
             }
+            if (isUnder(source, "dev.friendai.features")
+                    && isUnder(target, "dev.friendai.features")
+                    && isMinecraftFeatureAdapter(source)
+                    && !featureBoundary(source).equals(featureBoundary(target))
+                    && isFeatureTaskImplementation(target)) {
+                add(violations, "feature-task-internals-not-allowed", edge);
+            }
             if (isUnder(source, "dev.friendai.agent")
                     && !isUnder(source, "dev.friendai.agent.llm.protocol")
                     && isAgentAdapter(target)) {
@@ -127,9 +184,9 @@ final class PackageDependencyRules {
                     && isProtocolForbidden(target)) {
                 add(violations, "protocol-direction", edge);
             }
-            // Runtime construction and tick orchestration intentionally own the transitional state graph.
+            // Runtime construction, tick orchestration and TaskContext's typed facade own state access.
             if (target.equals("dev.friendai.core.FriendaiServerState")
-                    && !SERVER_RUNTIME_STATE_OWNERS.contains(source)) {
+                    && !SERVER_STATE_ACCESS_OWNERS.contains(source)) {
                 add(violations, "legacy-server-state-lookup", edge);
             }
         }
@@ -211,6 +268,10 @@ final class PackageDependencyRules {
         String featureClass = className.substring("dev.friendai.features.".length());
         int nextPackage = featureClass.indexOf('.');
         return nextPackage < 0 ? featureClass : featureClass.substring(0, nextPackage);
+    }
+
+    private static boolean isFeatureTaskImplementation(String className) {
+        return isUnder(className, "dev.friendai.features") && className.contains(".task.");
     }
 
     private static boolean isMinecraftFeatureAdapter(String className) {

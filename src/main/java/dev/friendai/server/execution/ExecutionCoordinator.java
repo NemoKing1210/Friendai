@@ -26,6 +26,7 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
@@ -45,10 +46,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Runs one task at a time and schedules durable jobs when no urgent or legacy task owns the runner. */
-public final class ExecutionCoordinator {
+public final class ExecutionCoordinator implements TaskExecutionPort {
     private static final int POLL_INTERVAL_TICKS = 10;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
-
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
     private final BooleanSupplier defaultFollow;
@@ -57,12 +57,10 @@ public final class ExecutionCoordinator {
     private final QueueDriver queueDriver;
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
-
     /** A movement order is a task without a job behind it, so waiting in place never pins the queue. */
     private static boolean movementOrder(ActiveTask active) {
         return active != null && active.jobId() == 0 && MovementOrders.isOrder(active.toolName());
     }
-
     /** Queue plans that free time started; their jobs are autonomous work. */
     private TaskEventSink eventSink;
 
@@ -77,7 +75,6 @@ public final class ExecutionCoordinator {
     public ExecutionCoordinator(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
         this(companion, timeoutSec, defaultFollow, () -> true, companion::serverSettings);
     }
-
     /** A runner that knows whether following is its business at all; the real entity passes the free-time gate. */
     public ExecutionCoordinator(
             CompanionEntity companion,
@@ -142,8 +139,14 @@ public final class ExecutionCoordinator {
         suspended = false;
     }
 
+    @Override
     public boolean suspended() {
         return suspended;
+    }
+
+    @Override
+    public TaskExecutionPort.Hold acquireCombatHold() {
+        return acquireHold(HoldReason.COMBAT);
     }
 
     public ExecutionHold acquireHold(HoldReason reason) {
@@ -216,7 +219,6 @@ public final class ExecutionCoordinator {
     public String currentToolName() {
         return activeTask() == null ? "" : activeTask().toolName();
     }
-
     /** Active queue intent, including its durable plan goal when this task belongs to a plan. */
     public Optional<String> currentQueueIntent() {
         if (activeTask() == null || activeTask().jobId() <= 0) return Optional.empty();
@@ -369,7 +371,6 @@ public final class ExecutionCoordinator {
     public void registerFactory(long jobId, StepFactory factory) {
         queueDriver.addFactory(jobId, factory);
     }
-
     /** Legacy task entry point. A new task freezes a queue job so the queue can resume afterwards. */
     public int start(Task task, String toolName) {
         return start(task, toolName, null, false);
@@ -1013,7 +1014,6 @@ public final class ExecutionCoordinator {
             return Optional.empty();
         }
     }
-
     /** Installs validated state; decoding, authorization and recovery policy belong to TaskPersistenceCoordinator. */
     public void installRestoredState(
             QueueSave.Decoded decoded,
@@ -1145,7 +1145,6 @@ public final class ExecutionCoordinator {
                 ? null
                 : new CreativeActionContext(principal, companion.creativeModeRevision());
     }
-
     /** Reconstructs only the authority that the saved principal proves; unknown actors stay guests. */
     private Caller callerFor(java.util.UUID principal) {
         if (principal == null) return null;

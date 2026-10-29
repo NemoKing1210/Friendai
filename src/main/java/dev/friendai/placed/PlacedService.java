@@ -1,6 +1,5 @@
 package dev.friendai.placed;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -8,6 +7,7 @@ import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.*;
 import dev.friendai.perception.RelativeDirection;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.ContainerAccess;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +44,7 @@ public final class PlacedService {
         if (owner == null || !(companion.level() instanceof ServerLevel level)) {
             return new PlacedBook(PlacedLimits.DEFAULTS);
         }
-        return FriendaiServerState.get(level.getServer()).placed().book(owner);
+        return context(companion).placedBook(owner);
     }
 
     /** Records one successful placement; a companion without an owner is not recorded. */
@@ -63,7 +63,7 @@ public final class PlacedService {
                 blockId,
                 level.getGameTime(),
                 source);
-        FriendaiServerState.get(level.getServer()).placed().book(owner).record(block);
+        context(companion).placedBook(owner).record(block);
     }
 
     /** Forgets the entry for one cell, after the block was broken or taken back. */
@@ -75,9 +75,8 @@ public final class PlacedService {
         if (owner == null) {
             return;
         }
-        FriendaiServerState.get(level.getServer())
-                .placed()
-                .book(owner)
+        context(companion)
+                .placedBook(owner)
                 .remove(level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 
@@ -230,5 +229,9 @@ public final class PlacedService {
                 .getKey(level.getBlockState(pos).getBlock())
                 .toString()
                 .equals(entry.blockId());
+    }
+
+    private static TaskContext context(CompanionEntity companion) {
+        return new TaskContext(companion, (ServerLevel) companion.level());
     }
 }

@@ -9,7 +9,10 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.task.builtin.CreateItemsTask;
+import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.features.creative.minecraft.CreativeItemCapability;
+import dev.friendai.features.creative.minecraft.task.CreateItemsTask;
+import dev.friendai.task.TaskContext;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -58,6 +61,36 @@ public final class CreativeToolsTests {
         for (int i = 0; i < count; i++) {
             companion.executionCoordinator().tick();
         }
+    }
+
+    @GameTest
+    public void sharedCreativeCapabilityDeliversOneBoundedBatchAndRechecksPermission(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        TaskContext context = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
+
+        CreativeItemCapability.Batch first = CreativeItemCapability.deliverOneBatch(
+                context, new ItemStack(Items.DIAMOND), 130, CreativeItemCapability.Destination.COMPANION);
+        h.assertTrue(first.succeeded() && first.inserted() == 64, "capability did not deliver one stack");
+        h.assertTrue(
+                companion.inventory().countItem(Items.DIAMOND) == 64,
+                "capability created " + companion.inventory().countItem(Items.DIAMOND) + " items in one batch");
+
+        owner.level().getServer().getPlayerList().deop(owner.nameAndId());
+        CreativeItemCapability.Batch revoked = CreativeItemCapability.deliverOneBatch(
+                context, new ItemStack(Items.DIAMOND), 66, CreativeItemCapability.Destination.COMPANION);
+        h.assertTrue(
+                revoked.inserted() == 0 && revoked.failure() == CreativeItemCapability.Failure.UNAUTHORIZED,
+                "revoked permission allowed another capability batch");
+        h.assertTrue(
+                companion.inventory().countItem(Items.DIAMOND) == 64,
+                "permission revocation changed the delivered item count");
+        h.succeed();
     }
 
     @GameTest

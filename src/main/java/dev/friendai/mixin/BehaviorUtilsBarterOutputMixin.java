@@ -1,7 +1,7 @@
 package dev.friendai.mixin;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.task.trading.BarterOutputCapture;
+import dev.friendai.features.trading.minecraft.trading.BarterOutputCapture;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.behavior.BehaviorUtils;

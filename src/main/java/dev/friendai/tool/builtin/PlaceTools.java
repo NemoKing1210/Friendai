@@ -15,7 +15,7 @@ import dev.friendai.features.places.PlaceQuery;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.place.PlaceService;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.task.Task;
 import java.util.LinkedHashSet;
 import java.util.List;

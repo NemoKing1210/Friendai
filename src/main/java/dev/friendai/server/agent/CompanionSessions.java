@@ -31,6 +31,7 @@ import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceText;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradePromptSummary;
 import dev.friendai.foundation.diagnostics.DebugLog;
@@ -41,7 +42,6 @@ import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.resource.ResourceCandidates;
-import dev.friendai.place.PlaceService;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.TaskListener;
@@ -83,7 +83,6 @@ public final class CompanionSessions implements AutoCloseable {
     private final DebugService debug;
     private final PlannerAdapter planners;
     private final FreeTimeDriver freeTime;
-
     private long lastAgentCheck;
     private ServerConfig config;
 
@@ -138,7 +137,6 @@ public final class CompanionSessions implements AutoCloseable {
                 server, this, () -> this.config, settings, freeTimeService, places, taskTools, planTools);
         reload(initial);
     }
-
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
         return freeTime;
@@ -147,7 +145,6 @@ public final class CompanionSessions implements AutoCloseable {
     Supplier<PerceptionContext> perceptionContext() {
         return perceptionContext;
     }
-
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input) {
@@ -160,7 +157,8 @@ public final class CompanionSessions implements AutoCloseable {
         String task =
                 companion.map(c -> c.executionCoordinator().currentToolName()).orElse("");
         boolean combat = companion
-                .map(c -> c.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE)
+                .map(c -> c.combatController().state()
+                        != dev.friendai.features.combat.minecraft.CombatController.State.IDLE)
                 .orElse(false);
         var skillSession = skills.begin(
                 owner,
@@ -174,33 +172,27 @@ public final class CompanionSessions implements AutoCloseable {
         return planners.propose(
                 session(owner), input.withInstructions(skillSession.sections(), config.agent.promptBudget));
     }
-
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
     void ensureBrain(UUID owner) {
         entryFor(owner);
     }
-
     /** Runs on the server thread, the way late brain work hops back. */
     void onServerThread(Runnable task) {
         scheduler.execute(task);
     }
-
     /** Rebuilds the LLM client from the config. A broken profile gives a gateway that reports the problem. */
     public void reload(ServerConfig cfg) {
         this.config = cfg;
         gateways.reload(cfg);
     }
-
     /** Test hook: use this planner instead of the model-backed one for one owner. */
     public void setPlannerOverride(UUID owner, dev.friendai.agent.plan.Planner planner) {
         session(owner).plannerOverride(planner);
     }
-
     /** The effective model used for plan drafting, after unknown or unusable profiles fall back. */
     public String plannerModel() {
         return planners.model();
     }
-
     /** Adds an operator-only planner lifecycle entry. Call on the server thread. */
     public void plannerDebug(UUID owner, String text) {
         debug.logOf(owner).add(LogKind.PLANNER, text);
@@ -213,12 +205,10 @@ public final class CompanionSessions implements AutoCloseable {
     public String activeModel() {
         return gateways.activeModel();
     }
-
     /** Test hook: use this gateway instead of the configured one for one owner. */
     public void setGatewayOverride(UUID owner, LlmGateway gateway) {
         session(owner).gatewayOverride(gateway);
     }
-
     /** Test hook: wrap the speaker of one owner's brain. Must be set before the brain is created. */
     public void setSpeakerWrapper(UUID owner, UnaryOperator<Speaker> wrapper) {
         session(owner).speakerWrapper(wrapper);
@@ -239,12 +229,10 @@ public final class CompanionSessions implements AutoCloseable {
     public List<String> toolNames() {
         return tools.specs().stream().map(ToolSpec::name).toList();
     }
-
     /** The system prompt the owner's next LLM request would carry; empty if they have no companion. */
     public Optional<String> currentPrompt(UUID owner) {
         return entryFor(owner).map(session -> session.brain().currentSystemPrompt());
     }
-
     /** Runs a tool by hand, as if the model had called it. Never throws. */
     public ToolResult runTool(UUID owner, String name, String argsJson) {
         Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
@@ -265,7 +253,6 @@ public final class CompanionSessions implements AutoCloseable {
         log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
         return result;
     }
-
     /** Posts a chat-style message to the owner's brain. False if they have no companion. */
     public boolean sendMessage(UUID owner, String playerName, String text) {
         if (entryFor(owner).isEmpty()) {
@@ -758,7 +745,8 @@ public final class CompanionSessions implements AutoCloseable {
                 companion.executionCoordinator().currentToolName(),
                 brain.isSkillFreeTimeTurn(),
                 false,
-                companion.combatController().state() != dev.friendai.task.combat.CombatController.State.IDLE));
+                companion.combatController().state()
+                        != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
         brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
         brain.setPlannerPort(new GamePlannerPort(owner, companion, session.replacedPlans()));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(

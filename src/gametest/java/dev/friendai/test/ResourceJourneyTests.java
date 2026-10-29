@@ -4,12 +4,15 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.ExpeditionChunkHorizon;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.acquisition.minecraft.search.DropIndex;
+import dev.friendai.features.acquisition.minecraft.search.WorldScan;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.ObtainTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -134,10 +137,7 @@ public final class ResourceJourneyTests {
         dev.friendai.entity.CompanionManager.get(server).register(companion);
         ExecutionCoordinator runner = companion.executionCoordinator();
         runner.setListener(result);
-        runner.start(
-                new dev.friendai.task.builtin.VisitResourceTask(
-                        remembered.getFirst().site().id(), dimension, 400),
-                "visit_resource");
+        runner.start(new VisitResourceTask(remembered.getFirst().site().id(), dimension, 400), "visit_resource");
         int[] phase = {0};
         h.succeedWhen(() -> {
             afterRestart.observations().tick(server, server.overworld().getGameTime());
@@ -242,10 +242,7 @@ public final class ResourceJourneyTests {
         dev.friendai.entity.CompanionManager.get(server).register(companion);
         ExecutionCoordinator runner = companion.executionCoordinator();
         runner.setListener(result);
-        runner.start(
-                new dev.friendai.task.builtin.VisitResourceTask(
-                        remembered.getFirst().site().id(), dimension, 1000),
-                "visit_resource");
+        runner.start(new VisitResourceTask(remembered.getFirst().site().id(), dimension, 1000), "visit_resource");
         int[] phase = {0};
         h.succeedWhen(() -> {
             if (phase[0] == 0) GameTestSupport.observeVisible(h, companion, ore);
@@ -331,13 +328,13 @@ public final class ResourceJourneyTests {
         h.assertTrue(
                 !state.resources().plannerCandidates(companion, 20).isEmpty(),
                 "historical visible logs should become a resource candidate");
-        var facts = dev.friendai.task.obtain.WorldScan.scan(h.getLevel(), companion, 32, false, true);
+        var facts = WorldScan.scan(h.getLevel(), companion, 32, false, true);
         var plan = dev.friendai.features.acquisition.ObtainPlanner.plan(
                 "minecraft:oak_log",
                 2,
                 java.util.Map.of(),
-                dev.friendai.task.crafting.RecipeIndex.of(h.getLevel()),
-                dev.friendai.task.obtain.DropIndex.of(h.getLevel()),
+                dev.friendai.features.crafting.minecraft.RecipeIndex.of(h.getLevel()),
+                DropIndex.of(h.getLevel()),
                 facts);
         h.assertTrue(
                 !plan.steps().isEmpty()
@@ -349,8 +346,7 @@ public final class ResourceJourneyTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 2400, () -> false);
         runner.setListener(result);
         var candidate = state.resources().plannerCandidates(companion, 20).get(0);
-        runner.start(
-                new dev.friendai.task.builtin.VisitResourceTask(candidate.siteId(), dimension, 400), "visit_resource");
+        runner.start(new VisitResourceTask(candidate.siteId(), dimension, 400), "visit_resource");
         boolean[] visitComplete = {false};
         h.succeedWhen(() -> {
             runner.tick();

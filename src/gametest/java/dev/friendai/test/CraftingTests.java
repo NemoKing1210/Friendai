@@ -6,18 +6,19 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.cooking.minecraft.task.CollectStationTask;
 import dev.friendai.features.crafting.Ingredient;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.crafting.StationPolicy;
+import dev.friendai.features.crafting.minecraft.RecipeIndex;
+import dev.friendai.features.crafting.minecraft.Stations;
+import dev.friendai.features.crafting.minecraft.task.CraftTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.builtin.CollectStationTask;
-import dev.friendai.task.builtin.CraftTask;
-import dev.friendai.task.crafting.RecipeIndex;
-import dev.friendai.task.crafting.Stations;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
@@ -52,11 +53,11 @@ public class CraftingTests {
     }
 
     private static ExecutionCoordinator craft(CompanionEntity c, Result result, String item, int count) {
-        return craft(c, result, item, count, CraftTask.StationPolicy.AUTO);
+        return craft(c, result, item, count, StationPolicy.AUTO);
     }
 
     private static ExecutionCoordinator craft(
-            CompanionEntity c, Result result, String item, int count, CraftTask.StationPolicy policy) {
+            CompanionEntity c, Result result, String item, int count, StationPolicy policy) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setListener(result);
         runner.start(new CraftTask(item, count, policy), "craft_item");
@@ -575,7 +576,7 @@ public class CraftingTests {
                 h.assertTrue(table[0] != null, "the table should still stand after the first craft");
                 secondStarted[0] = true;
                 runner.setListener(second);
-                runner.start(new CraftTask("minecraft:wooden_axe", 1, CraftTask.StationPolicy.AUTO), "craft_item");
+                runner.start(new CraftTask("minecraft:wooden_axe", 1, StationPolicy.AUTO), "craft_item");
                 return;
             }
             h.assertTrue(second.status == TaskStatus.SUCCESS, "second craft: " + second.status + " " + second.summary);
@@ -623,7 +624,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAKE_BASE_DECK + 1, 2);
         addLogs(c, Items.DARK_OAK_LOG, 3);
         Result result = new Result();
-        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, StationPolicy.TAKE);
         boolean[] sawStationBreakTarget = {false};
         h.succeedWhen(() -> {
             runner.tick();
@@ -647,7 +648,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, KEEP_DECK + 1, 2);
         addLogs(c, Items.ACACIA_LOG, 3);
         Result result = new Result();
-        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.KEEP);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, StationPolicy.KEEP);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -780,7 +781,7 @@ public class CraftingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, TAKE_FAIL_DECK + 1, 2);
         addLogs(c, Items.ACACIA_LOG, 3);
         Result result = new Result();
-        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, CraftTask.StationPolicy.TAKE);
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, StationPolicy.TAKE);
         boolean[] protectedOnce = {false};
         h.succeedWhen(() -> {
             runner.tick();

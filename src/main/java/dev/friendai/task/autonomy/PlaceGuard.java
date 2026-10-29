@@ -1,10 +1,7 @@
 package dev.friendai.task.autonomy;
 
-import dev.friendai.core.FriendaiServerState;
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
-import dev.friendai.place.PlaceService;
 import dev.friendai.task.TaskContext;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -32,14 +29,14 @@ public final class PlaceGuard {
      * kind in its refusal, so the model learns which place refused instead of a bare "protected".
      */
     public static Place protecting(TaskContext c, BlockPos pos) {
-        if (!c.autonomous() || !enabled(c.companion())) {
+        if (!c.autonomous() || !enabled(c)) {
             return null;
         }
         String tool = c.execution() == null ? "" : c.execution().currentToolName();
         if (STATION_TOOLS.contains(tool)) {
             return null;
         }
-        for (Place place : placesHere(c.companion())) {
+        for (Place place : placesHere(c)) {
             if (inside(place, pos) && !(place.kind() == PlaceKind.FARM && FARM_TOOLS.contains(tool))) {
                 return place;
             }
@@ -48,18 +45,15 @@ public final class PlaceGuard {
     }
 
     /** True when {@code pos} lies inside any known place in the companion's dimension. */
-    public static boolean insideAnyPlace(CompanionEntity companion, BlockPos pos) {
-        return placesHere(companion).stream().anyMatch(place -> inside(place, pos));
+    /** True when {@code pos} lies in an owner-known place, using the task's already-scoped state access. */
+    public static boolean insideAnyPlace(TaskContext context, BlockPos pos) {
+        return placesHere(context).stream().anyMatch(place -> inside(place, pos));
     }
 
     /** True when the box from {@code min} to {@code max} touches any known place in the companion's dimension. */
-    public static boolean overlapsAnyPlace(CompanionEntity companion, BlockPos min, BlockPos max) {
-        return overlapping(companion, min, max) != null;
-    }
-
     /** The first known place the box from {@code min} to {@code max} touches, or null. */
-    public static Place overlapping(CompanionEntity companion, BlockPos min, BlockPos max) {
-        for (Place place : placesHere(companion)) {
+    public static Place overlapping(TaskContext context, BlockPos min, BlockPos max) {
+        for (Place place : placesHere(context)) {
             int r = place.radius();
             if (max.getX() >= place.anchor().x() - r
                     && min.getX() <= place.anchor().x() + r
@@ -74,17 +68,18 @@ public final class PlaceGuard {
     }
 
     /** Whether the server protects places from free time. */
-    public static boolean enabled(CompanionEntity companion) {
-        return companion.level().getServer() != null
-                && FriendaiServerState.get(companion.level().getServer()).config().autonomy.protectPlaces;
+    public static boolean enabled(TaskContext context) {
+        return context.level().getServer() != null
+                && context.serverSettings().autonomy().protectPlaces();
     }
 
-    private static java.util.List<Place> placesHere(CompanionEntity companion) {
+    private static java.util.List<Place> placesHere(TaskContext context) {
+        var companion = context.companion();
         if (companion.ownerUuid() == null) {
             return java.util.List.of();
         }
-        String dimension = companion.level().dimension().identifier().toString();
-        return PlaceService.book(companion).all().stream()
+        String dimension = context.level().dimension().identifier().toString();
+        return context.placeBook(companion.ownerUuid()).all().stream()
                 .filter(p -> p.dimension().equals(dimension))
                 .toList();
     }

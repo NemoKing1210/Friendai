@@ -10,6 +10,15 @@ import dev.friendai.features.knowledge.KnowledgeLimits;
 import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.placements.PlacedLimits;
 import dev.friendai.features.places.PlaceLimits;
+import dev.friendai.features.trading.TradeAuthority;
+import dev.friendai.features.trading.TradeBook;
+import dev.friendai.features.trading.TradingRuntimeSettings;
+import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
+import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
+import dev.friendai.features.trading.minecraft.trading.MerchantLeases;
+import dev.friendai.features.trading.minecraft.trading.PiglinBarterAdapter;
+import dev.friendai.features.trading.minecraft.trading.TradeSessionGuard;
+import dev.friendai.features.trading.minecraft.trading.TraderObserver;
 import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
@@ -26,12 +35,6 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.RuntimeResources;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
-import dev.friendai.task.trading.BarterDropTracker;
-import dev.friendai.task.trading.MerchantAdapter;
-import dev.friendai.task.trading.MerchantLeases;
-import dev.friendai.task.trading.PiglinBarterAdapter;
-import dev.friendai.task.trading.TradeSessionGuard;
-import dev.friendai.task.trading.TraderObserver;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;
@@ -215,6 +218,21 @@ public final class FriendaiServerState {
     /** Per-owner trader observations and informational order history. */
     public TradeStore trading() {
         return trading;
+    }
+
+    /** Owner-scoped trader observations for feature adapters. */
+    public TradeBook tradeBook(UUID owner) {
+        return trading.book(owner);
+    }
+
+    /** Current trading authority for one owner. */
+    public TradeAuthority tradeAuthorityFor(UUID owner) {
+        return sessions.tradeAuthorityFor(owner);
+    }
+
+    /** Immutable trading policy for feature adapters. */
+    public TradingRuntimeSettings tradingSettings() {
+        return settings().trading();
     }
 
     public MerchantLeases merchantLeases() {

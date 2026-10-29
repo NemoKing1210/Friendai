@@ -119,7 +119,7 @@ public final class ToolCatalog {
                 "approach",
                 "circle");
         group(metas, ToolGroup.GATHERING, Cost.HIGH, "fell_tree", "mine_blocks", "mine_block_at", "pickup_items");
-        group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory");
+        group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory", "equip_item");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
@@ -133,14 +133,18 @@ public final class ToolCatalog {
                 "attack_player",
                 "set_combat_mode",
                 "get_combat_settings",
-                "set_combat_settings",
-                "equip_item",
+                "set_combat_settings");
+        group(
+                metas,
+                ToolGroup.SURVIVAL,
+                Cost.MEDIUM,
                 "eat",
                 "get_food",
                 "allow_food",
                 "forbid_food",
                 "reset_food_rule",
-                "get_food_rules");
+                "get_food_rules",
+                "sleep");
         group(metas, ToolGroup.FARMING, Cost.HIGH, "farm", "plan_farm", "tend_farm", "use_bonemeal");
         group(
                 metas,
@@ -208,7 +212,7 @@ public final class ToolCatalog {
                 "swap_hands",
                 "set_idle_behavior",
                 "set_follow_distance");
-        group(metas, ToolGroup.INTERACTION, Cost.MEDIUM, "interact_entity", "mount", "dismount", "sleep", "throw_item");
+        group(metas, ToolGroup.INTERACTION, Cost.MEDIUM, "interact_entity", "mount", "dismount", "throw_item");
         hint(
                 metas,
                 "fell_tree",

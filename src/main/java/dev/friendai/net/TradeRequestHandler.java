@@ -6,8 +6,9 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.trading.TradeQuery;
-import dev.friendai.task.builtin.InspectTraderTask;
-import dev.friendai.task.builtin.RefreshTradesTask;
+import dev.friendai.features.trading.minecraft.task.InspectTraderTask;
+import dev.friendai.features.trading.minecraft.task.RefreshTradesTask;
+import dev.friendai.features.trading.minecraft.tool.TradingTools;
 import java.util.Arrays;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
@@ -129,31 +130,25 @@ public final class TradeRequestHandler {
                                         + " gold ingots and guarantees no particular item."));
                         return;
                     }
-                    var result = dev.friendai.tool.builtin.TradingTools.previewFromMenu(companion, caller, args);
+                    var result = TradingTools.previewFromMenu(companion, caller, args);
                     player.sendSystemMessage(Component.literal(result.content()));
                 } else if (request.action() == TradeRequestC2SPayload.Action.SUBMIT) {
                     caller =
                             state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .executionCoordinator()
-                            .start(
-                                    dev.friendai.tool.builtin.TradingTools.submitFromMenu(companion, caller, args),
-                                    "traders_menu");
+                            .start(TradingTools.submitFromMenu(companion, caller, args), "traders_menu");
                 } else if (request.action() == TradeRequestC2SPayload.Action.BARTER) {
                     args.remove("kind");
                     caller =
                             state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .executionCoordinator()
-                            .start(
-                                    dev.friendai.tool.builtin.TradingTools.barterFromMenu(companion, caller, args),
-                                    "traders_menu");
+                            .start(TradingTools.barterFromMenu(companion, caller, args), "traders_menu");
                 } else {
                     companion
                             .executionCoordinator()
-                            .start(
-                                    dev.friendai.tool.builtin.TradingTools.waitFromMenu(companion, caller, args),
-                                    "traders_menu");
+                            .start(TradingTools.waitFromMenu(companion, caller, args), "traders_menu");
                 }
             } catch (RuntimeException invalid) {
                 player.sendSystemMessage(Component.literal("Trading action failed: " + invalid.getMessage()));

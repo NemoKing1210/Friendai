@@ -11,12 +11,20 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.minecraft.tool.ObtainTools;
+import dev.friendai.features.construction.minecraft.tool.ConstructionTools;
+import dev.friendai.features.cooking.minecraft.tool.CookingTools;
+import dev.friendai.features.crafting.minecraft.tool.CraftingTools;
+import dev.friendai.features.farming.minecraft.tool.FarmingTools;
 import dev.friendai.features.interaction.minecraft.tool.BodyTools;
 import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
 import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
 import dev.friendai.features.inventory.minecraft.tool.StorageTools;
+import dev.friendai.features.knowledge.minecraft.tool.ResourceTools;
+import dev.friendai.features.mining.minecraft.tool.GatheringTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -79,9 +87,9 @@ class FeatureToolRegistryTest {
                 "interact_entity",
                 "mount",
                 "dismount",
-                "sleep");
-        Set<String> taskNames = Set.of("turn", "emote", "sit", "wait", "interact_entity", "mount", "sleep");
-        Set<String> plannableNames = Set.of("turn", "emote", "wait", "interact_entity", "mount", "sleep");
+                "use_block");
+        Set<String> taskNames = Set.of("turn", "emote", "sit", "wait", "interact_entity", "mount", "use_block");
+        Set<String> plannableNames = Set.of("turn", "emote", "wait", "interact_entity", "mount", "use_block");
         Set<String> runtimeNames =
                 tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
         Set<String> metadataNames = registry.catalogMetadata().stream()
@@ -149,6 +157,74 @@ class FeatureToolRegistryTest {
                         .filter(TaskToolDefinition::plannable)
                         .map(TaskToolDefinition::name)
                         .collect(java.util.stream.Collectors.toSet()));
+
+        ToolCatalog catalog = ToolCatalog.defaults();
+        for (var metadata : registry.catalogMetadata()) {
+            assertEquals(catalog.meta(metadata.name()).orElseThrow(), metadata);
+        }
+    }
+
+    @Test
+    void resourceConstructionCraftingCookingAndFarmingContributionsStayAligned() {
+        ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
+        FeatureToolRegistry registry = new FeatureToolRegistry(tools, FeatureToolRegistryTest::taskTool);
+        var subtaskFactory = new MinecraftObtainSubtaskFactory();
+        List.of(
+                        new GatheringTools(() -> 16, () -> 16),
+                        new ObtainTools(subtaskFactory),
+                        new ResourceTools(subtaskFactory),
+                        new ConstructionTools(subtaskFactory::createForBuild),
+                        new CraftingTools(),
+                        new CookingTools(subtaskFactory),
+                        new FarmingTools())
+                .forEach(contributor -> contributor.register(registry));
+
+        Set<String> expectedNames = Set.of(
+                "fell_tree",
+                "mine_blocks",
+                "mine_block_at",
+                "obtain_item",
+                "plan_obtain",
+                "search_resource",
+                "find_target",
+                "search_hint",
+                "known_resources",
+                "place_block",
+                "light_area",
+                "clear_area",
+                "blueprint_help",
+                "preview_structure",
+                "build_structure",
+                "save_blueprint",
+                "list_blueprints",
+                "build_special",
+                "plan_special",
+                "craft_item",
+                "get_recipe",
+                "smelt_items",
+                "cook_food",
+                "collect_smelted",
+                "farm",
+                "plan_farm",
+                "tend_farm",
+                "use_bonemeal");
+        Set<String> runtimeNames =
+                tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
+        Set<String> metadataNames = registry.catalogMetadata().stream()
+                .map(meta -> meta.name())
+                .collect(java.util.stream.Collectors.toSet());
+
+        assertEquals(expectedNames, runtimeNames);
+        assertEquals(expectedNames, metadataNames);
+        assertEquals(
+                registry.taskDefinitions().values().stream()
+                        .filter(TaskToolDefinition::restorable)
+                        .map(TaskToolDefinition::name)
+                        .collect(java.util.stream.Collectors.toSet()),
+                registry.restorableTaskNames());
+        assertEquals(
+                AccessLevel.TRUSTED,
+                registry.taskDefinitions().get("obtain_item").minAccess());
 
         ToolCatalog catalog = ToolCatalog.defaults();
         for (var metadata : registry.catalogMetadata()) {

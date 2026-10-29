@@ -6,7 +6,6 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.NearTarget;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceNames;
-import dev.friendai.place.PlaceService;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

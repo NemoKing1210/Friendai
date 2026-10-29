@@ -17,7 +17,7 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.place.PlaceService;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -579,7 +579,7 @@ public class FreeTimeTests {
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         h.succeedWhen(() -> {
             var state = driver(h).state(owner);
-            boolean farm = dev.friendai.place.PlaceService.book(c).all().stream()
+            boolean farm = dev.friendai.features.places.minecraft.PlaceService.book(c).all().stream()
                     .anyMatch(place -> place.kind() == PlaceKind.FARM);
             h.assertTrue(farm, "the created farm is remembered: " + state);
             h.assertTrue(
