@@ -564,7 +564,6 @@ class ArchitectureRulesTest {
         List<Violation> actual = PackageDependencyRules.validate(edges);
         List<ArchitectureFixtures.LegacyEdge> documented =
                 ArchitectureFixtures.readLegacyEdges(PROJECT_ROOT.resolve("architecture/legacy-dependency-edges.tsv"));
-        assertFalse(documented.isEmpty(), "Legacy dependencies must remain visible with migration owners");
         Set<Integer> removalTasks = Set.of(4, 5, 8, 9, 11, 14, 16, 17);
         assertTrue(
                 documented.stream().allMatch(edge -> removalTasks.contains(edge.taskId())),

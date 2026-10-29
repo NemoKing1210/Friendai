@@ -77,6 +77,7 @@ public final class ServerRuntime implements AutoCloseable {
         this.resources = resources;
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
+        if (companions != null) companions.attachRuntime(this);
         this.debugStream = new DebugStream();
         this.movementDebugStream = new MovementDebugStream();
         this.memoryViewStream = new MemoryViewStream();
@@ -146,6 +147,11 @@ public final class ServerRuntime implements AutoCloseable {
     public CompanionManager companions() {
         if (companions == null) throw new IllegalStateException("runtime has no companion manager");
         return companions;
+    }
+
+    public String companionName(UUID owner) {
+        String name = profiles().profile(owner).name();
+        return name == null ? config().companion.name : name;
     }
 
     public CompanionSessions sessions() {

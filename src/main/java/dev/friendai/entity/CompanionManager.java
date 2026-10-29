@@ -1,9 +1,9 @@
 package dev.friendai.entity;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +43,7 @@ public final class CompanionManager {
             List<dev.friendai.features.crafting.StationLease.Kept> leases) {}
 
     private final MinecraftServer server;
+    private ServerRuntime runtime;
     private final Map<UUID, CompanionEntity> byOwner = new HashMap<>();
     private final Map<UUID, UUID> pendingDeaths = new HashMap<>();
     private final Map<UUID, TransientCarry> transientCarry = new HashMap<>();
@@ -58,6 +59,22 @@ public final class CompanionManager {
     /** Detaches this server's owner-thread index after runtime shutdown. */
     public static synchronized void close(MinecraftServer server) {
         INSTANCES.remove(server);
+    }
+
+    public void attachRuntime(ServerRuntime runtime) {
+        ServerRuntime attached = java.util.Objects.requireNonNull(runtime, "runtime");
+        if (attached.server() != server) {
+            throw new IllegalArgumentException("companion manager and runtime belong to different servers");
+        }
+        if (this.runtime != null && this.runtime != attached) {
+            throw new IllegalStateException("companion manager already belongs to another runtime");
+        }
+        this.runtime = attached;
+    }
+
+    private ServerRuntime runtime() {
+        if (runtime == null) throw new IllegalStateException("companion manager has no server runtime");
+        return runtime;
     }
 
     public Optional<CompanionEntity> find(UUID owner) {
@@ -84,7 +101,7 @@ public final class CompanionManager {
         }
         entity.syncCreativeModePreference();
         byOwner.put(owner, entity);
-        FriendaiServerState.get(entity.level().getServer())
+        runtime()
                 .skins()
                 .load(owner)
                 .ifPresentOrElse(
@@ -93,7 +110,7 @@ public final class CompanionManager {
             // Saves made before the name tag was shown carry a name but not the visible flag.
             entity.setCustomNameVisible(true);
         }
-        if (FriendaiServerState.get(server).sessions().debug().subscribers().contains(owner)) {
+        if (runtime().sessions().debug().subscribers().contains(owner)) {
             // The menu is already open for this owner — summoned from the menu, respawned or just loaded — and the
             // companion must not start working behind it.
             entity.addMenuViewer();
@@ -144,7 +161,7 @@ public final class CompanionManager {
     }
     /** Replaces eligible dead companions after their entity-unload callback has removed the old index entry. */
     public void tick() {
-        CompanionLifeData life = FriendaiServerState.get(server).companionLife();
+        CompanionLifeData life = runtime().companionLife();
         for (Map.Entry<UUID, UUID> entry : new ArrayList<>(pendingDeaths.entrySet())) {
             UUID owner = entry.getKey();
             CompanionEntity indexed = byOwner.get(owner);
@@ -190,14 +207,14 @@ public final class CompanionManager {
             return false;
         }
         companion.setOwner(owner);
-        companion.applyName(FriendaiServerState.get(server).companionName(owner));
+        companion.applyName(runtime().companionName(owner));
         companion.snapTo(spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 0.0F, 0.0F);
         if (!level.addFreshEntity(companion)) {
             // The carry and the pending death stay for the next attempt.
             return false;
         }
         register(companion);
-        FriendaiServerState.get(server).sessions().onEntityReplaced(owner);
+        runtime().sessions().onEntityReplaced(owner);
         restoreCarry(companion, owner);
         return true;
     }
@@ -278,7 +295,7 @@ public final class CompanionManager {
         }
         CompanionEntity companion = FriendaiEntities.COMPANION.create(level, EntitySpawnReason.COMMAND);
         companion.setOwner(owner.getUUID());
-        companion.applyName(FriendaiServerState.get(level.getServer()).companionName(owner.getUUID()));
+        companion.applyName(runtime().companionName(owner.getUUID()));
         BlockPos spot = spawnSpot(level, owner);
         companion.snapTo(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, owner.getYRot() + 180.0F, 0.0F);
         if (!level.addFreshEntity(companion)) {
@@ -288,7 +305,7 @@ public final class CompanionManager {
         register(companion);
         // Auto-respawn may be off, or the server restarted between the death and this summon.
         if (CompanionCarryData.get(level.getServer()).carry(owner.getUUID()).isPresent()) {
-            FriendaiServerState.get(level.getServer()).sessions().onEntityReplaced(owner.getUUID());
+            runtime().sessions().onEntityReplaced(owner.getUUID());
             restoreCarry(companion, owner.getUUID());
         }
         return companion;
@@ -345,13 +362,12 @@ public final class CompanionManager {
     }
 
     /** A loaded companion keeps the name it was given; an old save without one gets the owner's current name. */
-    private static void ensureName(CompanionEntity companion) {
+    private void ensureName(CompanionEntity companion) {
         if (companion.hasCustomName()) {
             companion.setCustomNameVisible(true);
             return;
         }
-        companion.applyName(
-                FriendaiServerState.get(companion.level().getServer()).companionName(companion.ownerUuid()));
+        companion.applyName(runtime().companionName(companion.ownerUuid()));
     }
 
     /** Removes the owner's companion, dropping what it carries. Returns false if there was none. */

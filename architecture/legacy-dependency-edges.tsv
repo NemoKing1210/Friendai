@@ -1,2 +1,1 @@
 # ruleId	sourceClass	targetClass	taskId
-legacy-server-state-lookup	dev.friendai.entity.CompanionManager	dev.friendai.core.FriendaiServerState	9
