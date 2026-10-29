@@ -72,7 +72,8 @@ public class ProtocolAccessTests {
         var state = FriendaiServerState.get(h.getLevel().getServer());
         state.sessions().debug().logOf(guest.getUUID()).add(LogKind.ERROR, "private debug detail");
 
-        var snapshot = SnapshotBuilder.build(guest, 0);
+        var runtime = ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer());
+        var snapshot = SnapshotBuilder.build(runtime, guest, 0);
         byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(
                 CompanionSnapshotProtocolAdapter.toProtocol(snapshot), false, 1);
         DecodeResult<ProtocolView<CompanionSnapshotView>> decoded = CompanionSnapshotProtocolCodec.decode(encoded);

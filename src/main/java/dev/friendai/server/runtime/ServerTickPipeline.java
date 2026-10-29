@@ -2,7 +2,6 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.MovementDebugStream;
 import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
@@ -38,7 +37,7 @@ public final class ServerTickPipeline {
         state.placed().flushIfDue();
         state.trading().flushIfDue();
         ownerRecordFlush.tick();
-        DebugStream.tick(server);
+        runtime.debugStream().tick(runtime);
         runtime.memoryViewStream().tick(runtime);
         SkillsViewStream.tick(runtime);
         runtime.placeViewStream().tick(runtime);

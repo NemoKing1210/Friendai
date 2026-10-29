@@ -24,7 +24,6 @@ import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.Operators;
 import dev.friendai.server.net.SnapshotBuilder;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -353,6 +352,10 @@ public class CompanionControlTests {
                 .setControlLimiterForTest(new RateLimiter(0, System::currentTimeMillis));
     }
 
+    private static dev.friendai.server.runtime.ServerRuntime runtime(ServerPlayer player) {
+        return ServerRuntimeRegistry.find(player.level().getServer()).orElseThrow();
+    }
+
     private static void op(ServerPlayer player) {
         // The GameTest server grants every op level ALL, so ask for the gamemaster level explicitly.
         player.level()
@@ -422,7 +425,7 @@ public class CompanionControlTests {
         h.assertTrue(
                 log.stream().noneMatch(e -> e.kind() == LogKind.MANUAL || e.kind() == LogKind.USER),
                 "denied requests must not reach the brain: " + log);
-        CompanionSnapshot snapshot = SnapshotBuilder.build(player, 0);
+        CompanionSnapshot snapshot = SnapshotBuilder.build(runtime(player), player, 0);
         h.assertTrue(!snapshot.operator(), "snapshot must say the player is not an operator");
         h.assertTrue(snapshot.newLog().isEmpty(), "no log for non-operators");
         h.assertTrue(snapshot.perception().isEmpty(), "no perception for non-operators");
@@ -439,7 +442,7 @@ public class CompanionControlTests {
         try {
             CompanionManager.get(server).summon(player);
             brains.debug().logOf(player.getUUID()).add(LogKind.USER, "hello");
-            CompanionSnapshot snapshot = SnapshotBuilder.build(player, 0);
+            CompanionSnapshot snapshot = SnapshotBuilder.build(runtime(player), player, 0);
             h.assertTrue(snapshot.present() && snapshot.operator(), "present operator snapshot expected");
             h.assertTrue(!snapshot.newLog().isEmpty(), "operators get the log");
             h.assertTrue(!snapshot.perception().isBlank(), "operators get perception");
@@ -475,7 +478,7 @@ public class CompanionControlTests {
     @GameTest(maxTicks = 100)
     public void snapshotWithoutCompanionIsNotPresent(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionSnapshot snapshot = SnapshotBuilder.build(player, 0);
+        CompanionSnapshot snapshot = SnapshotBuilder.build(runtime(player), player, 0);
         h.assertTrue(!snapshot.present(), "no companion, not present");
         h.assertTrue(snapshot.currentTask().isEmpty() && snapshot.perception().isEmpty(), "no task or perception");
         h.succeed();
@@ -492,7 +495,7 @@ public class CompanionControlTests {
             for (int i = 0; i < 500; i++) {
                 brains.debug().logOf(player.getUUID()).add(LogKind.TOOL_RESULT, "x".repeat(5000));
             }
-            CompanionSnapshot snapshot = SnapshotBuilder.build(player, 0);
+            CompanionSnapshot snapshot = SnapshotBuilder.build(runtime(player), player, 0);
             h.assertTrue(
                     snapshot.newLog().size() == SnapshotBuilder.MAX_LOG_ENTRIES,
                     "entries: " + snapshot.newLog().size());
@@ -513,7 +516,8 @@ public class CompanionControlTests {
         TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
         h.assertTrue(brains.debug().subscribers().contains(player.getUUID()), "subscribed");
         h.assertTrue(companion.menuOpen() && companion.executionCoordinator().held(), "held while the menu is open");
-        DebugStream.onDisconnect(player);
+        var runtime = runtime(player);
+        runtime.debugStream().onDisconnect(runtime, player);
         h.assertTrue(!brains.debug().subscribers().contains(player.getUUID()), "unsubscribed after disconnect");
         h.assertTrue(!companion.executionCoordinator().held(), "a disconnect must not leave the companion held");
         h.succeed();

@@ -33,7 +33,6 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
-import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
@@ -1029,7 +1028,8 @@ public class CompanionEntity extends PathfinderMob {
     @Override
     public void remove(RemovalReason reason) {
         if (ownerUuid != null && !level().isClientSide() && level() instanceof ServerLevel serverLevel) {
-            DebugStream.closeMenu(serverLevel.getServer(), ownerUuid);
+            ServerRuntimeRegistry.find(serverLevel.getServer())
+                    .ifPresent(runtime -> runtime.debugStream().closeMenu(runtime, ownerUuid));
         }
         closeHold(menuHold);
         menuHold = null;

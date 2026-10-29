@@ -11,12 +11,13 @@ import org.junit.jupiter.api.Test;
 class ServerRuntimeTest {
 
     @Test
-    void eachRuntimeOwnsIndependentMemoryAndPlaceViewStreams() {
+    void eachRuntimeOwnsIndependentViewPublishers() {
         ServerRuntime first = new ServerRuntime(() -> {}, () -> {}, new RuntimeResources(failure -> {}));
         ServerRuntime second = new ServerRuntime(() -> {}, () -> {}, new RuntimeResources(failure -> {}));
 
         assertNotSame(first.memoryViewStream(), second.memoryViewStream());
         assertNotSame(first.placeViewStream(), second.placeViewStream());
+        assertNotSame(first.debugStream(), second.debugStream());
     }
 
     @Test

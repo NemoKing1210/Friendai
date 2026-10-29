@@ -48,11 +48,11 @@ public final class CompanionRequestHandler {
         var server = player.level().getServer();
         UUID owner = player.getUUID();
         if (request instanceof ControlRequest.Subscribe) {
-            DebugStream.openMenu(player, requestId);
+            runtime.debugStream().openMenu(runtime, player, requestId);
             return;
         }
         if (request instanceof ControlRequest.Unsubscribe) {
-            DebugStream.closeMenu(server, owner);
+            runtime.debugStream().closeMenu(runtime, owner);
             return;
         }
         if (request instanceof DebugRequest.MovementStreamSet movement) {
@@ -117,7 +117,7 @@ public final class CompanionRequestHandler {
                     CreativeModeService.requestMode(companion.get(), player, toggle.enabled());
             if (result == CreativeModeService.Result.DENIED) {
                 player.sendSystemMessage(Component.translatable("friendai.menu.creative.denied"));
-                DebugStream.sendNow(player, requestId);
+                runtime.debugStream().sendNow(runtime, player, requestId);
                 return;
             }
         } else if (request instanceof ControlRequest.SetFollowMode toggle) {
@@ -169,7 +169,7 @@ public final class CompanionRequestHandler {
         if (placeStatus != null) {
             runtime.placeViewStream().sendNow(runtime, player, Optional.of(placeStatus), requestId);
         }
-        DebugStream.sendNow(player, requestId);
+        runtime.debugStream().sendNow(runtime, player, requestId);
     }
 
     private static DebugAccess.Action accessAction(ClientRequest request) {

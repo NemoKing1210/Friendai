@@ -1,5 +1,6 @@
 package dev.friendai.server.runtime;
 
+import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionEntity;
@@ -15,7 +16,9 @@ import dev.friendai.infrastructure.persistence.appearance.SkinStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.MemoryViewStream;
 import dev.friendai.server.net.MovementDebugStream;
@@ -40,6 +43,7 @@ public final class ServerRuntime implements AutoCloseable {
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
+    private final DebugStream debugStream;
     private final MemoryViewStream memoryViewStream;
     private final PlaceViewStream placeViewStream;
     private boolean acceptingWork = true;
@@ -70,6 +74,7 @@ public final class ServerRuntime implements AutoCloseable {
         this.resources = resources;
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
+        this.debugStream = new DebugStream();
         this.memoryViewStream = new MemoryViewStream();
         this.placeViewStream = new PlaceViewStream();
     }
@@ -110,7 +115,7 @@ public final class ServerRuntime implements AutoCloseable {
     /** Clears connection-scoped publishers and suspends the owner's agent work. */
     public void onOwnerLeft(ServerPlayer player) {
         if (protocolConnections != null) protocolConnections.leave(player);
-        DebugStream.onDisconnect(player);
+        debugStream.onDisconnect(this, player);
         MovementDebugStream.onDisconnect(player);
         memoryViewStream.onDisconnect(this, player);
         SkillsViewStream.onDisconnect(player);
@@ -143,6 +148,18 @@ public final class ServerRuntime implements AutoCloseable {
         return state.sessions();
     }
 
+    public FreeTimeService freeTime() {
+        return state.freeTime();
+    }
+
+    public ResourceCandidates resourceCandidates() {
+        return state.resources();
+    }
+
+    public ServerSettings settings() {
+        return state.settings();
+    }
+
     public ServerConfig config() {
         return state.config();
     }
@@ -169,6 +186,10 @@ public final class ServerRuntime implements AutoCloseable {
 
     public PlaceViewStream placeViewStream() {
         return placeViewStream;
+    }
+
+    public DebugStream debugStream() {
+        return debugStream;
     }
 
     public CompanionProfileRepository profiles() {

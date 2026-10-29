@@ -1,8 +1,6 @@
 package dev.friendai.server.net;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.presentation.companion.CompanionSnapshot;
@@ -10,6 +8,7 @@ import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.server.agent.perception.PerceptionContext;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,21 +21,21 @@ public final class SnapshotBuilder {
 
     private SnapshotBuilder() {}
 
-    public static CompanionSnapshot build(ServerPlayer player, long afterLogId) {
-        var server = player.level().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
-        CompanionSessions brains = state.sessions();
+    public static CompanionSnapshot build(ServerRuntime runtime, ServerPlayer player, long afterLogId) {
+        var server = runtime.server();
+        CompanionSessions brains = runtime.sessions();
         UUID owner = player.getUUID();
         boolean operator = Operators.isOperator(player);
-        Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+        Optional<CompanionEntity> companion = runtime.companions().find(owner);
         List<TaskRecord> history = brains.debug().historyOf(owner).recent();
         List<LogEntry> log = operator ? brains.debug().logOf(owner).after(afterLogId, MAX_LOG_ENTRIES) : List.of();
         List<String> toolNames = operator ? brains.toolNames() : List.of();
-        boolean autoRespawn = state.companionLife().autoRespawn(owner) && !server.isHardcore();
-        boolean creativeMode = state.companionLife().creativeMode(owner);
+        boolean autoRespawn = runtime.companionLife().autoRespawn(owner) && !server.isHardcore();
+        boolean creativeMode = runtime.companionLife().creativeMode(owner);
         boolean creativeModeAvailable = creativeMode || operator;
-        boolean followMode = state.companionLife().followModeChoice(owner).orElse(state.config().tasks.defaultFollow);
-        var freeTime = state.freeTime().state(owner);
+        boolean followMode =
+                runtime.companionLife().followModeChoice(owner).orElse(runtime.config().tasks.defaultFollow);
+        var freeTime = runtime.freeTime().state(owner);
         var status = brains.freeTime().status(owner);
         if (companion.isEmpty()) {
             return new CompanionSnapshot(
@@ -79,7 +78,9 @@ public final class SnapshotBuilder {
                 log,
                 operator
                         ? PerceptionBuilder.detailed(
-                                        c, new PerceptionContext(state.resources(), state.settings(), state.freeTime()))
+                                        c,
+                                        new PerceptionContext(
+                                                runtime.resourceCandidates(), runtime.settings(), runtime.freeTime()))
                                 .toPromptText()
                         : "",
                 toolNames,
