@@ -2,7 +2,6 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
@@ -52,7 +51,7 @@ import net.minecraft.world.entity.Entity;
 public final class ServerRuntime implements AutoCloseable {
 
     private final MinecraftServer server;
-    private final FriendaiServerState state;
+    private final ServerServiceGraph services;
     private final Consumer<ServerRuntime> tickWork;
     private final Runnable stopWork;
     private final RuntimeResources resources;
@@ -65,12 +64,12 @@ public final class ServerRuntime implements AutoCloseable {
     private boolean acceptingWork = true;
     private boolean closed;
 
-    public ServerRuntime(
+    ServerRuntime(
             MinecraftServer server,
-            FriendaiServerState state,
+            ServerServiceGraph services,
             ServerTickPipeline tickPipeline,
             RuntimeResources resources) {
-        this(server, state, tickPipeline::tick, state::stopAcceptingWork, resources);
+        this(server, services, tickPipeline::tick, services::stopAcceptingWork, resources);
     }
 
     ServerRuntime(Runnable tickWork, Runnable stopWork, RuntimeResources resources) {
@@ -79,12 +78,12 @@ public final class ServerRuntime implements AutoCloseable {
 
     private ServerRuntime(
             MinecraftServer server,
-            FriendaiServerState state,
+            ServerServiceGraph services,
             Consumer<ServerRuntime> tickWork,
             Runnable stopWork,
             RuntimeResources resources) {
         this.server = server;
-        this.state = state;
+        this.services = services;
         this.tickWork = tickWork;
         this.stopWork = stopWork;
         this.resources = resources;
@@ -99,33 +98,33 @@ public final class ServerRuntime implements AutoCloseable {
 
     /** Starts runtime-only chunk restoration after the server has finished starting. */
     public void onServerStarted() {
-        if (acceptingWork) state.chunkLoader().restore();
+        if (acceptingWork) services.chunkLoader().restore();
     }
 
     /** Called by the Fabric entity-load lifecycle delegate. */
     public void onEntityLoaded(Entity entity) {
         if (acceptingWork && entity instanceof CompanionEntity companion) {
             companions.register(companion);
-            state.observations().register(companion);
+            services.observations().register(companion);
         }
     }
 
     /** Called by the Fabric entity-unload lifecycle delegate, including during shutdown. */
     public void onEntityUnloaded(Entity entity) {
         if (entity instanceof CompanionEntity companion) {
-            state.observations().unregister(companion);
+            services.observations().unregister(companion);
             companions.unregister(companion);
         }
     }
 
-    /** Applies owner-join state on the server thread. */
+    /** Applies owner-join data on the server thread. */
     public void onOwnerJoined(ServerPlayer player) {
         if (!acceptingWork) return;
         if (protocolConnections != null) protocolConnections.join(player);
         UUID owner = player.getUUID();
-        state.sessions().onOwnerJoined(owner);
-        state.memory().book(owner);
-        if (state.memory().takeCorruptionNotice(owner)) {
+        services.sessions().onOwnerJoined(owner);
+        services.memory().book(owner);
+        if (services.memory().takeCorruptionNotice(owner)) {
             player.sendSystemMessage(Component.translatable("friendai.memory.corrupt"));
         }
     }
@@ -138,7 +137,7 @@ public final class ServerRuntime implements AutoCloseable {
         memoryViewStream.onDisconnect(this, player);
         SkillsViewStream.onDisconnect(player);
         placeViewStream.onDisconnect(this, player);
-        if (acceptingWork) state.sessions().onOwnerLeft(player.getUUID());
+        if (acceptingWork) services.sessions().onOwnerLeft(player.getUUID());
     }
 
     /** Runs the unchanged server tick pipeline until shutdown starts. */
@@ -168,67 +167,67 @@ public final class ServerRuntime implements AutoCloseable {
     }
 
     public CompanionSessions sessions() {
-        return state.sessions();
+        return services.sessions();
     }
 
     public FreeTimeService freeTime() {
-        return state.freeTime();
+        return services.freeTime();
     }
 
     public ResourceCandidates resourceCandidates() {
-        return state.resources();
+        return services.resources();
     }
 
     public KnowledgeStore knowledge() {
-        return state.knowledge();
+        return services.knowledge();
     }
 
     public SearchHintStore searchHints() {
-        return state.searchHints();
+        return services.searchHints();
     }
 
     public ObservationScheduler observations() {
-        return state.observations();
+        return services.observations();
     }
 
     public ServerSettings settings() {
-        return state.settings();
+        return services.settings();
     }
 
     public ServerConfig config() {
-        return state.config();
+        return services.config();
     }
 
     public CompanionLifeData companionLife() {
-        return state.companionLife();
+        return services.companionLife();
     }
 
     public GoalService goals() {
-        return state.goals();
+        return services.goals();
     }
 
     public GoalStore goalStore() {
-        return state.goalStore();
+        return services.goalStore();
     }
 
     public CompanionChunkLoader chunkLoader() {
-        return state.chunkLoader();
+        return services.chunkLoader();
     }
 
     public TaskPersistenceCoordinator taskPersistence() {
-        return state.taskPersistence();
+        return services.taskPersistence();
     }
 
     public MemoryStore memory() {
-        return state.memory();
+        return services.memory();
     }
 
     public MemoryViewers memoryViewers() {
-        return state.memoryViewers();
+        return services.memoryViewers();
     }
 
     public MemoryViewers placeViewers() {
-        return state.placeViewers();
+        return services.placeViewers();
     }
 
     public MemoryViewStream memoryViewStream() {
@@ -248,87 +247,87 @@ public final class ServerRuntime implements AutoCloseable {
     }
 
     public CompanionProfileRepository profiles() {
-        return state.profiles();
+        return services.profiles();
     }
 
     public dev.friendai.core.SkillService skills() {
-        return state.skills();
+        return services.skills();
     }
 
     public PlaceStore places() {
-        return state.places();
+        return services.places();
     }
 
     public PlaceService placeService() {
-        return state.placeService();
+        return services.placeService();
     }
 
     public PlacedService placedService() {
-        return state.placedService();
+        return services.placedService();
     }
 
     public PlacedStore placedStore() {
-        return state.placed();
+        return services.placed();
     }
 
     public TradeStore trading() {
-        return state.trading();
+        return services.trading();
     }
 
     public SkinStore skins() {
-        return state.skins();
+        return services.skins();
     }
 
     public TradingToolAccess tradingAccess() {
-        return state;
+        return services;
     }
 
     public TrustAccess trustAccess() {
-        return state;
+        return services;
     }
 
     public TrustConfirmations trust() {
-        return state.trust();
+        return services.trust();
     }
 
     public MerchantLeases merchantLeases() {
-        return state.merchantLeases();
+        return services.merchantLeases();
     }
 
     public TradeSessionGuard tradeSessionGuard() {
-        return state.tradeSessionGuard();
+        return services.tradeSessionGuard();
     }
 
     public TraderObserver traderObserver() {
-        return state.traderObserver();
+        return services.traderObserver();
     }
 
     public BarterDropTracker barterDropTracker() {
-        return state.barterDropTracker();
+        return services.barterDropTracker();
     }
 
     public PiglinBarterAdapter piglinBarterAdapter() {
-        return state.piglinBarterAdapter();
+        return services.piglinBarterAdapter();
     }
 
     public MerchantAdapter merchantAdapter() {
-        return state.merchantAdapter();
+        return services.merchantAdapter();
     }
 
     /** Records a barter drop captured at vanilla's item-spawn seam. */
     public void captureBarterOutput(UUID attempt, UUID piglin, UUID item, long tick) {
-        if (acceptingWork) state.barterDropTracker().observeVanillaOutput(attempt, piglin, item, tick);
+        if (acceptingWork) services.barterDropTracker().observeVanillaOutput(attempt, piglin, item, tick);
     }
 
     /** Applies a validated integrated-server config through the server-owned runtime boundary. */
     public void applyConfig(ServerConfig config) {
-        if (acceptingWork) state.applyConfig(config);
+        if (acceptingWork) services.applyConfig(config);
     }
 
     /** Loads and applies the server config through its lifecycle owner. */
     public List<String> reloadConfig() {
         if (!acceptingWork) return List.of();
-        return state.applyConfig(state.store().load());
+        return services.applyConfig(services.store().load());
     }
 
     /** Rejects future runtime work and cancels server-owned activity before stores are closed. */

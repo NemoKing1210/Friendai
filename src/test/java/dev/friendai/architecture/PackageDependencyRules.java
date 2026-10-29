@@ -9,10 +9,6 @@ import java.util.regex.Pattern;
 /** Checks stable module and package boundaries against compiled class dependency edges. */
 final class PackageDependencyRules {
     private static final Pattern CLASS_NAME = Pattern.compile("[A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)+");
-    private static final Set<String> SERVER_STATE_ACCESS_OWNERS = Set.of(
-            "dev.friendai.server.runtime.ServerRuntime",
-            "dev.friendai.server.runtime.ServerRuntimeFactory",
-            "dev.friendai.server.runtime.ServerTickPipeline");
     private static final Set<String> FEATURE_SERVICES_WITH_NARROW_CONTEXT = Set.of(
             "dev.friendai.features.places.minecraft.PlaceService",
             "dev.friendai.features.placements.minecraft.PlacedService");
@@ -199,10 +195,9 @@ final class PackageDependencyRules {
                     && isProtocolForbidden(target)) {
                 add(violations, "protocol-direction", edge);
             }
-            // Runtime construction and tick orchestration own transitional state access.
-            if (target.equals("dev.friendai.core.FriendaiServerState")
-                    && !SERVER_STATE_ACCESS_OWNERS.contains(source)) {
-                add(violations, "legacy-server-state-lookup", edge);
+            if (target.equals("dev.friendai.server.runtime.ServerServiceGraph")
+                    && !isInPackage(source, "dev.friendai.server.runtime")) {
+                add(violations, "runtime-service-graph-boundary", edge);
             }
             if (FEATURE_SERVICES_WITH_NARROW_CONTEXT.contains(source)
                     && target.equals("dev.friendai.task.TaskContext")) {
@@ -224,6 +219,11 @@ final class PackageDependencyRules {
 
     private static void add(Set<Violation> violations, String ruleId, DependencyEdge edge) {
         violations.add(new Violation(ruleId, edge.sourceClass(), edge.targetClass()));
+    }
+
+    private static boolean isInPackage(String className, String packageName) {
+        int lastDot = className.lastIndexOf('.');
+        return lastDot >= 0 && className.substring(0, lastDot).equals(packageName);
     }
 
     private static boolean isPurePackage(String className) {

@@ -99,24 +99,24 @@ class ArchitectureRulesTest {
     }
 
     @Test
-    void commandAdaptersDoNotLookUpTheLegacyServerState() throws IOException {
+    void commandAdaptersDoNotLookUpTheRuntimeServiceGraph() throws IOException {
         Path commandRoot = PROJECT_ROOT.resolve("src/main/java/dev/friendai/command");
         try (Stream<Path> files = Files.walk(commandRoot)) {
             for (Path file :
                     files.filter(path -> path.toString().endsWith(".java")).toList()) {
                 assertFalse(
-                        Files.readString(file).contains("FriendaiServerState"),
+                        Files.readString(file).contains("ServerServiceGraph"),
                         "Command adapters should use runtime operations instead of the legacy state: " + file);
             }
         }
     }
 
     @Test
-    void chatAdaptersDoNotLookUpTheLegacyServerState() throws IOException {
+    void chatAdaptersDoNotLookUpTheRuntimeServiceGraph() throws IOException {
         Path chatRoot = PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/agent/chat");
         for (String adapter : List.of("ChatRouter.java", "CompanionRouting.java")) {
             assertFalse(
-                    Files.readString(chatRoot.resolve(adapter)).contains("FriendaiServerState"),
+                    Files.readString(chatRoot.resolve(adapter)).contains("ServerServiceGraph"),
                     "Chat adapters should use the runtime supplied at their boundary: " + adapter);
         }
     }
@@ -130,7 +130,7 @@ class ArchitectureRulesTest {
                 "features/survival/minecraft/task/SleepTask.java")) {
             Path source = PROJECT_ROOT.resolve("src/main/java/dev/friendai").resolve(task);
             assertFalse(
-                    Files.readString(source).contains("FriendaiServerState"),
+                    Files.readString(source).contains("ServerServiceGraph"),
                     "Feature tasks should receive runtime services through TaskContext: " + task);
         }
     }
@@ -150,9 +150,11 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.agent.turn.Agent", "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.features.navigation.Navigator", "dev.friendai.server.ServerRuntime"),
                 edge("dev.friendai.features.navigation.Navigator", "net.minecraft.server.MinecraftServer"),
-                edge("dev.friendai.server.LegacyCaller", "dev.friendai.core.FriendaiServerState"),
-                edge("dev.friendai.task.TaskContext", "dev.friendai.core.FriendaiServerState"),
-                edge("dev.friendai.server.runtime.ServerTickPipeline", "dev.friendai.core.FriendaiServerState"),
+                edge("dev.friendai.server.LegacyCaller", "dev.friendai.server.runtime.ServerServiceGraph"),
+                edge("dev.friendai.task.TaskContext", "dev.friendai.server.runtime.ServerServiceGraph"),
+                edge(
+                        "dev.friendai.server.runtime.ServerTickPipeline",
+                        "dev.friendai.server.runtime.ServerServiceGraph"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.friendai.client.ui.CompanionScreen"),
                 edge("dev.friendai.server.runtime.ServerRuntime", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
                 edge(
@@ -229,14 +231,6 @@ class ArchitectureRulesTest {
                                 "dev.friendai.foundation.text.LanguageDetector",
                                 "net.fabricmc.api.ModInitializer"),
                         violation(
-                                "legacy-server-state-lookup",
-                                "dev.friendai.server.LegacyCaller",
-                                "dev.friendai.core.FriendaiServerState"),
-                        violation(
-                                "legacy-server-state-lookup",
-                                "dev.friendai.task.TaskContext",
-                                "dev.friendai.core.FriendaiServerState"),
-                        violation(
                                 "optional-integration-isolation",
                                 "dev.friendai.server.runtime.ServerRuntime",
                                 "dev.isxander.yacl3.api.YetAnotherConfigLib"),
@@ -268,6 +262,14 @@ class ArchitectureRulesTest {
                                 "pure-java-no-platform",
                                 "dev.friendai.foundation.text.LanguageDetector",
                                 "net.fabricmc.api.ModInitializer"),
+                        violation(
+                                "runtime-service-graph-boundary",
+                                "dev.friendai.server.LegacyCaller",
+                                "dev.friendai.server.runtime.ServerServiceGraph"),
+                        violation(
+                                "runtime-service-graph-boundary",
+                                "dev.friendai.task.TaskContext",
+                                "dev.friendai.server.runtime.ServerServiceGraph"),
                         violation(
                                 "server-to-client",
                                 "dev.friendai.server.runtime.ServerRuntime",
@@ -484,14 +486,19 @@ class ArchitectureRulesTest {
     }
 
     @Test
-    void featureToolAdaptersCannotLookUpLegacyServerState() {
+    void featureToolAdaptersCannotLookUpRuntimeServiceGraph() {
         String gatheringTools = "dev.friendai.features.mining.minecraft.tool.GatheringTools";
 
         assertEquals(
-                List.of(violation(
-                        "legacy-server-state-lookup", gatheringTools, "dev.friendai.core.FriendaiServerState")),
+                List.of(
+                        violation(
+                                "feature-to-server", gatheringTools, "dev.friendai.server.runtime.ServerServiceGraph"),
+                        violation(
+                                "runtime-service-graph-boundary",
+                                gatheringTools,
+                                "dev.friendai.server.runtime.ServerServiceGraph")),
                 PackageDependencyRules.validate(
-                        List.of(edge(gatheringTools, "dev.friendai.core.FriendaiServerState"))));
+                        List.of(edge(gatheringTools, "dev.friendai.server.runtime.ServerServiceGraph"))));
     }
 
     @Test
@@ -568,10 +575,7 @@ class ArchitectureRulesTest {
         List<Violation> actual = PackageDependencyRules.validate(edges);
         List<ArchitectureFixtures.LegacyEdge> documented =
                 ArchitectureFixtures.readLegacyEdges(PROJECT_ROOT.resolve("architecture/legacy-dependency-edges.tsv"));
-        Set<Integer> removalTasks = Set.of(4, 5, 8, 9, 11, 14, 16, 17);
-        assertTrue(
-                documented.stream().allMatch(edge -> removalTasks.contains(edge.taskId())),
-                "Every legacy dependency must name its removal task");
+        assertTrue(documented.isEmpty(), "No transitional class dependency exceptions are permitted");
 
         Set<Violation> expected = documented.stream()
                 .map(edge -> violation(edge.ruleId(), edge.sourceClass(), edge.targetClass()))

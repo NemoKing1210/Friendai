@@ -20,7 +20,7 @@ malformed class-edge output, or empty dependency graph fails the test.
 | `presentation-feature-view` | Presentation may consume a feature's `view` package; it may not depend on feature internals. |
 | `presentation-to-adapter` | Presentation does not depend on agent orchestration, server/client adapters, transport, infrastructure or Minecraft/Fabric. |
 | `protocol-direction` | Protocol contracts do not depend on presentation, infrastructure, server/client adapters, transport or Minecraft/Fabric. |
-| `legacy-server-state-lookup` | Application and adapter classes obtain owned dependencies from their boundary instead of looking up `FriendaiServerState`. |
+| `runtime-service-graph-boundary` | Only classes in `dev.friendai.server.runtime` may depend on its package-private `ServerServiceGraph`. |
 
 The test fixtures prove that engine-to-platform/UI/native, feature-to-server, agent-to-adapter, server-to-client,
 foundation-to-platform, optional-integration leaks, presentation-to-adapter, protocol-to-adapter and
@@ -28,16 +28,11 @@ presentation-to-feature-internal edges fail with the exact source and target cla
 YACL from client config pass. These package names describe the target architecture; the rules apply as those packages
 are introduced.
 
-## Current migration exceptions
+## Runtime service graph
 
-The current checkout has 66 exact class edges to `dev.friendai.core.FriendaiServerState`. Each edge is recorded in
-[`legacy-dependency-edges.tsv`](legacy-dependency-edges.tsv) with its owning removal task (4, 5, 8, 9, 11, 14, 16 or
-17). The test compares the live violations with this complete list: an undocumented edge fails, and a row fails once
-its edge disappears. Do not replace entries with package-wide globs or add exceptions without assigning them to a
-specific migration task.
-
-Tasks 4, 5, 8, 9, 11, 14, 16 and 17 remove the class edges they own. When a migration removes an edge, delete its row in
-the same commit. No other legacy class edges are allowed.
+`ServerServiceGraph` is package-private in `dev.friendai.server.runtime`; runtime construction, lifecycle and tick
+orchestration are its only callers. The architecture test rejects edges from other packages. The legacy dependency
+manifest is retained as an empty header-only file; no transitional class-edge exceptions are permitted.
 
 ## Source and registration scope
 

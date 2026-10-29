@@ -1,7 +1,9 @@
-package dev.friendai.core;
+package dev.friendai.server.runtime;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.goal.GoalService;
+import dev.friendai.core.SkillService;
+import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
@@ -46,15 +48,14 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
-import dev.friendai.server.runtime.RuntimeResources;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
-/** Existing server service graph, now constructed and closed only by {@code ServerRuntime}. */
-public final class FriendaiServerState implements TradingToolAccess, TrustAccess {
+/** Per-server domain services, composed and owned by {@link ServerRuntime}. */
+final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
@@ -92,7 +93,7 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
     private long lastTrustTick;
     private boolean stopping;
 
-    public FriendaiServerState(MinecraftServer server, RuntimeResources resources) {
+    ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
         this.store = new ConfigStore<>(

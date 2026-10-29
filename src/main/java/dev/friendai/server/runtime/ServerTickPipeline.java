@@ -1,6 +1,5 @@
 package dev.friendai.server.runtime;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
@@ -10,31 +9,32 @@ import net.minecraft.server.MinecraftServer;
 public final class ServerTickPipeline {
 
     private final MinecraftServer server;
-    private final FriendaiServerState state;
+    private final ServerServiceGraph services;
     private final TraderRefreshService traderRefresh;
     private final OwnerRecordFlush ownerRecordFlush;
 
-    public ServerTickPipeline(MinecraftServer server, FriendaiServerState state, TraderRefreshService traderRefresh) {
+    ServerTickPipeline(MinecraftServer server, ServerServiceGraph services, TraderRefreshService traderRefresh) {
         this.server = server;
-        this.state = state;
+        this.services = services;
         this.traderRefresh = traderRefresh;
-        this.ownerRecordFlush = new OwnerRecordFlush(state.profileStore(), state.goalStore(), state.freeTimeStore());
+        this.ownerRecordFlush =
+                new OwnerRecordFlush(services.profileStore(), services.goalStore(), services.freeTimeStore());
     }
 
     public void tick(ServerRuntime runtime) {
         long gameTime = server.overworld().getGameTime();
-        state.barterDropTracker().expire(gameTime);
-        state.tradeSessionGuard().tick(gameTime);
+        services.barterDropTracker().expire(gameTime);
+        services.tradeSessionGuard().tick(gameTime);
         traderRefresh.tick();
-        state.observations().tick(server, gameTime);
-        state.sessions().tick();
-        state.chunkLoader().tick();
+        services.observations().tick(server, gameTime);
+        services.sessions().tick();
+        services.chunkLoader().tick();
         CompanionManager.get(server).tick();
-        state.tick(System.currentTimeMillis());
-        state.memory().flushIfDue();
-        state.places().flushIfDue();
-        state.placed().flushIfDue();
-        state.trading().flushIfDue();
+        services.tick(System.currentTimeMillis());
+        services.memory().flushIfDue();
+        services.places().flushIfDue();
+        services.placed().flushIfDue();
+        services.trading().flushIfDue();
         ownerRecordFlush.tick();
         runtime.debugStream().tick(runtime);
         runtime.memoryViewStream().tick(runtime);
