@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
@@ -18,16 +17,16 @@ import net.minecraft.world.phys.Vec3;
 final class GameTestSupport {
     private GameTestSupport() {}
 
-    static FriendaiServerState serverState(MinecraftServer server) {
-        return ServerRuntimeRegistry.getOrCreate(server).state();
-    }
-
     static void closeRuntime(MinecraftServer server) {
         ServerRuntimeRegistry.removeAndClose(server);
     }
 
+    static ServerRuntime runtime(MinecraftServer server) {
+        return ServerRuntimeRegistry.getOrCreate(server);
+    }
+
     static ServerRuntime runtime(GameTestHelper h) {
-        return ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer());
+        return runtime(h.getLevel().getServer());
     }
 
     /** A mock owner standing at the given test-relative position. */
@@ -115,8 +114,8 @@ final class GameTestSupport {
                     String id = BuiltInRegistries.BLOCK
                             .getKey(level.getBlockState(hit).getBlock())
                             .toString();
-                    GameTestSupport.serverState(level.getServer())
-                            .resources()
+                    GameTestSupport.runtime(level.getServer())
+                            .resourceCandidates()
                             .observe(
                                     companion,
                                     new ResourceObservation(

@@ -49,7 +49,7 @@ public final class ResourceSearchTests {
                     companion.blockPosition().getY()
                             < h.absolutePos(new BlockPos(10, 201, 10)).getY(),
                     "search must excavate beneath the dirt rather than wait on the surface");
-            var sessions = GameTestSupport.serverState(h.getLevel().getServer())
+            var sessions = GameTestSupport.runtime(h.getLevel().getServer())
                     .knowledge()
                     .book(owner.getUUID())
                     .searchLedger()
@@ -66,7 +66,7 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var config = state.config();
         boolean oldExpeditions = config.tasks.resources.allowExpeditions;
         boolean oldChunkLoading = config.companion.chunkLoading.enabled;
@@ -93,7 +93,7 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var config = state.config();
         boolean oldExpeditions = config.tasks.resources.allowExpeditions;
         int oldRadius = config.tasks.resources.expeditionRadius;
@@ -148,7 +148,7 @@ public final class ResourceSearchTests {
         h.assertTrue(!started.error(), "owner search should start: " + started.content());
         original.executionCoordinator().tick();
 
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var persistence = state.taskPersistence();
         var saved = persistence.capture(original.executionCoordinator()).orElseThrow();
         h.assertTrue(saved.queue().activeJobId() > 0, "the saved search should be an active queue job");
@@ -181,7 +181,7 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var config = state.config();
         boolean oldExpeditions = config.tasks.resources.allowExpeditions;
         boolean oldChunkLoading = config.companion.chunkLoading.enabled;
@@ -235,15 +235,15 @@ public final class ResourceSearchTests {
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
         h.assertTrue(!result.error(), "owner mine search should be accepted when equipped");
-        SearchSession.Snapshot session = GameTestSupport.serverState(
-                        h.getLevel().getServer())
-                .knowledge()
-                .book(owner.getUUID())
-                .searchLedger()
-                .snapshot()
-                .stream()
-                .findFirst()
-                .orElse(null);
+        SearchSession.Snapshot session =
+                GameTestSupport.runtime(h.getLevel().getServer())
+                        .knowledge()
+                        .book(owner.getUUID())
+                        .searchLedger()
+                        .snapshot()
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
         h.assertTrue(session != null, "mine search should acquire a persistent bounded session");
         h.assertTrue(
                 session.limits().radius() == 64
@@ -279,7 +279,7 @@ public final class ResourceSearchTests {
 
         h.assertTrue(!result.error(), "tool call should start a task that can report its readiness reason");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .knowledge()
                         .book(owner.getUUID())
                         .searchLedger()
@@ -312,7 +312,7 @@ public final class ResourceSearchTests {
 
         h.assertTrue(!result.error(), "tool call should start a task that can report its readiness reason");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .knowledge()
                         .book(owner.getUUID())
                         .searchLedger()
@@ -335,7 +335,7 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
 
         var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
@@ -367,10 +367,10 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         String dimension = h.getLevel().dimension().identifier().toString();
         long now = h.getLevel().getServer().overworld().getGameTime();
-        state.resources()
+        state.resourceCandidates()
                 .observeCaveEntrance(
                         companion,
                         new CaveEntranceObservation(
@@ -431,8 +431,8 @@ public final class ResourceSearchTests {
         BlockPos start = companion.blockPosition();
         h.setBlock(6, 2, 2, Blocks.ACACIA_LOG);
         BlockPos log = h.absolutePos(new BlockPos(6, 2, 2));
-        var state = GameTestSupport.serverState(level.getServer());
-        state.resources()
+        var state = GameTestSupport.runtime(level.getServer());
+        state.resourceCandidates()
                 .observe(
                         companion,
                         new ResourceObservation(

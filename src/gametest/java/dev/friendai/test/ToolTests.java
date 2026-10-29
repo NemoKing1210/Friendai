@@ -6,7 +6,6 @@ import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -20,6 +19,7 @@ import dev.friendai.features.memory.CompanionName;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.server.agent.tools.FriendaiTools;
+import dev.friendai.server.runtime.ServerRuntime;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
@@ -239,7 +239,7 @@ public class ToolTests {
     public void setNameRenamesCompanionAndUpdatesPrompt(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
 
         ToolResult renamed = runAs(

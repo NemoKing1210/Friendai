@@ -37,7 +37,7 @@ public final class ResourceJourneyTests {
     @GameTest(maxTicks = 40)
     public void disabledExpeditionsDoNotRequestChunkTickets(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var config = state.config();
         boolean oldExpeditions = config.tasks.resources.allowExpeditions;
         config.tasks.resources.allowExpeditions = false;
@@ -59,7 +59,7 @@ public final class ResourceJourneyTests {
     @GameTest(maxTicks = 40)
     public void cancelledJourneyReleasesHorizonIdempotently(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var config = state.config();
         boolean oldExpeditions = config.tasks.resources.allowExpeditions;
         boolean oldChunkLoading = config.companion.chunkLoading.enabled;
@@ -97,10 +97,10 @@ public final class ResourceJourneyTests {
                 "coal ore should be directly visible before restart");
 
         var server = h.getLevel().getServer();
-        var beforeRestart = GameTestSupport.serverState(server);
+        var beforeRestart = GameTestSupport.runtime(server);
         beforeRestart.knowledge().flushAll();
         GameTestSupport.closeRuntime(server);
-        var afterRestart = GameTestSupport.serverState(server);
+        var afterRestart = GameTestSupport.runtime(server);
         dev.friendai.entity.CompanionManager.get(server).register(companion);
         afterRestart.observations().register(companion);
         String dimension = h.getLevel().dimension().identifier().toString();
@@ -194,7 +194,7 @@ public final class ResourceJourneyTests {
         companion.setOwner(owner.getUUID());
         companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         state.observations().register(companion);
         String dimension = h.getLevel().dimension().identifier().toString();
 
@@ -296,7 +296,7 @@ public final class ResourceJourneyTests {
         companion.setOwner(owner.getUUID());
         h.setBlock(8, 101, 2, Blocks.OAK_LOG);
         h.setBlock(9, 101, 2, Blocks.OAK_LOG);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(companion);
         state.observations().register(companion);
         String dimension = h.getLevel().dimension().identifier().toString();
@@ -325,7 +325,7 @@ public final class ResourceJourneyTests {
                                 observed),
                         "minecraft:oak_log");
         h.assertTrue(
-                !state.resources().plannerCandidates(companion, 20).isEmpty(),
+                !state.resourceCandidates().plannerCandidates(companion, 20).isEmpty(),
                 "historical visible logs should become a resource candidate");
         var facts = WorldScan.scan(h.getLevel(), companion, 32, false, true);
         var plan = dev.friendai.features.acquisition.ObtainPlanner.plan(
@@ -344,7 +344,8 @@ public final class ResourceJourneyTests {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 2400, () -> false);
         runner.setListener(result);
-        var candidate = state.resources().plannerCandidates(companion, 20).get(0);
+        var candidate =
+                state.resourceCandidates().plannerCandidates(companion, 20).get(0);
         runner.start(new VisitResourceTask(candidate.siteId(), dimension, 400), "visit_resource");
         boolean[] visitComplete = {false};
         h.succeedWhen(() -> {

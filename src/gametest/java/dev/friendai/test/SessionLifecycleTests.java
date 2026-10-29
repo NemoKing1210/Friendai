@@ -90,7 +90,7 @@ public class SessionLifecycleTests {
     @GameTest(maxTicks = 120)
     public void lateModelCompletionAfterOwnerLogoutHasNoEffects(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        var sessions = GameTestSupport.serverState(h.getLevel().getServer()).sessions();
+        var sessions = GameTestSupport.runtime(h.getLevel().getServer()).sessions();
         DeferredGateway gateway = new DeferredGateway();
         CaptureSpeaker speaker = new CaptureSpeaker();
         sessions.setGatewayOverride(owner.getUUID(), gateway);
@@ -118,7 +118,7 @@ public class SessionLifecycleTests {
     public void replacedEntityRejectsOldTurnAndReceivesNewTurn(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = GameTestSupport.serverState(server).sessions();
+        var sessions = GameTestSupport.runtime(server).sessions();
         CompanionManager manager = CompanionManager.get(server);
         DeferredGateway oldGateway = new DeferredGateway();
         CaptureSpeaker oldSpeaker = new CaptureSpeaker();
@@ -170,8 +170,8 @@ public class SessionLifecycleTests {
     public void latePlannerCompletionAfterOwnerLogoutDoesNotQueueOrSpeak(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = GameTestSupport.serverState(server).sessions();
-        var goals = GameTestSupport.serverState(server).goals();
+        var sessions = GameTestSupport.runtime(server).sessions();
+        var goals = GameTestSupport.runtime(server).goals();
         var board = goals.board(owner.getUUID());
         var goal = board.set("build a house", List.of(), false, server.getTickCount())
                 .value();
@@ -206,7 +206,7 @@ public class SessionLifecycleTests {
         ServerPlayer first = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer second = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = GameTestSupport.serverState(server).sessions();
+        var sessions = GameTestSupport.runtime(server).sessions();
         CaptureSpeaker firstSpeaker = new CaptureSpeaker();
         CaptureSpeaker secondSpeaker = new CaptureSpeaker();
         sessions.setGatewayOverride(first.getUUID(), textGateway("first owner reply"));

@@ -254,7 +254,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         BlockPos at = companion.blockPosition();
-        GameTestSupport.serverState(h.getLevel().getServer())
+        GameTestSupport.runtime(h.getLevel().getServer())
                 .placeService()
                 .remember(
                         companion,

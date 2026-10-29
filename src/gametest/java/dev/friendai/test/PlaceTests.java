@@ -66,7 +66,7 @@ public class PlaceTests {
     }
 
     private static PlaceService placeService(CompanionEntity companion) {
-        return GameTestSupport.serverState(companion.level().getServer()).placeService();
+        return GameTestSupport.runtime(companion.level().getServer()).placeService();
     }
 
     private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {

@@ -92,7 +92,7 @@ public class ProtectionTests {
 
     private static void rememberHome(GameTestHelper h, CompanionEntity companion) {
         BlockPos anchor = companion.blockPosition();
-        GameTestSupport.serverState(h.getLevel().getServer())
+        GameTestSupport.runtime(h.getLevel().getServer())
                 .placeService()
                 .remember(
                         companion,

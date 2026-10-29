@@ -59,7 +59,7 @@ public final class TradingAuthorityTests {
         long active = before.enqueue(step("obtain_item", true, owner), ctx -> new UnrestorableTask());
         long pending = before.enqueue(step("trade_item", true, owner), ctx -> new StayTask());
         long ordinary = before.enqueue(step("stay", false, owner), ctx -> new StayTask());
-        var persistence = GameTestSupport.serverState(h.getLevel().getServer()).taskPersistence();
+        var persistence = GameTestSupport.runtime(h.getLevel().getServer()).taskPersistence();
         var saved = persistence
                 .decode(persistence.encode(persistence.capture(before).orElseThrow()))
                 .orElseThrow();
@@ -98,7 +98,7 @@ public final class TradingAuthorityTests {
                 List.of(spending, ordinary),
                 List.of(context -> new StayTask(), context -> new StayTask()),
                 PlanOptions.DEFAULT);
-        var persistence = GameTestSupport.serverState(h.getLevel().getServer()).taskPersistence();
+        var persistence = GameTestSupport.runtime(h.getLevel().getServer()).taskPersistence();
         var saved = persistence
                 .decode(persistence.encode(persistence.capture(before).orElseThrow()))
                 .orElseThrow();
@@ -119,7 +119,7 @@ public final class TradingAuthorityTests {
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner);
         long job = original.executionCoordinator().enqueue(step("stay", false, null), ctx -> new StayTask());
-        var persistence = GameTestSupport.serverState(h.getLevel().getServer()).taskPersistence();
+        var persistence = GameTestSupport.runtime(h.getLevel().getServer()).taskPersistence();
         var saved = persistence
                 .decode(persistence.encode(
                         persistence.capture(original.executionCoordinator()).orElseThrow()))

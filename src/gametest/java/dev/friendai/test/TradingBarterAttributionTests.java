@@ -31,7 +31,7 @@ public final class TradingBarterAttributionTests {
         ItemEntity before = new ItemEntity(h.getLevel(), 7, 2, 2, new ItemStack(Items.BREAD));
         before.setThrower(piglin);
         h.getLevel().addFreshEntity(before);
-        var tracker = GameTestSupport.serverState(h.getLevel().getServer()).barterDropTracker();
+        var tracker = GameTestSupport.runtime(h.getLevel().getServer()).barterDropTracker();
         UUID attempt = UUID.randomUUID();
         long started = h.getLevel().getGameTime();
         PiglinBarterAdapter adapter = new PiglinBarterAdapter(tracker);

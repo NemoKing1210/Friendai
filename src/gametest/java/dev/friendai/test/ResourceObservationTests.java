@@ -166,7 +166,7 @@ public class ResourceObservationTests {
                             || x == 8 && y == 2 && z == 5) continue;
                     h.setBlock(x, y, z, Blocks.STONE);
                 }
-        var resources = GameTestSupport.serverState(h.getLevel().getServer()).resources();
+        var resources = GameTestSupport.runtime(h.getLevel().getServer()).resourceCandidates();
         var facts = WorldScan.scan(h.getLevel(), companion, 16, true, false);
         h.assertTrue(!facts.blocksNearby().containsKey("minecraft:coal_ore"), "hidden ore entered WorldFacts");
         h.assertTrue(
@@ -197,10 +197,10 @@ public class ResourceObservationTests {
         companion.setNoGravity(true);
         companion.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         h.assertTrue(state.sessions().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
         CompanionManager.get(h.getLevel().getServer()).register(companion);
-        var scheduler = new ObservationScheduler(state.resources()::observe);
+        var scheduler = new ObservationScheduler(state.resourceCandidates()::observe);
         scheduler.register(companion);
         h.succeedWhen(() -> {
             scheduler.tick(
@@ -233,7 +233,7 @@ public class ResourceObservationTests {
                 for (int z = 1; z <= 10; z++) {
                     h.setBlock(x, y, z, Blocks.COAL_ORE);
                 }
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         var ray = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), Vec3.atCenterOf(target), target);
         ResourceSight.Outcome outcome;
@@ -245,7 +245,7 @@ public class ResourceObservationTests {
         String blockId = BuiltInRegistries.BLOCK
                 .getKey(h.getLevel().getBlockState(target).getBlock())
                 .toString();
-        state.resources()
+        state.resourceCandidates()
                 .observe(
                         companion,
                         new ResourceObservation(
@@ -255,7 +255,7 @@ public class ResourceObservationTests {
                                         new Pos(target.getX(), target.getY(), target.getZ())),
                                 new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
                                 h.getLevel().getServer().overworld().getGameTime()));
-        var visible = state.resources().currentVisible(companion, 16);
+        var visible = state.resourceCandidates().currentVisible(companion, 16);
         h.assertTrue(
                 visible.stream().anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore")),
                 "an ownerless companion should retain direct current sight evidence");
@@ -271,8 +271,8 @@ public class ResourceObservationTests {
         companion.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
-        var scheduler = new ObservationScheduler(state.resources()::observe);
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var scheduler = new ObservationScheduler(state.resourceCandidates()::observe);
         scheduler.register(companion);
         scheduler.observer(companion).inspect(target);
         h.succeedWhen(() -> {
@@ -280,13 +280,13 @@ public class ResourceObservationTests {
                     h.getLevel().getServer(),
                     h.getLevel().getServer().overworld().getGameTime());
             var observer = scheduler.observer(companion);
-            boolean observed = state.resources().currentVisible(companion, 16).stream()
+            boolean observed = state.resourceCandidates().currentVisible(companion, 16).stream()
                     .anyMatch(observation -> observation.blockId().equals("minecraft:coal_ore"));
             h.assertTrue(
                     observed,
                     "scheduler should observe a loaded ownerless companion without persisting its sight; queued="
                             + observer.queuedJobs() + ", visible="
-                            + state.resources().currentVisible(companion, 16));
+                            + state.resourceCandidates().currentVisible(companion, 16));
             h.assertTrue(companion.ownerUuid() == null, "observer scheduling must not assign an owner");
             h.succeed();
         });
@@ -330,16 +330,16 @@ public class ResourceObservationTests {
                         .isPresent(),
                 "fixture ray must pass through the detector's opening geometry; cells=" + direct.openAirCells()
                         + ", eye=" + eyeCell + ", hit=" + direct.hitBlock());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
-                state.resources()::observe, state.resources()::observeCaveEntrance);
+                state.resourceCandidates()::observe, state.resourceCandidates()::observeCaveEntrance);
         scheduler.register(companion);
         scheduler.observer(companion).inspect(wall);
         h.succeedWhen(() -> {
             scheduler.tick(
                     h.getLevel().getServer(),
                     h.getLevel().getServer().overworld().getGameTime());
-            var entrances = state.resources().observedCaveEntrances(companion);
+            var entrances = state.resourceCandidates().observedCaveEntrances(companion);
             h.assertTrue(
                     !entrances.isEmpty(),
                     "a clear sight ray through the open shaft should record its cave entrance; metrics="
@@ -369,17 +369,17 @@ public class ResourceObservationTests {
             }
         h.setBlock(8, 6, 8, Blocks.STONE);
         BlockPos wall = h.absolutePos(new BlockPos(8, 6, 8));
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
-                state.resources()::observe, state.resources()::observeCaveEntrance);
+                state.resourceCandidates()::observe, state.resourceCandidates()::observeCaveEntrance);
         scheduler.register(companion);
         var observer = scheduler.observer(companion);
         observer.inspect(wall);
         var batch = observer.tick(32, 128, Long.MAX_VALUE);
-        batch.caveEntrances().forEach(entrance -> state.resources().observeCaveEntrance(companion, entrance));
+        batch.caveEntrances().forEach(entrance -> state.resourceCandidates().observeCaveEntrance(companion, entrance));
 
         h.assertTrue(
-                state.resources().observedCaveEntrances(companion).isEmpty(),
+                state.resourceCandidates().observedCaveEntrances(companion).isEmpty(),
                 "an opaque sealed floor must prevent any cave entrance evidence");
         h.succeed();
     }
@@ -388,7 +388,7 @@ public class ResourceObservationTests {
     public void manyCompanionsRespectGlobalObservationCaps(GameTestHelper h) {
         GameTestSupport.platform(h, 32);
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         List<CompanionEntity> companions = new ArrayList<>();
         for (int x = 0; x < 4; x++)
             for (int z = 0; z < 4; z++) {
@@ -474,11 +474,11 @@ public class ResourceObservationTests {
     public void recentEvidenceSurvivesTicks(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         ServerLevel level = h.getLevel();
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
-        state.resources()
+        state.resourceCandidates()
                 .observe(
                         companion,
                         new ResourceObservation(
@@ -489,16 +489,16 @@ public class ResourceObservationTests {
                                 new Pos(2, 2, 5),
                                 level.getServer().overworld().getGameTime()));
         h.assertTrue(
-                state.resources().currentVisible(companion, 16).stream()
+                state.resourceCandidates().currentVisible(companion, 16).stream()
                         .anyMatch(observation -> observation.blockId().equals("minecraft:acacia_log")),
                 "the strict current view should contain the fresh observation");
         h.runAfterDelay(20, () -> {
             h.assertTrue(
-                    state.resources().recentVisible(companion, 16).stream()
+                    state.resourceCandidates().recentVisible(companion, 16).stream()
                             .anyMatch(observation -> observation.blockId().equals("minecraft:acacia_log")),
                     "recent evidence should survive 20 ticks");
             h.assertTrue(
-                    state.resources().currentVisible(companion, 16).isEmpty(),
+                    state.resourceCandidates().currentVisible(companion, 16).isEmpty(),
                     "the strict current view should expire after 20 ticks");
             h.succeed();
         });
@@ -508,12 +508,12 @@ public class ResourceObservationTests {
     public void replacedBlockDropsOutOfRecentEvidence(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         ServerLevel level = h.getLevel();
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
         Pos position = new Pos(target.getX(), target.getY(), target.getZ());
-        state.resources()
+        state.resourceCandidates()
                 .observe(
                         companion,
                         new ResourceObservation(
@@ -523,12 +523,12 @@ public class ResourceObservationTests {
                                 new Pos(2, 2, 5),
                                 level.getServer().overworld().getGameTime()));
         h.assertTrue(
-                state.resources().recentVisible(companion, 16).stream()
+                state.resourceCandidates().recentVisible(companion, 16).stream()
                         .anyMatch(observation -> observation.location().pos().equals(position)),
                 "the fixture must be in the recent window");
         h.setBlock(5, 3, 5, Blocks.STONE);
         h.assertTrue(
-                state.resources().confirmedRecent(companion, 16).stream()
+                state.resourceCandidates().confirmedRecent(companion, 16).stream()
                         .noneMatch(observation -> observation.location().pos().equals(position)),
                 "a replaced block must not survive confirmed evidence");
         h.succeed();
@@ -550,13 +550,13 @@ public class ResourceObservationTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var book = state.knowledge().book(owner.getUUID());
         BlockPos first = h.absolutePos(new BlockPos(5, 3, 5));
         BlockPos second = h.absolutePos(new BlockPos(6, 3, 5));
         book.observe(observation(first, companion.blockPosition()), "minecraft:coal_ore");
         book.observe(observation(second, companion.blockPosition()), "minecraft:coal_ore");
-        state.resources().ownBreak(companion, first);
+        state.resourceCandidates().ownBreak(companion, first);
         h.assertTrue(book.historicalBlockCount(1) == 1, "successful break should remove exactly one member");
         h.assertTrue(
                 book.snapshot().records().stream().anyMatch(record -> record.x() == second.getX()),
@@ -572,7 +572,7 @@ public class ResourceObservationTests {
         companion.setOwner(owner.getUUID());
         CompanionManager.get(h.getLevel().getServer()).register(companion);
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         BlockPos ore = h.absolutePos(new BlockPos(5, 3, 5));
         long siteId = state.knowledge()
                 .book(owner.getUUID())
@@ -580,7 +580,7 @@ public class ResourceObservationTests {
         state.knowledge().flushAll();
         h.assertTrue(CompanionManager.get(server).dismiss(owner), "test companion should be dismissed");
         GameTestSupport.closeRuntime(server);
-        var reloaded = GameTestSupport.serverState(server);
+        var reloaded = GameTestSupport.runtime(server);
         h.assertTrue(
                 reloaded.knowledge().book(owner.getUUID()).site(siteId, 2).isPresent(),
                 "dismiss and server-state reload must retain the owner's site");
@@ -594,7 +594,7 @@ public class ResourceObservationTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         CompanionManager.get(server).register(companion);
         state.observations().register(companion);
         ResourceObserver previous = state.observations().observer(companion);

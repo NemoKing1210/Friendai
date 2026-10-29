@@ -32,7 +32,7 @@ public class GoalTests {
                 "set_goal",
                 "{\"text\":\"gather 12 logs\",\"criteria\":[{\"text\":\"12 logs\",\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":12},{\"text\":\"tell the owner\"}]}");
         h.assertFalse(r.error(), "error: " + r.content());
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var board = state.goals().board(player.getUUID());
         h.assertTrue(board.primary().isPresent(), "a primary goal exists");
         h.assertTrue(
@@ -55,7 +55,7 @@ public class GoalTests {
         manager.dismiss(player);
         manager.summon(player);
 
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         h.assertTrue(
                 state.goals().board(player.getUUID()).primary().isPresent()
                         && state.goals()
@@ -80,7 +80,7 @@ public class GoalTests {
                 "{\"text\":\"take over\"}");
         h.assertTrue(r.error(), "a guest must be refused");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .goals()
                         .board(player.getUUID())
                         .primary()
@@ -101,7 +101,7 @@ public class GoalTests {
                 "{\"text\":\"kill the villagers\"}");
         h.assertTrue(r.error(), "a trusted player must be refused");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .goals()
                         .board(player.getUUID())
                         .primary()
@@ -118,7 +118,7 @@ public class GoalTests {
         Caller owner = owner(player);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"first\"}").error(), "first goal");
         h.assertTrue(call(c, owner, "set_goal", "{\"text\":\"second\"}").error(), "second primary is refused");
-        long id = GameTestSupport.serverState(h.getLevel().getServer())
+        long id = GameTestSupport.runtime(h.getLevel().getServer())
                 .goals()
                 .board(player.getUUID())
                 .primary()
@@ -141,7 +141,7 @@ public class GoalTests {
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"stay put\"}").error(), "goal set");
         ToolResult r = call(c, owner, "queue_add", "{\"goal\":\"stay\",\"steps\":[{\"tool\":\"jump\"}]}");
         h.assertFalse(r.error(), "queue_add error: " + r.content());
-        var goal = GameTestSupport.serverState(h.getLevel().getServer())
+        var goal = GameTestSupport.runtime(h.getLevel().getServer())
                 .goals()
                 .board(player.getUUID())
                 .primary()

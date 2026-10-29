@@ -9,13 +9,13 @@ import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.turn.BrainEvent;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -84,7 +84,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -117,7 +117,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -158,7 +158,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -195,7 +195,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 12, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         brains.setPlannerOverride(
                 player.getUUID(),

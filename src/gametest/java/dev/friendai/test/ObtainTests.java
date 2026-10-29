@@ -343,9 +343,9 @@ public class ObtainTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos log = h.absolutePos(new BlockPos(4, 2, 4));
         h.setBlock(4, 2, 4, Blocks.ACACIA_LOG);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         var level = h.getLevel();
-        state.resources()
+        state.resourceCandidates()
                 .observe(
                         c,
                         new dev.friendai.features.knowledge.ResourceObservation(

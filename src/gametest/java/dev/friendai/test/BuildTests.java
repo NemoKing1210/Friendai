@@ -452,7 +452,7 @@ public class BuildTests {
             h.assertTrue(companion.executionCoordinator().current().isPresent(), "the build must still be running");
             String saved =
                     companion.executionCoordinator().current().orElseThrow().saveData();
-            GameTestSupport.serverState(server).sessions().onOwnerLeft(owner.getUUID());
+            GameTestSupport.runtime(server).sessions().onOwnerLeft(owner.getUUID());
             h.assertTrue(
                     saved.equals(companion
                             .executionCoordinator()
@@ -461,7 +461,7 @@ public class BuildTests {
                             .orElse("")),
                     "owner leave cancelled the build");
             h.assertTrue(companion.executionCoordinator().suspended(), "the runner must pause while the owner is away");
-            GameTestSupport.serverState(server).sessions().onOwnerJoined(owner.getUUID());
+            GameTestSupport.runtime(server).sessions().onOwnerJoined(owner.getUUID());
             h.assertTrue(
                     !companion.executionCoordinator().suspended(), "the runner must resume when the owner returns");
             companion.executionCoordinator().stop("test");

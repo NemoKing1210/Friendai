@@ -30,7 +30,7 @@ public class VoiceTests {
     private static Recorder setUp(GameTestHelper h, ServerPlayer player) {
         var server = h.getLevel().getServer();
         Recorder recorder = new Recorder();
-        GameTestSupport.serverState(server).sessions().setGatewayOverride(player.getUUID(), recorder);
+        GameTestSupport.runtime(server).sessions().setGatewayOverride(player.getUUID(), recorder);
         CompanionManager.get(server).summon(player);
         return recorder;
     }
@@ -56,7 +56,7 @@ public class VoiceTests {
         // Only a companion close enough to hear the answer may consume it; without one the line
         // becomes an ordinary guest message to whichever companion is nearby.
         setUp(h, player);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         UUID target = UUID.randomUUID();
         state.trust().request(player, target, "Bob", true);
         Thread caller = new Thread(() -> TestMenuRequests.voice(player, "yes"), "voice-test-caller");

@@ -40,7 +40,7 @@ public final class ResourceToolsTests {
         h.assertTrue(planks.executable(), planks.reason());
         h.assertTrue(planks.family().equals("#minecraft:logs"), planks.family());
 
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         BlockPos sitePos = companion.blockPosition().offset(3, 0, 4);
         var location = new ResourceObservation.Location(
                 h.getLevel().dimension().identifier().toString(),
@@ -93,7 +93,7 @@ public final class ResourceToolsTests {
         BlockPos far = new BlockPos(4096, 20, 4096);
         var level = h.getLevel();
         h.assertTrue(!level.hasChunkAt(far), "test location should start unloaded");
-        var state = GameTestSupport.serverState(level.getServer());
+        var state = GameTestSupport.runtime(level.getServer());
         var location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(far.getX(), far.getY(), far.getZ()));
         state.knowledge()

@@ -33,7 +33,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var other = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         JsonObject input = new JsonObject();
         input.addProperty("name", "Long instruction");
         input.addProperty("body", "😀".repeat(2000));
@@ -60,7 +60,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         var owner = player.getUUID();
         var s = state.skills()
                 .store()
@@ -104,7 +104,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var state = GameTestSupport.serverState(server);
+        var state = GameTestSupport.runtime(server);
         var owner = player.getUUID();
         var skill = state.skills()
                 .store()

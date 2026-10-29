@@ -13,9 +13,9 @@ import net.minecraft.world.level.block.Blocks;
 
 public class PerceptionTests {
     private static PerceptionSnapshot brief(CompanionEntity companion) {
-        var state = GameTestSupport.serverState(companion.level().getServer());
+        var state = GameTestSupport.runtime(companion.level().getServer());
         return PerceptionBuilder.brief(
-                companion, new PerceptionContext(state.resources(), state.settings(), state.freeTime()));
+                companion, new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()));
     }
 
     @GameTest

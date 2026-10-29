@@ -12,10 +12,10 @@ import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -89,7 +89,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = GameTestSupport.serverState(server).sessions();
+        var brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script().text("Hello");
         Said said = new Said();
         brains.setGatewayOverride(owner.getUUID(), script);
@@ -114,7 +114,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = GameTestSupport.serverState(server).sessions();
+        var brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script().call("stay", "{}").text("No");
         brains.setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
@@ -134,7 +134,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         state.memory()
                 .book(owner.getUUID())
                 .setTrusted(guest.getUUID(), guest.getName().getString(), true, 0);
@@ -157,7 +157,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         var brains = state.sessions();
         brains.setGatewayOverride(
                 owner.getUUID(),

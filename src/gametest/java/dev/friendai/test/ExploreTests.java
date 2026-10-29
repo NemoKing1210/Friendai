@@ -40,14 +40,14 @@ public final class ExploreTests {
         var level = h.getLevel();
         h.setBlock(10, 2, 2, Blocks.ACACIA_LOG);
         BlockPos log = h.absolutePos(new BlockPos(10, 2, 2));
-        var state = GameTestSupport.serverState(level.getServer());
+        var state = GameTestSupport.runtime(level.getServer());
         var config = state.config();
         int oldRadius = config.tasks.resources.observationRadius;
         config.tasks.resources.observationRadius = 1;
         state.applyConfig(config);
         state.observations().unregister(companion);
         // Remembered but outside the recent window: only ExploreTask can turn this into a recent sighting.
-        state.resources()
+        state.resourceCandidates()
                 .observe(
                         companion,
                         new ResourceObservation(
@@ -58,7 +58,7 @@ public final class ExploreTests {
                                 new Pos(2, 2, 2),
                                 level.getServer().overworld().getGameTime() - 300));
         h.assertTrue(
-                state.resources().confirmedRecent(companion, 16).isEmpty(),
+                state.resourceCandidates().confirmedRecent(companion, 16).isEmpty(),
                 "the fixture must be remembered, not recent");
 
         Result result = new Result();

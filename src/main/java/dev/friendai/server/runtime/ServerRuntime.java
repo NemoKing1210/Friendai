@@ -11,6 +11,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.knowledge.search.SearchHintStore;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
@@ -22,8 +23,10 @@ import dev.friendai.features.trading.minecraft.trading.TradeSessionGuard;
 import dev.friendai.features.trading.minecraft.trading.TraderObserver;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
+import dev.friendai.infrastructure.persistence.goals.GoalStore;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
+import dev.friendai.infrastructure.persistence.placements.PlacedStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.resource.ObservationScheduler;
@@ -45,7 +48,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 
-/** One server's lifecycle owner and the temporary bridge to its existing services. */
+/** One server's lifecycle owner and access point for its server-scoped services. */
 public final class ServerRuntime implements AutoCloseable {
 
     private final MinecraftServer server;
@@ -204,6 +207,10 @@ public final class ServerRuntime implements AutoCloseable {
         return state.goals();
     }
 
+    public GoalStore goalStore() {
+        return state.goalStore();
+    }
+
     public CompanionChunkLoader chunkLoader() {
         return state.chunkLoader();
     }
@@ -260,6 +267,10 @@ public final class ServerRuntime implements AutoCloseable {
         return state.placedService();
     }
 
+    public PlacedStore placedStore() {
+        return state.placed();
+    }
+
     public TradeStore trading() {
         return state.trading();
     }
@@ -269,6 +280,10 @@ public final class ServerRuntime implements AutoCloseable {
     }
 
     public TradingToolAccess tradingAccess() {
+        return state;
+    }
+
+    public TrustAccess trustAccess() {
         return state;
     }
 
@@ -321,11 +336,6 @@ public final class ServerRuntime implements AutoCloseable {
         if (!acceptingWork) return;
         acceptingWork = false;
         stopWork.run();
-    }
-
-    /** Temporary bridge for callers being migrated to explicit services in later plan tasks. */
-    public FriendaiServerState state() {
-        return state;
     }
 
     @Override

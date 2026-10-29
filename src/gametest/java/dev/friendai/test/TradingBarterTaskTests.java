@@ -30,7 +30,7 @@ public final class TradingBarterTaskTests {
         companion.inventory().setItem(0, new ItemStack(Items.GOLD_INGOT, 2));
         Piglin piglin = h.spawn(EntityTypes.PIGLIN, 3, 2, 2);
         piglin.setNoAi(true);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         Caller caller = state.sessions()
                 .tradeAuthorityFor(ownerId)
                 .begin(new Caller(ownerId, "owner", AccessLevel.OWNER), true);

@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
@@ -18,6 +17,7 @@ import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.features.trading.minecraft.task.*;
 import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
@@ -43,7 +43,7 @@ public final class TradingTaskTests {
             CompanionEntity companion,
             Villager villager,
             net.minecraft.server.level.ServerPlayer owner,
-            FriendaiServerState state,
+            ServerRuntime state,
             MerchantAdapter adapter,
             TradeAuthority authority,
             TradeOrder order) {
@@ -91,7 +91,7 @@ public final class TradingTaskTests {
                         new ItemCost(Items.EMERALD, 1), new ItemStack(Items.BREAD, outputCount), 8, 4, 0.05F));
         companion.inventory().setItem(0, new ItemStack(Items.EMERALD, emeraldCap));
 
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         MerchantAdapter adapter = state.merchantAdapter();
         TraderRecord quote =
                 adapter.inspect(companion, villager, h.getLevel().getGameTime()).orElseThrow();

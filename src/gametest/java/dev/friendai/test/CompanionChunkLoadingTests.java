@@ -23,7 +23,7 @@ public class CompanionChunkLoadingTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         h.runAfterDelay(5, () -> {
-            var anchor = GameTestSupport.serverState(h.getLevel().getServer())
+            var anchor = GameTestSupport.runtime(h.getLevel().getServer())
                     .chunkLoader()
                     .anchorFor(player.getUUID());
             h.assertTrue(anchor.isPresent(), "an anchor should be recorded for the owner");
@@ -42,8 +42,7 @@ public class CompanionChunkLoadingTests {
         h.runAfterDelay(5, () -> {
             manager.dismiss(player);
             h.runAfterDelay(5, () -> {
-                var loader =
-                        GameTestSupport.serverState(h.getLevel().getServer()).chunkLoader();
+                var loader = GameTestSupport.runtime(h.getLevel().getServer()).chunkLoader();
                 h.assertTrue(
                         loader.anchorFor(player.getUUID()).isEmpty(),
                         "dismissing the companion should drop its anchor");
@@ -55,8 +54,7 @@ public class CompanionChunkLoadingTests {
     @GameTest(maxTicks = 600)
     public void anchorsAreReArmedEveryTickAndRestoredWithoutBlocking(GameTestHelper h) {
         ServerLevel level = h.getLevel();
-        CompanionChunkLoader loader =
-                GameTestSupport.serverState(level.getServer()).chunkLoader();
+        CompanionChunkLoader loader = GameTestSupport.runtime(level.getServer()).chunkLoader();
         CompanionAnchors anchors = level.getServer().getDataStorage().computeIfAbsent(CompanionAnchors.TYPE);
 
         // Phase 1: an anchor saved earlier in the session must be picked up by the tick loop alone,

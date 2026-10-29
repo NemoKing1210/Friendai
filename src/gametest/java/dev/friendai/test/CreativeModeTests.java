@@ -32,7 +32,7 @@ public class CreativeModeTests {
     public void creativePreferenceDefaultsOffAndSurvivesDismissal(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionLifeData life =
-                GameTestSupport.serverState(h.getLevel().getServer()).companionLife();
+                GameTestSupport.runtime(h.getLevel().getServer()).companionLife();
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
 
         h.assertFalse(life.creativeMode(owner.getUUID()), "new owner should default to survival");
@@ -59,7 +59,7 @@ public class CreativeModeTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        GameTestSupport.serverState(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
+        GameTestSupport.runtime(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
         var destination = h.getLevel().getServer().getLevel(Level.NETHER);
         var moved = companion.teleport(new TeleportTransition(
@@ -120,7 +120,7 @@ public class CreativeModeTests {
                                 List.of()),
                         ctx -> new StayTask());
         h.assertTrue(companion.executionCoordinator().queue().jobCount() == 1, "test job was not queued");
-        GameTestSupport.serverState(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
+        GameTestSupport.runtime(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
 
         h.assertTrue(
@@ -129,7 +129,7 @@ public class CreativeModeTests {
                 "the owner must be able to disable creative after activation rights are revoked");
         h.assertFalse(companion.creativeMode(), "creative mode was not disabled");
         h.assertFalse(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .companionLife()
                         .creativeMode(owner.getUUID()),
                 "the saved preference was not disabled");
@@ -159,7 +159,7 @@ public class CreativeModeTests {
                                 List.of(),
                                 guest.getUUID()),
                         ctx -> new StayTask());
-        GameTestSupport.serverState(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
+        GameTestSupport.runtime(h.getLevel().getServer()).companionLife().setCreativeMode(owner.getUUID(), true);
         companion.syncCreativeModePreference();
         companion.executionCoordinator().setPaused(false);
 
@@ -238,7 +238,7 @@ public class CreativeModeTests {
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        var life = GameTestSupport.serverState(h.getLevel().getServer()).companionLife();
+        var life = GameTestSupport.runtime(h.getLevel().getServer()).companionLife();
 
         TestMenuRequests.handle(
                 owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "enabled", ""));

@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
@@ -13,6 +12,7 @@ import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.ToolDependencies;
 import dev.friendai.server.execution.tools.QueueTools;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,19 +27,18 @@ final class GameTestToolRegistry {
     }
 
     static ToolRegistry<CompanionEntity> create(CompanionEntity companion, IntSupplier radius, MemoryAccess memory) {
-        FriendaiServerState state =
-                GameTestSupport.serverState(companion.level().getServer());
+        ServerRuntime state = GameTestSupport.runtime(companion.level().getServer());
         CompanionSessions sessions = state.sessions();
         ToolDependencies dependencies = new ToolDependencies(
                 memory,
                 state.profiles(),
-                ignored -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
-                ignored -> state.resources(),
-                state,
+                ignored -> new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()),
+                ignored -> state.resourceCandidates(),
+                state.tradingAccess(),
                 sessions,
                 sessions,
                 ignored -> sessions,
-                ignored -> state,
+                ignored -> state.trustAccess(),
                 ignored -> sessions.freeTime(),
                 candidate -> searchHintLine(state, candidate),
                 state.placeService(),
@@ -60,11 +59,11 @@ final class GameTestToolRegistry {
             Map<String, TaskToolDefinition> definitions,
             boolean linkGoal,
             Set<String> denied) {
-        var access = GameTestSupport.serverState(companion.level().getServer()).sessions();
+        var access = GameTestSupport.runtime(companion.level().getServer()).sessions();
         return QueueTools.addPlan(access, companion, caller, args, definitions, linkGoal, denied);
     }
 
-    private static String searchHintLine(FriendaiServerState state, CompanionEntity companion) {
+    private static String searchHintLine(ServerRuntime state, CompanionEntity companion) {
         UUID owner = companion.ownerUuid();
         if (owner == null || companion.level().getServer() == null) return "";
         long now = companion.level().getServer().overworld().getGameTime();

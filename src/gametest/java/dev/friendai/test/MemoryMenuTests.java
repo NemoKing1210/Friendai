@@ -1,9 +1,9 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.limits.RateLimiter;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -35,7 +35,7 @@ public class MemoryMenuTests {
                 a,
                 TestMenuRequests.menuRequest(
                         TestMenuRequests.Action.MEMORY_TRUST, c.getUUID().toString(), "true"));
-        MemoryBook book = GameTestSupport.serverState(server).memory().book(a.getUUID());
+        MemoryBook book = GameTestSupport.runtime(server).memory().book(a.getUUID());
         h.assertTrue(
                 book.allFacts().stream().anyMatch(f -> f.text().equals(text)),
                 "fact should be in the sender's book: " + book.allFacts());
@@ -52,9 +52,8 @@ public class MemoryMenuTests {
                 a,
                 TestMenuRequests.menuRequest(
                         TestMenuRequests.Action.MEMORY_TRUST, c.getUUID().toString(), "true"));
-        h.assertTrue(
-                GameTestSupport.serverState(server).memory().book(a.getUUID()).isTrusted(c.getUUID()), "A trusts C");
-        MemoryBook cBook = GameTestSupport.serverState(server).memory().book(c.getUUID());
+        h.assertTrue(GameTestSupport.runtime(server).memory().book(a.getUUID()).isTrusted(c.getUUID()), "A trusts C");
+        MemoryBook cBook = GameTestSupport.runtime(server).memory().book(c.getUUID());
         h.assertTrue(cBook.trusted().isEmpty(), "C's book must not trust anyone: " + cBook.trusted());
         h.assertTrue(cBook.player(a.getUUID()).isEmpty(), "C's book must not gain a record of A");
         h.assertTrue(cBook.allFacts().isEmpty(), "C's book must gain no facts");
@@ -65,7 +64,7 @@ public class MemoryMenuTests {
     public void personaSetChangesSendersBookAndPrompt(GameTestHelper h) {
         ServerPlayer a = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionManager.get(server).summon(a);
         String text = "Persona " + UUID.randomUUID();
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.PERSONA_SET, text, ""));
@@ -82,7 +81,7 @@ public class MemoryMenuTests {
         noControlRateLimit(h);
         ServerPlayer a = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         CompanionManager.get(server).summon(a);
         String text = "Persona " + UUID.randomUUID();
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.PERSONA_SET, text, ""));
@@ -100,7 +99,7 @@ public class MemoryMenuTests {
     public void badPersonaIsRefused(GameTestHelper h) {
         noControlRateLimit(h);
         ServerPlayer a = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         String good = "Persona " + UUID.randomUUID();
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.PERSONA_SET, good, ""));
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.PERSONA_SET, "§bad", ""));
@@ -114,7 +113,7 @@ public class MemoryMenuTests {
     public void personaRequestNeverTouchesAnotherOwnersBook(GameTestHelper h) {
         ServerPlayer a = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer c = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         String text = "Persona " + UUID.randomUUID();
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.PERSONA_SET, text, ""));
         h.assertTrue(
@@ -129,7 +128,7 @@ public class MemoryMenuTests {
     public void openRegistersViewer(GameTestHelper h) {
         noControlRateLimit(h);
         ServerPlayer a = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        var viewers = GameTestSupport.serverState(h.getLevel().getServer()).memoryViewers();
+        var viewers = GameTestSupport.runtime(h.getLevel().getServer()).memoryViewers();
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.MEMORY_OPEN));
         h.assertTrue(viewers.viewers().contains(a.getUUID()), "MEMORY_OPEN should register the viewer");
         TestMenuRequests.handle(a, TestMenuRequests.menuRequest(TestMenuRequests.Action.MEMORY_CLOSE));

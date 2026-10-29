@@ -292,8 +292,8 @@ public class MiningTests {
         h.setBlock(ore, Blocks.IRON_ORE);
         BlockPos absOre = h.absolutePos(ore);
         BlockPos at = companion.blockPosition();
-        GameTestSupport.serverState(h.getLevel().getServer())
-                .resources()
+        GameTestSupport.runtime(h.getLevel().getServer())
+                .resourceCandidates()
                 .observe(
                         companion,
                         new dev.friendai.features.knowledge.ResourceObservation(

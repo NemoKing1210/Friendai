@@ -31,16 +31,16 @@ import net.minecraft.world.level.block.LeavesBlock;
  */
 public class TreeFellingTests {
     private static ToolExecutor tools(CompanionEntity companion) {
-        var state = GameTestSupport.serverState(companion.level().getServer());
+        var state = GameTestSupport.runtime(companion.level().getServer());
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,
                         dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
-                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,
-                        state.resources(),
-                        state)
+                        state.resourceCandidates(),
+                        state.tradingAccess())
                 .registry()
                 .bind(companion);
     }

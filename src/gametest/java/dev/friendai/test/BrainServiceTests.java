@@ -13,7 +13,6 @@ import dev.friendai.agent.route.IntentVocabulary;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
@@ -21,6 +20,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -93,7 +93,7 @@ public class BrainServiceTests {
     public void chatAddressedMessageReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script().text("Hi");
         Said said = new Said();
         brains.setGatewayOverride(player.getUUID(), script);
@@ -107,7 +107,7 @@ public class BrainServiceTests {
     public void renamedCompanionAnswersToItsNewName(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script().text("Hi");
         Said said = new Said();
         brains.setGatewayOverride(player.getUUID(), script);
@@ -125,7 +125,7 @@ public class BrainServiceTests {
     public void thinkingIsShownOnTheCompanion(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script();
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
@@ -150,8 +150,8 @@ public class BrainServiceTests {
                 GameTestSupport.observeVisible(h, companion, h.absolutePos(log)),
                 "mangrove log should be directly visible");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
-                        .resources()
+                GameTestSupport.runtime(h.getLevel().getServer())
+                        .resourceCandidates()
                         .knownOrVisible(
                                 companion,
                                 BlockMatcher.parse("minecraft:mangrove_log").orElseThrow(),
@@ -160,7 +160,7 @@ public class BrainServiceTests {
                         .contains(h.absolutePos(log)),
                 "the directly observed log should be queryable by the companion");
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script()
                 .call("mine_blocks", "{\"block\":\"minecraft:mangrove_log\",\"count\":1}")
                 .text("On it")
@@ -189,7 +189,7 @@ public class BrainServiceTests {
     public void noticeReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script().text("Hi").text("Noted");
         brains.setGatewayOverride(player.getUUID(), script);
         CompanionEntity companion = CompanionManager.get(server).summon(player);
@@ -209,7 +209,7 @@ public class BrainServiceTests {
     public void disconnectCancelsBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         Script script = new Script();
         script.hang = true;
         brains.setGatewayOverride(player.getUUID(), script);
@@ -226,7 +226,7 @@ public class BrainServiceTests {
     @GameTest
     public void reloadSwapsProvider(GameTestHelper h) {
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         ServerConfig original = state.config();
         ServerConfig changed = ServerConfig.defaults();
         changed.profiles.get(changed.activeProfile).model = "swapped-model";

@@ -10,7 +10,6 @@ import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
@@ -36,6 +35,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.CompanionPerception;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.agent.perception.PerceptionContext;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -104,7 +104,7 @@ public class CompanionDeathTests {
                 new BlockPos(BED_X, BED_Y, BED_Z - 1),
                 Blocks.BED.red().defaultBlockState().setValue(BlockStateProperties.BED_PART, BedPart.HEAD));
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        GameTestSupport.serverState(h.getLevel().getServer())
+        GameTestSupport.runtime(h.getLevel().getServer())
                 .companionLife()
                 .setRespawnPoint(
                         owner.getUUID(),
@@ -125,7 +125,7 @@ public class CompanionDeathTests {
     public void deathKeepsInventoryEquipmentAndVitals(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         byte[] skin = {1, 2, 3};
         state.skins().save(owner.getUUID(), skin, true);
@@ -267,7 +267,7 @@ public class CompanionDeathTests {
     public void summonAfterDeathRestoresWhenAutoRespawnIsOff(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         state.companionLife().setAutoRespawn(owner.getUUID(), false);
         CompanionEntity companion = manager.summon(owner);
         companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 4));
@@ -293,7 +293,7 @@ public class CompanionDeathTests {
     public void deathKeepsPerOwnerStores(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID ownerId = owner.getUUID();
         long tick = h.getLevel().getGameTime();
@@ -369,7 +369,7 @@ public class CompanionDeathTests {
     public void deathKeepsAFreeTimeShiftPlan(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID ownerId = owner.getUUID();
         long now = System.currentTimeMillis();
@@ -419,10 +419,10 @@ public class CompanionDeathTests {
         h.succeedWhen(() -> {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
-            var state = GameTestSupport.serverState(h.getLevel().getServer());
+            var state = GameTestSupport.runtime(h.getLevel().getServer());
             String prompt = new CompanionPerception(
                             back.get(),
-                            () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()))
+                            () -> new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()))
                     .describe();
             h.assertTrue(prompt.contains("Last death:"), "the prompt should carry the death, was: " + prompt);
             h.assertTrue(
@@ -435,7 +435,7 @@ public class CompanionDeathTests {
     public void firstTurnAfterDeathIsAnswered(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID dead = companion.getUUID();
         Script script = new Script();

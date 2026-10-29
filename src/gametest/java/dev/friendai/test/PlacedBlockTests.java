@@ -28,7 +28,7 @@ import net.minecraft.world.level.block.Blocks;
 
 public class PlacedBlockTests {
     private static PlacedService placedService(CompanionEntity companion) {
-        return GameTestSupport.serverState(companion.level().getServer()).placedService();
+        return GameTestSupport.runtime(companion.level().getServer()).placedService();
     }
 
     private static final class Result implements TaskListener {
@@ -54,7 +54,7 @@ public class PlacedBlockTests {
     private static final BlockPos[] LOG_CELLS = {new BlockPos(4, 2, 2), new BlockPos(3, 2, 3), new BlockPos(4, 2, 4)};
 
     private static PlacedBook book(GameTestHelper h, UUID owner) {
-        return GameTestSupport.serverState(h.getLevel().getServer()).placed().book(owner);
+        return GameTestSupport.runtime(h.getLevel().getServer()).placedStore().book(owner);
     }
 
     @GameTest(maxTicks = 200)

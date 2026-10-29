@@ -34,7 +34,7 @@ public class SkinRenameTests {
     }
 
     private static String storedName(GameTestHelper h, ServerPlayer owner) {
-        return GameTestSupport.serverState(h.getLevel().getServer())
+        return GameTestSupport.runtime(h.getLevel().getServer())
                 .profiles()
                 .profile(owner.getUUID())
                 .name();
@@ -151,8 +151,7 @@ public class SkinRenameTests {
 
         h.assertTrue(canonicalHash(png).equals(companion.getSkinHash()), "the entity carries the skin hash");
         h.assertTrue(companion.isSlimSkin(), "the slim flag is synced");
-        var stored =
-                GameTestSupport.serverState(h.getLevel().getServer()).skins().load(owner.getUUID());
+        var stored = GameTestSupport.runtime(h.getLevel().getServer()).skins().load(owner.getUUID());
         h.assertTrue(stored.isPresent() && stored.get().slim(), "the skin is stored for the owner");
         h.succeed();
     }
@@ -180,7 +179,7 @@ public class SkinRenameTests {
         SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(25)));
 
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .skins()
                         .load(owner.getUUID())
                         .isEmpty(),
@@ -199,7 +198,7 @@ public class SkinRenameTests {
 
         h.assertTrue(companion.getSkinHash().isEmpty(), "the hash is cleared");
         h.assertTrue(
-                GameTestSupport.serverState(h.getLevel().getServer())
+                GameTestSupport.runtime(h.getLevel().getServer())
                         .skins()
                         .load(owner.getUUID())
                         .isEmpty(),

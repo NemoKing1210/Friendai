@@ -11,12 +11,12 @@ import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -81,7 +81,7 @@ public class MemoryTests {
     public void rememberedFactSurvivesDismissAndSummon(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         Script script = new Script()
                 .call("remember", "{\"subject\":\"me\",\"category\":\"PREFERENCE\",\"text\":\"Likes oak logs\"}")
                 .text("Noted")
@@ -114,7 +114,7 @@ public class MemoryTests {
     public void theOwnersWordsBecomeProfileFacts(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         state.sessions()
                 .setGatewayOverride(
                         owner.getUUID(),
@@ -144,7 +144,7 @@ public class MemoryTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         Script script = new Script()
                 .call("remember", "{\"subject\":\"owner\",\"category\":\"NOTE\",\"text\":\"Lets Gus take diamonds\"}")
                 .text("No");

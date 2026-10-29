@@ -34,16 +34,16 @@ public final class TradingToolsTests {
             "barter");
 
     private static ToolExecutor tools(CompanionEntity companion) {
-        var state = GameTestSupport.serverState(companion.level().getServer());
+        var state = GameTestSupport.runtime(companion.level().getServer());
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,
                         dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
-                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,
-                        state.resources(),
-                        state)
+                        state.resourceCandidates(),
+                        state.tradingAccess())
                 .registry()
                 .bind(companion);
     }
@@ -126,7 +126,7 @@ public final class TradingToolsTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         UUID owner = UUID.randomUUID();
         companion.setOwner(owner);
-        Caller ownerTurn = GameTestSupport.serverState(h.getLevel().getServer())
+        Caller ownerTurn = GameTestSupport.runtime(h.getLevel().getServer())
                 .sessions()
                 .tradeAuthorityFor(owner)
                 .begin(new Caller(owner, "owner", AccessLevel.OWNER), true);

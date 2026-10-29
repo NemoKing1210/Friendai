@@ -7,7 +7,6 @@ import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.LlmGateway;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
@@ -17,6 +16,7 @@ import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -47,7 +47,7 @@ public class RecoveryTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
@@ -67,7 +67,7 @@ public class RecoveryTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = GameTestSupport.serverState(server);
+        ServerRuntime state = GameTestSupport.runtime(server);
         ServerConfig original = state.config();
         ServerConfig noReplans = ServerConfig.defaults();
         noReplans.agent.maxReplans = 0;

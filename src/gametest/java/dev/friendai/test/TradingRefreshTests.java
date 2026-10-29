@@ -28,16 +28,16 @@ public final class TradingRefreshTests {
         var owner = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
         companion.setOwner(owner.getUUID());
         var villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
-        var state = GameTestSupport.serverState(h.getLevel().getServer());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
         ToolExecutor tools = FriendaiTools.build(
                         () -> 32,
                         () -> 32,
                         dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
-                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> new PerceptionContext(state.resourceCandidates(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,
-                        state.resources(),
-                        state)
+                        state.resourceCandidates(),
+                        state.tradingAccess())
                 .registry()
                 .bind(companion);
 
