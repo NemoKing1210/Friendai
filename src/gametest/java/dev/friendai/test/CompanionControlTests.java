@@ -10,7 +10,6 @@ import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
-import dev.friendai.debug.SnapshotCodec;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -22,6 +21,10 @@ import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.protocol.DecodeResult;
+import dev.friendai.protocol.ProtocolView;
+import dev.friendai.protocol.control.CompanionSnapshotProtocolCodec;
+import dev.friendai.protocol.control.CompanionSnapshotView;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.net.Operators;
 import dev.friendai.server.net.SnapshotBuilder;
@@ -30,6 +33,7 @@ import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.transport.protocol.CompanionSnapshotProtocolAdapter;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
@@ -447,9 +451,10 @@ public class CompanionControlTests {
             h.assertTrue(!snapshot.newLog().isEmpty(), "operators get the log");
             h.assertTrue(!snapshot.perception().isBlank(), "operators get perception");
             h.assertTrue(snapshot.toolNames().contains("stay"), "tool names: " + snapshot.toolNames());
-            h.assertTrue(
-                    SnapshotCodec.decode(SnapshotCodec.encode(snapshot)).equals(snapshot),
-                    "snapshot must survive the codec");
+            byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(
+                    CompanionSnapshotProtocolAdapter.toProtocol(snapshot), true, 1);
+            DecodeResult<ProtocolView<CompanionSnapshotView>> decoded = CompanionSnapshotProtocolCodec.decode(encoded);
+            h.assertTrue(decoded instanceof DecodeResult.Valid<?>, "snapshot frame must decode");
         } finally {
             deop(player);
         }
@@ -499,7 +504,11 @@ public class CompanionControlTests {
             h.assertTrue(
                     snapshot.newLog().size() == SnapshotBuilder.MAX_LOG_ENTRIES,
                     "entries: " + snapshot.newLog().size());
-            h.assertTrue(SnapshotCodec.encode(snapshot).length < (1 << 20), "snapshot must fit the packet limit");
+            byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(
+                    CompanionSnapshotProtocolAdapter.toProtocol(snapshot), true, 1);
+            h.assertTrue(
+                    encoded.length < CompanionSnapshotProtocolCodec.MAX_FRAME_BYTES,
+                    "snapshot frame must fit the protocol limit");
         } finally {
             deop(player);
         }

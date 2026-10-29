@@ -932,13 +932,11 @@ public class CookingTests {
     @GameTest
     public void campfireStationMatchesLitCampfireOnly(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        BlockPos origin = pos(h, 2, 2, 2);
         h.setBlock(6, 2, 2, Blocks.CAMPFIRE);
         BlockPos campfire = pos(h, 6, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, companion, campfire), "lit campfire should be visible");
-        h.assertValueEqual(
-                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE), Optional.of(campfire), "the lit campfire");
+        h.assertValueEqual(Stations.nearby(companion, Station.CAMPFIRE), Optional.of(campfire), "the lit campfire");
         h.setBlock(
                 6,
                 2,
@@ -947,7 +945,7 @@ public class CookingTests {
         // Batches share one structure position, so a campfire another test left behind can sit within the search
         // radius: assert that this campfire is not found, not that no campfire is found anywhere.
         h.assertTrue(
-                Stations.nearby(h.getLevel(), origin, Station.CAMPFIRE)
+                Stations.nearby(companion, Station.CAMPFIRE)
                         .filter(campfire::equals)
                         .isEmpty(),
                 "an unlit campfire is not usable");

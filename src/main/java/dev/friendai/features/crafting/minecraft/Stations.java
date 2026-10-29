@@ -3,7 +3,6 @@ package dev.friendai.features.crafting.minecraft;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
-import dev.friendai.features.mining.minecraft.mining.BlockSearch;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.TaskContext;
 import java.util.EnumSet;
@@ -37,22 +36,6 @@ public final class Stations {
     private static final int STATION = 16;
 
     private Stations() {}
-
-    /** World-scanning fixture helper. Production companion decisions must use {@link #nearby(CompanionEntity, Station)}. */
-    @Deprecated(forRemoval = true)
-    public static Optional<BlockPos> nearby(ServerLevel level, BlockPos origin, Station station) {
-        List<BlockPos> found = nearbyAll(level, origin, station, 1);
-        return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
-    }
-
-    /** World-scanning fixture helper. Production companion decisions must use {@link #nearbyAll(CompanionEntity, Station, int)}. */
-    @Deprecated(forRemoval = true)
-    public static List<BlockPos> nearbyAll(ServerLevel level, BlockPos origin, Station station, int limit) {
-        if (block(station) == null) {
-            return List.of();
-        }
-        return BlockSearch.nearestN(level, origin, SEARCH_RADIUS, matcher(station), Set.of(), limit);
-    }
 
     /** Evidence-backed station candidates for companion decisions. */
     public static List<BlockPos> nearbyAll(CompanionEntity companion, Station station, int limit) {

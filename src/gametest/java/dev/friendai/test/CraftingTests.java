@@ -301,18 +301,15 @@ public class CraftingTests {
     @GameTest
     public void stationsFindsNearbyTable(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        BlockPos origin = h.absolutePos(new BlockPos(2, 2, 2));
         h.setBlock(8, 2, 2, Blocks.CRAFTING_TABLE);
         BlockPos table = h.absolutePos(new BlockPos(8, 2, 2));
-
-        h.assertValueEqual(
-                Optional.of(table),
-                Stations.nearby(h.getLevel(), origin, Station.CRAFTING_TABLE),
-                "the crafting table 6 blocks away");
-        h.assertTrue(Stations.nearby(h.getLevel(), origin, Station.STONECUTTER).isEmpty(), "no stonecutter is nearby");
-
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         h.assertTrue(GameTestSupport.observeVisible(h, c, table), "crafting table should be directly visible");
+
+        h.assertValueEqual(
+                Optional.of(table), Stations.nearby(c, Station.CRAFTING_TABLE), "the crafting table 6 blocks away");
+        h.assertTrue(Stations.nearby(c, Station.STONECUTTER).isEmpty(), "no stonecutter is nearby");
+
         Set<Station> available = Stations.available(h.getLevel(), c);
         h.assertTrue(available.contains(Station.INVENTORY), "the inventory is always available: " + available);
         h.assertTrue(
