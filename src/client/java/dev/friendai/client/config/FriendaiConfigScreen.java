@@ -139,6 +139,7 @@ public final class FriendaiConfigScreen {
         ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
         ServerConfig server = current.serverDraft();
         boolean serverConfigReadOnly = current.serverReadOnly();
+        boolean serverConfigProtected = configuration.serverConfigProtected();
         ClientConfig client = current.clientDraft();
         client.validate();
         VoiceDraft voice = current.voiceDraft();
@@ -155,7 +156,9 @@ public final class FriendaiConfigScreen {
                     .name(tr("friendai.config.category.server"))
                     .option(LabelOption.create(tr(
                             serverConfigReadOnly
-                                    ? "friendai.config.server_unsupported"
+                                    ? serverConfigProtected
+                                            ? "friendai.config.server_protected"
+                                            : "friendai.config.server_unsupported"
                                     : "friendai.config.server_only")))
                     .build());
         }

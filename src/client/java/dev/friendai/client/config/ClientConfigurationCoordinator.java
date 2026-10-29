@@ -50,9 +50,14 @@ public final class ClientConfigurationCoordinator {
         return config;
     }
 
-    /** True when unsupported on-disk server settings must remain read-only. */
+    /** True when on-disk server settings must remain read-only: unsupported version or unbacked corruption. */
     public boolean serverConfigReadOnly() {
-        return serverStore.hasUnsupportedVersion();
+        return serverStore.hasUnsupportedVersion() || serverStore.hasProtectedRecovery();
+    }
+
+    /** True when a damaged file could not be backed up; the screen must say so instead of blaming a version. */
+    public boolean serverConfigProtected() {
+        return serverStore.hasProtectedRecovery();
     }
 
     /** Validates, persists and publishes one client configuration. */

@@ -122,6 +122,7 @@
   "friendai.config.category.voice": "Голос",
   "friendai.config.category.server": "Сервер",
   "friendai.config.server_only": "Эти настройки задаются на сервере.",
+  "friendai.config.server_protected": "Настройки сервера недоступны: файл friendai-server.json повреждён, а резервную копию создать не удалось. Исходный файл остаётся только для чтения; исправьте права на папку и откройте этот экран снова для восстановления.",
   "friendai.config.server_unsupported": "Настройки сервера недоступны: у friendai-server.json неподдерживаемая версия. Чтобы изменить их, сохраните резервную копию и замените файл.",
   "friendai.config.profile": "Активный профиль",
   "friendai.config.provider": "Провайдер",

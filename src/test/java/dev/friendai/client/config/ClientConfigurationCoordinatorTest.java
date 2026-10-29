@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.foundation.persistence.ProtectedConfigException;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
@@ -81,6 +82,24 @@ class ClientConfigurationCoordinatorTest {
                 .loadServer()
                 .profiles
                 .containsKey(server.activeProfile));
+    }
+
+    @Test
+    void protectedServerConfigIsReportedReadOnlyAndRefusesSaves() throws IOException {
+        Path serverFile = configDirectory.resolve("friendai-server.json");
+        String broken = "{oops";
+        Files.writeString(serverFile, broken);
+        Files.createDirectory(configDirectory.resolve("friendai-server.json.bak"));
+        ClientConfigurationCoordinator coordinator =
+                new ClientConfigurationCoordinator(configDirectory, ignored -> {}, ignored -> {});
+
+        ServerConfig fallback = coordinator.loadServer();
+
+        assertEquals("main", fallback.activeProfile);
+        assertTrue(coordinator.serverConfigReadOnly(), "an unbacked corrupt file must stay read-only");
+        assertTrue(coordinator.serverConfigProtected(), "the screen must explain the protection, not a version");
+        assertThrows(ProtectedConfigException.class, () -> coordinator.saveServer(fallback));
+        assertEquals(broken, Files.readString(serverFile), "the damaged original must survive");
     }
 
     @Test

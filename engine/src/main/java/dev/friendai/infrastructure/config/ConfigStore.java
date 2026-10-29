@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.foundation.persistence.ProtectedConfigException;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,6 +29,8 @@ public final class ConfigStore<T> {
     private final int currentVersion;
     private boolean recoveredOnLastLoad;
     private boolean unsupported;
+    /** Damaged file whose backup failed: the original bytes stay and every write is refused. */
+    private boolean protectedRecovery;
 
     public ConfigStore(Path file, Class<T> type, Supplier<T> defaults, int currentVersion) {
         this.file = file;
@@ -48,6 +51,11 @@ public final class ConfigStore<T> {
     /** True after the store encountered a version it cannot read or overwrite. */
     public boolean hasUnsupportedVersion() {
         return unsupported;
+    }
+
+    /** True while a damaged file could not be backed up; recovery is read-only until a later load succeeds. */
+    public boolean hasProtectedRecovery() {
+        return protectedRecovery;
     }
 
     public T load() {
@@ -104,9 +112,16 @@ public final class ConfigStore<T> {
         Path backup = file.resolveSibling(file.getFileName() + ".bak");
         try {
             Files.writeString(backup, text, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            LOGGER.warn("Could not back up broken config {}", file, e);
+        } catch (IOException | RuntimeException e) {
+            // A failed backup must not be treated as recovery: the original is the only copy left.
+            protectedRecovery = true;
+            LOGGER.warn(
+                    "Config {} is broken ({}) and could not be backed up; keeping it read-only",
+                    file,
+                    cause.getMessage());
+            return defaults.get();
         }
+        protectedRecovery = false;
         LOGGER.warn("Config {} is broken ({}); using defaults, old file kept as {}", file, cause.getMessage(), backup);
         T value = defaults.get();
         save(value);
@@ -115,6 +130,7 @@ public final class ConfigStore<T> {
 
     public void save(T value) {
         if (unsupported) throw new UnsupportedStoreVersionException();
+        if (protectedRecovery) throw new ProtectedConfigException();
         verifyExistingVersionBeforeSave();
         JsonObject json = GSON.toJsonTree(value, type).getAsJsonObject();
         json.addProperty("version", currentVersion);
