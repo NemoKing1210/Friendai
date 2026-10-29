@@ -33,6 +33,7 @@ import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
+import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
@@ -1063,13 +1064,13 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid != null) {
             output.store("Owner", UUID_CODEC, ownerUuid);
         }
-        CompanionBodyCodec.write(this, output);
+        CompanionBodyCodec.write(this, output, taskPersistence());
     }
 
     /** The persistent carry fields, shared by the world save and the death snapshot. */
     /** Writes what must survive death: the body plus the six equipment slots the superclass save covers. */
     private void saveCarry(ValueOutput output) {
-        CompanionCarryCodec.write(this, output);
+        CompanionCarryCodec.write(this, output, taskPersistence());
     }
 
     @Override
@@ -1081,7 +1082,7 @@ public class CompanionEntity extends PathfinderMob {
         setNoGravity(false);
         input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
         syncCreativeModePreference();
-        CompanionBodyCodec.read(this, input);
+        CompanionBodyCodec.read(this, input, taskPersistence());
     }
 
     /** A copy of everything this body carries, for the respawn that replaces it. */
@@ -1094,6 +1095,11 @@ public class CompanionEntity extends PathfinderMob {
     /** Applies a capture from {@link #captureCarry()} to this fresh body. */
     public void restoreCarry(CompoundTag carry) {
         ValueInput input = TagValueInput.create(ProblemReporter.DISCARDING, level().registryAccess(), carry.copy());
-        CompanionCarryCodec.read(this, input);
+        CompanionCarryCodec.read(this, input, taskPersistence());
+    }
+
+    private TaskPersistenceCoordinator taskPersistence() {
+        if (!(level() instanceof ServerLevel serverLevel)) return null;
+        return ServerRuntimeRegistry.getOrCreate(serverLevel.getServer()).taskPersistence();
     }
 }

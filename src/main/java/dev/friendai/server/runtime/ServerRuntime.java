@@ -19,6 +19,7 @@ import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.MemoryViewStream;
 import dev.friendai.server.net.MovementDebugStream;
@@ -168,6 +169,10 @@ public final class ServerRuntime implements AutoCloseable {
 
     public CompanionLifeData companionLife() {
         return state.companionLife();
+    }
+
+    public TaskPersistenceCoordinator taskPersistence() {
+        return state.taskPersistence();
     }
 
     public MemoryStore memory() {

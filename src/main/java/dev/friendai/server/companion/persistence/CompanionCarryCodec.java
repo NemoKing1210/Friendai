@@ -2,6 +2,7 @@ package dev.friendai.server.companion.persistence;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -23,15 +24,15 @@ public final class CompanionCarryCodec {
 
     private CompanionCarryCodec() {}
 
-    public static void write(CompanionEntity entity, ValueOutput output) {
-        CompanionBodyCodec.write(entity, output);
+    public static void write(CompanionEntity entity, ValueOutput output, TaskPersistenceCoordinator persistence) {
+        CompanionBodyCodec.write(entity, output, persistence);
         List<ItemStack> equipment = new ArrayList<>(SLOTS.length);
         for (EquipmentSlot slot : SLOTS) equipment.add(entity.getItemBySlot(slot));
         output.store("CarryEquipment", EQUIPMENT, equipment);
     }
 
-    public static void read(CompanionEntity entity, ValueInput input) {
-        CompanionBodyCodec.read(entity, input);
+    public static void read(CompanionEntity entity, ValueInput input, TaskPersistenceCoordinator persistence) {
+        CompanionBodyCodec.read(entity, input, persistence);
         input.read("CarryEquipment", EQUIPMENT).ifPresent(equipment -> {
             for (int i = 0; i < SLOTS.length && i < equipment.size(); i++)
                 entity.setItemSlot(SLOTS[i], equipment.get(i));
