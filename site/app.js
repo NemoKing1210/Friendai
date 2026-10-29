@@ -241,11 +241,27 @@ const ARCH_CARDS = [
 
 /* ================= HELPERS ================= */
 const $ = (s, r = document) => r.querySelector(s);
+
+/* language: English text is the source; site/i18n.ru.js maps it to Russian, and a missing key falls back to English */
+const LANG_KEY = "friendai-map-lang";
+let LANG = "en";
+try {
+  const saved = localStorage.getItem(LANG_KEY);
+  LANG = saved === "ru" || saved === "en" ? saved : (navigator.language || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+} catch (e) { /* storage blocked: keep the default */ }
+const t = (s) => (LANG === "ru" && typeof RU !== "undefined" && RU[s]) || s;
+const count = (n, key) => {
+  if (LANG !== "ru" || typeof RU_PLURALS === "undefined") return n + " " + key;
+  const f = RU_PLURALS[key], m10 = n % 10, m100 = n % 100;
+  return n + " " + (m10 === 1 && m100 !== 11 ? f[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? f[1] : f[2]);
+};
+
 const parseItem = (s) => {
   const trait = s.startsWith("~");
   const raw = trait ? s.slice(1) : s;
   const i = raw.indexOf("|");
-  return { label: raw.slice(0, i), desc: raw.slice(i + 1), kind: trait ? "trait" : "tool" };
+  const label = raw.slice(0, i);
+  return { label: trait ? t(label) : label, desc: t(raw.slice(i + 1)), kind: trait ? "trait" : "tool" };
 };
 
 
@@ -304,7 +320,7 @@ function renderGraph(box, g) {
   if (prev) { prev.ro?.disconnect(); prev.net.destroy(); }
   box.textContent = "";
   if (!box.classList.contains("main")) box.style.height = Math.round(g.h * 0.9) + "px";   // main graphs are sized by CSS to fill the screen
-  if (typeof vis === "undefined") { box.textContent = "The graph library failed to load (check your connection)."; return; }
+  if (typeof vis === "undefined") { box.textContent = t("The graph library failed to load (check your connection)."); return; }
 
   const byId = {};
   g.nodes.forEach((n) => { byId[n.id] = n; });
@@ -390,19 +406,22 @@ function renderGraph(box, g) {
 
   // toolbar (once per box)
   const host = box.parentNode;
-  if (!host.querySelector(".tools")) {
+  const oldBar = host.querySelector(".tools");
+  if (!oldBar || oldBar.dataset.lang !== LANG) {
+    if (oldBar) oldBar.remove();
     const bar = document.createElement("div");
     bar.className = "tools";
+    bar.dataset.lang = LANG;
     const mk = (text, title, fn) => {
       const b = document.createElement("button");
       b.type = "button"; b.textContent = text; b.title = title;
       b.addEventListener("click", fn); bar.append(b);
     };
     const zoom = (k) => () => { const n = networks.get(box.id).net; n.moveTo({ scale: n.getScale() * k, animation: { duration: 150 } }); };
-    mk("+", "Zoom in", zoom(1.25));
-    mk("−", "Zoom out", zoom(0.8));
-    mk("Fit", "Fit the graph to the view", () => networks.get(box.id).net.fit({ animation: { duration: 250 } }));
-    mk("Reset", "Restore the original layout", () => renderGraph(box, networks.get(box.id).g));
+    mk("+", t("Zoom in"), zoom(1.25));
+    mk("−", t("Zoom out"), zoom(0.8));
+    mk(t("Fit"), t("Fit the graph to the view"), () => networks.get(box.id).net.fit({ animation: { duration: 250 } }));
+    mk(t("Reset"), t("Restore the original layout"), () => renderGraph(box, networks.get(box.id).g));
     host.append(bar);
   }
 }
@@ -411,7 +430,7 @@ function renderGraph(box, g) {
 function radialGraph(hub, items, color, w, h, hubKind = "cat") {
   const nodes = [], edges = [];
   const cx = w / 2, cy = h / 2;
-  nodes.push({ id: "hub", x: cx, y: cy, kind: "hub", label: hub.label, icon: hub.icon, color: hub.color || color, desc: hub.desc, typeLabel: hub.typeLabel || "Category" });
+  nodes.push({ id: "hub", x: cx, y: cy, kind: "hub", label: t(hub.label), icon: hub.icon, color: hub.color || color, desc: t(hub.desc), typeLabel: t(hub.typeLabel || "Category") });
   const n = items.length;
   const rx = w / 2 - 95, ry = h / 2 - 40;
   const crowded = n > 8;
@@ -420,7 +439,7 @@ function radialGraph(hub, items, color, w, h, hubKind = "cat") {
     const k = crowded && i % 2 ? 0.62 : 1;
     nodes.push({
       id: "n" + i, x: cx + Math.cos(ang) * rx * k, y: cy + Math.sin(ang) * ry * k,
-      kind: it.kind, label: it.label, desc: it.desc, color, typeLabel: it.kind === "tool" ? "Tool - the LLM can call it" : "Built-in behaviour"
+      kind: it.kind, label: it.label, desc: it.desc, color, typeLabel: t(it.kind === "tool" ? "Tool - the LLM can call it" : "Built-in behaviour")
     });
     edges.push({ a: "hub", b: "n" + i, color });
   });
@@ -435,10 +454,11 @@ function buildStats() {
   CATS.forEach((c) => c.items.forEach((s) => { if (!s.startsWith("~")) tools.add(parseItem(s).label); }));
   const stats = [[tools.size + "+", "tools"], [CATS.length, "categories"], ["5", "LLM protocols"], ["3", "access levels"], ["2", "languages"], ["3", "STT + 4 TTS engines"]];
   const box = $("#stats");
+  box.textContent = "";
   stats.forEach(([v, l]) => {
     const d = document.createElement("div"); d.className = "stat";
     const b = document.createElement("b"); b.textContent = v;
-    const s = document.createElement("span"); s.textContent = l;
+    const s = document.createElement("span"); s.textContent = t(l);
     d.append(b, s); box.append(d);
   });
 }
@@ -446,7 +466,7 @@ function buildStats() {
 function overviewGraph() {
   const w = 1120, h = 780, cx = w / 2, cy = h / 2;
   const nodes = [], edges = [];
-  nodes.push({ id: "me", x: cx, y: cy, kind: "hub", label: "Companion", icon: "🧍", color: COLORS.grass, typeLabel: "The companion", desc: "A Minecraft NPC bound to one owner. It lives on the server and is driven by an LLM." });
+  nodes.push({ id: "me", x: cx, y: cy, kind: "hub", label: t("Companion"), icon: "🧍", color: COLORS.grass, typeLabel: t("The companion"), desc: t("A Minecraft NPC bound to one owner. It lives on the server and is driven by an LLM.") });
   const total = CATS.length, gapDeg = 14;
   const span = 360 - gapDeg * DOMAINS.length;
   let start = -90 + gapDeg / 2 - 10;
@@ -457,14 +477,14 @@ function overviewGraph() {
     const mid = start + sector / 2;
     const hubAng = (mid * Math.PI) / 180;
     const hubId = "d-" + d.id;
-    nodes.push({ id: hubId, x: cx + Math.cos(hubAng) * 135, y: cy + Math.sin(hubAng) * 105, kind: "cat", label: d.name, icon: d.icon, color: d.color, typeLabel: "Branch", desc: d.desc });
+    nodes.push({ id: hubId, x: cx + Math.cos(hubAng) * 135, y: cy + Math.sin(hubAng) * 105, kind: "cat", label: t(d.name), icon: d.icon, color: d.color, typeLabel: t("Branch"), desc: t(d.desc) });
     edges.push({ a: "me", b: hubId, color: d.color });
     list.forEach((c, i) => {
       const a = ((start + (sector * (i + 0.5)) / list.length) * Math.PI) / 180;
       const k = list.length > 5 && i % 2 ? 0.8 : 1;
       nodes.push({
-        id: c.id, x: cx + Math.cos(a) * rx * k, y: cy + Math.sin(a) * ry * k, kind: "cat", label: c.name, sub: toolCount(c) ? toolCount(c) + " tools" : c.items.length + " features",
-        icon: c.icon, color: c.color, typeLabel: "Category - click to open", desc: c.desc, onclick: () => openCategory(c.id)
+        id: c.id, x: cx + Math.cos(a) * rx * k, y: cy + Math.sin(a) * ry * k, kind: "cat", label: t(c.name), sub: toolCount(c) ? count(toolCount(c), "tools") : count(c.items.length, "features"),
+        icon: c.icon, color: c.color, typeLabel: t("Category - click to open"), desc: t(c.desc), onclick: () => openCategory(c.id)
       });
       edges.push({ a: hubId, b: c.id, color: d.color });
     });
@@ -476,8 +496,8 @@ function overviewGraph() {
 function flowGraph(src) {
   return {
     w: src.w, h: src.h, manual: true,
-    nodes: src.nodes.map((n) => ({ ...n, typeLabel: "Stage" })),
-    edges: src.edges.map(([a, b, label, o = {}]) => ({ a, b, label, arrow: true, ...o }))
+    nodes: src.nodes.map((n) => ({ ...n, label: t(n.label), desc: t(n.desc), typeLabel: t("Stage") })),
+    edges: src.edges.map(([a, b, label, o = {}]) => ({ a, b, label: label && t(label), arrow: true, ...o }))
   };
 }
 
@@ -490,8 +510,8 @@ function openCategory(id) {
 }
 function renderCategory() {
   const c = CATS.find((x) => x.id === currentCat);
-  $("#cat-title").textContent = c.icon + "  " + c.name;
-  $("#cat-desc").textContent = c.desc;
+  $("#cat-title").textContent = c.icon + "  " + t(c.name);
+  $("#cat-desc").textContent = t(c.desc);
   document.querySelectorAll(".chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === c.id)));
   const items = c.items.map(parseItem);
   const h = items.length > 14 ? 780 : items.length > 10 ? 700 : 620;
@@ -504,8 +524,8 @@ function buildChips() {
     const b = document.createElement("button");
     b.className = "chip"; b.dataset.id = c.id; b.setAttribute("aria-pressed", "false");
     const i = document.createElement("i"); i.textContent = c.icon;
-    const t = document.createElement("span"); t.textContent = c.name;
-    b.append(i, t);
+    const label = document.createElement("span"); label.textContent = t(c.name);
+    b.append(i, label);
     b.addEventListener("click", () => { currentCat = c.id; renderCategory(); });
     box.append(b);
   });
@@ -516,10 +536,10 @@ function buildCards(containerId, cards, prefix) {
   cards.forEach((c, i) => {
     const sec = document.createElement("section");
     sec.className = "panel" + (c.wide ? " wide" : "");
-    const h = document.createElement("h2"); h.textContent = c.title;
-    const p = document.createElement("p"); p.className = "lead"; p.style.fontSize = "21px"; p.style.margin = "0 0 10px"; p.textContent = c.sub;
+    const h = document.createElement("h2"); h.textContent = t(c.title);
+    const p = document.createElement("p"); p.className = "lead"; p.style.fontSize = "21px"; p.style.margin = "0 0 10px"; p.textContent = t(c.sub);
     const gb = document.createElement("div"); gb.className = "graphbox" + (c.wide ? "" : " sm");
-    const canvas = document.createElement("div"); canvas.className = "vis"; canvas.id = prefix + i; canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", c.title);
+    const canvas = document.createElement("div"); canvas.className = "vis"; canvas.id = prefix + i; canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", t(c.title));
     gb.append(canvas); sec.append(h, p, gb); box.append(sec);
     c._box = canvas;
   });
@@ -532,7 +552,7 @@ function renderCards(cards) {
 }
 
 /* ---- tabs ---- */
-const rendered = {};
+let currentTab = "overview";
 function renderTab(name) {
   if (name === "overview") renderGraph($("#g-overview"), overviewGraph());
   if (name === "categories") renderCategory();
@@ -541,11 +561,44 @@ function renderTab(name) {
   if (name === "arch") { renderGraph($("#g-arch"), flowGraph(ARCH_FLOW)); renderCards(ARCH_CARDS); }
 }
 function switchTab(name) {
+  currentTab = name;
   document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
   ["overview", "categories", "flow", "memory", "arch"].forEach((id) => $("#tab-" + id).classList.toggle("hidden", id !== name));
   hideTip();
   renderTab(name);
   try { history.replaceState(null, "", "#" + name); } catch (e) { /* file:// or sandbox */ }
+}
+
+/* ---- language switch ---- */
+const STATIC_TEXT = ".tab, #tab-overview h2, #tab-overview .lead, #tab-flow h2, #tab-flow .lead, #tab-arch > .panel h2, #tab-arch > .panel .lead, .legend span, footer";
+function translateStatic() {
+  document.querySelectorAll(STATIC_TEXT).forEach((el) => {
+    el.childNodes.forEach((n) => {
+      if (n.nodeType !== 3 || !n.nodeValue.trim()) return;
+      if (n._en === undefined) n._en = n.nodeValue;
+      const key = n._en.trim();
+      n.nodeValue = n._en.replace(key, t(key));
+    });
+  });
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("#lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === LANG)));
+}
+function buildDynamic() {
+  buildStats();
+  $("#chips").textContent = "";
+  buildChips();
+  ["#memory-grid", "#arch-grid"].forEach((id) => { $(id).textContent = ""; });
+  buildCards("#memory-grid", MEM_CARDS, "m-");
+  buildCards("#arch-grid", ARCH_CARDS, "a-");
+}
+function setLang(lang) {
+  if (lang === LANG) return;
+  LANG = lang;
+  try { localStorage.setItem(LANG_KEY, lang); } catch (e) { /* not persisted */ }
+  translateStatic();
+  buildDynamic();
+  hideTip();
+  renderTab(currentTab);
 }
 
 /* ---- dirt background tile ---- */
@@ -568,10 +621,9 @@ function dirtBackground() {
 /* ---- boot ---- */
 function boot() {
   dirtBackground();
-  buildStats();
-  buildChips();
-  buildCards("#memory-grid", MEM_CARDS, "m-");
-  buildCards("#arch-grid", ARCH_CARDS, "a-");
+  translateStatic();
+  buildDynamic();
+  document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
   const initial = (location.hash || "").slice(1);
   switchTab(["overview", "categories", "flow", "memory", "arch"].includes(initial) ? initial : "overview");

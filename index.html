@@ -14,6 +14,7 @@
 <div class="wrap">
   <header class="hero">
     <h1 class="logo">FRIEND<em>AI</em></h1>
+    <div class="lang" id="lang" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="ru" aria-pressed="false">RU</button></div>
     <div class="stats" id="stats"></div>
   </header>
 
@@ -28,7 +29,7 @@
   <main>
     <section id="tab-overview" class="panel">
       <h2>What the companion is</h2>
-      <p class="lead">One companion per owner. It hears you, thinks with an LLM of your choice, and acts in the world through tools. Every block below is a group of abilities; the three branches split what it <b>does</b>, how it <b>thinks</b> and how it <b>talks</b>.</p>
+      <p class="lead">One companion per owner. It hears you, thinks with an LLM of your choice, and acts in the world through tools. Every block below is a group of abilities; the three branches split what it does, how it thinks and how it talks.</p>
       <div class="graphbox"><div id="g-overview" class="vis main" role="img" aria-label="Overview graph of companion capabilities"></div></div>
       <div class="legend">
         <span><i class="sw hub"></i> Companion / branch</span>
@@ -72,6 +73,7 @@
 <div id="tip" role="tooltip"></div>
 
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="site/i18n.ru.js"></script>
 <script src="site/app.js"></script>
 </body>
 </html>
