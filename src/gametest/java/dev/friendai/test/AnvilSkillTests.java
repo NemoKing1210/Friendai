@@ -177,6 +177,43 @@ public class AnvilSkillTests {
     }
 
     @GameTest
+    public void chippedAnvilIsDiscoveredAndUsed(GameTestHelper h) {
+        CompanionEntity c = setup(h, 220, false);
+        h.setBlock(3, 221, 2, Blocks.CHIPPED_ANVIL);
+        c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
+        levels(c, 30);
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Chipped", null), () -> {
+            var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
+            h.assertTrue(name != null && name.getString().equals("Chipped"), "name was " + name);
+        });
+    }
+
+    @GameTest
+    public void damagedAnvilAtAGivenPositionIsAccepted(GameTestHelper h) {
+        CompanionEntity c = setup(h, 230, false);
+        h.setBlock(3, 231, 2, Blocks.DAMAGED_ANVIL);
+        c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
+        levels(c, 30);
+        BlockPos worn = h.absolutePos(new BlockPos(3, 231, 2));
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Damaged", worn), () -> {
+            var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
+            h.assertTrue(name != null && name.getString().equals("Damaged"), "name was " + name);
+        });
+    }
+
+    @GameTest
+    public void unrelatedBlockAtTheGivenPositionIsRejected(GameTestHelper h) {
+        CompanionEntity c = setup(h, 240, false);
+        h.setBlock(3, 241, 2, Blocks.STONE);
+        c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
+        levels(c, 30);
+        BlockPos stone = h.absolutePos(new BlockPos(3, 241, 2));
+        fails(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Excalibur", stone), "anvil", () -> {
+            h.assertTrue(count(c, Items.IRON_SWORD) == 1, "the sword must stay");
+        });
+    }
+
+    @GameTest
     public void failsWithoutAnvil(GameTestHelper h) {
         CompanionEntity c = setup(h, 136, false);
         c.inventory().addItem(new ItemStack(Items.IRON_SWORD));

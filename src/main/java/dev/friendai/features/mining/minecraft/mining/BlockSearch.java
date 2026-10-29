@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -20,7 +21,13 @@ public final class BlockSearch {
     /** The nearest matching, breakable block; see {@link #nearestN}. */
     public static Optional<BlockPos> nearest(
             ServerLevel level, BlockPos origin, int radius, BlockMatcher matcher, Set<BlockPos> blacklist) {
-        List<BlockPos> found = nearestN(level, origin, radius, matcher, blacklist, 1);
+        return nearest(level, origin, radius, matcher::test, blacklist);
+    }
+
+    /** Nearest block accepted by {@code matches}; used for a vanilla block family such as all anvil states. */
+    public static Optional<BlockPos> nearest(
+            ServerLevel level, BlockPos origin, int radius, Predicate<BlockState> matches, Set<BlockPos> blacklist) {
+        List<BlockPos> found = nearestN(level, origin, radius, matches, blacklist, 1);
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
@@ -72,6 +79,16 @@ public final class BlockSearch {
      */
     public static List<BlockPos> nearestN(
             ServerLevel level, BlockPos origin, int radius, BlockMatcher matcher, Set<BlockPos> blacklist, int limit) {
+        return nearestN(level, origin, radius, matcher::test, blacklist, limit);
+    }
+
+    public static List<BlockPos> nearestN(
+            ServerLevel level,
+            BlockPos origin,
+            int radius,
+            Predicate<BlockState> matcher,
+            Set<BlockPos> blacklist,
+            int limit) {
         Comparator<BlockPos> order = Comparator.<BlockPos>comparingDouble(origin::distSqr)
                 .thenComparingInt(BlockPos::getX)
                 .thenComparingInt(BlockPos::getY)

@@ -10,7 +10,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.Nullable;
 
 /** Repairs, combines or renames items at an anvil, paying the vanilla experience cost from the companion's levels. */
@@ -25,7 +24,7 @@ public final class AnvilItemTask extends MenuBlockTask {
 
     public AnvilItemTask(
             ItemMatcher left, @Nullable ItemMatcher right, @Nullable String rename, @Nullable BlockPos anvil) {
-        super(Blocks.ANVIL, "anvil", anvil);
+        super(state -> state.getBlock() instanceof net.minecraft.world.level.block.AnvilBlock, "anvil", anvil);
         if (left == null) {
             throw new IllegalArgumentException("anvil item must not be empty");
         }

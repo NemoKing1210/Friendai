@@ -1,6 +1,5 @@
 package dev.friendai.features.enchanting.minecraft.task;
 
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.BlockSearch;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
@@ -8,9 +7,10 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -21,7 +21,7 @@ abstract class MenuBlockTask implements Task {
     /** How far the nearest matching block is looked for when no coordinates are given. */
     private static final int SEARCH_RADIUS = 24;
 
-    private final Block block;
+    private final Predicate<BlockState> block;
     private final String noun;
     private final @Nullable BlockPos given;
 
@@ -30,6 +30,11 @@ abstract class MenuBlockTask implements Task {
     protected String summary = "";
 
     MenuBlockTask(Block block, String noun, @Nullable BlockPos given) {
+        this(state -> state.is(block), noun, given);
+    }
+
+    /** A vanilla block family, such as every anvil state, is one menu block for discovery and revalidation. */
+    MenuBlockTask(Predicate<BlockState> block, String noun, @Nullable BlockPos given) {
         this.block = block;
         this.noun = noun;
         this.given = given;
@@ -89,16 +94,13 @@ abstract class MenuBlockTask implements Task {
 
     private @Nullable BlockPos locate(TaskContext c) {
         if (given != null) {
-            if (!c.level().getBlockState(given).is(block)) {
+            if (!block.test(c.level().getBlockState(given))) {
                 summary = "there is no " + noun + " at " + coords(given);
                 return null;
             }
             return given;
         }
-        BlockMatcher matcher = BlockMatcher.parse(
-                        BuiltInRegistries.BLOCK.getKey(block).toString())
-                .orElseThrow();
-        BlockPos found = BlockSearch.nearest(c.level(), c.companion().blockPosition(), SEARCH_RADIUS, matcher, Set.of())
+        BlockPos found = BlockSearch.nearest(c.level(), c.companion().blockPosition(), SEARCH_RADIUS, block, Set.of())
                 .orElse(null);
         if (found == null) {
             summary = "no " + noun + " within " + SEARCH_RADIUS + " blocks";
