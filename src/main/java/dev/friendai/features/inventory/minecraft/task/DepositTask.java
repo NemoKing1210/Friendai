@@ -202,7 +202,7 @@ public final class DepositTask implements Task {
             }
             bag.setChanged();
             container.setChanged();
-            ContainerAccess.recordContents(level, c.companion(), pos, container);
+            ContainerAccess.recordContents(c, pos, container);
         } finally {
             container.stopOpen(c.companion().hands().player());
         }

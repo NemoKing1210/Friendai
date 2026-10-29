@@ -368,7 +368,7 @@ public final class ObtainTask implements Task {
             return Optional.of("my inventory is full");
         }
         ServerLevel level = c.level();
-        BlockPos pos = ContainerAccess.nearest(companion, CONTAINER_RADIUS).orElse(null);
+        BlockPos pos = ContainerAccess.nearest(c, CONTAINER_RADIUS).orElse(null);
         if (pos == null || !companion.hands().canInteract(pos)) {
             return Optional.of("my inventory is full");
         }
@@ -555,7 +555,7 @@ public final class ObtainTask implements Task {
             this.count = count;
             this.session = new ContainerSession(
                     null,
-                    context -> ContainerAccess.nearest(context.companion(), CONTAINER_RADIUS),
+                    context -> ContainerAccess.nearest(context, CONTAINER_RADIUS),
                     true,
                     () -> "no storage container with " + matcher.label() + " within " + CONTAINER_RADIUS + " blocks",
                     position -> "there is no chest, barrel or other storage at " + position.getX() + " "

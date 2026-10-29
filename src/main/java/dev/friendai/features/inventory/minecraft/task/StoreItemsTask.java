@@ -57,7 +57,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
         if (placed) {
             return context.placedService().nearestContainer(context.companion(), NEAR_PLACED_RADIUS);
         }
-        return ContainerAccess.nearest(context.companion(), RADIUS);
+        return ContainerAccess.nearest(context, RADIUS);
     }
 
     @Override

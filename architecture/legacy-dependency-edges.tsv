@@ -11,4 +11,3 @@ legacy-server-state-lookup	dev.friendai.server.net.SkillsViewStream	dev.friendai
 legacy-server-state-lookup	dev.friendai.server.net.SnapshotBuilder	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.TradeViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.companion.persistence.CompanionBodyCodec	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.task.interact.ContainerAccess	dev.friendai.core.FriendaiServerState	11

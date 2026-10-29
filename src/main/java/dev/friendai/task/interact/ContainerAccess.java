@@ -1,11 +1,11 @@
 package dev.friendai.task.interact;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -46,8 +46,8 @@ public final class ContainerAccess {
     }
 
     /** Evidence-backed storage candidates; contents are never read during discovery. */
-    public static List<BlockPos> known(CompanionEntity companion, int radius) {
-        if (!(companion.level() instanceof ServerLevel level)) return List.of();
+    public static List<BlockPos> known(TaskContext context, int radius) {
+        CompanionEntity companion = context.companion();
         BlockMatcher matcher = BlockMatcher.parse("#minecraft:shulker_boxes").orElse(null);
         BlockMatcher containers = new BlockMatcher() {
             @Override
@@ -63,11 +63,11 @@ public final class ContainerAccess {
                 return "storage containers";
             }
         };
-        return FriendaiServerState.get(level.getServer()).resources().knownOrVisible(companion, containers, radius, 32);
+        return context.resources().knownOrVisible(companion, containers, radius, 32);
     }
 
-    public static Optional<BlockPos> nearest(CompanionEntity companion, int radius) {
-        List<BlockPos> found = known(companion, radius);
+    public static Optional<BlockPos> nearest(TaskContext context, int radius) {
+        List<BlockPos> found = known(context, radius);
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
@@ -129,7 +129,9 @@ public final class ContainerAccess {
     }
 
     /** Saves contents observed by an authorized interaction, never by candidate discovery. */
-    public static void recordContents(ServerLevel level, CompanionEntity companion, BlockPos pos, Container container) {
+    public static void recordContents(TaskContext context, BlockPos pos, Container container) {
+        ServerLevel level = context.level();
+        CompanionEntity companion = context.companion();
         if (companion.ownerUuid() == null) return;
         Map<String, Integer> items = new LinkedHashMap<>();
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
@@ -140,7 +142,7 @@ public final class ContainerAccess {
         var location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
         long tick = level.getServer().overworld().getGameTime();
-        var book = FriendaiServerState.get(level.getServer()).knowledge().book(companion.ownerUuid());
+        ResourceKnowledge book = context.ownerKnowledge();
         book.invalidateContainer(location);
         book.recordContainer(new ResourceKnowledge.ContainerObservation(location, items, tick));
     }

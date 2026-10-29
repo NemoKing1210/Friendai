@@ -604,7 +604,7 @@ public final class BuildTask implements Task {
             return TaskStatus.RUNNING;
         }
         for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
-            BlockPos container = storageWith(c.level(), c.companion(), entry.getKey());
+            BlockPos container = storageWith(c, entry.getKey());
             if (container == null) {
                 continue;
             }
@@ -652,12 +652,12 @@ public final class BuildTask implements Task {
         return missing;
     }
 
-    private BlockPos storageWith(ServerLevel level, CompanionEntity companion, Item item) {
+    private BlockPos storageWith(TaskContext context, Item item) {
         ItemMatcher matcher = ItemMatcher.parse(itemId(item)).orElse(null);
         if (matcher == null) {
             return null;
         }
-        for (BlockPos pos : ContainerAccess.known(companion, Materials.STORAGE_RADIUS)) {
+        for (BlockPos pos : ContainerAccess.known(context, Materials.STORAGE_RADIUS)) {
             if (!exhaustedStorage.contains(pos)) {
                 return pos;
             }

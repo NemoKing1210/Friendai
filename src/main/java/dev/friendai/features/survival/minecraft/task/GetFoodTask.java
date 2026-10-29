@@ -207,7 +207,7 @@ public final class GetFoodTask implements Task {
         CompanionEntity companion = c.companion();
         return switch (option) {
             case COOKING -> hasRawFood(companion) && hasAllowedFuel(c);
-            case CHEST -> ContainerAccess.nearest(companion, CONTAINER_RADIUS).isPresent();
+            case CHEST -> ContainerAccess.nearest(c, CONTAINER_RADIUS).isPresent();
             case BAKING -> wheatCount(companion) >= WHEAT_PER_BREAD;
             case HARVESTING -> nearestMatureCrop(c).isPresent();
             case HUNTING -> nearestHuntable(c.level(), companion) != null;
@@ -269,7 +269,7 @@ public final class GetFoodTask implements Task {
             this.wanted = wanted;
             this.session = new ContainerSession(
                     null,
-                    context -> ContainerAccess.nearest(context.companion(), CONTAINER_RADIUS),
+                    context -> ContainerAccess.nearest(context, CONTAINER_RADIUS),
                     false,
                     () -> "no known storage container within " + CONTAINER_RADIUS + " blocks",
                     position -> "the storage container is no longer there");

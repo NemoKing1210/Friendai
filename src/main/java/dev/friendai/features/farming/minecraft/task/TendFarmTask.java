@@ -133,7 +133,7 @@ public final class TendFarmTask implements Task {
     private void store(TaskContext c) {
         CompanionEntity companion = c.companion();
         Map<Item, Integer> totals = farmOutputs(companion);
-        Optional<BlockPos> chestPos = ContainerAccess.nearest(companion, STORE_RADIUS);
+        Optional<BlockPos> chestPos = ContainerAccess.nearest(c, STORE_RADIUS);
         Optional<Container> chest = chestPos.flatMap(pos -> ContainerAccess.at(c.level(), pos));
         if (chest.isEmpty()) {
             if (!totals.isEmpty()) {
@@ -183,7 +183,7 @@ public final class TendFarmTask implements Task {
         }
         companion.inventory().setChanged();
         chest.get().setChanged();
-        ContainerAccess.recordContents(c.level(), companion, selectedChest, chest.get());
+        ContainerAccess.recordContents(c, selectedChest, chest.get());
         chest.get().stopOpen(companion.hands().player());
         if (attempted > 0 && moved == 0) {
             notice(c, fullNotified, "the chests near the farm at " + coords() + " are full");

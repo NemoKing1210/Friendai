@@ -36,7 +36,7 @@ public final class TakeItemsTask extends ContainerTaskBase {
 
     @Override
     protected Optional<BlockPos> findTarget(TaskContext context) {
-        return ContainerAccess.nearest(context.companion(), RADIUS);
+        return ContainerAccess.nearest(context, RADIUS);
     }
 
     @Override

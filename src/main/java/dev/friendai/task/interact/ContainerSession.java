@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 
 /** Shared walk, protection, open and close lifecycle for one storage-container action. */
@@ -110,9 +109,7 @@ public final class ContainerSession {
         boolean keepOpen = false;
         try {
             TaskStatus status = work.run(context, position, container);
-            if (context.level() instanceof ServerLevel level) {
-                ContainerAccess.recordContents(level, context.companion(), position, container);
-            }
+            ContainerAccess.recordContents(context, position, container);
             keepOpen = status == TaskStatus.RUNNING;
             return status;
         } finally {
