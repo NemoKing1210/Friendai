@@ -30,13 +30,13 @@ public final class FreeTimeStore implements FreeTimeRepository, AutoCloseable {
 
     @Override
     public FreeTime state(UUID owner) {
-        return FreeTimeSave.decodePayload(store.book(owner).payload).orElse(FreeTime.OFF);
+        return FreeTimeSave.decode(store.book(owner).payload).orElse(FreeTime.OFF);
     }
 
     @Override
     public void save(UUID owner, FreeTime value) {
         State state = store.book(owner);
-        state.payload = FreeTimeSave.encodePayload(value);
+        state.payload = FreeTimeSave.encode(value);
         state.revision++;
     }
 
@@ -76,8 +76,7 @@ public final class FreeTimeStore implements FreeTimeRepository, AutoCloseable {
             File file = GSON.fromJson(json, File.class);
             if (file == null) throw new IllegalArgumentException("Empty free-time file.");
             if (file.formatVersion() != FORMAT_VERSION) throw new UnsupportedStoreVersionException();
-            if (file.payload() != null
-                    && FreeTimeSave.decodePayload(file.payload()).isEmpty())
+            if (file.payload() != null && FreeTimeSave.decode(file.payload()).isEmpty())
                 throw new IllegalArgumentException("Invalid free-time payload.");
             state.revision = Math.max(0, file.revision());
             state.payload = file.payload();

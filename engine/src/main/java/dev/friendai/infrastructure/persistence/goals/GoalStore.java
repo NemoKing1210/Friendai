@@ -35,14 +35,14 @@ public final class GoalStore implements GoalRepository, AutoCloseable {
     public GoalBoard board(UUID owner, int maxBackground, int maxReplans) {
         return boards.computeIfAbsent(
                 owner,
-                id -> GoalSave.decodePayload(store.book(id).payload, maxBackground, maxReplans)
+                id -> GoalSave.decode(store.book(id).payload, maxBackground, maxReplans)
                         .orElseGet(() -> new GoalBoard(maxBackground, maxReplans)));
     }
 
     @Override
     public void save(UUID owner, GoalBoard board) {
         State state = store.book(owner);
-        state.payload = board.all().isEmpty() ? null : GoalSave.encodePayload(board);
+        state.payload = board.all().isEmpty() ? null : GoalSave.encode(board);
         state.revision++;
     }
 
@@ -83,7 +83,7 @@ public final class GoalStore implements GoalRepository, AutoCloseable {
             if (file == null) throw new IllegalArgumentException("Empty goal file.");
             if (file.formatVersion() != FORMAT_VERSION) throw new UnsupportedStoreVersionException();
             if (file.payload() != null
-                    && GoalSave.decodePayload(file.payload(), Integer.MAX_VALUE, Integer.MAX_VALUE)
+                    && GoalSave.decode(file.payload(), Integer.MAX_VALUE, Integer.MAX_VALUE)
                             .isEmpty()) throw new IllegalArgumentException("Invalid goal payload.");
             state.revision = Math.max(0, file.revision());
             state.payload = file.payload();

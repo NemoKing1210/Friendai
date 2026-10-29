@@ -2,10 +2,13 @@ package dev.friendai.agent.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.QueuedStep;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,13 +25,19 @@ class PlannerParserTest {
         return PlannerParser.parse(text, SCHEMAS, ALL, 12, 8192, 49152);
     }
 
+    private static List<QueuedStep> actionSteps(PlanProposal proposal) {
+        return proposal.plan().nodes().stream()
+                .map(node -> assertInstanceOf(PlanNode.Action.class, node).step())
+                .toList();
+    }
+
     @Test
     void parsesAValidProposalWithRationale() {
         PlannerParser.Parsed p = parse("{\"rationale\":\"jump twice\",\"expected_outcome\":\"hopped\","
                 + "\"steps\":[{\"tool\":\"jump\",\"args\":\"{\\\"count\\\":2}\"},{\"tool\":\"go_to\",\"after\":[1]}]}");
         assertTrue(p.ok(), p.errors().toString());
         PlanProposal proposal = p.proposal().orElseThrow();
-        assertEquals(2, proposal.steps().size());
+        assertEquals(2, actionSteps(proposal).size());
         assertEquals("jump twice", proposal.rationale());
         assertEquals("hopped", proposal.expectedOutcome());
         assertEquals(2, proposal.stepsJson().size());
@@ -47,7 +56,12 @@ class PlannerParserTest {
                 .getAsJsonPrimitive()
                 .isString());
         assertEquals(
-                3, p.proposal().orElseThrow().steps().get(0).args().get("count").getAsInt());
+                3,
+                actionSteps(p.proposal().orElseThrow())
+                        .getFirst()
+                        .args()
+                        .get("count")
+                        .getAsInt());
     }
 
     @Test
@@ -60,21 +74,21 @@ class PlannerParserTest {
     void aBareArrayOfStepsIsAccepted() {
         PlannerParser.Parsed p = parse("[{\"tool\":\"jump\"},{\"tool\":\"go_to\"}]");
         assertTrue(p.ok(), p.errors().toString());
-        assertEquals(2, p.proposal().orElseThrow().steps().size());
+        assertEquals(2, actionSteps(p.proposal().orElseThrow()).size());
     }
 
     @Test
     void anExampleBeforeThePlanDoesNotHideIt() {
         PlannerParser.Parsed p = parse("Args look like {\"count\": 2}; the plan is {\"steps\":[{\"tool\":\"jump\"}]}");
         assertTrue(p.ok(), p.errors().toString());
-        assertEquals(1, p.proposal().orElseThrow().steps().size());
+        assertEquals(1, actionSteps(p.proposal().orElseThrow()).size());
     }
 
     @Test
     void bracesInProseAfterTheObjectDoNotBreakIt() {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"jump\"}]}\nArgs look like {\"count\": 2}");
         assertTrue(p.ok(), p.errors().toString());
-        assertEquals(1, p.proposal().orElseThrow().steps().size());
+        assertEquals(1, actionSteps(p.proposal().orElseThrow()).size());
     }
 
     @Test
@@ -133,7 +147,9 @@ class PlannerParserTest {
         PlannerParser.Parsed p = parse("{\"steps\":[{\"tool\":\"go_to\"},{\"tool\":\"jump\"}]}");
         assertEquals(
                 List.of("go_to", "jump"),
-                p.proposal().orElseThrow().steps().stream().map(s -> s.tool()).toList());
+                actionSteps(p.proposal().orElseThrow()).stream()
+                        .map(s -> s.tool())
+                        .toList());
     }
 
     @Test
@@ -147,7 +163,7 @@ class PlannerParserTest {
                 """);
         assertTrue(parsed.ok(), parsed.errors().toString());
         var proposal = parsed.proposal().orElseThrow();
-        assertEquals(2, proposal.steps().size());
+        assertEquals(1, proposal.plan().nodes().size());
         assertTrue(proposal.stepsJson()
                 .get(0)
                 .getAsJsonObject()
@@ -157,7 +173,10 @@ class PlannerParserTest {
                 .get("args")
                 .getAsJsonPrimitive()
                 .isString());
-        assertTrue(proposal.plan().nodes().getFirst() instanceof dev.friendai.execution.queue.PlanNode.Conditional);
+        PlanNode.Conditional conditional = assertInstanceOf(
+                PlanNode.Conditional.class, proposal.plan().nodes().getFirst());
+        assertInstanceOf(PlanNode.Action.class, conditional.thenNodes().getFirst());
+        assertInstanceOf(PlanNode.Repeat.class, conditional.elseNodes().getFirst());
     }
 
     @Test

@@ -45,24 +45,13 @@ public final class GoalSave {
         return root.toString();
     }
 
-    /** New owner-file payload without the legacy in-memory prefix. */
-    public static String encodePayload(GoalBoard board) {
-        return encode(board);
-    }
-
     /** The board, or empty when the text is missing, from another version, oversized or broken. */
     public static Optional<GoalBoard> decode(String saved, int maxBackground, int maxReplans) {
         if (saved == null || saved.length() > MAX_INPUT) {
             return Optional.empty();
         }
-        return decodePayload(saved, maxBackground, maxReplans);
-    }
-
-    /** Decodes only the current JSON payload format used by the independent goal record. */
-    public static Optional<GoalBoard> decodePayload(String json, int maxBackground, int maxReplans) {
-        if (json == null || json.length() > MAX_INPUT) return Optional.empty();
         try {
-            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonObject root = JsonParser.parseString(saved).getAsJsonObject();
             List<Goal> goals = new ArrayList<>();
             for (JsonElement element : root.getAsJsonArray("goals")) {
                 JsonObject g = element.getAsJsonObject();
