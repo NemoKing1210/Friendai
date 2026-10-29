@@ -22,9 +22,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /** A nearby guest talks to someone else's companion: routing, guest tool limits and trust. */
@@ -85,6 +87,38 @@ public class GuestTests {
     }
 
     @GameTest(maxTicks = 100)
+    public void aNearbyRenamedCompanionHearsItsOwnNameEvenWhenOursIsFar(GameTestHelper h) {
+        ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerPlayer firstOwner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer secondOwner = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        CompanionManager.get(server).summon(firstOwner);
+        CompanionManager.get(server).summon(secondOwner);
+        // The guest's own companion is out of hearing; the nearby renamed one is the recipient.
+        var own = CompanionManager.get(server).find(firstOwner.getUUID()).orElseThrow();
+        own.snapTo(own.getX() + 64, own.getY(), own.getZ());
+        var recipient = CompanionManager.get(server).find(secondOwner.getUUID()).orElseThrow();
+        recipient.setCustomName(Component.literal("Scout"));
+        recipient.setCustomNameVisible(true);
+
+        Script script = new Script().text("Scout here");
+        Said said = new Said();
+        state.sessions().setGatewayOverride(secondOwner.getUUID(), script);
+        state.sessions().setSpeakerWrapper(secondOwner.getUUID(), real -> said);
+        ChatRouter.onChat(state, guest, "Scout, hi");
+
+        h.succeedWhen(() -> {
+            h.assertTrue(said.said.contains("Scout here"), "the renamed recipient should answer: " + said.said);
+            h.assertTrue(!script.requests.isEmpty(), "no request reached the nearby renamed companion");
+            h.assertTrue(
+                    lastUser(script.requests.get(0).messages()).text().contains("(guest)]: "),
+                    "user line was "
+                            + lastUser(script.requests.get(0).messages()).text());
+        });
+    }
+
+    @GameTest(maxTicks = 100)
     public void guestReachesNearbyCompanion(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
@@ -104,7 +138,7 @@ public class GuestTests {
                     lastUser(first.messages()).text().contains("(guest)]: "),
                     "user line was " + lastUser(first.messages()).text());
             h.assertTrue(
-                    first.tools().equals(List.of("look_around", "remember", "forget", "recall")),
+                    Set.copyOf(first.tools()).equals(Set.of("look_around", "remember", "forget", "recall")),
                     "tools were " + first.tools());
         });
     }

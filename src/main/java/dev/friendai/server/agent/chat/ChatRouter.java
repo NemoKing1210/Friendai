@@ -33,18 +33,24 @@ public final class ChatRouter {
             return;
         }
         ServerConfig cfg = runtime.config();
-        // A renamed companion answers to its current name; the configured name stays the default for a summon.
-        String name = runtime.companions()
-                .find(player.getUUID())
+        // Pick the recipient first: the name that counts is the one that is going to hear the line, not the
+        // sender's own companion's name. A renamed companion answers to its current name; the configured name
+        // stays the default for a summon and for the "too far" feedback when nobody is in hearing.
+        Optional<UUID> recipient = CompanionRouting.route(runtime, player);
+        String name = recipient
+                .flatMap(owner -> runtime.companions().find(owner))
                 .map(companion -> companion.getName().getString())
                 .filter(current -> !current.isBlank())
-                .orElse(cfg.companion.name);
+                .orElseGet(() -> runtime.companions()
+                        .find(player.getUUID())
+                        .map(companion -> companion.getName().getString())
+                        .filter(current -> !current.isBlank())
+                        .orElse(cfg.companion.name));
         AddressDetector detector = new AddressDetector(name, cfg.chat.prefix, cfg.chat.respondToName, false);
         Optional<String> addressed = detector.match(text);
         if (addressed.isPresent()) {
-            Optional<UUID> owner = CompanionRouting.route(runtime, player);
-            if (owner.isPresent()) {
-                CompanionRouting.deliver(runtime, player, owner.get(), addressed.get(), BrainEvent.Source.CHAT);
+            if (recipient.isPresent()) {
+                CompanionRouting.deliver(runtime, player, recipient.get(), addressed.get(), BrainEvent.Source.CHAT);
             } else if (runtime.companions().find(player.getUUID()).isPresent()) {
                 player.sendSystemMessage(Component.translatable("friendai.companion.too_far"));
             }
