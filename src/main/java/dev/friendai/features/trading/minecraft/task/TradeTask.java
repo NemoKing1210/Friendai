@@ -1,6 +1,5 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeOffer;
@@ -52,11 +51,11 @@ public final class TradeTask implements Task {
     public void start(TaskContext context) {
         ownerAtStart = context.companion().ownerUuid();
         dimensionAtStart = context.level().dimension().identifier().toString();
-        var state = FriendaiServerState.get(context.level().getServer());
         if (ownerAtStart != null && ownerAtStart.equals(order.owner())) {
-            authority = state.tradeAuthorityFor(ownerAtStart);
+            authority = context.tradeAuthorityFor(ownerAtStart);
             progress = currentProgress();
-            traderRecord = state.tradeBook(order.owner()).trader(order.trader()).orElse(null);
+            traderRecord =
+                    context.tradeBook(order.owner()).trader(order.trader()).orElse(null);
             if (traderRecord != null) {
                 quote = traderRecord.offers().stream()
                         .filter(value -> value.ref().equals(order.offerRef()))
@@ -121,8 +120,8 @@ public final class TradeTask implements Task {
             return shortResult(context, "bound UUID no longer identifies a merchant");
         }
         if (target == null) {
-            var state = FriendaiServerState.get(context.level().getServer());
-            traderRecord = state.tradeBook(order.owner()).trader(order.trader()).orElse(traderRecord);
+            traderRecord =
+                    context.tradeBook(order.owner()).trader(order.trader()).orElse(traderRecord);
             BlockPos hint = TraderTaskNavigation.lastKnownPosition(traderRecord, dimensionAtStart);
             if (hint == null) return shortResult(context, "exact merchant is not loaded in this dimension");
             if (!TraderTaskNavigation.inBoundedArea(context.companion(), hint)) {
@@ -150,9 +149,8 @@ public final class TradeTask implements Task {
         }
 
         MerchantSession.Outcome outcome;
-        try (MerchantSession session = FriendaiServerState.get(context.level().getServer())
-                .merchantAdapter()
-                .openSession(context.companion(), target, order, authority, nowTick)) {
+        try (MerchantSession session =
+                context.merchantAdapter().openSession(context.companion(), target, order, authority, nowTick)) {
             outcome = session.tradeOnce(order);
         } catch (RuntimeException failure) {
             outcome = new MerchantSession.Outcome(false, safeMessage(failure), currentProgress());
@@ -319,9 +317,7 @@ public final class TradeTask implements Task {
 
     private void persistProgress(TaskContext context, TradeProgress value) {
         try {
-            FriendaiServerState.get(context.level().getServer())
-                    .tradeBook(order.owner())
-                    .record(value);
+            context.tradeBook(order.owner()).record(value);
         } catch (RuntimeException failure) {
             // Runtime authority remains authoritative if informational history cannot be updated.
             LOGGER.warn(

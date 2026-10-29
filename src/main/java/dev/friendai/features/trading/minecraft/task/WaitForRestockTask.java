@@ -1,6 +1,5 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.trading.TradeOffer;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
@@ -138,7 +137,7 @@ public final class WaitForRestockTask implements Task {
     }
 
     private dev.friendai.features.trading.TradeBook book(TaskContext context) {
-        return FriendaiServerState.get(context.level().getServer()).tradeBook(ownerAtStart);
+        return context.tradeBook(ownerAtStart);
     }
 
     private void fail(String message) {

@@ -13,11 +13,7 @@ final class PackageDependencyRules {
             "dev.friendai.server.runtime.ServerRuntime",
             "dev.friendai.server.runtime.ServerRuntimeFactory",
             "dev.friendai.server.runtime.ServerTickPipeline",
-            "dev.friendai.task.TaskContext",
-            "dev.friendai.features.trading.minecraft.task.BarterTask",
-            "dev.friendai.features.trading.minecraft.task.InspectTraderTask",
-            "dev.friendai.features.trading.minecraft.task.TradeTask",
-            "dev.friendai.features.trading.minecraft.task.WaitForRestockTask");
+            "dev.friendai.task.TaskContext");
     private static final Set<String> FEATURE_SERVICES_WITH_NARROW_CONTEXT = Set.of(
             "dev.friendai.features.places.minecraft.PlaceService",
             "dev.friendai.features.placements.minecraft.PlacedService");

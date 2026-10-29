@@ -1,6 +1,5 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
@@ -62,16 +61,13 @@ public final class InspectTraderTask implements Task {
             return finish(context, TaskStatus.FAILED, "inspection deadline expired");
         String invalid = TraderTaskNavigation.invalidContext(context, ownerAtStart, dimensionAtStart);
         if (invalid != null) return finish(context, TaskStatus.FAILED, invalid);
-        var serverState =
-                FriendaiServerState.get(context.level().getServer());
         Entity target = context.level().getEntity(trader);
         if (target != null && !target.isAlive()) return finish(context, TaskStatus.FAILED, "exact trader is dead");
         if (target != null && !(target instanceof Merchant)) {
             return finish(context, TaskStatus.FAILED, "bound UUID no longer identifies a merchant");
         }
         if (target == null) {
-            TraderRecord known =
-                    serverState.tradeBook(ownerAtStart).trader(trader).orElse(null);
+            TraderRecord known = context.tradeBook(ownerAtStart).trader(trader).orElse(null);
             BlockPos hint = TraderTaskNavigation.lastKnownPosition(known, dimensionAtStart);
             if (hint == null)
                 return finish(context, TaskStatus.FAILED, "exact trader has no same-dimension location hint");
@@ -94,8 +90,7 @@ public final class InspectTraderTask implements Task {
 
         TraderTaskNavigation.aimAt(navigator, target, context.companion());
         if (TraderTaskNavigation.inActionReach(context.companion(), target)) {
-            result = FriendaiServerState.get(context.level().getServer())
-                    .merchantAdapter()
+            result = context.merchantAdapter()
                     .inspect(
                             context.companion(),
                             target,

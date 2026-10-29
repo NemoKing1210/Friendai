@@ -70,6 +70,10 @@ public record TaskContext(
         return serverSettings.tasks();
     }
 
+    public boolean tradingEnabled() {
+        return serverSettings.trading().enabled();
+    }
+
     public PathingConfig pathingConfig() {
         return serverSettings.pathing();
     }

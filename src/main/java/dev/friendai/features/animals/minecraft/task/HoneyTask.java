@@ -91,7 +91,7 @@ public final class HoneyTask implements Task {
                 failed = true;
                 return TaskStatus.FAILED;
             }
-            Optional<BlockPos> found = hive != null ? Optional.of(hive) : nearestHive(c.companion());
+            Optional<BlockPos> found = hive != null ? Optional.of(hive) : nearestHive(c);
             if (found.isEmpty()) {
                 summary = "no beehive nearby";
                 failed = true;
@@ -185,15 +185,13 @@ public final class HoneyTask implements Task {
         return ItemStack.EMPTY;
     }
 
-    private static Optional<BlockPos> nearestHive(CompanionEntity companion) {
-        if (!(companion.level() instanceof ServerLevel level)) return Optional.empty();
+    private static Optional<BlockPos> nearestHive(TaskContext context) {
+        CompanionEntity companion = context.companion();
+        if (!(companion.level() instanceof ServerLevel)) return Optional.empty();
         var matcher = dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("#minecraft:beehives")
                 .orElse(null);
         if (matcher == null) return Optional.empty();
-        return dev.friendai.core.FriendaiServerState.get(level.getServer())
-                .resources()
-                .visible(companion, matcher, RADIUS, 1)
-                .stream()
+        return context.resources().visible(companion, matcher, RADIUS, 1).stream()
                 .findFirst();
     }
 

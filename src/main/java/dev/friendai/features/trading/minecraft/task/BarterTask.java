@@ -1,18 +1,17 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.BarterOrder;
 import dev.friendai.features.trading.BarterProgress;
 import dev.friendai.features.trading.TradeItem;
+import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
+import dev.friendai.features.trading.minecraft.trading.PiglinBarterAdapter;
+import dev.friendai.features.trading.minecraft.trading.TradeItemCodec;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
-import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
-import dev.friendai.features.trading.minecraft.trading.PiglinBarterAdapter;
-import dev.friendai.features.trading.minecraft.trading.TradeItemCodec;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -78,8 +77,7 @@ public final class BarterTask implements Task {
     @Override
     public TaskStatus tick(TaskContext context) {
         if (terminal != null) return terminal;
-        var server = FriendaiServerState.get(context.level().getServer());
-        if (!server.tradingSettings().enabled()) return finish(context, TaskStatus.FAILED, "trading was disabled");
+        if (!context.tradingEnabled()) return finish(context, TaskStatus.FAILED, "trading was disabled");
         String invalid = TraderTaskNavigation.invalidContext(context, ownerAtStart, dimensionAtStart);
         if (invalid != null) return finish(context, TaskStatus.FAILED, invalid);
         if (!order.owner().equals(ownerAtStart))
@@ -120,10 +118,10 @@ public final class BarterTask implements Task {
                         .stream()
                         .anyMatch(hostile -> hostile != piglin)
                 && phase == Phase.READY) {
-            return stepReady(context, piglin, server.piglinBarterAdapter(), server.barterDropTracker(), now);
+            return stepReady(context, piglin, context.piglinBarterAdapter(), context.barterDropTracker(), now);
         }
-        if (phase == Phase.WAITING) return stepWaiting(context, piglin, server.barterDropTracker(), now);
-        if (phase == Phase.COLLECTING) return stepCollecting(context, piglin, server.barterDropTracker(), now);
+        if (phase == Phase.WAITING) return stepWaiting(context, piglin, context.barterDropTracker(), now);
+        if (phase == Phase.COLLECTING) return stepCollecting(context, piglin, context.barterDropTracker(), now);
         return finish(context, TaskStatus.FAILED, "nearby hostile interrupted barter safety check");
     }
 
@@ -144,8 +142,7 @@ public final class BarterTask implements Task {
         if (!adapter.canStart(context.companion(), piglin.getUUID())) {
             return finish(context, incompleteState(), "piglin is unwilling, busy or unsafe to approach");
         }
-        var authority =
-                FriendaiServerState.get(context.level().getServer()).tradeAuthorityFor(order.owner());
+        var authority = context.tradeAuthorityFor(order.owner());
         if (!authority.reserveBarter(order, 1))
             return finish(context, incompleteState(), "shared gold budget is exhausted");
         attempt = UUID.randomUUID();
@@ -277,20 +274,16 @@ public final class BarterTask implements Task {
         if (attempt != null
                 && finalState != BarterProgress.State.INTERRUPTED
                 && finalState != BarterProgress.State.UNCERTAIN) {
-            FriendaiServerState.get(context.level().getServer())
-                    .barterDropTracker()
-                    .finish(attempt);
+            context.barterDropTracker().finish(attempt);
         }
         record(context);
         return terminal;
     }
 
     private void record(TaskContext context) {
-        FriendaiServerState.get(context.level().getServer()).tradeAuthorityFor(order.owner())
-                .recordBarter(progress());
+        context.tradeAuthorityFor(order.owner()).recordBarter(progress());
         try {
-            FriendaiServerState.get(context.level().getServer()).tradeBook(order.owner())
-                    .recordBarter(progress());
+            context.tradeBook(order.owner()).recordBarter(progress());
         } catch (RuntimeException ignored) {
             // Runtime authority is authoritative if bounded informational history cannot be updated.
         }
