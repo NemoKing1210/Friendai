@@ -2,13 +2,13 @@ package dev.friendai.core;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.creative.CreativeMode;
 import dev.friendai.features.creative.CreativePermissions;
 import dev.friendai.features.creative.CreativePolicy;
 import dev.friendai.server.net.Operators;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,15 +23,21 @@ public final class CreativeModeService {
 
     private CreativeModeService() {}
 
-    public static Result requestMode(CompanionEntity companion, ServerPlayer actor, boolean enabled) {
-        if (companion == null
+    public static Result requestMode(
+            ServerRuntime runtime, CompanionEntity companion, ServerPlayer actor, boolean enabled) {
+        if (runtime == null
+                || companion == null
                 || actor == null
-                || !(companion.level() instanceof ServerLevel level)
-                || actor.level().getServer() != level.getServer()
+                || !(companion.level() instanceof ServerLevel level)) {
+            return Result.DENIED;
+        }
+        var server = runtime.server();
+        if (server != level.getServer()
+                || actor.level().getServer() != server
                 || companion.ownerUuid() == null
                 || !companion.ownerUuid().equals(actor.getUUID())
-                || level.getServer().getPlayerList().getPlayer(actor.getUUID()) != actor
-                || CompanionManager.get(level.getServer()).find(actor.getUUID()).orElse(null) != companion) {
+                || server.getPlayerList().getPlayer(actor.getUUID()) != actor
+                || runtime.companions().find(actor.getUUID()).orElse(null) != companion) {
             return Result.DENIED;
         }
         if (companion.creativeMode() == enabled) {
@@ -42,12 +48,11 @@ public final class CreativeModeService {
             return Result.DENIED;
         }
 
-        FriendaiServerState state = FriendaiServerState.get(level.getServer());
-        state.sessions().cancel(actor.getUUID());
+        runtime.sessions().cancel(actor.getUUID());
         companion.executionCoordinator().cancelForCapabilityChange();
         companion.getNavigation().stop();
         companion.setSprinting(false);
-        CompanionLifeData life = state.companionLife();
+        CompanionLifeData life = runtime.companionLife();
         life.setCreativeMode(actor.getUUID(), enabled);
         companion.setCreativeMode(enabled);
         return Result.CHANGED;

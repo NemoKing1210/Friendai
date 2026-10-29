@@ -114,7 +114,7 @@ public final class CompanionRequestHandler {
                 return;
             }
             CreativeModeService.Result result =
-                    CreativeModeService.requestMode(companion.get(), player, toggle.enabled());
+                    CreativeModeService.requestMode(runtime, companion.get(), player, toggle.enabled());
             if (result == CreativeModeService.Result.DENIED) {
                 player.sendSystemMessage(Component.translatable("friendai.menu.creative.denied"));
                 runtime.debugStream().sendNow(runtime, player, requestId);

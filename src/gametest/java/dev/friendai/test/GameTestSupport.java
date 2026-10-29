@@ -5,6 +5,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.perception.resource.ResourceSight;
+import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -14,6 +16,10 @@ import net.minecraft.world.phys.Vec3;
 
 final class GameTestSupport {
     private GameTestSupport() {}
+
+    static ServerRuntime runtime(GameTestHelper h) {
+        return ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer());
+    }
 
     /** A mock owner standing at the given test-relative position. */
     @SuppressWarnings("removal")

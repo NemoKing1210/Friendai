@@ -81,10 +81,12 @@ public class CreativeModeTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertFalse(Operators.isOperator(owner), "test owner unexpectedly has operator permission");
         h.assertTrue(
-                CreativeModeService.requestMode(companion, guest, true) == CreativeModeService.Result.DENIED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, guest, true)
+                        == CreativeModeService.Result.DENIED,
                 "a guest must not activate creative");
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.DENIED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, true)
+                        == CreativeModeService.Result.DENIED,
                 "a non-operator owner must not activate creative");
 
         companion.executionCoordinator().setPaused(true);
@@ -123,7 +125,8 @@ public class CreativeModeTests {
         companion.syncCreativeModePreference();
 
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, false)
+                        == CreativeModeService.Result.CHANGED,
                 "the owner must be able to disable creative after activation rights are revoked");
         h.assertFalse(companion.creativeMode(), "creative mode was not disabled");
         h.assertFalse(
@@ -186,7 +189,8 @@ public class CreativeModeTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, true)
+                        == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
         companion.executionCoordinator().setPaused(true);
 
@@ -213,7 +217,8 @@ public class CreativeModeTests {
         h.assertTrue(companion.executionCoordinator().queue().jobCount() == 1, "test planner proposal was not queued");
 
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, false)
+                        == CreativeModeService.Result.CHANGED,
                 "owner could not turn creative mode off");
         companion.executionCoordinator().setPaused(false);
         for (int i = 0; i < 4; i++) companion.executionCoordinator().tick();

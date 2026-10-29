@@ -33,7 +33,8 @@ public final class CreativeFlightTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, true)
+                        == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
         return companion;
     }
@@ -133,7 +134,8 @@ public final class CreativeFlightTests {
         companion.beginCreativeFlight();
         h.assertTrue(companion.isNoGravity(), "flight did not enable no-gravity movement");
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, false) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, false)
+                        == CreativeModeService.Result.CHANGED,
                 "operator owner could not disable creative mode");
         h.assertTrue(companion.creativeLanding(), "mode exit did not enter landing");
         h.succeedWhen(() -> {

@@ -53,7 +53,8 @@ public final class CreativeCommandTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         h.assertTrue(
-                CreativeModeService.requestMode(companion, owner, true) == CreativeModeService.Result.CHANGED,
+                CreativeModeService.requestMode(GameTestSupport.runtime(h), companion, owner, true)
+                        == CreativeModeService.Result.CHANGED,
                 "operator owner could not enable creative mode");
         return companion;
     }
