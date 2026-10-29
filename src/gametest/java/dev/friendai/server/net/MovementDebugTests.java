@@ -8,6 +8,7 @@ import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -34,7 +35,8 @@ public final class MovementDebugTests {
     public void activeTaskWorkSetsAreIncluded(GameTestHelper helper) {
         CompanionEntity companion = helper.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.executionCoordinator().start(new SnapshotTask(), "debug_snapshot");
-        MovementDebug view = MovementDebugStream.build(companion);
+        MovementDebug view = MovementDebugStream.build(
+                ServerRuntimeRegistry.getOrCreate(helper.getLevel().getServer()), companion);
         helper.assertValueEqual(view.workSets().size(), 1, "active work-set count");
         helper.assertValueEqual(view.workSets().getFirst().total(), 2, "whole work-set total");
         helper.assertTrue(

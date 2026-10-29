@@ -56,7 +56,7 @@ public final class CompanionRequestHandler {
             return;
         }
         if (request instanceof DebugRequest.MovementStreamSet movement) {
-            MovementDebugStream.set(player, movement.enabled(), requestId);
+            runtime.movementDebugStream().set(runtime, player, movement.enabled(), requestId);
             return;
         }
         if (request instanceof MemoryRequest.Open) {

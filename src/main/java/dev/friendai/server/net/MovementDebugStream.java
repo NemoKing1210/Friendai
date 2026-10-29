@@ -1,13 +1,11 @@
 package dev.friendai.server.net;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.debug.DebugService;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.MovementDebug;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkSetBudget;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.Path;
@@ -16,7 +14,7 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.debug.MovementDebugProtocolViewCodec;
 import dev.friendai.protocol.debug.MovementDebugView;
-import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.Task;
 import dev.friendai.transport.protocol.MovementDebugProtocolAdapter;
 import java.util.ArrayList;
@@ -24,65 +22,60 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 /** Feeds the movement overlay to operators who switched it on: the route, the goal and the movement numbers. */
 public final class MovementDebugStream {
     private static final int INTERVAL_TICKS = 4;
-    private static int counter;
+    private int counter;
 
-    private MovementDebugStream() {}
+    public MovementDebugStream() {}
 
-    public static void tick(MinecraftServer server) {
+    public void tick(ServerRuntime runtime) {
+        var server = runtime.server();
         if (++counter % INTERVAL_TICKS != 0) {
             return;
         }
-        DebugService debug = FriendaiServerState.get(server).sessions().debug();
+        DebugService debug = runtime.sessions().debug();
         for (UUID owner : debug.movementViewers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(owner);
             if (player == null || !Operators.isOperator(player)) {
                 debug.setMovementDebug(owner, false);
                 continue;
             }
-            send(player, true, 0);
+            send(runtime, player, true, 0);
         }
     }
 
     /** Switches the overlay for the player; switching off sends an empty view so the client clears it. */
-    public static void set(ServerPlayer player, boolean on) {
-        set(player, on, 0);
+    public void set(ServerRuntime runtime, ServerPlayer player, boolean on) {
+        set(runtime, player, on, 0);
     }
 
-    public static void set(ServerPlayer player, boolean on, long requestId) {
-        FriendaiServerState.get(player.level().getServer()).sessions().debug().setMovementDebug(player.getUUID(), on);
-        send(player, on, requestId);
+    public void set(ServerRuntime runtime, ServerPlayer player, boolean on, long requestId) {
+        runtime.sessions().debug().setMovementDebug(player.getUUID(), on);
+        send(runtime, player, on, requestId);
     }
 
-    public static void onDisconnect(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer())
-                .sessions()
-                .debug()
-                .setMovementDebug(player.getUUID(), false);
+    public void onDisconnect(ServerRuntime runtime, ServerPlayer player) {
+        runtime.sessions().debug().setMovementDebug(player.getUUID(), false);
     }
 
-    private static void send(ServerPlayer player, boolean on, long requestId) {
+    private void send(ServerRuntime runtime, ServerPlayer player, boolean on, long requestId) {
         MovementDebugView view = new MovementDebugView(
                 0, -1, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         if (on) {
-            Optional<CompanionEntity> companion =
-                    CompanionManager.get(player.level().getServer()).find(player.getUUID());
+            Optional<CompanionEntity> companion = runtime.companions().find(player.getUUID());
             if (companion.isPresent()) {
-                view = MovementDebugProtocolAdapter.toProtocol(build(companion.get()));
+                view = MovementDebugProtocolAdapter.toProtocol(build(runtime, companion.get()));
             }
         }
-        ServerRuntimeRegistry.getOrCreate(player.level().getServer())
-                .protocolConnections()
+        runtime.protocolConnections()
                 .sendView(player, ProtocolFamily.DEBUG, MovementDebugProtocolViewCodec.encode(view, requestId));
     }
 
-    static MovementDebug build(CompanionEntity c) {
+    static MovementDebug build(ServerRuntime runtime, CompanionEntity c) {
         Navigator nav = c.activeNavigator();
         List<MovementDebug.Segment> route = new ArrayList<>();
         List<MovementDebug.Cell> breaks = new ArrayList<>();
@@ -95,8 +88,7 @@ public final class MovementDebugStream {
         c.executionCoordinator().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
         var ownerId = c.ownerUuid();
         if (ownerId != null) {
-            var freeTime =
-                    FriendaiServerState.get(c.level().getServer()).freeTime().state(ownerId);
+            var freeTime = runtime.freeTime().state(ownerId);
             if (freeTime.shift() != null && !freeTime.shift().goal().isBlank()) {
                 lines.add("free-time shift: " + freeTime.shift().goal());
             } else if (freeTime.awaitingChoice()) {

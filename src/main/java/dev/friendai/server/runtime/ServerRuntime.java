@@ -44,6 +44,7 @@ public final class ServerRuntime implements AutoCloseable {
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
     private final DebugStream debugStream;
+    private final MovementDebugStream movementDebugStream;
     private final MemoryViewStream memoryViewStream;
     private final PlaceViewStream placeViewStream;
     private boolean acceptingWork = true;
@@ -75,6 +76,7 @@ public final class ServerRuntime implements AutoCloseable {
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
         this.debugStream = new DebugStream();
+        this.movementDebugStream = new MovementDebugStream();
         this.memoryViewStream = new MemoryViewStream();
         this.placeViewStream = new PlaceViewStream();
     }
@@ -116,7 +118,7 @@ public final class ServerRuntime implements AutoCloseable {
     public void onOwnerLeft(ServerPlayer player) {
         if (protocolConnections != null) protocolConnections.leave(player);
         debugStream.onDisconnect(this, player);
-        MovementDebugStream.onDisconnect(player);
+        movementDebugStream.onDisconnect(this, player);
         memoryViewStream.onDisconnect(this, player);
         SkillsViewStream.onDisconnect(player);
         placeViewStream.onDisconnect(this, player);
@@ -190,6 +192,10 @@ public final class ServerRuntime implements AutoCloseable {
 
     public DebugStream debugStream() {
         return debugStream;
+    }
+
+    public MovementDebugStream movementDebugStream() {
+        return movementDebugStream;
     }
 
     public CompanionProfileRepository profiles() {

@@ -18,6 +18,7 @@ class ServerRuntimeTest {
         assertNotSame(first.memoryViewStream(), second.memoryViewStream());
         assertNotSame(first.placeViewStream(), second.placeViewStream());
         assertNotSame(first.debugStream(), second.debugStream());
+        assertNotSame(first.movementDebugStream(), second.movementDebugStream());
     }
 
     @Test

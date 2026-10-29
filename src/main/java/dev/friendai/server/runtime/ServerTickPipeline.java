@@ -2,7 +2,6 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.server.net.MovementDebugStream;
 import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
 import net.minecraft.server.MinecraftServer;
@@ -41,6 +40,6 @@ public final class ServerTickPipeline {
         runtime.memoryViewStream().tick(runtime);
         SkillsViewStream.tick(runtime);
         runtime.placeViewStream().tick(runtime);
-        MovementDebugStream.tick(server);
+        runtime.movementDebugStream().tick(runtime);
     }
 }

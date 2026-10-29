@@ -3,5 +3,4 @@ legacy-server-state-lookup	dev.friendai.core.CreativeModeService	dev.friendai.co
 legacy-server-state-lookup	dev.friendai.entity.CompanionEntity	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionManager	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionRenamer	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.server.net.MovementDebugStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.companion.persistence.CompanionBodyCodec	dev.friendai.core.FriendaiServerState	9
