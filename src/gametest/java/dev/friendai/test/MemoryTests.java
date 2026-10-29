@@ -17,6 +17,7 @@ import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -149,7 +150,7 @@ public class MemoryTests {
                 .text("No");
         state.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
-        ChatRouter.onChat(guest, "Friendai, remember this");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), guest, "Friendai, remember this");
         h.succeedWhen(() -> {
             h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
             h.assertTrue(

@@ -36,6 +36,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.CompanionPerception;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.agent.perception.PerceptionContext;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -450,7 +451,8 @@ public class CompanionDeathTests {
                 return;
             }
             if (said.said.isEmpty()) {
-                ChatRouter.onChat(owner, "Friendai, hi");
+                ChatRouter.onChat(
+                        ServerRuntimeRegistry.getOrCreate(owner.level().getServer()), owner, "Friendai, hi");
             }
             h.assertTrue(said.said.contains("Still here"), "the rebuilt brain must answer, said " + said.said);
         });

@@ -112,6 +112,16 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void chatAdaptersDoNotLookUpTheLegacyServerState() throws IOException {
+        Path chatRoot = PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/agent/chat");
+        for (String adapter : List.of("ChatRouter.java", "CompanionRouting.java")) {
+            assertFalse(
+                    Files.readString(chatRoot.resolve(adapter)).contains("FriendaiServerState"),
+                    "Chat adapters should use the runtime supplied at their boundary: " + adapter);
+        }
+    }
+
+    @Test
     void placementServiceLivesWithItsFeature() {
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("src/main/java/dev/friendai/features/placements/minecraft/PlacedService.java")));

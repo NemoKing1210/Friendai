@@ -16,6 +16,7 @@ import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -94,7 +95,7 @@ public class GuestTests {
         brains.setGatewayOverride(owner.getUUID(), script);
         brains.setSpeakerWrapper(owner.getUUID(), real -> said);
         CompanionManager.get(server).summon(owner);
-        ChatRouter.onChat(guest, "Friendai, hi");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), guest, "Friendai, hi");
         h.succeedWhen(() -> {
             h.assertTrue(said.said.contains("Hello"), "said " + said.said);
             h.assertTrue(!script.requests.isEmpty(), "no LLM request yet");
@@ -117,7 +118,7 @@ public class GuestTests {
         Script script = new Script().call("stay", "{}").text("No");
         brains.setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
-        ChatRouter.onChat(guest, "Friendai, stay there");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), guest, "Friendai, stay there");
         h.succeedWhen(() -> {
             h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
             h.assertTrue(
@@ -140,7 +141,7 @@ public class GuestTests {
         Script script = new Script().call("stay", "{}").text("Okay");
         state.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
-        ChatRouter.onChat(guest, "Friendai, stay there");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), guest, "Friendai, stay there");
         h.succeedWhen(() -> {
             h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
             h.assertTrue(

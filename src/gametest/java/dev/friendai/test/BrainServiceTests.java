@@ -21,6 +21,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -98,7 +99,7 @@ public class BrainServiceTests {
         brains.setGatewayOverride(player.getUUID(), script);
         brains.setSpeakerWrapper(player.getUUID(), real -> said);
         CompanionManager.get(server).summon(player);
-        ChatRouter.onChat(player, "Friendai, hi");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), player, "Friendai, hi");
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 
@@ -116,7 +117,7 @@ public class BrainServiceTests {
                 !brains.runTool(player.getUUID(), "set_name", "{\"name\":\"Bob\"}")
                         .error(),
                 "set_name should work for the owner");
-        ChatRouter.onChat(player, "Bob, hi");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), player, "Bob, hi");
         h.succeedWhen(() -> h.assertTrue(said.said.contains("Hi"), "said " + said.said));
     }
 

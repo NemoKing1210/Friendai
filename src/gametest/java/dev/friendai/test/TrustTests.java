@@ -15,6 +15,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.agent.tools.FriendaiTools;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -280,7 +281,7 @@ public class TrustTests {
         Recorder recorder = gateway(h, owner.player());
 
         h.assertTrue(!state.trust().answer(owner.player(), "да"), "nothing to confirm");
-        ChatRouter.onChat(owner.player(), "Friendai, да");
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer()), owner.player(), "Friendai, да");
         h.succeedWhen(() -> h.assertTrue(recorder.contains("]: да"), "requests were " + recorder.requests));
     }
 

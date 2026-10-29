@@ -26,7 +26,7 @@ public final class VoiceTranscriptHandler {
             return;
         }
         String clean = text.strip();
-        boolean ownNear = CompanionRouting.ownWithinHearing(player);
+        boolean ownNear = CompanionRouting.ownWithinHearing(runtime, player);
         // A yes/no answer to a pending trust request is handled before the line reaches any companion,
         // but only when the companion is close enough to have heard it.
         if (ownNear && runtime.trust().answer(player, clean)) {
@@ -35,7 +35,7 @@ public final class VoiceTranscriptHandler {
         if (!runtime.protocolConnections().voiceLimiter().tryAcquire(player.getUUID())) {
             return;
         }
-        Optional<UUID> owner = CompanionRouting.route(player);
+        Optional<UUID> owner = CompanionRouting.route(runtime, player);
         if (owner.isEmpty()) {
             player.sendSystemMessage(Component.translatable(
                     runtime.companions().find(player.getUUID()).isPresent()
@@ -46,6 +46,6 @@ public final class VoiceTranscriptHandler {
         String name = player.getName().getString();
         server.getPlayerList()
                 .broadcastSystemMessage(Component.translatable("friendai.voice.chat_line", name, clean), false);
-        CompanionRouting.deliver(player, owner.get(), clean, BrainEvent.Source.VOICE);
+        CompanionRouting.deliver(runtime, player, owner.get(), clean, BrainEvent.Source.VOICE);
     }
 }
