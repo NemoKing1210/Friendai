@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
@@ -421,6 +422,133 @@ class OwnerStoreContractTest {
     void defaultReaderDecodeIsBounded() {
         assertThrows(IOException.class, () -> CODEC.load(new StringReader("1".repeat(65))));
         assertDoesNotThrow(() -> CODEC.load(new StringReader("12")));
+    }
+
+    @Test
+    void closeRetriesARejectedFinalWriteAndPersistsTheLatestRevision() throws Exception {
+        UUID owner = UUID.randomUUID();
+        AtomicInteger submissions = new AtomicInteger();
+        Executor rejectOnce = task -> {
+            if (submissions.getAndIncrement() == 0) throw new RejectedExecutionException("full");
+            task.run();
+        };
+        try (OwnerStoreWriter writer = new OwnerStoreWriter(rejectOnce)) {
+            OwnerFileStore<Counter> store = storeWith(temp, writer, new OwnerFileOperations(), Duration.ofSeconds(5));
+            store.book(owner).increment();
+            assertTimeout(Duration.ofSeconds(2), store::close);
+            assertEquals("1", Files.readString(temp.resolve(owner + ".json")));
+            assertFalse(store.status(owner).dirty());
+            assertNull(store.status(owner).failure());
+        }
+    }
+
+    @Test
+    void lateRevisionAfterARejectedFlushIsPersistedByClose() throws Exception {
+        UUID owner = UUID.randomUUID();
+        AtomicInteger submissions = new AtomicInteger();
+        Executor rejectOnce = task -> {
+            if (submissions.getAndIncrement() == 0) throw new RejectedExecutionException("full");
+            task.run();
+        };
+        try (OwnerStoreWriter writer = new OwnerStoreWriter(rejectOnce)) {
+            OwnerFileStore<Counter> store = storeWith(temp, writer, new OwnerFileOperations(), Duration.ofSeconds(5));
+            store.book(owner).increment();
+            store.flushAll();
+            assertEquals(StoreFailureKind.QUEUE_FULL, store.status(owner).failure());
+            store.book(owner).increment();
+            assertTimeout(Duration.ofSeconds(2), store::close);
+            assertEquals("2", Files.readString(temp.resolve(owner + ".json")));
+            assertFalse(store.status(owner).dirty());
+            assertNull(store.status(owner).failure());
+        }
+    }
+
+    @Test
+    void aRejectedStoreSettlesOnceSharedWriterCapacityIsReleased() throws Exception {
+        UUID blockedOwner = UUID.randomUUID(), queuedOwner = UUID.randomUUID(), rejectedOwner = UUID.randomUUID();
+        CountDownLatch started = new CountDownLatch(1), release = new CountDownLatch(1);
+        OwnerFileOperations blocking = new OwnerFileOperations() {
+            @Override
+            void write(Path temporary, byte[] bytes) throws IOException {
+                started.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) throw new IOException("test write timed out");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException();
+                }
+                super.write(temporary, bytes);
+            }
+        };
+        try (OwnerStoreWriter writer = new OwnerStoreWriter(1)) {
+            OwnerFileStore<Counter> first = storeWith(temp, writer, blocking, Duration.ofSeconds(5));
+            OwnerFileStore<Counter> second = storeWith(temp, writer, new OwnerFileOperations(), Duration.ofSeconds(5));
+            first.book(blockedOwner).increment();
+            first.flushAll();
+            assertTrue(started.await(5, TimeUnit.SECONDS));
+            first.book(queuedOwner).increment();
+            first.flushAll();
+            second.book(rejectedOwner).increment();
+            second.flushAll();
+            assertEquals(
+                    StoreFailureKind.QUEUE_FULL, second.status(rejectedOwner).failure());
+            ExecutorService caller = Executors.newSingleThreadExecutor();
+            try {
+                Future<?> closing = caller.submit(second::close);
+                release.countDown();
+                closing.get(5, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+                caller.shutdownNow();
+            }
+            assertEquals("1", Files.readString(temp.resolve(rejectedOwner + ".json")));
+            assertFalse(second.status(rejectedOwner).dirty());
+            first.close();
+            assertEquals("1", Files.readString(temp.resolve(blockedOwner + ".json")));
+            assertEquals("1", Files.readString(temp.resolve(queuedOwner + ".json")));
+        }
+    }
+
+    @Test
+    void permanentWriteFailureIsReportedWithoutRetryOrBusySpin() throws Exception {
+        UUID owner = UUID.randomUUID();
+        AtomicInteger attempts = new AtomicInteger();
+        OwnerFileOperations failing = new OwnerFileOperations() {
+            @Override
+            void write(Path temporary, byte[] bytes) throws IOException {
+                attempts.incrementAndGet();
+                throw new IOException("test write failure");
+            }
+        };
+        try (OwnerStoreWriter writer = new OwnerStoreWriter()) {
+            OwnerFileStore<Counter> store = storeWith(temp, writer, failing, Duration.ofSeconds(5));
+            store.book(owner).increment();
+            assertTimeout(Duration.ofSeconds(2), store::close);
+            assertEquals(StoreFailureKind.WRITE_FAILED, store.status(owner).failure());
+            assertTrue(store.status(owner).dirty());
+            assertEquals(1, attempts.get());
+        }
+    }
+
+    @Test
+    void closeReportsTimeoutWhenCapacityNeverReturns() {
+        UUID owner = UUID.randomUUID();
+        Executor alwaysRejects = task -> {
+            throw new RejectedExecutionException("full");
+        };
+        try (OwnerStoreWriter writer = new OwnerStoreWriter(alwaysRejects)) {
+            OwnerFileStore<Counter> store = storeWith(temp, writer, new OwnerFileOperations(), Duration.ofMillis(50));
+            store.book(owner).increment();
+            assertTimeout(Duration.ofSeconds(2), store::close);
+            assertEquals(StoreFailureKind.SHUTDOWN_TIMEOUT, store.status(owner).failure());
+            assertTrue(store.status(owner).dirty());
+        }
+    }
+
+    private static OwnerFileStore<Counter> storeWith(
+            Path dir, OwnerStoreWriter writer, OwnerFileOperations files, Duration closeTimeout) {
+        return new OwnerFileStore<>(
+                dir, CODEC, writer, OwnerFileStore.WriterOwnership.BORROWED, () -> 0, files, closeTimeout);
     }
 
     private static class Counter {

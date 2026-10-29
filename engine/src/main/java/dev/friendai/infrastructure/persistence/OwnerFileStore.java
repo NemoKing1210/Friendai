@@ -371,7 +371,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             if (revision == savedRevision.getOrDefault(owner, 0L)
                     || pending.contains(owner)
                     || readOnly.containsKey(owner)
-                    || failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision) continue;
+                    || (failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision
+                            && !retryable(failures.get(owner)))) continue;
             final byte[] snapshot;
             final Path target;
             final long snapshotRevision;
@@ -439,7 +440,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         synchronized (this) {
             while (true) {
                 queueDirty();
-                if (pending.isEmpty()) return;
+                if (!hasRetryableWork()) return;
                 long remaining = deadline - System.nanoTime();
                 if (remaining <= 0) {
                     markTimeout();
@@ -456,8 +457,35 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         }
     }
 
+    /** True while an owner still has a revision that may yet be written or retried. */
+    private synchronized boolean hasRetryableWork() {
+        for (Map.Entry<UUID, T> entry : values.entrySet()) {
+            UUID owner = entry.getKey();
+            long revision = codec.revision(entry.getValue());
+            if (revision == savedRevision.getOrDefault(owner, 0L) || readOnly.containsKey(owner)) continue;
+            if (pending.contains(owner)) return true;
+            StoreFailureKind failure = failures.get(owner);
+            if (failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision && !retryable(failure)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /** Only queue saturation is transient; every other failure stays reported until an explicit repair. */
+    private static boolean retryable(StoreFailureKind failure) {
+        return failure == StoreFailureKind.QUEUE_FULL;
+    }
+
     private void markTimeout() {
-        for (UUID owner : pending) failures.put(owner, StoreFailureKind.SHUTDOWN_TIMEOUT);
+        for (Map.Entry<UUID, T> entry : values.entrySet()) {
+            UUID owner = entry.getKey();
+            long revision = codec.revision(entry.getValue());
+            if (revision == savedRevision.getOrDefault(owner, 0L) || readOnly.containsKey(owner)) continue;
+            StoreFailureKind failure = failures.get(owner);
+            if (failure != null && !retryable(failure)) continue;
+            failures.put(owner, StoreFailureKind.SHUTDOWN_TIMEOUT);
+            failedRevision.put(owner, revision);
+        }
     }
 
     private Path file(UUID owner) {
